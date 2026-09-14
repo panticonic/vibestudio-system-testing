@@ -1142,7 +1142,7 @@ function repositorySeedFiles(
           "  // This disposable fixture is addressed directly by source/class/key.",
           "  // Direct resolveDurableObject methods are runtime-intrinsic; declared",
           "  // workspace services instead use workspace-service + resolveService.",
-          '  @rpc({ principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "write" })',
+          '  @rpc({ website: { kind: "closed", reason: "This disposable test probe is available only to trusted workspace callers." }, principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "write" })',
           "  async inspectProbe(): Promise<unknown> {",
           '    return this.env["SYSTEM_TEST_PROBE"] ?? null;',
           "  }",
