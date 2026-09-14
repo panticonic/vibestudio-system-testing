@@ -1194,7 +1194,7 @@ function repositorySeedFiles(
           '      runtime.rpc.expose("inspectProbe", () => ({',
           "        ready: true,",
           '        systemTestProbe: env["SYSTEM_TEST_PROBE"] ?? null,',
-          "      }));",
+          '      }), { kind: "closed", reason: "This disposable test probe is available only to trusted workspace callers." });',
           "      exposedFor = env.WORKER_ID;",
           "    }",
           '    return handleWorkerRpc(runtime, request) ?? new Response("ready");',

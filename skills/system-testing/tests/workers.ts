@@ -628,7 +628,7 @@ export const workerTests: TestCase[] = [
       ],
     },
     prompt:
-      "Have the disposable worker in this task consume one of the small workspace services already visible in its context through the normal installed-unit path, prove the result, and keep everything local.",
+      "Have the disposable worker in this task consume the testkit workspace service already visible in its context through the normal installed-unit path, prove the result, and keep everything local.",
     validate: requireInstalledWorkspaceServiceConsumerEvidence,
   },
 ];

@@ -1009,6 +1009,23 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
 
+  it("seeds regular worker RPC with an explicit website policy", async () => {
+    const fake = createPort();
+    const fixture = new WorkspaceRepoFixtureLifecycle(
+      fake.port,
+      "regular-worker-test",
+      "system-test-regular-worker",
+      BUILDABLE_REGULAR_WORKER
+    );
+
+    const state = await fixture.prepare();
+    const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
+    expect(seededText).toContain('runtime.rpc.expose("inspectProbe"');
+    expect(seededText).toContain('{ kind: "closed", reason:');
+
+    await fixture.cleanup(state);
+  });
+
   it("seeds a regular worker whose named export is valid in workerd", async () => {
     const fake = createPort();
     const fixture = new WorkspaceRepoFixtureLifecycle(
