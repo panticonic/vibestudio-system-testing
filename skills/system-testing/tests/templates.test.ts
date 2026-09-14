@@ -51,8 +51,14 @@ describe("template agentic validator", () => {
     // scenario fails as "the plan did not select it" — which reads like agent
     // behaviour and says nothing about the part being gone. That is how the
     // retired template registry left this test failing for days.
+    //
+    // The part lives in whichever template provides it -- this harness is its
+    // own template now, and `packages/template-management` arrives from Base --
+    // so look in the composed workspace rather than beside this file.
+    const workspaceRoot = process.env["VIBESTUDIO_USERLAND_ROOT"];
+    if (!workspaceRoot) throw new Error("This check needs the composed workspace root");
     const manifest = JSON.parse(
-      readFileSync(new URL(`../../../${AUTHORED_PART}/package.json`, import.meta.url), "utf8"),
+      readFileSync(`${workspaceRoot}/${AUTHORED_PART}/package.json`, "utf8"),
     ) as { name?: string };
     expect(manifest.name).toBeTruthy();
   });

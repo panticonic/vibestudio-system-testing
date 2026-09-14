@@ -635,6 +635,7 @@ describe("system-testing CLI-neutral API", () => {
         skipped: 0,
         durationMs: 25,
         failedTests: ["alpha", "alphabet"],
+        notInstalled: [],
         testsWithUnexpectedToolFailures: [],
       },
       suite: {
@@ -1041,6 +1042,7 @@ describe("system-testing CLI-neutral API", () => {
           skipped: 0,
           durationMs: 1,
           failedTests: [],
+          notInstalled: [],
           testsWithUnexpectedToolFailures: ["alpha"],
         },
         suite: {
