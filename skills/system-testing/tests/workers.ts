@@ -475,13 +475,19 @@ export const workerTests: TestCase[] = [
     name: "call-do-method",
     description: "Call a method on a Durable Object worker",
     category: "workers",
-    prompt: "Call a harmless method on a worker Durable Object and report the observed result.",
+    workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    prompt:
+      "Start the provided disposable Durable Object worker with a non-secret probe value, call its harmless probe method, report the observed result, and leave no instance behind.",
     validate: (result) => {
-      const base = lifecycleEvidence(result, [["rpc.call"]]);
+      const base = lifecycleEvidence(result, [
+        ["workers.createDurableObject", "rpc.call", "workers.destroy"],
+        ["runtime.createEntity", "rpc.call", "runtime.retireEntity"],
+      ]);
       if (!base.passed) return base;
-      return hasNonEmptyStructuredResult(base.evidence.evalValues)
-        ? { passed: true, reason: undefined }
-        : { passed: false, reason: "The completed object call returned no observable result" };
+      if (!hasNonEmptyStructuredResult(base.evidence.evalValues)) {
+        return { passed: false, reason: "The completed object call returned no observable result" };
+      }
+      return requireCleanup(base.evidence);
     },
   },
   {

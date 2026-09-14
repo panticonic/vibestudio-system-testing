@@ -206,8 +206,13 @@ describe("worker test validators", () => {
       test("call-do-method").validate(
         execution(
           "The object reported its current version.",
-          'return rpc.call(handle.targetId, "version", []);',
-          { version: 3 }
+          [
+            "const handle = await workers.createDurableObject(source, className, key, { PROBE: 'ready' });",
+            'const observed = await rpc.call(handle.targetId, "inspectProbe", []);',
+            "await workers.destroy(handle);",
+            "return { observed, createdId: handle.id, destroyedId: handle.id };",
+          ].join("\n"),
+          { observed: "ready", createdId: "worker-1", destroyedId: "worker-1" }
         )
       ).passed
     ).toBe(true);
