@@ -1,4 +1,4 @@
-import type { TestCase } from "./types.js";
+import { requiringUnits, type TestCase } from "./types.js";
 import { assertSystemTestDeclaration } from "./prompt-contract.js";
 import { deterministicTestCases } from "./deterministic.js";
 import { smokeTests } from "./tests/smoke.js";
@@ -74,7 +74,6 @@ export {
   harnessToolTests,
   imageGenerationTests,
   imagePanelTests,
-  // Opt in when the examples adventure units are included in the tested workspace.
   adventureCampaignTests,
   adventureTurnProfileTests,
   adventureUiReviewTests,
@@ -167,6 +166,10 @@ export function allTests(): TestCase[] {
     ...harnessToolTests,
     ...imageGenerationTests,
     ...imagePanelTests,
+    ...requiringUnits(
+      ["panels/dead-letter-office", "panels/missing-country", "panels/wandering-house", "workers/adventure-world", "workers/adventure-agents"],
+      [...adventureCampaignTests, ...adventureTurnProfileTests, ...adventureUiReviewTests, ...adventureProgrammedInteractionTests]
+    ),
     ...mobileTests,
     ...deliveryHardeningTests,
     ...intentDiscoveryTests,

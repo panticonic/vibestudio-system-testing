@@ -90,11 +90,8 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
     });
   };
   const assertReadingRoom = (frame: Frame, label: string) => {
-    if (
-      frame.proseScrollHeight > frame.proseHeight + 1 &&
-      frame.proseHeight < frame.proseLineHeight * 6
-    )
-      throw new Error(label + " compresses the story into fewer than six readable lines");
+    if (frame.proseScrollHeight > frame.proseHeight + 1)
+      throw new Error(label + " constrains the story inside a nested scroll area");
   };
   const checkNaturalScroll = async (handle: (typeof handles)[number], label: string) => {
     const page = await handle.cdp.page();
