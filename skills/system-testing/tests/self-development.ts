@@ -1,3 +1,4 @@
+import { requiringUnits } from "../types.js";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
 import { systemTestFailure, type SystemTestFailure } from "../structured-error.js";
 import { walkRecords } from "./_scenario-evidence.js";
@@ -888,7 +889,7 @@ const HARNESS_PROMPT =
   "Harness-orchestrated through ordinary typed Development, VCS, and attached-host APIs; validation uses captured RPC receipts.";
 const SHARED_RESOURCE = ["self-development:host-runtime"];
 
-export const selfDevelopmentTests: TestCase[] = [
+export const selfDevelopmentTests: TestCase[] = requiringUnits(["workers/development"], [
   {
     name: "self-development-current-client",
     category: "self-development",
@@ -988,4 +989,4 @@ export const selfDevelopmentTests: TestCase[] = [
     orchestrate: ownedCleanup,
     validate: validateOwnedCleanup
   }
-];
+]);

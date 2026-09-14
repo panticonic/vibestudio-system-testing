@@ -1,3 +1,4 @@
+import { requiringUnits } from "../types.js";
 import { blobstore, images, vcs } from "@workspace/runtime";
 import { importImagePanelFixture } from "../image-panel-fixture.js";
 import {
@@ -199,7 +200,7 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
   }
   return execution;
 }
-export const imagePanelTests: TestCase[] = [
+export const imagePanelTests: TestCase[] = requiringUnits(["workers/images"], [
   {
     name: "image-panel-live-generation",
     description:
@@ -224,4 +225,4 @@ export const imagePanelTests: TestCase[] = [
     orchestrate,
     validate: validateImagePanel,
   },
-];
+]);

@@ -1,3 +1,4 @@
+import { requiringUnits } from "../types.js";
 import {
   CONTENT_WORKSPACE_REPO_FIXTURE,
   type TestCase,
@@ -94,7 +95,7 @@ function validateSavedImage(execution: TestExecutionResult) {
   };
 }
 
-export const imageGenerationTests: TestCase[] = [
+export const imageGenerationTests: TestCase[] = requiringUnits(["workers/images"], [
   {
     name: "native-imagegen-save-read",
     description:
@@ -107,4 +108,4 @@ export const imageGenerationTests: TestCase[] = [
       "Create a richly detailed painted adventure-game landscape: a moonlit ferry landing, a weathered customs house, wet cobblestones, and warm brass lanterns, in a unified gouache storybook style. Make a landscape PNG at 1536 by 1024 pixels. Save the original illustration in the provided project, reopen the saved image to inspect it, and tell me where you saved it.",
     validate: validateSavedImage,
   },
-];
+]);

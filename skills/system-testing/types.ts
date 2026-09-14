@@ -318,3 +318,18 @@ export interface TestSuiteResult {
   duration: number;
   results: TestSuiteResultEntry[];
 }
+
+/**
+ * Declare a workspace unit every case in a group needs.
+ *
+ * Whole families of cases exist for one System service -- self-development for
+ * `workers/development`, image work for `workers/images` -- and a workspace
+ * built from other templates simply does not have it. Saying so once at the
+ * group keeps the requirement next to the reason for it.
+ */
+export function requiringUnits(units: readonly string[], cases: TestCase[]): TestCase[] {
+  return cases.map((test) => ({
+    ...test,
+    requiresUnits: [...new Set([...(test.requiresUnits ?? []), ...units])],
+  }));
+}

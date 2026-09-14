@@ -1,3 +1,4 @@
+import { requiringUnits } from "../types.js";
 import type { TestCase } from "../types.js";
 import {
   completedScenarioEvidence,
@@ -6,7 +7,7 @@ import {
   walkRecords,
 } from "../scenario-validation.js";
 
-export const mobileTests: TestCase[] = [
+export const mobileTests: TestCase[] = requiringUnits(["workers/phone-provisioning"], [
   {
     name: "onboarding-desktop-mobile-install-android",
     description:
@@ -224,4 +225,4 @@ export const mobileTests: TestCase[] = [
           };
     },
   },
-];
+]);

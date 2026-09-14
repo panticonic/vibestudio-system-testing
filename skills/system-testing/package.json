@@ -28,7 +28,7 @@
       "serviceRequests": [
         {
           "protocol": "vibestudio.development.v1",
-          "availability": "required"
+          "availability": "optional"
         },
         {
           "protocol": "vibestudio.models.v1",
@@ -40,7 +40,7 @@
         },
         {
           "protocol": "vibestudio.images.v1",
-          "availability": "required"
+          "availability": "optional"
         }
       ],
       "provides": []
