@@ -1,0 +1,13 @@
+systemEpoch: 0
+template:
+  name: System testing
+  description: The agentic acceptance harness, for workspaces that run it.
+  dependencies:
+    - url: git+https://github.com/panticonic/vibestudio-base.git
+  repositories:
+    - packages/agentic-session
+    - skills/mobile-system-testing
+    - skills/system-testing
+    - workers/system-test-runner
+    - workers/test-agent
+  files: []
