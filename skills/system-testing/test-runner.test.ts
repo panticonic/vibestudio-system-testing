@@ -1624,6 +1624,17 @@ describe("validateAgentCompletionReport", () => {
     });
   });
 
+  it("recognizes a naturally emphasized incomplete status", () => {
+    expect(
+      validateAgentCompletionReport(
+        execution("Task was **not completed**.\n\nThe worker build still has one diagnostic."),
+      ),
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("did not complete"),
+    });
+  });
+
   it("accepts a natural completion report without requiring marker syntax", () => {
     expect(
       validateAgentCompletionReport(

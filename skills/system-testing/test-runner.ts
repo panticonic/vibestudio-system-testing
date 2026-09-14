@@ -1397,10 +1397,9 @@ export function validateAgentCompletionReport(
 
 function buildAgentTrajectoryReview(result: TestExecutionResult) {
   const final = finalAgentCompletionMessage(result);
-  const completed = /(?:^|\n)\s*Task completed\.(?=\s|$)/u.test(final ?? "");
-  const incomplete = /(?:^|\n)\s*Task not completed\.(?=\s|$)/u.test(
-    final ?? "",
-  );
+  const plainFinal = (final ?? "").replace(/[*_]/gu, "");
+  const completed = /(?:^|\n)\s*Task (?:was )?completed\.(?=\s|$)/iu.test(plainFinal);
+  const incomplete = /(?:^|\n)\s*Task (?:was )?not completed\.(?=\s|$)/iu.test(plainFinal);
   const failures = unexpectedToolFailures(result.toolFailures);
   const failureCounts = new Map<string, number>();
   for (const failure of failures) {
