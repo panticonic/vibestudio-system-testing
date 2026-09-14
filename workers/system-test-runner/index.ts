@@ -143,6 +143,7 @@ function systemTestEvalCode(options: SystemTestRunConfig): string {
   return `
     import {
       inspectSystemTestRun,
+      installedWorkspaceUnits,
       runSystemTests,
       systemTestTrajectory,
     } from "@workspace-skills/system-testing/cli";
@@ -151,7 +152,7 @@ function systemTestEvalCode(options: SystemTestRunConfig): string {
     // of the catalog: templates are independent repositories and Personal and
     // System install different ones. Read it here, once, from inside the
     // workspace that will run the cases.
-    const installedUnits = (await build.listUnits()).map((unit) => unit.source);
+    const installedUnits = await installedWorkspaceUnits();
     const progressKey = options.runId;
     const recordScopeKey = "$systemTestRecord:" + progressKey;
     // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
@@ -406,9 +407,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     return this.runHarnessUtility(
       "list",
       `
-        import { listSystemTests } from "@workspace-skills/system-testing/cli";
+        import {
+          installedWorkspaceUnits,
+          listSystemTests,
+        } from "@workspace-skills/system-testing/cli";
         const category = ${JSON.stringify(category)};
-        const installedUnits = (await build.listUnits()).map((unit) => unit.source);
+        const installedUnits = await installedWorkspaceUnits();
         const utilityValue = listSystemTests({ installedUnits }).filter(
           (test) => !category || test.category === category
         );

@@ -105,6 +105,7 @@ vi.mock("./stages.js", () => ({
 import {
   failedSystemTestNames,
   inspectSystemTestRun,
+  installedWorkspaceUnits,
   listSystemTests,
   runSystemTests,
   systemTestDoctor,
@@ -478,6 +479,19 @@ describe("system-testing CLI-neutral API", () => {
         orchestrated: false,
         requiresUnits: ["about/browser-import-inspector"],
       },
+    ]);
+  });
+
+  it("asks the workspace which units it installs, by repo path", async () => {
+    mocks.rpcCall.mockReset().mockResolvedValue([
+      { name: "workers/agent-worker", source: "workers/agent-worker" },
+      { name: "browser import", source: "about/browser-import-inspector" },
+      { name: "nameless", source: "" },
+      { name: "sourceless" },
+    ]);
+    await expect(installedWorkspaceUnits()).resolves.toEqual([
+      "workers/agent-worker",
+      "about/browser-import-inspector",
     ]);
   });
 

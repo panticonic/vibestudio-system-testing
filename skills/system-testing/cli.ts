@@ -165,6 +165,20 @@ export function listSystemTests(
   }));
 }
 
+/**
+ * The repo paths this workspace installs.
+ *
+ * Templates are independent repositories, so this is the workspace answering
+ * for itself rather than the catalog assuming. `source` is the repo path a
+ * case names in `requiresUnits`.
+ */
+export async function installedWorkspaceUnits(): Promise<string[]> {
+  const units = (await rpc.call("main", "build.listUnits", [])) as Array<{ source?: unknown }>;
+  return units
+    .map((unit) => unit.source)
+    .filter((source): source is string => typeof source === "string" && source.length > 0);
+}
+
 /** Units a case needs that this workspace does not carry. */
 export function missingUnitsFor(
   test: Pick<TestCase, "requiresUnits">,
