@@ -10,4 +10,3 @@ template:
     - skills/system-testing
     - workers/system-test-runner
     - workers/test-agent
-  files: []
