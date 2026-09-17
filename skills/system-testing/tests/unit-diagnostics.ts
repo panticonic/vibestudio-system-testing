@@ -273,7 +273,9 @@ const SCHEDULED_NOTIFICATION_TEXT = "One minute has passed.";
 
 async function scheduledNotificationProof(
   context: TestOrchestrationContext,
+  actionKind: "prompt" | "watch" = "prompt",
 ): Promise<TestExecutionResult> {
+  const proofName = actionKind === "watch" ? `${SCHEDULED_NOTIFICATION_NAME} watch` : SCHEDULED_NOTIFICATION_NAME;
   const startedAt = Date.now();
   const session = await context.runner.spawn();
   let error: string | undefined;
@@ -282,7 +284,9 @@ async function scheduledNotificationProof(
     const { gad, rpc, workers } = await import("@workspace/runtime");
     await context.sendAndWait(
       session,
-      `I'm giving a talk. Start an automation called “${SCHEDULED_NOTIFICATION_NAME}” that notifies me every minute saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”, and stop it after two notifications. Tell me where I can inspect or stop it.`,
+      actionKind === "watch"
+        ? `Start an automation called “${proofName}” that checks for updates every minute using a lightweight script, and only wakes an agent when the check finds an update. For this offline demonstration, the check should always report an available update. When woken, notify me saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”. Stop after two runs. Keep everything in this conversation and tell me where I can inspect or stop it.`
+        : `I'm giving a talk. Start an automation called “${proofName}” that notifies me every minute saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”, and stop it after two notifications. Tell me where I can inspect or stop it.`,
       "scheduled notification launch",
     );
     const service = await workers.resolveService("vibestudio.missions.v1");
@@ -297,7 +301,7 @@ async function scheduledNotificationProof(
       const overview = await rpc.call<Record<string, unknown>>(
         service.targetId,
         "overview",
-        [{ query: SCHEDULED_NOTIFICATION_NAME, limit: 5 }],
+        [{ query: proofName, limit: 5 }],
       );
       const item = Array.isArray(overview["items"])
         ? overview["items"][0]
@@ -313,7 +317,7 @@ async function scheduledNotificationProof(
         (candidate) => isRecord(candidate) && candidate["phase"] === "terminal",
       );
       if (
-        automation?.["name"] === SCHEDULED_NOTIFICATION_NAME &&
+        automation?.["name"] === proofName &&
         automation["runCount"] === 2 &&
         runs.length >= 2
       ) {
@@ -387,7 +391,8 @@ async function scheduledNotificationProof(
   return execution;
 }
 
-function scheduledNotificationChecked(result: TestExecutionResult) {
+function scheduledNotificationChecked(result: TestExecutionResult, actionKind: "prompt" | "watch" = "prompt") {
+  const proofName = actionKind === "watch" ? `${SCHEDULED_NOTIFICATION_NAME} watch` : SCHEDULED_NOTIFICATION_NAME;
   if (result.error) return { passed: false, reason: result.error };
   const base = noIncompleteInvocations(result);
   if (!base.passed) return base;
@@ -396,7 +401,7 @@ function scheduledNotificationChecked(result: TestExecutionResult) {
       call.name === "launch_automation" &&
       call.execution?.status === "complete" &&
       call.execution?.isError !== true &&
-      call.arguments?.["name"] === SCHEDULED_NOTIFICATION_NAME,
+      call.arguments?.["name"] === proofName,
   );
   if (launches.length !== 1) {
     return {
@@ -406,11 +411,11 @@ function scheduledNotificationChecked(result: TestExecutionResult) {
   }
   if (
     (launches[0]?.arguments?.["action"] as { kind?: unknown } | undefined)
-      ?.kind !== "prompt"
+      ?.kind !== actionKind
   ) {
     return {
       passed: false,
-      reason: "The prompt-execution proof launched a different executor",
+      reason: "The notification proof launched a different executor",
     };
   }
   const trigger = launches[0]?.arguments?.["trigger"];
@@ -744,6 +749,22 @@ export const unitDiagnosticsTests: TestCase[] = [
     validation: "agent-evidence",
     orchestrate: scheduledNotificationProof,
     validate: scheduledNotificationChecked,
+  },
+  {
+    name: "automation-watch-notification",
+    description: "A deterministic update check wakes an agent and delivers owner notifications without a panel",
+    category: "unit-diagnostics",
+    timeoutMs: 240_000,
+    prompt: "Harness-orchestrated conditional automation outcome proof.",
+    authorityPolicy: { authority: [{
+      ruleId: "inspect-watch-automation",
+      capability: {kind: "exact", key: "workspace-service:missions"},
+      resource: {kind: "prefix", prefix: "do:workers/missions:MissionsDO:"},
+      tier: "gated", decision: "once",
+    }] },
+    validation: "agent-evidence",
+    orchestrate: context => scheduledNotificationProof(context, "watch"),
+    validate: result => scheduledNotificationChecked(result, "watch"),
   },
   {
     name: "automation-native-control",
