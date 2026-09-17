@@ -74,6 +74,7 @@
     "@workspace-skills/vibestudio-vcs": "workspace:*",
     "@vibestudio/workspace": "workspace:*",
     "yaml": "^2.8.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@vibestudio/automation": "workspace:*"
   }
 }

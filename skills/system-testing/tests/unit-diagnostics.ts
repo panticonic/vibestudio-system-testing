@@ -751,6 +751,44 @@ export const unitDiagnosticsTests: TestCase[] = [
     validate: scheduledNotificationChecked,
   },
   {
+    name: "automation-default-provisioning",
+    description: "Workspace startup provisions the member's update assistant without a chat or model turn",
+    category: "unit-diagnostics",
+    timeoutMs: 90000,
+    prompt: "Harness-only default automation lifecycle proof.",
+    authorityPolicy: { authority: [{
+      ruleId: "inspect-default-automation",
+      capability: { kind: "exact", key: "workspace-service:missions" },
+      resource: { kind: "prefix", prefix: "do:workers/missions:MissionsDO:" },
+      tier: "gated", decision: "once",
+    }] },
+    validation: "harness",
+    orchestrate: async (context) => {
+      const startedAt = Date.now();
+      const { extensions } = await import("@workspace/runtime");
+      let automation: unknown = null;
+      const deadline = Date.now() + Math.min(context.remainingTimeMs() ?? 60000, 60000);
+      while (Date.now() < deadline) {
+        automation = await extensions.invoke("@workspace-extensions/templates", "updateAssistant", []);
+        if (automation) break;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      return { messages: [], duration: Date.now() - startedAt, diagnostics: { automation } };
+    },
+    validate: (result) => {
+      const automation = result.diagnostics?.["automation"] as import("@vibestudio/automation/mission").MissionRecord | undefined;
+      const execution = automation?.charter.execution;
+      return {
+        passed: automation?.state === "active" && automation.runCount === 0 &&
+          Boolean(automation.owner.userId) && automation.owner.userId !== "system" &&
+          automation.charter.trigger.kind === "schedule" && automation.charter.trigger.everyMs === 21600000 &&
+          Boolean(automation.nextRunAt) && execution?.kind === "agent" && execution.action.kind === "watch" &&
+          execution.conversation.mode === "continue" && execution.conversation.channelId.startsWith("workspace-automation:workspace-updates:"),
+        reason: "The default must be active, user-owned, scheduled, and not require a model turn or panel to provision.",
+      };
+    },
+  },
+  {
     name: "automation-watch-notification",
     description: "A deterministic update check wakes an agent and delivers owner notifications without a panel",
     category: "unit-diagnostics",
