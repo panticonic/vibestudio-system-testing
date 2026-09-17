@@ -9,9 +9,9 @@ const mocks = vi.hoisted(() => ({
   testerOptions: null as Record<string, unknown> | null,
   snapshotAll: vi.fn(() => []),
   modelPolicySnapshot: vi.fn(() => ({
-    primaryModel: "openai-codex:gpt-5.3-codex-spark",
-    activeModel: "openai-codex:gpt-5.3-codex-spark",
-    fallbackModel: "openai-codex:gpt-5.6-luna",
+    primaryModel: "openai-codex:gpt-5.6-luna",
+    activeModel: "openai-codex:gpt-5.6-luna",
+    fallbackModel: "openai-codex:gpt-5.6-sol",
     fallbackThinkingLevel: "low" as const,
     fallbackOn: ["usage_limit_terminal"],
     fallbackScope: "all-turns" as const,
@@ -214,7 +214,9 @@ describe("system-testing CLI-neutral API", () => {
     });
   });
 
-  it("doctors Spark and its low-effort Luna usage-limit fallback for the default route", async () => {
+  it("doctors Luna and its low-effort Sol usage-limit fallback for the default route", async () => {
+    expect(SYSTEM_TEST_AGENT_MODEL).toBe("openai-codex:gpt-5.6-luna");
+    expect(SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL).toBe("openai-codex:gpt-5.6-sol");
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
       { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
@@ -1092,18 +1094,18 @@ describe("unusable agent model guidance", () => {
   it("names the exact connect command for a missing or expired credential", () => {
     expect(
       unusableModelDetail({
-        model: "openai-codex:gpt-5.3-codex-spark",
+        model: "openai-codex:gpt-5.6-luna",
         availability: "needs-setup",
         detail: "no-credential",
       })
     ).toBe(
-      'model openai-codex:gpt-5.3-codex-spark has no connected credential for provider ' +
+      'model openai-codex:gpt-5.6-luna has no connected credential for provider ' +
         '"openai-codex": connect it from the host CLI with `vibestudio model connect openai-codex` ' +
         "(add `--manual` to print the authorization URL when this host has no browser)"
     );
     expect(
       unusableModelDetail({
-        model: "openai-codex:gpt-5.3-codex-spark",
+        model: "openai-codex:gpt-5.6-luna",
         availability: "needs-setup",
         detail: "credential-expired",
       })

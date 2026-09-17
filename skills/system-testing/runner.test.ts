@@ -239,7 +239,7 @@ describe("HeadlessRunner", () => {
     );
   });
 
-  it("falls back from Spark to low-effort Luna only for terminal usage limits", async () => {
+  it("falls back from Luna to low-effort Sol only for terminal usage limits", async () => {
     const runner = new HeadlessRunner("ctx-test");
 
     await runner.forTest("first").spawn();
@@ -707,7 +707,7 @@ describe("HeadlessRunner", () => {
           testPolicy: {
             testId: "docs-workspace-loop",
             agent: {
-              model: "openai-codex:gpt-5.3-codex-spark",
+              model: "openai-codex:gpt-5.6-luna",
               approvalLevel: 2,
               fallback: {
                 model: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,

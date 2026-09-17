@@ -92,7 +92,7 @@ describe("local model task evidence", () => {
   });
 
   it("rejects a child launched on a hosted model", () => {
-    expect(taskTest.validate(execution("openai-codex:gpt-5.3-codex-spark"))).toMatchObject({
+    expect(taskTest.validate(execution("openai-codex:gpt-5.6-luna"))).toMatchObject({
       passed: false,
     });
   });

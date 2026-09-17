@@ -4,8 +4,8 @@
  * single metered fallback keeps quota exhaustion from turning into a harness
  * failure while preserving one explicit, inspectable route.
  */
-export const SYSTEM_TEST_AGENT_MODEL = "openai-codex:gpt-5.3-codex-spark";
-export const SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL = "openai-codex:gpt-5.6-luna";
+export const SYSTEM_TEST_AGENT_MODEL = "openai-codex:gpt-5.6-luna";
+export const SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL = "openai-codex:gpt-5.6-sol";
 export const SYSTEM_TEST_USAGE_LIMIT_FALLBACK_THINKING_LEVEL = "low" as const;
 export const SYSTEM_TEST_USAGE_LIMIT_FAILURE = "usage_limit_terminal" as const;
 

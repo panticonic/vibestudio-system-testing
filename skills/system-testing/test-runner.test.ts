@@ -13,7 +13,7 @@ import type {
 import type { HeadlessRunner } from "./runner.js";
 import { CONTENT_WORKSPACE_REPO_FIXTURE, type TestCase } from "./types.js";
 
-const TEST_MODEL = "openai-codex:gpt-5.3-codex-spark";
+const TEST_MODEL = "openai-codex:gpt-5.6-luna";
 const modelEvidence = () => ({
   totalCalls: 1,
   truncated: false,
@@ -21,7 +21,7 @@ const modelEvidence = () => ({
     {
       ref: TEST_MODEL,
       provider: "openai-codex",
-      model: "gpt-5.3-codex-spark",
+      model: "gpt-5.6-luna",
       api: "openai-codex-responses",
       auth: "url-bound",
       usage: { input: 10, output: 5, totalTokens: 15 },
@@ -1401,8 +1401,8 @@ describe("TestRunner", () => {
     });
   });
 
-  it("accepts a journaled Spark failure followed by a metered Luna fallback", async () => {
-    const fallbackModel = "openai-codex:gpt-5.6-luna";
+  it("accepts a journaled Luna failure followed by a metered Sol fallback", async () => {
+    const fallbackModel = "openai-codex:gpt-5.6-sol";
     const messages = [
       {
         id: "answer-fallback",
@@ -1420,7 +1420,7 @@ describe("TestRunner", () => {
           messageId: "m:t:chat-fallback:first:agent:0",
           ref: TEST_MODEL,
           provider: "openai-codex",
-          model: "gpt-5.3-codex-spark",
+          model: "gpt-5.6-luna",
           api: "openai-codex-responses",
           auth: "url-bound",
           outcome: "completed",
@@ -1430,7 +1430,7 @@ describe("TestRunner", () => {
           messageId: "m:t:chat-fallback:first:agent:1",
           ref: TEST_MODEL,
           provider: "openai-codex",
-          model: "gpt-5.3-codex-spark",
+          model: "gpt-5.6-luna",
           api: "openai-codex-responses",
           auth: "url-bound",
           outcome: "failed",
@@ -1441,7 +1441,7 @@ describe("TestRunner", () => {
           startedAt: "2026-09-12T00:00:02.000Z",
           ref: fallbackModel,
           provider: "openai-codex",
-          model: "gpt-5.6-luna",
+          model: "gpt-5.6-sol",
           api: "openai-codex-responses",
           auth: "url-bound",
           outcome: "completed",
@@ -1451,7 +1451,7 @@ describe("TestRunner", () => {
           messageId: "m:t:chat-fallback:followup:agent:0",
           ref: TEST_MODEL,
           provider: "openai-codex",
-          model: "gpt-5.3-codex-spark",
+          model: "gpt-5.6-luna",
           api: "openai-codex-responses",
           auth: "url-bound",
           outcome: "failed",
@@ -1461,7 +1461,7 @@ describe("TestRunner", () => {
           startedAt: "2026-09-12T00:00:04.000Z",
           ref: fallbackModel,
           provider: "openai-codex",
-          model: "gpt-5.6-luna",
+          model: "gpt-5.6-sol",
           api: "openai-codex-responses",
           auth: "url-bound",
           outcome: "completed",
