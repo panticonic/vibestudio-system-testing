@@ -163,8 +163,9 @@ describe("mobile onboarding validator", () => {
       'const providers = await rpc.call(service.targetId, "providers", []);',
       'const devices = await rpc.call(service.targetId, "devices", []);',
       'const provisioned = await rpc.call(service.targetId, "provision", []);',
+      'const workspace = await rpc.call(service.targetId, "readiness", [{ deviceId: provisioned.pairedDevice.deviceId }]);',
       'const ready = await extensions.invoke("mobile-debug", "verifyWorkspaceReady", []);',
-      "return { provisioned, ready };",
+      "return { provisioned, workspace, ready };",
     ].join("\n");
 
     expect(
@@ -183,6 +184,10 @@ describe("mobile onboarding validator", () => {
                 workspaceConnected: true,
                 panelHostReady: true,
                 issues: [],
+              },
+              workspace: {
+                status: "ready",
+                message: "Mobile workspace connected",
               },
               result: {
                 provisioned: {
