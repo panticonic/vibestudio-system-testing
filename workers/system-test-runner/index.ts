@@ -16,6 +16,7 @@ import {
   createEvalExecutor,
   createEvalRunHandle,
   createEvalRunObserver,
+  evalMethods,
 } from "@vibestudio/service-schemas/eval";
 import {
   failedSystemTestNames,
@@ -343,10 +344,9 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       kind,
       crypto.randomUUID(),
     );
+    const evalService = await this.evalService();
     try {
-      const execute = createEvalExecutor(<T>(method: string, args: unknown[]) =>
-        this.rpc.call<T>("main", method, args),
-      );
+      const execute = createEvalExecutor(evalService);
       const result = await execute({
         runId,
         scope: { key: subKey, lifecycle: "finite" },
@@ -369,15 +369,9 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         throw new Error(result.error ?? `system-test ${kind} eval failed`);
       }
       const stored = parseStoredSystemTestRecord(result.returnValue);
-      try {
-        return await this.readStoredSystemTestRecord(subKey, stored);
-      } finally {
-        await this.rpc.call("main", "eval.deleteScopeValue", [
-          { scopeKey: subKey, key: stored.scopeKey },
-        ]);
-      }
+      return await this.readStoredSystemTestRecord(subKey, stored);
     } finally {
-      await this.rpc.call("main", "eval.dispose", [{ scopeKey: subKey }]);
+      await evalService.dispose({ scopeKey: subKey });
     }
   }
 
@@ -392,7 +386,14 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       "doctor",
       `
         import { systemTestDoctor } from "@workspace-skills/system-testing/cli";
-        const utilityValue = await systemTestDoctor(${JSON.stringify(model)});
+        const utilityValue = await systemTestDoctor(
+          ${JSON.stringify(model)},
+          async (path) => {
+            const content = await fs.readFile(path, "utf8");
+            if (typeof content !== "string") throw new Error("Expected workspace config text");
+            return content;
+          },
+        );
       `,
     );
   }
@@ -433,8 +434,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       throw new Error("System tests require an authenticated human initiator");
     }
     const handle = createEvalRunHandle(
-      <T>(method: string, args: unknown[]) =>
-        this.rpc.call<T>("main", method, args),
+      await this.evalService(),
       {
         runId: systemTestEvalRunId(options.runId),
         scope: { key: options.runId, lifecycle: "finite" },
@@ -453,21 +453,16 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     runId: string,
     stored: StoredSystemTestRecord,
   ): Promise<unknown> {
+    const evalService = await this.evalService();
     const pageSize = 128 * 1024;
     let text = "";
     for (let offset = 0; offset < stored.length; offset += pageSize) {
-      const page = await this.rpc.call<{
-        length: number;
-        encoding: "utf16le-base64";
-        chunk: string;
-      }>("main", "eval.readScopeTextPage", [
-        {
+      const page = await evalService.readScopeTextPage({
           scopeKey: runId,
           key: stored.scopeKey,
           offset,
           limit: Math.min(pageSize, stored.length - offset),
-        },
-      ]);
+      });
       if (page.length !== stored.length || page.encoding !== "utf16le-base64") {
         throw new Error(
           `system-test record ${runId} changed while it was being read`,
@@ -554,13 +549,13 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async releaseSystemTestRunExecution(
     runId: string,
   ): Promise<{ released: boolean }> {
-    const released = await this.rpc.call<{ ok: boolean; existed: boolean }>(
-      "main",
-      "eval.deleteScopeValue",
-      [{ scopeKey: runId, key: systemTestRecordScopeKey(runId) }],
-    );
-    await this.rpc.call("main", "eval.dispose", [{ scopeKey: runId }]);
-    return { released: released.existed };
+    const evalService = await this.evalService();
+    // The complete record has already been copied to this DO's durable SQLite.
+    // Disposing the finite EvalDO clears its scope and execution roots together;
+    // a separate scope mutation would needlessly load the workspace eval
+    // engine during teardown, sometimes after its run identity has retired.
+    await evalService.dispose({ scopeKey: runId });
+    return { released: true };
   }
 
   @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
@@ -572,7 +567,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async cancelSystemTestRun(runId: string): Promise<SystemTestRunCompletion> {
     let cancellation: EvalCancelResult;
     try {
-      cancellation = await this.evalRunObserver(runId).cancel();
+      cancellation = await (await this.evalRunObserver(runId)).cancel();
     } catch (error) {
       throw new Error(
         `System-test run ${runId} could not settle its inner eval cancellation: ${
@@ -594,18 +589,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     const scopeKey = systemTestRecordScopeKey(runId);
     let recovered: { length: number };
     try {
-      recovered = await this.rpc.call<{ length: number }>(
-        "main",
-        "eval.readScopeTextPage",
-        [
-          {
+      recovered = await (await this.evalService()).readScopeTextPage({
             scopeKey: runId,
             key: scopeKey,
             offset: 0,
             limit: 1,
-          },
-        ],
-      );
+      });
     } catch (error) {
       throw new Error(
         `System-test run ${runId} settled, but its terminal cleanup record could not be read: ${
@@ -691,13 +680,16 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   }
 
   private readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
-    return readEvalStatusWithRetry(() => this.evalRunObserver(runId).get());
+    return readEvalStatusWithRetry(async () => (await this.evalRunObserver(runId)).get());
   }
 
-  private evalRunObserver(runId: string) {
+  private async evalService() {
+    return (await this.selectHostService("eval", evalMethods)).binding;
+  }
+
+  private async evalRunObserver(runId: string) {
     return createEvalRunObserver(
-      <T>(method: string, args: unknown[]) =>
-        this.rpc.call<T>("main", method, args),
+      await this.evalService(),
       { runId: systemTestEvalRunId(runId), scopeKey: runId },
     );
   }

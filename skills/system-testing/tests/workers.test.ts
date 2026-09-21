@@ -620,7 +620,7 @@ describe("worker test validators", () => {
     } as unknown as TestExecutionResult["messages"][number];
     const dynamic = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'const service = await workers.resolveService("test.probe.v1"); return service.methods.report();',
       { answer: "context-local" }
     );
     dynamic.messages.splice(1, 0, docs, authored);
@@ -642,7 +642,7 @@ describe("worker test validators", () => {
     } as unknown as TestExecutionResult["messages"][number];
     const typed = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'const service = await workers.resolveService("test.probe.v1"); return service.methods.report();',
       { answer: "context-local" }
     );
     typed.messages.splice(1, 0, docs, typedAuthored);
@@ -650,7 +650,7 @@ describe("worker test validators", () => {
 
     const noDocs = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'const service = await workers.resolveService("test.probe.v1"); return service.methods.report();',
       { answer: "context-local" }
     );
     noDocs.messages.splice(1, 0, authored);
@@ -658,7 +658,7 @@ describe("worker test validators", () => {
 
     const catalog = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'const service = await workers.resolveService("test.probe.v1"); return service.methods.report();',
       { answer: "context-local" }
     );
     catalog.messages.splice(1, 0, docs, authored, {

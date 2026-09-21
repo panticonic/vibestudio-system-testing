@@ -42,14 +42,19 @@ parseUnitAuthorityManifest(
 
 const panelFiles = {
   "package.json": `${JSON.stringify(panelManifest, null, 2)}\n`,
-  "index.tsx": `import { createDurableObjectServiceClient } from "@workspace/runtime";
-import { useEffect, useMemo, useState } from "react";
+  "index.tsx": `import { workers } from "@workspace/runtime";
+import { useEffect, useState } from "react";
+
+async function invokeStore(method: string, args: unknown[]) {
+  const service = await workers.resolveService("${protocol}");
+  if (service.kind !== "durable-object") throw new Error("Atomic notes store is not a Durable Object");
+  return service.invoke(method, args);
+}
 
 export default function AtomicNotes() {
-  const store = useMemo(() => createDurableObjectServiceClient("${protocol}"), []);
   const [stored, setStored] = useState("");
-  useEffect(() => { void store.call<{ value: string }>("load").then(({ value }) => setStored(value)); }, [store]);
-  return <main><form onSubmit={(event) => { event.preventDefault(); const value = String(new FormData(event.currentTarget).get("note") ?? ""); void store.call("save", { value }).then(() => setStored(value)); }}><input data-testid="note-input" name="note" defaultValue="" /><button data-testid="save-note" type="submit">Save</button></form><output data-testid="stored-note">{stored}</output></main>;
+  useEffect(() => { void invokeStore("load", []).then((result) => setStored((result as { value: string }).value)); }, []);
+  return <main><form onSubmit={(event) => { event.preventDefault(); const value = String(new FormData(event.currentTarget).get("note") ?? ""); void invokeStore("save", [{ value }]).then(() => setStored(value)); }}><input data-testid="note-input" name="note" defaultValue="" /><button data-testid="save-note" type="submit">Save</button></form><output data-testid="stored-note">{stored}</output></main>;
 }
 `,
 };

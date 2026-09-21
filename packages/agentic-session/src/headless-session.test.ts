@@ -8,10 +8,55 @@ import {
   type TurnId,
 } from "@workspace/agentic-protocol";
 import type { MethodDefinition } from "@workspace/pubsub";
+import type { AgentLaunchSource } from "@workspace/agentic-core";
+
+vi.mock("@vibestudio/service-schemas/clients/workersClient", () => ({
+  createCanonicalWorkersClientFromSource: (source: { resolveDurableObject: unknown }) => source,
+}));
+
+type RpcCall = (target: string, method: string, args: unknown[], options?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<unknown>;
+function serviceSource(rpcCall: RpcCall, initialTargetId?: string): AgentLaunchSource {
+  let targetId = initialTargetId;
+  return {
+    selectService: async () => ({ binding: {
+      createEntity: async (spec: unknown) => {
+        const handle = await rpcCall("main", "runtime.createEntity", [spec]) as { targetId?: string };
+        targetId = handle.targetId;
+        return handle;
+      },
+      retireEntity: (input: unknown) => rpcCall("main", "runtime.retireEntity", [input]),
+      createContext: (input: unknown) => rpcCall("main", "runtime.createContext", [input]),
+      destroyContext: (input: unknown) => rpcCall("main", "runtime.destroyContext", [input]),
+    } }),
+    resolveDurableObject: async (source: string, className: string, key: string) => ({
+      invoke: (method: string, args: readonly unknown[], options?: { timeoutMs?: number; signal?: AbortSignal }) =>
+        options
+          ? rpcCall(targetId ?? `do:${source}:${className}:${key}`, method, [...args], options)
+          : rpcCall(targetId ?? `do:${source}:${className}:${key}`, method, [...args]),
+    }),
+  } as unknown as AgentLaunchSource;
+}
+function attachServiceSource(session: HeadlessSession): void {
+  const fixture = session as unknown as {
+    _agentRpcCall: RpcCall;
+    _agentTargetId: string;
+    _agentServiceSource: AgentLaunchSource;
+    _agentObjectIdentity: { source: string; className: string; objectKey: string };
+  };
+  fixture._agentServiceSource = serviceSource(fixture._agentRpcCall, fixture._agentTargetId);
+  fixture._agentObjectIdentity = {
+    source: "workers/agent-worker",
+    className: "AiChatWorker",
+    objectKey: "obj-1",
+  };
+}
 
 function createConfig(): ConnectionConfig {
   return {
     clientId: "headless-test",
+    workers: { resolveService: vi.fn() },
+    reviewSource: { selectService: vi.fn(), acquireService: vi.fn() },
+    getBlobText: vi.fn(async () => null),
     rpc: {
       selfId: "headless-test",
       call: vi.fn(),
@@ -288,8 +333,10 @@ describe("HeadlessSession", () => {
     const session = HeadlessSession.create({ config: createConfig() });
     const rpcCall = vi.fn(async () => ({ interrupted: true }));
     (session as any)._agentRpcCall = rpcCall;
+    (session as any)._agentTargetId = "agent-direct";
     (session as any)._channelId = "ch-direct";
     (session as any)._client = { callMethod: vi.fn() };
+    attachServiceSource(session);
 
     await session.interrupt("agent-direct");
 
@@ -304,7 +351,9 @@ describe("HeadlessSession", () => {
     const rpcCall = vi.fn(async () => ({ interrupted: true }));
     const signal = new AbortController().signal;
     (session as any)._agentRpcCall = rpcCall;
+    (session as any)._agentTargetId = "agent-direct";
     (session as any)._channelId = "ch-direct";
+    attachServiceSource(session);
 
     await session.interrupt("agent-direct", { timeoutMs: 2_000, signal });
 
@@ -343,6 +392,7 @@ describe("HeadlessSession", () => {
     );
 
     const phases: string[] = [];
+    attachServiceSource(session);
     const close = session.close({
       onPhase: (state) => phases.push(state.phase),
     });
@@ -393,6 +443,7 @@ describe("HeadlessSession", () => {
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = rpcCall;
 
+    attachServiceSource(session);
     const first = session.close();
     const second = session.close();
     expect(first).toBe(second);
@@ -423,6 +474,7 @@ describe("HeadlessSession", () => {
       },
     );
 
+    attachServiceSource(session);
     await session.close();
 
     expect(calls).toEqual([
@@ -457,6 +509,7 @@ describe("HeadlessSession", () => {
       order.push("disconnect");
     });
 
+    attachServiceSource(session);
     await session.close();
 
     expect(order).toEqual([
@@ -484,6 +537,7 @@ describe("HeadlessSession", () => {
     );
     vi.spyOn(session, "disconnect").mockResolvedValue();
 
+    attachServiceSource(session);
     await session.close();
 
     expect(order).toEqual([
@@ -511,6 +565,7 @@ describe("HeadlessSession", () => {
       },
     );
 
+    attachServiceSource(session);
     await expect(session.close()).rejects.toThrow(
       /Headless session cleanup failed in 1 phase/,
     );
@@ -552,6 +607,7 @@ describe("HeadlessSession", () => {
       },
     );
 
+    attachServiceSource(session);
     let settled = false;
     const closing = session.close().then(() => {
       settled = true;
@@ -603,6 +659,7 @@ describe("HeadlessSession", () => {
     );
     (session as any)._agentRpcCall = rpcCall;
 
+    attachServiceSource(session);
     await expect(session.close()).resolves.toBeUndefined();
 
     expect(calls).toEqual(["unsubscribeChannel", "runtime.destroyContext"]);
@@ -611,14 +668,12 @@ describe("HeadlessSession", () => {
       "do:workers/agent-worker:AiChatWorker:obj-owned",
       "unsubscribeChannel",
       ["ch-owned"],
-      { timeoutMs: 30_000 },
     );
     expect(rpcCall).toHaveBeenNthCalledWith(
       2,
       "main",
       "runtime.destroyContext",
       [{ contextId: "ctx-owned", recursive: true }],
-      { timeoutMs: 30_000 },
     );
     expect(session.snapshot().cleanupErrors).toEqual([]);
   });
@@ -640,6 +695,7 @@ describe("HeadlessSession", () => {
       },
     );
 
+    attachServiceSource(session);
     const cleanupError = await session.close().catch((error: unknown) => error);
     expect(cleanupError).toBeInstanceOf(AggregateError);
     expect((cleanupError as AggregateError).errors).toEqual([
@@ -719,7 +775,7 @@ describe("HeadlessSession", () => {
     try {
       session = await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        serviceSource: serviceSource(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
         objectKey: "agent-1",
@@ -779,7 +835,7 @@ describe("HeadlessSession", () => {
     try {
       await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        serviceSource: serviceSource(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
         objectKey: "agent-1",
@@ -946,7 +1002,7 @@ describe("HeadlessSession", () => {
     try {
       session = await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        serviceSource: serviceSource(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
         objectKey: "agent-1",

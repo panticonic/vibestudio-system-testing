@@ -23,7 +23,12 @@ const mocks = vi.hoisted(() => ({
     stream: vi.fn(),
     on: vi.fn(() => () => undefined),
     registerResidentSession: vi.fn(() => ({
-      transport: { call: (...args: unknown[]) => mocks.rpc.call(...args) },
+      channel: async () => ({
+        methods: {
+          claimMethodCall: (...args: unknown[]) => mocks.rpc.call("channel", "claimMethodCall", args),
+        },
+      }),
+      getBlobText: vi.fn(async () => null),
       close: vi.fn(),
     })),
   },
@@ -33,6 +38,35 @@ const mocks = vi.hoisted(() => ({
   openPanel: vi.fn(),
   panelTree: {},
   blobstore: { putText: vi.fn() },
+  evalBinding: {
+    start: vi.fn(),
+    cancel: vi.fn(),
+    get: vi.fn(),
+    events: vi.fn(),
+    dispose: vi.fn(),
+  },
+  selectService: vi.fn(async (service: string) => ({
+    binding: service === "eval"
+      ? mocks.evalBinding
+      : service === "runtime"
+        ? {
+            createContext: (input: unknown) => mocks.rpc.call("main", "runtime.createContext", [input]),
+            destroyContext: (input: unknown) => mocks.rpc.call("main", "runtime.destroyContext", [input]),
+            createSubagentContext: (input: unknown) => mocks.rpc.call("main", "runtime.createSubagentContext", [input]),
+            faultAbortAgentVessel: (input: unknown) => mocks.rpc.call("main", "runtime.faultAbortAgentVessel", [input]),
+          }
+      : service === "build"
+      ? {
+          inspectBuildProvenance: (unit: string) =>
+            mocks.rpc.call("main", "build.inspectBuildProvenance", [unit]),
+          listUnits: () => mocks.rpc.call("main", "build.listUnits", []),
+        }
+      : service === "durableWork"
+        ? { inspect: () => mocks.rpc.call("main", "durableWork.inspect", []) }
+        : { getText: vi.fn() },
+    readResponse: vi.fn(),
+  })),
+  acquireHostService: vi.fn(),
   vcs: {
     status: vi.fn(),
     inspect: vi.fn(),
@@ -59,6 +93,8 @@ vi.mock("@workspace/runtime", () => ({
   openPanel: mocks.openPanel,
   panelTree: mocks.panelTree,
   rpc: mocks.rpc,
+  selectService: mocks.selectService,
+  acquireHostService: mocks.acquireHostService,
   vcs: mocks.vcs,
   workers: mocks.workers,
 }));
@@ -83,6 +119,7 @@ describe("HeadlessRunner", () => {
     mocks.rpc.registerResidentSession.mockClear();
     for (const method of Object.values(mocks.vcs)) method.mockReset();
     mocks.blobstore.putText.mockReset();
+    for (const method of Object.values(mocks.evalBinding)) method.mockReset();
     mocks.blobstore.putText.mockImplementation(async (text: string) => ({
       digest: `sha256:${text.length}`,
       size: text.length,
@@ -284,15 +321,10 @@ describe("HeadlessRunner", () => {
 
   it("cancels one harness-owned asynchronous eval and disposes its finite scope", async () => {
     const runner = new HeadlessRunner("ctx-test");
-    mocks.rpc.call.mockImplementation(async (_target, method, args) => {
-      if (method === "eval.start") {
-        return { runId: (args[0] as { runId: string }).runId };
-      }
-      if (method === "eval.cancel") return { ok: true, forcedReset: false };
-      if (method === "eval.get") return { status: "cancelled" };
-      if (method === "eval.dispose") return { ok: true };
-      throw new Error(`Unexpected method ${method}`);
-    });
+    mocks.evalBinding.start.mockImplementation(async (input: { runId: string }) => ({ runId: input.runId }));
+    mocks.evalBinding.cancel.mockResolvedValue({ ok: true, forcedReset: false });
+    mocks.evalBinding.get.mockResolvedValue({ status: "cancelled" });
+    mocks.evalBinding.dispose.mockResolvedValue({ ok: true });
 
     const result = await runner.probeEvalCancellation();
 
@@ -301,48 +333,33 @@ describe("HeadlessRunner", () => {
       cancel: { ok: true, forcedReset: false },
       terminal: { status: "cancelled" },
     });
-    const startArgs = mocks.rpc.call.mock.calls[0]![2][0] as {
+    const startArgs = mocks.evalBinding.start.mock.calls[0]![0] as {
       scope: { key: string };
       runId: string;
     };
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(1, "main", "eval.start", [
+    expect(mocks.evalBinding.start).toHaveBeenCalledWith(
       expect.objectContaining({
         scope: { key: startArgs.scope.key, lifecycle: "finite" },
         runId: startArgs.runId,
       }),
-    ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(2, "main", "eval.cancel", [
-      { scopeKey: startArgs.scope.key, runId: startArgs.runId },
-    ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(3, "main", "eval.get", [
-      { scopeKey: startArgs.scope.key, runId: startArgs.runId },
-    ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(4, "main", "eval.dispose", [
-      { scopeKey: startArgs.scope.key },
-    ]);
+    );
+    expect(mocks.evalBinding.cancel).toHaveBeenCalledWith({ scopeKey: startArgs.scope.key, runId: startArgs.runId });
+    expect(mocks.evalBinding.get).toHaveBeenCalledWith({ scopeKey: startArgs.scope.key, runId: startArgs.runId });
+    expect(mocks.evalBinding.dispose).toHaveBeenCalledWith({ scopeKey: startArgs.scope.key });
   });
 
   it("reads one stable bounded durable event cursor twice before advancing pages", async () => {
     const runner = new HeadlessRunner("ctx-test");
     let eventRead = 0;
-    mocks.rpc.call.mockImplementation(async (_target, method, args) => {
-      const route = args[0] as { runId?: string };
-      if (method === "eval.start") return { runId: route.runId };
-      if (method === "eval.get")
-        return { status: "done", result: { success: true } };
-      if (method === "eval.events") {
-        eventRead++;
-        return eventRead <= 3
-          ? { events: [{ sequence: 1, kind: "state" }], next: 1, hasMore: true }
-          : {
-              events: [{ sequence: 2, kind: "console" }],
-              next: 2,
-              hasMore: false,
-            };
-      }
-      if (method === "eval.dispose") return { ok: true };
-      throw new Error(`Unexpected method ${method}`);
+    mocks.evalBinding.start.mockImplementation(async (input: { runId: string }) => ({ runId: input.runId }));
+    mocks.evalBinding.get.mockResolvedValue({ status: "done", result: { success: true } });
+    mocks.evalBinding.events.mockImplementation(async () => {
+      eventRead++;
+      return eventRead <= 3
+        ? { events: [{ sequence: 1, kind: "state" }], next: 1, hasMore: true }
+        : { events: [{ sequence: 2, kind: "console" }], next: 2, hasMore: false };
     });
+    mocks.evalBinding.dispose.mockResolvedValue({ ok: true });
 
     const result = await runner.probeEvalEventPages();
 
@@ -355,15 +372,36 @@ describe("HeadlessRunner", () => {
       result.firstPage,
       { events: [{ sequence: 2, kind: "console" }], next: 2, hasMore: false },
     ]);
-    expect(mocks.rpc.call.mock.calls.map(([, method]) => method)).toEqual([
-      "eval.start",
-      "eval.get",
-      "eval.events",
-      "eval.events",
-      "eval.events",
-      "eval.events",
-      "eval.dispose",
-    ]);
+    expect(mocks.evalBinding.start).toHaveBeenCalledTimes(1);
+    expect(mocks.evalBinding.get).toHaveBeenCalledTimes(1);
+    expect(mocks.evalBinding.events).toHaveBeenCalledTimes(4);
+    expect(mocks.evalBinding.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows every event page without a total-page cutoff", async () => {
+    const runner = new HeadlessRunner("ctx-test");
+    mocks.evalBinding.start.mockImplementation(async (input: { runId: string }) => ({ runId: input.runId }));
+    mocks.evalBinding.get.mockResolvedValue({ status: "done" });
+    mocks.evalBinding.events.mockImplementation(async (input: { after?: number }) => {
+      const next = (input.after ?? 0) + 1;
+      return { events: [{ sequence: next }], next, hasMore: next < 300 };
+    });
+    mocks.evalBinding.dispose.mockResolvedValue({ ok: true });
+
+    const result = await runner.probeEvalEventPages();
+    expect(result.pages).toHaveLength(300);
+    expect(result.pages.at(-1)).toMatchObject({ next: 300, hasMore: false });
+  });
+
+  it("rejects a nonadvancing event cursor", async () => {
+    const runner = new HeadlessRunner("ctx-test");
+    mocks.evalBinding.start.mockImplementation(async (input: { runId: string }) => ({ runId: input.runId }));
+    mocks.evalBinding.get.mockResolvedValue({ status: "done" });
+    mocks.evalBinding.events.mockResolvedValue({ events: [], next: 0, hasMore: true });
+    mocks.evalBinding.dispose.mockResolvedValue({ ok: true });
+
+    await expect(runner.probeEvalEventPages()).rejects.toThrow(/cursor did not advance/);
+    expect(mocks.evalBinding.dispose).toHaveBeenCalledOnce();
   });
 
   it("fault-aborts one exact agent vessel through the hidden runtime harness seam", async () => {
@@ -408,28 +446,30 @@ describe("HeadlessRunner", () => {
           registerResidentSession: (
             channelId: string,
             receiver: (payload: unknown) => void,
-          ) => { transport: { call: typeof mocks.rpc.call } };
+          ) => {
+            channel(): Promise<{ methods: { claimMethodCall(...args: unknown[]): Promise<unknown> } }>;
+          };
         };
       };
-      rpcCall: typeof mocks.rpc.call;
     };
 
     const resident = config.config.rpc.registerResidentSession(
       "channel",
       () => undefined,
     );
+    const channel = await resident.channel();
     await expect(
-      resident.transport.call("channel", "claimMethodCall", []),
+      channel.methods.claimMethodCall(),
     ).rejects.toMatchObject({
       message: "transient claim failure",
       code: "EAGAIN",
     });
     await expect(
-      resident.transport.call("channel", "claimMethodCall", []),
+      channel.methods.claimMethodCall(),
     ).resolves.toEqual({
       claimed: true,
     });
-    await config.rpcCall("main", "runtime.listEntities", []);
+    await config.config.rpc.call("main", "runtime.listEntities", []);
 
     expect(mocks.rpc.call.mock.calls.map((call) => call[1])).toEqual([
       "claimMethodCall",

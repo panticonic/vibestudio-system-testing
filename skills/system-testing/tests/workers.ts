@@ -276,7 +276,10 @@ function requireDynamicWorkspaceServiceEvidence(result: TestExecutionResult) {
   );
   const invoked = evalCalls.find((call) => {
     const code = String(call.arguments?.["code"] ?? "");
-    return /workers\.resolveService\s*\(/u.test(code) && /rpc\.call\s*\(/u.test(code);
+    return (
+      /workers\.resolveService\s*\(/u.test(code) &&
+      /\.methods(?:\s*\[|\.[A-Za-z_$])/u.test(code)
+    );
   });
   const returned = invoked ? invocationReturnValue(invoked) : { present: false as const };
   if (!returned.present || !hasNonEmptyStructuredResult([returned.value])) {

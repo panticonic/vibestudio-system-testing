@@ -36,7 +36,6 @@ const NON_INTERACTIVE_TERMINAL_WAIT_REASONS = [
   "model_credential_required",
   "model_credential_reconnect_required",
 ] as const;
-const AGENT_INTERRUPT_TIMEOUT_MS = 30_000;
 
 type MaybePromise<T> = T | Promise<T>;
 type RunSuiteFilter = {
@@ -741,10 +740,9 @@ export class TestRunner {
   private async interruptActiveTurn(session: HeadlessSession): Promise<void> {
     const agentId = session.agentTargetId ?? session.snapshot().agentTargetId;
     if (!agentId) return;
-    // Cancellation owns this terminal barrier, but an unavailable lifecycle
-    // receiver must not wedge the entire durable run forever. The exact
-    // context remains the cleanup owner after this bounded attempt.
-    await session.interrupt(agentId, { timeoutMs: AGENT_INTERRUPT_TIMEOUT_MS });
+    // Cancellation owns this terminal barrier; the exact context remains the
+    // cleanup owner after the agent acknowledges interruption.
+    await session.interrupt(agentId);
   }
 
   private async captureAndAssertModelExecution(

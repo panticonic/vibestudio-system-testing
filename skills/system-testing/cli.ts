@@ -478,7 +478,8 @@ export function unusableModelDetail(unusable: {
 }
 
 export async function systemTestDoctor(
-  expectedModel?: string | null
+  expectedModel: string | null | undefined,
+  readWorkspaceText: (path: string) => Promise<string>
 ): Promise<SystemTestDoctorResult> {
   const primaryModel = expectedModel ?? SYSTEM_TEST_AGENT_MODEL;
   const checks: SystemTestDoctorResult["checks"] = [];
@@ -579,7 +580,7 @@ export async function systemTestDoctor(
   await capture(
     "workspace-configuration",
     async () => {
-      const source = await rpc.call("main", "fs.readFile", ["meta/vibestudio.yml", "utf8"]);
+      const source = await readWorkspaceText("meta/vibestudio.yml");
       return rpc.call("main", "workspace.validateConfig", [source]);
     },
     "the workspace has a valid standalone runtime configuration"
@@ -590,7 +591,7 @@ export async function systemTestDoctor(
       rpc.call("main", "extensions.invokeProvider", [
         "claudeCode",
         "resolvePrimaryChannel",
-        ["system-test-doctor-probe"],
+        [{ contextId: "system-test-doctor-probe" }],
       ]),
     "Claude Code provider is registered and activatable"
   );
@@ -599,14 +600,14 @@ export async function systemTestDoctor(
     async () => {
       const modelRoute = systemTestModelRoute(primaryModel, typeof expectedModel !== "string");
       const service = await workers.resolveService("vibestudio.models.v1", null);
-      if (service.kind !== "durable-object" || !service.targetId) {
+      if (service.kind !== "durable-object" || !service.methods["inspectModels"]) {
         throw new Error("vibestudio.models.v1 did not resolve to a Durable Object");
       }
       const required = [
         modelRoute.primaryModel,
         ...(modelRoute.fallbackModel ? [modelRoute.fallbackModel] : []),
       ];
-      const inspected = (await rpc.call(service.targetId, "inspectModels", [required])) as {
+      const inspected = (await service.methods["inspectModels"](required)) as {
         models?: Array<{ ref?: string; availability?: { state?: string; detail?: string } }>;
       };
       const availability = required.map((modelRef) => {

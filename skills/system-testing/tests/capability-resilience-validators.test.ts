@@ -16,6 +16,10 @@ type Invocation = {
   result?: unknown;
 };
 
+function hostCall(service: string, method: string, args = "[]"): string {
+  return `const ref = await acquireHostService("${service}"); return await ref.invoke("${method}", ${args});`;
+}
+
 function invocationMessage(invocation: Invocation, index: number): ChatMessage {
   const status = invocation.status ?? "complete";
   return {
@@ -262,12 +266,12 @@ describe("permission semantic validators", () => {
   it("accepts the read-only canonical permission inventory", () => {
     expect(
       scenario(approvalPermissionTests, "permissions-list").validate(
-        execution([evalCall('return rpc.call("main", "permissions.list", []);', [grant])])
+        execution([evalCall(hostCall("permissions", "list"), [grant])])
       ).passed
     ).toBe(true);
     expect(
       scenario(approvalPermissionTests, "permissions-list").validate(
-        execution([evalCall("return await services.permissions.list();", [])])
+        execution([evalCall(hostCall("permissions", "list"), [])])
       ).passed
     ).toBe(true);
   });
@@ -277,13 +281,13 @@ describe("permission semantic validators", () => {
     expect(
       validator.validate(
         execution([
-          evalCall('return rpc.call("main", "permissions.list", []);', { grants: [grant] }),
+          evalCall(hostCall("permissions", "list"), { grants: [grant] }),
         ])
       ).passed
     ).toBe(false);
     expect(
       validator.validate(
-        execution([evalCall("return await services.permissions.list();", [{ id: "not-a-grant" }])])
+        execution([evalCall(hostCall("permissions", "list"), [{ id: "not-a-grant" }])])
       ).passed
     ).toBe(false);
   });
@@ -293,11 +297,8 @@ describe("permission semantic validators", () => {
     expect(
       validator.validate(
         execution([
-          evalCall(
-            'await rpc.call("main", "permissions.revoke", [{ kind: "capability", id: "x" }]);',
-            undefined
-          ),
-          evalCall("return await services.permissions.list();", []),
+          evalCall(hostCall("permissions", "revoke", '[{ kind: "capability", id: "x" }]'), undefined),
+          evalCall(hostCall("permissions", "list"), []),
         ])
       ).passed
     ).toBe(false);
@@ -315,11 +316,8 @@ describe("permission semantic validators", () => {
     expect(
       validator.validate(
         execution([
-          evalCall(
-            'return await rpc.call("main", "permissions.listAgentProfiles", []);',
-            []
-          ),
-          evalCall("return await services.permissions.list();", [taskGrant]),
+          evalCall(hostCall("permissions", "listAgentProfiles"), []),
+          evalCall(hostCall("permissions", "list"), [taskGrant]),
         ], "The requested behavior was observed.", {
           chatTaskRuleReuse: {
             afterFirstTurn: [taskRule],
@@ -331,8 +329,8 @@ describe("permission semantic validators", () => {
     expect(
       validator.validate(
         execution([
-          evalCall("return await services.permissions.list();", [taskGrant]),
-          evalCall("return await services.permissions.list();", [taskGrant])
+          evalCall(hostCall("permissions", "list"), [taskGrant]),
+          evalCall(hostCall("permissions", "list"), [taskGrant])
         ], "The requested behavior was observed.", {
           chatTaskRuleReuse: {
             afterFirstTurn: [taskRule],

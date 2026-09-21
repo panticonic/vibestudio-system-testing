@@ -281,7 +281,7 @@ async function scheduledNotificationProof(
   let error: string | undefined;
   let observation: Record<string, unknown> | undefined;
   try {
-    const { gad, rpc, workers } = await import("@workspace/runtime");
+    const { gad, workers } = await import("@workspace/runtime");
     await context.sendAndWait(
       session,
       actionKind === "watch"
@@ -290,7 +290,7 @@ async function scheduledNotificationProof(
       "scheduled notification launch",
     );
     const service = await workers.resolveService("vibestudio.missions.v1");
-    if (service.kind !== "durable-object" || !service.targetId) {
+    if (service.kind !== "durable-object") {
       throw new Error(
         "The automation ledger did not resolve to a Durable Object",
       );
@@ -298,11 +298,9 @@ async function scheduledNotificationProof(
     const deadline =
       Date.now() + Math.min(190_000, context.remainingTimeMs() ?? 190_000);
     while (Date.now() < deadline) {
-      const overview = await rpc.call<Record<string, unknown>>(
-        service.targetId,
-        "overview",
-        [{ query: proofName, limit: 5 }],
-      );
+      const overview = await service.invoke("overview", [
+        { query: proofName, limit: 5 },
+      ]) as Record<string, unknown>;
       const item = Array.isArray(overview["items"])
         ? overview["items"][0]
         : undefined;
@@ -319,7 +317,16 @@ async function scheduledNotificationProof(
       if (
         automation?.["name"] === proofName &&
         automation["runCount"] === 2 &&
-        runs.length >= 2
+        runs.length >= 2 &&
+        session.snapshot().invocations.some(
+          (invocation) =>
+            invocation.name === "complete_automation" &&
+            invocation.status === "complete",
+        ) &&
+        noIncompleteInvocations({
+          messages: [...session.messages],
+          duration: Date.now() - startedAt,
+        }).passed
       ) {
         const notifications = await gad.listUserNotificationsForMe({
           includeAcknowledged: true,
@@ -509,7 +516,7 @@ async function nativeAutomationControlProof(
   let error: string | undefined;
   let observation: Record<string, unknown> | undefined;
   try {
-    const { rpc, workers } = await import("@workspace/runtime");
+    const { workers } = await import("@workspace/runtime");
     await context.sendAndWait(
       session,
       `Every minute, send me a fun fact about sloths. Call it “${NATIVE_CONTROL_NAME}”.`,
@@ -521,16 +528,14 @@ async function nativeAutomationControlProof(
       "natural automation stop",
     );
     const service = await workers.resolveService("vibestudio.missions.v1");
-    if (service.kind !== "durable-object" || !service.targetId) {
+    if (service.kind !== "durable-object") {
       throw new Error(
         "The automation ledger did not resolve to a Durable Object",
       );
     }
-    const overview = await rpc.call<Record<string, unknown>>(
-      service.targetId,
-      "overview",
-      [{ query: NATIVE_CONTROL_NAME, limit: 5 }],
-    );
+    const overview = await service.invoke("overview", [
+      { query: NATIVE_CONTROL_NAME, limit: 5 },
+    ]) as Record<string, unknown>;
     const item = Array.isArray(overview["items"])
       ? overview["items"][0]
       : undefined;

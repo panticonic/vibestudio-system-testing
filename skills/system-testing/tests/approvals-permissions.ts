@@ -7,14 +7,21 @@ import type {
 import { completedScenarioEvidence, invocationReturnValue } from "./_scenario-evidence.js";
 import { getToolCalls } from "./_helpers.js";
 import { savedPermissionGrantSchema } from "@vibestudio/service-schemas/permissions";
-const PERMISSION_LIST_CALL =
-  /\bservices\.permissions\.list\s*\(\s*\)|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.list["']\s*,\s*\[\s*\]\s*\)/u;
-const PERMISSION_PROFILE_CALL =
-  /\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.listAgentProfiles["']\s*,\s*\[\s*\]\s*\)/u;
-const PERMISSION_MUTATION_CALL =
-  /\bservices\.permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)["']/u;
-const SERVER_LOG_STATS_CALL =
-  /\bservices\.serverLog\.stats\s*\(\s*\)|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']serverLog\.stats["']\s*,\s*\[\s*\]\s*\)/u;
+function invokesHostService(code: string, service: string, method: string): boolean {
+  return (
+    new RegExp(`\\bacquireHostService\\s*\\(\\s*["']${service}["']\\s*\\)`, "u").test(code) &&
+    new RegExp(`\\.invoke\\s*\\(\\s*["']${method}["']\\s*,`, "u").test(code)
+  );
+}
+
+const permissionListCall = (code: string) => invokesHostService(code, "permissions", "list");
+const permissionProfileCall = (code: string) =>
+  invokesHostService(code, "permissions", "listAgentProfiles");
+const permissionMutationCall = (code: string) =>
+  ["revoke", "updateAgentProfile", "setWorkspaceAuthorityLock"].some((method) =>
+    invokesHostService(code, "permissions", method)
+  );
+const serverLogStatsCall = (code: string) => invokesHostService(code, "serverLog", "stats");
 
 function validatePermissionList(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
@@ -22,7 +29,7 @@ function validatePermissionList(result: TestExecutionResult) {
   if (
     base.evidence.calls.some((call) => {
       const code = String(call.arguments?.["code"] ?? "");
-      return call.name === "eval" && PERMISSION_MUTATION_CALL.test(code);
+      return call.name === "eval" && permissionMutationCall(code);
     })
   ) {
     return {
@@ -36,7 +43,7 @@ function validatePermissionList(result: TestExecutionResult) {
       call.name === "eval" &&
       call.execution?.status === "complete" &&
       call.execution.isError !== true &&
-      PERMISSION_LIST_CALL.test(code)
+      permissionListCall(code)
     );
   });
   const returned = listed ? invocationReturnValue(listed) : { present: false as const };
@@ -83,7 +90,7 @@ function validateChatTaskGrantReuse(result: TestExecutionResult) {
   }
   const permissionReads = calls.filter((call) => {
     const code = String(call.arguments?.["code"] ?? "");
-    return PERMISSION_LIST_CALL.test(code) || PERMISSION_PROFILE_CALL.test(code);
+    return permissionListCall(code) || permissionProfileCall(code);
   });
   const evidence = result.diagnostics?.["chatTaskRuleReuse"];
   const snapshots =
@@ -128,10 +135,10 @@ function validateSubagentTaskGrantReuse(result: TestExecutionResult) {
     : undefined;
   const inventories = calls.filter((call) => {
     const code = String(call.arguments?.["code"] ?? "");
-    return PERMISSION_LIST_CALL.test(code);
+    return permissionListCall(code);
   });
   const parentRead = calls.find((call) =>
-    SERVER_LOG_STATS_CALL.test(String(call.arguments?.["code"] ?? ""))
+    serverLogStatsCall(String(call.arguments?.["code"] ?? ""))
   );
   const returned = inventories.at(-1) ? invocationReturnValue(inventories.at(-1)!) : null;
   const grants = returned?.present && Array.isArray(returned.value) ? returned.value : [];

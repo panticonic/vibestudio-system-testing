@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const readWorkspaceText = async () => "name: system\n";
+
 const mocks = vi.hoisted(() => ({
   rpcCall: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({ artifactId: "build-1" })),
   runSuite: vi.fn(),
@@ -134,7 +136,7 @@ describe("system-testing CLI-neutral API", () => {
   ): void {
     mocks.resolveService.mockResolvedValue({
       kind: "durable-object",
-      targetId: "do:models",
+      methods: { inspectModels: async () => ({ models }) },
     });
     mocks.listUnits.mockResolvedValue([{ name: "workers/agent-worker", status: "running" }]);
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
@@ -150,7 +152,6 @@ describe("system-testing CLI-neutral API", () => {
           },
         ];
       }
-      if (method === "inspectModels") return { models };
       if (method === "extensions.invokeProvider") return null;
       if (method === "extensions.invoke") {
         return {
@@ -185,7 +186,7 @@ describe("system-testing CLI-neutral API", () => {
       { ref: "anthropic:test-model", availability: { state: "ready" } },
     ]);
 
-    const result = await systemTestDoctor("anthropic:test-model");
+    const result = await systemTestDoctor("anthropic:test-model", readWorkspaceText);
 
     expect(result.ok).toBe(true);
     expect(result.checks.find((check) => check.name === "model")).toMatchObject({
@@ -202,7 +203,7 @@ describe("system-testing CLI-neutral API", () => {
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
     ]);
 
-    const result = await systemTestDoctor(SYSTEM_TEST_AGENT_MODEL);
+    const result = await systemTestDoctor(SYSTEM_TEST_AGENT_MODEL, readWorkspaceText);
 
     expect(result.ok).toBe(true);
     expect(result.checks.find((check) => check.name === "model")).toMatchObject({
@@ -222,7 +223,7 @@ describe("system-testing CLI-neutral API", () => {
       { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
     ]);
 
-    const result = await systemTestDoctor();
+    const result = await systemTestDoctor(undefined, readWorkspaceText);
 
     expect(result.ok).toBe(true);
     expect(result.checks.find((check) => check.name === "model")).toMatchObject({
@@ -254,7 +255,7 @@ describe("system-testing CLI-neutral API", () => {
       return priorImplementation?.(...args);
     });
 
-    const result = await systemTestDoctor();
+    const result = await systemTestDoctor(undefined, readWorkspaceText);
 
     expect(result.ok).toBe(false);
     expect(result.checks.find((check) => check.name === "claude-code-extension")).toMatchObject({
@@ -276,7 +277,7 @@ describe("system-testing CLI-neutral API", () => {
       return priorImplementation?.(...args);
     });
 
-    const result = await systemTestDoctor();
+    const result = await systemTestDoctor(undefined, readWorkspaceText);
 
     expect(result.ok).toBe(false);
     expect(result.checks.find((check) => check.name === "workspace-configuration")).toMatchObject({
@@ -291,7 +292,7 @@ describe("system-testing CLI-neutral API", () => {
       { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
     ]);
 
-    const result = await systemTestDoctor(null);
+    const result = await systemTestDoctor(null, readWorkspaceText);
 
     expect(result.checks.find((check) => check.name === "model")).toMatchObject({
       ok: true,
@@ -311,13 +312,16 @@ describe("system-testing CLI-neutral API", () => {
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
       { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
     ]);
+    mocks.resolveService.mockResolvedValue({
+      kind: "durable-object",
+      methods: {
+        inspectModels: async () => ({
+          models: [{ ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } }],
+        }),
+      },
+    });
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
       const method = args[1];
-      if (method === "inspectModels") {
-        return {
-          models: [{ ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } }],
-        };
-      }
       if (method === "build.listUnits") {
         return [
           {
@@ -357,7 +361,7 @@ describe("system-testing CLI-neutral API", () => {
       return {};
     });
 
-    const result = await systemTestDoctor();
+    const result = await systemTestDoctor(undefined, readWorkspaceText);
 
     expect(result.ok).toBe(false);
     expect(result.checks.find((check) => check.name === "required-extensions")).toMatchObject({
@@ -442,7 +446,7 @@ describe("system-testing CLI-neutral API", () => {
       return priorImplementation?.(...args);
     });
 
-    const result = await systemTestDoctor();
+    const result = await systemTestDoctor(undefined, readWorkspaceText);
 
     expect(result.ok).toBe(true);
     expect(result.checks.find((check) => check.name === "required-extensions")).toMatchObject({

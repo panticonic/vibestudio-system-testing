@@ -11,6 +11,8 @@ import {
   openPanel,
   panelTree,
   rpc,
+  acquireHostService,
+  selectService,
   vcs,
   workers,
 } from "@workspace/runtime";
@@ -31,17 +33,27 @@ import {
   vcsStateNodeRefSchema,
   type VcsStateNodeRef,
 } from "@vibestudio/service-schemas/vcs";
-import type { AttachedHostApprovalAuditEvent } from "@vibestudio/service-schemas/attachedHosts";
+import { attachedHostsMethods, type AttachedHostApprovalAuditEvent } from "@vibestudio/service-schemas/attachedHosts";
 import type { TestAuthorityPolicy } from "./types.js";
 import type { BlobReader } from "@workspace/agentic-protocol";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
+import { createBlobstoreServiceClient } from "@vibestudio/service-schemas/clients/contentClients";
+import { blobstoreMethods } from "@vibestudio/service-schemas/blobstore";
+import { permissionsMethods } from "@vibestudio/service-schemas/permissions";
+import { buildMethods } from "@vibestudio/service-schemas/build";
+import { workspaceMethods } from "@vibestudio/service-schemas/workspace";
+import { authorityMethods } from "@vibestudio/service-schemas/authority";
+import { durableWorkMethods } from "@vibestudio/service-schemas/durableWork";
+import { evalMethods } from "@vibestudio/service-schemas/eval";
+import { runtimeMethods } from "@vibestudio/service-schemas/runtime";
+import { createCanonicalWorkersClientFromSource } from "@vibestudio/service-schemas/clients/workersClient";
 import { evalInPanel } from "@workspace/testkit";
 import { publishAtomicPanelStoreFixture } from "./atomic-panel-store-fixture.js";
 
 // This runner is eval'd server-side (in the orchestrating agent's EvalDO), so it
 // uses the portable client surface — NOT panel-only `getStateArgs`/`slotId`.
 // `rpc.selfId` is the stable runtime id, used as the channel-membership clientId.
-const rpcConfig = rpc as unknown as NonNullable<ConnectionConfig["rpc"]>;
+const rpcConfig = rpc;
 
 export const SYSTEM_TEST_AGENT_PROMPT = `You are running inside an automated Vibestudio system test.
 
@@ -217,7 +229,7 @@ export class HeadlessRunner {
 
   /** Read the canonical user-facing permission inventory for harness assertions. */
   async listPermissions(): Promise<unknown[]> {
-    const permissions = await rpc.call("main", "permissions.list", []);
+    const permissions = await (await selectService("permissions", permissionsMethods)).binding.list();
     if (!Array.isArray(permissions))
       throw new Error("permissions.list returned no inventory");
     return permissions;
@@ -229,8 +241,8 @@ export class HeadlessRunner {
     config: unknown;
   }> {
     const [units, config] = await Promise.all([
-      rpc.call("main", "build.listUnits", []),
-      rpc.call("main", "workspace.getConfig", []),
+      selectService("build", buildMethods).then(({ binding }) => binding.listUnits()),
+      selectService("workspace", workspaceMethods).then(({ binding }) => binding.getConfig()),
     ]);
     if (!Array.isArray(units))
       throw new Error("build.listUnits returned no unit inventory");
@@ -238,11 +250,11 @@ export class HeadlessRunner {
   }
 
   /** Read the host-owned reusable authority attached to one exact chat task. */
-  inspectChatTaskRules(input: {
+  async inspectChatTaskRules(input: {
     contextId: string;
     channelId: string;
   }): Promise<ChatTaskRuleEvidence[]> {
-    return rpc.call("main", "authority.listTaskRules", [input]);
+    return (await selectService("authority", authorityMethods)).binding.listTaskRules(input);
   }
 
   private contextId: string;
@@ -259,7 +271,6 @@ export class HeadlessRunner {
     | null;
   private readonly workspaceRepoFixtureLifecycle: WorkspaceRepoFixtureLifecycle | null;
   private readonly testAuthorityPolicy: AgentExecutionTestPolicySpec | null;
-  private developmentTargetPromise: Promise<string> | null = null;
   private fixtureForkOwnerPromise: Promise<string> | null = null;
   private readonly sessionRpcFaultEvidence = new WeakMap<
     HeadlessSession,
@@ -313,21 +324,18 @@ export class HeadlessRunner {
           {
             vcs,
             blobstore,
-            createContext: (input) => {
+            createContext: async (input) => {
               const contextPolicy = fixtureContextAuthority(
                 testAuthorityPolicy,
                 input?.counteractionRepoPaths ?? [],
               );
-              return rpc.call<{ contextId: string }>(
-                "main",
-                "runtime.createContext",
-                [contextPolicy ? { testPolicy: contextPolicy } : {}],
-              );
+              const runtime = (await selectService("runtime", runtimeMethods)).binding;
+              return runtime.createContext(contextPolicy ? { testPolicy: contextPolicy } : {});
             },
-            destroyContext: (contextId) =>
-              rpc.call<void>("main", "runtime.destroyContext", [
-                { contextId, recursive: true },
-              ]),
+            destroyContext: async (contextId) => {
+              const runtime = (await selectService("runtime", runtimeMethods)).binding;
+              await runtime.destroyContext({ contextId, recursive: true });
+            },
           },
           testName ?? "unknown",
           workspaceRepoFixture.repoName,
@@ -637,17 +645,12 @@ export class HeadlessRunner {
     let forkContextId: string | null = null;
     if (contextMode === "fork") {
       const ownerEntityId = await this.fixtureForkOwner();
-      const fork = await rpc.call<{ contextId: string }>(
-        "main",
-        "runtime.createSubagentContext",
-        [
-          {
-            parentContextId: taskContextId!,
-            ownerEntityId,
-            targetKey: `system-test-fixture-fork:${this.testName ?? "unknown"}:${crypto.randomUUID()}`,
-          },
-        ],
-      );
+      const runtime = (await selectService("runtime", runtimeMethods)).binding;
+      const fork = await runtime.createSubagentContext({
+        parentContextId: taskContextId!,
+        ownerEntityId,
+        targetKey: `system-test-fixture-fork:${this.testName ?? "unknown"}:${crypto.randomUUID()}`,
+      });
       forkContextId = fork.contextId;
     }
     const agentContextId =
@@ -678,64 +681,41 @@ export class HeadlessRunner {
       : "";
     const rpcFaultEvidence: SystemTestRpcFaultEvidence[] = [];
     const occurrenceByOperation = new Map<string, number>();
+    const injectFault = (transport: "call" | "stream", method: string): void => {
+      const key = `${transport}:${method}`;
+      const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
+      occurrenceByOperation.set(key, occurrence);
+      const fault = opts?.rpcFaults?.find(
+        (candidate) =>
+          candidate.transport === transport &&
+          candidate.method === method &&
+          (candidate.occurrence ?? 1) === occurrence,
+      );
+      if (!fault) return;
+      rpcFaultEvidence.push({
+        transport,
+        method,
+        occurrence,
+        injected: true,
+        message: fault.message,
+        ...(fault.code ? { code: fault.code } : {}),
+      });
+      throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+    };
     const callWithFault = async <R = unknown>(
       targetId: string,
       method: string,
       args: unknown[],
       options?: { timeoutMs?: number; signal?: AbortSignal },
     ): Promise<R> => {
-      const key = `call:${method}`;
-      const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
-      occurrenceByOperation.set(key, occurrence);
-      const fault = opts?.rpcFaults?.find(
-        (candidate) =>
-          candidate.transport === "call" &&
-          candidate.method === method &&
-          (candidate.occurrence ?? 1) === occurrence,
-      );
-      if (fault) {
-        rpcFaultEvidence.push({
-          transport: "call",
-          method,
-          occurrence,
-          injected: true,
-          message: fault.message,
-          ...(fault.code ? { code: fault.code } : {}),
-        });
-        throw Object.assign(
-          new Error(fault.message),
-          fault.code ? { code: fault.code } : {},
-        );
-      }
+      injectFault("call", method);
       return rpcConfig.call<R>(targetId, method, args, options);
     };
-    const faultingRpc: NonNullable<ConnectionConfig["rpc"]> = {
+    const faultingRpc: ConnectionConfig["rpc"] & Pick<typeof rpc, "call" | "stream" | "on"> = {
       selfId: rpcConfig.selfId,
       call: callWithFault,
       stream: async (targetId, method, args, options) => {
-        const key = `stream:${method}`;
-        const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
-        occurrenceByOperation.set(key, occurrence);
-        const fault = opts?.rpcFaults?.find(
-          (candidate) =>
-            candidate.transport === "stream" &&
-            candidate.method === method &&
-            (candidate.occurrence ?? 1) === occurrence,
-        );
-        if (fault) {
-          rpcFaultEvidence.push({
-            transport: "stream",
-            method,
-            occurrence,
-            injected: true,
-            message: fault.message,
-            ...(fault.code ? { code: fault.code } : {}),
-          });
-          throw Object.assign(
-            new Error(fault.message),
-            fault.code ? { code: fault.code } : {},
-          );
-        }
+        injectFault("stream", method);
         return rpcConfig.stream(targetId, method, args, options);
       },
       on: (event, listener, website) => rpcConfig.on(event, listener, website),
@@ -744,20 +724,21 @@ export class HeadlessRunner {
             registerResidentSession: (...args) => {
               const registration = rpcConfig.registerResidentSession!(...args);
               return {
-                transport: {
-                  call: <R = unknown>(
-                    targetId: string,
-                    method: string,
-                    callArgs: unknown[],
-                  ) => callWithFault<R>(targetId, method, callArgs),
+                channel: async () => {
+                  const channel = await registration.channel();
+                  const methods = Object.fromEntries(
+                    Object.entries(channel.methods).map(([method, invoke]) => [
+                      method,
+                      async (...args: unknown[]) => {
+                        injectFault("call", method);
+                        return invoke(...args);
+                      },
+                    ]),
+                  );
+                  return { methods };
                 },
+                getBlobText: (digest: string) => registration.getBlobText(digest),
                 close: () => registration.close(),
-                ...(registration.relationshipEnded
-                  ? {
-                      relationshipEnded: () =>
-                        registration.relationshipEnded!(),
-                    }
-                  : {}),
               };
             },
           }
@@ -766,14 +747,19 @@ export class HeadlessRunner {
     const recoveryCoordinator = opts?.recoverSubscriptions
       ? createRecoveryCoordinator()
       : undefined;
+    const serviceSource = { selectService, acquireService: acquireHostService };
+    const blobstoreSession = await serviceSource.selectService("blobstore", blobstoreMethods);
+    const acquiredBlobs = createBlobstoreServiceClient(blobstoreSession);
     const session = await HeadlessSession.createWithAgent({
+      serviceSource,
       config: {
         clientId: rpc.selfId,
         rpc: faultingRpc,
+        workers,
+        reviewSource: serviceSource,
+        getBlobText: (digest: string) => acquiredBlobs.getText(digest),
         ...(recoveryCoordinator ? { recoveryCoordinator } : {}),
       },
-      rpcCall: (t: string, m: string, args: unknown[], options) =>
-        rpcConfig.call(t, m, args, options),
       source: opts?.source ?? "workers/agent-worker",
       className: opts?.className ?? "AiChatWorker",
       ...(agentContextId ? { contextId: agentContextId } : {}),
@@ -894,11 +880,8 @@ export class HeadlessRunner {
       channelId,
     };
     try {
-      diagnostics["buildProvenance"] = await rpc.call(
-        "main",
-        "build.inspectBuildProvenance",
-        ["@workspace-skills/system-testing"],
-      );
+      diagnostics["buildProvenance"] = await (await selectService("build", buildMethods))
+        .binding.inspectBuildProvenance("@workspace-skills/system-testing");
     } catch (err) {
       diagnostics["buildProvenanceFailure"] = systemTestFailure(
         "diagnostic:build-provenance",
@@ -906,11 +889,8 @@ export class HeadlessRunner {
       );
     }
     try {
-      diagnostics["durableWork"] = await rpc.call(
-        "main",
-        "durableWork.inspect",
-        [],
-      );
+      diagnostics["durableWork"] = await (await selectService("durableWork", durableWorkMethods))
+        .binding.inspect();
     } catch (err) {
       diagnostics["durableWorkFailure"] = systemTestFailure(
         "diagnostic:durable-work",
@@ -919,26 +899,13 @@ export class HeadlessRunner {
     }
     if (channelId) {
       try {
-        const service = (await rpc.call("main", "workers.resolveService", [
-          "vibestudio.channel.v1",
-          channelId,
-        ])) as {
-          kind?: unknown;
-          targetId?: unknown;
-        };
-        if (
-          service.kind !== "durable-object" ||
-          typeof service.targetId !== "string"
-        ) {
+        const service = await workers.resolveService("vibestudio.channel.v1", channelId);
+        if (service.kind !== "durable-object" || !service.methods["getState"]) {
           throw new Error(
             "channel service did not resolve to a Durable Object",
           );
         }
-        diagnostics["channelDelivery"] = await rpc.call(
-          service.targetId,
-          "getState",
-          [],
-        );
+        diagnostics["channelDelivery"] = await service.methods["getState"]();
       } catch (err) {
         diagnostics["channelDeliveryFailure"] = systemTestFailure(
           "diagnostic:channel-delivery",
@@ -970,37 +937,28 @@ export class HeadlessRunner {
    * test cancellation.
    */
   async probeEvalCancellation(): Promise<EvalCancellationProbe> {
+    const evalService = (await selectService("eval", evalMethods)).binding;
     const runId = `system-test-cancel-${crypto.randomUUID()}`;
     const subKey = `system-test-cancel-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call<{ runId: string }>("main", "eval.start", [
-        {
-          scope: { key: subKey, lifecycle: "finite" },
-          runId,
-          source: { kind: "inline", code: "await new Promise(() => {});" },
-        },
-      ]);
+      const started = await evalService.start({
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: { kind: "inline", code: "await new Promise(() => {});" },
+      });
       activated = true;
       if (started.runId !== runId) {
         throw new Error(
           `eval.start returned ${started.runId}, expected ${runId}`,
         );
       }
-      const cancel = await rpc.call<{ ok: true; forcedReset: boolean }>(
-        "main",
-        "eval.cancel",
-        [{ scopeKey: subKey, runId }],
-      );
-      const terminal = await rpc.call<{ status: string; result?: unknown }>(
-        "main",
-        "eval.get",
-        [{ scopeKey: subKey, runId }],
-      );
+      const cancel = await evalService.cancel({ scopeKey: subKey, runId });
+      const terminal = await evalService.get({ scopeKey: subKey, runId });
       return { runId, cancel, terminal };
     } finally {
       if (activated) {
-        await rpc.call("main", "eval.dispose", [{ scopeKey: subKey }]);
+        await evalService.dispose({ scopeKey: subKey });
       }
     }
   }
@@ -1012,70 +970,51 @@ export class HeadlessRunner {
    * turn cannot read its own event journal until it has already settled.
    */
   async probeEvalEventPages(): Promise<EvalEventPagesProbe> {
+    const evalService = (await selectService("eval", evalMethods)).binding;
     const runId = `system-test-events-${crypto.randomUUID()}`;
     const subKey = `system-test-events-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call<{ runId: string }>("main", "eval.start", [
-        {
-          scope: { key: subKey, lifecycle: "finite" },
-          runId,
-          source: {
-            kind: "inline",
-            code: 'console.log("SYSTEM_TEST_EVAL_EVENT"); return { eventProbe: true };',
-          },
+      const started = await evalService.start({
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: {
+          kind: "inline",
+          code: 'console.log("SYSTEM_TEST_EVAL_EVENT"); return { eventProbe: true };',
         },
-      ]);
+      });
       activated = true;
       if (started.runId !== runId) {
         throw new Error(
           `eval.start returned ${started.runId}, expected ${runId}`,
         );
       }
-      let terminal: { status: string; result?: unknown } | null = null;
-      const settleDeadline = Date.now() + 30_000;
-      while (Date.now() < settleDeadline) {
-        terminal = await rpc.call<{ status: string; result?: unknown }>(
-          "main",
-          "eval.get",
-          [{ scopeKey: subKey, runId }],
-        );
+      let terminal: { status: string; result?: unknown };
+      while (true) {
+        terminal = await evalService.get({ scopeKey: subKey, runId });
         if (terminal.status === "done" || terminal.status === "cancelled")
           break;
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
-      if (
-        !terminal ||
-        (terminal.status !== "done" && terminal.status !== "cancelled")
-      ) {
-        throw new Error(
-          `eval run ${runId} did not settle before event pagination`,
-        );
-      }
       const readPage = () =>
-        rpc.call<EvalEventPagesProbe["firstPage"]>("main", "eval.events", [
-          { scopeKey: subKey, runId, after: 0, limit: 1 },
-        ]);
+        evalService.events({ scopeKey: subKey, runId, after: 0, limit: 1 });
       const firstPage = await readPage();
       const repeatedFirstPage = await readPage();
       const pages: EvalEventPagesProbe["pages"] = [];
       let after = 0;
-      do {
-        const page = await rpc.call<EvalEventPagesProbe["firstPage"]>(
-          "main",
-          "eval.events",
-          [{ scopeKey: subKey, runId, after, limit: 1 }],
-        );
+      while (true) {
+        const page = await evalService.events({ scopeKey: subKey, runId, after, limit: 1 });
         pages.push(page);
-        after = page.next;
         if (!page.hasMore) break;
-      } while (pages.length < 256);
-      if (pages.at(-1)?.hasMore)
-        throw new Error(`eval event stream exceeded bounded pagination`);
+        if (page.next <= after) {
+          throw new Error(`eval event cursor did not advance for run ${runId}`);
+        }
+        after = page.next;
+      }
       return { runId, firstPage, repeatedFirstPage, pages, terminal };
     } finally {
       if (activated)
-        await rpc.call("main", "eval.dispose", [{ scopeKey: subKey }]);
+        await evalService.dispose({ scopeKey: subKey });
     }
   }
 
@@ -1089,11 +1028,8 @@ export class HeadlessRunner {
   async faultAbortAgentVesselForReplayProbe(
     targetId: string,
   ): Promise<AgentVesselFaultProbe> {
-    const result = await rpc.call<{ aborted: true }>(
-      "main",
-      "runtime.faultAbortAgentVessel",
-      [{ targetId }],
-    );
+    const runtime = (await selectService("runtime", runtimeMethods)).binding;
+    const result = await runtime.faultAbortAgentVessel({ targetId });
     return { targetId, aborted: result.aborted };
   }
 
@@ -1175,22 +1111,14 @@ export class HeadlessRunner {
       | "closeSession",
     input?: unknown,
   ): Promise<T> {
-    this.developmentTargetPromise ??= workers
-      .resolveService("vibestudio.development.v1")
-      .then((service) => {
-        if (service.kind !== "durable-object" || !service.targetId) {
-          throw new Error(
-            "vibestudio.development.v1 did not resolve to a Durable Object service",
-          );
-        }
-        return service.targetId;
-      })
-      .catch((error: unknown) => {
-        this.developmentTargetPromise = null;
-        throw error;
-      });
-    const targetId = await this.developmentTargetPromise;
-    return rpc.call<T>(targetId, method, input === undefined ? [] : [input]);
+    const service = await createCanonicalWorkersClientFromSource({ selectService })
+      .resolveService("vibestudio.development.v1");
+    if (service.kind !== "durable-object") {
+      throw new Error("vibestudio.development.v1 did not resolve to a Durable Object service");
+    }
+    const invoke = service.methods[method];
+    if (!invoke) throw new Error(`Development service does not expose ${method}`);
+    return await invoke(...(input === undefined ? [] : [input])) as T;
   }
 
   /** Invoke the owner-scoped ordinary attached-host client surface. */
@@ -1200,9 +1128,8 @@ export class HeadlessRunner {
     method: string,
     args: unknown[],
   ): Promise<T> {
-    return rpc.call<T>("main", "attachedHosts.invokeAttached", [
-      { sessionId, service, method, args },
-    ]);
+    const attachedHosts = (await selectService("attachedHosts", attachedHostsMethods)).binding;
+    return await attachedHosts.invokeAttached({ sessionId, service, method, args }) as T;
   }
 
   /** Open and attest the owner-scoped ordinary attached-host client. */
@@ -1214,7 +1141,8 @@ export class HeadlessRunner {
     authorityCeilingDigest: string;
     expiresAt: number;
   }> {
-    return rpc.call("main", "attachedHosts.attachClient", [{ sessionId }]);
+    const attachedHosts = (await selectService("attachedHosts", attachedHostsMethods)).binding;
+    return attachedHosts.attachClient({ sessionId });
   }
 
   /** Read bounded parent-captured approval evidence without changing child results. */
@@ -1225,9 +1153,8 @@ export class HeadlessRunner {
     events: AttachedHostApprovalAuditEvent[];
     nextCursor: string | null;
   }> {
-    return rpc.call("main", "attachedHosts.listApprovalAudit", [
-      { sessionId, ...input },
-    ]);
+    const attachedHosts = (await selectService("attachedHosts", attachedHostsMethods)).binding;
+    return attachedHosts.listApprovalAudit({ sessionId, ...input });
   }
 
   /** Author one disposable semantic marker used to prove dirty-state capture. */

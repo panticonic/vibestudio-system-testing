@@ -9,13 +9,71 @@
 
 import { describe, it, expect, vi } from "vitest";
 import {
-  createHeadlessAgentContext,
-  destroyHeadlessAgentContext,
+  createHeadlessAgentContext as createHeadlessAgentContextImpl,
+  destroyHeadlessAgentContext as destroyHeadlessAgentContextImpl,
   getRecommendedChannelConfig,
-  retireHeadlessAgent,
-  subscribeHeadlessAgent,
-  unsubscribeHeadlessAgent,
+  retireHeadlessAgent as retireHeadlessAgentImpl,
+  subscribeHeadlessAgent as subscribeHeadlessAgentImpl,
+  unsubscribeHeadlessAgent as unsubscribeHeadlessAgentImpl,
 } from "./channel.js";
+import type { AgentLaunchSource } from "@workspace/agentic-core";
+
+vi.mock("@vibestudio/service-schemas/clients/workersClient", () => ({
+  createCanonicalWorkersClientFromSource: (source: { resolveDurableObject: unknown }) => source,
+}));
+
+type RpcCall = (target: string, method: string, args: unknown[]) => Promise<unknown>;
+function serviceSource(rpcCall: RpcCall): AgentLaunchSource {
+  return {
+    selectService: async () => ({
+      binding: {
+        createEntity: (spec: unknown) => rpcCall("main", "runtime.createEntity", [spec]),
+        retireEntity: (input: unknown) => rpcCall("main", "runtime.retireEntity", [input]),
+        createContext: (input: unknown) => rpcCall("main", "runtime.createContext", [input]),
+        destroyContext: (input: unknown) => rpcCall("main", "runtime.destroyContext", [input]),
+      },
+    }),
+    resolveDurableObject: async (source: string, className: string, key: string) => ({
+      invoke: (method: string, args: readonly unknown[]) =>
+        rpcCall(`do:${source}:${className}:${key}`, method, [...args]),
+    }),
+  } as unknown as AgentLaunchSource;
+}
+function subscribeHeadlessAgent(
+  opts: Omit<Parameters<typeof subscribeHeadlessAgentImpl>[0], "serviceSource"> & { rpcCall: RpcCall },
+) {
+  const { rpcCall, ...input } = opts;
+  return subscribeHeadlessAgentImpl({ ...input, serviceSource: serviceSource(rpcCall) });
+}
+function createHeadlessAgentContext(
+  opts: Omit<Parameters<typeof createHeadlessAgentContextImpl>[0], "serviceSource"> & { rpcCall: RpcCall },
+) {
+  const { rpcCall, ...input } = opts;
+  return createHeadlessAgentContextImpl({ ...input, serviceSource: serviceSource(rpcCall) });
+}
+function destroyHeadlessAgentContext(
+  opts: Omit<Parameters<typeof destroyHeadlessAgentContextImpl>[0], "serviceSource"> & { rpcCall: RpcCall },
+) {
+  const { rpcCall, ...input } = opts;
+  return destroyHeadlessAgentContextImpl({ ...input, serviceSource: serviceSource(rpcCall) });
+}
+function unsubscribeHeadlessAgent(
+  opts: Omit<Parameters<typeof unsubscribeHeadlessAgentImpl>[0], "serviceSource" | "source" | "className" | "objectKey"> & { rpcCall: RpcCall; targetId: string },
+) {
+  const { rpcCall, targetId: _targetId, ...input } = opts;
+  return unsubscribeHeadlessAgentImpl({
+    ...input,
+    source: "workers/agent-worker",
+    className: "AiChatWorker",
+    objectKey: "obj-1",
+    serviceSource: serviceSource(rpcCall),
+  });
+}
+function retireHeadlessAgent(
+  opts: Omit<Parameters<typeof retireHeadlessAgentImpl>[0], "serviceSource"> & { rpcCall: RpcCall },
+) {
+  return retireHeadlessAgentImpl({ entityId: opts.entityId, serviceSource: serviceSource(opts.rpcCall) });
+}
 
 function makeRpcCall(captured: {
   config?: Record<string, unknown>;

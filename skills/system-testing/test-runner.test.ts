@@ -163,9 +163,7 @@ describe("TestRunner", () => {
     expect(session.close).toHaveBeenCalledWith({
       onPhase: expect.any(Function),
     });
-    expect(session.interrupt).toHaveBeenCalledWith("agent-target-timeout", {
-      timeoutMs: 30_000,
-    });
+    expect(session.interrupt).toHaveBeenCalledWith("agent-target-timeout");
     expect(cleanupOrder).toEqual(["interrupt", "close"]);
     expect(session.captureModelExecutionEvidence).toHaveBeenCalledOnce();
     expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
@@ -784,9 +782,7 @@ describe("TestRunner", () => {
       "Unexpected authority prompt in system test",
     );
     expect(execution.error).toContain("workspace.runtime-state.manage");
-    expect(session.interrupt).toHaveBeenCalledWith("target-authority-failure", {
-      timeoutMs: 30_000,
-    });
+    expect(session.interrupt).toHaveBeenCalledWith("target-authority-failure");
     expect(session.close).toHaveBeenCalledOnce();
     expect(listener).toBeUndefined();
   });

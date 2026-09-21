@@ -52,6 +52,7 @@ import {
   type ChannelViewState,
 } from "@workspace/agentic-protocol";
 import { z } from "zod";
+import { createCanonicalWorkersClientFromSource } from "@vibestudio/service-schemas/clients/workersClient";
 import {
   createHeadlessAgentContext,
   createHeadlessChannel,
@@ -145,12 +146,7 @@ export interface HeadlessSessionConfig {
 }
 
 export interface HeadlessWithAgentConfig extends HeadlessSessionConfig {
-  rpcCall: (
-    target: string,
-    method: string,
-    args: unknown[],
-    options?: { timeoutMs?: number; signal?: AbortSignal },
-  ) => Promise<unknown>;
+  serviceSource: import("@workspace/agentic-core").AgentLaunchSource;
   source: string;
   className: string;
   objectKey?: string;
@@ -181,7 +177,6 @@ export interface HeadlessWithAgentConfig extends HeadlessSessionConfig {
   includeValidationRetryProbeMethod?: boolean;
 }
 
-const HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS = 30_000;
 
 export interface HeadlessWaitOptions {
   debounce?: number;
@@ -251,7 +246,8 @@ export class HeadlessSession {
   private _agentTargetId: string | null = null;
   private _agentContextId: string | null = null;
   private _ownsAgentContext = false;
-  private _agentRpcCall: HeadlessWithAgentConfig["rpcCall"] | null = null;
+  private _agentServiceSource: HeadlessWithAgentConfig["serviceSource"] | null = null;
+  private _agentObjectIdentity: { source: string; className: string; objectKey: string } | null = null;
 
   // Channel message state (derived from persisted + live channel messages)
   private _chatMessages = new Map<string, ChatMessage>();
@@ -374,7 +370,7 @@ export class HeadlessSession {
     const agentContextId =
       config.contextId ??
       (await createHeadlessAgentContext({
-        rpcCall: config.rpcCall,
+        serviceSource: config.serviceSource,
         ...(config.testPolicy ? { testPolicy: config.testPolicy } : {}),
       }));
     session._hotPathTrace.push({
@@ -385,7 +381,7 @@ export class HeadlessSession {
     try {
       const channelStartedAt = Date.now();
       const channel = await createHeadlessChannel({
-        rpcCall: config.rpcCall,
+        serviceSource: config.serviceSource,
         channelId,
         contextId: agentContextId,
       });
@@ -402,7 +398,7 @@ export class HeadlessSession {
       });
       const subscriptionStartedAt = Date.now();
       const subscription = await subscribeHeadlessAgent({
-        rpcCall: config.rpcCall,
+        serviceSource: config.serviceSource,
         source: config.source,
         className: config.className,
         objectKey,
@@ -419,13 +415,14 @@ export class HeadlessSession {
       session._agentTargetId = subscription.targetId;
       session._agentContextId = subscription.contextId;
       session._ownsAgentContext = ownsAgentContext;
-      session._agentRpcCall = config.rpcCall;
+      session._agentServiceSource = config.serviceSource;
+      session._agentObjectIdentity = { source: config.source, className: config.className, objectKey };
     } catch (err) {
       await session.disconnect();
       if (ownsAgentContext) {
         try {
           await destroyHeadlessAgentContext({
-            rpcCall: config.rpcCall,
+            serviceSource: config.serviceSource,
             contextId: agentContextId,
           });
         } catch (cleanupError) {
@@ -787,19 +784,11 @@ export class HeadlessSession {
     agentId: string,
     options?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<void> {
-    if (this._agentRpcCall && this._channelId) {
-      if (options) {
-        await this._agentRpcCall(
-          agentId,
-          "interruptChannel",
-          [this._channelId],
-          options,
-        );
-      } else {
-        await this._agentRpcCall(agentId, "interruptChannel", [
-          this._channelId,
-        ]);
-      }
+    if (this._agentServiceSource && this._agentObjectIdentity && this._channelId && agentId === this._agentTargetId) {
+      const { source, className, objectKey } = this._agentObjectIdentity;
+      const agent = await createCanonicalWorkersClientFromSource(this._agentServiceSource)
+        .resolveDurableObject(source, className, objectKey, options?.signal);
+      await agent.invoke("interruptChannel", [this._channelId], options);
       return;
     }
     if (!this._client) return;
@@ -847,14 +836,15 @@ export class HeadlessSession {
     if (!channelId)
       throw new Error("No channel is available for model execution evidence");
     try {
-      const evidence = this._agentRpcCall
-        ? await this._agentRpcCall(
-            targetId,
-            "getModelExecutionEvidence",
-            [channelId],
-            options,
-          )
-        : await this.callMethod(targetId, "getModelExecutionEvidence", {});
+      let evidence: unknown;
+      if (this._agentServiceSource && this._agentObjectIdentity) {
+        const { source, className, objectKey } = this._agentObjectIdentity;
+        const agent = await createCanonicalWorkersClientFromSource(this._agentServiceSource)
+          .resolveDurableObject(source, className, objectKey, options?.signal);
+        evidence = await agent.invoke("getModelExecutionEvidence", [channelId], options);
+      } else {
+        evidence = await this.callMethod(targetId, "getModelExecutionEvidence", {});
+      }
       this._modelExecutionEvidence = evidence;
       this._modelExecutionEvidenceError = undefined;
       return evidence;
@@ -926,32 +916,27 @@ export class HeadlessSession {
     const contextId = this._agentContextId;
     const ownsContext = this._ownsAgentContext;
     const channelId = this._channelId;
-    const rpcCall = this._agentRpcCall;
-    const lifecycleRpcCall = rpcCall
-      ? (target: string, method: string, args: unknown[]) =>
-          rpcCall(target, method, args, {
-            timeoutMs: HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS,
-          })
-      : null;
+    const serviceSource = this._agentServiceSource;
+    const objectIdentity = this._agentObjectIdentity;
 
     const unsubscribe = async () => {
-      if (!targetId || !channelId || !lifecycleRpcCall) return;
+      if (!objectIdentity || !channelId || !serviceSource) return;
       await unsubscribeHeadlessAgent({
-        rpcCall: lifecycleRpcCall,
-        targetId,
+        serviceSource,
+        ...objectIdentity,
         channelId,
       }).catch((err) => {
         this.recordCleanupError("unsubscribeHeadlessAgent", err);
       });
     };
     const cleanupRemote = async () => {
-      if (!lifecycleRpcCall) return;
+      if (!serviceSource) return;
       // A context minted for this launch is the lifecycle unit. Destroying it
       // recursively retires the root and descendants, so it has one owner and
       // no entity-level fallback path.
       if (ownsContext && contextId) {
         await destroyHeadlessAgentContext({
-          rpcCall: lifecycleRpcCall,
+          serviceSource,
           contextId,
         }).catch((err) => {
           this.recordCleanupError("destroyHeadlessAgentContext", err);
@@ -962,7 +947,8 @@ export class HeadlessSession {
       // In a caller-owned context, the session owns only its entity after the
       // subscription has been closed. Retirement observes the terminal result.
       if (!entityId) return;
-      await retireHeadlessAgent({ rpcCall: lifecycleRpcCall, entityId }).catch(
+      if (!serviceSource) return;
+      await retireHeadlessAgent({ serviceSource, entityId }).catch(
         (err) => {
           this.recordCleanupError("retireHeadlessAgent", err);
         },
@@ -984,15 +970,14 @@ export class HeadlessSession {
       this._modelExecutionEvidence === undefined
     ) {
       this.setCleanupPhase("capturing-model-evidence", options?.onPhase);
-      await this.captureModelExecutionEvidence({
-        timeoutMs: HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS,
-      }).catch((error) => {
+      await this.captureModelExecutionEvidence().catch((error) => {
         this.recordCleanupError("captureModelExecutionEvidence", error);
       });
     }
     this._agentEntityId = null;
     this._agentTargetId = null;
-    this._agentRpcCall = null;
+    this._agentServiceSource = null;
+    this._agentObjectIdentity = null;
     this.setCleanupPhase("disconnecting-client", options?.onPhase);
     await this.dispose();
     this.setCleanupPhase(
