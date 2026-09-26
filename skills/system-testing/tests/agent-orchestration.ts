@@ -269,15 +269,6 @@ export const agentOrchestrationTests: TestCase[] = [
     validate: validateAgentCompletionReport,
   },
   {
-    name: "claude-subagent-readonly-diagnostic",
-    description:
-      "Claude Code performs a bounded read-only audit while the parent supervises its progress and verifies that no source changed",
-    category: "agent-orchestration",
-    prompt:
-      "Ask Claude Code to perform a read-only audit comparing the subagent reading-versus-inspection documentation with the current implementation. Have it identify one concrete developer-ergonomics risk with source evidence. Supervise the task through its normal progress and runtime information, confirm afterward that its workspace stayed clean, and report the finding plus any difficulty you encountered supervising it.",
-    validate: validateAgentCompletionReport,
-  },
-  {
     name: "terminal-extension-capability-acquisition",
     description:
       "A harmless argv-mode terminal command exercises the installed scoped terminal capability",

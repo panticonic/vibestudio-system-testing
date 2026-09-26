@@ -585,16 +585,6 @@ export async function systemTestDoctor(
     "the workspace has a valid standalone runtime configuration"
   );
   await capture(
-    "claude-code-extension",
-    () =>
-      rpc.call("main", "extensions.invokeProvider", [
-        "claudeCode",
-        "resolvePrimaryChannel",
-        ["system-test-doctor-probe"],
-      ]),
-    "Claude Code provider is registered and activatable"
-  );
-  await capture(
     "model",
     async () => {
       const modelRoute = systemTestModelRoute(primaryModel, typeof expectedModel !== "string");

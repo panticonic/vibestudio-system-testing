@@ -163,7 +163,7 @@ describe("system-testing CLI-neutral API", () => {
       if (method === "extensions.list") {
         return [
           "browser-data",
-          "claude-code",
+          "file-tools",
           "file-tools",
           "git-bridge",
           "image-service",
@@ -236,30 +236,6 @@ describe("system-testing CLI-neutral API", () => {
           scope: "all-turns",
         },
       },
-    });
-  });
-
-  it("fails doctor when the Claude Code provider is declared but not registered", async () => {
-    configureHealthyDoctorModels([
-      { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
-      { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
-    ]);
-    const priorImplementation = mocks.rpcCall.getMockImplementation();
-    mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
-      if (args[1] === "extensions.invokeProvider") {
-        throw Object.assign(new Error("No provider registered for claudeCode"), {
-          code: "ENOEXT",
-        });
-      }
-      return priorImplementation?.(...args);
-    });
-
-    const result = await systemTestDoctor();
-
-    expect(result.ok).toBe(false);
-    expect(result.checks.find((check) => check.name === "claude-code-extension")).toMatchObject({
-      ok: false,
-      detail: expect.stringContaining("No provider registered for claudeCode"),
     });
   });
 
@@ -384,7 +360,7 @@ describe("system-testing CLI-neutral API", () => {
           },
           ...[
             "browser-data",
-            "claude-code",
+            "file-tools",
             "file-tools",
             "git-bridge",
             "image-service",
@@ -405,7 +381,7 @@ describe("system-testing CLI-neutral API", () => {
         return {
           extensions: [
             "browser-data",
-            "claude-code",
+            "file-tools",
             "file-tools",
             "git-bridge",
             "image-service",
@@ -423,7 +399,7 @@ describe("system-testing CLI-neutral API", () => {
               path: "extensions",
               children: [
                 "browser-data",
-                "claude-code",
+                "file-tools",
                 "file-tools",
                 "git-bridge",
                 "image-service",

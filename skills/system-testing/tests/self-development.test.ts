@@ -51,7 +51,7 @@ function validate(name: string, value: unknown) {
       method: "listNativeTools",
       result: [
         {
-          toolId: "claude-code",
+          toolId: "system-editor",
           executorId: "executor",
           available: true,
           unavailableReason: null,
@@ -267,7 +267,7 @@ describe("self-development semantic validators", () => {
       contextId: "child",
       repository: { repositoryId: "repository:projects/vibestudio" },
       native: {
-        toolId: "claude-code",
+        toolId: "system-editor",
         pendingChanges: "none",
         lastCheckpoint: {
           snapshotRevision: "snapshot:1",
