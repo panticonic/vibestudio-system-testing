@@ -4,7 +4,7 @@ const AGENT_TOOL_NAME =
   /\b(?:spawn_subagent|inspect_subagent|read_subagent|merge_subagent|close_subagent|cancel_subagent|suspend_turn)\b/u;
 const API_CALL =
   /\b(?:extensions\.invoke|services\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*|stateArgs\.(?:get|set)|openPanel)\s*\(/u;
-const RUNTIME_CONFIG = /\b(?:agentKind|thinkingLevel|launchConfig|preauthorize|timeoutMs)\s*:/u;
+const RUNTIME_CONFIG = /\b(?:thinkingLevel|launchConfig|preauthorize|timeoutMs)\s*:/u;
 const EXACT_CHOREOGRAPHY =
   /\b(?:using exactly one eval call|do not make any other tool call|return exactly\s*\{|call [A-Za-z_][A-Za-z0-9_]* once with)\b/iu;
 

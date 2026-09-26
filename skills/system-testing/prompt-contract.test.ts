@@ -22,7 +22,7 @@ describe("agent-goal prompt contract", () => {
   it.each([
     ["internal tools", "Call spawn_subagent and then merge_subagent."],
     ["API calls", "Use extensions.invoke('shell', 'exec', [request])."],
-    ["runtime configuration", "Set agentKind:'pi' and thinkingLevel:'minimal'."],
+    ["runtime configuration", "Set thinkingLevel:'minimal'."],
     ["call choreography", "Using exactly one eval call, return exactly { ok: true }."],
   ])("rejects %s embedded in an agent goal", (_label, prompt) => {
     expect(agentGoalPromptFindings(prompt)).not.toEqual([]);

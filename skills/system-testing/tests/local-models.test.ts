@@ -48,7 +48,7 @@ function execution(
       invocation(
         "spawn_subagent",
         { prompt: "Read the README heading", config: { model } },
-        { subagent: { agentKind: "pi", launchConfig: { model } } }
+        { subagent: { launchConfig: { model } } }
       ),
       {
         id: runId,
@@ -67,7 +67,7 @@ function execution(
             description: "",
             result: { protocolContent: [{ type: "text", text: `# ${heading}` }] },
           },
-          subagent: { agentKind: "pi", launchConfig: { model } },
+          subagent: { launchConfig: { model } },
         },
       },
       {
