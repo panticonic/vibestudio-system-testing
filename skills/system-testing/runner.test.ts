@@ -707,7 +707,7 @@ describe("HeadlessRunner", () => {
           testPolicy: {
             testId: "docs-workspace-loop",
             agent: {
-              model: "openai-codex:gpt-5.6-luna",
+              model: SYSTEM_TEST_AGENT_MODEL,
               approvalLevel: 2,
               fallback: {
                 model: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,

@@ -9,9 +9,9 @@ const mocks = vi.hoisted(() => ({
   testerOptions: null as Record<string, unknown> | null,
   snapshotAll: vi.fn(() => []),
   modelPolicySnapshot: vi.fn(() => ({
-    primaryModel: "openai-codex:gpt-5.6-luna",
-    activeModel: "openai-codex:gpt-5.6-luna",
-    fallbackModel: "openai-codex:gpt-5.6-sol",
+    primaryModel: "openai-codex:gpt-6-luna",
+    activeModel: "openai-codex:gpt-6-luna",
+    fallbackModel: "openai-codex:gpt-6-sol",
     fallbackThinkingLevel: "low" as const,
     fallbackOn: ["usage_limit_terminal"],
     fallbackScope: "all-turns" as const,
@@ -215,8 +215,8 @@ describe("system-testing CLI-neutral API", () => {
   });
 
   it("doctors Luna and its low-effort Sol usage-limit fallback for the default route", async () => {
-    expect(SYSTEM_TEST_AGENT_MODEL).toBe("openai-codex:gpt-5.6-luna");
-    expect(SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL).toBe("openai-codex:gpt-5.6-sol");
+    expect(SYSTEM_TEST_AGENT_MODEL).toBe("openai-codex:gpt-6-luna");
+    expect(SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL).toBe("openai-codex:gpt-6-sol");
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
       { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
