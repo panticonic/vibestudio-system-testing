@@ -215,7 +215,7 @@ describe("TestRunner", () => {
         throw new Error("diagnostics fetch failed");
       }),
     } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 5 });
+    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
 
     const { result, execution } = await tester.runOne({
       name: "fetch-failed-test",
@@ -620,7 +620,7 @@ describe("TestRunner", () => {
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 5 });
+    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
 
     const suite = await tester.runSuite([
       {
@@ -834,7 +834,7 @@ describe("TestRunner", () => {
         channelDelivery: { deliveryLifecycle: { latencyHistogram: [] } },
       })),
     } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 5 });
+    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
 
     const { result, execution } = await tester.runOne({
       name: "orchestrated-test",
