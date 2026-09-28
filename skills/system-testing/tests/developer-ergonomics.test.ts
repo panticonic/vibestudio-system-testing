@@ -177,9 +177,9 @@ describe("developer ergonomics scenarios", () => {
     const catalog = {
       protocol: "workspace-dev-catalog.v1",
       resource: "icon",
-      query: "columns-3",
+      query: "columns-3x",
       total: 39,
-      entries: [{ id: "lucide:columns", family: "lucide", name: "columns" }],
+      entries: [{ id: "lucide:columns-3", family: "lucide", name: "columns-3" }],
       truncated: 38,
     };
     const rejected = call(
@@ -222,9 +222,9 @@ describe("developer ergonomics scenarios", () => {
     const catalog = {
       protocol: "workspace-dev-catalog.v1",
       resource: "icon",
-      query: "columns-3",
+      query: "columns-3x",
       total: 39,
-      entries: [{ id: "lucide:columns", family: "lucide", name: "columns" }],
+      entries: [{ id: "lucide:columns-3", family: "lucide", name: "columns-3" }],
       truncated: 38,
     };
     const discovered = call(

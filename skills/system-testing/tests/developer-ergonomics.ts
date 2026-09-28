@@ -462,12 +462,12 @@ export const developerErgonomicsTests: TestCase[] = [
   },
   {
     name: "invalid-icon-discover-recover-create",
-    description: "Resolve an unsupported curated icon through bounded discovery",
+    description: "Resolve a misspelled icon through bounded discovery",
     category: "developer-ergonomics",
     validation: "agent-evidence",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Create and publish a brand-new isolated panel whose requested built-in icon is lucide:columns-3. If that exact icon is unavailable, use the returned workspace catalog evidence to choose the closest supported columns or layout icon and finish the panel creation.",
+      "Create and publish a brand-new isolated panel whose requested built-in icon is lucide:columns-3x. If that exact icon is unavailable, use the returned workspace catalog evidence to correct the name to the closest supported columns or layout icon and finish the panel creation.",
     expectedToolFailures: [{ name: "eval", errorIncludes: "project_icon_invalid" }],
     validate: validateInvalidIconRecovery,
   },
