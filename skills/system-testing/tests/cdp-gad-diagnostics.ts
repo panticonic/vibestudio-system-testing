@@ -19,7 +19,7 @@ import {
 import { orchestratePanelGoal } from "./_panel-tree-invariant.js";
 
 const WORKSPACE_RELOAD_PROFILE_PROMPT =
-  "Profile a real reload of a small disposable workspace panel. I want a bounded report that makes clear the reload actually happened and separates overall latency, loading, network activity, and page responsiveness costs.";
+  "Profile a real reload of a small disposable workspace panel. I want a bounded report that makes clear the reload actually happened and reports elapsed time through boot readiness, host CPU and memory, and the before/after runtime identity. Respect the runtime replacement boundary when using browser profiling.";
 
 const BROWSER_CLICK_PROFILE_PROMPT =
   "Profile one click on a tiny disposable browser page whose visible state changes when clicked. Give me a bounded latency report covering the overall action, runtime work, network activity, page responsiveness, and the final visible state without collecting unrelated data that would distort the measurement.";
@@ -573,7 +573,7 @@ function formatToolFailure(failure: ToolFailureLike): string {
 export const cdpGadDiagnosticTests: TestCase[] = [
   {
     name: "workspace-panel-reload-performance-profile",
-    description: "Profile a real workspace-panel reload without replacing its CDP lease",
+    description: "Profile a real workspace-panel reload across runtime replacement",
     category: "cdp-gad-diagnostics",
     authorityPolicy: panelControlAuthorityPolicy("inspect-cdp-performance-panel-reload", [
       PANEL_RUNTIME_SUPERVISION_AUTHORITY,
@@ -589,17 +589,15 @@ export const cdpGadDiagnosticTests: TestCase[] = [
     validate: (result) =>
       checked(
         result,
-        [/reload/iu, /profil/iu, /network|request/iu],
+        [/reload/iu, /profil/iu, /host|cpu/iu],
         [
           /openPanel\s*\(/u,
-          /\.cdp\.page\s*\(/u,
-          /\.profile\s*\(/u,
-          /\.reload\s*\(/u,
+          /profilePanelReload\s*\(/u,
           /beforeAttemptId/u,
           /afterAttemptId/u,
-          /navigation/u,
-          /requestCount/u,
-          /longTasks(?:\?\.)?\.count|"longTasks"\s*:\s*\{\s*"count"/u,
+          /elapsedMs/u,
+          /userCpuMs/u,
+          /rssDeltaBytes/u,
         ]
       ),
   },

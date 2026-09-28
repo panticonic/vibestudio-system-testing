@@ -107,24 +107,18 @@ const STATE_FINAL =
   "The panel state was visible in the inspected automation snapshot after the change.";
 
 describe("cdp-gad diagnostics validators", () => {
-  it("accepts a profiled workspace reload with lifecycle and network evidence", () => {
+  it("accepts a profiled workspace reload with lifecycle and host evidence", () => {
     const result = reloadProfileTest.validate(
       executionWithInvocation(
-        "The workspace panel reload was profiled on the same attached page, and the network report confirms a real reload.",
+        "The workspace panel reload was profiled across runtime replacement with host CPU and memory evidence.",
         {
           id: "call-reload-profile",
           name: "eval",
           arguments: {
             code: `
               const handle = await openPanel("about/testbench", { focus: false });
-              const beforeAttemptId = (await handle.snapshot()).attemptId;
-              const page = await handle.cdp.page();
-              const report = await page.profile(async () => {
-                await handle.reload();
-                await page.waitForLoadState("networkidle");
-              });
-              const afterAttemptId = (await handle.snapshot()).attemptId;
-              return { beforeAttemptId, afterAttemptId, version: report.version, elapsedMs: report.elapsedMs, navigation: report.page.navigation, requestCount: report.network.requestCount, longTasks: report.page.longTasks.count };
+              const result = await profilePanelReload(handle);
+              return { beforeAttemptId: result.beforeAttemptId, afterAttemptId: result.afterAttemptId, ...result.report.summary };
             `,
           },
           execution: {
@@ -134,12 +128,9 @@ describe("cdp-gad diagnostics validators", () => {
               details: {
                 returnValue: {
                   beforeAttemptId: "attempt-1",
-                  afterAttemptId: "attempt-1",
-                  version: 1,
+                  afterAttemptId: "attempt-2",
                   elapsedMs: 232,
-                  navigation: { loadMs: 75 },
-                  requestCount: 18,
-                  longTasks: 0,
+                  server: { userCpuMs: 50, rssDeltaBytes: 1024 },
                 },
               },
             },
@@ -151,7 +142,7 @@ describe("cdp-gad diagnostics validators", () => {
     expect(result).toEqual({ passed: true });
   });
 
-  it("rejects a workspace reload claim without a measured navigation", () => {
+  it("rejects a workspace reload claim based only on the old CDP incarnation", () => {
     const result = reloadProfileTest.validate(
       executionWithInvocation("The workspace panel reload was profiled and had network requests.", {
         id: "call-reload-profile",
