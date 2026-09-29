@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { developerErgonomicsTests } from "./developer-ergonomics.js";
 
-function call(
+function call<T extends Record<string, unknown>>(
   id: string,
   name: string,
   args: Record<string, unknown>,
-  details: Record<string, unknown>,
-  failed = false
+  details: T,
+  failed = false,
 ) {
   return {
     kind: "message" as const,
@@ -22,7 +22,9 @@ function call(
       execution: {
         status: failed ? ("error" as const) : ("complete" as const),
         isError: failed,
-        ...(failed ? { failureKind: "user-code", failureCode: "guest_execution_failed" } : {}),
+        ...(failed
+          ? { failureKind: "user-code", failureCode: "guest_execution_failed" }
+          : {}),
         result: { protocolContent: [], details },
       },
     },
@@ -40,7 +42,8 @@ function execution(calls: ReturnType<typeof call>[]): TestExecutionResult {
         senderId: "agent",
         senderMetadata: { type: "agent" },
         complete: true,
-        content: "The requested recovery and final verification completed successfully.",
+        content:
+          "The requested recovery and final verification completed successfully.",
       },
     ],
   } as TestExecutionResult;
@@ -55,7 +58,10 @@ function failure(code: string, data: Record<string, unknown>) {
       message: code,
       operation: "tool.execute",
       stage: "execute",
-      retry: { policy: "reobserve", commandIdPolicy: "use-new-after-reobserve" },
+      retry: {
+        policy: "reobserve",
+        commandIdPolicy: "use-new-after-reobserve",
+      },
       recovery: data["recovery"],
       causes: [{ role: "primary", code, message: code }],
       data,
@@ -98,19 +104,24 @@ describe("developer ergonomics scenarios", () => {
       "write-edit-unified-matching-provenance",
       "stale-edit-reobserve-and-apply",
     ]);
-    expect(developerErgonomicsTests.every((test) => test.validation === "agent-evidence")).toBe(
-      true
-    );
-    expect(scenario("failed-build-bounded-diagnostics").expectedToolFailures).toEqual([
-      { name: "verify", errorIncludes: "Build failed" },
-    ]);
     expect(
-      scenario("recoverable-infrastructure-failure-continues-turn").expectedToolFailures
+      developerErgonomicsTests.every(
+        (test) => test.validation !== "harness",
+      ),
+    ).toBe(true);
+    expect(
+      scenario("failed-build-bounded-diagnostics").expectedToolFailures,
+    ).toEqual([{ name: "verify", errorIncludes: "Build failed" }]);
+    expect(
+      scenario("recoverable-infrastructure-failure-continues-turn")
+        .expectedToolFailures,
     ).toEqual([{ name: "eval" }]);
-    expect(scenario("invalid-icon-discover-recover-create").expectedToolFailures).toEqual([
-      { name: "eval", errorIncludes: "project_icon_invalid" },
-    ]);
-    expect(scenario("stale-edit-reobserve-and-apply").expectedToolFailures).toBeUndefined();
+    expect(
+      scenario("invalid-icon-discover-recover-create").expectedToolFailures,
+    ).toEqual([{ name: "eval", errorIncludes: "project_icon_invalid" }]);
+    expect(
+      scenario("stale-edit-reobserve-and-apply").expectedToolFailures,
+    ).toBeUndefined();
   });
 
   it("requires a recoverable infrastructure failure followed by same-turn completion", () => {
@@ -120,12 +131,16 @@ describe("developer ergonomics scenarios", () => {
       { code: "throw recoverable;" },
       failure("recoverable_infrastructure_probe", {
         kind: "infrastructure",
-        recovery: { action: "reobserve", instruction: "Continue this same turn." },
+        recovery: {
+          action: "reobserve",
+          instruction: "Continue this same turn.",
+        },
       }),
-      true
+      true,
     );
     (
-      recoverable.invocation.execution as typeof recoverable.invocation.execution & {
+      recoverable.invocation
+        .execution as typeof recoverable.invocation.execution & {
         terminalOutcome?: string;
       }
     ).terminalOutcome = "infrastructure_error";
@@ -134,7 +149,11 @@ describe("developer ergonomics scenarios", () => {
     const final = result.messages.at(-1) as { content?: string };
     final.content = "RECOVERED_IN_SAME_TURN";
 
-    expect(scenario("recoverable-infrastructure-failure-continues-turn").validate(result)).toEqual({
+    expect(
+      scenario("recoverable-infrastructure-failure-continues-turn").validate(
+        result,
+      ),
+    ).toEqual({
       passed: true,
       reason: undefined,
     });
@@ -152,10 +171,13 @@ describe("developer ergonomics scenarios", () => {
         errorData: {
           code: "recoverable_infrastructure_probe",
           failureKind: "infrastructure",
-          recovery: { action: "reobserve", instruction: "Continue this same turn." },
+          recovery: {
+            action: "reobserve",
+            instruction: "Continue this same turn.",
+          },
         },
       },
-      true
+      true,
     );
     Object.assign(recoverable.invocation.execution, {
       terminalOutcome: "infrastructure_error",
@@ -167,7 +189,11 @@ describe("developer ergonomics scenarios", () => {
     const final = result.messages.at(-1) as { content?: string };
     final.content = "RECOVERED_IN_SAME_TURN";
 
-    expect(scenario("recoverable-infrastructure-failure-continues-turn").validate(result)).toEqual({
+    expect(
+      scenario("recoverable-infrastructure-failure-continues-turn").validate(
+        result,
+      ),
+    ).toEqual({
       passed: true,
       reason: undefined,
     });
@@ -179,7 +205,9 @@ describe("developer ergonomics scenarios", () => {
       resource: "icon",
       query: "columns-3x",
       total: 39,
-      entries: [{ id: "lucide:columns-3", family: "lucide", name: "columns-3" }],
+      entries: [
+        { id: "lucide:columns-3", family: "lucide", name: "columns-3" },
+      ],
       truncated: 38,
     };
     const rejected = call(
@@ -187,16 +215,19 @@ describe("developer ergonomics scenarios", () => {
       "eval",
       { code: "return createProjects(requested);" },
       failure("project_icon_invalid", {
-        recovery: { action: "correct-request", instruction: "Choose from the catalog" },
+        recovery: {
+          action: "correct-request",
+          instruction: "Choose from the catalog",
+        },
         catalog,
       }),
-      true
+      true,
     );
     const discovered = call(
       "catalog",
       "eval",
       { code: "return searchProjectCatalog(query);" },
-      { returnValue: catalog }
+      { returnValue: catalog },
     );
     const created = call(
       "created",
@@ -208,13 +239,13 @@ describe("developer ergonomics scenarios", () => {
           preflight: { ok: true, projectType: "panel" },
           publication: { published: true },
         },
-      }
+      },
     );
 
     expect(
       scenario("invalid-icon-discover-recover-create").validate(
-        execution([rejected, discovered, created])
-      )
+        execution([rejected, discovered, created]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 
@@ -224,14 +255,16 @@ describe("developer ergonomics scenarios", () => {
       resource: "icon",
       query: "columns-3x",
       total: 39,
-      entries: [{ id: "lucide:columns-3", family: "lucide", name: "columns-3" }],
+      entries: [
+        { id: "lucide:columns-3", family: "lucide", name: "columns-3" },
+      ],
       truncated: 38,
     };
     const discovered = call(
       "catalog",
       "eval",
       { code: "return searchProjectCatalog(query);" },
-      { returnValue: catalog }
+      { returnValue: catalog },
     );
     const created = call(
       "created",
@@ -243,12 +276,67 @@ describe("developer ergonomics scenarios", () => {
           preflight: { ok: true, projectType: "panel" },
           publication: { published: true },
         },
-      }
+      },
     );
 
     expect(
-      scenario("invalid-icon-discover-recover-create").validate(execution([discovered, created]))
+      scenario("invalid-icon-discover-recover-create").validate(
+        execution([discovered, created]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
+  });
+
+  it("accepts bounded discovery and protected publication in one completed eval", () => {
+    const catalog = {
+      protocol: "workspace-dev-catalog.v1",
+      resource: "icon",
+      entries: [{ id: "lucide:compass" }],
+    };
+    const published = {
+      created: "panels/layout",
+      preflight: { ok: true, projectType: "panel" },
+      publication: { published: true },
+    };
+    const batched = call(
+      "discover-and-create",
+      "eval",
+      {
+        code: "const catalog = await searchProjectCatalog(query); return { catalog, result: await createProjects(corrected) };",
+      },
+      { returnValue: { catalog, result: [published] } },
+    );
+    expect(
+      scenario("invalid-icon-discover-recover-create").validate(
+        execution([batched]),
+      ),
+    ).toEqual({ passed: true, reason: undefined });
+    const missingCatalog = call(
+      "create-only",
+      "eval",
+      { code: "return createProjects(corrected);" },
+      { returnValue: published },
+    );
+    expect(
+      scenario("invalid-icon-discover-recover-create").validate(
+        execution([missingCatalog]),
+      ).passed,
+    ).toBe(false);
+    const missingPublication = call(
+      "discover-only",
+      "eval",
+      { code: "return searchProjectCatalog(query);" },
+      { returnValue: catalog },
+    );
+    expect(
+      scenario("invalid-icon-discover-recover-create").validate(
+        execution([missingPublication]),
+      ).passed,
+    ).toBe(false);
+    expect(
+      scenario("invalid-icon-discover-recover-create").validate(
+        execution([missingCatalog, missingPublication]),
+      ).passed,
+    ).toBe(false);
   });
 
   it("accepts a truncated failed build only when a later receipt is clean", () => {
@@ -273,7 +361,7 @@ describe("developer ergonomics scenarios", () => {
         receipt: receipt(target, "failed"),
         truncatedDiagnostics: 20,
       },
-      true
+      true,
     );
     const clean = call(
       "clean-build",
@@ -286,11 +374,13 @@ describe("developer ergonomics scenarios", () => {
         report: { diagnostics: [] },
         receipt: receipt(target, "ok"),
         truncatedDiagnostics: 0,
-      }
+      },
     );
 
     expect(
-      scenario("failed-build-bounded-diagnostics").validate(execution([failed, clean]))
+      scenario("failed-build-bounded-diagnostics").validate(
+        execution([failed, clean]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 
@@ -301,17 +391,19 @@ describe("developer ergonomics scenarios", () => {
       {
         code: "const bytes = await page.screenshot(); const path = await fs.mktemp('capture'); await fs.writeFile(path, bytes); return path;",
       },
-      { returnValue: "file:/.tmp/capture-123" }
+      { returnValue: "file:/.tmp/capture-123" },
     );
     const read = call(
       "read",
       "read",
       { target: "file:/.tmp/capture-123" },
-      { mimeType: "image/png", size: 4096 }
+      { mimeType: "image/png", size: 4096 },
     );
 
     expect(
-      scenario("extensionless-screenshot-resource-read").validate(execution([capture, read]))
+      scenario("extensionless-screenshot-resource-read").validate(
+        execution([capture, read]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 
@@ -322,17 +414,19 @@ describe("developer ergonomics scenarios", () => {
       {
         code: "const bytes = await page.screenshot(); const path = 'scratch/capture'; await fs.writeFile(path, bytes); return { screenshotPath: path };",
       },
-      { returnValue: { screenshotPath: "scratch/capture" } }
+      { returnValue: { screenshotPath: "scratch/capture" } },
     );
     const read = call(
       "read",
       "read",
       { path: "scratch/capture" },
-      { mimeType: "image/png", size: 4096 }
+      { mimeType: "image/png", size: 4096 },
     );
 
     expect(
-      scenario("extensionless-screenshot-resource-read").validate(execution([capture, read]))
+      scenario("extensionless-screenshot-resource-read").validate(
+        execution([capture, read]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 
@@ -343,17 +437,23 @@ describe("developer ergonomics scenarios", () => {
       {
         code: "const bytes = await page.screenshot(); const path = await fs.mktemp('capture'); await fs.writeFile(path, bytes); return path;",
       },
-      { returnValue: "file:/.tmp/capture-123", mimeType: "image/png", size: 4096 }
+      {
+        returnValue: "file:/.tmp/capture-123",
+        mimeType: "image/png",
+        size: 4096,
+      },
     );
     const read = call(
       "read",
       "read",
       { target: "file:/.tmp/capture-123", encoding: "base64", limit: 512 },
-      { encoding: "base64", size: 512, originalSize: 4096 }
+      { encoding: "base64", size: 512, originalSize: 4096 },
     );
 
     expect(
-      scenario("extensionless-screenshot-resource-read").validate(execution([capture, read])).passed
+      scenario("extensionless-screenshot-resource-read").validate(
+        execution([capture, read]),
+      ).passed,
     ).toBe(false);
   });
 
@@ -365,25 +465,31 @@ describe("developer ergonomics scenarios", () => {
       {
         returnValue: {
           session: { protocol: "panel-cdp-session.v1" },
+          observation: {
+            panelId: "panel:counter",
+            runtimeEntityId: "runtime:old",
+            attemptId: "attempt:old",
+            buildKey: "a".repeat(64),
+          },
           interaction: {
             protocol: "cdp-interaction-outcome.v1",
             delivery: "dispatched",
             effect: { status: "observed", state: "visible" },
           },
         },
-      }
+      },
     );
     const verify = call(
       "verify",
       "verify",
       { operation: "build", target: "panels/counter" },
-      { status: "ok" }
+      { status: "ok" },
     );
     const edit = call(
       "edit",
       "apply_patch",
-      { operations: [] },
-      { applicationId: "application:counter" }
+      { operations: [{ path: "panels/counter/index.tsx" }] },
+      { applicationId: "application:counter" },
     );
     const rebuild = call(
       "rebuild",
@@ -394,116 +500,271 @@ describe("developer ergonomics scenarios", () => {
       {
         returnValue: {
           status: "replaced",
-          previousGeneration: { attemptId: "attempt:old" },
+          generation: {
+            protocol: "panel-cdp-generation.v1",
+            panelId: "panel:counter",
+            runtimeEntityId: "runtime:new",
+            attemptId: "attempt:new",
+            buildKey: "b".repeat(64),
+          },
           interaction: {
             protocol: "cdp-interaction-outcome.v1",
             delivery: "dispatched",
             effect: { status: "observed", state: "visible" },
           },
         },
-      }
+      },
     );
 
     expect(
       scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, edit, rebuild])
-      )
+        execution([open, verify, edit, rebuild]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
 
     const targetedEdit = call(
       "targeted-edit",
       "edit",
       { path: "panels/counter/index.tsx" },
-      { applicationId: "application:counter-edit" }
+      { applicationId: "application:counter-edit" },
     );
     expect(
       scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, targetedEdit, rebuild])
-      )
+        execution([open, verify, targetedEdit, rebuild]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
 
-    const compactRebuild = call(
-      "compact-rebuild",
+    const buildReport = call(
+      "build-report",
       "eval",
       {
-        code: "await scope.panel.rebuild(); const refreshed = await scope.session.refresh();",
+        code: "const report = await services.build.getBuildReport(scope.panelSource, `ctx:${ctx.contextId}`); return { status: report.status, diagnostics: report.diagnostics };",
       },
+      { returnValue: { status: "ok", diagnostics: [] } },
+    );
+    expect(
+      scenario("panel-rebuild-reacquire-and-interact").validate(
+        execution([open, buildReport, targetedEdit, rebuild]),
+      ),
+    ).toEqual({ passed: true, reason: undefined });
+    const failedReport = call(
+      "failed-build-report",
+      "eval",
+      buildReport.invocation.arguments,
       {
         returnValue: {
-          sessionStatus: "replaced",
+          status: "failed",
+          diagnostics: [{ message: "Compiler error" }],
+        },
+      },
+    );
+    expect(
+      scenario("panel-rebuild-reacquire-and-interact").validate(
+        execution([open, failedReport, targetedEdit, rebuild]),
+      ).passed,
+    ).toBe(false);
+
+    const readmeOnly = call(
+      "readme-only",
+      "write",
+      { path: "panels/counter/README.md", content: "Usage note" },
+      { applicationId: "application:readme" },
+    );
+    expect(
+      scenario("panel-rebuild-reacquire-and-interact").validate(
+        execution([open, buildReport, readmeOnly, rebuild]),
+      ).passed,
+    ).toBe(false);
+
+    // Summary wording does not establish a new executable incarnation.
+    const summaryOnly = call(
+      "summary-only",
+      "eval",
+      rebuild.invocation.arguments,
+      {
+        returnValue: {
+          status: "replaced",
           before: "Count: 0",
           after: "Count: 1",
           clickStatus: "observed",
         },
-      }
+      },
     );
     expect(
       scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, targetedEdit, compactRebuild])
-      )
-    ).toEqual({ passed: true, reason: undefined });
+        execution([open, verify, targetedEdit, summaryOnly]),
+      ).passed,
+    ).toBe(false);
+    const canonical = rebuild.invocation.execution.result.details.returnValue;
+    const renamedSummary = call(
+      "renamed-summary",
+      "eval",
+      rebuild.invocation.arguments,
+      {
+        returnValue: {
+          ...canonical,
+          status: undefined,
+          refreshStatus: "replaced",
+        },
+      },
+    );
+    expect(
+      scenario("panel-rebuild-reacquire-and-interact").validate(
+        execution([open, verify, targetedEdit, renamedSummary]),
+      ).passed,
+    ).toBe(true);
+    const rebuildOnly = call(
+      "rebuild-only",
+      "eval",
+      {
+        code: "scope.observation = await scope.panel.rebuild(); return scope.observation;",
+      },
+      { returnValue: { phase: "ready" } },
+    );
+    const refreshOnly = call(
+      "refresh-only",
+      "eval",
+      {
+        code: "scope.refreshed = await scope.session.refresh(); return scope.refreshed.session.generation;",
+      },
+      { returnValue: canonical.generation },
+    );
+    const interactionOnly = call(
+      "interaction-only",
+      "eval",
+      {
+        code: "return await scope.refreshed.session.page.getByRole('button').click({expect});",
+      },
+      { returnValue: canonical.interaction },
+    );
+    expect(
+      scenario("panel-rebuild-reacquire-and-interact").validate(
+        execution([
+          open,
+          verify,
+          targetedEdit,
+          rebuildOnly,
+          refreshOnly,
+          interactionOnly,
+        ]),
+      ).passed,
+    ).toBe(true);
+    for (const generation of [
+      { ...canonical.generation, buildKey: "a".repeat(64) },
+      { ...canonical.generation, panelId: "panel:unrelated" },
+      { ...canonical.generation, runtimeEntityId: "runtime:old" },
+      { ...canonical.generation, attemptId: "attempt:old" },
+    ]) {
+      const stale = call("stale", "eval", rebuild.invocation.arguments, {
+        returnValue: { ...canonical, generation },
+      });
+      expect(
+        scenario("panel-rebuild-reacquire-and-interact").validate(
+          execution([open, verify, targetedEdit, stale]),
+        ).passed,
+      ).toBe(false);
+    }
 
     const sessionOnly = call(
       "session-only",
       "eval",
       { code: "scope.session = await scope.panel.cdp.session();" },
-      { returnValue: { protocol: "panel-cdp-session.v1" } }
+      { returnValue: { protocol: "panel-cdp-session.v1" } },
     );
     expect(
       scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([sessionOnly, verify, targetedEdit, rebuild])
-      ).passed
+        execution([sessionOnly, verify, targetedEdit, rebuild]),
+      ).passed,
     ).toBe(false);
   });
 
-  it("requires a stale receipt refusal with fresh evidence before the corrected patch", () => {
-    const readReceipt = {
-      protocol: "workspace-read-receipt.v1",
-      path: "projects/fixture/README.md",
-      contentHash: "a".repeat(64),
-      byteLength: 12,
-    };
-    const currentReceipt = { ...readReceipt, contentHash: "b".repeat(64), byteLength: 18 };
-    const read = call("read", "read", { path: readReceipt.path }, { receipt: readReceipt });
-    const first = call(
-      "first",
+  it("requires a real stale observation, reobservation, and preservation of concurrent content", () => {
+    const path = "projects/fixture/README.md";
+    const read = call("read", "read", { path }, { path });
+    const collaborator = call(
+      "collaborator",
       "edit",
-      { path: readReceipt.path },
+      { path },
       {
         protocol: "file-mutation.v1",
         status: "applied",
-        applicationId: "one",
-      }
+      },
     );
     const stale = call(
       "stale",
       "edit",
-      { path: readReceipt.path, receipt: readReceipt },
+      { path },
       {
         protocol: "file-mutation.v1",
         status: "conflict",
         storage: "vcs",
         conflicts: [
-          {
-            reason: "content-changed",
-            currentReceipt,
-            recovery: { action: "reobserve", instruction: "Use current receipt" },
-          },
+          { reason: "content-changed", recovery: { action: "reobserve" } },
         ],
-      }
+      },
     );
+    const reobserve = call("reobserve", "read", { path }, { path });
     const corrected = call(
       "corrected",
       "edit",
-      { path: readReceipt.path, receipt: currentReceipt },
-      { protocol: "file-mutation.v1", status: "applied", applicationId: "two" }
+      { path },
+      {
+        protocol: "file-mutation.v1",
+        status: "applied",
+      },
     );
-
+    const readback = call(
+      "readback",
+      "read",
+      { path },
+      {
+        text: "# Recovered note\nCollaborator note: preserve this concurrent addition.",
+      },
+    );
+    const validate = scenario("stale-edit-reobserve-and-apply").validate;
+    const calls = [read, collaborator, stale, reobserve, corrected, readback];
+    expect(validate(execution(calls))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
     expect(
-      scenario("stale-edit-reobserve-and-apply").validate(
-        execution([read, first, stale, corrected])
-      )
-    ).toEqual({ passed: true, reason: undefined });
+      validate(execution(calls.filter((value) => value !== reobserve))).passed,
+    ).toBe(false);
+    expect(
+      validate(
+        execution([
+          read,
+          collaborator,
+          stale,
+          reobserve,
+          corrected,
+          call("lost-update", "read", { path }, { text: "# Recovered note" }),
+        ]),
+      ).passed,
+    ).toBe(false);
+    expect(
+      validate(
+        execution([
+          read,
+          collaborator,
+          call(
+            "wrong-conflict",
+            "edit",
+            { path },
+            {
+              protocol: "file-mutation.v1",
+              status: "conflict",
+              conflicts: [
+                { reason: "not-found", recovery: { action: "reobserve" } },
+              ],
+            },
+          ),
+          reobserve,
+          corrected,
+          readback,
+        ]),
+      ).passed,
+    ).toBe(false);
   });
 
   it("requires write/edit semantic intent evidence and a normalized match before readback", () => {
@@ -525,7 +786,7 @@ describe("developer ergonomics scenarios", () => {
         operations: [{ kind: "write", status: "created", path }],
         conflicts: [],
         vcsResult,
-      }
+      },
     );
     const edit = call(
       "edit",
@@ -550,13 +811,24 @@ describe("developer ergonomics scenarios", () => {
           },
         ],
         conflicts: [],
-        vcsResult: { ...vcsResult, workUnitId: "work:2", changeIds: ["change:2"] },
-      }
+        vcsResult: {
+          ...vcsResult,
+          workUnitId: "work:2",
+          changeIds: ["change:2"],
+        },
+      },
     );
-    const read = call("read", "read", { path }, { text: 'Status: "unified-agentic-ergonomics"' });
+    const read = call(
+      "read",
+      "read",
+      { path },
+      { text: 'Status: "unified-agentic-ergonomics"' },
+    );
 
     expect(
-      scenario("write-edit-unified-matching-provenance").validate(execution([write, edit, read]))
+      scenario("write-edit-unified-matching-provenance").validate(
+        execution([write, edit, read]),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 });

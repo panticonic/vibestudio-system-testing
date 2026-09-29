@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "@workspace/agentic-core";
 import type { TestExecutionResult } from "../types.js";
+import { PANEL_AUTOMATION_RESOURCE, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { buildTests } from "./build.js";
 
 const npmTest = buildTests.find((test) => test.name === "build-npm-package")!;
@@ -18,7 +19,7 @@ describe("workspace package build validation", () => {
       kind: "buildable-package",
       section: "packages",
     });
-    expect(workspaceBuildTest.validation).toBe("agent-evidence");
+    expect(workspaceBuildTest.validation).toBeUndefined();
   });
 
   it("accepts a successful exact-context first-class build verification", () => {
@@ -81,10 +82,15 @@ describe("workspace package build validation", () => {
 });
 
 describe("build performance validation", () => {
+  it("owns the ordinary panel-control authority and scheduling boundary for live inspection", () => {
+    expect(optimizationTest.authorityPolicy).toEqual(panelControlAuthorityPolicy("inspect-panel-performance-repair"));
+    expect(optimizationTest.resources).toEqual([PANEL_AUTOMATION_RESOURCE]);
+  });
+
   it("gates the vague task on one causal measured optimization episode", () => {
     const result = optimizationExecution();
 
-    expect(optimizationTest.validation).toBe("agent-evidence");
+    expect(optimizationTest.validation).toBeUndefined();
     expect(optimizationTest.validate(result)).toEqual({ passed: true, reason: undefined });
   });
 
@@ -100,17 +106,69 @@ describe("build performance validation", () => {
     ).toMatchObject({ passed: false });
   });
 
-  it("rejects profiling or final build evidence observed in the wrong order", () => {
+  it("requires the baseline before source mutation", () => {
     const profiledAfterTheEdit = optimizationExecution();
     const [baseline] = profiledAfterTheEdit.messages.splice(1, 1);
     profiledAfterTheEdit.messages.splice(3, 0, baseline!);
 
-    const buildBeforeTheFinalProfile = optimizationExecution();
-    const [build] = buildBeforeTheFinalProfile.messages.splice(4, 1);
-    buildBeforeTheFinalProfile.messages.splice(3, 0, build!);
-
     expect(optimizationTest.validate(profiledAfterTheEdit)).toMatchObject({ passed: false });
-    expect(optimizationTest.validate(buildBeforeTheFinalProfile)).toMatchObject({ passed: false });
+  });
+
+  it("joins the immutable candidate when verification precedes or follows profiling", () => {
+    const verifiedBeforeProfiling = optimizationExecution();
+    const [build] = verifiedBeforeProfiling.messages.splice(4, 1);
+    verifiedBeforeProfiling.messages.splice(3, 0, build!);
+    expect(optimizationTest.validate(verifiedBeforeProfiling)).toEqual({ passed: true, reason: undefined });
+    expect(optimizationTest.validate(optimizationExecution())).toEqual({ passed: true, reason: undefined });
+  });
+
+  it("uses native receipts independently of guest formatting and helper aliases", () => {
+    const result = optimizationExecution();
+    for (const message of result.messages.filter((entry) => entry.id.startsWith("eval-optimization"))) {
+      const payload = JSON.parse(message.content);
+      payload.arguments.code = "return await scope.measure();";
+      payload.execution.result.details.returnValue = { summary: "Measured and improved" };
+      message.content = JSON.stringify(payload);
+    }
+    expect(optimizationTest.validate(result)).toEqual({ passed: true, reason: undefined });
+  });
+
+  it.each(["absent", "truncated"])("rejects %s native receipts even when guest returns full profile-shaped values", (fault) => {
+    const result = optimizationExecution();
+    const message = result.messages.find((entry) => entry.id === "eval-optimization-after")!;
+    const payload = JSON.parse(message.content);
+    if (fault === "absent") delete payload.execution.result.details.operationJournal;
+    else payload.execution.result.details.operationJournal.truncated = true;
+    message.content = JSON.stringify(payload);
+    expect(optimizationTest.validate(result)).toMatchObject({ passed: false });
+  });
+
+  it("accepts the native profiled build proof without a duplicate verification call", () => {
+    const result = optimizationExecution();
+    result.messages.splice(4, 1);
+    expect(optimizationTest.validate(result)).toEqual({ passed: true, reason: undefined });
+  });
+
+  it.each(["failed-build", "compiler-error", "unchanged-state", "missing-proof"])("rejects invalid native final profile proof: %s", (fault) => {
+    const result = optimizationExecution();
+    const message = result.messages.find((entry) => entry.id === "eval-optimization-after")!;
+    const payload = JSON.parse(message.content);
+    const profile = payload.execution.result.details.operationJournal.entries[0].receipt;
+    if (fault === "failed-build") profile.report.status = "failed";
+    if (fault === "compiler-error") profile.report.diagnostics = [{ severity: "error", message: "Invalid source" }];
+    if (fault === "unchanged-state") profile.report.stateHash = "state:8192";
+    if (fault === "missing-proof") delete profile.report;
+    message.content = JSON.stringify(payload);
+    expect(optimizationTest.validate(result)).toMatchObject({ passed: false });
+  });
+
+  it("rejects a profile whose target key contradicts its native build report", () => {
+    const result = optimizationExecution();
+    const message = result.messages.find((entry) => entry.id === "eval-optimization-after")!;
+    const payload = JSON.parse(message.content);
+    payload.execution.result.details.operationJournal.entries[0].receipt.report.builds[0].buildKey = "build:other";
+    message.content = JSON.stringify(payload);
+    expect(optimizationTest.validate(result)).toMatchObject({ passed: false });
   });
 
   it("requires the commit to consume the mutation and the later clean status to match its event", () => {
@@ -267,7 +325,7 @@ function performanceEvalInvocation(returnValue: unknown, id = "performance"): Ch
         status: "complete",
         terminalOutcome: "success",
         isError: false,
-        result: { details: { returnValue } },
+        result: { details: { returnValue, operationJournal: { protocol: "workspace-operations.v1", truncated: false, entries: [{ type: "build.profile", receipt: returnValue }] } } },
       },
     }),
   };
@@ -289,7 +347,7 @@ function performanceProfile(
     ref: `ctx:${contextId}`,
     firstRun: { elapsedMs: 20, cacheState: "built-during-profile" },
     verifiedCacheRun: { elapsedMs: 2, sameBuildKeys: true },
-    report: { repoPath: unit, status: "ok", builds: [{ target: "runtime" }] },
+    report: { repoPath: unit, kind: "panel", diagnostics: [], stateHash: `state:${bytes}`, status: "ok", builds: [{ target: "runtime", buildKey: `build:${bytes}` }] },
     targets: [
       {
         target: "runtime",
@@ -326,7 +384,7 @@ function managedOptimization(
   );
 }
 
-function finalBuild(unit = OPTIMIZATION_UNIT, contextId = OPTIMIZATION_CONTEXT): ChatMessage {
+function finalBuild(unit = OPTIMIZATION_UNIT, contextId = OPTIMIZATION_CONTEXT, stateHash = `state:${"a".repeat(64)}`, buildKey = "build:2048"): ChatMessage {
   return completedInvocation(
     "verify",
     { operation: "build", target: unit },
@@ -337,12 +395,13 @@ function finalBuild(unit = OPTIMIZATION_UNIT, contextId = OPTIMIZATION_CONTEXT):
       receipt: {
         protocol: "unit-verification-receipt.v1",
         operation: "build",
-        stateHash: `state:${"a".repeat(64)}`,
+        stateHash,
         contextId,
         ref: `ctx:${contextId}`,
         target: unit,
         status: "ok",
         unit: { repoPath: unit, kind: "panel" },
+        builds: [{ target: "runtime", buildKey }],
       },
     }
   );
@@ -395,6 +454,8 @@ function optimizationExecution(
     afterContextId?: string;
     committedApplicationIds?: string[];
     statusEventId?: string;
+    verificationStateHash?: string;
+    verificationBuildKey?: string;
   } = {}
 ): TestExecutionResult {
   return execution([
@@ -407,7 +468,7 @@ function optimizationExecution(
       performanceProfile(options.afterBytes ?? 2_048, options.afterUnit, options.afterContextId),
       "optimization-after"
     ),
-    finalBuild(),
+    finalBuild(undefined, undefined, options.verificationStateHash, options.verificationBuildKey),
     optimizationCommit(options.committedApplicationIds),
     finalCleanStatus(OPTIMIZATION_CONTEXT, options.statusEventId),
     finalAgentMessage("The panel now has the same visible output with less initial bundle waste."),

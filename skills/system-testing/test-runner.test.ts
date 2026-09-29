@@ -129,6 +129,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -210,6 +211,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => {
         throw new Error("diagnostics fetch failed");
@@ -309,6 +311,7 @@ describe("TestRunner", () => {
     );
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({ generatedAt: "now" })),
     } as unknown as HeadlessRunner;
@@ -408,6 +411,7 @@ describe("TestRunner", () => {
     );
     const childRunner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       prepareWorkspaceRepoFixture: vi.fn(async () => {
         throw failure;
       }),
@@ -617,6 +621,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -742,6 +747,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -755,7 +761,7 @@ describe("TestRunner", () => {
     });
 
     await vi.waitFor(() => expect(session.sendAndWait).toHaveBeenCalledOnce());
-    listener?.({
+    session.messages.push({
       id: "invocation:authority-failure",
       senderId: "agent",
       senderMetadata: { type: "agent" },
@@ -778,6 +784,12 @@ describe("TestRunner", () => {
         },
       },
     });
+    const laterMessage = {
+      id: "later-agent-message", senderId: "agent", kind: "message" as const,
+      complete: true, content: "Inspecting the result",
+    };
+    session.messages.push(laterMessage);
+    listener?.(laterMessage);
 
     const { result, execution } = await running;
     expect(result.passed).toBe(false);
@@ -829,6 +841,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({
         channelDelivery: { deliveryLifecycle: { latencyHistogram: [] } },
@@ -875,8 +888,22 @@ describe("TestRunner", () => {
   });
 
   it("fails an orchestration that never settles instead of running forever", async () => {
+    let finishCleanup!: () => void;
+    const cleanup = new Promise<void>((resolve) => {
+      finishCleanup = resolve;
+    });
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => {
+        await cleanup;
+        return [
+          {
+            sessionId: "owned",
+            runs: [{ state: "stopped" }],
+            session: { state: "closed" },
+          },
+        ];
+      }),
       spawn: vi.fn(async () => {
         throw new Error("the stuck orchestration never gets this far");
       }),
@@ -884,15 +911,32 @@ describe("TestRunner", () => {
     } as unknown as HeadlessRunner;
     const tester = new TestRunner(runner, { testTimeoutMs: 20 });
 
-    const { result } = await tester.runOne({
-      name: "wedged-orchestration",
-      category: "test",
-      description: "an orchestrator that blocks somewhere other than a turn",
-      prompt: "unused",
-      // Blocking outside sendAndWait is the case the per-turn deadline missed.
-      orchestrate: () => new Promise(() => undefined),
-      validation: "harness" as const,
-      validate: () => ({ passed: true }),
+    let terminal = false;
+    const pending = tester
+      .runOne({
+        name: "wedged-orchestration",
+        category: "test",
+        description: "an orchestrator that blocks somewhere other than a turn",
+        prompt: "unused",
+        // Blocking outside sendAndWait is the case the per-turn deadline missed.
+        orchestrate: () => new Promise(() => undefined),
+        validation: "harness" as const,
+        validate: () => ({ passed: true }),
+      })
+      .then((outcome) => {
+        terminal = true;
+        return outcome;
+      });
+    await vi.waitFor(() =>
+      expect(runner.closeOwnedDevelopmentSessions).toHaveBeenCalled(),
+    );
+    expect(terminal).toBe(false);
+    finishCleanup();
+    const { result, execution } = await pending;
+    expect(execution.diagnostics).toMatchObject({
+      ownedDevelopmentSessions: [
+        { sessionId: "owned", session: { state: "closed" } },
+      ],
     });
 
     expect(result.passed).toBe(false);
@@ -937,6 +981,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({
         channelDelivery: { deliveryLifecycle: { latencyHistogram: [] } },
@@ -952,7 +997,7 @@ describe("TestRunner", () => {
       category: "test",
       description: "objective agent outcome",
       prompt: "Fix the visible problem.",
-      validation: "agent-evidence",
+
       validate,
     });
 
@@ -985,6 +1030,7 @@ describe("TestRunner", () => {
     };
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -1072,6 +1118,7 @@ describe("TestRunner", () => {
     });
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       spawn: vi.fn(async () => makeSession()),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -1129,8 +1176,10 @@ describe("TestRunner", () => {
     });
     const runner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       forTest: vi.fn((testName: string) => ({
         modelRef: TEST_MODEL,
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
         withTaskResources: (prompt: string) => prompt,
         prepareWorkspaceRepoFixture: vi.fn(async () => {
           activeSetups += 1;
@@ -1246,6 +1295,7 @@ describe("TestRunner", () => {
     };
     const childRunner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       withTaskResources: (prompt: string) => prompt,
       prepareWorkspaceRepoFixture: vi.fn(async () => fixtureState),
       spawn: vi.fn(async () => session),
@@ -1343,6 +1393,7 @@ describe("TestRunner", () => {
     };
     const childRunner = {
       modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       withTaskResources: (prompt: string) => prompt,
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
@@ -1495,6 +1546,7 @@ describe("TestRunner", () => {
     );
     const runner = {
       modelRef: fallbackModel,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
       recordModelFallbackActivations: (
         session: unknown,
         testName: string | null,
@@ -1526,20 +1578,24 @@ describe("TestRunner", () => {
     // The run record has to say a fallback happened. Its only other trace is a
     // per-test diagnostic string, which cannot answer "did the fallback also
     // fail?" from the run.
-    expect(recordModelFallbackActivations).toHaveBeenCalledWith(session, "fallback-test", [
-      {
-        at: "2026-09-12T00:00:02.000Z",
-        fromModel: TEST_MODEL,
-        toModel: fallbackModel,
-        failureCode: "usage limit reached",
-      },
-      {
-        at: "2026-09-12T00:00:04.000Z",
-        fromModel: TEST_MODEL,
-        toModel: fallbackModel,
-        failureCode: "usage_limit_terminal",
-      },
-    ]);
+    expect(recordModelFallbackActivations).toHaveBeenCalledWith(
+      session,
+      "fallback-test",
+      [
+        {
+          at: "2026-09-12T00:00:02.000Z",
+          fromModel: TEST_MODEL,
+          toModel: fallbackModel,
+          failureCode: "usage limit reached",
+        },
+        {
+          at: "2026-09-12T00:00:04.000Z",
+          fromModel: TEST_MODEL,
+          toModel: fallbackModel,
+          failureCode: "usage_limit_terminal",
+        },
+      ],
+    );
   });
 });
 
@@ -1628,7 +1684,9 @@ describe("validateAgentCompletionReport", () => {
   it("recognizes a naturally emphasized incomplete status", () => {
     expect(
       validateAgentCompletionReport(
-        execution("Task was **not completed**.\n\nThe worker build still has one diagnostic."),
+        execution(
+          "Task was **not completed**.\n\nThe worker build still has one diagnostic.",
+        ),
       ),
     ).toMatchObject({
       passed: false,
@@ -1871,7 +1929,10 @@ describe("system-test implementation boundary", () => {
     let spawned = 0;
     const runner = {
       modelRef: TEST_MODEL,
-      spawn: vi.fn(async () => makeSession((spawned += 1) === 1 ? "slow" : "quick")),
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      spawn: vi.fn(async () =>
+        makeSession((spawned += 1) === 1 ? "slow" : "quick"),
+      ),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
     // onTestEnd is a suite-level callback, so read the executions directly.
@@ -1897,5 +1958,4 @@ describe("system-test implementation boundary", () => {
       quick.execution.diagnostics?.["concurrentTestAgents"],
     ]).toEqual([2, 2]);
   });
-
 });

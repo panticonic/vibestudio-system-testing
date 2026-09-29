@@ -152,8 +152,8 @@ describe("trusted unit authoring evidence", () => {
   it("keeps the prompts user-level while causally proving extension and app repairs", () => {
     const [extension, app] = trustedUnitAuthoringTests;
 
-    expect(extension!.validation).toBe("agent-evidence");
-    expect(app!.validation).toBe("agent-evidence");
+    expect(extension!.validation).toBeUndefined();
+    expect(app!.validation).toBeUndefined();
     expect(extension!.prompt).not.toMatch(/\b(?:build|commit|test|tool)\b/i);
     expect(app!.prompt).not.toMatch(/\b(?:build|commit|test|tool)\b/i);
     expect(extension!.validate(execution(repairOperations("extensions/example")))).toEqual({

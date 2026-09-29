@@ -80,7 +80,7 @@ describe("panel system-test declarations", () => {
     expect(navigation?.prompt).not.toMatch(
       /\b(?:panel[- ]?id|slot[- ]?id|parent[- ]?id)\b/iu,
     );
-    expect(navigation?.validation).toBe("agent-evidence");
+    expect(navigation?.validation).toBeUndefined();
   });
 
   it("requires independent same-panel navigation evidence", () => {
@@ -133,7 +133,7 @@ describe("panel system-test declarations", () => {
       reachedExpectedDestination: true,
     };
 
-    expect(browserImport.validation).toBe("agent-evidence");
+    expect(browserImport.validation).toBeUndefined();
     expect(
       browserImport.validate({
         messages: [],

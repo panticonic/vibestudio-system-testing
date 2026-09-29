@@ -150,7 +150,7 @@ export class WorkspaceRepoFixtureLifecycle {
     private readonly port: WorkspaceRepoFixturePort,
     private readonly testName: string,
     private readonly repoName: string | null,
-    private readonly fixture: WorkspaceRepoCreationScope
+    private readonly fixture: WorkspaceRepoCreationScope,
   ) {}
 
   get taskContextId(): string | null {
@@ -159,21 +159,27 @@ export class WorkspaceRepoFixtureLifecycle {
 
   async prepare(): Promise<WorkspaceRepoFixtureState> {
     if (this.contextId) {
-      throw new Error(`Workspace repository fixture ${this.repoName} was prepared twice`);
+      throw new Error(
+        `Workspace repository fixture ${this.repoName} was prepared twice`,
+      );
     }
 
     const { contextId } = await this.port.createContext();
     this.contextId = contextId;
-    const repoPath = this.repoName ? `${this.fixture.section}/${this.repoName}` : null;
+    const repoPath = this.repoName
+      ? `${this.fixture.section}/${this.repoName}`
+      : null;
     try {
       const status = await this.port.vcs.status({ contextId });
       if (!status.clean || status.mainRelation !== "at") {
         throw new Error(
-          `Fresh fixture context must start clean at main; clean=${status.clean} relation=${status.mainRelation}`
+          `Fresh fixture context must start clean at main; clean=${status.clean} relation=${status.mainRelation}`,
         );
       }
       if (status.committed.kind !== "event") {
-        throw new Error("Fresh fixture context did not start at a committed event");
+        throw new Error(
+          "Fresh fixture context did not start at a committed event",
+        );
       }
       if (
         this.fixture.kind === "created-repository" ||
@@ -193,12 +199,17 @@ export class WorkspaceRepoFixtureLifecycle {
         };
       }
       if (!this.repoName || !repoPath) {
-        throw new Error(`Seeded workspace repository fixture ${this.testName} has no basename`);
+        throw new Error(
+          `Seeded workspace repository fixture ${this.testName} has no basename`,
+        );
       }
-      const seedFiles = repositorySeedFiles(this.repoName, this.fixture).sort((left, right) =>
-        left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+      const seedFiles = repositorySeedFiles(this.repoName, this.fixture).sort(
+        (left, right) =>
+          left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
       );
-      const storeFiles = async (sourceFiles: Array<{ path: string; content: string }>) =>
+      const storeFiles = async (
+        sourceFiles: Array<{ path: string; content: string }>,
+      ) =>
         Promise.all(
           sourceFiles.map(async (file) => {
             const stored = await this.port.blobstore.putText(file.content);
@@ -207,7 +218,7 @@ export class WorkspaceRepoFixtureLifecycle {
               contentHash: stored.digest,
               mode: 0o644,
             };
-          })
+          }),
         );
       let files = await storeFiles(seedFiles);
       const snapshotRevision = `fixture:${sha256HexSyncText(JSON.stringify({ repoPath, files }))}`;
@@ -228,14 +239,21 @@ export class WorkspaceRepoFixtureLifecycle {
       });
       const repositoryId = imported.importedRepositoryIds[0];
       if (!repositoryId || imported.importedRepositoryIds.length !== 1) {
-        throw new Error("Fixture import did not return exactly one repository identity");
+        throw new Error(
+          "Fixture import did not return exactly one repository identity",
+        );
       }
       const work = await this.port.vcs.inspect({
         node: { kind: "work-unit", workUnitId: imported.workUnitId },
         edgeLimit: 1,
       });
-      if (work.node.kind !== "work-unit" || work.node.value.authoredChangeIds.length === 0) {
-        throw new Error("Fixture import did not expose its authored semantic changes");
+      if (
+        work.node.kind !== "work-unit" ||
+        work.node.value.authoredChangeIds.length === 0
+      ) {
+        throw new Error(
+          "Fixture import did not expose its authored semantic changes",
+        );
       }
       const recordedSnapshot = work.node.value.externalSnapshot;
       if (
@@ -248,26 +266,33 @@ export class WorkspaceRepoFixtureLifecycle {
         recordedSnapshot.targetRepositoryIds.length !== 1 ||
         recordedSnapshot.targetRepositoryIds[0] !== repositoryId
       ) {
-        throw new Error("Fixture import did not record its exact command and source snapshot");
+        throw new Error(
+          "Fixture import did not record its exact command and source snapshot",
+        );
       }
 
       if (this.fixture.kind === "historical-content") {
-        let expectedWorkingHead = { kind: "event" as const, eventId: imported.eventId };
+        let expectedWorkingHead = {
+          kind: "event" as const,
+          eventId: imported.eventId,
+        };
         for (const revision of historicalContentRevisions()) {
           const revisionFiles = revision.files.sort((left, right) =>
-            left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+            left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
           );
           files = await storeFiles(revisionFiles);
           const revisionSource = {
             kind: "generated" as const,
             uri: `system-test://${this.testName}/${this.repoName}/history`,
             snapshotRevision: `fixture:history:${String(revision.revision).padStart(2, "0")}:${sha256HexSyncText(
-              JSON.stringify({ repoPath, files })
+              JSON.stringify({ repoPath, files }),
             )}`,
           };
           const next = await this.port.vcs.importSnapshot({
             contextId,
-            commandId: this.command(`history-${String(revision.revision).padStart(2, "0")}`),
+            commandId: this.command(
+              `history-${String(revision.revision).padStart(2, "0")}`,
+            ),
             expectedWorkingHead,
             intentSummary: revision.intent,
             source: revisionSource,
@@ -277,12 +302,13 @@ export class WorkspaceRepoFixtureLifecycle {
           if (
             next.importedRepositoryIds.length !== 1 ||
             next.importedRepositoryIds[0] !== repositoryId ||
-            next.externalSnapshot.snapshotRevision !== revisionSource.snapshotRevision ||
+            next.externalSnapshot.snapshotRevision !==
+              revisionSource.snapshotRevision ||
             next.externalSnapshot.targetRepositoryIds.length !== 1 ||
             next.externalSnapshot.targetRepositoryIds[0] !== repositoryId
           ) {
             throw new Error(
-              `Historical fixture revision ${revision.revision} did not preserve its exact repository and snapshot identity`
+              `Historical fixture revision ${revision.revision} did not preserve its exact repository and snapshot identity`,
             );
           }
           expectedWorkingHead = { kind: "event", eventId: next.eventId };
@@ -317,7 +343,7 @@ export class WorkspaceRepoFixtureLifecycle {
         throw Object.assign(
           new AggregateError(
             [setupError, cleanupError],
-            `Workspace fixture setup and context cleanup both failed for ${repoPath ?? `${this.fixture.section}/<task-created>`}`
+            `Workspace fixture setup and context cleanup both failed for ${repoPath ?? `${this.fixture.section}/<task-created>`}`,
           ),
           {
             code: "WorkspaceRepoFixtureRecoveryFailed",
@@ -327,7 +353,7 @@ export class WorkspaceRepoFixtureLifecycle {
               setup: serializeSystemTestError(setupError),
               cleanup: serializeSystemTestError(cleanupError),
             },
-          }
+          },
         );
       }
       throw setupError;
@@ -357,7 +383,7 @@ export class WorkspaceRepoFixtureLifecycle {
     repositoryId: string;
     repoPath: string;
     storeFiles: (
-      files: Array<{ path: string; content: string }>
+      files: Array<{ path: string; content: string }>,
     ) => Promise<Array<{ path: string; contentHash: string; mode: number }>>;
     head: { kind: "event"; eventId: string };
   }): Promise<void> {
@@ -365,12 +391,12 @@ export class WorkspaceRepoFixtureLifecycle {
     let head = input.head;
     const revise = async (
       label: string,
-      revision: PROVENANCE_RECORD_REVISION
+      revision: PROVENANCE_RECORD_REVISION,
     ): Promise<{ eventId: string; workUnitId: string }> => {
       const files = await storeFiles(
         [...revision.files].sort((left, right) =>
-          left.path < right.path ? -1 : left.path > right.path ? 1 : 0
-        )
+          left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+        ),
       );
       const next = await this.port.vcs.importSnapshot({
         contextId,
@@ -381,7 +407,7 @@ export class WorkspaceRepoFixtureLifecycle {
           kind: "generated" as const,
           uri: `system-test://${this.testName}/${this.repoName}/provenance`,
           snapshotRevision: `fixture:provenance:${label}:${sha256HexSyncText(
-            JSON.stringify({ repoPath, files })
+            JSON.stringify({ repoPath, files }),
           )}`,
         },
         repositories: [{ repositoryId, repoPath, files }],
@@ -400,7 +426,9 @@ export class WorkspaceRepoFixtureLifecycle {
     // no such relationship.
     const raisedChangeIds = await this.authoredChangeIds(raised.workUnitId);
     if (raisedChangeIds.length === 0) {
-      throw new Error("Provenance fixture could not identify the change to counteract");
+      throw new Error(
+        "Provenance fixture could not identify the change to counteract",
+      );
     }
     // Every mutation names the exact observed working state, fixtures included.
     const observed = await this.port.vcs.status({ contextId });
@@ -421,85 +449,110 @@ export class WorkspaceRepoFixtureLifecycle {
 
   async cleanup(
     state: WorkspaceRepoFixtureState,
-    onPhase?: (phase: string) => void
+    onPhase?: (phase: string) => void,
   ): Promise<WorkspaceRepoFixtureCleanup> {
     if (this.contextId !== state.contextId) {
       throw new Error(
-        `Workspace repository fixture context changed from ${state.contextId} to ${this.contextId ?? "none"}`
+        `Workspace repository fixture context changed from ${state.contextId} to ${this.contextId ?? "none"}`,
       );
     }
 
     let publishedFixtureRemoved: WorkspaceRepoFixtureRepository | null = null;
-    let unexpectedPublishedRepositoriesRemoved: WorkspaceRepoFixtureRepository[] = [];
+    let unexpectedPublishedRepositoriesRemoved: WorkspaceRepoFixtureRepository[] =
+      [];
     let counteractedChangeIds: string[] = [];
     let cleanupError: unknown;
     let creationScopeError: Error | null = null;
     let cleanupContextId: string | null = null;
     try {
       onPhase?.("task-status");
-      const taskStatus = await this.port.vcs.status({ contextId: state.contextId });
+      const taskStatus = await this.port.vcs.status({
+        contextId: state.contextId,
+      });
       if (taskStatus.committed.kind !== "event") {
-        throw new Error("Workspace fixture task context has no committed event for attribution");
+        throw new Error(
+          "Workspace fixture task context has no committed event for attribution",
+        );
       }
       onPhase?.("task-first-parent-events");
-      const taskEvents = await this.taskFirstParentEvents(state, taskStatus.committed.eventId);
+      const taskEvents = await this.taskFirstParentEvents(
+        state,
+        taskStatus.committed.eventId,
+      );
       const needsCreationScope =
         state.kind === "created-repository" ||
         state.kind === "created-repositories" ||
         state.kind === "buildable-panel-with-derived";
       const scopedTaskChanges = needsCreationScope
-        ? await this.inspectTaskChanges(await this.taskWorkNewestFirst(taskEvents))
+        ? await this.inspectTaskChanges(
+            await this.taskWorkNewestFirst(taskEvents),
+          )
         : null;
       onPhase?.("task-creation-scope");
       const creationScope = this.resolveCreationScope(
         state,
-        scopedTaskChanges?.createdRepositories ?? []
+        scopedTaskChanges?.createdRepositories ?? [],
       );
       creationScopeError = creationScope.error;
       onPhase?.("published-boundary");
       const publishedBoundary =
         taskEvents.length === 0
           ? state.taskBaseEventId
-          : await this.newestPublishedTaskEvent(state, taskEvents, taskStatus.mainEventId);
+          : await this.newestPublishedTaskEvent(
+              state,
+              taskEvents,
+              taskStatus.mainEventId,
+            );
       if (publishedBoundary !== state.taskBaseEventId) {
         const taskChanges =
           scopedTaskChanges ??
-          (await this.inspectTaskChanges(await this.taskWorkNewestFirst(taskEvents)));
+          (await this.inspectTaskChanges(
+            await this.taskWorkNewestFirst(taskEvents),
+          ));
         onPhase?.("cleanup-context-create");
         cleanupContextId = (
           await this.port.createContext({
-            counteractionRepoPaths: taskChanges.createdRepositories.map(({ repoPath }) => repoPath),
+            counteractionRepoPaths: taskChanges.createdRepositories.map(
+              ({ repoPath }) => repoPath,
+            ),
           })
         ).contextId;
         onPhase?.("cleanup-context-status");
-        const cleanupStatus = await this.port.vcs.status({ contextId: cleanupContextId });
+        const cleanupStatus = await this.port.vcs.status({
+          contextId: cleanupContextId,
+        });
         if (
           !cleanupStatus.clean ||
           cleanupStatus.mainRelation !== "at" ||
           cleanupStatus.committed.kind !== "event"
         ) {
           throw new Error(
-            `Fresh cleanup context must start clean at main; clean=${cleanupStatus.clean} relation=${cleanupStatus.mainRelation}`
+            `Fresh cleanup context must start clean at main; clean=${cleanupStatus.clean} relation=${cleanupStatus.mainRelation}`,
           );
         }
         const currentBoundary = await this.newestPublishedTaskEvent(
           state,
           taskEvents,
-          cleanupStatus.mainEventId
+          cleanupStatus.mainEventId,
         );
         onPhase?.("published-work");
-        const publishedEvents = this.eventsThroughBoundary(taskEvents, currentBoundary);
+        const publishedEvents = this.eventsThroughBoundary(
+          taskEvents,
+          currentBoundary,
+        );
         const publishedWork = await this.taskWorkNewestFirst(publishedEvents);
         if (state.importWorkUnitId) {
           const publishedImport = publishedWork.find(
-            (work) => work.workUnitId === state.importWorkUnitId
+            (work) => work.workUnitId === state.importWorkUnitId,
           );
           if (
             !publishedImport ||
-            state.importChangeIds.some((changeId) => !publishedImport.changeIds.includes(changeId))
+            state.importChangeIds.some(
+              (changeId) => !publishedImport.changeIds.includes(changeId),
+            )
           ) {
             throw new Error(
-              `Published fixture lineage does not contain exact import work ${state.importWorkUnitId}`
+              `Published fixture lineage does not contain exact import work ${state.importWorkUnitId}`,
             );
           }
         }
@@ -509,18 +562,22 @@ export class WorkspaceRepoFixtureLifecycle {
         if (creationScope.primaryRepositoryId) {
           publishedFixtureRemoved = await this.inspectPresentRepository(
             mainState,
-            creationScope.primaryRepositoryId
+            creationScope.primaryRepositoryId,
           );
         }
         for (const { repositoryId } of publishedChanges.createdRepositories) {
           if (creationScope.ownedRepositoryIds.has(repositoryId)) continue;
-          const repository = await this.inspectPresentRepository(mainState, repositoryId);
-          if (repository) unexpectedPublishedRepositoriesRemoved.push(repository);
+          const repository = await this.inspectPresentRepository(
+            mainState,
+            repositoryId,
+          );
+          if (repository)
+            unexpectedPublishedRepositoriesRemoved.push(repository);
         }
         unexpectedPublishedRepositoriesRemoved.sort(
           (left, right) =>
             left.repoPath.localeCompare(right.repoPath) ||
-            left.repositoryId.localeCompare(right.repositoryId)
+            left.repositoryId.localeCompare(right.repositoryId),
         );
         onPhase?.("counteract-published-work");
         counteractedChangeIds = await this.counteractPublishedTaskWork(
@@ -531,7 +588,7 @@ export class WorkspaceRepoFixtureLifecycle {
           state.kind === "created-repositories"
             ? publishedWork.flatMap(({ changeIds }) => changeIds)
             : [],
-          onPhase
+          onPhase,
         );
       }
     } catch (error) {
@@ -545,7 +602,7 @@ export class WorkspaceRepoFixtureLifecycle {
           cleanupError = cleanupError
             ? new AggregateError(
                 [cleanupError, error],
-                "Fixture cleanup and cleanup-context teardown failed"
+                "Fixture cleanup and cleanup-context teardown failed",
               )
             : error;
         }
@@ -560,7 +617,7 @@ export class WorkspaceRepoFixtureLifecycle {
       cleanupError = cleanupError
         ? new AggregateError(
             [cleanupError, error],
-            "Fixture teardown and task-context cleanup failed"
+            "Fixture teardown and task-context cleanup failed",
           )
         : error;
     }
@@ -568,7 +625,7 @@ export class WorkspaceRepoFixtureLifecycle {
       cleanupError = cleanupError
         ? new AggregateError(
             [creationScopeError, cleanupError],
-            "Repository creation scope validation and fixture teardown both failed"
+            "Repository creation scope validation and fixture teardown both failed",
           )
         : creationScopeError;
     }
@@ -586,7 +643,7 @@ export class WorkspaceRepoFixtureLifecycle {
     status: Awaited<ReturnType<FixtureVcs["status"]>>,
     createdRepositories: TaskCreatedRepository[],
     ownedTaskChangeIds: string[],
-    onPhase?: (phase: string) => void
+    onPhase?: (phase: string) => void,
   ): Promise<string[]> {
     let workingHead = status.workingHead;
     const counteractedChangeIds: string[] = [];
@@ -598,12 +655,14 @@ export class WorkspaceRepoFixtureLifecycle {
         workingHead,
         createdRepositories,
         cleanupChangeIds,
-        counteractedOriginalIds
+        counteractedOriginalIds,
       );
       if (changeIds.length === 0) break;
       const frontier = JSON.stringify({ workingHead, changeIds });
       if (observedFrontiers.has(frontier)) {
-        throw new Error("Workspace fixture cleanup counteraction frontier did not advance");
+        throw new Error(
+          "Workspace fixture cleanup counteraction frontier did not advance",
+        );
       }
       observedFrontiers.add(frontier);
       onPhase?.("counteract-revert");
@@ -672,7 +731,7 @@ export class WorkspaceRepoFixtureLifecycle {
     state: FixtureState,
     createdRepositories: TaskCreatedRepository[],
     cleanupChangeIds: ReadonlySet<string>,
-    counteractedOriginalIds: ReadonlySet<string>
+    counteractedOriginalIds: ReadonlySet<string>,
   ): Promise<string[]> {
     const changeIds: string[] = [];
     const seen = new Set<string>();
@@ -685,9 +744,12 @@ export class WorkspaceRepoFixtureLifecycle {
     for (const repository of [...createdRepositories].sort(
       (left, right) =>
         left.repoPath.localeCompare(right.repoPath) ||
-        left.repositoryId.localeCompare(right.repositoryId)
+        left.repositoryId.localeCompare(right.repositoryId),
     )) {
-      const present = await this.inspectPresentRepository(state, repository.repositoryId);
+      const present = await this.inspectPresentRepository(
+        state,
+        repository.repositoryId,
+      );
       if (!present) continue;
       const files: Array<{ fileId: string; authoredChangeId: string }> = [];
       let cursor: string | undefined;
@@ -702,7 +764,7 @@ export class WorkspaceRepoFixtureLifecycle {
           ...page.files.map((file) => ({
             fileId: file.fileId,
             authoredChangeId: file.authoredChangeId,
-          }))
+          })),
         );
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
@@ -713,14 +775,17 @@ export class WorkspaceRepoFixtureLifecycle {
             repository.repositoryId,
             file,
             cleanupChangeIds,
-            counteractedOriginalIds
+            counteractedOriginalIds,
           );
           return {
             fileId: file.fileId,
             authoredChangeId: changeId,
-            removesFile: await this.counteractionRemovesFile(changeId, file.fileId),
+            removesFile: await this.counteractionRemovesFile(
+              changeId,
+              file.fileId,
+            ),
           };
-        })
+        }),
       );
       if (removals.every((file) => file.removesFile)) {
         for (const file of removals) add(file.authoredChangeId);
@@ -739,7 +804,7 @@ export class WorkspaceRepoFixtureLifecycle {
     repositoryId: string,
     file: { fileId: string; authoredChangeId: string },
     cleanupChangeIds: ReadonlySet<string>,
-    counteractedOriginalIds: ReadonlySet<string>
+    counteractedOriginalIds: ReadonlySet<string>,
   ): Promise<string> {
     const available = (changeId: string) =>
       !cleanupChangeIds.has(changeId) && !counteractedOriginalIds.has(changeId);
@@ -766,29 +831,36 @@ export class WorkspaceRepoFixtureLifecycle {
       }
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
-    throw new Error(`Placed fixture file ${file.fileId} has no remaining original frontier`);
+    throw new Error(
+      `Placed fixture file ${file.fileId} has no remaining original frontier`,
+    );
   }
 
-  private async counteractionRemovesFile(changeId: string, fileId: string): Promise<boolean> {
+  private async counteractionRemovesFile(
+    changeId: string,
+    fileId: string,
+  ): Promise<boolean> {
     const inspected = await this.port.vcs.inspect({
       node: { kind: "change", changeId },
       edgeLimit: 1,
     });
     if (inspected.node.kind !== "change") {
-      throw new Error(`Workspace fixture could not inspect live change ${changeId}`);
+      throw new Error(
+        `Workspace fixture could not inspect live change ${changeId}`,
+      );
     }
     return inspected.node.value.effects.some(
       (effect) =>
         effect.kind === "placement" &&
         effect.fileId === fileId &&
         effect.before === null &&
-        effect.after !== null
+        effect.after !== null,
     );
   }
 
   private async inspectPresentRepository(
     state: FixtureState,
-    repositoryId: string
+    repositoryId: string,
   ): Promise<WorkspaceRepoFixtureRepository | null> {
     let inspected;
     try {
@@ -800,7 +872,10 @@ export class WorkspaceRepoFixtureLifecycle {
       if (semanticErrorCode(error) === "InvalidReference") return null;
       throw error;
     }
-    if (inspected.node.kind !== "repository" || inspected.node.value.kind !== "present") {
+    if (
+      inspected.node.kind !== "repository" ||
+      inspected.node.value.kind !== "present"
+    ) {
       return null;
     }
     return {
@@ -814,7 +889,7 @@ export class WorkspaceRepoFixtureLifecycle {
    * not this test. */
   private async taskFirstParentEvents(
     state: WorkspaceRepoFixtureState,
-    committedEventId: string
+    committedEventId: string,
   ): Promise<FixtureTaskEvent[]> {
     const events: FixtureTaskEvent[] = [];
     const visited = new Set<string>();
@@ -837,7 +912,7 @@ export class WorkspaceRepoFixtureLifecycle {
       const parentEventId = event.node.value.parentEventIds[0];
       if (!parentEventId) {
         throw new Error(
-          `Workspace fixture event line ${eventId} does not reach task base ${state.taskBaseEventId}`
+          `Workspace fixture event line ${eventId} does not reach task base ${state.taskBaseEventId}`,
         );
       }
       eventId = parentEventId;
@@ -848,7 +923,7 @@ export class WorkspaceRepoFixtureLifecycle {
   private async newestPublishedTaskEvent(
     state: WorkspaceRepoFixtureState,
     taskEvents: FixtureTaskEvent[],
-    mainEventId: string
+    mainEventId: string,
   ): Promise<string> {
     const taskEventIds = new Set([
       state.taskBaseEventId,
@@ -863,28 +938,35 @@ export class WorkspaceRepoFixtureLifecycle {
         ...(cursor ? { cursor } : {}),
       });
       for (const entry of page.entries) {
-        if (entry.node.kind === "event" && taskEventIds.has(entry.node.eventId)) {
+        if (
+          entry.node.kind === "event" &&
+          taskEventIds.has(entry.node.eventId)
+        ) {
           return entry.node.eventId;
         }
       }
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
     throw new Error(
-      `Protected main ${mainEventId} does not reach fixture task base ${state.taskBaseEventId}`
+      `Protected main ${mainEventId} does not reach fixture task base ${state.taskBaseEventId}`,
     );
   }
 
   private eventsThroughBoundary(
     taskEvents: FixtureTaskEvent[],
-    boundaryEventId: string
+    boundaryEventId: string,
   ): FixtureTaskEvent[] {
     if (taskEvents.length === 0) return [];
-    const boundaryIndex = taskEvents.findIndex((event) => event.eventId === boundaryEventId);
+    const boundaryIndex = taskEvents.findIndex(
+      (event) => event.eventId === boundaryEventId,
+    );
     if (boundaryIndex < 0) return [];
     return taskEvents.slice(boundaryIndex);
   }
 
-  private async taskWorkNewestFirst(events: FixtureTaskEvent[]): Promise<FixtureTaskWork[]> {
+  private async taskWorkNewestFirst(
+    events: FixtureTaskEvent[],
+  ): Promise<FixtureTaskWork[]> {
     const work: FixtureTaskWork[] = [];
     const seenWorkUnitIds = new Set<string>();
     for (const event of events) {
@@ -894,7 +976,9 @@ export class WorkspaceRepoFixtureLifecycle {
           edgeLimit: 1,
         });
         if (application.node.kind !== "application") {
-          throw new Error(`Workspace fixture could not inspect application ${applicationId}`);
+          throw new Error(
+            `Workspace fixture could not inspect application ${applicationId}`,
+          );
         }
         const workUnitId = application.node.value.workUnitId;
         if (seenWorkUnitIds.has(workUnitId)) continue;
@@ -928,7 +1012,7 @@ export class WorkspaceRepoFixtureLifecycle {
   }
 
   private async inspectTaskChanges(
-    work: FixtureTaskWork[]
+    work: FixtureTaskWork[],
   ): Promise<{ createdRepositories: TaskCreatedRepository[] }> {
     const createdRepositories = new Map<string, TaskCreatedRepository>();
     const seenChangeIds = new Set<string>();
@@ -941,17 +1025,22 @@ export class WorkspaceRepoFixtureLifecycle {
           edgeLimit: 1,
         });
         if (change.node.kind !== "change") {
-          throw new Error(`Workspace fixture could not inspect change ${changeId}`);
+          throw new Error(
+            `Workspace fixture could not inspect change ${changeId}`,
+          );
         }
         if (change.node.value.kind !== "repository-create") {
           continue;
         }
         for (const effect of change.node.value.effects) {
-          if (effect.kind === "repository-placement" && effect.afterPath !== null) {
+          if (
+            effect.kind === "repository-placement" &&
+            effect.afterPath !== null
+          ) {
             const prior = createdRepositories.get(effect.repositoryId);
             if (prior && prior.repoPath !== effect.afterPath) {
               throw new Error(
-                `Task repository ${effect.repositoryId} was created at conflicting paths ${prior.repoPath} and ${effect.afterPath}`
+                `Task repository ${effect.repositoryId} was created at conflicting paths ${prior.repoPath} and ${effect.afterPath}`,
               );
             }
             createdRepositories.set(effect.repositoryId, {
@@ -967,14 +1056,14 @@ export class WorkspaceRepoFixtureLifecycle {
       createdRepositories: [...createdRepositories.values()].sort(
         (left, right) =>
           left.repoPath.localeCompare(right.repoPath) ||
-          left.repositoryId.localeCompare(right.repositoryId)
+          left.repositoryId.localeCompare(right.repositoryId),
       ),
     };
   }
 
   private resolveCreationScope(
     state: WorkspaceRepoFixtureState,
-    createdRepositories: TaskCreatedRepository[]
+    createdRepositories: TaskCreatedRepository[],
   ): {
     ownedRepositoryIds: Set<string>;
     primaryRepositoryId: string | null;
@@ -989,7 +1078,9 @@ export class WorkspaceRepoFixtureLifecycle {
         return {
           ownedRepositoryIds: new Set(),
           primaryRepositoryId: null,
-          error: new Error("Seeded repository fixture lost its exact repository identity"),
+          error: new Error(
+            "Seeded repository fixture lost its exact repository identity",
+          ),
         };
       }
       return {
@@ -1002,7 +1093,7 @@ export class WorkspaceRepoFixtureLifecycle {
     const seedRepositoryId =
       state.kind === "buildable-panel-with-derived" ? state.repositoryId : null;
     const candidates = createdRepositories.filter(
-      ({ repositoryId }) => repositoryId !== seedRepositoryId
+      ({ repositoryId }) => repositoryId !== seedRepositoryId,
     );
     if (state.kind === "created-repositories") {
       const actualSections = candidates
@@ -1011,7 +1102,9 @@ export class WorkspaceRepoFixtureLifecycle {
       const expectedSections = [...state.expectedSections].sort();
       if (
         candidates.length !== expectedSections.length ||
-        actualSections.some((section, index) => section !== expectedSections[index])
+        actualSections.some(
+          (section, index) => section !== expectedSections[index],
+        )
       ) {
         return {
           ownedRepositoryIds: new Set(),
@@ -1019,14 +1112,16 @@ export class WorkspaceRepoFixtureLifecycle {
           error: new Error(
             `Workspace repository creation scope expected sections ${expectedSections.join(", ")}, found: ${
               candidates.map(({ repoPath }) => repoPath).join(", ") || "none"
-            }`
+            }`,
           ),
         };
       }
       return {
-        ownedRepositoryIds: new Set(candidates.map(({ repositoryId }) => repositoryId)),
+        ownedRepositoryIds: new Set(
+          candidates.map(({ repositoryId }) => repositoryId),
+        ),
         primaryRepositoryId: candidates.find(({ repoPath }) =>
-          repoPath.startsWith(`${state.section}/`)
+          repoPath.startsWith(`${state.section}/`),
         )!.repositoryId,
         error: null,
       };
@@ -1039,7 +1134,7 @@ export class WorkspaceRepoFixtureLifecycle {
         error: new Error(
           `Workspace repository creation scope expected ${expected}, found ${candidates.length}: ${
             candidates.map(({ repoPath }) => repoPath).join(", ") || "none"
-          }`
+          }`,
         ),
       };
     }
@@ -1049,13 +1144,15 @@ export class WorkspaceRepoFixtureLifecycle {
         ownedRepositoryIds: new Set(seedRepositoryId ? [seedRepositoryId] : []),
         primaryRepositoryId: null,
         error: new Error(
-          `Workspace repository creation scope expected ${expected}, found ${created.repoPath}`
+          `Workspace repository creation scope expected ${expected}, found ${created.repoPath}`,
         ),
       };
     }
     return {
       ownedRepositoryIds: new Set(
-        seedRepositoryId ? [seedRepositoryId, created.repositoryId] : [created.repositoryId]
+        seedRepositoryId
+          ? [seedRepositoryId, created.repositoryId]
+          : [created.repositoryId],
       ),
       primaryRepositoryId: created.repositoryId,
       error: null,
@@ -1073,9 +1170,13 @@ export class WorkspaceRepoFixtureLifecycle {
 
 function repositorySeedFiles(
   repoName: string,
-  fixture: WorkspaceRepoCreationScope
+  fixture: WorkspaceRepoCreationScope,
 ): Array<{ path: string; content: string }> {
-  if (fixture.kind === "created-repository" || fixture.kind === "created-repositories") return [];
+  if (
+    fixture.kind === "created-repository" ||
+    fixture.kind === "created-repositories"
+  )
+    return [];
   if (fixture.kind === "content") {
     return [
       {
@@ -1127,7 +1228,7 @@ function repositorySeedFiles(
             dependencies: { "@workspace/runtime": "workspace:*" },
           },
           null,
-          2
+          2,
         )}\n`,
       },
       {
@@ -1167,7 +1268,9 @@ function repositorySeedFiles(
               kind: "worker",
               entry: "index.ts",
               authority: { requests: [], provides: [] },
-              tests: [{ name: "unit", runtime: "workerd", include: ["**/*.test.ts"] }],
+              tests: [
+                { name: "unit", runtime: "workerd", include: ["**/*.test.ts"] },
+              ],
             },
             dependencies: {
               "@workspace/runtime": "workspace:*",
@@ -1175,7 +1278,7 @@ function repositorySeedFiles(
             },
           },
           null,
-          2
+          2,
         )}\n`,
       },
       {
@@ -1226,7 +1329,7 @@ function repositorySeedFiles(
           dependencies: { "@workspace/test-runtime": "workspace:*" },
         },
         null,
-        2
+        2,
       )}\n`,
     },
     {
@@ -1242,7 +1345,7 @@ function repositorySeedFiles(
 
 function buildablePanelFiles(
   repoName: string,
-  options: { repeatedStatusLabels?: number } = {}
+  options: { repeatedStatusLabels?: number } = {},
 ): Array<{ path: string; content: string }> {
   const repeatedStatusLabels = options.repeatedStatusLabels ?? 0;
   const statusDeclaration = repeatedStatusLabels
@@ -1290,7 +1393,7 @@ function buildablePanelFiles(
           },
         },
         null,
-        2
+        2,
       )}\n`,
     },
     {
@@ -1321,7 +1424,9 @@ function fixtureIcon(): string {
   ].join("\n");
 }
 
-function buildableExtensionFiles(repoName: string): Array<{ path: string; content: string }> {
+function buildableExtensionFiles(
+  repoName: string,
+): Array<{ path: string; content: string }> {
   return [
     {
       path: "package.json",
@@ -1337,17 +1442,27 @@ function buildableExtensionFiles(repoName: string): Array<{ path: string; conten
             entry: "index.ts",
             extension: {
               activationEvents: ["onInvoke"],
-              methodAuthority: { status: { effect: { kind: "open" } } },
+              methodAuthority: {
+                status: {
+                  effect: { kind: "open" },
+                  website: {
+                    kind: "closed",
+                    reason: "Disposable native status fixture.",
+                  },
+                },
+              },
             },
             // Same reason as the app fixture: the repair scenario is asked to
             // keep a focused unit test aligned and granted native execution.
-            tests: [{ name: "unit", runtime: "native", include: ["**/*.test.ts"] }],
+            tests: [
+              { name: "unit", runtime: "native", include: ["**/*.test.ts"] },
+            ],
             authority: { requests: [], provides: [] },
           },
           devDependencies: { vitest: "^3.2.4" },
         },
         null,
-        2
+        2,
       )}\n`,
     },
     { path: "assets/icon.svg", content: fixtureIcon() },
@@ -1378,7 +1493,9 @@ function buildableExtensionFiles(repoName: string): Array<{ path: string; conten
   ];
 }
 
-function buildableAppFiles(repoName: string): Array<{ path: string; content: string }> {
+function buildableAppFiles(
+  repoName: string,
+): Array<{ path: string; content: string }> {
   return [
     {
       path: "package.json",
@@ -1396,7 +1513,9 @@ function buildableAppFiles(repoName: string): Array<{ path: string; content: str
             // unit test aligned, and is granted native test execution to do it.
             // Without a declared suite the build refuses to run the test file
             // this fixture ships beside its vitest dependency.
-            tests: [{ name: "unit", runtime: "native", include: ["**/*.test.ts"] }],
+            tests: [
+              { name: "unit", runtime: "native", include: ["**/*.test.ts"] },
+            ],
             authority: {
               requests: [
                 {
@@ -1412,7 +1531,7 @@ function buildableAppFiles(repoName: string): Array<{ path: string; content: str
           devDependencies: { vitest: "^3.2.4" },
         },
         null,
-        2
+        2,
       )}\n`,
     },
     { path: "assets/icon.svg", content: fixtureIcon() },
@@ -1443,7 +1562,7 @@ function buildableAppFiles(repoName: string): Array<{ path: string; content: str
 
 function trustedUnitSkillFile(
   repoName: string,
-  kind: "app" | "extension"
+  kind: "app" | "extension",
 ): { path: string; content: string } {
   const noun = kind === "app" ? "terminal app" : "status extension";
   const skill = kind === "app" ? "appdev" : "extensiondev";
@@ -1488,31 +1607,63 @@ const PROVENANCE_RECORD_REVISIONS: Record<
 > = {
   policy: {
     files: [
-      { path: "src/retry-policy.ts", content: "export const backoffCeilingSeconds = 30;\n" },
-      { path: "src/socket-policy.ts", content: "export const pingIntervalSeconds = 20;\n" },
-      { path: "src/upload-policy.ts", content: "export const chunkSeconds = 25;\n" },
+      {
+        path: "src/retry-policy.ts",
+        content: "export const backoffCeilingSeconds = 30;\n",
+      },
+      {
+        path: "src/socket-policy.ts",
+        content: "export const pingIntervalSeconds = 20;\n",
+      },
+      {
+        path: "src/upload-policy.ts",
+        content: "export const chunkSeconds = 25;\n",
+      },
     ],
     intent:
       "Cap the retry backoff at 30 seconds, ping the socket every 20, and size upload chunks to finish inside 25",
-    message: "Apply the short-timeout policy across retry, socket, and upload paths",
+    message:
+      "Apply the short-timeout policy across retry, socket, and upload paths",
   },
   raise: {
     files: [
-      { path: "src/retry-policy.ts", content: "export const backoffCeilingSeconds = 300;\n" },
-      { path: "src/socket-policy.ts", content: "export const pingIntervalSeconds = 20;\n" },
-      { path: "src/upload-policy.ts", content: "export const chunkSeconds = 25;\n" },
+      {
+        path: "src/retry-policy.ts",
+        content: "export const backoffCeilingSeconds = 300;\n",
+      },
+      {
+        path: "src/socket-policy.ts",
+        content: "export const pingIntervalSeconds = 20;\n",
+      },
+      {
+        path: "src/upload-policy.ts",
+        content: "export const chunkSeconds = 25;\n",
+      },
     ],
     intent: "Raise the backoff ceiling to 300 seconds to cut reconnect churn",
     message: "Raise the backoff ceiling to 300 seconds",
   },
   unrelated: {
     files: [
-      { path: "src/retry-policy.ts", content: "export const backoffCeilingSeconds = 300;\n" },
-      { path: "src/socket-policy.ts", content: "export const pingIntervalSeconds = 20;\n" },
-      { path: "src/upload-policy.ts", content: "export const chunkSeconds = 25;\n" },
-      { path: "src/cache-policy.ts", content: "export const cacheTtlSeconds = 900;\n" },
+      {
+        path: "src/retry-policy.ts",
+        content: "export const backoffCeilingSeconds = 300;\n",
+      },
+      {
+        path: "src/socket-policy.ts",
+        content: "export const pingIntervalSeconds = 20;\n",
+      },
+      {
+        path: "src/upload-policy.ts",
+        content: "export const chunkSeconds = 25;\n",
+      },
+      {
+        path: "src/cache-policy.ts",
+        content: "export const cacheTtlSeconds = 900;\n",
+      },
     ],
-    intent: "Cache the upstream feed for 900 seconds because it refreshes quarter-hourly",
+    intent:
+      "Cache the upstream feed for 900 seconds because it refreshes quarter-hourly",
     message: "Cache the upstream feed for a quarter hour",
   },
 };
@@ -1525,37 +1676,43 @@ interface HistoricalContentRevision {
 }
 
 function historicalContentRevisions(): HistoricalContentRevision[] {
-  return Array.from({ length: SIZABLE_HISTORY_FIXTURE_REVISIONS }, (_, index) => {
-    const revision = index + 1;
-    if (revision === 6) {
+  return Array.from(
+    { length: SIZABLE_HISTORY_FIXTURE_REVISIONS },
+    (_, index) => {
+      const revision = index + 1;
+      if (revision === 6) {
+        return {
+          revision,
+          files: historicalPolicyFiles(revision),
+          intent:
+            "Extend the archive window from 14 to 21 days because delayed regional exports can arrive through day 18; a three-day buffer prevents premature deletion",
+          message:
+            "Extend archive window to 21 days for regional exports arriving through day 18",
+        };
+      }
+      if (revision === 11) {
+        return {
+          revision,
+          files: historicalPolicyFiles(revision),
+          intent:
+            "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name",
+          message:
+            "Retire Harbor Lantern after launch; use Retention Service in support and audit records",
+        };
+      }
       return {
         revision,
         files: historicalPolicyFiles(revision),
-        intent:
-          "Extend the archive window from 14 to 21 days because delayed regional exports can arrive through day 18; a three-day buffer prevents premature deletion",
-        message: "Extend archive window to 21 days for regional exports arriving through day 18",
+        intent: `Record retention-policy audit checkpoint ${revision} without changing the approved archive window`,
+        message: `Record retention-policy audit checkpoint ${revision}`,
       };
-    }
-    if (revision === 11) {
-      return {
-        revision,
-        files: historicalPolicyFiles(revision),
-        intent:
-          "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name",
-        message:
-          "Retire Harbor Lantern after launch; use Retention Service in support and audit records",
-      };
-    }
-    return {
-      revision,
-      files: historicalPolicyFiles(revision),
-      intent: `Record retention-policy audit checkpoint ${revision} without changing the approved archive window`,
-      message: `Record retention-policy audit checkpoint ${revision}`,
-    };
-  });
+    },
+  );
 }
 
-function historicalPolicyFiles(revision: number): Array<{ path: string; content: string }> {
+function historicalPolicyFiles(
+  revision: number,
+): Array<{ path: string; content: string }> {
   const archiveWindowDays = revision < 6 ? 14 : 21;
   const codename =
     revision < 11

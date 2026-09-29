@@ -90,6 +90,96 @@ describe("HeadlessRunner", () => {
     mocks.messageListeners.length = 0;
   });
 
+  it("joins a pending session admission before retiring resources after a test timeout", async () => {
+    mocks.workers.resolveService.mockResolvedValue({
+      kind: "durable-object",
+      targetId: "do:development",
+    });
+    let admit!: (value: unknown) => void;
+    const admission = new Promise((resolve) => {
+      admit = resolve;
+    });
+    mocks.rpc.call.mockImplementation(async (_target, method) => {
+      if (method === "openSession") return admission;
+      if (method === "list") return { runs: [{ runId: "run:one" }] };
+      if (method === "closeSession")
+        return { state: "closed", sessionId: "session:one" };
+      if (method === "get" || method === "stop")
+        return { state: "stopped", runId: "run:one" };
+      throw new Error(`Unexpected method ${String(method)}`);
+    });
+    const runner = new HeadlessRunner("ctx-test");
+    const opened = runner.callSelfDevelopment("openSession", {});
+    await vi.waitFor(() =>
+      expect(mocks.rpc.call).toHaveBeenCalledWith(
+        "do:development",
+        "openSession",
+        [{}],
+      ),
+    );
+    const closed = runner.closeOwnedDevelopmentSessions();
+    await expect(runner.callSelfDevelopment("start", {})).rejects.toThrow(
+      "resource lifetime has ended",
+    );
+    expect(
+      mocks.rpc.call.mock.calls.some((call) => call[1] === "closeSession"),
+    ).toBe(false);
+    admit({ kind: "opened", session: { sessionId: "session:one" } });
+    await opened;
+    await expect(closed).resolves.toEqual([
+      {
+        sessionId: "session:one",
+        session: { state: "closed", sessionId: "session:one" },
+        runs: [{ state: "stopped", runId: "run:one" }],
+      },
+    ]);
+    await expect(runner.closeOwnedDevelopmentSessions()).resolves.toEqual([]);
+  });
+
+  it("retires every owned session even when an evidence read fails", async () => {
+    mocks.workers.resolveService.mockResolvedValue({
+      kind: "durable-object",
+      targetId: "do:development",
+    });
+    mocks.rpc.call.mockImplementation(async (_target, method, args) => {
+      const input = args[0] as { sessionId?: string };
+      if (method === "openSession")
+        return { kind: "opened", session: { sessionId: input.sessionId } };
+      if (method === "list") throw new Error("evidence read failed");
+      if (method === "closeSession")
+        return { state: "closed", sessionId: input.sessionId };
+      throw new Error(`Unexpected method ${String(method)}`);
+    });
+    const runner = new HeadlessRunner("ctx-test");
+    await runner.callSelfDevelopment("openSession", {
+      sessionId: "session:one",
+    });
+    await runner.callSelfDevelopment("openSession", {
+      sessionId: "session:two",
+    });
+    await expect(runner.closeOwnedDevelopmentSessions()).rejects.toThrow(
+      "Owned development session cleanup failed",
+    );
+    expect(
+      mocks.rpc.call.mock.calls
+        .filter((call) => call[1] === "closeSession")
+        .map((call) => call[2]),
+    ).toEqual([
+      [
+        {
+          sessionId: "session:one",
+          idempotencyKey: "system-test-owner-close-session:one",
+        },
+      ],
+      [
+        {
+          sessionId: "session:two",
+          idempotencyKey: "system-test-owner-close-session:two",
+        },
+      ],
+    ]);
+  });
+
   it("reports an observed fallback on the run policy without rerouting new sessions", async () => {
     const runner = new HeadlessRunner("ctx-test");
     const session = await runner.spawn();
@@ -100,13 +190,19 @@ describe("HeadlessRunner", () => {
       failureCode: "usage limit reached",
     };
 
-    runner.recordModelFallbackActivations(session, "fallback-test", [activation]);
+    runner.recordModelFallbackActivations(session, "fallback-test", [
+      activation,
+    ]);
     // Evidence is re-read per phase, so the same turn arrives twice; a run's
     // activations are the set of transitions, not the number of observations.
-    runner.recordModelFallbackActivations(session, "fallback-test", [activation]);
+    runner.recordModelFallbackActivations(session, "fallback-test", [
+      activation,
+    ]);
 
     const runPolicy = runner.modelPolicySnapshot();
-    expect(runPolicy.activations).toEqual([{ ...activation, testName: "fallback-test" }]);
+    expect(runPolicy.activations).toEqual([
+      { ...activation, testName: "fallback-test" },
+    ]);
     expect(runner.modelPolicySnapshot(session).activations).toEqual([
       { ...activation, testName: "fallback-test" },
     ]);
@@ -218,10 +314,7 @@ describe("HeadlessRunner", () => {
     const spawned = mocks.createWithAgent.mock.calls.map(
       ([config]) => (config as { contextId?: string }).contextId,
     );
-    expect(spawned).toEqual([
-      "context:child:1",
-      "context:child:2",
-    ]);
+    expect(spawned).toEqual(["context:child:1", "context:child:2"]);
     const forks = mocks.rpc.call.mock.calls.filter(
       ([, method]) => method === "runtime.createSubagentContext",
     );
@@ -902,9 +995,12 @@ describe("HeadlessRunner", () => {
   });
 
   it("does not present a multi-repository creation scope as an existing fixture", async () => {
-    const runner = new HeadlessRunner("ctx-test").forTest("panel-store-create", {
-      workspaceRepoFixture: CREATED_PANEL_STORE_WORKSPACE_REPO_FIXTURE,
-    });
+    const runner = new HeadlessRunner("ctx-test").forTest(
+      "panel-store-create",
+      {
+        workspaceRepoFixture: CREATED_PANEL_STORE_WORKSPACE_REPO_FIXTURE,
+      },
+    );
     mocks.rpc.call.mockResolvedValueOnce({ contextId: "ctx-created" });
     mocks.vcs.status.mockResolvedValueOnce({
       contextId: "ctx-created",
@@ -928,8 +1024,12 @@ describe("HeadlessRunner", () => {
     expect(config.extraConfig["systemPrompt"]).toContain(
       'owns exactly 2 repositories that it creates, one under each of "panels/", "workers/"',
     );
-    expect(config.extraConfig["systemPrompt"]).not.toContain("is already present");
-    expect(config.extraConfig["systemPrompt"]).not.toContain("system-test-panel-store-create-");
+    expect(config.extraConfig["systemPrompt"]).not.toContain(
+      "is already present",
+    );
+    expect(config.extraConfig["systemPrompt"]).not.toContain(
+      "system-test-panel-store-create-",
+    );
     expect(mocks.rpc.call).toHaveBeenNthCalledWith(
       1,
       "main",

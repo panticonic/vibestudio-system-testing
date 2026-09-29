@@ -236,7 +236,7 @@ export const agentOrchestrationTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Ask a fresh subagent to add a small deterministic typed export named firstValue in the disposable package and report back when finished. Review that committed change without merging it. Then ask that same subagent to add a second typed export named secondValue using firstValue. Review the new committed diff and integrate it. Keep the same collaborator and its work context throughout; summarize both changes.",
-    validation: "agent-evidence",
+
     validate: validateSubagentFollowup,
   },
   {
@@ -247,7 +247,7 @@ export const agentOrchestrationTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Ask a fresh subagent to add one small deterministic typed export in the disposable package. Review what the child changed without integrating it, then summarize the bounded diff.",
-    validation: "agent-evidence",
+
     validate: (result) => validateSubagentDiff(result, false),
   },
   {
@@ -257,7 +257,7 @@ export const agentOrchestrationTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Ask a fresh subagent to add one small deterministic typed export in the disposable package. Review the child's diff before integrating the change into your workspace, then summarize the result.",
-    validation: "agent-evidence",
+
     validate: (result) => validateSubagentDiff(result, true),
   },
   {

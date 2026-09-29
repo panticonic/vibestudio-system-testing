@@ -8,6 +8,30 @@ export function imagePanelFixtureFiles(name: string): Record<string, string> {
     name,
     title: "Live Image Studio",
     entry: "index.tsx",
+    authority: {
+      requests: [
+        {
+          capability: "workspace.runtime-state.manage",
+          resource: { kind: "exact", key: "workspace.runtime-state.manage" },
+          tier: "gated",
+          evidence: "exact",
+        },
+        {
+          capability: "workspace-service:images",
+          resource: {
+            kind: "exact",
+            key: "do:workers/images:ImagesDO:workspace",
+          },
+          tier: "gated",
+          evidence: "exact",
+        },
+      ],
+      provides: [],
+      serviceRequests: [
+        { protocol: "vibestudio.images.v1", availability: "required" },
+      ],
+    },
+
     exposeModules: ["react", "react/jsx-runtime", "react/jsx-dev-runtime"],
     dependencies: {
       react: "19.2.4",
@@ -17,7 +41,6 @@ export function imagePanelFixtureFiles(name: string): Record<string, string> {
     },
   });
   const vibestudio = manifest["vibestudio"] as Record<string, unknown>;
-  const authority = vibestudio["authority"] as Record<string, unknown>;
   vibestudio["stateArgs"] = {
     type: "object",
     properties: {
@@ -25,25 +48,6 @@ export function imagePanelFixtureFiles(name: string): Record<string, string> {
       selectedJob: { type: "string" },
     },
     additionalProperties: false,
-  };
-  vibestudio["authority"] = {
-    ...authority,
-    requests: [
-      ...((authority["requests"] as unknown[]) ?? []),
-      {
-        capability: "workspace.runtime-state.manage",
-        resource: { kind: "exact", key: "workspace.runtime-state.manage" },
-        tier: "gated",
-        evidence: "exact",
-      },
-      {
-        capability: "workspace-service:images",
-        resource: { kind: "exact", key: "do:workers/images:ImagesDO:workspace" },
-        tier: "gated",
-        evidence: "exact",
-      },
-    ],
-    serviceRequests: [{ protocol: "vibestudio.images.v1", availability: "required" }],
   };
   return {
     "package.json": JSON.stringify(manifest, null, 2) + "\n",
@@ -107,7 +111,7 @@ export async function importImagePanelFixture(input: {
         path,
         contentHash: (await input.blobstore.putText(text)).digest,
         mode: 0o644,
-      }))
+      })),
   );
   const repoPath = `panels/${input.name}`;
   await input.vcs.importSnapshot({

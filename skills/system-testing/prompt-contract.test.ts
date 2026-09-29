@@ -50,7 +50,7 @@ describe("agent-goal prompt contract", () => {
   it("keeps agent-evidence cases on the natural goal contract", () => {
     const test: TestCase = {
       ...agentCase("Using exactly one eval call, return exactly { ok: true }."),
-      validation: "agent-evidence",
+
       validate: () => ({ passed: true }),
     };
     expect(() => assertSystemTestDeclaration(test)).toThrow(/user outcome/u);

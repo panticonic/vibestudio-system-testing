@@ -1,7 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { TestExecutionResult } from "../types.js";
+import type {
+  TestExecutionResult,
+  TestOrchestrationContext,
+} from "../types.js";
 import { unitDiagnosticsTests } from "./unit-diagnostics.js";
+
+const notificationRuntime = vi.hoisted(() => ({
+  list: vi.fn(),
+  overview: vi.fn(),
+  resolveService: vi.fn(),
+}));
+vi.mock("@workspace/runtime", () => ({
+  gad: { listUserNotificationsForMe: notificationRuntime.list },
+  rpc: { call: notificationRuntime.overview },
+  workers: { resolveService: notificationRuntime.resolveService },
+}));
 
 function execution(
   code: string,
@@ -171,8 +185,24 @@ describe("automation native launch system test validator", () => {
     operations: [{ service: "vcs", method: "status", use: "action" }],
   };
 
-  it("needs no approval pregrant for native launch", () => {
-    expect(automationLaunchTest.authorityPolicy).toEqual({ authority: [] });
+  it("authorizes only the requested immediate run through the declared mission gate", () => {
+    expect(automationLaunchTest.authorityPolicy).toEqual({
+      authority: [
+        {
+          ruleId: "run-requested-automation-now",
+          capability: {
+            kind: "prefix",
+            prefix: "userland:workers/missions/missions.run#",
+          },
+          resource: {
+            kind: "exact",
+            key: "mission:do:workers/missions:MissionsDO:workspace-missions",
+          },
+          tier: "gated",
+          decision: "once",
+        },
+      ],
+    });
   });
 
   it("accepts one native launch with the requested exact lightweight behavior", () => {
@@ -193,7 +223,10 @@ describe("automation native launch system test validator", () => {
       automationLaunchTest.validate(
         execution(
           "",
-          { ...launch, trigger: { ...launch.trigger, expression: "5 5 * * 4" } },
+          {
+            ...launch,
+            trigger: { ...launch.trigger, expression: "5 5 * * 4" },
+          },
           "Daily project pulse is running; use its automation pill to inspect or stop it.",
           "launch_automation",
         ),
@@ -206,7 +239,10 @@ describe("automation native launch system test validator", () => {
       automationLaunchTest.validate(
         execution(
           "",
-          { ...launch, trigger: { ...launch.trigger, expression: "5 5 * * 3" } },
+          {
+            ...launch,
+            trigger: { ...launch.trigger, expression: "5 5 * * 3" },
+          },
           "Daily project pulse is running; use its automation pill to inspect or stop it.",
           "launch_automation",
         ),
@@ -291,6 +327,81 @@ describe("scheduled automation notification system test validator", () => {
     expect(scheduledNotificationTest.validate(result)).toEqual({
       passed: true,
     });
+  });
+
+  it("isolates durable notification evidence by the launching conversation", async () => {
+    const channelId = "headless-proof";
+    notificationRuntime.resolveService.mockResolvedValue({
+      kind: "durable-object",
+      targetId: "missions",
+    });
+    notificationRuntime.overview.mockResolvedValue({
+      items: [
+        {
+          automation: {
+            name: "One-minute talk timer",
+            missionId: "mission-proof",
+            runCount: 2,
+            state: "completed",
+            charter: {
+              execution: { conversation: { mode: "continue", channelId } },
+            },
+          },
+          recentRuns: [1, 2].map((id) => ({
+            runId: `run-${id}`,
+            phase: "terminal",
+            outcome: "succeeded",
+          })),
+        },
+      ],
+    });
+    const notifications = (channel: string, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `${channel}-${i}`,
+        kind: "agent.message",
+        message: "One minute has passed.",
+        data: { channelId: channel },
+      }));
+    const session = {
+      channelId,
+      messages: execution(
+        "",
+        scheduledLaunch,
+        "Running and inspectable.",
+        "launch_automation",
+      ).messages,
+      snapshot: () => ({}),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const launchMessage = session.messages.find(
+      (message) => message.contentType === "invocation",
+    )!;
+    (
+      launchMessage.invocation as unknown as { result: { details: unknown } }
+    ).result.details = { missionId: "mission-proof" };
+    const context = {
+      runner: { spawn: async () => session },
+      sendAndWait: async () => undefined,
+      remainingTimeMs: () => 1000,
+    } as unknown as TestOrchestrationContext;
+    for (const count of [2, 0, 3]) {
+      notificationRuntime.list.mockResolvedValue([
+        ...notifications(channelId, count),
+        ...notifications("another-conversation", 2),
+      ]);
+      const result = await scheduledNotificationTest.orchestrate!(context);
+      expect(scheduledNotificationTest.validate(result).passed).toBe(
+        count === 2,
+      );
+      expect(
+        (
+          result.diagnostics!["scheduledNotification"] as Record<
+            string,
+            unknown
+          >
+        )["notifications"],
+      ).toHaveLength(count);
+    }
   });
 
   it("rejects launch-only evidence without the promised outcome", () => {
@@ -383,7 +494,9 @@ describe("native automation control system test validator", () => {
         arguments:
           toolName === "control_automation"
             ? { action: "pause", name: "Sloth facts stop proof" }
-            : { code: "return await rpc.call(service.targetId, 'pause', [id])" },
+            : {
+                code: "return await rpc.call(service.targetId, 'pause', [id])",
+              },
         result: { details: { state: "paused" } },
       },
     } as unknown as TestExecutionResult["messages"][number]);
@@ -406,10 +519,12 @@ describe("native automation control system test validator", () => {
   });
 
   it("rejects eval-based stop discovery", () => {
-    expect(nativeControlTest.validate(resultWithControl("eval"))).toMatchObject({
-      passed: false,
-      reason: expect.stringContaining("native pause"),
-    });
+    expect(nativeControlTest.validate(resultWithControl("eval"))).toMatchObject(
+      {
+        passed: false,
+        reason: expect.stringContaining("native pause"),
+      },
+    );
   });
 });
 

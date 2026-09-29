@@ -180,7 +180,7 @@ export const harnessToolTests: TestCase[] = [
     name: "workspace-image-generation",
     description: "Generate a raster illustration as a tracked workspace asset",
     category: "harness-tools",
-    validation: "agent-evidence",
+
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     timeoutMs: 240_000,
     prompt:

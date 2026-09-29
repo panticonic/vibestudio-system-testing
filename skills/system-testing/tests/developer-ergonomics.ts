@@ -1,13 +1,25 @@
+import type { HeadlessSession } from "@workspace/agentic-session";
 import {
   BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
   CONTENT_WORKSPACE_REPO_FIXTURE,
   CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
   type TestCase,
   type TestExecutionResult,
+  type TestOrchestrationContext,
 } from "../types.js";
-import { panelControlAuthorityPolicy, PANEL_AUTOMATION_RESOURCE } from "../panel-authority.js";
-import { finalMessageHasAll, getToolCalls, type InvocationCardPayloadLike } from "./_helpers.js";
-import { completedScenarioEvidence, walkRecords } from "./_scenario-evidence.js";
+import {
+  panelControlAuthorityPolicy,
+  PANEL_AUTOMATION_RESOURCE,
+} from "../panel-authority.js";
+import {
+  finalMessageHasAll,
+  getToolCalls,
+  type InvocationCardPayloadLike,
+} from "./_helpers.js";
+import {
+  completedScenarioEvidence,
+  walkRecords,
+} from "./_scenario-evidence.js";
 import { orchestratePanelGoal } from "./_panel-tree-invariant.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -27,24 +39,31 @@ function isFailed(call: InvocationCardPayloadLike): boolean {
 }
 
 function isComplete(call: InvocationCardPayloadLike): boolean {
-  return call.execution?.status === "complete" && call.execution.isError !== true;
+  return (
+    call.execution?.status === "complete" && call.execution.isError !== true
+  );
 }
 
-function failure(call: InvocationCardPayloadLike, code: string): Record<string, unknown> | null {
+function failure(
+  call: InvocationCardPayloadLike,
+  code: string,
+): Record<string, unknown> | null {
   const protocolFailure = records(call).find(
-    (record) => record["protocol"] === "agent-tool-failure.v1" && record["code"] === code
+    (record) =>
+      record["protocol"] === "agent-tool-failure.v1" && record["code"] === code,
   );
   if (protocolFailure) return protocolFailure;
 
   const result = call.execution?.result;
   const details =
-    isRecord(result) && isRecord(result["details"])
-      ? result["details"]
-      : null;
-  const errorData = details && isRecord(details["errorData"]) ? details["errorData"] : null;
+    isRecord(result) && isRecord(result["details"]) ? result["details"] : null;
+  const errorData =
+    details && isRecord(details["errorData"]) ? details["errorData"] : null;
   const failureCode =
     call.execution?.failureCode ?? call.failureCode ?? details?.["failureCode"];
-  return failureCode === code && errorData?.["code"] === code ? errorData : null;
+  return failureCode === code && errorData?.["code"] === code
+    ? errorData
+    : null;
 }
 
 function createdPublishedPanel(call: InvocationCardPayloadLike): boolean {
@@ -74,7 +93,9 @@ function validateInvalidIconRecovery(result: TestExecutionResult) {
     return (
       isRecord(recovery) &&
       recovery["action"] === "correct-request" &&
-      records(call).some((record) => record["protocol"] === "workspace-dev-catalog.v1")
+      records(call).some(
+        (record) => record["protocol"] === "workspace-dev-catalog.v1",
+      )
     );
   });
   const discoveredIndex = calls.findIndex(
@@ -86,34 +107,48 @@ function validateInvalidIconRecovery(result: TestExecutionResult) {
         (record) =>
           record["protocol"] === "workspace-dev-catalog.v1" &&
           Array.isArray(record["entries"]) &&
-          record["entries"].length > 0
-      )
+          record["entries"].length > 0,
+      ),
   );
   // Proactive discovery is the best outcome and must not be penalized for
   // avoiding a predictable failure. When the unsupported icon is attempted,
   // the typed failure's embedded bounded catalog is already sufficient
   // correction evidence; an extra catalog round trip is optional.
   const catalogIndex =
-    discoveredIndex >= 0 ? discoveredIndex : rejectedIndex >= 0 ? rejectedIndex : -1;
+    discoveredIndex >= 0
+      ? discoveredIndex
+      : rejectedIndex >= 0
+        ? rejectedIndex
+        : -1;
   const createIndex = calls.findIndex(
-    (call, index) => index > catalogIndex && call.name === "eval" && createdPublishedPanel(call)
+    (call, index) =>
+      index >= catalogIndex &&
+      call.name === "eval" &&
+      createdPublishedPanel(call),
   );
-  return catalogIndex >= 0 && createIndex > catalogIndex
+  return catalogIndex >= 0 && createIndex >= catalogIndex
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "The agent did not discover the bounded catalog and create the corrected panel",
+        reason:
+          "The agent did not discover the bounded catalog and create the corrected panel",
       };
 }
 
-function validateRecoverableInfrastructureContinuation(result: TestExecutionResult) {
+function validateRecoverableInfrastructureContinuation(
+  result: TestExecutionResult,
+) {
   const base = completedScenarioEvidence(result, [], {
     allowFailed: (call) =>
-      call.name === "eval" && failure(call, "recoverable_infrastructure_probe") !== null,
+      call.name === "eval" &&
+      failure(call, "recoverable_infrastructure_probe") !== null,
   });
   if (!base.passed) return base;
   const failed = getToolCalls(result).find((call) => {
-    const typed = call.name === "eval" ? failure(call, "recoverable_infrastructure_probe") : null;
+    const typed =
+      call.name === "eval"
+        ? failure(call, "recoverable_infrastructure_probe")
+        : null;
     const recovery = typed?.["recovery"];
     return (
       isFailed(call) &&
@@ -125,13 +160,17 @@ function validateRecoverableInfrastructureContinuation(result: TestExecutionResu
   if (!failed) {
     return {
       passed: false,
-      reason: "The eval failure did not retain its infrastructure origin and typed recovery",
+      reason:
+        "The eval failure did not retain its infrastructure origin and typed recovery",
     };
   }
   return finalMessageHasAll(result, ["RECOVERED_IN_SAME_TURN"]);
 }
 
-function buildReceipt(record: Record<string, unknown>, status: "ok" | "failed") {
+function buildReceipt(
+  record: Record<string, unknown>,
+  status: "ok" | "failed",
+) {
   const receipt = record["receipt"];
   return isRecord(receipt) &&
     receipt["protocol"] === "unit-verification-receipt.v1" &&
@@ -166,7 +205,8 @@ function validateBoundedBuildDiagnostics(result: TestExecutionResult) {
   if (failedIndex < 0) {
     return {
       passed: false,
-      reason: "No failed build returned a bounded report and exact failed-build receipt",
+      reason:
+        "No failed build returned a bounded report and exact failed-build receipt",
     };
   }
   const cleanIndex = calls.findIndex(
@@ -174,11 +214,14 @@ function validateBoundedBuildDiagnostics(result: TestExecutionResult) {
       index > failedIndex &&
       call.name === "verify" &&
       isComplete(call) &&
-      records(call).some((record) => buildReceipt(record, "ok") !== null)
+      records(call).some((record) => buildReceipt(record, "ok") !== null),
   );
   return cleanIndex > failedIndex
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: "The bounded failed build was not repaired and rebuilt cleanly" };
+    : {
+        passed: false,
+        reason: "The bounded failed build was not repaired and rebuilt cleanly",
+      };
 }
 
 function extensionlessTarget(call: InvocationCardPayloadLike): boolean {
@@ -216,7 +259,7 @@ function isNativeImageRead(call: InvocationCardPayloadLike): boolean {
       typeof record["mimeType"] === "string" &&
       record["mimeType"].startsWith("image/") &&
       typeof record["size"] === "number" &&
-      record["size"] > 0
+      record["size"] > 0,
   );
 }
 
@@ -231,8 +274,8 @@ function validateExtensionlessScreenshot(result: TestExecutionResult) {
       /\.screenshot\s*\(/u.test(String(call.arguments?.["code"] ?? "")) &&
       /fs\.writeFile\s*\(/u.test(String(call.arguments?.["code"] ?? ""))
         ? [...screenshotPaths(call)]
-        : []
-    )
+        : [],
+    ),
   );
   const imageRead = calls.some(
     (call) =>
@@ -241,8 +284,10 @@ function validateExtensionlessScreenshot(result: TestExecutionResult) {
       extensionlessTarget(call) &&
       isNativeImageRead(call) &&
       capturedPaths.has(
-        normalizedFilePath(call.arguments?.["target"] ?? call.arguments?.["path"]) ?? ""
-      )
+        normalizedFilePath(
+          call.arguments?.["target"] ?? call.arguments?.["path"],
+        ) ?? "",
+      ),
   );
   return capturedPaths.size > 0 && imageRead
     ? { passed: true, reason: undefined }
@@ -254,18 +299,34 @@ function validateExtensionlessScreenshot(result: TestExecutionResult) {
 }
 
 function validatePanelGenerationRecovery(result: TestExecutionResult) {
-  const base = completedScenarioEvidence(result, ["eval", "verify"]);
+  const base = completedScenarioEvidence(result, ["eval"]);
   if (!base.passed) return base;
-  const sourceImproved = getToolCalls(result).some(
-    (call) => (call.name === "apply_patch" || call.name === "edit") && isComplete(call)
-  );
-  if (!sourceImproved) {
+  const buildVerified = base.evidence.calls.some((call) => {
+    if (!isComplete(call)) return false;
+    const requestedBuild =
+      (call.name === "verify" && call.arguments?.["operation"] === "build") ||
+      (call.name === "eval" &&
+        /\bbuild\.getBuildReport\s*\(/u.test(
+          String(call.arguments?.["code"] ?? ""),
+        ));
+    return (
+      requestedBuild &&
+      records(call).some(
+        (record) =>
+          record["status"] === "ok" &&
+          (call.name === "verify" || Array.isArray(record["diagnostics"])),
+      )
+    );
+  });
+  if (!buildVerified) {
     return {
       passed: false,
-      reason: "The panel source was not visibly improved before rebuilding",
+      reason: "No successful structured panel build evidence was observed",
     };
   }
-  const evalCalls = getToolCalls(result).filter((call) => call.name === "eval" && isComplete(call));
+  const evalCalls = base.evidence.calls.filter(
+    (call) => call.name === "eval" && isComplete(call),
+  );
   const hasObservedInteraction = (call: InvocationCardPayloadLike): boolean =>
     records(call).some((record) => {
       const effect = record["effect"];
@@ -277,30 +338,81 @@ function validatePanelGenerationRecovery(result: TestExecutionResult) {
       );
     });
   const initial = evalCalls.findIndex(hasObservedInteraction);
+  // Generation identity is the public lifecycle evidence. Arbitrary summary
+  // keys (refreshStatus, sessionStatus, etc.) are not part of that contract.
+  const initialGenerations = evalCalls
+    .slice(0, initial + 1)
+    .flatMap(records)
+    .filter(
+      (record) =>
+        typeof record["panelId"] === "string" &&
+        typeof record["runtimeEntityId"] === "string" &&
+        typeof record["attemptId"] === "string" &&
+        typeof record["buildKey"] === "string",
+    );
   const refresh = evalCalls.findIndex((call, index) => {
     if (index <= initial) return false;
     const code = String(call.arguments?.["code"] ?? "");
+    const rebuilt = evalCalls
+      .slice(initial + 1, index + 1)
+      .some((earlier) =>
+        String(earlier.arguments?.["code"] ?? "").includes(".rebuild("),
+      );
     return (
-      code.includes(".rebuild(") &&
+      rebuilt &&
       code.includes(".refresh(") &&
       records(call).some(
-        (record) =>
-          record["status"] === "replaced" || record["sessionStatus"] === "replaced"
+        (generation) =>
+          generation["protocol"] === "panel-cdp-generation.v1" &&
+          typeof generation["runtimeEntityId"] === "string" &&
+          typeof generation["attemptId"] === "string" &&
+          typeof generation["buildKey"] === "string" &&
+          initialGenerations.some(
+            (previous) =>
+              generation["panelId"] === previous["panelId"] &&
+              generation["runtimeEntityId"] !== previous["runtimeEntityId"] &&
+              generation["attemptId"] !== previous["attemptId"] &&
+              generation["buildKey"] !== previous["buildKey"],
+          ),
       )
     );
   });
-  const observedInteraction = evalCalls.slice(Math.max(0, refresh)).some((call) => {
-    if (hasObservedInteraction(call)) return true;
-    return records(call).some((record) => {
-      const compactOutcome =
-        record["sessionStatus"] === "replaced" &&
-        record["clickStatus"] === "observed" &&
-        typeof record["before"] === "string" &&
-        typeof record["after"] === "string" &&
-        record["before"] !== record["after"];
-      return compactOutcome;
-    });
+  if (initial < 0 || refresh < 0) {
+    return {
+      passed: false,
+      reason:
+        "No initial interaction and replacement panel generation with a changed build were observed",
+    };
+  }
+  const initialIndex = base.evidence.calls.indexOf(evalCalls[initial]!);
+  const refreshIndex = base.evidence.calls.indexOf(evalCalls[refresh]!);
+  const sourceImproved = base.evidence.calls.some((call, index) => {
+    if (index <= initialIndex || index >= refreshIndex || !isComplete(call))
+      return false;
+    if (!["apply_patch", "edit", "write"].includes(call.name)) return false;
+    const paths = [call.arguments?.["path"]];
+    const operations = call.arguments?.["operations"];
+    if (Array.isArray(operations)) {
+      paths.push(
+        ...operations.filter(isRecord).map((operation) => operation["path"]),
+      );
+    }
+    return paths.some(
+      (path) =>
+        typeof path === "string" &&
+        /^panels\/[^/]+\/.+\.(?:[cm]?[jt]sx?|css|html|svelte)$/u.test(path),
+    );
   });
+  if (!sourceImproved) {
+    return {
+      passed: false,
+      reason:
+        "No rendered panel source changed between the initial interaction and rebuild",
+    };
+  }
+  const observedInteraction = evalCalls
+    .slice(refresh)
+    .some(hasObservedInteraction);
   return initial >= 0 && refresh > initial && observedInteraction
     ? { passed: true, reason: undefined }
     : {
@@ -308,6 +420,78 @@ function validatePanelGenerationRecovery(result: TestExecutionResult) {
         reason:
           "The panel was not rebuilt through a replaced generation and verified by a semantic interaction outcome",
       };
+}
+
+const COLLABORATOR_NOTE =
+  "Collaborator note: preserve this concurrent addition.";
+const RECOVERED_HEADING = "# Recovered note";
+
+async function orchestrateStaleEditRecovery(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const repoName = context.runner.workspaceRepoName;
+  if (!repoName)
+    throw new Error("stale edit recovery requires a repository fixture");
+  const path = `projects/${repoName}/README.md`;
+  const sessions: HeadlessSession[] = [];
+  let initialMessages: TestExecutionResult["messages"] = [];
+  let error: string | undefined;
+  try {
+    const editor = await context.runner.spawn({ context: "task" });
+    sessions.push(editor);
+    await context.sendAndWait(
+      editor,
+      `Read ${path} and remember its heading for a later edit. Do not change anything yet.`,
+      "editor observes the original note",
+    );
+    initialMessages = [...editor.messages];
+    const collaborator = await context.runner.spawn({ context: "task" });
+    sessions.push(collaborator);
+    await context.sendAndWait(
+      collaborator,
+      `Append exactly one new line to ${path}: ${COLLABORATOR_NOTE} Preserve all existing content and do not publish.`,
+      "independent collaborator updates the same note",
+    );
+    await context.sendAndWait(
+      editor,
+      `Using the heading you already observed, first attempt a targeted replacement with ${RECOVERED_HEADING}. If your observation is stale, recover by reading the current file before correcting the edit. Preserve all other content, verify the final note by reading it, and do not publish.`,
+      "editor recovers without losing the concurrent addition",
+    );
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
+  }
+  const [editor, collaborator] = sessions;
+  const execution: TestExecutionResult = {
+    messages: [
+      ...initialMessages,
+      ...(collaborator ? [...collaborator.messages] : []),
+      ...(editor ? [...editor.messages].slice(initialMessages.length) : []),
+    ],
+    duration: Date.now() - startedAt,
+    ...(editor ? { snapshot: editor.snapshot() } : {}),
+    ...(error ? { error } : {}),
+  };
+  const cleanupErrors: string[] = [];
+  for (const session of sessions.reverse()) {
+    try {
+      await session.close();
+      cleanupErrors.push(
+        ...session
+          .snapshot()
+          .cleanupErrors.map((entry) => `${entry.phase}: ${entry.message}`),
+      );
+    } catch (cause) {
+      cleanupErrors.push(
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+  if (cleanupErrors.length) {
+    execution.cleanupErrors = cleanupErrors;
+    execution.error ??= `Headless cleanup failed: ${cleanupErrors.join("; ")}`;
+  }
+  return execution;
 }
 
 function validateStaleEditRecovery(result: TestExecutionResult) {
@@ -318,57 +502,88 @@ function validateStaleEditRecovery(result: TestExecutionResult) {
     (call) =>
       call.name === "read" &&
       isComplete(call) &&
-      records(call).some((record) => record["protocol"] === "workspace-read-receipt.v1")
+      typeof call.arguments?.["path"] === "string" &&
+      call.arguments["path"].startsWith("projects/") &&
+      call.arguments["path"].endsWith("/README.md"),
   );
-  const staleIndex = calls.findIndex((call, index) => {
-    if (index <= readIndex || call.name !== "edit" || !isComplete(call)) return false;
-    return records(call).some((record) => {
-      if (record["protocol"] !== "file-mutation.v1" || record["status"] !== "conflict") {
-        return false;
-      }
-      const conflicts = record["conflicts"];
-      return (
-        Array.isArray(conflicts) &&
-        conflicts.some((conflict) => {
-          if (!isRecord(conflict) || conflict["reason"] !== "content-changed") return false;
-          const currentReceipt = conflict["currentReceipt"];
-          const recovery = conflict["recovery"];
-          return (
-            isRecord(currentReceipt) &&
-            currentReceipt["protocol"] === "workspace-read-receipt.v1" &&
-            typeof currentReceipt["contentHash"] === "string" &&
-            isRecord(recovery) &&
-            recovery["action"] === "reobserve"
-          );
-        })
-      );
-    });
-  });
-  const recoveredIndex = calls.findIndex(
+  const path = calls[readIndex]?.arguments?.["path"];
+  const sameFile = (call: InvocationCardPayloadLike) =>
+    call.arguments?.["path"] === path;
+  const staleIndex = calls.findIndex(
     (call, index) =>
-      index > staleIndex &&
+      index > readIndex &&
       call.name === "edit" &&
+      sameFile(call) &&
       isComplete(call) &&
       records(call).some(
-        (record) => record["protocol"] === "file-mutation.v1" && record["status"] === "applied"
-      )
+        (record) =>
+          record["protocol"] === "file-mutation.v1" &&
+          record["status"] === "conflict" &&
+          Array.isArray(record["conflicts"]) &&
+          record["conflicts"].some(
+            (conflict) =>
+              isRecord(conflict) &&
+              conflict["reason"] === "content-changed" &&
+              isRecord(conflict["recovery"]) &&
+              conflict["recovery"]["action"] === "reobserve",
+          ),
+      ),
   );
-  return readIndex >= 0 && staleIndex > readIndex && recoveredIndex > staleIndex
+  const reobserveIndex = calls.findIndex(
+    (call, index) =>
+      index > staleIndex &&
+      call.name === "read" &&
+      sameFile(call) &&
+      isComplete(call),
+  );
+  const correctedIndex = calls.findIndex(
+    (call, index) =>
+      index > reobserveIndex &&
+      call.name === "edit" &&
+      sameFile(call) &&
+      isComplete(call) &&
+      records(call).some(
+        (record) =>
+          record["protocol"] === "file-mutation.v1" &&
+          record["status"] === "applied",
+      ),
+  );
+  const verified = calls.some(
+    (call, index) =>
+      index > correctedIndex &&
+      call.name === "read" &&
+      sameFile(call) &&
+      isComplete(call) &&
+      records(call).some(
+        (record) =>
+          typeof record["text"] === "string" &&
+          record["text"].includes(COLLABORATOR_NOTE) &&
+          record["text"].includes(RECOVERED_HEADING),
+      ),
+  );
+  return typeof path === "string" &&
+    readIndex >= 0 &&
+    staleIndex > readIndex &&
+    reobserveIndex > staleIndex &&
+    correctedIndex > reobserveIndex &&
+    verified
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "The stale receipt did not return a non-error conflict with fresh evidence followed by a corrected edit",
+          "The concurrent edit did not produce a recoverable stale-observation conflict followed by reobservation, correction, and readback preserving the collaborator's addition",
       };
 }
 
 function fileMutationRecord(
   call: InvocationCardPayloadLike,
-  status: "applied" | "unchanged" | "conflict"
+  status: "applied" | "unchanged" | "conflict",
 ): Record<string, unknown> | null {
   return (
     records(call).find(
-      (record) => record["protocol"] === "file-mutation.v1" && record["status"] === status
+      (record) =>
+        record["protocol"] === "file-mutation.v1" &&
+        record["status"] === status,
     ) ?? null
   );
 }
@@ -402,7 +617,10 @@ function validateUnifiedFileAuthoring(result: TestExecutionResult) {
     return Boolean(
       mutation &&
       hasSemanticMutationEvidence(mutation) &&
-      records(call).some((record) => record["kind"] === "write" && record["status"] === "created")
+      records(call).some(
+        (record) =>
+          record["kind"] === "write" && record["status"] === "created",
+      ),
     );
   });
   const editIndex = calls.findIndex((call, index) => {
@@ -419,8 +637,9 @@ function validateUnifiedFileAuthoring(result: TestExecutionResult) {
       mutation &&
       hasSemanticMutationEvidence(mutation) &&
       records(call).some(
-        (record) => record["mode"] === "normalized" && typeof record["line"] === "number"
-      )
+        (record) =>
+          record["mode"] === "normalized" && typeof record["line"] === "number",
+      ),
     );
   });
   const editedPath =
@@ -433,7 +652,9 @@ function validateUnifiedFileAuthoring(result: TestExecutionResult) {
       call.name === "read" &&
       isComplete(call) &&
       call.arguments?.["path"] === editedPath &&
-      JSON.stringify(call.execution?.result ?? "").includes("unified-agentic-ergonomics")
+      JSON.stringify(call.execution?.result ?? "").includes(
+        "unified-agentic-ergonomics",
+      ),
   );
   return writeIndex >= 0 && editIndex > writeIndex && readIndex > editIndex
     ? { passed: true, reason: undefined }
@@ -452,9 +673,10 @@ const PANEL_REBUILD_PROMPT =
 export const developerErgonomicsTests: TestCase[] = [
   {
     name: "recoverable-infrastructure-failure-continues-turn",
-    description: "Continue the same agent turn after a typed recoverable infrastructure failure",
+    description:
+      "Continue the same agent turn after a typed recoverable infrastructure failure",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
+
     prompt:
       "Exercise the agent failure protocol once: use eval to throw an Error whose errorData is { code: 'recoverable_infrastructure_probe', failureKind: 'infrastructure', recovery: { action: 'reobserve', instruction: 'Continue this same turn and report RECOVERED_IN_SAME_TURN.' } }. The eval is expected to fail. After receiving that failed tool result, continue in this same turn and answer with exactly RECOVERED_IN_SAME_TURN. Do not retry the eval.",
     expectedToolFailures: [{ name: "eval" }],
@@ -464,18 +686,21 @@ export const developerErgonomicsTests: TestCase[] = [
     name: "invalid-icon-discover-recover-create",
     description: "Resolve a misspelled icon through bounded discovery",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
+
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Create and publish a brand-new isolated panel whose requested built-in icon is lucide:columns-3x. If that exact icon is unavailable, use the returned workspace catalog evidence to correct the name to the closest supported columns or layout icon and finish the panel creation.",
-    expectedToolFailures: [{ name: "eval", errorIncludes: "project_icon_invalid" }],
+    expectedToolFailures: [
+      { name: "eval", errorIncludes: "project_icon_invalid" },
+    ],
     validate: validateInvalidIconRecovery,
   },
   {
     name: "failed-build-bounded-diagnostics",
-    description: "Recover from a diagnostic-heavy build without flooding the trajectory",
+    description:
+      "Recover from a diagnostic-heavy build without flooding the trajectory",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
+
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "In the disposable package, deliberately introduce more than fifty independent TypeScript errors, inspect the exact structured build failure, then repair the package and prove the same target builds cleanly. Do not publish the deliberate breakage.",
@@ -486,19 +711,26 @@ export const developerErgonomicsTests: TestCase[] = [
     name: "extensionless-screenshot-resource-read",
     description: "Read an extensionless screenshot as native image content",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
-    authorityPolicy: panelControlAuthorityPolicy("inspect-extensionless-screenshot"),
+
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-extensionless-screenshot",
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: SCREENSHOT_PROMPT,
     orchestrate: (context) =>
-      orchestratePanelGoal(context, SCREENSHOT_PROMPT, "inspect an extensionless screenshot"),
+      orchestratePanelGoal(
+        context,
+        SCREENSHOT_PROMPT,
+        "inspect an extensionless screenshot",
+      ),
     validate: validateExtensionlessScreenshot,
   },
   {
     name: "panel-rebuild-reacquire-and-interact",
-    description: "Refresh a generation-fenced CDP session after rebuilding a panel",
+    description:
+      "Refresh a generation-fenced CDP session after rebuilding a panel",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
+
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     authorityPolicy: panelControlAuthorityPolicy("inspect-rebuilt-generation"),
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -508,7 +740,7 @@ export const developerErgonomicsTests: TestCase[] = [
         context,
         PANEL_REBUILD_PROMPT,
         "rebuild and interact with one panel runtime",
-        { expectedCreatedRootCount: 1 }
+        { expectedCreatedRootCount: 1 },
       ),
     validate: validatePanelGenerationRecovery,
   },
@@ -517,7 +749,7 @@ export const developerErgonomicsTests: TestCase[] = [
     description:
       "Author through ergonomic write/edit while preserving shared matching and VCS intent",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
+
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
       'In the disposable project, create one new text file with the complete content `Status: “before”` and a concise stated intent. Then make a targeted replacement in that same file using straight-quoted old text `Status: "before"`, changing it to `Status: "unified-agentic-ergonomics"` with a distinct concise stated intent. Use the natural whole-file and targeted-edit capabilities, verify the final file by reading it, and do not publish.',
@@ -525,12 +757,14 @@ export const developerErgonomicsTests: TestCase[] = [
   },
   {
     name: "stale-edit-reobserve-and-apply",
-    description: "Recover an optimistic file edit from a stale read receipt",
+    description:
+      "Recover an optimistic file edit without losing a concurrent collaborator update",
     category: "developer-ergonomics",
-    validation: "agent-evidence",
+
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "In the disposable project, read its main note and preserve that exact read receipt. Make one legitimate targeted update, then demonstrate that a second targeted change based on the old receipt returns a recoverable conflict without becoming a failed tool call. Use the returned current evidence to form and apply the corrected second change. Do not publish.",
+      "Harness-orchestrated concurrent note edit and stale-observation recovery.",
+    orchestrate: orchestrateStaleEditRecovery,
     validate: validateStaleEditRecovery,
   },
 ];

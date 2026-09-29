@@ -1,3 +1,4 @@
+import { PhoneProvisioningResultSchema, PhoneWorkspaceReadinessSchema } from "@vibestudio/service-schemas/phoneProvisioning";
 import { requiringUnits } from "../types.js";
 import type { TestCase } from "../types.js";
 import {
@@ -107,38 +108,14 @@ export const mobileTests: TestCase[] = requiringUnits(
         if (!exercised.passed) return exercised;
 
         const records = walkRecords(base.evidence.evalValues);
-        const installCompleted = records.some((record) =>
-          ["installed", "already-compatible"].includes(
-            String(record["installStatus"]),
-          ),
-        );
-        const compatibleAfter = records.some(
-          (record) => record["compatibleAppInstalled"] === true,
-        );
-        const pairingCompleted = records.some(
-          (record) => record["pairingStatus"] === "paired",
-        );
-        // The eval serializer preserves object identity with `[Circular]`. An
-        // agent may return both a concise top-level provisioning summary (where
-        // pairedDevice remains expanded) and the complete raw result nested
-        // elsewhere (where platform/install fields remain expanded). Treat
-        // those as one evidence set instead of requiring every fact on the same
-        // projected record.
-        const pairedAndroid = records.some(
-          (record) =>
-            record["pairingStatus"] === "paired" &&
-            record["platform"] === "android",
-        );
-        const pairedDeviceObserved = records.some(
-          (record) =>
-            typeof record["pairedDevice"] === "object" &&
-            record["pairedDevice"] !== null,
-        );
-        const publicWorkspaceReady = records.some(
-          (record) =>
-            record["status"] === "ready" &&
-            typeof record["message"] === "string",
-        );
+        const provisioned = records.some((record) => {
+          const parsed = PhoneProvisioningResultSchema.safeParse(record);
+          return parsed.success && parsed.data.platform === "android";
+        });
+        const publicWorkspaceReady = records.some((record) => {
+          const parsed = PhoneWorkspaceReadinessSchema.safeParse(record);
+          return parsed.success && parsed.data.status === "ready";
+        });
         const workspaceReady = records.some(
           (record) =>
             record["ready"] === true &&
@@ -147,15 +124,7 @@ export const mobileTests: TestCase[] = requiringUnits(
             Array.isArray(record["issues"]) &&
             record["issues"].length === 0,
         );
-        if (
-          !installCompleted ||
-          !compatibleAfter ||
-          !pairingCompleted ||
-          !pairedAndroid ||
-          !pairedDeviceObserved ||
-          !workspaceReady ||
-          !publicWorkspaceReady
-        ) {
+        if (!provisioned || !workspaceReady || !publicWorkspaceReady) {
           return {
             passed: false,
             reason:
@@ -163,18 +132,10 @@ export const mobileTests: TestCase[] = requiringUnits(
           };
         }
 
-        const final = findLastAgentMessage(result);
-        return /android|device/iu.test(final) &&
-          /install/iu.test(final) &&
-          /compatible/iu.test(final) &&
-          /pair|connect/iu.test(final) &&
-          /workspace|panel|ready/iu.test(final)
-          ? { passed: true }
-          : {
-              passed: false,
-              reason:
-                "Final response omitted provider/device/install/pairing/readiness evidence",
-            };
+        // This is a harness verdict over observed protocol facts. The base
+        // check already requires a completed, non-empty agent response; its
+        // wording must not override successfully verified provisioning.
+        return { passed: true };
       },
     },
     {

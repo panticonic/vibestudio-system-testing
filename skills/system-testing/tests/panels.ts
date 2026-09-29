@@ -88,7 +88,7 @@ export const panelTests: TestCase[] = [
     name: "browser-panel",
     description: "Inspect and navigate one temporary browser panel",
     category: "panels",
-    validation: "agent-evidence",
+
     authorityPolicy: panelControlAuthorityPolicy("inspect-browser-panel"),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: BROWSER_PANEL_PROMPT,
@@ -107,7 +107,7 @@ export const panelTests: TestCase[] = [
     description:
       "Resolve a vague browser-view reference through the panel tree",
     category: "panels",
-    validation: "agent-evidence",
+
     authorityPolicy: panelControlAuthorityPolicy("inspect-tree-panel"),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: PANEL_TREE_NAVIGATION_PROMPT,
@@ -135,7 +135,7 @@ export const panelTests: TestCase[] = [
       "Inspect the first-party Browser Import panel through its real lifecycle",
     requiresUnits: [BROWSER_IMPORT_PANEL_SOURCE],
     category: "panels",
-    validation: "agent-evidence",
+
     authorityPolicy: panelControlAuthorityPolicy(
       "inspect-browser-import-panel",
     ),

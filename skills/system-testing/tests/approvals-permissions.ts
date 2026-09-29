@@ -1,3 +1,6 @@
+import { rpc } from "@workspace/runtime";
+import type { ServerLogEvent } from "@workspace/pubsub";
+import { readRetainedChannelReplay } from "./_subagent-evidence.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import type {
   TestCase,
@@ -118,14 +121,18 @@ function validateSubagentTaskGrantReuse(result: TestExecutionResult) {
       call.execution.isError !== true
   );
   const child = spawn
-    ? result.messages.find(
-        (message) =>
-          message.task?.id === spawn.id &&
-          message.task.execution.status === "complete" &&
-          message.task.execution.terminalOutcome === "success" &&
-          message.task.execution.isError !== true
-      )?.task
+    ? result.messages.find(message => message.task?.id === spawn.id)?.task?.subagent
     : undefined;
+  const replay = result.diagnostics?.["childReplay"];
+  const events = Array.isArray(replay) ? replay as ServerLogEvent[] : [];
+  const childEvents = events.filter(event => event.senderId === child?.childParticipantId);
+  const report = childEvents.find(event => {
+    const value = event.payload as { kind?: string; payload?: { outcome?: string; blocks?: Array<{ type?: string; content?: string }> } };
+    return value?.kind === "message.completed" && value.payload?.outcome === "completed" &&
+      value.payload.blocks?.some(block => block.type === "text" && /^yes[.!]?$/iu.test(block.content?.trim() ?? ""));
+  });
+  const closed = report && childEvents.some(event =>
+    event.id > report.id && (event.payload as { kind?: string })?.kind === "turn.closed");
   const inventories = calls.filter((call) => {
     const code = String(call.arguments?.["code"] ?? "");
     return PERMISSION_LIST_CALL.test(code);
@@ -142,15 +149,16 @@ function validateSubagentTaskGrantReuse(result: TestExecutionResult) {
       grant.data.kind === "capability" &&
       grant.data.callerLabel === "This task" &&
       grant.data.resource === "server-logs.read" &&
-      grant.data.duration === "For the current approved task"
+      grant.data.authority?.effect === "allow" &&
+      grant.data.authority.scope === "task" &&
+      grant.data.authority.capability === "server-logs.read"
     );
   });
-  const childReport = JSON.stringify(child?.execution.result ?? "");
   return parentRead &&
     child &&
     spawn &&
     !Object.prototype.hasOwnProperty.call(spawn.arguments ?? {}, "config") &&
-    /\byes\b/iu.test(childReport) &&
+    report && closed &&
     inventories.length >= 1 &&
     matchingTaskGrants.length === 1
     ? { passed: true, reason: undefined }
@@ -224,6 +232,7 @@ async function orchestrateSubagentTaskGrantReuse(
   const startedAt = Date.now();
   const session: HeadlessSession = await context.runner.spawn(undefined);
   let error: string | undefined;
+  const childReplay: ServerLogEvent[] = [];
   try {
     await context.sendAndWait(
       session,
@@ -235,6 +244,11 @@ async function orchestrateSubagentTaskGrantReuse(
       "Spawn one fresh subagent. Its only task is to call the documented serverLog.stats() operation once, report exactly yes if it was readable or no plus the error if it was not, and complete. Wait for that child and summarize its result.",
       "subagent protected read"
     );
+    const messages = [...session.messages];
+    const spawn = getToolCalls({ messages, duration: 0 }).find(call => call.name === "spawn_subagent");
+    const child = messages.find(message => message.task?.id === spawn?.id)?.task?.subagent;
+    if (!child?.taskChannelId) throw new Error("The child launch did not retain its canonical task coordinates");
+    childReplay.push(...await readRetainedChannelReplay(rpc, child.taskChannelId));
     await context.sendAndWait(
       session,
       // "Return only entries" invited a projection, and the grant's duration —
@@ -250,6 +264,7 @@ async function orchestrateSubagentTaskGrantReuse(
     messages: [...session.messages],
     duration: Date.now() - startedAt,
     snapshot: session.snapshot(),
+    diagnostics: { childReplay },
     ...(error ? { error } : {})
   };
   try {
@@ -296,7 +311,7 @@ export const approvalPermissionTests: TestCase[] = [
       ]
     },
     orchestrate: orchestrateChatTaskGrantReuse,
-    validation: "agent-evidence",
+
     validate: validateChatTaskGrantReuse
   },
   {
@@ -323,7 +338,7 @@ export const approvalPermissionTests: TestCase[] = [
       ]
     },
     orchestrate: orchestrateSubagentTaskGrantReuse,
-    validation: "agent-evidence",
+
     validate: validateSubagentTaskGrantReuse
   }
 ];

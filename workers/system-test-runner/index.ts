@@ -18,7 +18,6 @@ import {
   createEvalRunObserver,
 } from "@vibestudio/service-schemas/eval";
 import {
-  failedSystemTestNames,
   inspectSystemTestRun,
   systemTestTrajectory,
 } from "@workspace-skills/system-testing/record-analysis";
@@ -61,12 +60,6 @@ interface StoredSystemTestRecord {
   length: number;
 }
 
-interface PagedSystemTestRecord {
-  kind: "paged-system-test-record-v1";
-  length: number;
-  pageCount: number;
-}
-
 export interface SystemTestRunCompletion {
   summary: SystemTestRunRecord["summary"];
 }
@@ -92,12 +85,17 @@ const SYSTEM_TEST_RECORD_PAGE_CODE_UNITS = 64 * 1024;
 export function splitSystemTestRecord(text: string): string[] {
   if (text.length === 0) return [""];
   const pages: string[] = [];
-  for (
-    let offset = 0;
-    offset < text.length;
-    offset += SYSTEM_TEST_RECORD_PAGE_CODE_UNITS
-  ) {
-    pages.push(text.slice(offset, offset + SYSTEM_TEST_RECORD_PAGE_CODE_UNITS));
+  for (let offset = 0; offset < text.length; ) {
+    let end = Math.min(
+      text.length,
+      offset + SYSTEM_TEST_RECORD_PAGE_CODE_UNITS,
+    );
+    const last = text.charCodeAt(end - 1),
+      next = text.charCodeAt(end);
+    if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff)
+      end -= 1;
+    pages.push(text.slice(offset, end));
+    offset = end;
   }
   return pages;
 }
@@ -122,39 +120,82 @@ export function assembleSystemTestRecord(
   return text;
 }
 
-function parsePagedSystemTestRecord(
-  value: string,
-): PagedSystemTestRecord | null {
-  try {
-    const parsed = JSON.parse(value) as Partial<PagedSystemTestRecord>;
-    return parsed.kind === "paged-system-test-record-v1" &&
-      Number.isSafeInteger(parsed.length) &&
-      Number(parsed.length) >= 0 &&
-      Number.isSafeInteger(parsed.pageCount) &&
-      Number(parsed.pageCount) >= 1
-      ? (parsed as PagedSystemTestRecord)
-      : null;
-  } catch {
-    return null;
+/** Read immutable record bytes with bounded RPC pages and one streaming decoder. */
+export async function readSystemTestRecordBlob(
+  call: <T>(method: string, args: unknown[]) => Promise<T>,
+  digest: string,
+  size: number,
+): Promise<unknown> {
+  if (
+    !/^[a-f0-9]{64}$/u.test(digest) ||
+    !Number.isSafeInteger(size) ||
+    size <= 0
+  ) {
+    throw new Error("Invalid system-test record blob reference");
   }
+  const stat = await call<{ size: number } | null>("blobstore.stat", [digest]);
+  if (!stat || stat.size !== size)
+    throw new Error(
+      "System-test record blob size does not match its reference",
+    );
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let serialized = "";
+  const pageBytes = 64 * 1024;
+  for (let offset = 0; offset < size; offset += pageBytes) {
+    const length = Math.min(pageBytes, size - offset);
+    const page = await call<{ bytesBase64: string } | null>(
+      "blobstore.getRangeBytes",
+      [digest, offset, length],
+    );
+    if (!page)
+      throw new Error(`System-test record blob ${digest} is unavailable`);
+    const bytes = Uint8Array.from(atob(page.bytesBase64), (char) =>
+      char.charCodeAt(0),
+    );
+    if (bytes.length !== length)
+      throw new Error("System-test record blob was truncated");
+    serialized += decoder.decode(bytes, { stream: true });
+  }
+  serialized += decoder.decode();
+  return JSON.parse(serialized);
 }
 
-function systemTestEvalCode(options: SystemTestRunConfig): string {
+function systemTestEvalCode(
+  options: SystemTestRunConfig,
+  recordOwner: string,
+): string {
   return `
     import {
       inspectSystemTestRun,
+      failedSystemTestRunRecord,
+      failedSystemTestPreparationRecord,
       installedWorkspaceUnits,
       runSystemTests,
       systemTestTrajectory,
     } from "@workspace-skills/system-testing/cli";
+    const { blobstore, rpc } = await import("@workspace/runtime");
+    const recordOwner = ${JSON.stringify(recordOwner)};
     const options = ${JSON.stringify(options)};
     // Which units this workspace carries is a property of the workspace, not
     // of the catalog: templates are independent repositories and Personal and
     // System install different ones. Read it here, once, from inside the
     // workspace that will run the cases.
-    const installedUnits = await installedWorkspaceUnits();
+    const startedAt = new Date().toISOString();
     const progressKey = options.runId;
-    const recordScopeKey = "$systemTestRecord:" + progressKey;
+    let checkpointCompletedCount = -1;
+    let lastRunRecord = null;
+    const retainedEntries = new Map();
+    const persistRunRecord = async (record) => {
+      const completedNames = new Set((lastProgress?.completed || []).map(entry => entry.name));
+      const entries = record.suite.results.filter(entry => record.status !== "running" || completedNames.has(entry.test.name));
+      for (const entry of entries) {
+        if (retainedEntries.has(entry.test.name)) continue;
+        const stored = await blobstore.putText(JSON.stringify(entry));
+        retainedEntries.set(entry.test.name, { testName: entry.test.name, digest: stored.digest, size: stored.size });
+      }
+      const header = { ...record, suite: { ...record.suite, results: [] } };
+      await rpc.call(recordOwner, "storeSystemTestRunCheckpoint", [progressKey, header, entries.map(entry => retainedEntries.get(entry.test.name))]);
+    };
     // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
     // room for its event envelope and encoded strings instead of measuring
     // against the larger transient RPC transport limit.
@@ -176,12 +217,19 @@ function systemTestEvalCode(options: SystemTestRunConfig): string {
       ctx.reportProgress(durable);
     };
     try {
+      const installedUnits = await installedWorkspaceUnits();
       const record = await runSystemTests({
         ...options,
         installedUnits,
         contextId: ctx.contextId,
         onProgress: publishProgress,
-        onInspectionUpdate: (liveRecord) => {
+        onInspectionUpdate: async (liveRecord) => {
+          lastRunRecord = liveRecord;
+          const completedCount = lastProgress?.completed?.length ?? 0;
+          if (completedCount !== checkpointCompletedCount) {
+            await persistRunRecord(liveRecord);
+            checkpointCompletedCount = completedCount;
+          }
           const limits = { failures: 2, messages: 4, invocations: 6, debugEvents: 6, text: 300 };
           const inspect = inspectSystemTestRun(liveRecord, { limits });
           const base = { ...(lastProgress || {}) };
@@ -202,18 +250,13 @@ function systemTestEvalCode(options: SystemTestRunConfig): string {
         registerCancellationCleanup: (cleanup) => ctx.onCancel(async () => {
           const cancelledRecord = await cleanup();
           if (cancelledRecord) {
-            const serializedRecord = JSON.stringify(cancelledRecord);
-            scope[recordScopeKey] = serializedRecord;
+            await persistRunRecord(cancelledRecord);
           }
         }),
       });
-      const serializedRecord = JSON.stringify(record);
-      scope[recordScopeKey] = serializedRecord;
-      return {
-        kind: "system-test-record-v1",
-        scopeKey: recordScopeKey,
-        length: serializedRecord.length,
-      };
+      lastRunRecord = record;
+      await persistRunRecord(record);
+      return { runId: record.runId };
     } catch (error) {
       const prior = lastProgress && typeof lastProgress === "object"
         ? lastProgress
@@ -225,6 +268,16 @@ function systemTestEvalCode(options: SystemTestRunConfig): string {
         running: [],
         error: error instanceof Error ? error.message : String(error),
       });
+      const failure = error instanceof Error ? error.message : String(error);
+      await persistRunRecord(lastRunRecord ? failedSystemTestRunRecord(
+          lastRunRecord,
+          (lastProgress?.completed || []).map(entry => entry.name),
+          failure,
+        ) : failedSystemTestPreparationRecord(
+          { ...options, contextId: ctx.contextId }, failure, startedAt,
+        )).catch(checkpointError => {
+          throw new Error(failure + "; terminal checkpoint could not be retained: " + String(checkpointError), { cause: error });
+        });
       throw error;
     }
   `;
@@ -237,97 +290,209 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       record_json TEXT NOT NULL,
       completed_at INTEGER NOT NULL
     )`);
-    this.createRecordPagesTable();
-  }
-
-  private createRecordPagesTable(): void {
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS system_test_record_pages (
-      run_id TEXT NOT NULL,
-      page_index INTEGER NOT NULL,
-      page_text TEXT NOT NULL,
-      PRIMARY KEY (run_id, page_index)
+    this.sql.exec(`CREATE TABLE system_test_entries (
+      run_id TEXT NOT NULL, test_name TEXT NOT NULL, digest TEXT NOT NULL,
+      length INTEGER NOT NULL, page_count INTEGER NOT NULL,
+      PRIMARY KEY (run_id, test_name)
+    )`);
+    this.sql.exec(`CREATE TABLE system_test_entry_pages (
+      run_id TEXT NOT NULL, test_name TEXT NOT NULL, page_index INTEGER NOT NULL,
+      page_text TEXT NOT NULL, PRIMARY KEY (run_id, test_name, page_index)
     )`);
   }
 
-  private persistedRecord(runId: string): SystemTestRunRecord | null {
+  private persistedHeader(
+    runId: string,
+  ): { record: SystemTestRunRecord; entryNames: string[] } | null {
     const row = this.sql
       .exec<{
         record_json: string;
       }>(`SELECT record_json FROM system_test_records WHERE run_id = ?`, runId)
       .toArray()[0];
-    if (!row) return null;
-    const paged = parsePagedSystemTestRecord(row.record_json);
-    if (!paged) return JSON.parse(row.record_json) as SystemTestRunRecord;
-    this.createRecordPagesTable();
-    const pages = this.sql
-      .exec<{ page_index: number; page_text: string }>(
-        `SELECT page_index, page_text
-         FROM system_test_record_pages
-         WHERE run_id = ?
-         ORDER BY page_index`,
-        runId,
-      )
-      .toArray();
-    let text: string;
-    try {
-      text = assembleSystemTestRecord(paged.length, paged.pageCount, pages);
-    } catch (error) {
-      throw new Error(
-        `system-test record ${runId} is incomplete: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { cause: error },
-      );
-    }
-    return JSON.parse(text) as SystemTestRunRecord;
+    return row ? JSON.parse(row.record_json) : null;
   }
 
-  private persistRecord(runId: string, value: unknown): SystemTestRunRecord {
-    const record = value as SystemTestRunRecord;
-    if (record?.runId !== runId || record.schemaVersion !== 1) {
-      throw new Error(`system-test record ${runId} has an invalid identity`);
-    }
-    const serialized = JSON.stringify(record);
-    const pages = splitSystemTestRecord(serialized);
-    this.createRecordPagesTable();
-    const envelope: PagedSystemTestRecord = {
-      kind: "paged-system-test-record-v1",
-      length: serialized.length,
-      pageCount: pages.length,
-    };
-    this.ctx.storage.transactionSync(() => {
-      this.sql.exec(
-        `DELETE FROM system_test_record_pages WHERE run_id = ?`,
-        runId,
-      );
-      for (const [pageIndex, pageText] of pages.entries()) {
-        this.sql.exec(
-          `INSERT INTO system_test_record_pages (run_id, page_index, page_text)
-           VALUES (?, ?, ?)`,
+  private requirePersistedHeader(runId: string) {
+    const header = this.persistedHeader(runId);
+    if (!header)
+      throw new Error(`No durable system-test record exists for ${runId}`);
+    return header;
+  }
+
+  private requirePersistedRecord(
+    runId: string,
+    testName?: string,
+  ): SystemTestRunRecord {
+    const { record, entryNames } = this.requirePersistedHeader(runId);
+    const names = testName
+      ? entryNames.filter((name) => name === testName)
+      : entryNames;
+    const results = names.map((name) => {
+      const entry = this.sql
+        .exec<{
+          length: number;
+          page_count: number;
+        }>(
+          `SELECT length, page_count FROM system_test_entries WHERE run_id = ? AND test_name = ?`,
           runId,
-          pageIndex,
-          pageText,
+          name,
+        )
+        .toArray()[0];
+      if (!entry)
+        throw new Error(`Missing retained system-test entry ${runId}/${name}`);
+      const pages = this.sql
+        .exec<{
+          page_index: number;
+          page_text: string;
+        }>(
+          `SELECT page_index, page_text FROM system_test_entry_pages WHERE run_id = ? AND test_name = ? ORDER BY page_index`,
+          runId,
+          name,
+        )
+        .toArray();
+      return JSON.parse(
+        assembleSystemTestRecord(entry.length, entry.page_count, pages),
+      );
+    });
+    return { ...record, suite: { ...record.suite, results } };
+  }
+
+  @rpc({
+    website: {
+      kind: "closed",
+      reason: "Only the workspace test operator may retain a run checkpoint.",
+    },
+    requires: SYSTEM_TEST_OPERATOR,
+    effect: { kind: "open" },
+    tier: "open",
+    sensitivity: "write",
+  })
+  async storeSystemTestRunCheckpoint(
+    runId: string,
+    record: SystemTestRunRecord,
+    entries: { testName: string; digest: string; size: number }[],
+  ): Promise<void> {
+    if (
+      record?.runId !== runId ||
+      record.schemaVersion !== 1 ||
+      record.suite.results.length !== 0 ||
+      new Set(entries.map((entry) => entry.testName)).size !== entries.length
+    )
+      throw new Error(`System-test record ${runId} has an invalid identity`);
+    const stale = () => {
+      const prior = this.persistedHeader(runId);
+      return (
+        prior &&
+        (prior.record.status !== "running" ||
+          prior.record.updatedAt > record.updatedAt)
+      );
+    };
+    if (stale()) return;
+    const ensureCompletedEntriesRetained = () => {
+      const prior = this.persistedHeader(runId);
+      const names = new Set(entries.map((entry) => entry.testName));
+      if (prior?.entryNames.some((name) => !names.has(name)))
+        throw new Error(
+          `System-test checkpoint ${runId} cannot forget completed entries`,
+        );
+    };
+    ensureCompletedEntriesRetained();
+    const prepared: {
+      testName: string;
+      digest: string;
+      size: number;
+      length: number;
+      pages: string[];
+    }[] = [];
+    for (const reference of entries) {
+      const prior = this.sql
+        .exec<{
+          digest: string;
+        }>(
+          "SELECT digest FROM system_test_entries WHERE run_id = ? AND test_name = ?",
+          runId,
+          reference.testName,
+        )
+        .toArray()[0];
+      if (prior) {
+        if (prior.digest !== reference.digest)
+          throw new Error(
+            `Completed system-test entry ${runId}/${reference.testName} cannot be replaced`,
+          );
+        continue;
+      }
+      const entry = (await readSystemTestRecordBlob(
+        <T>(method: string, args: unknown[]) =>
+          this.rpc.call<T>("main", method, args),
+        reference.digest,
+        reference.size,
+      )) as SystemTestRunRecord["suite"]["results"][number];
+      if (
+        entry?.test?.name !== reference.testName ||
+        !entry.execution ||
+        !entry.result
+      )
+        throw new Error(
+          `System-test entry ${runId}/${reference.testName} has an invalid identity`,
+        );
+      const serialized = JSON.stringify(entry);
+      prepared.push({
+        ...reference,
+        length: serialized.length,
+        pages: splitSystemTestRecord(serialized),
+      });
+    }
+    // All immutable bytes arrive before the storage transaction. Either the
+    // checkpoint's entries and header become visible together, or none do.
+    // Recheck after external reads so a late writer cannot replace terminal proof.
+    this.ctx.storage.transactionSync(() => {
+      if (stale()) return;
+      ensureCompletedEntriesRetained();
+      for (const entry of prepared) {
+        const prior = this.sql
+          .exec<{
+            digest: string;
+          }>(
+            "SELECT digest FROM system_test_entries WHERE run_id = ? AND test_name = ?",
+            runId,
+            entry.testName,
+          )
+          .toArray()[0];
+        if (prior) {
+          if (prior.digest !== entry.digest)
+            throw new Error(
+              `Completed system-test entry ${runId}/${entry.testName} cannot be replaced`,
+            );
+          continue;
+        }
+        for (const [index, text] of entry.pages.entries())
+          this.sql.exec(
+            "INSERT INTO system_test_entry_pages (run_id, test_name, page_index, page_text) VALUES (?, ?, ?, ?)",
+            runId,
+            entry.testName,
+            index,
+            text,
+          );
+        this.sql.exec(
+          "INSERT INTO system_test_entries (run_id, test_name, digest, length, page_count) VALUES (?, ?, ?, ?, ?)",
+          runId,
+          entry.testName,
+          entry.digest,
+          entry.length,
+          entry.pages.length,
         );
       }
       this.sql.exec(
-        `INSERT INTO system_test_records (run_id, record_json, completed_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(run_id) DO UPDATE SET
-           record_json = excluded.record_json,
-           completed_at = excluded.completed_at`,
+        `INSERT INTO system_test_records (run_id, record_json, completed_at) VALUES (?, ?, ?)
+        ON CONFLICT(run_id) DO UPDATE SET record_json = excluded.record_json, completed_at = excluded.completed_at`,
         runId,
-        JSON.stringify(envelope),
+        JSON.stringify({
+          record,
+          entryNames: entries.map((entry) => entry.testName),
+        }),
         Date.now(),
       );
     });
-    return record;
-  }
-
-  private requirePersistedRecord(runId: string): SystemTestRunRecord {
-    const record = this.persistedRecord(runId);
-    if (!record)
-      throw new Error(`No durable system-test record exists for ${runId}`);
-    return record;
   }
 
   private async runHarnessUtility(
@@ -381,7 +546,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     }
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -397,7 +567,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     );
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -420,7 +595,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     );
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -440,7 +620,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         scope: { key: options.runId, lifecycle: "finite" },
         source: {
           kind: "inline",
-          code: systemTestEvalCode(options),
+          code: systemTestEvalCode(options, this.rpcSelfId),
           syntax: "typescript",
         },
       },
@@ -489,7 +669,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     }
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -498,6 +683,10 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async getSystemTestRunSnapshot(
     runId: string,
   ): Promise<SystemTestRunnerSnapshot> {
+    const record = this.persistedHeader(runId)?.record;
+    if (record && record.status !== "running") {
+      return { status: "done", result: { success: true } };
+    }
     const status = await this.readSystemTestEvalStatus(runId);
     return {
       status: status.status,
@@ -513,7 +702,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     };
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -522,8 +716,9 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async getSystemTestRunResult(
     runId: string,
   ): Promise<SystemTestRunCompletion> {
-    const persisted = this.persistedRecord(runId);
-    if (persisted) return { summary: persisted.summary };
+    const persisted = this.persistedHeader(runId)?.record;
+    if (persisted && persisted.status !== "running")
+      return { summary: persisted.summary };
     const status = await this.readSystemTestEvalStatus(runId);
     if (status.status !== "done") {
       throw new Error(
@@ -535,17 +730,17 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         status.result?.error ?? `System-test run ${runId} failed`,
       );
     }
-    const record = this.persistRecord(
-      runId,
-      await this.readStoredSystemTestRecord(
-        runId,
-        parseStoredSystemTestRecord(status.result.returnValue),
-      ),
+    throw new Error(
+      `System-test run ${runId} settled without a durable terminal record`,
     );
-    return { summary: record.summary };
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -554,16 +749,25 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async releaseSystemTestRunExecution(
     runId: string,
   ): Promise<{ released: boolean }> {
-    const released = await this.rpc.call<{ ok: boolean; existed: boolean }>(
+    const record = this.requirePersistedHeader(runId).record;
+    if (record.status === "running")
+      throw new Error(
+        `System-test run ${runId} is still active; execution cannot be released`,
+      );
+    const released = await this.rpc.call<{ ok: boolean }>(
       "main",
-      "eval.deleteScopeValue",
-      [{ scopeKey: runId, key: systemTestRecordScopeKey(runId) }],
+      "eval.dispose",
+      [{ scopeKey: runId }],
     );
-    await this.rpc.call("main", "eval.dispose", [{ scopeKey: runId }]);
-    return { released: released.existed };
+    return { released: released.ok };
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -587,45 +791,20 @@ export class SystemTestRunnerDO extends DurableObjectBase {
           "its terminal cleanup record is unavailable. Restart from a fresh exact run.",
       );
     }
-    // The inner eval's registered cleanup serializes the complete terminal
-    // record under the same durable key as ordinary completion. Read that
-    // finite scope directly: starting another eval would incorrectly treat the
-    // lookup as a request to reuse the scope as a persistent notebook.
-    const scopeKey = systemTestRecordScopeKey(runId);
-    let recovered: { length: number };
-    try {
-      recovered = await this.rpc.call<{ length: number }>(
-        "main",
-        "eval.readScopeTextPage",
-        [
-          {
-            scopeKey: runId,
-            key: scopeKey,
-            offset: 0,
-            limit: 1,
-          },
-        ],
-      );
-    } catch (error) {
+    const record = this.requirePersistedHeader(runId).record;
+    if (record.status === "running")
       throw new Error(
-        `System-test run ${runId} settled, but its terminal cleanup record could not be read: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { cause: error },
+        `System-test run ${runId} cancellation did not persist its terminal record`,
       );
-    }
-    const record = this.persistRecord(
-      runId,
-      await this.readStoredSystemTestRecord(runId, {
-        kind: "system-test-record-v1",
-        scopeKey,
-        length: recovered.length,
-      }),
-    );
     return { summary: record.summary };
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -636,12 +815,17 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     testName?: string,
   ): Promise<unknown> {
     return inspectSystemTestRun(
-      this.requirePersistedRecord(runId),
+      this.requirePersistedRecord(runId, testName),
       testName ? { testName } : undefined,
     );
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -663,9 +847,13 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       throw new Error("Invalid system-test trajectory page range");
     }
     const text = JSON.stringify(
-      systemTestTrajectory(this.requirePersistedRecord(runId), testName, {
-        full,
-      }),
+      systemTestTrajectory(
+        this.requirePersistedRecord(runId, testName),
+        testName,
+        {
+          full,
+        },
+      ),
       null,
       2,
     );
@@ -676,7 +864,12 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     };
   }
 
-  @rpc({ website: {"kind":"closed","reason":"This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation."},
+  @rpc({
+    website: {
+      kind: "closed",
+      reason:
+        "This receiver owns workspace orchestration or retained workspace data; websites require a reviewed bounded operation.",
+    },
     requires: SYSTEM_TEST_OPERATOR,
     effect: { kind: "open" },
     tier: "open",
@@ -686,8 +879,16 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     config: SystemTestRunRecord["config"];
     names: string[];
   }> {
-    const record = this.requirePersistedRecord(runId);
-    return { config: record.config, names: failedSystemTestNames(record) };
+    const record = this.requirePersistedHeader(runId).record;
+    return {
+      config: record.config,
+      names: [
+        ...new Set([
+          ...record.summary.failedTests,
+          ...record.summary.testsWithUnexpectedToolFailures,
+        ]),
+      ],
+    };
   }
 
   private readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
@@ -715,10 +916,6 @@ export function systemTestUtilityKeys(
 
 function systemTestEvalRunId(runId: string): string {
   return `system-test-runner:${runId}`;
-}
-
-function systemTestRecordScopeKey(runId: string): string {
-  return `$systemTestRecord:${runId}`;
 }
 
 function parseStoredSystemTestRecord(value: unknown): StoredSystemTestRecord {

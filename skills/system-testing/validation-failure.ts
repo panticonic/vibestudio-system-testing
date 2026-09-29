@@ -41,12 +41,7 @@ export function validationFailureProvenance(input: {
   const stack = serializeSystemTestStack(input.error);
   return {
     testName: input.test.name,
-    validator:
-      input.test.validation === "harness"
-        ? "harness"
-        : input.test.validation === "agent-evidence"
-          ? "agent-evidence"
-          : "agent-completion-report",
+    validator: input.test.validation === "harness" ? "harness" : "agent-outcome",
     phase: "validation",
     ...(stack ? { stack } : {}),
     inputProjection: input.inputProjection,

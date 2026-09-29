@@ -21,6 +21,7 @@ type ExecutableScaffold = {
   projectType: "panel" | "worker" | "package" | "skill";
   section: "panels" | "workers" | "packages" | "skills";
   fixture: WorkspaceRepoCreationScope;
+  requiresUnits?: TestCase["requiresUnits"];
 };
 
 const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
@@ -41,6 +42,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     projectType: "panel",
     section: "panels",
     fixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
+    requiresUnits: ["packages/svelte", "templates/svelte"],
   },
   {
     name: "scaffold-stateless-worker-build",
@@ -216,7 +218,9 @@ export const scaffoldMatrixTests: TestCase[] = [
       name: variant.name,
       description: variant.description,
       category: "scaffold-matrix",
+
       workspaceRepoFixture: variant.fixture,
+      requiresUnits: variant.requiresUnits,
       prompt: variant.prompt,
       validate: (result) => validateExecutableScaffold(result, variant),
     }),
@@ -225,6 +229,7 @@ export const scaffoldMatrixTests: TestCase[] = [
     name: "scaffold-content-project-preflight",
     description: "Publish a local content-only project repository",
     category: "scaffold-matrix",
+
     workspaceRepoFixture: CREATED_PROJECT_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Create and publish a brand-new isolated content-only project repository (projectType `project`) inside this workspace from the standard project scaffold, then report its validated preflight result.",

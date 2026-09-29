@@ -16,37 +16,64 @@ export interface ScenarioEvidence {
 }
 
 export function invocationReturnValue(
-  call: InvocationCardPayloadLike
+  call: InvocationCardPayloadLike,
 ): { present: true; value: unknown } | { present: false } {
   const result = call.execution?.result;
-  if (!result || typeof result !== "object" || Array.isArray(result)) return { present: false };
+  if (!result || typeof result !== "object" || Array.isArray(result))
+    return { present: false };
   const details = (result as Record<string, unknown>)["details"];
-  if (!details || typeof details !== "object" || Array.isArray(details)) return { present: false };
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return { present: false };
   return Object.prototype.hasOwnProperty.call(details, "returnValue")
-    ? { present: true, value: (details as Record<string, unknown>)["returnValue"] }
+    ? {
+        present: true,
+        value: (details as Record<string, unknown>)["returnValue"],
+      }
     : { present: false };
 }
 
-export function invocationConsoleOutput(call: InvocationCardPayloadLike): string | null {
+export function invocationConsoleOutput(
+  call: InvocationCardPayloadLike,
+): string | null {
   const result = call.execution?.result;
-  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  if (!result || typeof result !== "object" || Array.isArray(result))
+    return null;
   const details = (result as Record<string, unknown>)["details"];
-  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return null;
   const consoleOutput = (details as Record<string, unknown>)["console"];
   return typeof consoleOutput === "string" ? consoleOutput : null;
+}
+
+/** A structured console record is captured execution output, just like a returned value. */
+export function invocationJsonConsoleValue(
+  call: InvocationCardPayloadLike,
+): unknown {
+  const consoleOutput = invocationConsoleOutput(call);
+  if (!consoleOutput?.trim()) return undefined;
+  try {
+    return JSON.parse(consoleOutput);
+  } catch {
+    return undefined;
+  }
 }
 
 export function completedScenarioEvidence(
   result: TestExecutionResult,
   requiredTools: readonly string[] = ["eval"],
-  options: { allowFailed?: (call: InvocationCardPayloadLike) => boolean } = {}
-): { passed: true; evidence: ScenarioEvidence } | { passed: false; reason: string } {
+  options: { allowFailed?: (call: InvocationCardPayloadLike) => boolean } = {},
+):
+  | { passed: true; evidence: ScenarioEvidence }
+  | { passed: false; reason: string } {
   if (!findLastAgentMessage(result).trim()) {
     return { passed: false, reason: "No non-empty agent response received" };
   }
   const incomplete = noIncompleteInvocations(result);
   if (!incomplete.passed)
-    return { passed: false, reason: incomplete.reason ?? "Incomplete tool call" };
+    return {
+      passed: false,
+      reason: incomplete.reason ?? "Incomplete tool call",
+    };
   const calls = getToolCalls(result);
   const failed = calls.filter(
     (call) =>
@@ -56,7 +83,7 @@ export function completedScenarioEvidence(
       call.execution?.status === "cancelled" ||
       call.execution?.status === "abandoned" ||
       call.execution?.terminalOutcome === "cancelled" ||
-      call.execution?.terminalOutcome === "abandoned"
+      call.execution?.terminalOutcome === "abandoned",
   );
   const unexpected = failed.filter((call) => {
     const resultDetails =
@@ -69,7 +96,8 @@ export function completedScenarioEvidence(
       !Array.isArray(call.execution.result.details)
         ? (call.execution.result.details as Record<string, unknown>)
         : undefined;
-    const terminalReasonCode = call.execution?.terminalReasonCode ?? call.terminalReasonCode;
+    const terminalReasonCode =
+      call.execution?.terminalReasonCode ?? call.terminalReasonCode;
     const failureKind =
       call.execution?.failureKind ??
       call.failureKind ??
@@ -79,7 +107,9 @@ export function completedScenarioEvidence(
       (resultDetails?.["failure"] &&
       typeof resultDetails["failure"] === "object" &&
       !Array.isArray(resultDetails["failure"]) &&
-      typeof (resultDetails["failure"] as Record<string, unknown>)["failureKind"] === "string"
+      typeof (resultDetails["failure"] as Record<string, unknown>)[
+        "failureKind"
+      ] === "string"
         ? (resultDetails["failure"] as Record<string, unknown>)["failureKind"]
         : undefined);
     const failureCode =
@@ -91,11 +121,15 @@ export function completedScenarioEvidence(
       (resultDetails?.["failure"] &&
       typeof resultDetails["failure"] === "object" &&
       !Array.isArray(resultDetails["failure"]) &&
-      typeof (resultDetails["failure"] as Record<string, unknown>)["failureCode"] === "string"
+      typeof (resultDetails["failure"] as Record<string, unknown>)[
+        "failureCode"
+      ] === "string"
         ? (resultDetails["failure"] as Record<string, unknown>)["failureCode"]
         : undefined);
-    const normalizedFailureKind = typeof failureKind === "string" ? failureKind : undefined;
-    const normalizedFailureCode = typeof failureCode === "string" ? failureCode : undefined;
+    const normalizedFailureKind =
+      typeof failureKind === "string" ? failureKind : undefined;
+    const normalizedFailureCode =
+      typeof failureCode === "string" ? failureCode : undefined;
     return (
       classifyBuiltInToolFailure({
         name: call.name,
@@ -116,12 +150,19 @@ export function completedScenarioEvidence(
   }
   const completed = new Set(
     calls
-      .filter((call) => call.execution?.status === "complete" && call.execution.isError !== true)
-      .map((call) => call.name)
+      .filter(
+        (call) =>
+          call.execution?.status === "complete" &&
+          call.execution.isError !== true,
+      )
+      .map((call) => call.name),
   );
   const missing = requiredTools.filter((name) => !completed.has(name));
   if (missing.length > 0) {
-    return { passed: false, reason: `Missing completed tool evidence: ${missing.join(", ")}` };
+    return {
+      passed: false,
+      reason: `Missing completed tool evidence: ${missing.join(", ")}`,
+    };
   }
   return {
     passed: true,
@@ -135,10 +176,10 @@ export function completedScenarioEvidence(
 
 export function requireCodeOperations(
   code: string,
-  alternatives: readonly (readonly string[])[]
+  alternatives: readonly (readonly string[])[],
 ): { passed: true; reason: undefined } | { passed: false; reason: string } {
   const matched = alternatives.some((tokens) =>
-    tokens.every((token) => codeOperationPresent(code, token))
+    tokens.every((token) => codeOperationPresent(code, token)),
   );
   return matched
     ? { passed: true, reason: undefined }
@@ -155,7 +196,9 @@ function codeOperationPresent(code: string, token: string): boolean {
   const quoted = /^(["'])(.*)\1$/u.exec(token);
   if (!quoted?.[2]) return false;
   const value = quoted[2];
-  return [`"${value}"`, `'${value}'`, `\`${value}\``].some((spelling) => code.includes(spelling));
+  return [`"${value}"`, `'${value}'`, `\`${value}\``].some((spelling) =>
+    code.includes(spelling),
+  );
 }
 
 function escapeRegExp(value: string): string {
@@ -174,22 +217,27 @@ function importedFsOperation(code: string, token: string): boolean {
   const operation = match[1];
   if (!operation) return false;
 
-  const imports = /import\s*\{([^}]*)\}\s*from\s*["'](?:node:)?fs(?:\/promises)?["']/gu;
+  const imports =
+    /import\s*\{([^}]*)\}\s*from\s*["'](?:node:)?fs(?:\/promises)?["']/gu;
   for (const declaration of code.matchAll(imports)) {
     const members = declaration[1]?.split(",") ?? [];
     for (const member of members) {
-      const parsed = /^\s*(?:type\s+)?([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/u.exec(
-        member
-      );
+      const parsed =
+        /^\s*(?:type\s+)?([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/u.exec(
+          member,
+        );
       if (parsed?.[1] !== operation) continue;
       const localName = parsed[2] ?? parsed[1];
-      if (new RegExp(`\\b${escapeRegExp(localName)}\\s*\\(`, "u").test(code)) return true;
+      if (new RegExp(`\\b${escapeRegExp(localName)}\\s*\\(`, "u").test(code))
+        return true;
     }
   }
   return false;
 }
 
-export function walkRecords(values: readonly unknown[]): Record<string, unknown>[] {
+export function walkRecords(
+  values: readonly unknown[],
+): Record<string, unknown>[] {
   const records: Record<string, unknown>[] = [];
   const seen = new Set<object>();
   const visit = (value: unknown): void => {
@@ -217,16 +265,20 @@ export function walkArrays(values: readonly unknown[]): unknown[][] {
 
 export function hasTruthyProof(values: readonly unknown[]): boolean {
   return walkRecords(values).some((record) =>
-    Object.values(record).some((value) => value === true)
+    Object.values(record).some((value) => value === true),
   );
 }
 
-export function hasNonEmptyStructuredResult(values: readonly unknown[]): boolean {
+export function hasNonEmptyStructuredResult(
+  values: readonly unknown[],
+): boolean {
   return values.some(
     (value) =>
       (Array.isArray(value) && value.length > 0) ||
-      (value !== null && typeof value === "object" && Object.keys(value).length > 0) ||
+      (value !== null &&
+        typeof value === "object" &&
+        Object.keys(value).length > 0) ||
       (typeof value === "string" && value.length > 0) ||
-      typeof value === "number"
+      typeof value === "number",
   );
 }

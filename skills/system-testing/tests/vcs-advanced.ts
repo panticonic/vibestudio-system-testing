@@ -355,22 +355,23 @@ function requireHistoricalEditedFileContext(result: TestExecutionResult) {
   const read = getToolCalls(result).find((call) => {
     const details = readResultDetails(call);
     const path = details?.["path"];
-    const receipt = isRecord(details?.["receipt"]) ? details["receipt"] : null;
     const displayedRange = isRecord(details?.["displayedRange"]) ? details["displayedRange"] : null;
     const provenance = isRecord(details?.["provenance"]) ? details["provenance"] : null;
     if (
       typeof path !== "string" ||
       !path.endsWith("/src/retention-policy.ts") ||
       call.arguments?.["path"] !== path ||
-      typeof details?.["contentHash"] !== "string" ||
-      receipt?.["protocol"] !== "workspace-read-receipt.v1" ||
-      receipt["path"] !== path ||
-      receipt["contentHash"] !== details["contentHash"] ||
       displayedRange?.["coordinateKind"] !== "utf16" ||
       !Number.isInteger(displayedRange["start"]) ||
       !Number.isInteger(displayedRange["end"]) ||
       Number(displayedRange["end"]) <= Number(displayedRange["start"]) ||
       provenance?.["status"] !== "attached" ||
+      provenance["path"] !== path ||
+      typeof provenance["contentHash"] !== "string" ||
+      provenance["coordinateKind"] !== "utf16" ||
+      !isRecord(provenance["range"]) ||
+      provenance["range"]["start"] !== displayedRange["start"] ||
+      provenance["range"]["end"] !== displayedRange["end"] ||
       !Array.isArray(provenance["episodes"]) ||
       !/archiveWindowDays\s*=\s*21/u.test(protocolText(call))
     ) {
@@ -400,7 +401,7 @@ function requireHistoricalEditedFileContext(result: TestExecutionResult) {
     return {
       passed: false,
       reason:
-        "No exact current-file read joined its content receipt and displayed range to typed provenance showing the later history preserved the archive-window decision",
+        "No exact current-file read joined its exact content and displayed range to typed provenance showing the later history preserved the archive-window decision",
     };
   }
 
@@ -459,7 +460,7 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
       "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer?",
-    validation: "agent-evidence",
+
     validate: requireHistoricalMemoryRecall,
   },
   {
@@ -470,7 +471,7 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Review src/retention-policy.ts in the disposable historical project. Why is archiveWindowDays 21 rather than 14, and did the later history reverse that decision? Ground the answer in the workspace's recorded evidence.",
-    validation: "agent-evidence",
+
     validate: requireHistoricalEditedFileContext,
   },
   {

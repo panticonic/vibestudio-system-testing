@@ -11,6 +11,9 @@ function execution(
     terminalOutcome?: "success" | "tool_error";
     childHeading?: string;
     finalHeading?: string;
+    executedModel?: string;
+    childClosed?: boolean;
+    retainEvidence?: boolean;
   } = {}
 ): TestExecutionResult {
   const runId = "spawn-local-model";
@@ -67,7 +70,8 @@ function execution(
             description: "",
             result: { protocolContent: [{ type: "text", text: `# ${heading}` }] },
           },
-          subagent: { launchConfig: { model } },
+          subagent: { launchConfig: { model }, taskChannelId: "child-channel",
+            childParticipantId: "child", childEntityId: "child-entity" },
         },
       },
       {
@@ -79,12 +83,24 @@ function execution(
         content: `The README heading is ${options.finalHeading ?? heading}.`,
       },
     ],
+    diagnostics: options.retainEvidence === false ? {} : {
+      subagentEvidence: [{ runId, taskChannelId: "child-channel", childParticipantId: "child",
+        modelExecutionEvidence: { calls: [{ messageId: "child-message",
+          ref: options.executedModel ?? model,
+          outcome: options.terminalOutcome === "tool_error" ? "failed" : "completed" }] },
+        events: [{ id: 1, senderId: "child", payload: {
+          kind: "message.completed", turnId: "child-turn", causality: { messageId: "child-message" },
+          payload: { outcome: "completed", blocks: [{ type: "text", content: `# ${heading}` }] },
+        } }, ...(options.childClosed === false ? [] : [{ id: 2, senderId: "child",
+          payload: { kind: "turn.closed", turnId: "child-turn", payload: {} } }])],
+      }],
+    },
   } as unknown as TestExecutionResult;
 }
 
 describe("local model task evidence", () => {
   it("requires lifecycle inspection and an exact local-model child", () => {
-    expect(taskTest.validation).toBe("agent-evidence");
+    expect(taskTest.validation).toBeUndefined();
     expect(taskTest.validate(execution("local:lfm2.5-2.6b"))).toEqual({
       passed: true,
       reason: undefined,
@@ -97,13 +113,28 @@ describe("local model task evidence", () => {
     });
   });
 
-  it("rejects a local child that has not completed successfully", () => {
+  it("accepts a closed local assignment without retiring its retained collaborator", () => {
     expect(
       taskTest.validate(execution("local:lfm2.5-2.6b", { taskStatus: "running" }))
-    ).toMatchObject({ passed: false });
+    ).toMatchObject({ passed: true });
+  });
+
+  it("rejects an unclosed or failed local-model execution", () => {
+    expect(taskTest.validate(execution("local:lfm2.5-2.6b", { childClosed: false })))
+      .toMatchObject({ passed: false });
     expect(
       taskTest.validate(execution("local:lfm2.5-2.6b", { terminalOutcome: "tool_error" }))
     ).toMatchObject({ passed: false });
+  });
+
+  it("rejects a completion card without native execution and transcript evidence", () => {
+    expect(taskTest.validate(execution("local:lfm2.5-2.6b", { retainEvidence: false })))
+      .toMatchObject({ passed: false });
+  });
+
+  it("rejects a requested local model whose report was actually produced by a hosted model", () => {
+    expect(taskTest.validate(execution("local:lfm2.5-2.6b", { executedModel: "openai-codex:gpt-6-luna" })))
+      .toMatchObject({ passed: false });
   });
 
   it("requires the parent to report the local child's observed heading", () => {

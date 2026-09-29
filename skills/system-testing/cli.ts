@@ -1,9 +1,13 @@
-import { rpc, workers } from "@workspace/runtime";
+import { rpc, workers, vcs } from "@workspace/runtime";
 import { logIdForChannel } from "@vibestudio/trajectory-identity";
 import { HeadlessRunner } from "./runner.js";
 import { allTests } from "./stages.js";
 import { TestRunner } from "./test-runner.js";
-import type { TestCase, TestSuiteResult, TestSuiteResultEntry } from "./types.js";
+import type {
+  TestCase,
+  TestSuiteResult,
+  TestSuiteResultEntry,
+} from "./types.js";
 import { isUnexpectedToolFailure } from "./tool-failure-classification.js";
 import {
   failedSystemTestNames,
@@ -53,7 +57,9 @@ export interface SystemTestRunOptions {
   /** Durable orchestration heartbeat supplied by CLI/UI hosts. */
   onProgress?: (progress: SystemTestRunProgress) => void | Promise<void>;
   /** EvalDO cancellation hook; lets a cancelled orchestration retire children before RPC abort. */
-  registerCancellationCleanup?: (cleanup: () => Promise<SystemTestRunRecord | void>) => void;
+  registerCancellationCleanup?: (
+    cleanup: () => Promise<SystemTestRunRecord | void>,
+  ) => void;
   /** Periodic, non-blocking record used by the CLI to inspect a running case. */
   onInspectionUpdate?: (record: SystemTestRunRecord) => void | Promise<void>;
 }
@@ -85,7 +91,8 @@ export interface SystemTestRunProgress {
 
 export interface SystemTestRunSummary {
   runId: string;
-  status: "running" | "completed" | "cancelled";
+  status: "running" | "completed" | "cancelled" | "errored";
+  error?: string;
   total: number;
   passed: number;
   failed: number;
@@ -107,7 +114,8 @@ export interface SystemTestRunSummary {
 export interface SystemTestRunRecord {
   schemaVersion: typeof SYSTEM_TEST_RUN_SCHEMA_VERSION;
   runId: string;
-  status: "running" | "completed" | "cancelled";
+  status: "running" | "completed" | "cancelled" | "errored";
+  error?: string;
   startedAt: string;
   /** Last durable observation/checkpoint time for every run state. */
   updatedAt: string;
@@ -134,6 +142,72 @@ export interface SystemTestRunRecord {
   suite: TestSuiteResult;
 }
 
+/** Retain preparation failures without inventing any completed case evidence. */
+export function failedSystemTestPreparationRecord(
+  options: SystemTestRunOptions,
+  error: string,
+  startedAt: string,
+): SystemTestRunRecord {
+  const completedAt = new Date().toISOString();
+  const model = options.model ?? SYSTEM_TEST_AGENT_MODEL;
+  const suite = suiteFromEntries([], 0, Math.max(0, Date.now() - Date.parse(startedAt)));
+  return {
+    schemaVersion: SYSTEM_TEST_RUN_SCHEMA_VERSION,
+    runId: options.runId,
+    status: "errored",
+    error,
+    startedAt,
+    updatedAt: completedAt,
+    completedAt,
+    config: {
+      contextId: options.contextId,
+      names: [...(options.names ?? [])],
+      ...(options.category ? { category: options.category } : {}),
+      all: options.all === true,
+      model,
+      ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+      modelPolicy: { ...systemTestModelRoute(model, options.model === undefined), activeModel: model, activations: [] },
+      concurrency: normalizePositiveInt(options.concurrency, DEFAULT_CONCURRENCY),
+      ...(options.testTimeoutMs !== undefined ? { testTimeoutMs: options.testTimeoutMs } : {}),
+    },
+    provenance: {},
+    suite,
+    summary: { ...summarizeRun(options.runId, suite, "errored"), error },
+  };
+}
+
+/** Seal only completed case proof when the orchestration itself fails. */
+export function failedSystemTestRunRecord(
+  record: SystemTestRunRecord,
+  completedNames: readonly string[],
+  error: string,
+): SystemTestRunRecord {
+  const completed = new Set(completedNames);
+  const updatedAt = new Date().toISOString();
+  const suite = suiteFromEntries(
+    record.suite.results.filter((entry) => completed.has(entry.test.name)),
+    record.suite.skipped,
+    Math.max(0, Date.now() - Date.parse(record.startedAt)),
+  );
+  return {
+    ...record,
+    status: "errored",
+    error,
+    updatedAt,
+    completedAt: updatedAt,
+    suite,
+    summary: {
+      ...summarizeRun(
+        record.runId,
+        suite,
+        "errored",
+        record.summary.notInstalled,
+      ),
+      error,
+    },
+  };
+}
+
 export interface SystemTestDoctorResult {
   ok: boolean;
   checks: Array<{
@@ -145,14 +219,12 @@ export interface SystemTestDoctorResult {
 }
 
 const DEFAULT_CONCURRENCY = 1;
-const LIVE_COMPLETED_PROBLEM_LIMIT = 4;
-const LIVE_MESSAGE_LIMIT = 20;
-const LIVE_INVOCATION_LIMIT = 30;
-const LIVE_DEBUG_EVENT_LIMIT = 40;
 export function listSystemTests(
-  options: { installedUnits?: readonly string[] } = {}
+  options: { installedUnits?: readonly string[] } = {},
 ): SystemTestDescriptor[] {
-  const installed = options.installedUnits ? new Set(options.installedUnits) : null;
+  const installed = options.installedUnits
+    ? new Set(options.installedUnits)
+    : null;
   return allTests().map((test) => ({
     name: test.name,
     category: test.category,
@@ -160,7 +232,11 @@ export function listSystemTests(
     orchestrated: typeof test.orchestrate === "function",
     requiresUnits: [...(test.requiresUnits ?? [])],
     ...(installed
-      ? { installed: (test.requiresUnits ?? []).every((unit) => installed.has(unit)) }
+      ? {
+          installed: (test.requiresUnits ?? []).every((unit) =>
+            installed.has(unit),
+          ),
+        }
       : {}),
   }));
 }
@@ -173,26 +249,50 @@ export function listSystemTests(
  * case names in `requiresUnits`.
  */
 export async function installedWorkspaceUnits(): Promise<string[]> {
-  const units = (await rpc.call("main", "build.listUnits", [])) as Array<{ source?: unknown }>;
-  return units
-    .map((unit) => unit.source)
-    .filter((source): source is string => typeof source === "string" && source.length > 0);
+  const state = await vcs.mainState();
+  const units: string[] = [];
+  async function* entries(path: string) {
+    let cursor: string | undefined;
+    do {
+      const page = await vcs.listDirectory({ state, path, limit: 500, ...(cursor ? { cursor } : {}) });
+      if (!page) throw new Error(`Workspace repository inventory directory is absent: ${path}`);
+      yield* page.entries;
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+  }
+  // Repository roots are the installed source boundary. The executable build
+  // catalog intentionally excludes packages, templates and adopted projects.
+  // Pin one main event across all pages so publication cannot mix inventories.
+  for await (const entry of entries("")) {
+    if (entry.repositoryRoot) units.push(entry.path);
+    else if (entry.kind === "directory") {
+      for await (const child of entries(entry.path)) {
+        if (child.repositoryRoot) units.push(child.path);
+      }
+    }
+  }
+  return units.sort();
 }
 
 /** Units a case needs that this workspace does not carry. */
 export function missingUnitsFor(
   test: Pick<TestCase, "requiresUnits">,
-  installedUnits: readonly string[] | undefined
+  installedUnits: readonly string[] | undefined,
 ): string[] {
   if (!installedUnits) return [];
   const installed = new Set(installedUnits);
   return [...(test.requiresUnits ?? [])].filter((unit) => !installed.has(unit));
 }
 
-export async function runSystemTests(options: SystemTestRunOptions): Promise<SystemTestRunRecord> {
+export async function runSystemTests(
+  options: SystemTestRunOptions,
+): Promise<SystemTestRunRecord> {
   const startedAt = new Date().toISOString();
   const { selected, notInstalled } = selectTests(options);
-  const concurrency = normalizePositiveInt(options.concurrency, DEFAULT_CONCURRENCY);
+  const concurrency = normalizePositiveInt(
+    options.concurrency,
+    DEFAULT_CONCURRENCY,
+  );
   const testTimeoutMs =
     options.testTimeoutMs === undefined
       ? undefined
@@ -211,7 +311,9 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
   >();
   const completed: SystemTestRunProgress["completed"] = [];
   const completedEntries: TestSuiteResultEntry[] = [];
-  const publishProgress = async (status: SystemTestRunProgress["status"]): Promise<void> => {
+  const publishProgress = async (
+    status: SystemTestRunProgress["status"],
+  ): Promise<void> => {
     if (!options.onProgress) return;
     await options.onProgress({
       runId: options.runId,
@@ -231,23 +333,31 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
           message: `system-test ${label} publication failed`,
           runId: options.runId,
           error: error instanceof Error ? error.message : String(error),
-        })
+        }),
       );
     });
   };
   await publishProgress("running");
 
   try {
-    provenance.connection = await rpc.call("main", "auth.getConnectionInfo", []);
+    provenance.connection = await rpc.call(
+      "main",
+      "auth.getConnectionInfo",
+      [],
+    );
   } catch (error) {
-    provenance.connectionError = error instanceof Error ? error.message : String(error);
+    provenance.connectionError =
+      error instanceof Error ? error.message : String(error);
   }
   try {
-    provenance.systemTestingBuild = await rpc.call("main", "build.inspectBuildProvenance", [
-      "@workspace-skills/system-testing",
-    ]);
+    provenance.systemTestingBuild = await rpc.call(
+      "main",
+      "build.inspectBuildProvenance",
+      ["@workspace-skills/system-testing"],
+    );
   } catch (error) {
-    provenance.buildError = error instanceof Error ? error.message : String(error);
+    provenance.buildError =
+      error instanceof Error ? error.message : String(error);
   }
 
   const model = options.model ?? SYSTEM_TEST_AGENT_MODEL;
@@ -285,7 +395,11 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
       completed.push({
         name: entry.test.name,
         category: entry.test.category,
-        outcome: entry.execution.error ? "errored" : entry.result.passed ? "passed" : "failed",
+        outcome: entry.execution.error
+          ? "errored"
+          : entry.result.passed
+            ? "passed"
+            : "failed",
         durationMs: entry.execution.duration,
         ...(entry.result.reason ? { reason: entry.result.reason } : {}),
         ...(entry.execution.provenance?.channelId
@@ -303,23 +417,17 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
     if (!options.onInspectionUpdate || inspectionPublishing) return;
     inspectionPublishing = true;
     try {
-      // Keep completed successes out of the heartbeat, but retain a bounded tail
-      // of failures and unexpected tool failures. This makes an active suite's
-      // first failure immediately inspectable without letting every heartbeat
-      // grow with the total suite size.
-      const results: TestSuiteResultEntry[] = completedEntries
-        .filter(
-          (entry) =>
-            entry.execution.error != null ||
-            !entry.result.passed ||
-            (entry.execution.toolFailures?.length ?? 0) > 0
-        )
-        .slice(-LIVE_COMPLETED_PROBLEM_LIMIT)
-        .map(boundedLiveEntry);
+      // The observer receives the complete checkpoint. Transport-specific
+      // heartbeat bounds belong to its publisher, not to the record owner.
+      const results: TestSuiteResultEntry[] = [...completedEntries];
       const snapshots = runner.snapshotAll();
       for (const active of running.values()) {
-        const test = selected.find((candidate) => candidate.name === active.name);
-        const snapshot = snapshots.filter((row) => row.testName === active.name).at(-1)?.snapshot;
+        const test = selected.find(
+          (candidate) => candidate.name === active.name,
+        );
+        const snapshot = snapshots
+          .filter((row) => row.testName === active.name)
+          .at(-1)?.snapshot;
         if (!test || !snapshot) continue;
         results.push({
           test: {
@@ -336,7 +444,9 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
             modelExecutionEvidence: snapshot.modelExecutionEvidence,
             provenance: snapshotProvenance(snapshot),
             toolFailures: snapshot.invocations
-              .filter((invocation) => /failed|error|cancel/i.test(invocation.status))
+              .filter((invocation) =>
+                /failed|error|cancel/i.test(invocation.status),
+              )
               .map((invocation) => ({
                 id: invocation.id,
                 name: invocation.name,
@@ -350,7 +460,7 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
       const suite = suiteFromEntries(
         results,
         Math.max(0, listSystemTests().length - selected.length),
-        Date.now() - Date.parse(startedAt)
+        Date.now() - Date.parse(startedAt),
       );
       await options.onInspectionUpdate({
         schemaVersion: SYSTEM_TEST_RUN_SCHEMA_VERSION,
@@ -358,7 +468,14 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
         status: "running",
         startedAt,
         updatedAt: new Date().toISOString(),
-        config: runConfig(options, selected, model, concurrency, testTimeoutMs, runner),
+        config: runConfig(
+          options,
+          selected,
+          model,
+          concurrency,
+          testTimeoutMs,
+          runner,
+        ),
         provenance,
         summary: summarizeRun(options.runId, suite, "running", notInstalled),
         suite,
@@ -368,7 +485,10 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
     }
   };
   const inspectionTimer = options.onInspectionUpdate
-    ? setInterval(() => publishInBackground("inspection", publishInspection()), 5_000)
+    ? setInterval(
+        () => publishInBackground("inspection", publishInspection()),
+        5_000,
+      )
     : undefined;
   let resolveTerminalRecord!: (record: SystemTestRunRecord | void) => void;
   const terminalRecord = new Promise<SystemTestRunRecord | void>((resolve) => {
@@ -387,7 +507,10 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
   } finally {
     if (inspectionTimer !== undefined) clearInterval(inspectionTimer);
   }
-  suite.skipped = Math.max(0, listSystemTests().length - selected.length - notInstalled.length);
+  suite.skipped = Math.max(
+    0,
+    listSystemTests().length - selected.length - notInstalled.length,
+  );
   const status = tester.cancelled ? "cancelled" : "completed";
   const summary = summarizeRun(options.runId, suite, status, notInstalled);
   if (tester.cancelled) queued.clear();
@@ -406,7 +529,14 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
     startedAt,
     updatedAt: completedAt,
     completedAt,
-    config: runConfig(options, selected, model, concurrency, testTimeoutMs, runner),
+    config: runConfig(
+      options,
+      selected,
+      model,
+      concurrency,
+      testTimeoutMs,
+      runner,
+    ),
     provenance,
     summary,
     suite,
@@ -415,33 +545,17 @@ export async function runSystemTests(options: SystemTestRunOptions): Promise<Sys
   return record;
 }
 
-function boundedLiveEntry(entry: TestSuiteResultEntry): TestSuiteResultEntry {
-  const snapshot = entry.execution.snapshot;
-  return {
-    ...entry,
-    execution: {
-      ...entry.execution,
-      messages: entry.execution.messages.slice(-LIVE_MESSAGE_LIMIT),
-      ...(snapshot
-        ? {
-            snapshot: {
-              ...snapshot,
-              messages: snapshot.messages.slice(-LIVE_MESSAGE_LIMIT),
-              invocations: snapshot.invocations.slice(-LIVE_INVOCATION_LIMIT),
-              debugEvents: snapshot.debugEvents.slice(-LIVE_DEBUG_EVENT_LIMIT),
-            },
-          }
-        : {}),
-    },
-  };
-}
-
-export function getSystemTestRun(runs: unknown, runId: string): SystemTestRunRecord | null {
+export function getSystemTestRun(
+  runs: unknown,
+  runId: string,
+): SystemTestRunRecord | null {
   if (!runs || typeof runs !== "object" || Array.isArray(runs)) return null;
   const record = (runs as Record<string, unknown>)[runId];
-  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+  if (!record || typeof record !== "object" || Array.isArray(record))
+    return null;
   const candidate = record as Partial<SystemTestRunRecord>;
-  return candidate.schemaVersion === SYSTEM_TEST_RUN_SCHEMA_VERSION && candidate.runId === runId
+  return candidate.schemaVersion === SYSTEM_TEST_RUN_SCHEMA_VERSION &&
+    candidate.runId === runId
     ? (candidate as SystemTestRunRecord)
     : null;
 }
@@ -478,11 +592,15 @@ export function unusableModelDetail(unusable: {
 }
 
 export async function systemTestDoctor(
-  expectedModel?: string | null
+  expectedModel?: string | null,
 ): Promise<SystemTestDoctorResult> {
   const primaryModel = expectedModel ?? SYSTEM_TEST_AGENT_MODEL;
   const checks: SystemTestDoctorResult["checks"] = [];
-  const capture = async (name: string, operation: () => Promise<unknown>, detail: string) => {
+  const capture = async (
+    name: string,
+    operation: () => Promise<unknown>,
+    detail: string,
+  ) => {
     try {
       const data = await operation();
       checks.push({ name, ok: true, detail, data });
@@ -503,34 +621,46 @@ export async function systemTestDoctor(
   await capture(
     "server",
     () => rpc.call("main", "auth.getConnectionInfo", []),
-    "server identity and workspace are reachable"
+    "server identity and workspace are reachable",
   );
   await capture(
     "system-testing-build",
-    () => rpc.call("main", "build.inspectBuildProvenance", ["@workspace-skills/system-testing"]),
-    "system-testing package is importable"
+    () =>
+      rpc.call("main", "build.inspectBuildProvenance", [
+        "@workspace-skills/system-testing",
+      ]),
+    "system-testing package is importable",
   );
   await capture(
     "agent-worker",
     async () => {
       const units = (await rpc.call("main", "build.listUnits", [])) as Array<{
         name: string;
-        status: "available" | "building" | "ready" | "approval-required" | "error";
+        status:
+          | "available"
+          | "building"
+          | "ready"
+          | "approval-required"
+          | "error";
         lastError?: string | null;
       }>;
       const agentUnit = units.find(
-        (unit) => unit.name === "workers/agent-worker" || unit.name.includes("agent-worker")
+        (unit) =>
+          unit.name === "workers/agent-worker" ||
+          unit.name.includes("agent-worker"),
       );
       if (!agentUnit) throw new Error("workers/agent-worker is not declared");
       if (agentUnit.status === "approval-required") {
         throw new Error("workers/agent-worker is awaiting source approval");
       }
       if (agentUnit.status === "error") {
-        throw new Error(agentUnit.lastError || "workers/agent-worker is in error state");
+        throw new Error(
+          agentUnit.lastError || "workers/agent-worker is in error state",
+        );
       }
       return agentUnit;
     },
-    "agent worker source is declared and approved for on-demand activation"
+    "agent worker source is declared and approved for on-demand activation",
   );
   await capture(
     "required-extensions",
@@ -541,7 +671,12 @@ export async function systemTestDoctor(
             name: string;
             kind: string;
             source: string;
-            status: "available" | "building" | "ready" | "approval-required" | "error";
+            status:
+              | "available"
+              | "building"
+              | "ready"
+              | "approval-required"
+              | "error";
             lastError: string | null;
           }>
         >,
@@ -552,20 +687,23 @@ export async function systemTestDoctor(
       const declared = (config.extensions ?? []).map(({ source }) => ({
         source,
         unit: units.find(
-          (candidate) => candidate.kind === "extension" && candidate.source === source
+          (candidate) =>
+            candidate.kind === "extension" && candidate.source === source,
         ),
       }));
       const unready = declared.flatMap(({ source, unit }) => {
         if (!unit) return [`${source}=missing`];
         return unit.status !== "approval-required" && unit.status !== "error"
           ? []
-          : [`${unit.name}=${unit.status}${unit.lastError ? ` (${unit.lastError})` : ""}`];
+          : [
+              `${unit.name}=${unit.status}${unit.lastError ? ` (${unit.lastError})` : ""}`,
+            ];
       });
       if (unready.length > 0) {
         throw new Error(
           `declared workspace extensions are not ready: ${unready.join(
-            ", "
-          )}. Complete the startup unit review before running agentic tests.`
+            ", ",
+          )}. Complete the startup unit review before running agentic tests.`,
         );
       }
       return declared.map(({ source, unit }) => ({
@@ -574,33 +712,51 @@ export async function systemTestDoctor(
         status: unit?.status,
       }));
     },
-    "declared workspace extensions are approved and build-ready"
+    "declared workspace extensions are approved and build-ready",
   );
   await capture(
     "workspace-configuration",
     async () => {
-      const source = await rpc.call("main", "fs.readFile", ["meta/vibestudio.yml", "utf8"]);
+      const source = await rpc.call("main", "fs.readFile", [
+        "meta/vibestudio.yml",
+        "utf8",
+      ]);
       return rpc.call("main", "workspace.validateConfig", [source]);
     },
-    "the workspace has a valid standalone runtime configuration"
+    "the workspace has a valid standalone runtime configuration",
   );
   await capture(
     "model",
     async () => {
-      const modelRoute = systemTestModelRoute(primaryModel, typeof expectedModel !== "string");
-      const service = await workers.resolveService("vibestudio.models.v1", null);
+      const modelRoute = systemTestModelRoute(
+        primaryModel,
+        typeof expectedModel !== "string",
+      );
+      const service = await workers.resolveService(
+        "vibestudio.models.v1",
+        null,
+      );
       if (service.kind !== "durable-object" || !service.targetId) {
-        throw new Error("vibestudio.models.v1 did not resolve to a Durable Object");
+        throw new Error(
+          "vibestudio.models.v1 did not resolve to a Durable Object",
+        );
       }
       const required = [
         modelRoute.primaryModel,
         ...(modelRoute.fallbackModel ? [modelRoute.fallbackModel] : []),
       ];
-      const inspected = (await rpc.call(service.targetId, "inspectModels", [required])) as {
-        models?: Array<{ ref?: string; availability?: { state?: string; detail?: string } }>;
+      const inspected = (await rpc.call(service.targetId, "inspectModels", [
+        required,
+      ])) as {
+        models?: Array<{
+          ref?: string;
+          availability?: { state?: string; detail?: string };
+        }>;
       };
       const availability = required.map((modelRef) => {
-        const found = inspected.models?.find((model) => model.ref === modelRef)?.availability;
+        const found = inspected.models?.find(
+          (model) => model.ref === modelRef,
+        )?.availability;
         return {
           model: modelRef,
           availability: found?.state ?? "unknown",
@@ -608,7 +764,8 @@ export async function systemTestDoctor(
         };
       });
       const unusable = availability.find(
-        (entry) => entry.availability !== "ready" && entry.availability !== "startable"
+        (entry) =>
+          entry.availability !== "ready" && entry.availability !== "startable",
       );
       if (unusable) {
         throw new Error(unusableModelDetail(unusable));
@@ -625,7 +782,7 @@ export async function systemTestDoctor(
               },
       };
     },
-    "system-test agent models are configured and credentialed"
+    "system-test agent models are configured and credentialed",
   );
 
   return { ok: checks.every((check) => check.ok), checks };
@@ -639,13 +796,15 @@ function selectTests(options: SystemTestRunOptions): {
   const names = [...new Set((options.names ?? []).filter(Boolean))];
   const known = new Map(tests.map((test) => [test.name, test]));
   const unknown = names.filter((name) => !known.has(name));
-  if (unknown.length > 0) throw new Error(`Unknown system test(s): ${unknown.join(", ")}`);
+  if (unknown.length > 0)
+    throw new Error(`Unknown system test(s): ${unknown.join(", ")}`);
 
-  let selected = options.all === true ? tests : names.map((name) => known.get(name)!);
+  let selected =
+    options.all === true ? tests : names.map((name) => known.get(name)!);
   if (options.category) {
-    selected = (options.all === true || names.length === 0 ? tests : selected).filter(
-      (test) => test.category === options.category
-    );
+    selected = (
+      options.all === true || names.length === 0 ? tests : selected
+    ).filter((test) => test.category === options.category);
   }
   const notInstalled: Array<{ name: string; missingUnits: string[] }> = [];
   selected = selected.filter((test) => {
@@ -659,10 +818,12 @@ function selectTests(options: SystemTestRunOptions): {
       throw new Error(
         `Every selected system test needs units this workspace does not carry: ${notInstalled
           .map((entry) => `${entry.name} (${entry.missingUnits.join(", ")})`)
-          .join("; ")}`
+          .join("; ")}`,
       );
     }
-    throw new Error("No system tests selected; pass exact names, a category, or all=true");
+    throw new Error(
+      "No system tests selected; pass exact names, a category, or all=true",
+    );
   }
   return { selected, notInstalled };
 }
@@ -671,16 +832,19 @@ function summarizeRun(
   runId: string,
   suite: TestSuiteResult,
   status: SystemTestRunSummary["status"],
-  notInstalled: SystemTestRunSummary["notInstalled"] = []
+  notInstalled: SystemTestRunSummary["notInstalled"] = [],
 ): SystemTestRunSummary {
   const failedTests = suite.results
     .filter(
       (entry) =>
-        !isLiveRunningEntry(entry) && (!entry.result.passed || Boolean(entry.execution.error))
+        !isLiveRunningEntry(entry) &&
+        (!entry.result.passed || Boolean(entry.execution.error)),
     )
     .map((entry) => entry.test.name);
   const testsWithUnexpectedToolFailures = suite.results
-    .filter((entry) => (entry.execution.toolFailures ?? []).some(isUnexpectedToolFailure))
+    .filter((entry) =>
+      (entry.execution.toolFailures ?? []).some(isUnexpectedToolFailure),
+    )
     .map((entry) => entry.test.name);
   return {
     runId,
@@ -705,7 +869,7 @@ function runConfig(
   model: string,
   concurrency: number,
   testTimeoutMs: number | undefined,
-  runner: HeadlessRunner
+  runner: HeadlessRunner,
 ): SystemTestRunRecord["config"] {
   return {
     contextId: options.contextId,
@@ -720,7 +884,9 @@ function runConfig(
   };
 }
 
-function snapshotProvenance(snapshot: import("@workspace/agentic-session").SessionSnapshot) {
+function snapshotProvenance(
+  snapshot: import("@workspace/agentic-session").SessionSnapshot,
+) {
   return {
     channelId: snapshot.channelId,
     branchId: snapshot.channelId ? logIdForChannel(snapshot.channelId) : null,
@@ -733,7 +899,7 @@ function snapshotProvenance(snapshot: import("@workspace/agentic-session").Sessi
 function suiteFromEntries(
   results: TestSuiteResultEntry[],
   skipped: number,
-  duration: number
+  duration: number,
 ): TestSuiteResult {
   let passed = 0;
   let failed = 0;
@@ -746,7 +912,9 @@ function suiteFromEntries(
       else if (entry.result.passed) passed++;
       else failed++;
     }
-    const failures = (entry.execution.toolFailures ?? []).filter(isUnexpectedToolFailure).length;
+    const failures = (entry.execution.toolFailures ?? []).filter(
+      isUnexpectedToolFailure,
+    ).length;
     toolFailureCount += failures;
     if (failures > 0) testsWithToolFailures++;
   }
@@ -764,17 +932,23 @@ function suiteFromEntries(
 }
 
 function isLiveRunningEntry(entry: TestSuiteResultEntry): boolean {
-  return entry.result.reason === "System test is still running" && !entry.execution.error;
+  return (
+    entry.result.reason === "System test is still running" &&
+    !entry.execution.error
+  );
 }
 
 async function runSelectedTests(
   tester: TestRunner,
   selected: TestCase[],
-  concurrency: number
+  concurrency: number,
 ): Promise<TestSuiteResult> {
   return tester.runSuite(selected, { concurrency });
 }
 
-function normalizePositiveInt(value: number | undefined, fallback: number): number {
+function normalizePositiveInt(
+  value: number | undefined,
+  fallback: number,
+): number {
   return Number.isInteger(value) && value! > 0 ? value! : fallback;
 }

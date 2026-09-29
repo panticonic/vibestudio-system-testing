@@ -7,11 +7,18 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@workspace/runtime", () => ({
   blobstore: {},
-  images: { getJob: mocks.getJob, cancel: mocks.cancel, forgetJob: mocks.forgetJob },
+  images: {
+    getJob: mocks.getJob,
+    cancel: mocks.cancel,
+    forgetJob: mocks.forgetJob,
+  },
   vcs: { status: mocks.status },
 }));
 vi.mock("../image-panel-fixture.js", () => ({
-  importImagePanelFixture: async () => ({ repoPath: "panels/owned", contextId: "context:owned" }),
+  importImagePanelFixture: async () => ({
+    repoPath: "panels/owned",
+    contextId: "context:owned",
+  }),
 }));
 import { imagePanelTests, validateImagePanel } from "./image-panel.js";
 function execution() {
@@ -35,7 +42,13 @@ function execution() {
         before: { ...frame, status: "idle" },
         first: { ...frame },
         reloaded: { ...frame, boot: "boot2" },
-        edited: { ...frame, boot: "boot2", job: "job2", asset: "asset2", digest: "digest2" },
+        edited: {
+          ...frame,
+          boot: "boot2",
+          job: "job2",
+          asset: "asset2",
+          digest: "digest2",
+        },
         sourceUnchanged: true,
         cleanupComplete: true,
       },
@@ -71,8 +84,16 @@ it("rejects incomplete decode and leaked jobs", () => {
 });
 
 it("cancels and releases owned jobs and archives the panel after a primary failure", async () => {
-  mocks.status.mockResolvedValue({ workingHead: { kind: "event", eventId: "source" } });
-  mocks.getJob.mockResolvedValue({ id: "job:owned", status: "running" });
+  mocks.status.mockResolvedValue({
+    workingHead: { kind: "event", eventId: "source" },
+  });
+  mocks.getJob.mockImplementation(async (id: string) => ({
+    id,
+    status: "running",
+    attempt: 1,
+    createdAt: 10,
+    updatedAt: 20,
+  }));
   mocks.cancel.mockResolvedValue({ id: "job:owned", status: "cancelled" });
   mocks.forgetJob.mockResolvedValue(undefined);
   const archive = vi.fn(async () => {});
@@ -94,6 +115,17 @@ it("cancels and releases owned jobs and archives the panel after a primary failu
     remainingTimeMs: () => 1000,
   } as never);
   expect(result.error).toContain("provider unavailable");
+  expect(result.diagnostics?.["imagePanel"]).toMatchObject({
+    jobs: expect.arrayContaining([
+      {
+        id: "job:owned",
+        status: "running",
+        attempt: 1,
+        createdAt: 10,
+        updatedAt: 20,
+      },
+    ]),
+  });
   expect(mocks.cancel).toHaveBeenCalledWith("job:owned");
   expect(mocks.forgetJob).toHaveBeenCalledWith("job:owned");
   expect(archive).toHaveBeenCalledOnce();
@@ -103,7 +135,9 @@ it("cancels and releases owned jobs and archives the panel after a primary failu
 it.each(["failed", "cancelled"])(
   "stops immediately on a terminal %s frame even without error text",
   async (status) => {
-    mocks.status.mockResolvedValue({ workingHead: { kind: "event", eventId: "source" } });
+    mocks.status.mockResolvedValue({
+      workingHead: { kind: "event", eventId: "source" },
+    });
     const handle = {
       stateArgs: { get: async () => ({ jobs: [] }) },
       observe: async () => ({ phase: "ready" }),
@@ -130,5 +164,5 @@ it.each(["failed", "cancelled"])(
       lastFrame: { status },
       cleanupComplete: true,
     });
-  }
+  },
 );

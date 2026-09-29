@@ -2,7 +2,12 @@ import {
   CONTENT_WORKSPACE_REPO_FIXTURE,
   type TestCase,
   type TestExecutionResult,
+  type TestOrchestrationContext,
 } from "../types.js";
+import { rpc } from "@workspace/runtime";
+import { closedChildModelReports, readRetainedChannelReplay } from "./_subagent-evidence.js";
+import type { ServerLogEvent } from "@workspace/pubsub";
+import { systemTestFailure } from "../structured-error.js";
 import {
   findLastAgentMessage,
   getToolCalls,
@@ -30,18 +35,12 @@ function localModelRef(value: unknown): string | null {
   return typeof model === "string" && model.startsWith("local:") ? model : null;
 }
 
-function strings(value: unknown, found: string[] = []): string[] {
-  if (typeof value === "string") {
-    found.push(value);
-    return found;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) strings(item, found);
-    return found;
-  }
-  if (!value || typeof value !== "object") return found;
-  for (const child of Object.values(value as Record<string, unknown>)) strings(child, found);
-  return found;
+interface ChildEvidence {
+  runId: string;
+  taskChannelId: string;
+  childParticipantId: string;
+  events: ServerLogEvent[];
+  modelExecutionEvidence: unknown;
 }
 
 function lifecycleInspectionFailure(result: TestExecutionResult): string | null {
@@ -68,26 +67,29 @@ function completedLocalModelTasks(result: TestExecutionResult): CompletedLocalMo
     const model = localModelRef(argumentConfig) ?? localModelRef(call.subagent?.launchConfig);
     return model ? [{ runId: call.id, model }] : [];
   });
+  const retained = result.diagnostics?.["subagentEvidence"];
+  const evidence = Array.isArray(retained) ? retained as ChildEvidence[] : [];
   return localLaunches.flatMap((launch) => {
     const task = result.messages.find(
       (message) =>
         message.task?.id === launch.runId &&
-        message.task.execution.status === "complete" &&
-        message.task.execution.terminalOutcome === "success" &&
         message.task.execution.isError !== true &&
         localModelRef(message.task.subagent?.launchConfig) === launch.model
     )?.task;
     if (!task) return [];
-    return [
-      {
-        ...launch,
-        report: strings(task.execution.result).join("\n"),
-      },
-    ];
+    const child = task.subagent;
+    const exact = evidence.find((entry) => entry.runId === launch.runId &&
+      entry.taskChannelId === child?.taskChannelId &&
+      entry.childParticipantId === child?.childParticipantId);
+    if (!exact) return [];
+    return closedChildModelReports(exact.events, exact.childParticipantId,
+      exact.modelExecutionEvidence).filter((report) => report.model === launch.model)
+      .map((report) => ({ ...launch, report: report.text }));
   });
 }
 
 function requireLocalModelTask(result: TestExecutionResult) {
+  if (result.error) return { passed: false, reason: result.error };
   const lifecycleFailure = lifecycleInspectionFailure(result);
   if (lifecycleFailure) return { passed: false, reason: lifecycleFailure };
   const completed = completedLocalModelTasks(result).flatMap((task) => {
@@ -111,6 +113,46 @@ function requireLocalModelTask(result: TestExecutionResult) {
   return noIncompleteInvocations(result);
 }
 
+async function orchestrateLocalModelTask(context: TestOrchestrationContext): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await context.runner.spawn(undefined);
+  const evidence: ChildEvidence[] = [];
+  let failure: ReturnType<typeof systemTestFailure> | undefined;
+  try {
+    await context.sendAndWait(session, LOCAL_MODEL_PROMPT, "local-model README task");
+    const messages = [...session.messages];
+    for (const launch of getToolCalls({ messages, duration: 0 })) {
+      if (launch.name !== "spawn_subagent" || launch.execution?.status !== "complete" ||
+          launch.execution.isError === true) continue;
+      const child = messages.find((message) => message.task?.id === launch.id)?.task?.subagent;
+      if (!child?.taskChannelId || !child.childParticipantId || !child.childEntityId)
+        throw new Error("Subagent launch did not retain its exact child coordinates");
+      const events = await readRetainedChannelReplay(rpc, child.taskChannelId);
+      const modelExecutionEvidence = await rpc.call(child.childEntityId,
+        "getModelExecutionEvidence", [child.taskChannelId]);
+      evidence.push({ runId: launch.id, taskChannelId: child.taskChannelId,
+        childParticipantId: child.childParticipantId, events, modelExecutionEvidence });
+    }
+  } catch (cause) {
+    failure = systemTestFailure("local-model-task-evidence", cause);
+  }
+  const result: TestExecutionResult = {
+    messages: [...session.messages], duration: Date.now() - startedAt,
+    snapshot: session.snapshot(), diagnostics: { subagentEvidence: evidence },
+    ...(failure ? { failure, error: failure.error.message } : {}),
+  };
+  try { await session.close(); }
+  catch (cause) {
+    const cleanup = systemTestFailure("local-model-task-close", cause);
+    result.cleanupFailures = [cleanup];
+    result.cleanupErrors = [cleanup.error.message];
+  }
+  return result;
+}
+
+const LOCAL_MODEL_PROMPT =
+  "Please use the bundled local model—not your current one—to read the disposable project's README and tell me its heading.";
+
 export const localModelTests: TestCase[] = [
   {
     name: "local-model-download-and-task",
@@ -122,9 +164,9 @@ export const localModelTests: TestCase[] = [
     authorityPolicy: {
       authority: [LOCAL_MODEL_RUNTIME_AUTHORITY],
     },
-    prompt:
-      "Please use the bundled local model—not your current one—to read the disposable project's README and tell me its heading.",
-    validation: "agent-evidence",
+    prompt: LOCAL_MODEL_PROMPT,
+    orchestrate: orchestrateLocalModelTask,
+
     validate: requireLocalModelTask,
   },
 ];

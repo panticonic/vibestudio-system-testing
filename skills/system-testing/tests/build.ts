@@ -11,6 +11,7 @@ import {
   invocationReturnValue,
   walkRecords,
 } from "./_scenario-evidence.js";
+import { PANEL_AUTOMATION_RESOURCE, panelControlAuthorityPolicy } from "../panel-authority.js";
 import type { InvocationCardPayloadLike } from "./_helpers.js";
 import {
   eventRef,
@@ -112,53 +113,41 @@ function buildPerformanceResult(values: readonly unknown[]): boolean {
 function validateBuildPerformanceProfile(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  if (!/\b(?:profileBuild|getPerformanceProfile)\b/u.test(base.evidence.evalCode)) {
-    return {
-      passed: false,
-      reason: "Completed eval did not invoke the bounded workspace build profiler",
-    };
-  }
-  return buildPerformanceResult(base.evidence.evalValues)
+  const profiles = base.evidence.calls.flatMap(nativeBuildProfiles);
+  return buildPerformanceResult(profiles)
     ? { passed: true, reason: undefined }
-    : {
-        passed: false,
-        reason:
-          "Build profiling returned no structured first-run, verified-cache, and size evidence",
-      };
+    : { passed: false, reason: "Build profiling retained no native first-run, verified-cache, and size evidence" };
+}
+
+function nativeBuildProfiles(call: InvocationCardPayloadLike): Record<string, unknown>[] {
+  const details = successfulToolDetails(call, "eval");
+  const journal = record(details?.["operationJournal"]);
+  if (journal?.["protocol"] !== "workspace-operations.v1" || journal["truncated"] !== false ||
+      !Array.isArray(journal["entries"])) return [];
+  return journal["entries"].flatMap((value) => {
+    const entry = record(value);
+    const profile = record(entry?.["receipt"]);
+    return entry?.["type"] === "build.profile" && profile?.["version"] === 1 ? [profile] : [];
+  });
 }
 
 interface BuildProfileEvidence {
   index: number;
   unit: string;
   contextId: string;
+  stateHash: string;
+  buildKeys: Map<string, string>;
   initialBytes: Map<string, number>;
 }
 
-function buildProfileEvidence(
-  call: InvocationCardPayloadLike,
-  index: number
-): BuildProfileEvidence | null {
-  if (
-    call.name !== "eval" ||
-    call.execution?.status !== "complete" ||
-    call.execution.isError === true ||
-    !/\b(?:profileBuild|getPerformanceProfile)\b/u.test(String(call.arguments?.["code"] ?? ""))
-  ) {
-    return null;
-  }
-  const returned = invocationReturnValue(call);
-  if (!returned.present) return null;
-  const profiles = walkRecords([returned.value]).filter(
-    (candidate) =>
-      candidate["version"] === 1 &&
-      typeof candidate["source"] === "string" &&
-      typeof candidate["ref"] === "string" &&
-      record(candidate["report"]) !== null &&
-      Array.isArray(candidate["targets"])
-  );
-  if (profiles.length !== 1) return null;
+function buildProfileEvidence(call: InvocationCardPayloadLike, index: number): BuildProfileEvidence[] {
+  return nativeBuildProfiles(call).flatMap((profile) => {
+    const evidence = profileEvidence(profile, index);
+    return evidence ? [evidence] : [];
+  });
+}
 
-  const profile = profiles[0]!;
+function profileEvidence(profile: Record<string, unknown>, index: number): BuildProfileEvidence | null {
   const unit = unitForPath(profile["source"], "panels");
   const ref = profile["ref"];
   const contextId = typeof ref === "string" && ref.startsWith("ctx:") ? ref.slice(4) : null;
@@ -170,12 +159,19 @@ function buildProfileEvidence(
     workspacePath(profile["source"]) !== unit ||
     workspacePath(report?.["repoPath"]) !== unit ||
     report?.["status"] !== "ok" ||
+    report["kind"] !== "panel" ||
+    !Array.isArray(report["diagnostics"]) ||
+    report["diagnostics"].some((value) => record(value)?.["severity"] === "error") ||
+    typeof report["stateHash"] !== "string" ||
     verifiedCacheRun?.["sameBuildKeys"] !== true
   ) {
     return null;
   }
 
   const initialBytes = new Map<string, number>();
+  const buildKeys = new Map<string, string>();
+  const reportedBuilds = report["builds"];
+  if (!Array.isArray(reportedBuilds) || !Array.isArray(profile["targets"])) return null;
   for (const targetValue of profile["targets"] as unknown[]) {
     const target = record(targetValue);
     const bundleReport = record(target?.["bundleReport"]);
@@ -186,15 +182,24 @@ function buildProfileEvidence(
       typeof initial?.["bytes"] !== "number" ||
       initial["bytes"] < 0
     ) {
-      continue;
+      return null;
     }
+    if (buildKeys.has(target["target"]) || !reportedBuilds.some((value) => {
+      const build = record(value);
+      return build !== null && build["target"] === target["target"] && build["buildKey"] === target["buildKey"];
+    })) return null;
     initialBytes.set(target["target"], initial["bytes"]);
+    buildKeys.set(target["target"], target["buildKey"]);
   }
-  return initialBytes.size > 0 ? { index, unit, contextId, initialBytes } : null;
+  return initialBytes.size > 0 && reportedBuilds.length === buildKeys.size
+    ? { index, unit, contextId, stateHash: report["stateHash"], buildKeys, initialBytes }
+    : null;
 }
 
 function profileImproved(before: BuildProfileEvidence, after: BuildProfileEvidence): boolean {
-  if (before.unit !== after.unit || before.contextId !== after.contextId) return false;
+  if (before.unit !== after.unit || before.contextId !== after.contextId ||
+      before.stateHash === after.stateHash || before.buildKeys.size !== after.buildKeys.size ||
+      [...before.buildKeys.keys()].some((target) => !after.buildKeys.has(target))) return false;
   return [...before.initialBytes].some(
     ([target, bytes]) =>
       typeof after.initialBytes.get(target) === "number" && after.initialBytes.get(target)! < bytes
@@ -202,13 +207,10 @@ function profileImproved(before: BuildProfileEvidence, after: BuildProfileEviden
 }
 
 function validatePanelPerformanceRepair(result: TestExecutionResult) {
-  const base = completedScenarioEvidence(result, ["eval", "verify", "vcs"]);
+  const base = completedScenarioEvidence(result, ["eval", "vcs"]);
   if (!base.passed) return base;
   const calls = base.evidence.calls;
-  const profiles = calls.flatMap((call, index) => {
-    const evidence = buildProfileEvidence(call, index);
-    return evidence ? [evidence] : [];
-  });
+  const profiles = calls.flatMap(buildProfileEvidence);
   const mutations = calls.flatMap((call, index) => {
     const evidence = managedMutation(call, index, "panels");
     return evidence ? [evidence] : [];
@@ -245,44 +247,42 @@ function validatePanelPerformanceRepair(result: TestExecutionResult) {
     for (const after of profiles) {
       if (after.index <= lastMutationIndex || !profileImproved(before, after)) continue;
 
-      for (let buildIndex = after.index + 1; buildIndex < calls.length; buildIndex += 1) {
-        if (!verificationMatches(calls[buildIndex]!, "build", unit, contextId)) continue;
+      // profileBuild returns the exact native build/typecheck report itself.
+      // Its validated state and target keys are the final verification proof.
+      for (let commitIndex = after.index + 1; commitIndex < calls.length; commitIndex += 1) {
+        const commitCall = calls[commitIndex]!;
+        if (commitCall.name !== "vcs" || commitCall.arguments?.["operation"] !== "commit") {
+          continue;
+        }
+        const commitDetails = successfulToolDetails(commitCall, "vcs");
+        const commit = record(commitDetails?.["result"]);
+        const event = record(commit?.["event"]);
+        const eventId = event?.["kind"] === "event" ? event["eventId"] : null;
+        const committedApplicationIds = commit?.["committedApplicationIds"];
+        if (
+          commit?.["contextId"] !== contextId ||
+          typeof eventId !== "string" ||
+          !stringArray(committedApplicationIds) ||
+          committedApplicationIds.length !== applicationIds.length ||
+          !committedApplicationIds.every((id, index) => id === applicationIds[index])
+        ) {
+          continue;
+        }
 
-        for (let commitIndex = buildIndex + 1; commitIndex < calls.length; commitIndex += 1) {
-          const commitCall = calls[commitIndex]!;
-          if (commitCall.name !== "vcs" || commitCall.arguments?.["operation"] !== "commit") {
+        for (let statusIndex = commitIndex + 1; statusIndex < calls.length; statusIndex += 1) {
+          const statusCall = calls[statusIndex]!;
+          if (statusCall.name !== "vcs" || statusCall.arguments?.["operation"] !== "status") {
             continue;
           }
-          const commitDetails = successfulToolDetails(commitCall, "vcs");
-          const commit = record(commitDetails?.["result"]);
-          const event = record(commit?.["event"]);
-          const eventId = event?.["kind"] === "event" ? event["eventId"] : null;
-          const committedApplicationIds = commit?.["committedApplicationIds"];
+          const status = record(successfulToolDetails(statusCall, "vcs")?.["result"]);
           if (
-            commit?.["contextId"] !== contextId ||
-            typeof eventId !== "string" ||
-            !stringArray(committedApplicationIds) ||
-            committedApplicationIds.length !== applicationIds.length ||
-            !committedApplicationIds.every((id, index) => id === applicationIds[index])
+            status?.["contextId"] === contextId &&
+            status["clean"] === true &&
+            eventRef(status["committed"], eventId) &&
+            eventRef(status["workingHead"], eventId) &&
+            zeroWorkingCounts(status["workingCounts"])
           ) {
-            continue;
-          }
-
-          for (let statusIndex = commitIndex + 1; statusIndex < calls.length; statusIndex += 1) {
-            const statusCall = calls[statusIndex]!;
-            if (statusCall.name !== "vcs" || statusCall.arguments?.["operation"] !== "status") {
-              continue;
-            }
-            const status = record(successfulToolDetails(statusCall, "vcs")?.["result"]);
-            if (
-              status?.["contextId"] === contextId &&
-              status["clean"] === true &&
-              eventRef(status["committed"], eventId) &&
-              eventRef(status["workingHead"], eventId) &&
-              zeroWorkingCounts(status["workingCounts"])
-            ) {
-              return { passed: true, reason: undefined };
-            }
+            return { passed: true, reason: undefined };
           }
         }
       }
@@ -353,9 +353,11 @@ export const buildTests: TestCase[] = [
     description: "Measure and remove a disposable panel's avoidable bundle-size waste",
     category: "performance",
     workspaceRepoFixture: OPTIMIZABLE_PANEL_WORKSPACE_REPO_FIXTURE,
+    authorityPolicy: panelControlAuthorityPolicy("inspect-panel-performance-repair"),
+    resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
       "The disposable panel is much larger than its tiny UI warrants. Please investigate and fix it without changing what it displays.",
-    validation: "agent-evidence",
+
     validate: validatePanelPerformanceRepair,
   },
   {
@@ -374,7 +376,7 @@ export const buildTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Build and type-check the small disposable workspace package prepared for this task and tell me whether it succeeded, including any diagnostics you observed.",
-    validation: "agent-evidence",
+
     validate: validateWorkspaceBuild,
   },
   {
@@ -384,7 +386,7 @@ export const buildTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Add one small test for the disposable worker's exported baseline value, run its declared workerd suite in the complete worker runtime, and tell me the result. Do not publish.",
-    validation: "agent-evidence",
+
     validate: (result) => validateSandboxedWorkspaceTest(result, "workerd"),
   },
   {
@@ -394,7 +396,7 @@ export const buildTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Add one small test proving that the declared browser suite has a real panel document and injected panel runtime, run that suite, and tell me the result. Do not publish.",
-    validation: "agent-evidence",
+
     validate: (result) => validateSandboxedWorkspaceTest(result, "browser"),
   },
   {

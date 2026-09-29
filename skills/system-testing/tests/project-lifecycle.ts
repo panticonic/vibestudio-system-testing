@@ -8,9 +8,19 @@ import {
   type TestExecutionResult,
   type TestOrchestrationContext,
 } from "../types.js";
-import { systemTestFailure, type SystemTestFailure } from "../structured-error.js";
-import { panelControlAuthorityPolicy, PANEL_AUTOMATION_RESOURCE } from "../panel-authority.js";
-import { findLastAgentMessage, getToolCalls, type InvocationCardPayloadLike } from "./_helpers.js";
+import {
+  systemTestFailure,
+  type SystemTestFailure,
+} from "../structured-error.js";
+import {
+  panelControlAuthorityPolicy,
+  PANEL_AUTOMATION_RESOURCE,
+} from "../panel-authority.js";
+import {
+  findLastAgentMessage,
+  getToolCalls,
+  type InvocationCardPayloadLike,
+} from "./_helpers.js";
 import {
   completedScenarioEvidence,
   invocationReturnValue,
@@ -21,7 +31,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function details(call: InvocationCardPayloadLike): Record<string, unknown> | null {
+function details(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown> | null {
   if (
     call.execution?.status !== "complete" ||
     call.execution.isError === true ||
@@ -39,14 +51,14 @@ function successfulEvalCalls(result: TestExecutionResult) {
     (call) =>
       call.name === "eval" &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
 }
 
 function findLifecycleResult(
   result: TestExecutionResult,
   codeRequired: readonly string[],
-  predicate: (record: Record<string, unknown>) => boolean
+  predicate: (record: Record<string, unknown>) => boolean,
 ) {
   return successfulEvalCalls(result).find((call) => {
     const code = String(call.arguments?.["code"] ?? "");
@@ -58,28 +70,25 @@ function findLifecycleResult(
 
 function createdProject(
   record: Record<string, unknown>,
-  section: "panels" | "packages" | "workers"
+  section: "panels" | "packages" | "workers",
 ) {
   const publication = record["publication"];
   const preflight = record["preflight"];
   const expectedType =
-    section === "panels" ? "panel" : section === "workers" ? "worker" : "package";
-  const hasFiles =
-    (Array.isArray(record["files"]) && record["files"].length > 0) ||
-    (typeof record["files"] === "number" &&
-      Number.isInteger(record["files"]) &&
-      record["files"] > 0);
+    section === "panels"
+      ? "panel"
+      : section === "workers"
+        ? "worker"
+        : "package";
   const hasSuccessfulPreflight =
-    (isRecord(preflight) &&
-      preflight["ok"] === true &&
-      preflight["projectType"] === expectedType &&
-      Array.isArray(preflight["checked"]) &&
-      preflight["checked"].length > 0) ||
-    record["preflightOk"] === true;
+    isRecord(preflight) &&
+    preflight["ok"] === true &&
+    preflight["projectType"] === expectedType &&
+    Array.isArray(preflight["checked"]) &&
+    preflight["checked"].length > 0;
   return (
     typeof record["created"] === "string" &&
     record["created"].startsWith(`${section}/`) &&
-    hasFiles &&
     hasSuccessfulPreflight &&
     isRecord(publication) &&
     publication["published"] === true &&
@@ -99,7 +108,7 @@ function hasBootReadyPanelEvidence(values: readonly unknown[]): boolean {
       typeof record["attemptId"] === "string" &&
       typeof record["runtimeEntityId"] === "string" &&
       typeof record["buildKey"] === "string" &&
-      record["buildKey"].length > 0
+      record["buildKey"].length > 0,
   );
   return observations.some((observation) =>
     records.some((record) => {
@@ -120,15 +129,17 @@ function hasBootReadyPanelEvidence(values: readonly unknown[]): boolean {
       const renderedProjection =
         typeof record["text"] === "string" && record["text"].trim().length > 0;
       return completeSnapshot || renderedProjection;
-    })
+    }),
   );
 }
 
 function validatePanelCreate(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  const call = findLifecycleResult(result, ["createProjects", "openPanel"], (record) =>
-    createdProject(record, "panels")
+  const call = findLifecycleResult(
+    result,
+    ["createProjects", "openPanel"],
+    (record) => createdProject(record, "panels"),
   );
   if (!call) {
     return {
@@ -138,10 +149,16 @@ function validatePanelCreate(result: TestExecutionResult) {
   }
   const code = String(call.arguments?.["code"] ?? "");
   if (code.indexOf("createProjects") >= code.lastIndexOf("openPanel")) {
-    return { passed: false, reason: "The panel was not opened after project creation" };
+    return {
+      passed: false,
+      reason: "The panel was not opened after project creation",
+    };
   }
   if (!/\.snapshot\s*\(/u.test(code)) {
-    return { passed: false, reason: "The opened panel was not verified through a snapshot" };
+    return {
+      passed: false,
+      reason: "The opened panel was not verified through a snapshot",
+    };
   }
   const returned = invocationReturnValue(call);
   return returned.present && hasBootReadyPanelEvidence([returned.value])
@@ -161,27 +178,35 @@ function validateCuratedIconPanelCreate(result: TestExecutionResult) {
     (call) =>
       call.name === "eval" &&
       call.execution?.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("listProjectIcons")
+      String(call.arguments?.["code"] ?? "").includes("listProjectIcons"),
   );
   const createIndex = calls.findIndex(
     (call) =>
       call.name === "eval" &&
       call.execution?.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("createProjects")
+      String(call.arguments?.["code"] ?? "").includes("createProjects"),
   );
   if (catalogIndex < 0 || createIndex < 0 || catalogIndex > createIndex) {
     return {
       passed: false,
-      reason: "The panel was created before the exact curated icon catalog was discovered",
+      reason:
+        "The panel was created before the exact curated icon catalog was discovered",
     };
   }
   const buildIndex = calls.findIndex((call) => {
-    if (call.name !== "verify" || call.execution?.isError === true) return false;
+    if (call.name !== "verify" || call.execution?.isError === true)
+      return false;
     const resultDetails = details(call);
-    return resultDetails?.["operation"] === "build" && resultDetails["status"] === "ok";
+    return (
+      resultDetails?.["operation"] === "build" &&
+      resultDetails["status"] === "ok"
+    );
   });
   if (buildIndex < createIndex) {
-    return { passed: false, reason: "No successful structured panel build was returned" };
+    return {
+      passed: false,
+      reason: "No successful structured panel build was returned",
+    };
   }
   const openIndex = calls.findIndex(
     (call, index) =>
@@ -189,16 +214,24 @@ function validateCuratedIconPanelCreate(result: TestExecutionResult) {
       call.name === "eval" &&
       call.execution?.isError !== true &&
       String(call.arguments?.["code"] ?? "").includes("openPanel") &&
-      /\.snapshot\s*\(/u.test(String(call.arguments?.["code"] ?? ""))
+      /\.snapshot\s*\(/u.test(String(call.arguments?.["code"] ?? "")),
   );
   if (openIndex < 0 || !hasBootReadyPanelEvidence(base.evidence.evalValues)) {
     return {
       passed: false,
-      reason: "The clean build was not followed by a boot-ready panel observation and snapshot",
+      reason:
+        "The clean build was not followed by a boot-ready panel observation and snapshot",
     };
   }
-  if (!walkRecords(base.evidence.evalValues).some((record) => createdProject(record, "panels"))) {
-    return { passed: false, reason: "No published generated panel scaffold was returned" };
+  if (
+    !walkRecords(base.evidence.evalValues).some((record) =>
+      createdProject(record, "panels"),
+    )
+  ) {
+    return {
+      passed: false,
+      reason: "No published generated panel scaffold was returned",
+    };
   }
   return { passed: true, reason: undefined };
 }
@@ -207,13 +240,14 @@ function validateWorkerCreate(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
   const call = findLifecycleResult(result, ["createProjects"], (record) =>
-    createdProject(record, "workers")
+    createdProject(record, "workers"),
   );
   return call
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "No completed eval returned the published worker scaffold lifecycle result",
+        reason:
+          "No completed eval returned the published worker scaffold lifecycle result",
       };
 }
 
@@ -222,7 +256,11 @@ function validatePanelFork(result: TestExecutionResult) {
   if (!base.passed) return base;
   const call = successfulEvalCalls(result).find((candidate) => {
     const code = String(candidate.arguments?.["code"] ?? "");
-    if (!/\bfork(?:Panel|Project)\s*\(/u.test(code) || !code.includes("openPanel")) return false;
+    if (
+      !/\bfork(?:Panel|Project)\s*\(/u.test(code) ||
+      !code.includes("openPanel")
+    )
+      return false;
     const returned = invocationReturnValue(candidate);
     return (
       returned.present &&
@@ -239,23 +277,32 @@ function validatePanelFork(result: TestExecutionResult) {
           record["publication"]["published"] === true &&
           typeof record["publication"]["committedEventId"] === "string" &&
           Array.isArray(record["files"]) &&
-          record["files"].length > 0
-        )
+          record["files"].length > 0,
+        ),
       )
     );
   });
   if (!call) {
-    return { passed: false, reason: "No completed eval returned a committed panel-fork result" };
+    return {
+      passed: false,
+      reason: "No completed eval returned a committed panel-fork result",
+    };
   }
   const code = String(call.arguments?.["code"] ?? "");
   if (
     (code.match(/\bfork(?:Panel|Project)\s*\(/gu)?.length ?? 0) < 2 ||
     !/dryRun\s*:\s*true/u.test(code)
   ) {
-    return { passed: false, reason: "The panel fork was not planned before it was applied" };
+    return {
+      passed: false,
+      reason: "The panel fork was not planned before it was applied",
+    };
   }
   if (!/\.snapshot\s*\(/u.test(code)) {
-    return { passed: false, reason: "The opened fork was not verified through a snapshot" };
+    return {
+      passed: false,
+      reason: "The opened fork was not verified through a snapshot",
+    };
   }
   const returned = invocationReturnValue(call);
   return returned.present && hasBootReadyPanelEvidence([returned.value])
@@ -272,7 +319,10 @@ function validateWorkerForkPlan(result: TestExecutionResult) {
   if (!base.passed) return base;
   const call = successfulEvalCalls(result).find((candidate) => {
     const code = String(candidate.arguments?.["code"] ?? "");
-    if (!/\bfork(?:Project|Worker)\s*\(/u.test(code) || !/dryRun\s*:\s*true/u.test(code)) {
+    if (
+      !/\bfork(?:Project|Worker)\s*\(/u.test(code) ||
+      !/dryRun\s*:\s*true/u.test(code)
+    ) {
       return false;
     }
     const returned = invocationReturnValue(candidate);
@@ -303,24 +353,35 @@ function validateWorkerForkPlan(result: TestExecutionResult) {
           record["dryRun"] === true &&
           record["publication"] === null &&
           hasPreflight &&
-          hasFiles
+          hasFiles,
         );
       })
     );
   });
-  return call && /dryRun\s*:\s*true/u.test(String(call.arguments?.["code"] ?? ""))
+  return call &&
+    /dryRun\s*:\s*true/u.test(String(call.arguments?.["code"] ?? ""))
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: "No completed eval returned a non-mutating worker fork plan" };
+    : {
+        passed: false,
+        reason: "No completed eval returned a non-mutating worker fork plan",
+      };
 }
 
-function mutationResult(call: InvocationCardPayloadLike): Record<string, unknown> | null {
+function mutationResult(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown> | null {
   if (call.name !== "edit" && call.name !== "write") return null;
   const value = details(call);
-  return value?.["storage"] === "vcs" && isRecord(value["vcsResult"]) ? value["vcsResult"] : null;
+  return value?.["storage"] === "vcs" && isRecord(value["vcsResult"])
+    ? value["vcsResult"]
+    : null;
 }
 
-function commitResult(call: InvocationCardPayloadLike): Record<string, unknown> | null {
-  if (call.name !== "vcs" || call.arguments?.["operation"] !== "commit") return null;
+function commitResult(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown> | null {
+  if (call.name !== "vcs" || call.arguments?.["operation"] !== "commit")
+    return null;
   const value = details(call);
   return value && isRecord(value["result"]) ? value["result"] : value;
 }
@@ -337,13 +398,22 @@ function validateProjectCommit(result: TestExecutionResult) {
       call.execution.isError !== true &&
       String(call.arguments?.["code"] ?? "").includes("createProjects") &&
       returned.present &&
-      walkRecords([returned.value]).some((record) => createdProject(record, "packages"))
+      walkRecords([returned.value]).some((record) =>
+        createdProject(record, "packages"),
+      )
     );
   });
   if (creationIndex < 0) {
-    return { passed: false, reason: "No completed eval returned the created package identity" };
+    return {
+      passed: false,
+      reason: "No completed eval returned the created package identity",
+    };
   }
-  for (let mutationIndex = creationIndex + 1; mutationIndex < calls.length; mutationIndex += 1) {
+  for (
+    let mutationIndex = creationIndex + 1;
+    mutationIndex < calls.length;
+    mutationIndex += 1
+  ) {
     const mutationCall = calls[mutationIndex]!;
     const mutation = mutationResult(mutationCall);
     if (!mutation) continue;
@@ -378,18 +448,21 @@ function validateProjectCommit(result: TestExecutionResult) {
   }
   return {
     passed: false,
-    reason: "The package creation was not followed by an identity-joined managed change and commit",
+    reason:
+      "The package creation was not followed by an identity-joined managed change and commit",
   };
 }
 
-function returnedRecords(call: InvocationCardPayloadLike): Record<string, unknown>[] {
+function returnedRecords(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown>[] {
   const returned = invocationReturnValue(call);
   return returned.present ? walkRecords([returned.value]) : [];
 }
 
 function compilerCheckSummary(
   call: InvocationCardPayloadLike,
-  expectedSource: string
+  expectedSource: string,
 ): Record<string, unknown> | null {
   if (call.name !== "eval") return null;
   const code = String(call.arguments?.["code"] ?? "");
@@ -397,7 +470,9 @@ function compilerCheckSummary(
   if (code.includes("typecheck-service") && code.includes("checkPanel")) {
     return (
       records.find(
-        (record) => typeof record["errorCount"] === "number" && Array.isArray(record["diagnostics"])
+        (record) =>
+          typeof record["errorCount"] === "number" &&
+          Array.isArray(record["diagnostics"]),
       ) ?? null
     );
   }
@@ -407,7 +482,7 @@ function compilerCheckSummary(
       record["repoPath"] === expectedSource &&
       record["kind"] === "panel" &&
       typeof record["status"] === "string" &&
-      Array.isArray(record["builds"])
+      Array.isArray(record["builds"]),
   );
   // A concise projection is still source-bound evidence when the invocation
   // itself passes the exact created panel path to getBuildReport. Requiring the
@@ -421,36 +496,43 @@ function compilerCheckSummary(
         record["kind"] === undefined &&
         typeof record["status"] === "string" &&
         Array.isArray(record["diagnostics"]) &&
-        Array.isArray(record["builds"])
+        Array.isArray(record["builds"]),
     );
   const report = identityBearingReport ?? sourceBoundProjection;
   if (!report) return null;
   const diagnostics = [
     ...(Array.isArray(report["diagnostics"]) ? report["diagnostics"] : []),
-    ...walkRecords(Array.isArray(report["builds"]) ? report["builds"] : []).flatMap((build) =>
-      Array.isArray(build["diagnostics"]) ? build["diagnostics"] : []
+    ...walkRecords(
+      Array.isArray(report["builds"]) ? report["builds"] : [],
+    ).flatMap((build) =>
+      Array.isArray(build["diagnostics"]) ? build["diagnostics"] : [],
     ),
   ].filter(isRecord);
   const compilerErrors = diagnostics.filter(
     (diagnostic) =>
       diagnostic["severity"] === "error" &&
-      (diagnostic["source"] === "tsc" || diagnostic["source"] === "esbuild")
+      (diagnostic["source"] === "tsc" || diagnostic["source"] === "esbuild"),
   );
   if (report["status"] !== "ok" && compilerErrors.length === 0) return null;
   return {
     diagnostics,
     errorCount: compilerErrors.length,
-    warningCount: diagnostics.filter((diagnostic) => diagnostic["severity"] === "warning").length,
+    warningCount: diagnostics.filter(
+      (diagnostic) => diagnostic["severity"] === "warning",
+    ).length,
   };
 }
 
 function successfulPanelBuildSummary(
   call: InvocationCardPayloadLike,
-  expectedSource: string
+  expectedSource: string,
 ): Record<string, unknown> | null {
   if (call.name !== "eval") return null;
   const code = String(call.arguments?.["code"] ?? "");
-  if (!code.includes("openPanel") && !/\.(?:rebuild|reload|navigate)\s*\(/u.test(code)) {
+  if (
+    !code.includes("openPanel") &&
+    !/\.(?:rebuild|reload|navigate)\s*\(/u.test(code)
+  ) {
     return null;
   }
   const ready = returnedRecords(call).find(
@@ -458,14 +540,14 @@ function successfulPanelBuildSummary(
       record["source"] === expectedSource &&
       record["phase"] === "ready" &&
       typeof record["runtimeEntityId"] === "string" &&
-      typeof record["buildKey"] === "string"
+      typeof record["buildKey"] === "string",
   );
   return ready ? { diagnostics: [], errorCount: 0, warningCount: 0 } : null;
 }
 
 function successfulPanelMutation(
   call: InvocationCardPayloadLike,
-  source: string
+  source: string,
 ): Record<string, unknown> | null {
   const path = call.arguments?.["path"];
   if (typeof path !== "string" || !path.startsWith(`${source}/`)) return null;
@@ -481,10 +563,11 @@ function successfulPanelMutation(
 
 function operationResult(
   call: InvocationCardPayloadLike,
-  operation: "push" | "status"
+  operation: "push" | "status",
 ): Record<string, unknown> | null {
   const focused = call.name === operation;
-  const generic = call.name === "vcs" && call.arguments?.["operation"] === operation;
+  const generic =
+    call.name === "vcs" && call.arguments?.["operation"] === operation;
   if (!focused && !generic) return null;
   const value = details(call);
   return value && isRecord(value["result"]) ? value["result"] : value;
@@ -504,64 +587,53 @@ function isInitialPanelInspection(call: InvocationCardPayloadLike): boolean {
   );
 }
 
-function observedEmptyConsoleHistory(call: InvocationCardPayloadLike): boolean {
-  const code = String(call.arguments?.["code"] ?? "");
-  if (!code.includes("consoleHistory")) return false;
-  const records = returnedRecords(call);
-  const returnedHistories = records.filter((record) => Array.isArray(record["errors"]));
-  if (returnedHistories.length > 0) {
-    return returnedHistories.every(
-      (record) => Array.isArray(record["errors"]) && record["errors"].length === 0
-    );
-  }
+function nativePanelOperations(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown>[] {
+  const journal = details(call)?.["operationJournal"];
+  if (
+    !isRecord(journal) ||
+    journal["protocol"] !== "workspace-operations.v1" ||
+    journal["truncated"] !== false ||
+    !Array.isArray(journal["entries"])
+  )
+    return [];
+  return journal["entries"].filter(isRecord);
+}
 
-  // A caller may return an errors array or compact count instead of the complete
-  // history. Only accept it when the eval source proves it was derived from the
-  // canonical consoleHistory result, rather than trusting arbitrary clean data.
-  const historyNames = [
-    ...code.matchAll(
-      /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+[^;\n]*\.consoleHistory\s*\(/gu
-    ),
-  ].map((match) => match[1]!);
-  const returnedEvidenceNames = new Set<string>();
-  for (const historyName of historyNames) {
-    const derivedErrors = `${historyName}\\.errors`;
-    for (const match of code.matchAll(
-      new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*:\\s*${derivedErrors}(?:\\.length)?\\b`, "gu")
-    )) {
-      returnedEvidenceNames.add(match[1]!);
-    }
-    for (const match of code.matchAll(
-      new RegExp(
-        `\\b(?:const|let)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*${derivedErrors}(?:\\.length)?\\b`,
-        "gu"
-      )
-    )) {
-      returnedEvidenceNames.add(match[1]!);
-    }
-  }
-  const returnedEvidence = records.flatMap((record) =>
-    [...returnedEvidenceNames]
-      .filter((name) => Object.hasOwn(record, name))
-      .map((name) => record[name])
-  );
+function cleanConsoleObservation(entry: Record<string, unknown>): boolean {
+  const receipt = entry["receipt"];
   return (
-    returnedEvidence.length > 0 &&
-    returnedEvidence.every((value) => value === 0 || (Array.isArray(value) && value.length === 0))
+    entry["type"] === "consoleHistory" &&
+    isRecord(receipt) &&
+    receipt["errorCoverage"] === "full" &&
+    receipt["errorCount"] === 0 &&
+    receipt["droppedErrors"] === 0 &&
+    typeof receipt["capturedAt"] === "number"
   );
 }
 
-function observedRenderedCapture(call: InvocationCardPayloadLike): boolean {
-  const code = String(call.arguments?.["code"] ?? "");
-  if (/\bscreenshot\s*\(/u.test(code)) return true;
-  if (!/\.snapshot\s*\(/u.test(code)) return false;
-  return returnedRecords(call).some(
-    (record) =>
-      typeof record["panelId"] === "string" &&
-      typeof record["runtimeEntityId"] === "string" &&
-      typeof record["buildKey"] === "string" &&
-      typeof record["capturedAt"] === "number" &&
-      isRecord(record["document"])
+function renderedCaptureObservation(entry: Record<string, unknown>): boolean {
+  const receipt = entry["receipt"];
+  if (
+    typeof entry["id"] !== "string" ||
+    !isRecord(receipt) ||
+    typeof receipt["capturedAt"] !== "number"
+  )
+    return false;
+  if (entry["type"] === "screenshot")
+    return (
+      (receipt["mimeType"] === "image/png" ||
+        receipt["mimeType"] === "image/jpeg") &&
+      typeof receipt["byteSize"] === "number" &&
+      receipt["byteSize"] > 0
+    );
+  return (
+    entry["type"] === "snapshot" &&
+    receipt["panelId"] === entry["id"] &&
+    typeof receipt["runtimeEntityId"] === "string" &&
+    typeof receipt["buildKey"] === "string" &&
+    receipt["documentKind"] === "synth"
   );
 }
 
@@ -575,87 +647,112 @@ function isSuccessfulImageRead(call: InvocationCardPayloadLike): boolean {
     typeof value["mimeType"] === "string" &&
     value["mimeType"].startsWith("image/") &&
     typeof value["size"] === "number" &&
-    value["size"] > 0
+    value["size"] > 0,
   );
 }
 
 function completeTodoRuntimeVerificationIndex(
   calls: readonly InvocationCardPayloadLike[],
-  fromIndex: number
+  fromIndex: number,
+  expectedSource: string,
 ): number {
+  const openedPanels = new Set(
+    calls
+      .flatMap(nativePanelOperations)
+      .filter(
+        (entry) =>
+          entry["type"] === "open" &&
+          entry["source"] === expectedSource &&
+          typeof entry["id"] === "string",
+      )
+      .map((entry) => entry["id"] as string),
+  );
+  const states = new Map<
+    string,
+    {
+      reload: number;
+      interaction: number;
+      capture: number;
+      console: number;
+      clean: boolean;
+      index: number;
+    }
+  >();
   let code = "";
-  let cleanConsoleObserved = false;
-  let renderedCaptureObserved = false;
-  let addedTaskObserved = false;
-  let completedAndDeletedObserved = false;
-  let filterObserved = false;
+  let step = 0;
   for (let index = fromIndex; index < calls.length; index += 1) {
     const call = calls[index]!;
     if (
       call.name !== "eval" ||
       call.execution?.status !== "complete" ||
       call.execution.isError === true
-    ) {
+    )
       continue;
-    }
-    const callCode = String(call.arguments?.["code"] ?? "");
-    code += `\n${callCode}`;
-    if (observedEmptyConsoleHistory(call)) {
-      cleanConsoleObserved = true;
-    }
-    if (observedRenderedCapture(call)) {
-      renderedCaptureObserved = true;
-    }
-    for (const record of returnedRecords(call)) {
-      if (
-        typeof record["storageLen"] === "number" &&
-        record["storageLen"] > 0 &&
-        Array.isArray(record["titles"]) &&
-        record["titles"].length > 0 &&
-        record["hasError"] === false
-      ) {
-        addedTaskObserved = true;
+    const journal = details(call)?.["operationJournal"];
+    if (isRecord(journal) && journal["truncated"] === true) return -1;
+    code += `\n${String(call.arguments?.["code"] ?? "")}`;
+    for (const entry of nativePanelOperations(call)) {
+      step += 1;
+      const id = entry["id"];
+      if (typeof id !== "string" || !openedPanels.has(id)) continue;
+      const state = states.get(id) ?? {
+        reload: 0,
+        interaction: 0,
+        capture: 0,
+        console: 0,
+        clean: false,
+        index: -1,
+      };
+      const receipt = entry["receipt"];
+      if (entry["type"] === "reload") {
+        state.reload = step;
+        state.clean = false;
       }
       if (
-        isRecord(record["completeResult"]) &&
-        isRecord(record["clearCompleted"]) &&
-        record["storageCount"] === 0
+        entry["type"] === "interaction" &&
+        isRecord(receipt) &&
+        receipt["protocol"] === "cdp-interaction-outcome.v1" &&
+        receipt["delivery"] === "dispatched" &&
+        isRecord(receipt["target"])
       ) {
-        completedAndDeletedObserved = true;
+        state.interaction = step;
+        state.clean = false;
       }
-      if (isRecord(record["afterSearch"]) && isRecord(record["afterStatus"])) {
-        filterObserved = true;
+      if (renderedCaptureObservation(entry)) state.capture = step;
+      if (entry["type"] === "consoleHistory" && isRecord(receipt)) {
+        state.console = step;
+        state.clean = cleanConsoleObservation(entry);
       }
-    }
-    const lower = code.toLowerCase();
-    if (
-      /\.cdp\.page\s*\(/u.test(code) &&
-      renderedCaptureObserved &&
-      addedTaskObserved &&
-      completedAndDeletedObserved &&
-      filterObserved &&
-      cleanConsoleObserved
-    ) {
-      return index;
-    }
-    if (
-      /\.cdp\.page\s*\(/u.test(code) &&
-      renderedCaptureObserved &&
-      /\.(?:fill|type|press)\s*\(/u.test(code) &&
-      /\.click\s*\(/u.test(code) &&
-      /\.(?:evaluate|textContent|innerText|locator)\s*\(/u.test(code) &&
-      /\.(?:rebuild|reload)\s*\(/u.test(code) &&
-      /\b(?:filter|active|completed)\b/u.test(lower) &&
-      /\b(?:delete|remove)\b/u.test(lower) &&
-      cleanConsoleObserved
-    ) {
-      return index;
+      state.index = index;
+      states.set(id, state);
     }
   }
-  return -1;
+  const lower = code.toLowerCase();
+  if (
+    !/\.(?:fill|type|press)\s*\(/u.test(code) ||
+    !/\.click\s*\(/u.test(code) ||
+    !/\.(?:evaluate|textContent|innerText|locator)\s*\(/u.test(code) ||
+    !/\b(?:filter|active|completed)\b/u.test(lower) ||
+    !/\b(?:delete|remove)\b/u.test(lower)
+  )
+    return -1;
+  const verified = [...states.values()].filter(
+    (state) =>
+      state.reload > 0 &&
+      state.interaction > 0 &&
+      state.capture > Math.max(state.reload, state.interaction) &&
+      state.console > Math.max(state.reload, state.interaction) &&
+      state.clean,
+  );
+  return verified.length
+    ? Math.max(...verified.map((state) => state.index))
+    : -1;
 }
 
-function hasCleanPanelBuild(call: InvocationCardPayloadLike, expectedSource: string): boolean {
+function hasCleanPanelBuild(
+  call: InvocationCardPayloadLike,
+  expectedSource: string,
+): boolean {
   if (
     call.name === "verify" &&
     call.arguments?.["operation"] === "build" &&
@@ -693,7 +790,9 @@ function validateTaskManagementApp(result: TestExecutionResult) {
   let source = "";
   for (const [index, call] of calls.entries()) {
     if (call.name !== "eval") continue;
-    const created = returnedRecords(call).find((record) => createdProject(record, "panels"));
+    const created = returnedRecords(call).find((record) =>
+      createdProject(record, "panels"),
+    );
     if (created && typeof created["created"] === "string") {
       creationIndex = index;
       source = created["created"];
@@ -703,21 +802,27 @@ function validateTaskManagementApp(result: TestExecutionResult) {
   if (creationIndex < 0) {
     return {
       passed: false,
-      reason: "No completed eval returned the published task-management panel identity",
+      reason:
+        "No completed eval returned the published task-management panel identity",
     };
   }
 
   const cleanBuildIndex = calls.findIndex(
-    (call, index) => index > creationIndex && hasCleanPanelBuild(call, source)
+    (call, index) => index > creationIndex && hasCleanPanelBuild(call, source),
   );
   if (cleanBuildIndex < 0) {
     return {
       passed: false,
-      reason: "The task-management panel never produced a clean exact build receipt",
+      reason:
+        "The task-management panel never produced a clean exact build receipt",
     };
   }
 
-  const runtimeIndex = completeTodoRuntimeVerificationIndex(calls, cleanBuildIndex);
+  const runtimeIndex = completeTodoRuntimeVerificationIndex(
+    calls,
+    cleanBuildIndex,
+    source,
+  );
   if (runtimeIndex < 0) {
     return {
       passed: false,
@@ -735,7 +840,8 @@ function validateTaskManagementApp(result: TestExecutionResult) {
   ) {
     return {
       passed: false,
-      reason: "The final response did not report the built, launched, and debugged app evidence",
+      reason:
+        "The final response did not report the built, launched, and debugged app evidence",
     };
   }
   return { passed: true, reason: undefined };
@@ -776,24 +882,31 @@ function validateAtomicPanelStore(result: TestExecutionResult) {
   const config = isRecord(configValue) ? configValue : null;
   const panelUnit = units.find((unit) => unit["source"] === panelPath);
   const storeUnit = units.find((unit) => unit["source"] === storePath);
-  const services = config && Array.isArray(config["services"])
-    ? config["services"].filter(isRecord)
-    : [];
-  const service = services.find((candidate) => candidate["source"] === storePath);
+  const services =
+    config && Array.isArray(config["services"])
+      ? config["services"].filter(isRecord)
+      : [];
+  const service = services.find(
+    (candidate) => candidate["source"] === storePath,
+  );
   const serviceAuthorityValue = service?.["authority"];
-  const serviceAuthority = isRecord(serviceAuthorityValue) ? serviceAuthorityValue : null;
+  const serviceAuthority = isRecord(serviceAuthorityValue)
+    ? serviceAuthorityValue
+    : null;
   const binding = serviceAuthority?.["binding"];
-  const singletonObjects = config && Array.isArray(config["singletonObjects"])
-    ? config["singletonObjects"].filter(isRecord)
-    : [];
+  const singletonObjects =
+    config && Array.isArray(config["singletonObjects"])
+      ? config["singletonObjects"].filter(isRecord)
+      : [];
   const singleton = singletonObjects.find(
-    (candidate) => candidate["source"] === storePath
+    (candidate) => candidate["source"] === storePath,
   );
   const serviceName = service?.["name"];
   const expectedCapability =
     typeof serviceName === "string" ? `workspace-service:${serviceName}` : null;
   const expectedResource =
-    typeof singleton?.["className"] === "string" && typeof singleton["key"] === "string"
+    typeof singleton?.["className"] === "string" &&
+    typeof singleton["key"] === "string"
       ? `do:${storePath}:${singleton["className"]}:${singleton["key"]}`
       : null;
   const panelEffectiveVersion = panelUnit?.["effectiveVersion"];
@@ -802,7 +915,9 @@ function validateAtomicPanelStore(result: TestExecutionResult) {
     : [];
   const declaredRow = authorityRows.find((row) => {
     const resourceScopeValue = row["resourceScope"];
-    const resourceScope = isRecord(resourceScopeValue) ? resourceScopeValue : null;
+    const resourceScope = isRecord(resourceScopeValue)
+      ? resourceScopeValue
+      : null;
     return (
       row["capability"] === expectedCapability &&
       resourceScope?.["kind"] === "exact" &&
@@ -810,27 +925,26 @@ function validateAtomicPanelStore(result: TestExecutionResult) {
       row["statement"] === "declared"
     );
   });
-  const grant = permissions.filter(isRecord).find(
-    (record) => {
-      const authorityValue = record["authority"];
-      const authority = isRecord(authorityValue) ? authorityValue : null;
-      const resourceValue = authority?.["resource"];
-      const resource = isRecord(resourceValue) ? resourceValue : null;
-      return (
-        record["kind"] === "capability" &&
-        record["repoPath"] === panelPath &&
-        record["effectiveVersion"] === panelEffectiveVersion &&
-        authority?.["effect"] === "allow" &&
-        authority["provenance"] === "install" &&
-        authority["scope"] === "version" &&
-        authority["decisionSurface"] === "publication" &&
-        authority["subject"] === `code:${panelPath}@${String(panelEffectiveVersion)}` &&
-        authority["capability"] === expectedCapability &&
-        resource?.["kind"] === "exact" &&
-        resource["key"] === expectedResource
-      );
-    }
-  );
+  const grant = permissions.filter(isRecord).find((record) => {
+    const authorityValue = record["authority"];
+    const authority = isRecord(authorityValue) ? authorityValue : null;
+    const resourceValue = authority?.["resource"];
+    const resource = isRecord(resourceValue) ? resourceValue : null;
+    return (
+      record["kind"] === "capability" &&
+      record["repoPath"] === panelPath &&
+      record["effectiveVersion"] === panelEffectiveVersion &&
+      authority?.["effect"] === "allow" &&
+      authority["provenance"] === "install" &&
+      authority["scope"] === "version" &&
+      authority["decisionSurface"] === "publication" &&
+      authority["subject"] ===
+        `code:${panelPath}@${String(panelEffectiveVersion)}` &&
+      authority["capability"] === expectedCapability &&
+      resource?.["kind"] === "exact" &&
+      resource["key"] === expectedResource
+    );
+  });
   if (!grant) {
     return {
       passed: false,
@@ -838,12 +952,16 @@ function validateAtomicPanelStore(result: TestExecutionResult) {
         "No exact version-scoped install permission was independently observed before panel open",
     };
   }
-  const permissionsAfterReload = Array.isArray(captured["permissionsAfterReload"])
+  const permissionsAfterReload = Array.isArray(
+    captured["permissionsAfterReload"],
+  )
     ? captured["permissionsAfterReload"].filter(isRecord)
     : [];
   if (
     permissionsAfterReload.some((record) => {
-      const authority = isRecord(record["authority"]) ? record["authority"] : null;
+      const authority = isRecord(record["authority"])
+        ? record["authority"]
+        : null;
       return (
         authority?.["capability"] === expectedCapability &&
         authority["provenance"] === "acquisition"
@@ -852,12 +970,14 @@ function validateAtomicPanelStore(result: TestExecutionResult) {
   ) {
     return {
       passed: false,
-      reason: "The first panel use acquired a runtime grant after publication clearance",
+      reason:
+        "The first panel use acquired a runtime grant after publication clearance",
     };
   }
   const declaredFor = isRecord(binding) ? binding["declaredFor"] : null;
   const declaredBinding =
-    binding === "declared" || (Array.isArray(declaredFor) && declaredFor.includes(panelPath));
+    binding === "declared" ||
+    (Array.isArray(declaredFor) && declaredFor.includes(panelPath));
   if (
     !panelUnit ||
     panelUnit["kind"] !== "panel" ||
@@ -909,10 +1029,12 @@ function validateAtomicPanelStore(result: TestExecutionResult) {
 }
 
 async function orchestrateAtomicPanelStore(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
-  let handle: Awaited<ReturnType<typeof context.runner.openPanelClient>> | null = null;
+  let handle: Awaited<
+    ReturnType<typeof context.runner.openPanelClient>
+  > | null = null;
   let error: string | undefined;
   let failure: SystemTestFailure | undefined;
   let captured: Record<string, unknown> = { source: "system-test-harness" };
@@ -920,7 +1042,8 @@ async function orchestrateAtomicPanelStore(
     const publication = await context.runner.publishAtomicPanelStoreFixture();
     const { panelPath, storePath } = publication;
 
-    const installedBeforeOpen = await context.runner.inspectInstalledWorkspace();
+    const installedBeforeOpen =
+      await context.runner.inspectInstalledWorkspace();
     const permissionsBeforeOpen = await context.runner.listPermissions();
     handle = await context.runner.openPanelClient(panelPath, {
       parentId: null,
@@ -934,7 +1057,7 @@ async function orchestrateAtomicPanelStore(
     while (Date.now() < controlsDeadline) {
       controlsReady = await context.runner.evalInPanelClient<boolean>(
         handle,
-        `document.querySelector('[data-testid="note-input"]') instanceof HTMLInputElement && document.querySelector('[data-testid="save-note"]') instanceof HTMLElement`
+        `document.querySelector('[data-testid="note-input"]') instanceof HTMLInputElement && document.querySelector('[data-testid="save-note"]') instanceof HTMLElement`,
       );
       if (controlsReady) break;
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -952,16 +1075,16 @@ async function orchestrateAtomicPanelStore(
     }
     await context.runner.evalInPanelClient(
       handle,
-      `(() => { const input = document.querySelector('[data-testid="note-input"]'); if (!(input instanceof HTMLInputElement)) throw new Error('note input missing'); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set; setter?.call(input, ${JSON.stringify(written)}); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return input.value; })()`
+      `(() => { const input = document.querySelector('[data-testid="note-input"]'); if (!(input instanceof HTMLInputElement)) throw new Error('note input missing'); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set; setter?.call(input, ${JSON.stringify(written)}); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return input.value; })()`,
     );
     await context.runner.evalInPanelClient(
       handle,
-      `(() => { const save = document.querySelector('[data-testid="save-note"]'); if (!(save instanceof HTMLElement)) throw new Error('save control missing'); save.click(); return true; })()`
+      `(() => { const save = document.querySelector('[data-testid="save-note"]'); if (!(save instanceof HTMLElement)) throw new Error('save control missing'); save.click(); return true; })()`,
     );
     const readStored = () =>
       context.runner.evalInPanelClient<string>(
         handle!,
-        `document.querySelector('[data-testid="stored-note"]')?.textContent?.trim() ?? ''`
+        `document.querySelector('[data-testid="stored-note"]')?.textContent?.trim() ?? ''`,
       );
     const waitForStored = async () => {
       const deadline = Date.now() + 10_000;
@@ -1010,8 +1133,12 @@ async function orchestrateAtomicPanelStore(
   try {
     await handle?.archive();
   } catch (cause) {
-    execution.cleanupErrors = [`archive: ${cause instanceof Error ? cause.message : String(cause)}`];
-    execution.cleanupFailures = [systemTestFailure("atomic-panel-store-archive", cause)];
+    execution.cleanupErrors = [
+      `archive: ${cause instanceof Error ? cause.message : String(cause)}`,
+    ];
+    execution.cleanupFailures = [
+      systemTestFailure("atomic-panel-store-archive", cause),
+    ];
   }
   return execution;
 }
@@ -1025,7 +1152,9 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
   let source = "";
   for (const [index, call] of calls.entries()) {
     if (call.name !== "eval") continue;
-    const created = returnedRecords(call).find((record) => createdProject(record, "panels"));
+    const created = returnedRecords(call).find((record) =>
+      createdProject(record, "panels"),
+    );
     if (created && typeof created["created"] === "string") {
       creationIndex = index;
       source = created["created"];
@@ -1033,11 +1162,15 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
     }
   }
   if (creationIndex < 0) {
-    return { passed: false, reason: "No completed eval returned the created To-Do panel identity" };
+    return {
+      passed: false,
+      reason: "No completed eval returned the created To-Do panel identity",
+    };
   }
 
   const brokenTypecheckIndex = calls.findIndex((call, index) => {
-    const summary = index > creationIndex ? compilerCheckSummary(call, source) : null;
+    const summary =
+      index > creationIndex ? compilerCheckSummary(call, source) : null;
     return summary !== null && Number(summary["errorCount"]) > 0;
   });
   if (brokenTypecheckIndex < 0) {
@@ -1060,24 +1193,28 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
   const firstCleanTypecheckIndex = calls.findIndex((call, index) => {
     const summary =
       index > brokenTypecheckIndex
-        ? (compilerCheckSummary(call, source) ?? successfulPanelBuildSummary(call, source))
+        ? (compilerCheckSummary(call, source) ??
+          successfulPanelBuildSummary(call, source))
         : null;
     return summary !== null && summary["errorCount"] === 0;
   });
   if (firstCleanTypecheckIndex < 0) {
     return {
       passed: false,
-      reason: "No later clean compile/build result proved that the compiler defect was repaired",
+      reason:
+        "No later clean compile/build result proved that the compiler defect was repaired",
     };
   }
 
   const firstInspectionIndex = calls.findIndex(
-    (call, index) => index >= firstCleanTypecheckIndex && isInitialPanelInspection(call)
+    (call, index) =>
+      index >= firstCleanTypecheckIndex && isInitialPanelInspection(call),
   );
   if (firstInspectionIndex < 0) {
     return {
       passed: false,
-      reason: "The compile-clean panel was not launched and inspected before UX repair",
+      reason:
+        "The compile-clean panel was not launched and inspected before UX repair",
     };
   }
 
@@ -1094,7 +1231,8 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
   if (uxMutationIndex < 0) {
     return {
       passed: false,
-      reason: "No managed source edit repaired the UX after inspecting the running panel",
+      reason:
+        "No managed source edit repaired the UX after inspecting the running panel",
     };
   }
   const flawedPanelImageRead = calls
@@ -1111,7 +1249,8 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
   const finalCleanTypecheckIndex = calls.findIndex((call, index) => {
     const summary =
       index > uxMutationIndex
-        ? (compilerCheckSummary(call, source) ?? successfulPanelBuildSummary(call, source))
+        ? (compilerCheckSummary(call, source) ??
+          successfulPanelBuildSummary(call, source))
         : null;
     return summary !== null && summary["errorCount"] === 0;
   });
@@ -1122,7 +1261,11 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
     };
   }
 
-  const finalRuntimeIndex = completeTodoRuntimeVerificationIndex(calls, finalCleanTypecheckIndex);
+  const finalRuntimeIndex = completeTodoRuntimeVerificationIndex(
+    calls,
+    finalCleanTypecheckIndex,
+    source,
+  );
   if (finalRuntimeIndex < 0) {
     return {
       passed: false,
@@ -1130,7 +1273,9 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
         "No final live-panel verification rebuilt the same panel, exercised add/complete/filter/delete behavior, captured the UI, and returned an empty console error list",
     };
   }
-  const repairedPanelImageRead = calls.slice(uxMutationIndex + 1).some(isSuccessfulImageRead);
+  const repairedPanelImageRead = calls
+    .slice(uxMutationIndex + 1)
+    .some(isSuccessfulImageRead);
   if (!repairedPanelImageRead) {
     return {
       passed: false,
@@ -1154,7 +1299,10 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
     }
     for (let pushIndex = index + 1; pushIndex < calls.length; pushIndex += 1) {
       const pushed = operationResult(calls[pushIndex]!, "push");
-      if (pushed?.["eventId"] === event["eventId"] && pushed["mainEventId"] === event["eventId"]) {
+      if (
+        pushed?.["eventId"] === event["eventId"] &&
+        pushed["mainEventId"] === event["eventId"]
+      ) {
         publishedEventId = event["eventId"];
         break;
       }
@@ -1164,7 +1312,8 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
   if (!publishedEventId) {
     return {
       passed: false,
-      reason: "The exact UX-repair application was not joined to a committed and published event",
+      reason:
+        "The exact UX-repair application was not joined to a committed and published event",
     };
   }
 
@@ -1189,14 +1338,17 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Create and open a new panel project",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
-    authorityPolicy: panelControlAuthorityPolicy("inspect-created-project-panel"),
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-created-project-panel",
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: "Create a brand-new isolated panel project and open it for use.",
     validate: validatePanelCreate,
   },
   {
     name: "panel-curated-icon-build-open",
-    description: "Discover a supported icon, then create, build, and open a panel",
+    description:
+      "Discover a supported icon, then create, build, and open a panel",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     authorityPolicy: panelControlAuthorityPolicy("inspect-curated-icon-panel"),
@@ -1210,27 +1362,32 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Fork and open a panel project",
     category: "project-lifecycle",
     workspaceRepoFixture: BUILDABLE_PANEL_WITH_DERIVED_WORKSPACE_REPO_FIXTURE,
-    authorityPolicy: panelControlAuthorityPolicy("inspect-forked-project-panel", [
-      // Forking is the capability under test, so the case policy has to carry
-      // it: without the grant the fork prompts, the unattended harness has no
-      // approver, and the scenario fails on its own subject.
-      {
-        ruleId: "fork-panel-semantic-context",
-        capability: { kind: "exact", key: "context.semantic.fork" },
-        resource: { kind: "prefix", prefix: "" },
-        tier: "gated",
-        decision: "once",
-      },
-    ]),
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-forked-project-panel",
+      [
+        // Forking is the capability under test, so the case policy has to carry
+        // it: without the grant the fork prompts, the unattended harness has no
+        // approver, and the scenario fails on its own subject.
+        {
+          ruleId: "fork-panel-semantic-context",
+          capability: { kind: "exact", key: "context.semantic.fork" },
+          resource: { kind: "prefix", prefix: "" },
+          tier: "gated",
+          decision: "once",
+        },
+      ],
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
-    prompt: "Fork the existing panel into a new isolated panel and open the result.",
+    prompt:
+      "Review a dry-run plan and create a separate panel project derived from the provided panel source. Keep the original project unchanged, then open and verify the new panel.",
     validate: validatePanelFork,
   },
   {
     name: "worker-fork-classmap-dry-run",
     description: "Dry-run a worker fork",
     category: "project-lifecycle",
-    prompt: "Perform and verify a safe isolated dry run of an existing worker fork.",
+    prompt:
+      "Perform and verify a safe isolated dry run of an existing worker fork.",
     validate: validateWorkerForkPlan,
   },
   {
@@ -1255,11 +1412,14 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Build, launch, and debug a full-featured task-management app",
     category: "project-lifecycle",
     timeoutMs: 45 * 60_000,
-    workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
-    authorityPolicy: panelControlAuthorityPolicy("inspect-task-management-panel"),
+    workspaceRepoFixture: CREATED_PANEL_STORE_WORKSPACE_REPO_FIXTURE,
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-task-management-panel",
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
-    prompt: "Build me a full-featured task management app, then launch and debug it.",
-    validation: "agent-evidence",
+    prompt:
+      "Build me a full-featured task management app, then launch and debug it.",
+
     validate: validateTaskManagementApp,
   },
   {
@@ -1279,14 +1439,16 @@ export const projectLifecycleTests: TestCase[] = [
       },
     ]),
     resources: [PANEL_AUTOMATION_RESOURCE],
-    prompt: "Harness-orchestrated atomic panel/store publication and live UI persistence check.",
+    prompt:
+      "Harness-orchestrated atomic panel/store publication and live UI persistence check.",
     orchestrate: orchestrateAtomicPanelStore,
     validation: "harness",
     validate: validateAtomicPanelStore,
   },
   {
     name: "panel-todo-debug-polish",
-    description: "Build, debug, polish, and publish a To-Do panel through the live UI",
+    description:
+      "Build, debug, polish, and publish a To-Do panel through the live UI",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     authorityPolicy: panelControlAuthorityPolicy("inspect-created-panel", [

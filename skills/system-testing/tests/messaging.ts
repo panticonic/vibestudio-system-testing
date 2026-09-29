@@ -55,7 +55,7 @@ export const messagingTests: TestCase[] = [
     description:
       "An agent told to reach a participant who is not present reports it, and does not broadcast instead",
     category: "messaging",
-    validation: "agent-evidence",
+
     // The refusal is the point of the case, not an infrastructure defect.
     expectedToolFailures: [{ name: "notify" }],
     prompt:
@@ -124,7 +124,7 @@ export const messagingTests: TestCase[] = [
     name: "addressees-are-enumerable",
     description: "An agent can answer who it is able to message here, in the form it would use",
     category: "messaging",
-    validation: "agent-evidence",
+
     prompt:
       "Who can you send a message to in this conversation right now? For each one, show me the " +
       "exact form you would use to address them.",
@@ -163,7 +163,7 @@ export const messagingTests: TestCase[] = [
     name: "steer-a-running-child",
     description: "A supervisor corrects a live child by messaging it rather than polling it",
     category: "messaging",
-    validation: "agent-evidence",
+
     timeoutMs: 600_000,
     prompt:
       "Delegate to a subagent to count the markdown files under the skills directory in the background. " +

@@ -134,7 +134,9 @@ export interface SystemTestRpcFaultEvidence {
 export interface SelfDevelopmentRepository {
   contextId: string;
   repositoryId: string;
-  repoPath: "projects/vibestudio" | "projects/vibestudio-base";
+  repoPath:
+    | "projects/vibestudio"
+    | `projects/vibestudio-${"base" | "personal" | "system"}`;
   workingHead: VcsStateNodeRef;
 }
 
@@ -260,6 +262,10 @@ export class HeadlessRunner {
   private readonly workspaceRepoFixtureLifecycle: WorkspaceRepoFixtureLifecycle | null;
   private readonly testAuthorityPolicy: AgentExecutionTestPolicySpec | null;
   private developmentTargetPromise: Promise<string> | null = null;
+  private readonly ownedDevelopmentSessions = new Set<string>();
+  private readonly developmentAdmissions = new Set<Promise<unknown>>();
+  private readonly ownedDevelopmentRuns = new Map<string, Set<string>>();
+  private developmentSessionAdmissionClosed = false;
   private fixtureForkOwnerPromise: Promise<string> | null = null;
   private readonly sessionRpcFaultEvidence = new WeakMap<
     HeadlessSession,
@@ -1124,9 +1130,11 @@ export class HeadlessRunner {
     };
   }
 
-  async resolveSelfDevelopmentBaseRepository(): Promise<SelfDevelopmentRepository> {
+  async resolveSelfDevelopmentTemplateRepository(
+    role: "base" | "personal" | "system",
+  ): Promise<SelfDevelopmentRepository> {
     const status = await vcs.status({ contextId: this.contextId });
-    const repoPath = "projects/vibestudio-base" as const;
+    const repoPath = `projects/vibestudio-${role}` as const;
     const repository = await vcs.resolveRepository({
       state: status.workingHead,
       repoPath,
@@ -1136,7 +1144,7 @@ export class HeadlessRunner {
         new Error(
           `Self-development prerequisite unavailable: ${repoPath} is not adopted in the harness context`,
         ),
-        { code: "ESELFDEVELOPMENT_BASE_REPOSITORY" },
+        { code: "ESELFDEVELOPMENT_TEMPLATE_REPOSITORY" },
       );
     }
     return {
@@ -1175,6 +1183,17 @@ export class HeadlessRunner {
       | "closeSession",
     input?: unknown,
   ): Promise<T> {
+    const admitsWork = [
+      "openSession",
+      "start",
+      "retry",
+      "checkpoint",
+      "writeNativeTerminal",
+      "faultFailBuildAfterSnapshotRetained",
+    ].includes(method);
+    if (admitsWork && this.developmentSessionAdmissionClosed) {
+      throw new Error("The test's development resource lifetime has ended");
+    }
     this.developmentTargetPromise ??= workers
       .resolveService("vibestudio.development.v1")
       .then((service) => {
@@ -1190,7 +1209,95 @@ export class HeadlessRunner {
         throw error;
       });
     const targetId = await this.developmentTargetPromise;
-    return rpc.call<T>(targetId, method, input === undefined ? [] : [input]);
+    if (admitsWork && this.developmentSessionAdmissionClosed) {
+      throw new Error("The test's development resource lifetime has ended");
+    }
+    const call = rpc
+      .call<T>(targetId, method, input === undefined ? [] : [input])
+      .then((result) => {
+        if (method === "openSession") {
+          const opened = result as {
+            kind?: string;
+            session?: { sessionId?: string };
+          };
+          if (opened.kind === "opened" && opened.session?.sessionId)
+            this.ownedDevelopmentSessions.add(opened.session.sessionId);
+        } else if (method === "start") {
+          const started = result as { runId: string };
+          const sessionId = (input as { sessionId: string }).sessionId;
+          const runs =
+            this.ownedDevelopmentRuns.get(sessionId) ?? new Set<string>();
+          runs.add(started.runId);
+          this.ownedDevelopmentRuns.set(sessionId, runs);
+        } else if (method === "closeSession") {
+          const closed = result as { state?: string; sessionId?: string };
+          if (closed.state === "closed" && closed.sessionId) {
+            this.ownedDevelopmentSessions.delete(closed.sessionId);
+            this.ownedDevelopmentRuns.delete(closed.sessionId);
+          }
+        }
+        return result;
+      });
+    if (admitsWork) this.developmentAdmissions.add(call);
+    try {
+      return await call;
+    } finally {
+      this.developmentAdmissions.delete(call);
+    }
+  }
+
+  /** A test's terminal state includes retirement of every development session it opened. */
+  async closeOwnedDevelopmentSessions(): Promise<
+    Array<{ sessionId: string; runs: unknown[]; session: unknown }>
+  > {
+    this.developmentSessionAdmissionClosed = true;
+    await Promise.allSettled([...this.developmentAdmissions]);
+    const outcomes = [];
+    const failures: unknown[] = [];
+    for (const sessionId of this.ownedDevelopmentSessions) {
+      let before: { runs: Array<{ runId: string }> } = { runs: [] };
+      try {
+        before = await this.callSelfDevelopment("list", {
+          sessionId,
+          limit: 200,
+        });
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        const runIds = new Set([
+          ...before.runs.map((run) => run.runId),
+          ...(this.ownedDevelopmentRuns.get(sessionId) ?? []),
+        ]);
+        for (const runId of runIds)
+          await this.callSelfDevelopment("stop", {
+            runId,
+            idempotencyKey: `system-test-owner-stop-${runId}`,
+          });
+        const session = await this.callSelfDevelopment<{ state: string }>(
+          "closeSession",
+          { sessionId, idempotencyKey: `system-test-owner-close-${sessionId}` },
+        );
+        const runs = await Promise.all(
+          [...runIds].map((runId) =>
+            this.callSelfDevelopment("get", { runId }),
+          ),
+        );
+        outcomes.push({ sessionId, runs, session });
+        if (session.state !== "closed")
+          throw new Error(
+            `Development session ${sessionId} did not close: ${JSON.stringify(session)}`,
+          );
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length)
+      throw new AggregateError(
+        failures,
+        "Owned development session cleanup failed",
+      );
+    return outcomes;
   }
 
   /** Invoke the owner-scoped ordinary attached-host client surface. */

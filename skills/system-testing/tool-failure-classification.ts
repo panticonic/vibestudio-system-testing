@@ -22,12 +22,12 @@ export function isPreExecutionArgumentRejection(...values: unknown[]): boolean {
 }
 
 /**
- * Read-only discovery tools may reject a path after dispatch when the runtime
- * path policy has the authoritative workspace view. The typed failure proves
- * that no effect was attempted and directs the agent to correct its input.
+ * Discovery and verification may reject a request after dispatch when the
+ * runtime has the authoritative workspace view. The typed failure proves
+ * that no requested execution began and directs the agent to correct its input.
  */
-export function isReadOnlyInputRejection(toolName: string, ...values: unknown[]): boolean {
-  if (!new Set(["read", "ls", "grep", "find", "glob", "stat"]).has(toolName)) return false;
+export function isCorrectableToolInputRejection(toolName: string, ...values: unknown[]): boolean {
+  if (!new Set(["read", "ls", "grep", "find", "glob", "stat", "verify"]).has(toolName)) return false;
   return values.some((value) => {
     let rendered: unknown;
     try {
@@ -173,7 +173,7 @@ export function classifyBuiltInToolFailure(input: {
   if (isPreExecutionArgumentRejection(input.error, input.result, input.description)) {
     return "argument-rejection";
   }
-  if (isReadOnlyInputRejection(input.name, input.error, input.result, input.description)) {
+  if (isCorrectableToolInputRejection(input.name, input.error, input.result, input.description)) {
     return "argument-rejection";
   }
   if (

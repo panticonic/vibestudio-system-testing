@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isGuestCodeFailure,
   isPreExecutionArgumentRejection,
-  isReadOnlyInputRejection,
+  isCorrectableToolInputRejection,
   isSafeEvalDomainRejection,
   isSafeProvenanceDomainRejection,
   isSafeSubagentDomainRejection,
@@ -40,9 +40,14 @@ describe("tool failure classification", () => {
         },
       },
     };
-    expect(isReadOnlyInputRejection("read", failure)).toBe(true);
-    expect(isReadOnlyInputRejection("write", failure)).toBe(false);
-    expect(isReadOnlyInputRejection("read", undefined, Symbol("missing"))).toBe(false);
+    expect(isCorrectableToolInputRejection("read", failure)).toBe(true);
+    expect(isCorrectableToolInputRejection("verify", failure)).toBe(true);
+    expect(isCorrectableToolInputRejection("verify", {
+      details: { failure: { protocol: "agent-tool-failure.v1", kind: "infrastructure", retry: { policy: "none" } } },
+    })).toBe(false);
+    expect(isCorrectableToolInputRejection("verify", "no_test_files")).toBe(false);
+    expect(isCorrectableToolInputRejection("write", failure)).toBe(false);
+    expect(isCorrectableToolInputRejection("read", undefined, Symbol("missing"))).toBe(false);
   });
 
   it("keeps an exact-root provenance miss diagnostic-only", () => {

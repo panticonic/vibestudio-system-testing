@@ -6,15 +6,27 @@ import {
 } from "./workspace-repo-fixture.js";
 
 const BUILDABLE = { kind: "buildable-package", section: "packages" } as const;
-const BUILDABLE_EXTENSION = { kind: "buildable-extension", section: "extensions" } as const;
+const BUILDABLE_EXTENSION = {
+  kind: "buildable-extension",
+  section: "extensions",
+} as const;
 const BUILDABLE_APP = { kind: "buildable-app", section: "apps" } as const;
-const OPTIMIZABLE_PANEL = { kind: "optimizable-panel", section: "panels" } as const;
-const BUILDABLE_WORKER = { kind: "buildable-worker", section: "workers" } as const;
+const OPTIMIZABLE_PANEL = {
+  kind: "optimizable-panel",
+  section: "panels",
+} as const;
+const BUILDABLE_WORKER = {
+  kind: "buildable-worker",
+  section: "workers",
+} as const;
 const BUILDABLE_REGULAR_WORKER = {
   kind: "buildable-regular-worker",
   section: "workers",
 } as const;
-const CREATED_PANEL = { kind: "created-repository", section: "panels" } as const;
+const CREATED_PANEL = {
+  kind: "created-repository",
+  section: "panels",
+} as const;
 const CREATED_PANEL_STORE = {
   kind: "created-repositories",
   section: "panels",
@@ -25,7 +37,10 @@ const PANEL_WITH_DERIVED = {
   section: "panels",
 } as const;
 const CONTENT = { kind: "content", section: "projects" } as const;
-const HISTORICAL_CONTENT = { kind: "historical-content", section: "projects" } as const;
+const HISTORICAL_CONTENT = {
+  kind: "historical-content",
+  section: "projects",
+} as const;
 
 function event(eventId: string) {
   return { kind: "event" as const, eventId };
@@ -40,7 +55,10 @@ function createPort() {
   let publishedFileLive = false;
   let publishedFileIsCreation = false;
   let reportedSnapshotRevision: string | null = null;
-  let taskCreatedRepositories: Array<{ repositoryId: string; repoPath: string }> = [];
+  let taskCreatedRepositories: Array<{
+    repositoryId: string;
+    repoPath: string;
+  }> = [];
   let taskAdditionalChangeIds: string[] = [];
   const counteractedRepositories = new Set<string>();
   const counteractedFileChanges = new Set<string>();
@@ -83,13 +101,18 @@ function createPort() {
       workingHead: event(committedEventId),
       clean: true,
       mainEventId: currentMainEventId,
-      mainRelation: committedEventId === currentMainEventId ? ("at" as const) : ("ahead" as const),
+      mainRelation:
+        committedEventId === currentMainEventId
+          ? ("at" as const)
+          : ("ahead" as const),
       workingCounts: { applications: 0, workUnits: 0, changes: 0 },
       integrating: [],
     };
   });
   const importSnapshot = vi.fn(
-    async (input: Parameters<WorkspaceRepoFixturePort["vcs"]["importSnapshot"]>[0]) => {
+    async (
+      input: Parameters<WorkspaceRepoFixturePort["vcs"]["importSnapshot"]>[0],
+    ) => {
       prepared = true;
       return {
         contextId: input.contextId,
@@ -98,21 +121,26 @@ function createPort() {
         applicationId: "application:import",
         externalSnapshot: {
           sourceKind: input.source.kind,
-          sourceUri: input.source.kind === "git" ? input.source.url : input.source.uri,
+          sourceUri:
+            input.source.kind === "git" ? input.source.url : input.source.uri,
           snapshotRevision:
-            input.source.kind === "git" ? input.source.commit : input.source.snapshotRevision,
+            input.source.kind === "git"
+              ? input.source.commit
+              : input.source.snapshotRevision,
           snapshotDigest: `snapshot:${"a".repeat(64)}`,
           targetRepositoryIds: ["repository:fixture"],
         },
         importedRepositoryIds: ["repository:fixture"],
       };
-    }
+    },
   );
   const changesForWork = (workUnitId: string): string[] =>
     workUnitId === "work:escaped"
       ? taskCreatedRepositories.length > 0
         ? [
-            ...taskCreatedRepositories.map((_, index) => `change:task-created:${index}`),
+            ...taskCreatedRepositories.map(
+              (_, index) => `change:task-created:${index}`,
+            ),
             ...taskAdditionalChangeIds,
           ]
         : ["change:escaped"]
@@ -122,16 +150,30 @@ function createPort() {
           ? ["change:local"]
           : ["change:repository", "change:package", "change:source"];
   const inspect = vi.fn(
-    async ({ node }: Parameters<WorkspaceRepoFixturePort["vcs"]["inspect"]>[0]) => {
+    async ({
+      node,
+    }: Parameters<WorkspaceRepoFixturePort["vcs"]["inspect"]>[0]) => {
       if (node.kind === "event") {
-        const eventShape: Record<string, { applications: string[]; parents: string[] }> = {
-          "event:import": { applications: ["application:import"], parents: ["event:main"] },
+        const eventShape: Record<
+          string,
+          { applications: string[]; parents: string[] }
+        > = {
+          "event:import": {
+            applications: ["application:import"],
+            parents: ["event:main"],
+          },
           "event:task": {
             applications: ["application:escaped"],
             parents: [prepared ? "event:import" : "event:main"],
           },
-          "event:file": { applications: ["application:file"], parents: ["event:import"] },
-          "event:local": { applications: ["application:local"], parents: ["event:import"] },
+          "event:file": {
+            applications: ["application:file"],
+            parents: ["event:import"],
+          },
+          "event:local": {
+            applications: ["application:local"],
+            parents: ["event:import"],
+          },
           "event:main": { applications: [], parents: [] },
         };
         const shape = eventShape[node.eventId];
@@ -171,7 +213,8 @@ function createPort() {
       }
       if (node.kind === "work-unit") {
         const escapedWork = node.workUnitId === "work:escaped";
-        const fileWork = node.workUnitId === "work:file" || node.workUnitId === "work:local";
+        const fileWork =
+          node.workUnitId === "work:file" || node.workUnitId === "work:local";
         const importRequest = importSnapshot.mock.calls.at(-1)?.[0];
         return {
           root: node,
@@ -213,7 +256,9 @@ function createPort() {
         };
       }
       if (node.kind === "change") {
-        const taskCreatedIndex = node.changeId.startsWith("change:task-created:")
+        const taskCreatedIndex = node.changeId.startsWith(
+          "change:task-created:",
+        )
           ? Number(node.changeId.slice("change:task-created:".length))
           : -1;
         const taskCreated = taskCreatedRepositories[taskCreatedIndex];
@@ -221,7 +266,8 @@ function createPort() {
           node.changeId === "change:repository" ||
           node.changeId === "change:escaped" ||
           taskCreated !== undefined;
-        const fileCreate = node.changeId !== "change:file" || publishedFileIsCreation;
+        const fileCreate =
+          node.changeId !== "change:file" || publishedFileIsCreation;
         const fileId =
           node.changeId === "change:file"
             ? publishedFileIsCreation
@@ -234,7 +280,9 @@ function createPort() {
                 : `file:${node.changeId}`;
         const repositoryId =
           taskCreated?.repositoryId ??
-          (node.changeId === "change:escaped" ? "repository:escaped" : "repository:fixture");
+          (node.changeId === "change:escaped"
+            ? "repository:escaped"
+            : "repository:fixture");
         return {
           root: node,
           node: {
@@ -271,7 +319,10 @@ function createPort() {
                             repositoryId: "repository:fixture",
                             path: "src/index.ts",
                           },
-                      after: { repositoryId: "repository:fixture", path: "src/index.ts" },
+                      after: {
+                        repositoryId: "repository:fixture",
+                        path: "src/index.ts",
+                      },
                     },
                   ],
               counteractsChangeIds: [],
@@ -283,18 +334,22 @@ function createPort() {
           hasMoreEdges: false,
         };
       }
-      if (node.kind !== "repository") throw new Error(`unexpected node ${node.kind}`);
+      if (node.kind !== "repository")
+        throw new Error(`unexpected node ${node.kind}`);
       const taskCreated = taskCreatedRepositories.find(
-        ({ repositoryId }) => repositoryId === node.repositoryId
+        ({ repositoryId }) => repositoryId === node.repositoryId,
       );
       const isEscaped = node.repositoryId === "repository:escaped";
-      const fixturePresent = published || (prepared && taskCreatedRepositories.length > 0);
+      const fixturePresent =
+        published || (prepared && taskCreatedRepositories.length > 0);
       if (
         counteractedRepositories.has(node.repositoryId) ||
         (isEscaped && !escaped) ||
         (!isEscaped && !taskCreated && !fixturePresent)
       ) {
-        throw Object.assign(new Error("repository is absent"), { code: "InvalidReference" });
+        throw Object.assign(new Error("repository is absent"), {
+          code: "InvalidReference",
+        });
       }
       return {
         root: node,
@@ -308,14 +363,16 @@ function createPort() {
               (isEscaped ? "repository:escaped" : "repository:fixture"),
             repoPath:
               taskCreated?.repoPath ??
-              (isEscaped ? "projects/outside-fixture" : "projects/system-test-content"),
+              (isEscaped
+                ? "projects/outside-fixture"
+                : "projects/system-test-content"),
             manifestId: "manifest:fixture",
           },
         },
         edges: [],
         hasMoreEdges: false,
       };
-    }
+    },
   );
   const neighbors = vi.fn(
     async ({
@@ -323,7 +380,8 @@ function createPort() {
       cursor,
       limit = 500,
     }: Parameters<WorkspaceRepoFixturePort["vcs"]["neighbors"]>[0]) => {
-      if (root.kind !== "work-unit") throw new Error("fixture neighbors requires work-unit root");
+      if (root.kind !== "work-unit")
+        throw new Error("fixture neighbors requires work-unit root");
       const changeIds = changesForWork(root.workUnitId);
       const offset = cursor ? Number(cursor) : 0;
       const end = Math.min(offset + limit, changeIds.length);
@@ -336,7 +394,7 @@ function createPort() {
         })),
         nextCursor: end < changeIds.length ? String(end) : null,
       };
-    }
+    },
   );
   const history = vi.fn(
     async ({
@@ -383,7 +441,7 @@ function createPort() {
         })),
         nextCursor: end < ids.length ? String(end) : null,
       };
-    }
+    },
   );
   const listFiles = vi.fn(
     async ({
@@ -398,7 +456,10 @@ function createPort() {
           publishedFileIsCreation &&
           !counteractedFileChanges.has("change:file")
         ) {
-          files.push({ fileId: "file:integrated", authoredChangeId: "change:file" });
+          files.push({
+            fileId: "file:integrated",
+            authoredChangeId: "change:file",
+          });
         }
         if (!counteractedFileChanges.has("change:source")) {
           files.push({
@@ -414,7 +475,10 @@ function createPort() {
           });
         }
         if (!counteractedFileChanges.has("change:package")) {
-          files.push({ fileId: "file:package", authoredChangeId: "change:package" });
+          files.push({
+            fileId: "file:package",
+            authoredChangeId: "change:package",
+          });
         }
       }
       return {
@@ -435,13 +499,21 @@ function createPort() {
         })),
         nextCursor: null,
       };
-    }
+    },
   );
   const revert = vi.fn(
-    async ({ contextId, changeIds }: { contextId: string; changeIds: string[] }) => {
+    async ({
+      contextId,
+      changeIds,
+    }: {
+      contextId: string;
+      changeIds: string[];
+    }) => {
       if (changeIds.includes("change:file")) publishedFileLive = false;
-      if (changeIds.includes("change:source")) counteractedFileChanges.add("change:source");
-      if (changeIds.includes("change:package")) counteractedFileChanges.add("change:package");
+      if (changeIds.includes("change:source"))
+        counteractedFileChanges.add("change:source");
+      if (changeIds.includes("change:package"))
+        counteractedFileChanges.add("change:package");
       if (changeIds.includes("change:file") && publishedFileIsCreation) {
         counteractedFileChanges.add("change:file");
       }
@@ -469,7 +541,7 @@ function createPort() {
           applicationId: `application:revert:${ordinal}`,
         },
       };
-    }
+    },
   );
   const commit = vi.fn(async ({ contextId }: { contextId: string }) => ({
     contextId,
@@ -529,7 +601,10 @@ function createPort() {
       escaped = true;
       taskTail = "escaped";
     },
-    createTaskRepositories: (repoPaths: string[], additionalChangeIds: string[] = []) => {
+    createTaskRepositories: (
+      repoPaths: string[],
+      additionalChangeIds: string[] = [],
+    ) => {
       taskCreatedRepositories = repoPaths.map((repoPath, index) => ({
         repositoryId: `repository:task-created:${index}`,
         repoPath,
@@ -566,7 +641,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-create-test",
       null,
-      CREATED_PANEL
+      CREATED_PANEL,
     );
 
     const state = await fixture.prepare();
@@ -588,7 +663,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
 
     fake.createTaskRepositories(["panels/task-created"]);
     const phases: string[] = [];
-    await expect(fixture.cleanup(state, (phase) => phases.push(phase))).resolves.toEqual({
+    await expect(
+      fixture.cleanup(state, (phase) => phases.push(phase)),
+    ).resolves.toEqual({
       publishedFixtureRemoved: {
         repositoryId: "repository:task-created:0",
         repoPath: "panels/task-created",
@@ -623,12 +700,12 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-create-zero-test",
       null,
-      CREATED_PANEL
+      CREATED_PANEL,
     );
     const state = await fixture.prepare();
 
     await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 0: none"
+      "expected exactly one task-created repository in panels/, found 0: none",
     );
     expect(fake.revert).not.toHaveBeenCalled();
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
@@ -640,12 +717,12 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-store-test",
       null,
-      CREATED_PANEL_STORE
+      CREATED_PANEL_STORE,
     );
     const state = await fixture.prepare();
     fake.createTaskRepositories(
       ["panels/notes", "workers/notes-store"],
-      ["change:workspace-meta"]
+      ["change:workspace-meta"],
     );
 
     await expect(fixture.cleanup(state)).resolves.toMatchObject({
@@ -661,7 +738,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       ]),
     });
     expect(fake.revert).toHaveBeenCalledWith(
-      expect.objectContaining({ changeIds: ["change:workspace-meta"] })
+      expect.objectContaining({ changeIds: ["change:workspace-meta"] }),
     );
   });
 
@@ -671,13 +748,13 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-store-incomplete-test",
       null,
-      CREATED_PANEL_STORE
+      CREATED_PANEL_STORE,
     );
     const state = await fixture.prepare();
     fake.createTaskRepositories(["panels/notes", "panels/not-a-store"]);
 
     await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected sections panels, workers"
+      "expected sections panels, workers",
     );
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -685,7 +762,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
           "change:task-created:0",
           "change:task-created:1",
         ]),
-      })
+      }),
     );
   });
 
@@ -695,18 +772,18 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-create-multiple-test",
       null,
-      CREATED_PANEL
+      CREATED_PANEL,
     );
     const state = await fixture.prepare();
     fake.createTaskRepositories(["panels/first", "panels/second"]);
 
     await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 2: panels/first, panels/second"
+      "expected exactly one task-created repository in panels/, found 2: panels/first, panels/second",
     );
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
         changeIds: ["change:task-created:0", "change:task-created:1"],
-      })
+      }),
     );
     expect(fake.push).toHaveBeenCalledTimes(1);
   });
@@ -717,16 +794,16 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-create-wrong-section-test",
       null,
-      CREATED_PANEL
+      CREATED_PANEL,
     );
     const state = await fixture.prepare();
     fake.createTaskRepositories(["packages/not-a-panel"]);
 
     await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found packages/not-a-panel"
+      "expected exactly one task-created repository in panels/, found packages/not-a-panel",
     );
     expect(fake.revert).toHaveBeenCalledWith(
-      expect.objectContaining({ changeIds: ["change:task-created:0"] })
+      expect.objectContaining({ changeIds: ["change:task-created:0"] }),
     );
     expect(fake.push).toHaveBeenCalledTimes(1);
   });
@@ -737,7 +814,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-fork-test",
       "system-test-panel-source",
-      PANEL_WITH_DERIVED
+      PANEL_WITH_DERIVED,
     );
     const state = await fixture.prepare();
 
@@ -747,7 +824,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       seedFilePaths: ["index.tsx", "package.json"],
     });
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
-    expect(seededText).toContain('"@workspace-panels/system-test-panel-source"');
+    expect(seededText).toContain(
+      '"@workspace-panels/system-test-panel-source"',
+    );
     expect(seededText).toContain('"react": "^19.0.0"');
     expect(seededText).toContain('"authority": {');
     expect(seededText).toContain('"capability": "context.boundary"');
@@ -774,12 +853,12 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "panel-fork-without-derived-test",
       "system-test-panel-source",
-      PANEL_WITH_DERIVED
+      PANEL_WITH_DERIVED,
     );
     const state = await fixture.prepare();
 
     await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 0: none"
+      "expected exactly one task-created repository in panels/, found 0: none",
     );
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
@@ -790,7 +869,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "content-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
 
     const state = await fixture.prepare();
@@ -801,7 +880,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       seedFilePaths: ["README.md"],
     });
     expect(fake.putText).toHaveBeenCalledWith(
-      "# system-test-content\n\nDisposable system-test project.\n"
+      "# system-test-content\n\nDisposable system-test project.\n",
     );
   });
 
@@ -811,7 +890,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "historical-memory-test",
       "system-test-history",
-      HISTORICAL_CONTENT
+      HISTORICAL_CONTENT,
     );
 
     const state = await fixture.prepare();
@@ -821,13 +900,20 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       repoPath: "projects/system-test-history",
       seedFilePaths: ["README.md", "src/retention-policy.ts"],
     });
-    expect(fake.importSnapshot).toHaveBeenCalledTimes(SIZABLE_HISTORY_FIXTURE_REVISIONS + 1);
+    expect(fake.importSnapshot).toHaveBeenCalledTimes(
+      SIZABLE_HISTORY_FIXTURE_REVISIONS + 1,
+    );
     expect(fake.importSnapshot.mock.calls[6]?.[0]).toMatchObject({
-      intentSummary: expect.stringContaining("delayed regional exports can arrive through day 18"),
-      message: "Extend archive window to 21 days for regional exports arriving through day 18",
+      intentSummary: expect.stringContaining(
+        "delayed regional exports can arrive through day 18",
+      ),
+      message:
+        "Extend archive window to 21 days for regional exports arriving through day 18",
     });
     expect(fake.importSnapshot.mock.calls[11]?.[0]).toMatchObject({
-      intentSummary: expect.stringContaining("Retire the Harbor Lantern rollout codename"),
+      intentSummary: expect.stringContaining(
+        "Retire the Harbor Lantern rollout codename",
+      ),
       message:
         "Retire Harbor Lantern after launch; use Retention Service in support and audit records",
     });
@@ -843,7 +929,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
     expect(seededText).toContain('rolloutCodename = "Harbor Lantern"');
     expect(seededText).toContain("archiveWindowDays = 21");
-    expect(seededText).toContain(`policyRevision = ${SIZABLE_HISTORY_FIXTURE_REVISIONS}`);
+    expect(seededText).toContain(
+      `policyRevision = ${SIZABLE_HISTORY_FIXTURE_REVISIONS}`,
+    );
 
     await fixture.cleanup(state);
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
@@ -855,7 +943,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "build-test",
       "system-test-build",
-      BUILDABLE
+      BUILDABLE,
     );
 
     const state = await fixture.prepare();
@@ -870,7 +958,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
     expect(fake.putText).toHaveBeenCalledTimes(2);
     expect(fake.putText).toHaveBeenCalledWith(
-      expect.stringContaining('export const fixtureNeighbor = "untouched";')
+      expect.stringContaining('export const fixtureNeighbor = "untouched";'),
     );
     expect(fake.importSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -879,12 +967,18 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
           expect.objectContaining({
             repoPath: "packages/system-test-build",
             files: [
-              expect.objectContaining({ path: "package.json", contentHash: "a".repeat(64) }),
-              expect.objectContaining({ path: "src/index.ts", contentHash: "b".repeat(64) }),
+              expect.objectContaining({
+                path: "package.json",
+                contentHash: "a".repeat(64),
+              }),
+              expect.objectContaining({
+                path: "src/index.ts",
+                contentHash: "b".repeat(64),
+              }),
             ],
           }),
         ],
-      })
+      }),
     );
 
     await fixture.cleanup(state);
@@ -901,7 +995,13 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       repoPath: "extensions/system-test-extension",
       packageName: "@workspace-extensions/system-test-extension",
       skillPath: "skills/extensiondev/SKILL.md",
-      expectedFiles: ["SKILL.md", "assets/icon.svg", "index.test.ts", "index.ts", "package.json"],
+      expectedFiles: [
+        "SKILL.md",
+        "assets/icon.svg",
+        "index.test.ts",
+        "index.ts",
+        "package.json",
+      ],
     },
     {
       label: "app",
@@ -910,36 +1010,70 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       repoPath: "apps/system-test-app",
       packageName: "@workspace-apps/system-test-app",
       skillPath: "skills/appdev/SKILL.md",
-      expectedFiles: ["SKILL.md", "assets/icon.svg", "index.test.ts", "index.ts", "package.json"],
+      expectedFiles: [
+        "SKILL.md",
+        "assets/icon.svg",
+        "index.test.ts",
+        "index.ts",
+        "package.json",
+      ],
     },
-  ])("seeds a buildable trusted $label with a focused failing test", async (scenario) => {
-    const fake = createPort();
-    const fixture = new WorkspaceRepoFixtureLifecycle(
-      fake.port,
-      `trusted-${scenario.label}-test`,
-      scenario.repoName,
-      scenario.fixture
-    );
+  ])(
+    "seeds a buildable trusted $label with a focused failing test",
+    async (scenario) => {
+      const fake = createPort();
+      const fixture = new WorkspaceRepoFixtureLifecycle(
+        fake.port,
+        `trusted-${scenario.label}-test`,
+        scenario.repoName,
+        scenario.fixture,
+      );
 
-    const state = await fixture.prepare();
+      const state = await fixture.prepare();
 
-    expect(state).toMatchObject({
-      repoPath: scenario.repoPath,
-      seedFilePaths: scenario.expectedFiles,
-    });
-    const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
-    expect(seededText).toContain(`"name": "${scenario.packageName}"`);
-    expect(seededText).toContain('expect(startupLabel()).toBe("ready")');
-    expect(seededText).toMatch(/startupLabel\(\): string \{ return "(?:waiting|booting)"; \}/u);
-    expect(seededText).toContain("assets/icon.svg");
-    expect(seededText).toContain(`Read \`${scenario.skillPath}\` before changing this trusted`);
-    if (scenario.fixture.kind === "buildable-app") {
-      expect(seededText).toContain('"capability": "context.boundary"');
-      expect(seededText).toContain('"evidence": "bounded-dynamic"');
-    }
+      expect(state).toMatchObject({
+        repoPath: scenario.repoPath,
+        seedFilePaths: scenario.expectedFiles,
+      });
+      const seededText = fake.putText.mock.calls
+        .map(([text]) => text)
+        .join("\n");
+      expect(seededText).toContain(`"name": "${scenario.packageName}"`);
+      expect(seededText).toContain('expect(startupLabel()).toBe("ready")');
+      expect(seededText).toMatch(
+        /startupLabel\(\): string \{ return "(?:waiting|booting)"; \}/u,
+      );
+      expect(seededText).toContain("assets/icon.svg");
+      expect(seededText).toContain(
+        `Read \`${scenario.skillPath}\` before changing this trusted`,
+      );
+      if (scenario.fixture.kind === "buildable-extension") {
+        const manifestText = fake.putText.mock.calls
+          .map(([text]) => text)
+          .find((text) => {
+            try {
+              return JSON.parse(text).name === scenario.packageName;
+            } catch {
+              return false;
+            }
+          });
+        const manifest = JSON.parse(manifestText!);
+        expect(manifest.vibestudio.extension.methodAuthority.status).toEqual({
+          effect: { kind: "open" },
+          website: {
+            kind: "closed",
+            reason: "Disposable native status fixture.",
+          },
+        });
+      }
+      if (scenario.fixture.kind === "buildable-app") {
+        expect(seededText).toContain('"capability": "context.boundary"');
+        expect(seededText).toContain('"evidence": "bounded-dynamic"');
+      }
 
-    await fixture.cleanup(state);
-  });
+      await fixture.cleanup(state);
+    },
+  );
 
   it("seeds one behaviorally trivial panel with attributable bundle waste", async () => {
     const fake = createPort();
@@ -947,7 +1081,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "performance-test",
       "system-test-performance",
-      OPTIMIZABLE_PANEL
+      OPTIMIZABLE_PANEL,
     );
 
     const state = await fixture.prepare();
@@ -971,7 +1105,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "worker-test",
       "system-test-worker",
-      BUILDABLE_WORKER
+      BUILDABLE_WORKER,
     );
 
     const state = await fixture.prepare();
@@ -990,7 +1124,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(seededText).toContain('"className": "FixtureWorkerDO"');
     expect(seededText).toContain('from "@workspace/runtime/worker/kernel"');
     expect(seededText).toContain('website: { kind: "closed"');
-    expect(seededText).toContain("Direct resolveDurableObject methods are runtime-intrinsic");
+    expect(seededText).toContain(
+      "Direct resolveDurableObject methods are runtime-intrinsic",
+    );
     expect(fake.importSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         repositories: [
@@ -1002,7 +1138,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
             ],
           }),
         ],
-      })
+      }),
     );
 
     await fixture.cleanup(state);
@@ -1015,7 +1151,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "regular-worker-test",
       "system-test-regular-worker",
-      BUILDABLE_REGULAR_WORKER
+      BUILDABLE_REGULAR_WORKER,
     );
 
     const state = await fixture.prepare();
@@ -1032,13 +1168,15 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "regular-worker-test",
       "system-test-regular-worker",
-      BUILDABLE_REGULAR_WORKER
+      BUILDABLE_REGULAR_WORKER,
     );
 
     const state = await fixture.prepare();
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
 
-    expect(seededText).toContain('export function fixtureValue() { return "baseline"; }');
+    expect(seededText).toContain(
+      'export function fixtureValue() { return "baseline"; }',
+    );
     expect(seededText).not.toContain('export const fixtureValue = "baseline"');
 
     await fixture.cleanup(state);
@@ -1050,7 +1188,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "large-workspace-test",
       "system-test-large-workspace",
-      CONTENT
+      CONTENT,
     );
 
     const state = await fixture.prepare();
@@ -1058,11 +1196,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
 
     expect(fake.createContext).toHaveBeenCalledTimes(1);
     const repositoryInspections = fake.inspect.mock.calls.filter(
-      ([input]) => input.node.kind === "repository"
+      ([input]) => input.node.kind === "repository",
     );
     expect(repositoryInspections).toEqual([]);
     expect(fake.history).toHaveBeenCalledWith(
-      expect.objectContaining({ root: event("event:main"), direction: "past" })
+      expect.objectContaining({ root: event("event:main"), direction: "past" }),
     );
   });
 
@@ -1073,11 +1211,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "mismatched-snapshot-test",
       "system-test-mismatched-snapshot",
-      CONTENT
+      CONTENT,
     );
 
     await expect(fixture.prepare()).rejects.toThrow(
-      "Fixture import did not record its exact command and source snapshot"
+      "Fixture import did not record its exact command and source snapshot",
     );
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
     expect(fixture.taskContextId).toBeNull();
@@ -1089,7 +1227,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "content-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publish();
@@ -1100,12 +1238,16 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
         repoPath: "projects/system-test-content",
       },
       unexpectedPublishedRepositoriesRemoved: [],
-      counteractedChangeIds: ["change:source", "change:package", "change:repository"],
+      counteractedChangeIds: [
+        "change:source",
+        "change:package",
+        "change:repository",
+      ],
     });
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
         changeIds: ["change:source", "change:package", "change:repository"],
-      })
+      }),
     );
     expect(fake.commit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1113,13 +1255,13 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
           kind: "application",
           applicationId: "application:revert:1",
         },
-      })
+      }),
     );
     expect(fake.push).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedCommittedEventId: "event:removal",
         expectedMainEventId: "event:import",
-      })
+      }),
     );
   });
 
@@ -1129,7 +1271,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "scope-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publish();
@@ -1137,7 +1279,10 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
 
     await expect(fixture.cleanup(state)).resolves.toMatchObject({
       unexpectedPublishedRepositoriesRemoved: [
-        { repositoryId: "repository:escaped", repoPath: "projects/outside-fixture" },
+        {
+          repositoryId: "repository:escaped",
+          repoPath: "projects/outside-fixture",
+        },
       ],
     });
   });
@@ -1148,7 +1293,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "scope-only-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.escape();
@@ -1156,7 +1301,10 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     await expect(fixture.cleanup(state)).resolves.toEqual({
       publishedFixtureRemoved: null,
       unexpectedPublishedRepositoriesRemoved: [
-        { repositoryId: "repository:escaped", repoPath: "projects/outside-fixture" },
+        {
+          repositoryId: "repository:escaped",
+          repoPath: "projects/outside-fixture",
+        },
       ],
       counteractedChangeIds: ["change:escaped"],
     });
@@ -1171,7 +1319,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "concurrent-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publish();
@@ -1188,7 +1336,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "published-file-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publishWithFile();
@@ -1208,7 +1356,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       expect.objectContaining({
         expectedWorkingHead: event("event:file"),
         changeIds: ["change:file"],
-      })
+      }),
     );
     expect(fake.revert).toHaveBeenNthCalledWith(
       2,
@@ -1218,7 +1366,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
           applicationId: "application:revert:1",
         },
         changeIds: ["change:source", "change:package", "change:repository"],
-      })
+      }),
     );
     expect(fake.commit).toHaveBeenCalledTimes(1);
     expect(fake.push).toHaveBeenCalledTimes(1);
@@ -1230,7 +1378,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "integrated-file-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publishWithUnattributedFile();
@@ -1247,8 +1395,13 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedWorkingHead: event("event:import"),
-        changeIds: ["change:file", "change:source", "change:package", "change:repository"],
-      })
+        changeIds: [
+          "change:file",
+          "change:source",
+          "change:package",
+          "change:repository",
+        ],
+      }),
     );
     expect(fake.commit).toHaveBeenCalledTimes(1);
     expect(fake.push).toHaveBeenCalledTimes(1);
@@ -1260,17 +1413,19 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "malformed-dependency-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publish();
     fake.revert.mockRejectedValueOnce(
       Object.assign(new Error("stored change chain is discontinuous"), {
         code: "IntegrityFailure",
-      })
+      }),
     );
 
-    await expect(fixture.cleanup(state)).rejects.toThrow("stored change chain is discontinuous");
+    await expect(fixture.cleanup(state)).rejects.toThrow(
+      "stored change chain is discontinuous",
+    );
     expect(fake.commit).not.toHaveBeenCalled();
     expect(fake.push).not.toHaveBeenCalled();
     expect(fake.destroyContext).toHaveBeenCalledTimes(2);
@@ -1282,23 +1437,27 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "published-then-local-test",
       "system-test-content",
-      CONTENT
+      CONTENT,
     );
     const state = await fixture.prepare();
     fake.publishThenEditLocally();
 
     await expect(fixture.cleanup(state)).resolves.toMatchObject({
-      counteractedChangeIds: ["change:source", "change:package", "change:repository"],
+      counteractedChangeIds: [
+        "change:source",
+        "change:package",
+        "change:repository",
+      ],
     });
     expect(fake.revert).toHaveBeenCalledTimes(1);
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedWorkingHead: event("event:import"),
         changeIds: ["change:source", "change:package", "change:repository"],
-      })
+      }),
     );
     expect(fake.revert).not.toHaveBeenCalledWith(
-      expect.objectContaining({ changeIds: ["change:local"] })
+      expect.objectContaining({ changeIds: ["change:local"] }),
     );
   });
 
@@ -1309,7 +1468,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "failed-test",
       "system-test-failed",
-      CONTENT
+      CONTENT,
     );
 
     await expect(fixture.prepare()).rejects.toThrow("status unavailable");

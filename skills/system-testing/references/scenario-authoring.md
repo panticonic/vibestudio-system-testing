@@ -13,20 +13,16 @@ prompts hide them.
 
 ## Judge the agent; diagnose the trajectory
 
-An ordinary agentic case's automated row is a transport/lifecycle outcome: the
-turn finished and produced a final response, or explicitly reported that it
-could not complete the task. It is not a quality score. Do not duplicate the
-implementation in a mechanical validator or require status-marker syntax,
-ceremonial fields, redundant observations, exact object layouts, or one
-preferred tool choreography.
+An ordinary agentic case requires a completed turn and the outcome its validator
+observes. Every supplied validator gates success; none is diagnostic-only.
+Do not duplicate implementation details in a validator or require status-marker
+syntax, ceremonial fields, exact object layouts, or one preferred choreography.
 
-When the outcome has objective facts independent of the agent's prose, select
-`validation: "agent-evidence"` and validate those facts. Examples include a
-saved clean workspace state, a successful build, the model identity that ran a
+Use objective facts independent of the agent's prose where the goal supplies
+them: saved workspace state, a successful build, the model identity that ran a
 child task, or absence of leaked owned resources. Accept any product path that
-establishes the outcome; do not turn the evidence gate into call choreography
-or a style score. This is the normal complement to a vague user prompt: product
-guidance teaches the behavior and independent evidence proves it happened.
+establishes the outcome. Product guidance teaches the behavior and independent
+evidence proves it happened.
 
 The harness records tool failures independently from task completion and marks
 every ordinary agent trajectory for review. Review failed calls (including

@@ -22,11 +22,11 @@ const focusedVerificationAuthority: TestAuthorityPolicy = {
       ruleId: "focused-workspace-test-execution",
       capability: {
         kind: "prefix",
-        prefix: "userland:extensions/test-runner/native.tests.execute#",
+        prefix: "userland:extensions/test-runner/native.code.execute-tests#",
       },
       resource: {
         kind: "exact",
-        key: "native.tests:extension:@workspace-extensions/test-runner",
+        key: "native.code.tests:extension:@workspace-extensions/test-runner",
       },
       tier: "gated",
       decision: "once",
@@ -34,7 +34,10 @@ const focusedVerificationAuthority: TestAuthorityPolicy = {
   ],
 };
 
-function requireTrustedUnitRepair(result: TestExecutionResult, section: "apps" | "extensions") {
+function requireTrustedUnitRepair(
+  result: TestExecutionResult,
+  section: "apps" | "extensions",
+) {
   const incomplete = noIncompleteInvocations(result);
   if (!incomplete.passed) return incomplete;
 
@@ -44,7 +47,10 @@ function requireTrustedUnitRepair(result: TestExecutionResult, section: "apps" |
     return evidence ? [evidence] : [];
   });
   if (mutations.length === 0) {
-    return { passed: false, reason: `No completed managed ${section} mutation was observed` };
+    return {
+      passed: false,
+      reason: `No completed managed ${section} mutation was observed`,
+    };
   }
   const contexts = new Set(mutations.map(({ contextId }) => contextId));
   const units = new Set(mutations.map(({ unit }) => unit));
@@ -64,9 +70,17 @@ function requireTrustedUnitRepair(result: TestExecutionResult, section: "apps" |
   const unit = [...units][0]!;
   const lastMutationIndex = mutations.at(-1)!.index;
 
-  for (let commitIndex = lastMutationIndex + 1; commitIndex < calls.length; commitIndex++) {
+  for (
+    let commitIndex = lastMutationIndex + 1;
+    commitIndex < calls.length;
+    commitIndex++
+  ) {
     const commitCall = calls[commitIndex]!;
-    if (commitCall.name !== "vcs" || commitCall.arguments?.["operation"] !== "commit") continue;
+    if (
+      commitCall.name !== "vcs" ||
+      commitCall.arguments?.["operation"] !== "commit"
+    )
+      continue;
     const details = successfulToolDetails(commitCall, "vcs");
     const commit = details && record(details["result"]);
     const event = commit && record(commit["event"]);
@@ -77,7 +91,9 @@ function requireTrustedUnitRepair(result: TestExecutionResult, section: "apps" |
       typeof eventId !== "string" ||
       !stringArray(committedApplicationIds) ||
       committedApplicationIds.length !== applicationIds.length ||
-      !committedApplicationIds.every((id, index) => id === applicationIds[index])
+      !committedApplicationIds.every(
+        (id, index) => id === applicationIds[index],
+      )
     ) {
       continue;
     }
@@ -88,10 +104,10 @@ function requireTrustedUnitRepair(result: TestExecutionResult, section: "apps" |
     // current receipt schema can prove without reconstructing semantic state.
     const verificationWindow = calls.slice(lastMutationIndex + 1, commitIndex);
     const tested = verificationWindow.some((call) =>
-      verificationMatches(call, "test", unit, contextId)
+      verificationMatches(call, "test", unit, contextId),
     );
     const built = verificationWindow.some((call) =>
-      verificationMatches(call, "build", unit, contextId)
+      verificationMatches(call, "build", unit, contextId),
     );
     const status = record(details?.["status"]);
     if (
@@ -123,7 +139,7 @@ export const trustedUnitAuthoringTests: TestCase[] = [
     authorityPolicy: focusedVerificationAuthority,
     prompt:
       'The disposable status extension keeps reporting "waiting" even though it is ready. Please fix it.',
-    validation: "agent-evidence",
+
     validate: (result) => requireTrustedUnitRepair(result, "extensions"),
   },
   {
@@ -135,7 +151,7 @@ export const trustedUnitAuthoringTests: TestCase[] = [
     authorityPolicy: focusedVerificationAuthority,
     prompt:
       'The disposable terminal app still prints "booting" after startup has completed. Please fix it.',
-    validation: "agent-evidence",
+
     validate: (result) => requireTrustedUnitRepair(result, "apps"),
   },
 ];

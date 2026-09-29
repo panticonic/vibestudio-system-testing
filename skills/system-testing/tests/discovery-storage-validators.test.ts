@@ -11,7 +11,7 @@ function invocation(
   name: string,
   arguments_: Record<string, unknown>,
   result: unknown,
-  options: { error?: boolean } = {}
+  options: { error?: boolean } = {},
 ) {
   return {
     kind: "message" as const,
@@ -34,7 +34,7 @@ function invocation(
 
 function execution(
   final: string,
-  calls: ReturnType<typeof invocation>[] = []
+  calls: ReturnType<typeof invocation>[] = [],
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -54,7 +54,9 @@ function execution(
 
 describe("storage and discovery semantic validators", () => {
   it("joins a natural blobstore report to the completed text/range/search round trip", () => {
-    const test = blobstoreTests.find((candidate) => candidate.name === "blob-text-roundtrip-grep")!;
+    const test = blobstoreTests.find(
+      (candidate) => candidate.name === "blob-text-roundtrip-grep",
+    )!;
     const digest = "a".repeat(64);
     const call = invocation(
       "eval",
@@ -71,7 +73,7 @@ describe("storage and discovery semantic validators", () => {
             markerMatches: true,
           },
         },
-      }
+      },
     );
     const final =
       "The document text round-tripped successfully; the byte range matched, and the stored marker search returned the expected match.";
@@ -81,7 +83,7 @@ describe("storage and discovery semantic validators", () => {
 
   it("requires a live bounded docs hit before accepting a capability citation", () => {
     const test = docsDiscoveryTests.find(
-      (candidate) => candidate.name === "docs-search-capability"
+      (candidate) => candidate.name === "docs-search-capability",
     )!;
     const hit = {
       id: "service:blobstore.putText",
@@ -93,7 +95,7 @@ describe("storage and discovery semantic validators", () => {
     const call = invocation(
       "docs_search",
       { query: "content-addressable blobs", limit: 10 },
-      { details: [hit] }
+      { details: [hit] },
     );
     const final =
       "Yes. The live catalog documents blobstore.putText for storing content-addressable blob text.";
@@ -103,7 +105,7 @@ describe("storage and discovery semantic validators", () => {
 
   it("identity-joins a searched service entry to the opened method catalog", () => {
     const test = docsDiscoveryTests.find(
-      (candidate) => candidate.name === "docs-describe-service"
+      (candidate) => candidate.name === "docs-describe-service",
     )!;
     const entry = {
       id: "service:blobstore",
@@ -115,23 +117,29 @@ describe("storage and discovery semantic validators", () => {
     const search = invocation(
       "docs_search",
       { query: "blob storage", limit: 10 },
-      { details: [entry] }
+      { details: [entry] },
     );
     const open = invocation("docs_open", { id: entry.id }, { details: entry });
     const final =
       "The blobstore service stores content-addressed data and exposes putText and getText.";
-    expect(test.validate(execution(final, [search, open]))).toEqual({ passed: true });
-    expect(test.validate(execution(final, [open]))).toMatchObject({ passed: false });
+    expect(test.validate(execution(final, [search, open]))).toEqual({
+      passed: true,
+    });
+    expect(test.validate(execution(final, [open]))).toMatchObject({
+      passed: false,
+    });
   });
 
   it("requires documentation evidence for a natural docs-probe decision", () => {
     const test = docsProbeTests.find(
-      (candidate) => candidate.name === "docs-sandbox-vcs-decision"
+      (candidate) => candidate.name === "docs-sandbox-vcs-decision",
     )!;
     const read = invocation(
       "read",
       { path: "skills/sandbox/RUNTIME_API.md" },
-      { text: "Browser panels use the semantic workspace VCS runtime surface for source changes." }
+      {
+        text: "Browser panels use the semantic workspace VCS runtime surface for source changes.",
+      },
     );
     const final =
       "I would avoid committing through browser filesystem tricks and instead use the workspace semantic VCS surface from the panel runtime.";
@@ -143,15 +151,17 @@ describe("storage and discovery semantic validators", () => {
           invocation(
             "docs_search",
             { query: "sandbox runtime VCS version control" },
-            { details: [] }
+            { details: [] },
           ),
-        ])
-      )
+        ]),
+      ),
     ).toMatchObject({ passed: false });
   });
 
   it("requires bounded canonical host-log query and statistics evidence", () => {
-    const test = serverLogTests.find((candidate) => candidate.name === "server-log-query-stats")!;
+    const test = serverLogTests.find(
+      (candidate) => candidate.name === "server-log-query-stats",
+    )!;
     const call = invocation(
       "eval",
       {
@@ -169,7 +179,7 @@ describe("storage and discovery semantic validators", () => {
             stats: { totalCaptured: 4, bufferSize: 4, byLevel: { warn: 1 } },
           },
         },
-      }
+      },
     );
     const final =
       "The bounded host-log sample contained 1 warning entry; overall server log statistics report 4 entries.";
@@ -179,7 +189,7 @@ describe("storage and discovery semantic validators", () => {
 
   it("requires a real host-log observation for the vague startup incident", () => {
     const test = serverLogTests.find(
-      (candidate) => candidate.name === "server-log-startup-diagnosis"
+      (candidate) => candidate.name === "server-log-startup-diagnosis",
     )!;
     const observed = invocation(
       "eval",
@@ -195,41 +205,78 @@ describe("storage and discovery semantic validators", () => {
           success: true,
           returnValue: {
             earlier: {
-              records: [{ seq: 11, level: "info", message: "server launching" }],
+              records: [
+                { seq: 11, level: "info", message: "server launching" },
+              ],
               latestSeq: 12,
               serverBootId: "boot:test-startup",
             },
             current: {
-              records: [{ seq: 40, level: "info", message: "startup complete" }],
+              records: [
+                { seq: 40, level: "info", message: "startup complete" },
+              ],
               latestSeq: 41,
               serverBootId: "boot:test-startup",
             },
           },
         },
-      }
+      },
     );
     const skill = invocation(
       "docs_open",
       { id: "server-logs" },
-      { details: { id: "server-logs", title: "Server logs" } }
+      { details: { id: "server-logs", title: "Server logs" } },
     );
 
-    expect(test.validation).toBe("agent-evidence");
+    expect(test.validation).toBeUndefined();
     expect(
       test.validate(
         execution(
           "Startup completed after one slow build. Evidence: boot:test-startup at sequence 41.",
-          [skill, observed]
-        )
-      )
+          [skill, observed],
+        ),
+      ),
     ).toEqual({ passed: true, reason: undefined });
-    expect(test.validate(execution("Everything looks fine."))).toMatchObject({ passed: false });
     expect(
       test.validate(
-        execution("Startup looked normal at boot:test-startup sequence 41.", [observed])
-      )
-    ).toMatchObject({ passed: false, reason: expect.stringContaining("guidance") });
-    expect(test.validate(execution("Startup looked normal.", [skill, observed]))).toMatchObject({
+        execution(
+          "Startup completed at boot:test-startup sequence 40 after the slow build.",
+          [skill, observed],
+        ),
+      ),
+    ).toEqual({ passed: true, reason: undefined });
+    expect(
+      test.validate(
+        execution("Startup failed at boot:unobserved sequence 40.", [
+          skill,
+          observed,
+        ]),
+      ),
+    ).toMatchObject({ passed: false });
+    expect(
+      test.validate(
+        execution("Startup failed at boot:test-startup sequence 400.", [
+          skill,
+          observed,
+        ]),
+      ),
+    ).toMatchObject({ passed: false });
+    expect(test.validate(execution("Everything looks fine."))).toMatchObject({
+      passed: false,
+    });
+    expect(
+      test.validate(
+        execution("Startup looked normal at boot:test-startup sequence 41.", [
+          observed,
+        ]),
+      ),
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("guidance"),
+    });
+    expect(
+      test.validate(execution("Startup looked normal.", [skill, observed])),
+    ).toMatchObject({
       passed: false,
       reason: expect.stringContaining("coordinates"),
     });
@@ -237,12 +284,12 @@ describe("storage and discovery semantic validators", () => {
 
   it("accepts a bounded compact snapshot without requiring the raw service envelope", () => {
     const test = serverLogTests.find(
-      (candidate) => candidate.name === "server-log-startup-diagnosis"
+      (candidate) => candidate.name === "server-log-startup-diagnosis",
     )!;
     const skill = invocation(
       "read",
       { path: "skills/server-logs/SKILL.md" },
-      { text: "Use bounded server-log inspection." }
+      { text: "Use bounded server-log inspection." },
     );
     const observed = invocation(
       "eval",
@@ -263,22 +310,22 @@ describe("storage and discovery semantic validators", () => {
             tail: [{ seq: 84, level: "warn", msg: "startup was briefly slow" }],
           },
         },
-      }
+      },
     );
 
     expect(
       test.validate(
-        execution("Startup was briefly slow in boot:compact; latest sequence 87.", [
-          skill,
-          observed,
-        ])
-      )
+        execution(
+          "Startup was briefly slow in boot:compact; latest sequence 87.",
+          [skill, observed],
+        ),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 
   it("requires an identity-joined webhook lifecycle and final cleanup", () => {
     const test = webhookTests.find(
-      (candidate) => candidate.name === "webhook-subscription-lifecycle"
+      (candidate) => candidate.name === "webhook-subscription-lifecycle",
     )!;
     const call = invocation(
       "eval",
@@ -288,9 +335,14 @@ describe("storage and discovery semantic validators", () => {
       {
         details: {
           success: true,
-          returnValue: { created: true, listed: true, rotated: true, removed: true },
+          returnValue: {
+            created: true,
+            listed: true,
+            rotated: true,
+            removed: true,
+          },
         },
-      }
+      },
     );
     const final =
       "The temporary webhook subscription was created and listed, its secret was rotated, and it was revoked and removed during cleanup.";

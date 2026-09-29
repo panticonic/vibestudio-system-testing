@@ -714,28 +714,31 @@ function boundValue(
   value: unknown,
   stringLimit: number,
   depth = 0,
-  seen = new WeakSet<object>()
+  ancestors = new WeakSet<object>()
 ): unknown {
   if (typeof value === "string") return clip(value, stringLimit);
   if (value === null || typeof value !== "object") return value;
-  if (seen.has(value)) return "[Circular]";
-  seen.add(value);
+  if (ancestors.has(value)) return "[Circular]";
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (depth >= 2) return `[Array(${value.length})]`;
+      const items = value.slice(0, 10).map((item) => boundValue(item, stringLimit, depth + 1, ancestors));
+      if (value.length > items.length) items.push(`[... ${value.length - items.length} more]`);
+      return items;
+    }
 
-  if (Array.isArray(value)) {
-    if (depth >= 2) return `[Array(${value.length})]`;
-    const items = value.slice(0, 10).map((item) => boundValue(item, stringLimit, depth + 1, seen));
-    if (value.length > items.length) items.push(`[... ${value.length - items.length} more]`);
-    return items;
+    const entries = Object.entries(value);
+    if (depth >= 2) return `{Object(${entries.length})}`;
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of entries.slice(0, 12)) {
+      out[key] = boundValue(child, stringLimit, depth + 1, ancestors);
+    }
+    if (entries.length > 12) out["..."] = `${entries.length - 12} more keys`;
+    return out;
+  } finally {
+    ancestors.delete(value);
   }
-
-  const entries = Object.entries(value);
-  if (depth >= 2) return `{Object(${entries.length})}`;
-  const out: Record<string, unknown> = {};
-  for (const [key, child] of entries.slice(0, 12)) {
-    out[key] = boundValue(child, stringLimit, depth + 1, seen);
-  }
-  if (entries.length > 12) out["..."] = `${entries.length - 12} more keys`;
-  return out;
 }
 
 function asString(value: unknown): string | undefined {

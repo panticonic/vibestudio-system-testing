@@ -19,12 +19,15 @@ const mocks = vi.hoisted(() => ({
   })),
   resolveService: vi.fn(),
   listUnits: vi.fn(),
+  mainState: vi.fn(),
+  listDirectory: vi.fn(),
 }));
 
 vi.mock("@workspace/runtime", () => ({
   rpc: { call: mocks.rpcCall },
   workers: { resolveService: mocks.resolveService },
   workspace: { units: { list: mocks.listUnits } },
+  vcs: { mainState: mocks.mainState, listDirectory: mocks.listDirectory },
 }));
 
 vi.mock("./runner.js", () => ({
@@ -104,6 +107,7 @@ vi.mock("./stages.js", () => ({
 
 import {
   failedSystemTestNames,
+  failedSystemTestPreparationRecord,
   inspectSystemTestRun,
   installedWorkspaceUnits,
   listSystemTests,
@@ -460,17 +464,45 @@ describe("system-testing CLI-neutral API", () => {
     ]);
   });
 
-  it("asks the workspace which units it installs, by repo path", async () => {
-    mocks.rpcCall.mockReset().mockResolvedValue([
-      { name: "workers/agent-worker", source: "workers/agent-worker" },
-      { name: "browser import", source: "about/browser-import-inspector" },
-      { name: "nameless", source: "" },
-      { name: "sourceless" },
-    ]);
+  it("reads all repository kinds at one exact main event, including paged sections", async () => {
+    const state = { kind: "event", eventId: "workspace-event:main" };
+    mocks.mainState.mockReset().mockResolvedValue(state);
+    mocks.listDirectory.mockReset().mockImplementation(async ({ path, cursor }) => ({
+      entries: path === "" ? [
+        { path: "packages", kind: "directory", repositoryRoot: false },
+        { path: "templates", kind: "directory", repositoryRoot: false },
+        { path: "projects", kind: "directory", repositoryRoot: false },
+      ] : path === "packages" ? [
+        { path: cursor ? "packages/runtime" : "packages/svelte", kind: "directory", repositoryRoot: true },
+      ] : [{ path: path === "templates" ? "templates/svelte" : "projects/vibestudio", kind: "directory", repositoryRoot: true }],
+      nextCursor: path === "packages" && !cursor ? "next-packages" : null,
+    }));
     await expect(installedWorkspaceUnits()).resolves.toEqual([
-      "workers/agent-worker",
-      "about/browser-import-inspector",
+      "packages/runtime", "packages/svelte", "projects/vibestudio", "templates/svelte",
     ]);
+    expect(mocks.mainState).toHaveBeenCalledTimes(1);
+    expect(mocks.listDirectory.mock.calls.every(([input]) => input.state === state)).toBe(true);
+    expect(mocks.listDirectory).toHaveBeenCalledWith({ state, path: "packages", limit: 500, cursor: "next-packages" });
+  });
+
+  it("propagates repository inventory failures instead of reporting units missing", async () => {
+    mocks.mainState.mockReset().mockResolvedValue({ kind: "event", eventId: "workspace-event:main" });
+    const error = new Error("Native source unavailable");
+    mocks.listDirectory.mockReset().mockRejectedValue(error);
+    await expect(installedWorkspaceUnits()).rejects.toBe(error);
+  });
+
+  it("retains a preparation failure with requested cases and no execution proof", () => {
+    const record = failedSystemTestPreparationRecord({
+      runId: "st_preparation", contextId: "ctx:prepare", names: ["worker-one"],
+    }, "Native inventory failed", "2026-09-29T04:00:00.000Z");
+    expect(record).toMatchObject({
+      status: "errored", error: "Native inventory failed",
+      config: { names: ["worker-one"], modelPolicy: { activations: [] } },
+      summary: { status: "errored", total: 0, passed: 0, error: "Native inventory failed" },
+      suite: { results: [], total: 0, passed: 0, failed: 0, errored: 0 },
+    });
+    expect(record.completedAt).toBe(record.updatedAt);
   });
 
   it("says which listed cases this workspace carries the units for", () => {

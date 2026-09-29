@@ -1,6 +1,5 @@
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { parseWorkspaceConfigContentWithId } from "@vibestudio/workspace/configParser";
-import { parseUnitAuthorityManifest } from "@vibestudio/shared/authorityManifest";
 import type { VcsClient } from "@workspace/runtime";
 import YAML from "yaml";
 import { buildProjectManifest } from "@workspace-skills/workspace-dev/project-manifest";
@@ -14,32 +13,24 @@ const panelManifest = buildProjectManifest({
   name: "atomic-notes",
   title: "Atomic Notes",
   entry: "index.tsx",
+  authority: {
+    requests: [
+      {
+        capability: "workspace-service:atomic-notes-store",
+        resource: {
+          kind: "exact",
+          key: "do:workers/atomic-notes-store:NotesStore:workspace",
+        },
+        tier: "gated",
+        evidence: "exact",
+      },
+    ],
+    provides: [],
+    serviceRequests: [{ protocol, availability: "required" }],
+  },
   exposeModules: ["react", "react/jsx-runtime", "react/jsx-dev-runtime"],
   dependencies: { react: "19.2.4", "react-dom": "19.2.4" },
 });
-const panelVibestudio = panelManifest["vibestudio"] as Record<string, unknown>;
-const panelAuthority = panelVibestudio["authority"] as Record<string, unknown>;
-panelVibestudio["authority"] = {
-  ...panelAuthority,
-  requests: [
-    ...((panelAuthority["requests"] as unknown[]) ?? []),
-    {
-      capability: "workspace-service:atomic-notes-store",
-      resource: {
-        kind: "exact",
-        key: "do:workers/atomic-notes-store:NotesStore:workspace",
-      },
-      tier: "gated",
-      evidence: "exact",
-    },
-  ],
-  serviceRequests: [{ protocol, availability: "required" }],
-};
-parseUnitAuthorityManifest(
-  panelVibestudio["authority"],
-  "atomic notes panel authority",
-);
-
 const panelFiles = {
   "package.json": `${JSON.stringify(panelManifest, null, 2)}\n`,
   "index.tsx": `import { createDurableObjectServiceClient } from "@workspace/runtime";
@@ -61,6 +52,7 @@ const storeFiles = {
       name: "atomic-notes-store",
       title: "Atomic Notes Store",
       entry: "index.ts",
+      authority: { requests: [], provides: [] },
       durableClasses: ["NotesStore"],
       dependencies: { "@workspace/runtime": "workspace:*" },
     }),

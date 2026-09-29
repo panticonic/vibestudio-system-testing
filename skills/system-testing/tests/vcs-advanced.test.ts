@@ -172,13 +172,6 @@ describe("reduced VCS agentic catalog", () => {
         ],
         details: {
           path,
-          contentHash,
-          receipt: {
-            protocol: "workspace-read-receipt.v1",
-            path,
-            contentHash,
-            byteLength: 75,
-          },
           displayedRange: {
             coordinateKind: "utf16",
             start: 0,
@@ -188,6 +181,10 @@ describe("reduced VCS agentic catalog", () => {
           },
           provenance: {
             status: "attached",
+            path,
+            contentHash,
+            coordinateKind: "utf16",
+            range: { start: 0, end: 75 },
             episodes: [
               {
                 intent: {
@@ -226,14 +223,14 @@ describe("reduced VCS agentic catalog", () => {
       reason: undefined,
     });
 
-    const mismatchedReceipt = structuredClone(read);
+    const mismatchedRange = structuredClone(read);
     const details = (
-      mismatchedReceipt.invocation.execution.result as {
-        details: { receipt: Record<string, unknown> };
+      mismatchedRange.invocation.execution.result as {
+        details: { provenance: { range: { start: number; end: number } } };
       }
     ).details;
-    details.receipt["contentHash"] = "b".repeat(64);
-    expect(test.validate(execution(final, [mismatchedReceipt, history])).passed).toBe(false);
+    details.provenance.range.end = 74;
+    expect(test.validate(execution(final, [mismatchedRange, history])).passed).toBe(false);
 
     const missingRoots = structuredClone(read);
     const episode = (

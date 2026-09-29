@@ -40,6 +40,33 @@ function passingEntryWithToolFailure(messages: ChatMessage[]): TestSuiteResultEn
 }
 
 describe("system-testing diagnostics", () => {
+  it("preserves repeated evidence and bounds actual recursive references", () => {
+    const shared = { observed: true };
+    const cycle: Record<string, unknown> = {};
+    cycle["self"] = cycle;
+    const invocation = {
+      id: "call-shared",
+      name: "eval",
+      arguments: { first: shared, second: shared, cycle },
+      execution: { status: "complete" as const, description: "Repeated reference evidence", result: { success: true } },
+    };
+    const diagnostic = summarizeEntry(entryWithMessages([{
+      id: "invocation:call-shared",
+      senderId: "agent",
+      senderMetadata: { type: "agent" },
+      kind: "message",
+      contentType: "invocation",
+      complete: true,
+      content: "",
+      invocation,
+    }]));
+    expect(diagnostic.invocations[0]?.arguments).toEqual({
+      first: { observed: true },
+      second: { observed: true },
+      cycle: { self: "[Circular]" },
+    });
+  });
+
   it("uses participant authorship when the finite mailbox omits the local prompt", () => {
     const messages: ChatMessage[] = [
       {

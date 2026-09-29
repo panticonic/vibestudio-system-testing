@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { scaffoldMatrixTests } from "./scaffold-matrix.js";
+import { missingUnitsFor } from "../cli.js";
 
 function invocation(
   id: string,
   name: string,
   args: Record<string, unknown>,
-  details: Record<string, unknown>
+  details: Record<string, unknown>,
 ) {
   return {
     kind: "message" as const,
@@ -27,7 +28,9 @@ function invocation(
   };
 }
 
-function execution(calls: ReturnType<typeof invocation>[]): TestExecutionResult {
+function execution(
+  calls: ReturnType<typeof invocation>[],
+): TestExecutionResult {
   return {
     duration: 0,
     messages: [
@@ -38,7 +41,8 @@ function execution(calls: ReturnType<typeof invocation>[]): TestExecutionResult 
         senderId: "agent",
         senderMetadata: { type: "agent" },
         complete: true,
-        content: "The requested scaffold was published and its exact validation is clean.",
+        content:
+          "The requested scaffold was published and its exact validation is clean.",
       },
     ],
   } as TestExecutionResult;
@@ -88,9 +92,30 @@ function buildReceipt(target: string) {
 }
 
 describe("scaffold build matrix", () => {
+  it("schedules the Svelte scaffold only where its framework and template are installed", () => {
+    const test = scaffoldMatrixTests.find(
+      (test) => test.name === "scaffold-svelte-panel-build",
+    )!;
+    expect(missingUnitsFor(test, ["packages/runtime"])).toEqual([
+      "packages/svelte",
+      "templates/svelte",
+    ]);
+    expect(
+      missingUnitsFor(test, ["packages/runtime", "packages/svelte", "templates/svelte"]),
+    ).toEqual([]);
+    expect(missingUnitsFor(test, ["packages/svelte"])).toEqual(["templates/svelte"]);
+    const react = scaffoldMatrixTests.find(
+      (test) => test.name === "scaffold-react-panel-build",
+    )!;
+    expect(missingUnitsFor(react, ["packages/runtime"])).toEqual([]);
+  });
+
   it("covers every canonical scaffold variant through a real repository fixture", () => {
     expect(
-      scaffoldMatrixTests.map((test) => [test.name, test.workspaceRepoFixture?.section])
+      scaffoldMatrixTests.map((test) => [
+        test.name,
+        test.workspaceRepoFixture?.section,
+      ]),
     ).toEqual([
       ["scaffold-react-panel-build", "panels"],
       ["scaffold-svelte-panel-build", "panels"],
@@ -101,7 +126,10 @@ describe("scaffold build matrix", () => {
       ["scaffold-content-project-preflight", "projects"],
     ]);
     for (const test of scaffoldMatrixTests) {
-      expect(test.prompt).not.toMatch(/createProjects|build-verification-receipt|ctx:/u);
+      expect(test.validation).toBeUndefined();
+      expect(test.prompt).not.toMatch(
+        /createProjects|build-verification-receipt|ctx:/u,
+      );
     }
   });
 
@@ -114,18 +142,20 @@ describe("scaffold build matrix", () => {
     ["scaffold-skill-build", "skill", "skills/helper"],
   ] as const) {
     it(`accepts ${name} only with a later exact build receipt`, () => {
-      const test = scaffoldMatrixTests.find((candidate) => candidate.name === name)!;
+      const test = scaffoldMatrixTests.find(
+        (candidate) => candidate.name === name,
+      )!;
       const create = invocation(
         `create:${name}`,
         "eval",
         { code: "return await createProjects(request);" },
-        created(projectType, target)
+        created(projectType, target),
       );
       const verify = invocation(
         `verify:${name}`,
         "verify",
         { operation: "build", target },
-        buildReceipt(target)
+        buildReceipt(target),
       );
 
       expect(test.validate(execution([create, verify]))).toEqual({
@@ -134,22 +164,26 @@ describe("scaffold build matrix", () => {
       });
       expect(test.validate(execution([verify, create]))).toEqual({
         passed: false,
-        reason: "The published scaffold was not followed by a clean exact build receipt",
+        reason:
+          "The published scaffold was not followed by a clean exact build receipt",
       });
     });
   }
 
   it("accepts the content-only scaffold without inventing a build target", () => {
     const test = scaffoldMatrixTests.find(
-      (candidate) => candidate.name === "scaffold-content-project-preflight"
+      (candidate) => candidate.name === "scaffold-content-project-preflight",
     )!;
     const create = invocation(
       "create:content",
       "eval",
       { code: "return await createProjects(request);" },
-      created("project", "projects/notes")
+      created("project", "projects/notes"),
     );
 
-    expect(test.validate(execution([create]))).toEqual({ passed: true, reason: undefined });
+    expect(test.validate(execution([create]))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 });

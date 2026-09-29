@@ -156,7 +156,7 @@ describe("scenario tool protocol semantics", () => {
 });
 
 describe("mobile onboarding validator", () => {
-  it("combines identity-preserving projections of one provisioning result", () => {
+  it("requires a canonical provisioning receipt and validates facts independently of prose", () => {
     const validator = scenario(mobileTests, "onboarding-desktop-mobile-install-android");
     const fullWorkflow = [
       'const service = await workers.resolveService("vibestudio.phone-provisioning.v1");',
@@ -168,41 +168,36 @@ describe("mobile onboarding validator", () => {
       "return { provisioned, workspace, ready };",
     ].join("\n");
 
-    expect(
-      validator.validate(
-        execution("Android app installed, compatible, paired, and workspace ready.", [
-          {
-            code: fullWorkflow,
-            returnValue: {
-              provisioned: {
-                compatibleAppInstalled: true,
-                pairingStatus: "paired",
-                pairedDevice: { deviceId: "mobile-1", label: "Phone" },
-              },
-              ready: {
-                ready: true,
-                workspaceConnected: true,
-                panelHostReady: true,
-                issues: [],
-              },
-              workspace: {
-                status: "ready",
-                message: "Mobile workspace connected",
-              },
-              result: {
-                provisioned: {
-                  platform: "android",
-                  installStatus: "installed",
-                  compatibleAppInstalled: true,
-                  pairingStatus: "paired",
-                  pairedDevice: "[Circular]",
-                },
-              },
-            },
-          },
-        ])
-      )
-    ).toMatchObject({ passed: true });
+    const provisioned = {
+      providerId: "desktop-1",
+      platform: "android",
+      workspace: "system",
+      attachedDeviceId: "emulator-5588",
+      installStatus: "installed",
+      compatibleAppInstalled: true,
+      pairingStatus: "paired",
+      workspaceStatus: "opening",
+      pairedDevice: { deviceId: "mobile-1", label: "Phone", createdAt: 1 },
+    };
+    const ready = {
+      ready: true,
+      workspaceConnected: true,
+      panelHostReady: true,
+      issues: [],
+    };
+    const workspace = { status: "ready", message: "Mobile workspace connected" };
+    const check = (receipt: unknown, diagnostics = ready, publicStatus = workspace) =>
+      validator.validate(execution("The phone is set up and ready to use.", [{
+        code: fullWorkflow,
+        returnValue: { provisioned: receipt, workspace: publicStatus, ready: diagnostics },
+      }]));
+
+    expect(check(provisioned)).toMatchObject({ passed: true });
+    expect(check({ ...provisioned, compatibleAppInstalled: false })).toMatchObject({ passed: false });
+    expect(check({ ...provisioned, pairedDevice: "[Circular]" })).toMatchObject({ passed: false });
+    expect(check({ ...provisioned, platform: "ios" })).toMatchObject({ passed: false });
+    expect(check(provisioned, { ...ready, panelHostReady: false })).toMatchObject({ passed: false });
+    expect(check(provisioned, ready, { ...workspace, status: "opening" })).toMatchObject({ passed: false });
   });
 
   it("rejects a provider-less run even when failed attempts contain the full workflow", () => {

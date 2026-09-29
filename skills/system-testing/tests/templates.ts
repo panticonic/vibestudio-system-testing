@@ -20,6 +20,7 @@ export const AUTHORED_PART = "packages/template-management";
 const AUTHORED_PART_PROSE = "template management library";
 
 function invokedTemplateOperation(code: string, operation: string): boolean {
+  if (new RegExp(`\\b(?:services\\.)?templates\\.${operation}\\s*\\(`, "u").test(code)) return true;
   if (!code.includes("@workspace-extensions/templates")) return false;
   const quoted = `(["'])${operation}\\1`;
   const convenienceCall = new RegExp(
@@ -150,7 +151,7 @@ export const templateTests: TestCase[] = [
     name: "templates-authoring-prepare",
     description: `Prepare a self-contained upstream snapshot from the local ${AUTHORED_PART_PROSE}`,
     category: "templates",
-    validation: "agent-evidence",
+
     // Stated as the user's goal, deliberately without the repository path: a
     // path in the prompt reframes this as a file hunt, and the scenario is
     // whether the workspace's own authoring capability gets discovered and

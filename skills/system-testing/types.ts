@@ -222,20 +222,9 @@ export interface TestCase {
    * agent should not fake from inside one context.
    */
   orchestrate?: (context: TestOrchestrationContext) => Promise<TestExecutionResult>;
-  /**
-   * Select validation beyond the ordinary agent completion report.
-   *
-   * `agent-evidence` keeps the natural agent-goal contract and additionally
-   * gates success on independently observed outcome facts. It must not encode
-   * one preferred tool choreography. `harness` is reserved for deterministic
-   * protocol probes whose result is produced or observed by the harness itself.
-   */
-  validation?: "agent-evidence" | "harness";
-  /**
-   * Validator for objective agent outcome evidence or deterministic harness
-   * protocol evidence. Existing agentic scenario assessments remain
-   * non-scoring unless `validation` is `"agent-evidence"`.
-   */
+  /** Deterministic protocol probes use harness execution instead of an agent goal. */
+  validation?: "harness";
+  /** Every supplied validator gates success on its observed outcome facts. */
   validate: (result: TestExecutionResult) => TestResult;
 }
 
@@ -287,7 +276,7 @@ export interface TestExecutionResult {
 
 export interface ValidationFailureProvenance {
   testName: string;
-  validator: "harness" | "agent-evidence" | "agent-completion-report";
+  validator: "harness" | "agent-outcome";
   phase: "validation";
   stack?: string;
   inputProjection: SystemTestJsonValue;

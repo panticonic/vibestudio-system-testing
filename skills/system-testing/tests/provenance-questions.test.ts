@@ -174,7 +174,7 @@ describe("provenance question scenarios", () => {
   it("declares user goals rather than call choreography", () => {
     for (const test of provenanceQuestionTests) {
       expect(() => assertSystemTestDeclaration(test)).not.toThrow();
-      expect(test.validation).toBe("agent-evidence");
+      expect(test.validation).toBeUndefined();
       // Most cases read a record the fixture seeded exactly; only the two whose
       // subject *is* a live trajectory or a second context still orchestrate.
       expect(test.workspaceRepoFixture ?? test.orchestrate).toBeDefined();

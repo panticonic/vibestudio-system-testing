@@ -275,7 +275,10 @@ async function scheduledNotificationProof(
   context: TestOrchestrationContext,
   actionKind: "prompt" | "watch" = "prompt",
 ): Promise<TestExecutionResult> {
-  const proofName = actionKind === "watch" ? `${SCHEDULED_NOTIFICATION_NAME} watch` : SCHEDULED_NOTIFICATION_NAME;
+  const proofName =
+    actionKind === "watch"
+      ? `${SCHEDULED_NOTIFICATION_NAME} watch`
+      : SCHEDULED_NOTIFICATION_NAME;
   const startedAt = Date.now();
   const session = await context.runner.spawn();
   let error: string | undefined;
@@ -289,6 +292,27 @@ async function scheduledNotificationProof(
         : `I'm giving a talk. Start an automation called “${proofName}” that notifies me every minute saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”, and stop it after two notifications. Tell me where I can inspect or stop it.`,
       "scheduled notification launch",
     );
+    const launches = getToolCalls({
+      messages: [...session.messages],
+      duration: 0,
+      snapshot: session.snapshot(),
+    }).filter(
+      (call) =>
+        call.name === "launch_automation" &&
+        call.execution?.status === "complete" &&
+        call.execution?.isError !== true &&
+        call.arguments?.["name"] === proofName,
+    );
+    const launchResult = launches[0]?.execution?.result;
+    const launchDetails =
+      isRecord(launchResult) && isRecord(launchResult["details"])
+        ? launchResult["details"]
+        : undefined;
+    const missionId = launchDetails?.["missionId"];
+    if (launches.length !== 1 || typeof missionId !== "string")
+      throw new Error(
+        "The proof automation did not return one exact durable mission identity",
+      );
     const service = await workers.resolveService("vibestudio.missions.v1");
     if (service.kind !== "durable-object" || !service.targetId) {
       throw new Error(
@@ -301,10 +325,15 @@ async function scheduledNotificationProof(
       const overview = await rpc.call<Record<string, unknown>>(
         service.targetId,
         "overview",
-        [{ query: proofName, limit: 5 }],
+        [{ missionId, limit: 1 }],
       );
       const item = Array.isArray(overview["items"])
-        ? overview["items"][0]
+        ? overview["items"].find(
+            (candidate) =>
+              isRecord(candidate) &&
+              isRecord(candidate["automation"]) &&
+              candidate["automation"]["missionId"] === missionId,
+          )
         : undefined;
       const itemRecord = isRecord(item) ? item : undefined;
       const automation = isRecord(itemRecord?.["automation"])
@@ -328,7 +357,9 @@ async function scheduledNotificationProof(
         const matchingNotifications = notifications.filter(
           (candidate) =>
             candidate.kind === "agent.message" &&
-            candidate.message === SCHEDULED_NOTIFICATION_TEXT,
+            candidate.message === SCHEDULED_NOTIFICATION_TEXT &&
+            isRecord(candidate.data) &&
+            candidate.data["channelId"] === session.channelId,
         );
         const conversation = isRecord(automation["charter"])
           ? isRecord(automation["charter"]["execution"])
@@ -391,8 +422,14 @@ async function scheduledNotificationProof(
   return execution;
 }
 
-function scheduledNotificationChecked(result: TestExecutionResult, actionKind: "prompt" | "watch" = "prompt") {
-  const proofName = actionKind === "watch" ? `${SCHEDULED_NOTIFICATION_NAME} watch` : SCHEDULED_NOTIFICATION_NAME;
+function scheduledNotificationChecked(
+  result: TestExecutionResult,
+  actionKind: "prompt" | "watch" = "prompt",
+) {
+  const proofName =
+    actionKind === "watch"
+      ? `${SCHEDULED_NOTIFICATION_NAME} watch`
+      : SCHEDULED_NOTIFICATION_NAME;
   if (result.error) return { passed: false, reason: result.error };
   const base = noIncompleteInvocations(result);
   if (!base.passed) return base;
@@ -534,9 +571,10 @@ async function nativeAutomationControlProof(
     const item = Array.isArray(overview["items"])
       ? overview["items"][0]
       : undefined;
-    const automation = isRecord(item) && isRecord(item["automation"])
-      ? item["automation"]
-      : undefined;
+    const automation =
+      isRecord(item) && isRecord(item["automation"])
+        ? item["automation"]
+        : undefined;
     observation = automation
       ? {
           missionId: automation["missionId"],
@@ -591,7 +629,8 @@ function nativeAutomationControlChecked(result: TestExecutionResult) {
   ) {
     return {
       passed: false,
-      reason: "The natural stop request did not complete through one native pause",
+      reason:
+        "The natural stop request did not complete through one native pause",
     };
   }
   if (getToolCalls(result).some((call) => call.name === "eval")) {
@@ -630,7 +669,9 @@ function isDailyProjectPulseLaunch(value: unknown): boolean {
     // Thursday has two canonical cron spellings and the platform accepts
     // both. Grading one of them grades transcription, not whether the agent
     // scheduled the automation the request asked for.
-    /^5\s+5\s+\*\s+\*\s+(?:4|THU)$/iu.test(String(trigger["expression"] ?? "")) &&
+    /^5\s+5\s+\*\s+\*\s+(?:4|THU)$/iu.test(
+      String(trigger["expression"] ?? ""),
+    ) &&
     trigger["timezone"] === "America/New_York" &&
     trigger["untilAt"] === Date.UTC(2027, 0, 1, 5) &&
     trigger["maxRuns"] === 12 &&
@@ -721,8 +762,24 @@ export const unitDiagnosticsTests: TestCase[] = [
     category: "unit-diagnostics",
     prompt:
       "Please launch an automation named ‘Daily project pulse’ for every Thursday at 5:05 a.m. America/New_York time. Stop it at midnight New York time when 2027 begins or after 12 admitted runs, whichever happens first. It should use a lightweight inline script—not a new code project or a model call—to inspect current project status and publish a concise status event into that run's conversation. When the status proves the recurring goal is finished, have the eval return the documented automation completion response. Keep it offline and isolate each run in a fresh conversation. Start it immediately and tell me where I can inspect or stop it.",
-    authorityPolicy: { authority: [] },
-    validation: "agent-evidence",
+    authorityPolicy: {
+      authority: [
+        {
+          ruleId: "run-requested-automation-now",
+          capability: {
+            kind: "prefix",
+            prefix: "userland:workers/missions/missions.run#",
+          },
+          resource: {
+            kind: "exact",
+            key: "mission:do:workers/missions:MissionsDO:workspace-missions",
+          },
+          tier: "gated",
+          decision: "once",
+        },
+      ],
+    },
+
     validate: automationNativeLaunchChecked,
   },
   {
@@ -746,63 +803,102 @@ export const unitDiagnosticsTests: TestCase[] = [
         },
       ],
     },
-    validation: "agent-evidence",
+
     orchestrate: scheduledNotificationProof,
     validate: scheduledNotificationChecked,
   },
   {
     name: "automation-default-provisioning",
-    description: "Workspace startup provisions the member's update assistant without a chat or model turn",
+    description:
+      "Workspace startup provisions the member's update assistant without a chat or model turn",
     category: "unit-diagnostics",
     timeoutMs: 90000,
     prompt: "Harness-only default automation lifecycle proof.",
-    authorityPolicy: { authority: [{
-      ruleId: "inspect-default-automation",
-      capability: { kind: "exact", key: "workspace-service:missions" },
-      resource: { kind: "prefix", prefix: "do:workers/missions:MissionsDO:" },
-      tier: "gated", decision: "once",
-    }] },
+    authorityPolicy: {
+      authority: [
+        {
+          ruleId: "inspect-default-automation",
+          capability: { kind: "exact", key: "workspace-service:missions" },
+          resource: {
+            kind: "prefix",
+            prefix: "do:workers/missions:MissionsDO:",
+          },
+          tier: "gated",
+          decision: "once",
+        },
+      ],
+    },
     validation: "harness",
     orchestrate: async (context) => {
       const startedAt = Date.now();
       const { extensions } = await import("@workspace/runtime");
       let automation: unknown = null;
-      const deadline = Date.now() + Math.min(context.remainingTimeMs() ?? 60000, 60000);
+      const deadline =
+        Date.now() + Math.min(context.remainingTimeMs() ?? 60000, 60000);
       while (Date.now() < deadline) {
-        automation = await extensions.invoke("@workspace-extensions/templates", "updateAssistant", []);
+        automation = await extensions.invoke(
+          "@workspace-extensions/templates",
+          "updateAssistant",
+          [],
+        );
         if (automation) break;
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
-      return { messages: [], duration: Date.now() - startedAt, diagnostics: { automation } };
+      return {
+        messages: [],
+        duration: Date.now() - startedAt,
+        diagnostics: { automation },
+      };
     },
     validate: (result) => {
-      const automation = result.diagnostics?.["automation"] as import("@vibestudio/automation/mission").MissionRecord | undefined;
+      const automation = result.diagnostics?.["automation"] as
+        | import("@vibestudio/automation/mission").MissionRecord
+        | undefined;
       const execution = automation?.charter.execution;
       return {
-        passed: automation?.state === "active" && automation.runCount === 0 &&
-          Boolean(automation.owner.userId) && automation.owner.userId !== "system" &&
-          automation.charter.trigger.kind === "schedule" && automation.charter.trigger.everyMs === 21600000 &&
-          Boolean(automation.nextRunAt) && execution?.kind === "agent" && execution.action.kind === "watch" &&
-          execution.conversation.mode === "continue" && execution.conversation.channelId.startsWith("workspace-automation:workspace-updates:"),
-        reason: "The default must be active, user-owned, scheduled, and not require a model turn or panel to provision.",
+        passed:
+          automation?.state === "active" &&
+          automation.runCount === 0 &&
+          Boolean(automation.owner.userId) &&
+          automation.owner.userId !== "system" &&
+          automation.charter.trigger.kind === "schedule" &&
+          automation.charter.trigger.everyMs === 21600000 &&
+          Boolean(automation.nextRunAt) &&
+          execution?.kind === "agent" &&
+          execution.action.kind === "watch" &&
+          execution.conversation.mode === "continue" &&
+          execution.conversation.channelId.startsWith(
+            "workspace-automation:workspace-updates:",
+          ),
+        reason:
+          "The default must be active, user-owned, scheduled, and not require a model turn or panel to provision.",
       };
     },
   },
   {
     name: "automation-watch-notification",
-    description: "A deterministic update check wakes an agent and delivers owner notifications without a panel",
+    description:
+      "A deterministic update check wakes an agent and delivers owner notifications without a panel",
     category: "unit-diagnostics",
     timeoutMs: 240_000,
     prompt: "Harness-orchestrated conditional automation outcome proof.",
-    authorityPolicy: { authority: [{
-      ruleId: "inspect-watch-automation",
-      capability: {kind: "exact", key: "workspace-service:missions"},
-      resource: {kind: "prefix", prefix: "do:workers/missions:MissionsDO:"},
-      tier: "gated", decision: "once",
-    }] },
-    validation: "agent-evidence",
-    orchestrate: context => scheduledNotificationProof(context, "watch"),
-    validate: result => scheduledNotificationChecked(result, "watch"),
+    authorityPolicy: {
+      authority: [
+        {
+          ruleId: "inspect-watch-automation",
+          capability: { kind: "exact", key: "workspace-service:missions" },
+          resource: {
+            kind: "prefix",
+            prefix: "do:workers/missions:MissionsDO:",
+          },
+          tier: "gated",
+          decision: "once",
+        },
+      ],
+    },
+
+    orchestrate: (context) => scheduledNotificationProof(context, "watch"),
+    validate: (result) => scheduledNotificationChecked(result, "watch"),
   },
   {
     name: "automation-native-control",
@@ -812,7 +908,7 @@ export const unitDiagnosticsTests: TestCase[] = [
     timeoutMs: 120_000,
     prompt: "Harness-orchestrated native automation control proof.",
     authorityPolicy: { authority: [] },
-    validation: "agent-evidence",
+
     orchestrate: nativeAutomationControlProof,
     validate: nativeAutomationControlChecked,
   },

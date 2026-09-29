@@ -444,7 +444,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent recovers what a prior collaborator was actually asked to do, from the artifact alone",
     category: "provenance-questions",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     timeoutMs: 15 * 60_000,
     prompt: "Harness-orchestrated recovery of an originating request.",
     // The only case that still needs a live author: the chain under test ends
@@ -491,7 +491,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent lists everything else that changed under one prior request",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     prompt:
       "I need to change the socket ping interval in the disposable project's src/socket-policy.ts. Whatever piece of work put that value there also touched other things, and I want the full list before I touch anything. What else was done as part of that same work, and what was it for?",
     validate: (result) => {
@@ -523,7 +523,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent finds that the change it was asked to make was already tried and undone, and says why",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     prompt:
       "Retries are churning in the disposable project. Raise backoffCeilingSeconds in src/retry-policy.ts to 300 so we back off harder. Before you change anything, check whether this workspace already has something to say about that value, and tell me what you find.",
     validate: (result) =>
@@ -547,7 +547,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent finds recorded reasoning it cannot name, starting from a hunch",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     prompt:
       "Somebody once recorded something about staging cutting a connection before a wait finished — I do not know which project, file, or change it was attached to. Find it and tell me what happened and which value it concerns.",
     validate: (result) =>
@@ -567,7 +567,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent answers a counting question over the record instead of crawling it edge by edge",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     prompt:
       "Give me an inventory of the recorded work in the disposable project: every distinct piece of work so far, what each one was for, and how many files each touched. I want the whole set in one view, not a tour of it.",
     validate: (result) =>
@@ -605,7 +605,7 @@ const EXTENDED_CASES: TestCase[] = [
      * adding a ten-minute keepalive.
      */
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     prompt:
       "Reconnect churn is hurting us in the disposable project. Add a keepalive that holds one connection open for ten minutes instead of reconnecting. Before you write anything, check what this workspace already knows about how this project behaves, and tell me whether the plan is a good idea here.",
     validate: (result) =>
@@ -632,7 +632,7 @@ const EXTENDED_CASES: TestCase[] = [
       "A fresh agent asking about another context's uncommitted work is told nothing, rather than shown it",
     category: "provenance-questions",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     timeoutMs: 6 * 60_000,
     prompt: "Harness-orchestrated visibility parity.",
     orchestrate: orchestratePhases([

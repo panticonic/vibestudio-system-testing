@@ -265,7 +265,8 @@ export class TestRunner {
       peak = Math.max(peak, active);
     };
     this.concurrencyObservers.add(observe);
-    for (const watcher of this.concurrencyObservers) watcher(this.activeTestExecutions);
+    for (const watcher of this.concurrencyObservers)
+      watcher(this.activeTestExecutions);
     try {
       return await this.runOneExecution(test, () => peak);
     } finally {
@@ -348,9 +349,14 @@ export class TestRunner {
           ).onMessage;
           if (typeof onMessage === "function") {
             authorityFailure = new Promise<never>((_resolve, reject) => {
-              stopAuthorityWatch = onMessage.call(targetSession, (message) => {
-                const failure = unexpectedTestPolicyFailure(message);
-                if (failure) reject(failure);
+              stopAuthorityWatch = onMessage.call(targetSession, () => {
+                // A channel update can settle an earlier invocation while a
+                // later agent message remains the latest transcript item.
+                // Inspect the canonical current state, not that latest item.
+                for (const message of targetSession.messages) {
+                  const failure = unexpectedTestPolicyFailure(message);
+                  if (failure) { reject(failure); break; }
+                }
               });
             });
           }
@@ -465,7 +471,7 @@ export class TestRunner {
         result = test.validate(validationExecution);
       } else {
         result = validateAgentCompletionReport(validationExecution);
-        if (result.passed && test.validation === "agent-evidence") {
+        if (result.passed) {
           const evidence = test.validate(validationExecution);
           result = evidence.passed
             ? {
@@ -556,6 +562,24 @@ export class TestRunner {
         execution,
       };
     } finally {
+      try {
+        enterPhase("development-session-cleanup");
+        const ownedDevelopmentSessions =
+          await testRunner.closeOwnedDevelopmentSessions();
+        if (ownedDevelopmentSessions.length && outcome) {
+          outcome.execution.diagnostics = {
+            ...outcome.execution.diagnostics,
+            ownedDevelopmentSessions,
+          };
+        }
+      } catch (cleanupErr) {
+        recordCleanupFailure(
+          outcome,
+          "development-session-cleanup",
+          cleanupErr,
+          "close",
+        );
+      }
       if (outcome) {
         try {
           const diagnosticChannelId =
@@ -837,7 +861,10 @@ export class TestRunner {
       // The transition check already knows which turns fell back; report them
       // so the run record answers what happened, rather than only refusing a
       // transition that should not have.
-      if (fallbackModel && typeof this.runner.recordModelFallbackActivations === "function") {
+      if (
+        fallbackModel &&
+        typeof this.runner.recordModelFallbackActivations === "function"
+      ) {
         const observed = [...callsByTurn.values()].flatMap((turnCalls) => {
           const refs = turnCalls.map((call) => String(call?.["ref"] ?? ""));
           const fallbackIndex = refs.indexOf(fallbackModel);
@@ -847,18 +874,26 @@ export class TestRunner {
           return [
             {
               at: String(
-                fallbackCall?.["startedAt"] ?? failedPrimary?.["completedAt"] ?? "",
+                fallbackCall?.["startedAt"] ??
+                  failedPrimary?.["completedAt"] ??
+                  "",
               ),
               fromModel: policy.primaryModel,
               toModel: fallbackModel,
               failureCode: String(
-                failedPrimary?.["error"] ?? configuredFallbackTrigger(policy) ?? "unknown",
+                failedPrimary?.["error"] ??
+                  configuredFallbackTrigger(policy) ??
+                  "unknown",
               ),
             },
           ];
         });
         if (observed.length > 0) {
-          this.runner.recordModelFallbackActivations(session, testName, observed);
+          this.runner.recordModelFallbackActivations(
+            session,
+            testName,
+            observed,
+          );
         }
       }
     }
@@ -1398,8 +1433,12 @@ export function validateAgentCompletionReport(
 function buildAgentTrajectoryReview(result: TestExecutionResult) {
   const final = finalAgentCompletionMessage(result);
   const plainFinal = (final ?? "").replace(/[*_]/gu, "");
-  const completed = /(?:^|\n)\s*Task (?:was )?completed\.(?=\s|$)/iu.test(plainFinal);
-  const incomplete = /(?:^|\n)\s*Task (?:was )?not completed\.(?=\s|$)/iu.test(plainFinal);
+  const completed = /(?:^|\n)\s*Task (?:was )?completed\.(?=\s|$)/iu.test(
+    plainFinal,
+  );
+  const incomplete = /(?:^|\n)\s*Task (?:was )?not completed\.(?=\s|$)/iu.test(
+    plainFinal,
+  );
   const failures = unexpectedToolFailures(result.toolFailures);
   const failureCounts = new Map<string, number>();
   for (const failure of failures) {

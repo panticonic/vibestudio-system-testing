@@ -69,6 +69,16 @@ describe("template agentic validator", () => {
     expect(templateTests.map((test) => test.name)).toEqual(["templates-authoring-prepare"]);
   });
 
+  it("recognizes canonical portable template calls with the same exact receipt requirements", () => {
+    const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
+    const fingerprint = `v1-sha256:${"c".repeat(64)}`;
+    const plan = { fingerprint, manifest: "systemEpoch: 0\n", requestedParts: [AUTHORED_PART] };
+    const code = "const available = await templates.authoringParts(); return await templates.inspectAuthoring(input);";
+    expect(test.validate(execution(plan, `Prepared ${fingerprint}`, { code }))).toEqual({ passed: true, reason: undefined });
+    expect(test.validate(execution({ ...plan, requestedParts: ["extensions/templates"] }, `Prepared ${fingerprint}`, { code })).passed).toBe(false);
+    expect(test.validate(execution(plan, `Prepared ${fingerprint}`, { code: code + " await templates.publishAuthoring(input);" })).passed).toBe(false);
+  });
+
   it("accepts an exact preparation-only authoring plan", () => {
     const test = templateTests.find(
       ({ name }) => name === "templates-authoring-prepare",

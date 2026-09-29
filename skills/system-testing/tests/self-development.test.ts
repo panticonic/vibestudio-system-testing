@@ -138,6 +138,14 @@ describe("self-development semantic validators", () => {
         pair: {
           kind: "host-only",
           pairDigest: digest("c"),
+          personal: {
+            repositoryId: "personal",
+            materializedTreeDigest: digest("e"),
+          },
+          system: {
+            repositoryId: "system",
+            materializedTreeDigest: digest("f"),
+          },
           host: {
             repositoryId: "repository",
             materializedTreeDigest: digest("d"),
@@ -158,6 +166,15 @@ describe("self-development semantic validators", () => {
       },
     };
     expect(validate("self-development-current-client", run).passed).toBe(true);
+    expect(
+      validate("self-development-current-client", {
+        ...run,
+        snapshot: {
+          ...run.snapshot,
+          pair: { ...run.snapshot.pair, system: undefined },
+        },
+      }).passed,
+    ).toBe(false);
     expect(
       validate("self-development-current-client", { ...run, client: null })
         .passed,
@@ -217,6 +234,14 @@ describe("self-development semantic validators", () => {
           pair: {
             kind: "host-only",
             pairDigest: digest("d"),
+            personal: {
+              repositoryId: "personal",
+              materializedTreeDigest: digest("e"),
+            },
+            system: {
+              repositoryId: "system",
+              materializedTreeDigest: digest("f"),
+            },
             host: {
               repositoryId: "repository",
               repoPath: "projects/vibestudio",
@@ -310,6 +335,14 @@ describe("self-development semantic validators", () => {
           pair: {
             kind: "combined",
             pairDigest: digest("b"),
+            personal: {
+              repositoryId: "personal",
+              materializedTreeDigest: digest("e"),
+            },
+            system: {
+              repositoryId: "system",
+              materializedTreeDigest: digest("f"),
+            },
             host: { repositoryId: "host", materializedTreeDigest: digest("c") },
             base: { repositoryId: "base", materializedTreeDigest: digest("d") },
           },
@@ -324,6 +357,14 @@ describe("self-development semantic validators", () => {
           pair: {
             kind: "combined",
             pairDigest: digest("b"),
+            personal: {
+              repositoryId: "personal",
+              materializedTreeDigest: digest("e"),
+            },
+            system: {
+              repositoryId: "system",
+              materializedTreeDigest: digest("f"),
+            },
             host: { repositoryId: "host", materializedTreeDigest: digest("c") },
             base: { repositoryId: "base", materializedTreeDigest: digest("d") },
           },
@@ -495,102 +536,132 @@ describe("self-development semantic validators", () => {
     }
   });
 
-  it("captures current-client evidence from runner RPC results without spawning an agent", async () => {
-    const run = {
-      runId: "run",
-      sessionId: "session",
-      state: "ready",
-      commitPoint: "ready",
-      target: {
-        kind: "client-device",
-        client: "electron",
-        executorId: "shell:desktop",
-      },
-      snapshot: {
-        snapshotDigest: digest("a"),
-        pair: {
-          kind: "host-only",
-          pairDigest: digest("c"),
-          host: {
-            repositoryId: "repository",
-            materializedTreeDigest: digest("d"),
-          },
-          base: {
-            repositoryId: "base-repository",
-            materializedTreeDigest: digest("e"),
+  it.each(["ready", "failed"] as const)(
+    "captures current-client %s evidence without masking launch errors as missing prerequisites",
+    async (state) => {
+      const run = {
+        runId: "run",
+        sessionId: "session",
+        state,
+        repair:
+          state === "failed"
+            ? {
+                primaryError: {
+                  code: "EDEVELOPMENT",
+                  message: "[hubControl.pairDevice] Unknown method",
+                },
+              }
+            : null,
+        commitPoint: "ready",
+        target: {
+          kind: "client-device",
+          client: "electron",
+          executorId: "shell:desktop",
+        },
+        snapshot: {
+          snapshotDigest: digest("a"),
+          pair: {
+            kind: "host-only",
+            pairDigest: digest("c"),
+            personal: {
+              repositoryId: "personal",
+              materializedTreeDigest: digest("e"),
+            },
+            system: {
+              repositoryId: "system",
+              materializedTreeDigest: digest("f"),
+            },
+            host: {
+              repositoryId: "repository",
+              materializedTreeDigest: digest("d"),
+            },
+            base: {
+              repositoryId: "base-repository",
+              materializedTreeDigest: digest("e"),
+            },
           },
         },
-      },
-      artifact: { executionDigest: digest("b") },
-      client: {
-        state: "ready",
-        providerId: "desktop",
-        childRuntimeId: "app:child",
-        attestedAt: 2,
-        executionDigest: digest("b"),
-      },
-    };
-    const calls: string[] = [];
-    const runner = {
-      resolveSelfDevelopmentRepository: async () => {
-        calls.push("vcs.resolveRepository");
-        return {
-          contextId: "context",
-          repositoryId: "repository",
-          repoPath: "projects/vibestudio",
-          workingHead: { kind: "event", eventId: "main" },
-        };
-      },
-      resolveSelfDevelopmentBaseRepository: async () => {
-        calls.push("vcs.resolveRepository");
-        return {
-          contextId: "context",
-          repositoryId: "base-repository",
-          repoPath: "projects/vibestudio-base",
-          workingHead: { kind: "event", eventId: "main" },
-        };
-      },
-      callSelfDevelopment: async (method: string) => {
-        calls.push(`development.${method}`);
-        if (method === "listRecipes") {
-          return [{ recipeId: "recipe", target: { kind: "client-device" } }];
-        }
-        if (method === "listClientExecutors") {
-          return [{ executorId: "shell:desktop", current: false }];
-        }
-        if (method === "openSession") {
-          return { kind: "opened", session: { sessionId: "session" } };
-        }
-        if (method === "start") return { ...run, state: "accepted" };
-        if (method === "get") return run;
-        if (method === "stop") return { ...run, state: "stopped" };
-        if (method === "closeSession")
-          return { sessionId: "session", state: "closed" };
-        throw new Error(`Unexpected method ${method}`);
-      },
-    };
-    const test = selfDevelopmentTests.find(
-      ({ name }) => name === "self-development-current-client",
-    )!;
-    const result = await test.orchestrate!({
-      runner: runner as never,
-      remainingTimeMs: () => 10_000,
-      sendAndWait: async () => {
-        throw new Error("Agent turn must not be used");
-      },
-    });
-    expect(test.validate(result)).toEqual({ passed: true, reason: undefined });
-    expect(calls).toEqual([
-      "vcs.resolveRepository",
-      "vcs.resolveRepository",
-      "development.listRecipes",
-      "development.listClientExecutors",
-      "development.openSession",
-      "development.start",
-      "development.get",
-      "development.stop",
-      "development.closeSession",
-    ]);
-    expect(result.messages).toEqual([]);
-  });
+        artifact: { executionDigest: digest("b") },
+        client: {
+          state: "ready",
+          providerId: "desktop",
+          childRuntimeId: "app:child",
+          attestedAt: 2,
+          executionDigest: digest("b"),
+        },
+      };
+      const calls: string[] = [];
+      const runner = {
+        resolveSelfDevelopmentRepository: async () => {
+          calls.push("vcs.resolveRepository");
+          return {
+            contextId: "context",
+            repositoryId: "repository",
+            repoPath: "projects/vibestudio",
+            workingHead: { kind: "event", eventId: "main" },
+          };
+        },
+        resolveSelfDevelopmentTemplateRepository: async (role: string) => {
+          calls.push("vcs.resolveRepository");
+          return {
+            contextId: "context",
+            repositoryId: `${role}-repository`,
+            repoPath: `projects/vibestudio-${role}`,
+            workingHead: { kind: "event", eventId: "main" },
+          };
+        },
+        callSelfDevelopment: async (method: string) => {
+          calls.push(`development.${method}`);
+          if (method === "listRecipes") {
+            return [{ recipeId: "recipe", target: { kind: "client-device" } }];
+          }
+          if (method === "listClientExecutors") {
+            return [{ executorId: "shell:desktop", current: false }];
+          }
+          if (method === "openSession") {
+            return { kind: "opened", session: { sessionId: "session" } };
+          }
+          if (method === "start") return { ...run, state: "accepted" };
+          if (method === "get") return run;
+          if (method === "stop") return { ...run, state: "stopped" };
+          if (method === "closeSession")
+            return { sessionId: "session", state: "closed" };
+          throw new Error(`Unexpected method ${method}`);
+        },
+      };
+      const test = selfDevelopmentTests.find(
+        ({ name }) => name === "self-development-current-client",
+      )!;
+      const result = await test.orchestrate!({
+        runner: runner as never,
+        remainingTimeMs: () => 10_000,
+        sendAndWait: async () => {
+          throw new Error("Agent turn must not be used");
+        },
+      });
+      expect(test.validate(result)).toEqual(
+        state === "ready"
+          ? { passed: true, reason: undefined }
+          : {
+              passed: false,
+              reason:
+                "Development launch failed: EDEVELOPMENT [hubControl.pairDevice] Unknown method",
+            },
+      );
+      expect(calls).toEqual([
+        "vcs.resolveRepository",
+        "vcs.resolveRepository",
+        "vcs.resolveRepository",
+        "vcs.resolveRepository",
+        "development.listRecipes",
+        "development.listClientExecutors",
+        "development.openSession",
+        "development.start",
+        "development.get",
+        ...(state === "ready" ? ["development.stop"] : []),
+        "development.closeSession",
+      ]);
+      expect(result.messages).toEqual([]);
+    },
+  );
 });

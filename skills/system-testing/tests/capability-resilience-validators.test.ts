@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "@workspace/agentic-core";
+import type { SavedPermissionGrant } from "@vibestudio/service-schemas/permissions";
 import type { TestCase, TestExecutionResult } from "../types.js";
 import { agentCapabilityTests } from "./agent-capabilities.js";
 import { approvalPermissionTests } from "./approvals-permissions.js";
@@ -342,6 +343,57 @@ describe("permission semantic validators", () => {
       ).passed
     ).toBe(false);
   });
+
+  it("checks subagent grant reuse by typed scope independently of display wording", () => {
+    const validator = scenario(approvalPermissionTests, "subagent-task-permission-reuse");
+    const serverLogGrant: SavedPermissionGrant = {
+      ...grant,
+      kind: "capability",
+      callerLabel: "This task",
+      resource: "server-logs.read",
+      duration: "For the current approved task; Revoking this permission ends its access",
+      authority: {
+        effect: "allow" as const,
+        provenance: "preauthorization",
+        scope: "task" as const,
+        subject: "task:parent",
+        capability: "server-logs.read",
+        resource: { kind: "exact" as const, key: "server-logs.read" },
+      },
+    };
+    const result = execution([
+      evalCall("return await services.serverLog.stats();", { totalCaptured: 10 }),
+      { name: "spawn_subagent", arguments: { mode: "fresh", task: "Read server logs" } },
+      evalCall("return await services.permissions.list();", [serverLogGrant]),
+    ]);
+    result.messages.push({
+      id: "child-task", kind: "message", senderId: "agent", complete: true,
+      task: {
+        id: "invocation-1", execution: { status: "running", isError: false },
+        subagent: { runId: "invocation-1", childParticipantId: "child", taskChannelId: "child-channel" },
+      },
+    } as ChatMessage);
+    const childReplay = [
+      { id: 1, senderId: "child", payload: { kind: "message.completed", payload: {
+        outcome: "completed", blocks: [{ type: "text", content: "yes" }],
+      } } },
+      { id: 2, senderId: "child", payload: { kind: "turn.closed" } },
+    ];
+    result.diagnostics = { childReplay };
+    expect(validator.validate(result)).toEqual({ passed: true, reason: undefined });
+    result.diagnostics = { childReplay: childReplay.slice(0, 1) };
+    expect(validator.validate(result).passed).toBe(false);
+    result.diagnostics = { childReplay: childReplay.map(event => ({ ...event, senderId: "other" })) };
+    expect(validator.validate(result).passed).toBe(false);
+    result.diagnostics = { childReplay };
+    result.messages[3] = invocationMessage(
+      evalCall("return await services.permissions.list();", [
+        { ...serverLogGrant, authority: { ...serverLogGrant.authority, scope: "once" } },
+      ]),
+      2
+    );
+    expect(validator.validate(result).passed).toBe(false);
+  });
 });
 
 describe("edge and harness semantic validators", () => {
@@ -532,6 +584,8 @@ describe("project lifecycle semantic validators", () => {
           evalCall(
             "const created = await createProjects([input]); const opened = await openPanel(created.created); return { created: created.created, files: created.files.length, preflightOk: created.preflight.ok, publication: created.publication, ready: await opened.observe(), snapshot: await opened.snapshot() };",
             {
+              // A compact guest claim omits the actual preflight receipt and
+              // file inventory; it cannot prove a valid scaffold publication.
               created: "panels/summarized-panel",
               files: 2,
               preflightOk: true,
@@ -541,7 +595,7 @@ describe("project lifecycle semantic validators", () => {
           ),
         ])
       ).passed
-    ).toBe(true);
+    ).toBe(false);
     expect(
       scenario(projectLifecycleTests, "panel-fork-dry-run-and-commit").validate(
         execution([

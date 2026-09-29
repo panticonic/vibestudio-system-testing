@@ -32,17 +32,33 @@ interface ImagePanelEvidence {
   reloaded?: Frame;
   edited?: Frame;
   sourceUnchanged?: boolean;
-  screenshot?: { digest: string; mimeType: string; width: number; height: number };
+  screenshot?: {
+    digest: string;
+    mimeType: string;
+    width: number;
+    height: number;
+  };
   cleanupComplete?: boolean;
   lastFrame?: Frame;
+  jobs?: Array<
+    Pick<
+      Awaited<ReturnType<typeof images.getJob>>,
+      "id" | "status" | "attempt" | "createdAt" | "updatedAt" | "error"
+    >
+  >;
 }
 export function validateImagePanel(execution: TestExecutionResult) {
   if (execution.error) return { passed: false, reason: execution.error };
   if (execution.cleanupErrors?.length)
     return { passed: false, reason: execution.cleanupErrors.join("; ") };
-  const data = execution.diagnostics?.["imagePanel"] as ImagePanelEvidence | undefined;
+  const data = execution.diagnostics?.["imagePanel"] as
+    | ImagePanelEvidence
+    | undefined;
   if (!data?.before || !data.first || !data.reloaded || !data.edited)
-    return { passed: false, reason: "Missing observed running-panel image lifecycle" };
+    return {
+      passed: false,
+      reason: "Missing observed running-panel image lifecycle",
+    };
   const { before, first, reloaded, edited } = data;
   const visible = (frame: Frame) =>
     frame.loaded &&
@@ -52,11 +68,19 @@ export function validateImagePanel(execution: TestExecutionResult) {
     frame.asset &&
     frame.digest;
   if (![first, reloaded, edited].every(visible))
-    return { passed: false, reason: "Generated original did not decode in the running panel" };
-  if (before.boot !== first.boot || reloaded.boot !== edited.boot || first.boot === reloaded.boot)
     return {
       passed: false,
-      reason: "Generation remounted the app, or explicit reload did not reopen it",
+      reason: "Generated original did not decode in the running panel",
+    };
+  if (
+    before.boot !== first.boot ||
+    reloaded.boot !== edited.boot ||
+    first.boot === reloaded.boot
+  )
+    return {
+      passed: false,
+      reason:
+        "Generation remounted the app, or explicit reload did not reopen it",
     };
   if (
     first.asset !== reloaded.asset ||
@@ -67,10 +91,20 @@ export function validateImagePanel(execution: TestExecutionResult) {
       passed: false,
       reason: "Reload did not recover the same durable job and immutable image",
     };
-  if (edited.asset === first.asset || edited.job === first.job || edited.digest === first.digest)
-    return { passed: false, reason: "Reference generation did not display a new asset" };
+  if (
+    edited.asset === first.asset ||
+    edited.job === first.job ||
+    edited.digest === first.digest
+  )
+    return {
+      passed: false,
+      reason: "Reference generation did not display a new asset",
+    };
   if (!data.sourceUnchanged || !data.cleanupComplete)
-    return { passed: false, reason: "Source stability or resource cleanup was not established" };
+    return {
+      passed: false,
+      reason: "Source stability or resource cleanup was not established",
+    };
   return {
     passed: true,
     details: {
@@ -81,9 +115,13 @@ export function validateImagePanel(execution: TestExecutionResult) {
     },
   };
 }
-async function orchestrate(context: TestOrchestrationContext): Promise<TestExecutionResult> {
+async function orchestrate(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
   const startedAt = Date.now();
-  let handle: Awaited<ReturnType<typeof context.runner.openPanelClient>> | undefined;
+  let handle:
+    | Awaited<ReturnType<typeof context.runner.openPanelClient>>
+    | undefined;
   const evidence: ImagePanelEvidence = {};
   const execution: TestExecutionResult = {
     messages: [],
@@ -93,7 +131,10 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
   const jobs = new Set<string>();
   try {
     const contextId = context.runner.workspaceRepoFixtureContextId;
-    if (!contextId) throw new Error("Image panel test requires a prepared repository fixture");
+    if (!contextId)
+      throw new Error(
+        "Image panel test requires a prepared repository fixture",
+      );
     const fixture = await importImagePanelFixture({
       vcs,
       blobstore,
@@ -110,41 +151,58 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
     const read = () =>
       context.runner.evalInPanelClient<Frame | null>(
         handle!,
-        `(() => {const root=document.querySelector('[data-testid="image-studio"]');if(!(root instanceof HTMLElement))return null;const image=document.querySelector('[data-testid="generated-scene"]');return {boot:root.dataset.boot,job:root.dataset.job,asset:root.dataset.asset,digest:root.dataset.digest,status:root.dataset.status,error:document.querySelector('[data-testid="generation-error"]')?.textContent ?? '',loaded:image instanceof HTMLImageElement && image.complete && image.naturalWidth>0,width:image instanceof HTMLImageElement?image.naturalWidth:0,height:image instanceof HTMLImageElement?image.naturalHeight:0,src:image instanceof HTMLImageElement?image.src:''};})()`
+        `(() => {const root=document.querySelector('[data-testid="image-studio"]');if(!(root instanceof HTMLElement))return null;const image=document.querySelector('[data-testid="generated-scene"]');return {boot:root.dataset.boot,job:root.dataset.job,asset:root.dataset.asset,digest:root.dataset.digest,status:root.dataset.status,error:document.querySelector('[data-testid="generation-error"]')?.textContent ?? '',loaded:image instanceof HTMLImageElement && image.complete && image.naturalWidth>0,width:image instanceof HTMLImageElement?image.naturalWidth:0,height:image instanceof HTMLImageElement?image.naturalHeight:0,src:image instanceof HTMLImageElement?image.src:''};})()`,
       );
-    const wait = async (label: string, predicate: (frame: Frame) => boolean, budget: number) => {
-      const deadline = Date.now() + Math.min(budget, context.remainingTimeMs() ?? budget);
+    const wait = async (
+      label: string,
+      predicate: (frame: Frame) => boolean,
+      budget: number,
+    ) => {
+      const deadline =
+        Date.now() + Math.min(budget, context.remainingTimeMs() ?? budget);
       while (Date.now() < deadline) {
         const frame = await read();
         if (frame) evidence.lastFrame = frame;
         if (frame?.job) jobs.add(frame.job);
-        if (frame?.error || frame?.status === "failed" || frame?.status === "cancelled") {
-          throw new Error(`${label}: ${frame.error || `Image generation ${frame.status}`}`);
+        if (
+          frame?.error ||
+          frame?.status === "failed" ||
+          frame?.status === "cancelled"
+        ) {
+          throw new Error(
+            `${label}: ${frame.error || `Image generation ${frame.status}`}`,
+          );
         }
         if (frame && predicate(frame)) return frame;
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
       throw new Error(`${label} did not become visible before the deadline`);
     };
-    evidence.before = await wait("initial controls", (frame) => frame.status === "idle", 15000);
+    evidence.before = await wait(
+      "initial controls",
+      (frame) => frame.status === "idle",
+      15000,
+    );
     await handle.click('[data-testid="generate"]');
     evidence.first = await wait(
       "generated scene",
       (frame) => frame.status === "succeeded" && frame.loaded,
-      300000
+      300000,
     );
     await handle.reload();
     evidence.reloaded = await wait(
       "reopened scene",
       (frame) => frame.status === "succeeded" && frame.loaded,
-      30000
+      30000,
     );
     await handle.click('[data-testid="reference"]');
     evidence.edited = await wait(
       "reference scene",
       (frame) =>
-        frame.status === "succeeded" && frame.loaded && frame.asset !== evidence.first!.asset,
-      300000
+        frame.status === "succeeded" &&
+        frame.loaded &&
+        frame.asset !== evidence.first!.asset,
+      300000,
     );
     const screenshot = await handle.cdp.screenshot({ format: "png" });
     const storedScreenshot = await blobstore.putBase64(screenshot.data);
@@ -183,7 +241,16 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
     for (const id of jobs) {
       try {
         const job = await images.getJob(id);
-        if (job.status === "queued" || job.status === "running") await images.cancel(id);
+        (evidence.jobs ??= []).push({
+          id: job.id,
+          status: job.status,
+          attempt: job.attempt,
+          createdAt: job.createdAt,
+          updatedAt: job.updatedAt,
+          ...(job.error ? { error: job.error } : {}),
+        });
+        if (job.status === "queued" || job.status === "running")
+          await images.cancel(id);
         await images.forgetJob(id);
       } catch (cause) {
         cleanupErrors.push(`release job ${id}: ${String(cause)}`);
@@ -200,29 +267,36 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
   }
   return execution;
 }
-export const imagePanelTests: TestCase[] = requiringUnits(["workers/images"], [
-  {
-    name: "image-panel-live-generation",
-    description:
-      "Generate and display original images in an already running panel, recover after reload, and edit using the first image",
-    category: "image-generation",
-    timeoutMs: 720000,
-    prompt: "Exercise the running panel's real image generation and durable reload lifecycle.",
-    validation: "harness",
-    workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
-    resources: [PANEL_AUTOMATION_RESOURCE],
-    authorityPolicy: panelControlAuthorityPolicy("inspect-live-image-panel", [
-      PANEL_RUNTIME_SUPERVISION_AUTHORITY,
+export const imagePanelTests: TestCase[] = requiringUnits(
+  ["workers/images"],
+  [
+    {
+      name: "image-panel-live-generation",
+      description:
+        "Generate and display original images in an already running panel, recover after reload, and edit using the first image",
+      category: "image-generation",
+      timeoutMs: 720000,
+      prompt:
+        "Exercise the running panel's real image generation and durable reload lifecycle.",
+      validation: "harness",
+      workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
+      resources: [PANEL_AUTOMATION_RESOURCE],
+      authorityPolicy: panelControlAuthorityPolicy("inspect-live-image-panel", [
+        PANEL_RUNTIME_SUPERVISION_AUTHORITY,
 
-      {
-        ruleId: "generate-workspace-images",
-        capability: { kind: "exact", key: "workspace-service:images" },
-        resource: { kind: "exact", key: "do:workers/images:ImagesDO:workspace" },
-        tier: "gated",
-        decision: "once",
-      },
-    ]),
-    orchestrate,
-    validate: validateImagePanel,
-  },
-]);
+        {
+          ruleId: "generate-workspace-images",
+          capability: { kind: "exact", key: "workspace-service:images" },
+          resource: {
+            kind: "exact",
+            key: "do:workers/images:ImagesDO:workspace",
+          },
+          tier: "gated",
+          decision: "once",
+        },
+      ]),
+      orchestrate,
+      validate: validateImagePanel,
+    },
+  ],
+);

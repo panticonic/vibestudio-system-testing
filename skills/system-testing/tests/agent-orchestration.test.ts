@@ -8,15 +8,7 @@ describe("agent orchestration scenarios", () => {
   it("state user goals without embedding the subagent API or runtime configuration", () => {
     for (const test of agentOrchestrationTests) {
       expect(agentGoalPromptFindings(test.prompt), test.name).toEqual([]);
-      expect(test.validation, test.name).toBe(
-        [
-          "subagent-diff-inspection",
-          "subagent-reviewed-merge",
-          "subagent-followup-after-report",
-        ].includes(test.name)
-          ? "agent-evidence"
-          : undefined
-      );
+      expect(test.validation, test.name).toBeUndefined();
     }
   });
 

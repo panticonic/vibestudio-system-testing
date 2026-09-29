@@ -103,7 +103,7 @@ export const imageGenerationTests: TestCase[] = requiringUnits(["workers/images"
     category: "image-generation",
     timeoutMs: 420_000,
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
-    validation: "agent-evidence",
+
     prompt:
       "Create a richly detailed painted adventure-game landscape: a moonlit ferry landing, a weathered customs house, wet cobblestones, and warm brass lanterns, in a unified gouache storybook style. Make a landscape PNG at 1536 by 1024 pixels. Save the original illustration in the provided project, reopen the saved image to inspect it, and tell me where you saved it.",
     validate: validateSavedImage,
