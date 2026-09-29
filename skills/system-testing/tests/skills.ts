@@ -138,7 +138,7 @@ async function orchestrateHeadlessDiagnosis(
   try {
     await context.sendAndWait(
       session,
-      "Set up a controlled diagnostic target by spawning one real subagent labelled 'stalled headless fixture'. Let it inherit the current/default model rather than naming a model. Ask it to begin an intentionally non-terminating eval and do no other work, then acknowledge once that child is running.",
+      "Start one collaborator on a task that remains in progress without producing a final response, then let me know when it is underway.",
       "create a real stalled child fixture"
     );
     const remainingTimeMs = context.remainingTimeMs();

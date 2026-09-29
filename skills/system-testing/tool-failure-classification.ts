@@ -90,11 +90,9 @@ export function isSafeEvalDomainRejection(
  * Eval and source verification distinguish guest program failures from their
  * own infrastructure failing. Agentic development is expected to execute,
  * diagnose, edit, and rerun imperfect user code, so every such failure
- * explicitly typed as `user-code` remains visible in diagnostics but is not a
- * failed platform effect. The failure code is evidence for diagnosis, not a
- * second allowlist that can drift as new guest-code errors are added. Untyped
- * eval errors and every infrastructure/cancellation failure remain
- * unexpected.
+ * explicitly typed as `user-code` has a distinct diagnostic owner. This
+ * classification does not exempt it from the unexpected-failure verdict.
+ * Deliberate broken-code scenarios must declare their intended fault.
  */
 export function isGuestCodeFailure(
   toolName: string,
@@ -132,34 +130,27 @@ export type BuiltInToolFailureClassification =
   | "guest-code-failure";
 
 /**
- * A failed invocation can still be useful evidence without representing a
- * failed platform effect. `expected` is reserved for failures a test
- * deliberately induces; `diagnosticOnly` describes typed no-effect guards and
- * guest-code exceptions discovered while the agent is working.
+ * Classification identifies the failing boundary; it never excuses a failed
+ * invocation. Only a fault explicitly declared by the scenario is expected.
  */
 export interface ToolFailureDisposition {
   expected?: boolean;
-  diagnosticOnly?: boolean;
   classification?: BuiltInToolFailureClassification;
 }
 
 /**
- * Keep this predicate shared by suite accounting, rerun selection, reports,
- * and diagnostics. A classification also makes older persisted trajectories
- * safe to read after `diagnosticOnly` was added to the summary shape.
+ * Keep this predicate shared by the verdict, suite accounting, rerun selection,
+ * reports, and diagnostics. Recovery and classification cannot turn an
+ * incidental failure into a clean execution.
  */
 export function isUnexpectedToolFailure(failure: ToolFailureDisposition): boolean {
-  return (
-    failure.expected !== true &&
-    failure.diagnosticOnly !== true &&
-    failure.classification === undefined
-  );
+  return failure.expected !== true;
 }
 
 /**
- * One canonical classifier is shared by suite accounting and semantic
- * validators. This prevents a scenario from rejecting the same typed,
- * no-effect failure that the runner correctly keeps as diagnostic evidence.
+ * One canonical classifier preserves diagnostic ownership across reports
+ * and validators. All classifications still fail unless the scenario declared
+ * that specific invocation as an intentional fault.
  */
 export function classifyBuiltInToolFailure(input: {
   name: string;

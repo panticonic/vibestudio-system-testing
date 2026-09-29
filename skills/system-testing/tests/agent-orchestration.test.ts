@@ -246,13 +246,11 @@ describe("agent orchestration scenarios", () => {
     );
     expect(synthesis?.authorityPolicy).toBeUndefined();
     expect(synthesis?.workspaceRepoFixture).toBeUndefined();
-    expect(synthesis?.prompt).toContain("There is no existing codebase");
-    expect(synthesis?.prompt).toContain(
-      "Delegate two independent reviews concurrently to subagents"
-    );
-    expect(synthesis?.prompt).toContain("at most five bullets");
-    expect(synthesis?.prompt).toContain("both replies are in the conversation");
-    expect(synthesis?.prompt).toContain("one synthesis under 500 words");
+    expect(synthesis?.prompt).toMatch(/hypothetical|no existing codebase/iu);
+    expect(synthesis?.prompt).toContain("two independent");
+    expect(synthesis?.prompt).toContain("simple data model");
+    expect(synthesis?.prompt).toContain("provenance and debuggability");
+    expect(synthesis?.prompt).toMatch(/summarize.*tradeoffs and disagreements/iu);
     expect(synthesis?.prompt).not.toContain("finish supervising");
   });
 

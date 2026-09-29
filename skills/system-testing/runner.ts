@@ -49,15 +49,15 @@ Your job is to exercise the documented path honestly, not to make the test pass 
 
 When a task depends on Vibestudio behavior, use the relevant docs or skill files to choose the most straightforward supported approach.
 
-Treat the request like a normal user's request. Route from the Available skills index to the closest user-facing skill before doing a broad source search. Use normal approval routing for ordinary work: omit the \`authority\` field unless the task explicitly tests an attenuated or \`pregranted-only\` run. \`pregranted-only\` asserts that the required grants already exist; it is not a way to skip normal approval routing. Test-harness implementation and captured artifacts are not product evidence and must never be used to infer an answer.
+Treat the request like a normal user's request. Route from the Available skills index to the closest user-facing skill before doing a broad source search. Use normal approval routing for ordinary work; follow the product's authority guidance rather than assuming grants or bypassing review. Test-harness implementation and captured artifacts are not product evidence and must never be used to infer an answer.
 
 This session is genuinely headless: there is no initial visible panel ancestor, but the panel tree still works. Follow the documented headless tree pattern when a task needs an actual child. Panels created for an investigation are working state owned by that investigation: unless the user asked to keep one as a deliverable, leave the tree as you found it. Never archive a panel that predated the task merely because it was visible.
 
-If that documented approach fails, stop and report what happened. Do not keep trying alternate strategies, guessing APIs, editing source, switching to shell commands, or calling raw internal services unless the test prompt explicitly asks for that fallback.
+Pursue the requested outcome through documented recovery and verification. A recoverable failure is an intermediate result: inspect its evidence, correct the cause within the requested scope, and continue. Do not abandon the task merely because the first supported attempt failed. Do not guess APIs, bypass authority, or replace a broken product path with an unrelated implementation to make the test pass. If completion requires a concrete unavailable prerequisite or unsupported behavior, report that blocker and preserve the original failure evidence.
 
 When reporting a failure, include the docs or skill files you used, the operation you attempted, the exact error or unexpected result, and the mismatch between the docs and reality.
 
-Use file-loaded eval for substantive multi-line or multi-file eval work. Do not create or edit helper files merely to work around a short documented suite-orchestration eval snippet. If an operation fails, report the error you actually observed, verbatim, with the operation that produced it.
+Follow the applicable product skills for execution, source editing, diagnostics, and resource ownership. If an operation fails, report the error you actually observed, verbatim, with the operation that produced it.
 
 Keep evidence bounded. Report summaries, counts, ids, byte lengths, exact error messages, the final agent message, the validation reason, and the relevant tool call statuses/errors. Do not paste large raw payloads, full database rows, full channel envelopes, image data, or secrets.
 
@@ -367,13 +367,7 @@ export class HeadlessRunner {
     )
       return prompt;
     const repoPath = `${fixture.section}/${fixture.repoName}`;
-    return (
-      "Prepared task input:\n" +
-      `- Use this exact disposable repository: ${repoPath}\n` +
-      "- This is starting material; inspect and modify it as needed to complete the request.\n" +
-      "- Do not search for, create, or substitute another fixture.\n\n" +
-      prompt
-    );
+    return `The project for this request is at ${repoPath}.\n\n${prompt}`;
   }
 
   /**

@@ -24,6 +24,18 @@ export function agentGoalPromptFindings(prompt: string): string[] {
 
 /** Fail before provisioning effects when a test declaration crosses layers. */
 export function assertSystemTestDeclaration(test: TestCase): void {
+  for (const failure of test.expectedToolFailures ?? []) {
+    if (
+      !failure.name.trim() ||
+      !(failure.failureCode?.trim() || failure.errorIncludes?.trim()) ||
+      (failure.failureCode !== undefined && !failure.failureCode.trim()) ||
+      (failure.errorIncludes !== undefined && !failure.errorIncludes.trim())
+    ) {
+      throw new Error(
+        `System test "${test.name}" must identify each intentional tool failure with a tool name and a nonempty failure code or error discriminator`,
+      );
+    }
+  }
   if (test.validation === "harness") {
     if (!test.validate) {
       throw new Error(`Harness system test "${test.name}" has no deterministic validator`);
@@ -31,10 +43,15 @@ export function assertSystemTestDeclaration(test: TestCase): void {
     return;
   }
 
-  const findings = agentGoalPromptFindings(test.prompt);
+  assertAgentGoalPrompt(test.prompt, `Agent-goal system test "${test.name}"`);
+}
+
+/** Check delivered follow-up turns as well as the catalog's initial request. */
+export function assertAgentGoalPrompt(prompt: string, subject: string): void {
+  const findings = agentGoalPromptFindings(prompt);
   if (findings.length > 0) {
     throw new Error(
-      `Agent-goal system test "${test.name}" prescribes ${findings.join(
+      `${subject} prescribes ${findings.join(
         ", "
       )}. State the user outcome instead, or make the case an explicit harness/protocol probe.`
     );

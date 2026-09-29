@@ -11,6 +11,15 @@ usable.
 Good prompts expose documentation and ergonomics defects. Answer-bearing
 prompts hide them.
 
+Review every delivered turn, including orchestration follow-ups and child-task
+messages. A generic catalog prompt does not excuse a later message containing
+API snippets, internal method names, exact deadline values, or evaluator
+receipts. Preserve genuine user constraints such as the input project, desired
+data, independent collaborator, and whether to integrate or publish work.
+Technical execution belongs in the owning product skill; fixture construction
+and fault injection belong to the harness. Never move a validator's magic
+receipt into a product skill merely to make a generic request pass.
+
 ## Judge the agent; diagnose the trajectory
 
 An ordinary agentic case requires a completed turn and the outcome its validator
@@ -25,7 +34,11 @@ establishes the outcome. Product guidance teaches the behavior and independent
 evidence proves it happened.
 
 The harness records tool failures independently from task completion and marks
-every ordinary agent trajectory for review. Review failed calls (including
+every ordinary agent trajectory for review. An undeclared failed invocation
+fails the test even if the agent subsequently delivers the requested outcome.
+Argument corrections, fail-closed domain refusals, and guest-code failures
+remain classified for diagnosis; classification and self-healing never exempt
+them from the verdict. Review failed calls (including
 caught eval failures), retries, unusually long trajectories, cleanup errors,
 and runtime diagnostics even when the agent ultimately succeeds. Also look for
 needless searching, repeated rediscovery, and work abandoned after consuming
@@ -185,6 +198,14 @@ catalog.
 Negative tests should identify the expected typed refusal and verify that no
 state changed. Mark deliberately induced failures as expected in diagnostics so
 they remain evidence without becoming product-defect counts.
+
+Each `expectedToolFailures` entry declares one deliberately induced invocation
+by tool name and canonical `failureCode`. For an untyped external failure, use
+a specific nonempty `errorIncludes` discriminator. Matching consumes that entry
+once; repeated or additional failures remain unexpected. The validator must
+independently prove the intended fault, its observability, and the required
+recovery or unchanged state. Never add expected faults for incidental errors
+merely to restore a pass, or exempt every failure of a tool by name.
 
 Never branch a validator on human-readable error prose when a discriminant or
 terminal outcome exists.

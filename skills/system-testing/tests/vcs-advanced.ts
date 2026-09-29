@@ -545,7 +545,7 @@ export const vcsAdvancedTests: TestCase[] = [
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Change and commit one existing line in the disposable project. Then semantically counteract that exact committed change so the original content returns without pretending the first change never happened. Commit the counteraction and explain the recorded relationship.",
+      "Change and commit one existing line in the disposable project, then undo that change while preserving the record of both changes. Commit the undo and explain what the history shows.",
     validate: (result) => {
       const base = checked(result, ["vcs.edit", "vcs.revert", "vcs.commit", "vcs.status"]);
       return base.passed ? requireRevertEvidence(result) : base;

@@ -286,7 +286,7 @@ export const harnessResilienceTests: TestCase[] = [
     prompt:
       "Show that a deliberate sandbox exception is visible and does not prevent a later successful evaluation.",
     validation: "harness",
-    expectedToolFailures: [{ name: "eval" }],
+    expectedToolFailures: [{ name: "eval", failureCode: "guest_execution_failed" }],
     validate: (result) => recoverySequence(result, thrownEval, "thrown-eval"),
   },
   {
@@ -303,7 +303,7 @@ export const harnessResilienceTests: TestCase[] = [
     description: "An explicitly bounded eval timeout is visible and leaves no pending tool",
     category: "harness-resilience",
     prompt:
-      "Run one eval containing `await new Promise(() => {});` with `timeoutMs: 250`, observe its visible timeout, then run an ordinary eval that returns `recovered` to prove the sandbox remains usable.",
+      "Check what happens when a sandbox task takes too long to finish, then confirm that the sandbox is still usable afterward.",
     validation: "harness",
     expectedToolFailures: [{ name: "eval", errorIncludes: "timed out" }],
     validate: (result) => recoverySequence(result, timedOutEval, "timed-out eval"),

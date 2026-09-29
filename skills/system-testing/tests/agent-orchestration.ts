@@ -235,7 +235,7 @@ export const agentOrchestrationTests: TestCase[] = [
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Ask a fresh subagent to add a small deterministic typed export named firstValue in the disposable package and report back when finished. Review that committed change without merging it. Then ask that same subagent to add a second typed export named secondValue using firstValue. Review the new committed diff and integrate it. Keep the same collaborator and its work context throughout; summarize both changes.",
+      "Ask the same collaborator to make two related changes in the disposable package. Review the first result without bringing it into your workspace; then ask that collaborator to make the follow-up, review it, and bring that second change into your workspace. Summarize both changes.",
 
     validate: validateSubagentFollowup,
   },
@@ -246,7 +246,7 @@ export const agentOrchestrationTests: TestCase[] = [
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Ask a fresh subagent to add one small deterministic typed export in the disposable package. Review what the child changed without integrating it, then summarize the bounded diff.",
+      "Ask a collaborator to make one small change in the disposable package. Review the result and summarize it without bringing it into your workspace.",
 
     validate: (result) => validateSubagentDiff(result, false),
   },
@@ -256,7 +256,7 @@ export const agentOrchestrationTests: TestCase[] = [
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Ask a fresh subagent to add one small deterministic typed export in the disposable package. Review the child's diff before integrating the change into your workspace, then summarize the result.",
+      "Ask a collaborator to make one small change in the disposable package. Review the result, bring it into your workspace, and summarize what changed.",
 
     validate: (result) => validateSubagentDiff(result, true),
   },
@@ -265,7 +265,7 @@ export const agentOrchestrationTests: TestCase[] = [
     description: "Two children explore competing design priorities that the parent synthesizes",
     category: "agent-orchestration",
     prompt:
-      "Run a brief design review for a hypothetical standalone TypeScript library that represents edge-case test corpora. There is no existing codebase for it, so reason only from this brief. Delegate two independent reviews concurrently to subagents: one favoring a simple data model, the other favoring provenance and debuggability. Ask each reviewer to keep their reply to at most five bullets. Once both replies are in the conversation, write one synthesis under 500 words covering the main tradeoffs and disagreements.",
+      "Review this hypothetical brief for a standalone TypeScript library that represents edge-case test corpora; there is no existing codebase, so reason only from the brief. Delegate two independent reviews concurrently: one should favor a simple data model, the other provenance and debuggability. Once both perspectives are back, summarize their main tradeoffs and disagreements concisely.",
     validate: validateAgentCompletionReport,
   },
   {
@@ -291,7 +291,7 @@ export const agentOrchestrationTests: TestCase[] = [
       ],
     },
     prompt:
-      "Use the installed terminal capability to run a harmless bounded argv-mode printf command without shell interpretation. Print agentic-terminal-roundtrip, then report the observed output, exit status, and whether the command timed out or truncated anything.",
+      "Run a harmless command that prints `agentic-terminal-roundtrip`, then tell me what it printed and whether it completed normally.",
     validate: validateAgentCompletionReport,
   },
 ];

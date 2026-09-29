@@ -29,7 +29,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     name: "scaffold-react-panel-build",
     description: "Build the default React panel scaffold",
     prompt:
-      "Create and publish a brand-new isolated panel using the default React scaffold, then run its exact structured build check and report whether it is clean.",
+      "Create and publish a new panel from the standard React starter, and confirm that it builds successfully.",
     projectType: "panel",
     section: "panels",
     fixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
@@ -38,7 +38,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     name: "scaffold-svelte-panel-build",
     description: "Build the Svelte panel scaffold",
     prompt:
-      "Create and publish a brand-new isolated panel using the available Svelte scaffold, then run its exact structured build check and report whether it is clean.",
+      "Create and publish a new Svelte panel, and confirm that it builds successfully.",
     projectType: "panel",
     section: "panels",
     fixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
@@ -48,7 +48,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     name: "scaffold-stateless-worker-build",
     description: "Build the stateless worker scaffold",
     prompt:
-      "Create and publish a brand-new isolated stateless worker from the standard scaffold, then run its exact structured build check and report whether it is clean.",
+      "Create and publish a new stateless worker, and confirm that it builds successfully.",
     projectType: "worker",
     section: "workers",
     fixture: CREATED_WORKER_WORKSPACE_REPO_FIXTURE,
@@ -57,7 +57,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     name: "scaffold-agentic-worker-build",
     description: "Build the durable agent worker scaffold",
     prompt:
-      "Create and publish a brand-new isolated durable agent worker from the agentic scaffold, then run its exact structured build check and report whether it is clean.",
+      "Create and publish a new durable agent worker, and confirm that it builds successfully.",
     projectType: "worker",
     section: "workers",
     fixture: CREATED_WORKER_WORKSPACE_REPO_FIXTURE,
@@ -66,7 +66,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     name: "scaffold-package-build",
     description: "Build the package scaffold",
     prompt:
-      "Create and publish a brand-new isolated workspace package from the standard scaffold, then run its exact structured build check and report whether it is clean.",
+      "Create and publish a new workspace package, and confirm that it builds successfully.",
     projectType: "package",
     section: "packages",
     fixture: CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE,
@@ -75,7 +75,7 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     name: "scaffold-skill-build",
     description: "Build the skill scaffold",
     prompt:
-      "Create and publish a brand-new isolated workspace skill from the standard scaffold, then run its exact structured build check and report whether it is clean.",
+      "Create and publish a new workspace skill, and confirm that it builds successfully.",
     projectType: "skill",
     section: "skills",
     fixture: CREATED_SKILL_WORKSPACE_REPO_FIXTURE,
@@ -232,7 +232,7 @@ export const scaffoldMatrixTests: TestCase[] = [
 
     workspaceRepoFixture: CREATED_PROJECT_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Create and publish a brand-new isolated content-only project repository (projectType `project`) inside this workspace from the standard project scaffold, then report its validated preflight result.",
+      "Create and publish a new content-only project in this workspace, and confirm that it is ready to use.",
     validate: validateContentScaffold,
   },
 ];

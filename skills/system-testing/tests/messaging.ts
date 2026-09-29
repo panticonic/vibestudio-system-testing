@@ -57,7 +57,7 @@ export const messagingTests: TestCase[] = [
     category: "messaging",
 
     // The refusal is the point of the case, not an infrastructure defect.
-    expectedToolFailures: [{ name: "notify" }],
+    expectedToolFailures: [{ name: "notify", errorIncludes: "archivist" }],
     prompt:
       "Send a short note to the archivist on this channel letting them know the sync finished. " +
       "If you cannot reach that exact person, tell me so and tell me who is here instead — " +

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { agentGoalPromptFindings, assertSystemTestDeclaration } from "./prompt-contract.js";
+import { agentGoalPromptFindings, assertAgentGoalPrompt, assertSystemTestDeclaration } from "./prompt-contract.js";
 import type { TestCase } from "./types.js";
 
 const agentCase = (prompt: string): TestCase => ({
@@ -12,6 +12,20 @@ const agentCase = (prompt: string): TestCase => ({
 });
 
 describe("agent-goal prompt contract", () => {
+  it("checks follow-up goals with their phase identity", () => {
+    expect(() => assertAgentGoalPrompt(
+      "Use extensions.invoke('shell', 'exec', [request]).",
+      'Agent-goal system test "follow-up" during repair',
+    )).toThrow(/follow-up.*during repair.*API call/u);
+  });
+
+  it("rejects broad intentional-failure exemptions before a harness probe runs", () => {
+    expect(() => assertSystemTestDeclaration({
+      ...agentCase("Harness probe."),
+      validation: "harness",
+      expectedToolFailures: [{ name: "eval", errorIncludes: " " }],
+    })).toThrow(/nonempty failure code or error discriminator/u);
+  });
   it("accepts an outcome stated at the user's level", () => {
     const prompt =
       "Delegate independent parts of this fixture task, integrate the useful results, verify the package, and summarize any supervision difficulties.";

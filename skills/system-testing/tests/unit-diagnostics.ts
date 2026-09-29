@@ -288,7 +288,7 @@ async function scheduledNotificationProof(
     await context.sendAndWait(
       session,
       actionKind === "watch"
-        ? `Start an automation called “${proofName}” that checks for updates every minute using a lightweight script, and only wakes an agent when the check finds an update. For this offline demonstration, the check should always report an available update. When woken, notify me saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”. Stop after two runs. Keep everything in this conversation and tell me where I can inspect or stop it.`
+        ? `Start an automation called “${proofName}” that checks for updates every minute and notifies me when it finds one. For this offline demonstration, treat an update as available each time. Send the notification “${SCHEDULED_NOTIFICATION_TEXT}”, stop after two runs, and keep it in this conversation. Tell me where I can inspect or stop it.`
         : `I'm giving a talk. Start an automation called “${proofName}” that notifies me every minute saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”, and stop it after two notifications. Tell me where I can inspect or stop it.`,
       "scheduled notification launch",
     );
@@ -761,7 +761,7 @@ export const unitDiagnosticsTests: TestCase[] = [
       "Agent immediately launches a finite timezone-aware calendar eval without publishing a worker",
     category: "unit-diagnostics",
     prompt:
-      "Please launch an automation named ‘Daily project pulse’ for every Thursday at 5:05 a.m. America/New_York time. Stop it at midnight New York time when 2027 begins or after 12 admitted runs, whichever happens first. It should use a lightweight inline script—not a new code project or a model call—to inspect current project status and publish a concise status event into that run's conversation. When the status proves the recurring goal is finished, have the eval return the documented automation completion response. Keep it offline and isolate each run in a fresh conversation. Start it immediately and tell me where I can inspect or stop it.",
+      "Please start an automation called ‘Daily project pulse’ that checks project status every Thursday at 5:05 a.m. America/New_York time and posts a concise update. Have it stop at midnight New York time when 2027 begins or after 12 runs, whichever comes first. Keep it offline and start it now. Tell me where I can inspect or stop it.",
     authorityPolicy: {
       authority: [
         {

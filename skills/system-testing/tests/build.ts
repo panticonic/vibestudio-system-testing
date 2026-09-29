@@ -366,7 +366,7 @@ export const buildTests: TestCase[] = [
       "Profile one exact workspace build and attribute its verified-cache and payload costs",
     category: "build",
     prompt:
-      "Use the shipped performance guidance to profile a small existing workspace UI unit in this exact context. Compare the observed first build path with a verified-cache repeat, attribute artifact, executable-module, and bundle size where available, and report the exact measurements plus whether the build keys matched. Keep source and bundle contents out of the result.",
+      "Please profile a small existing workspace UI unit using the available performance guidance. Tell me whether a repeat build reused cached work, summarize the size measurements you can verify, and keep source and bundle contents out of your report.",
     validate: validateBuildPerformanceProfile,
   },
   {

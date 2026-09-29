@@ -1,5 +1,6 @@
 import type { TestExecutionResult } from "../types.js";
 import { findFinalAgentCompletionMessage, isAgentCompletionMessage } from "../agent-message.js";
+import { isUnexpectedToolFailure } from "../tool-failure-classification.js";
 
 export interface InvocationCardPayloadLike {
   id: string;
@@ -221,9 +222,14 @@ export function noFailedInvocations(result: TestExecutionResult): {
   passed: boolean;
   reason?: string;
 } {
-  const failed = failedToolCalls(result);
+  const expectedIds = new Set(
+    (result.toolFailures ?? [])
+      .filter((failure) => !isUnexpectedToolFailure(failure))
+      .flatMap((failure) => failure.id ? [failure.id] : []),
+  );
+  const failed = failedToolCalls(result).filter((call) => !expectedIds.has(call.id));
   return {
-    passed: true,
+    passed: failed.length === 0,
     reason:
       failed.length === 0
         ? undefined

@@ -256,15 +256,23 @@ describe("system-testing validation helpers", () => {
     ).toEqual(["eval"]);
   });
 
-  it("does not make settled tool failures fatal to validation", () => {
+  it("rejects settled failures even after a success response", () => {
     expect(
       noFailedInvocations(
         executionWithInvocationResult("error", { error: "No CDP-capable host is available" }, true)
       )
     ).toEqual({
-      passed: true,
+      passed: false,
       reason: "Observed failed tool calls: eval:No CDP-capable host is available",
     });
+  });
+
+  it("exempts only the invocation whose intentional fault was classified by the runner", () => {
+    const result = executionWithInvocationResult("error", { error: "Deliberate fixture fault" }, true);
+    result.toolFailures = [{ name: "eval", id: "call-1", expected: true, source: "message" }];
+    expect(noFailedInvocations(result).passed).toBe(true);
+    result.toolFailures[0]!.id = "another-invocation";
+    expect(noFailedInvocations(result).passed).toBe(false);
   });
 
   it("requires protocol evidence from successful eval results", () => {

@@ -1380,7 +1380,7 @@ export const projectLifecycleTests: TestCase[] = [
     ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Review a dry-run plan and create a separate panel project derived from the provided panel source. Keep the original project unchanged, then open and verify the new panel.",
+      "Create a separate panel based on the provided panel project, leave the original unchanged, and open the new panel to confirm it works.",
     validate: validatePanelFork,
   },
   {
@@ -1388,7 +1388,7 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Dry-run a worker fork",
     category: "project-lifecycle",
     prompt:
-      "Perform and verify a safe isolated dry run of an existing worker fork.",
+      "Preview a separate copy of the existing worker and confirm the original remains unchanged.",
     validate: validateWorkerForkPlan,
   },
   {

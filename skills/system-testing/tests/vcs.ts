@@ -264,7 +264,7 @@ async function orchestrateIncrementalIntegration(
 
     await context.sendAndWait(
       agentA,
-      `Main advanced while your separate local note remained unpublished. Bring the incoming semantic changes into your context one local decision at a time, commit the combined history, and publish it. Verify through ordinary file reads that both collaborators' notes remain, and report what happened.`,
+      `Main advanced while your separate local note remained unpublished. Incorporate both collaborators' work, commit and publish the combined result, then confirm both notes are still present and tell me what happened.`,
       "agent A incrementally integrates and publishes"
     );
 
@@ -348,7 +348,7 @@ export const vcsTests: TestCase[] = [
     description: "Orient on committed, working, and protected-main state without mutation",
     category: "vcs",
     prompt:
-      "Orient me in this editing context without changing it. Explain its current workspace state and relationship to protected main using exact identities where they matter.",
+      "Explain the current local changes and how they compare with the version shared with the team. Include exact identities where they help make the state clear, and do not change anything.",
     validate: (result) => {
       const base = checked(result, ["vcs.status"]);
       return base.passed ? requireCanonicalStatus(result) : base;
@@ -385,7 +385,7 @@ export const vcsTests: TestCase[] = [
     resources: ["vcs:protected-main"],
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Make a distinctive small change in the disposable project and publish that exact clean milestone to protected main. Let the protected publication checks run, verify the result, and explain what happened.",
+      "Make a small distinctive change in the disposable project and publish it for the team. Tell me whether it was accepted and what changed.",
     validate: (result) => {
       const base = checked(result, ["vcs.edit", "vcs.commit", "vcs.push"]);
       return base.passed ? requirePublishedCommitEvidence(result) : base;

@@ -193,7 +193,7 @@ describe("project lifecycle prompts", () => {
     expect(panelPrompts).toEqual([
       "Create a brand-new isolated panel project and open it for use.",
       "Create a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
-      "Review a dry-run plan and create a separate panel project derived from the provided panel source. Keep the original project unchanged, then open and verify the new panel.",
+      "Create a separate panel based on the provided panel project, leave the original unchanged, and open the new panel to confirm it works.",
       "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, save a screenshot in scratch, and read that image so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, save and visually read a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
     ]);
 
@@ -1172,7 +1172,7 @@ describe("project lifecycle prompts", () => {
     );
 
     expect(worker?.prompt).toBe(
-      "Perform and verify a safe isolated dry run of an existing worker fork.",
+      "Preview a separate copy of the existing worker and confirm the original remains unchanged.",
     );
     expect(worker?.prompt).not.toMatch(/forkProject|dryRun\s*:/u);
   });

@@ -116,20 +116,20 @@ export interface ToolFailureSummary {
   resultSummary?: string;
   /** True when the test explicitly exercises this failure mode. */
   expected?: boolean;
-  /** Why a recorded failure is diagnostic-only rather than a failed platform effect. */
+  /** Diagnostic category; classification does not exempt a failure from the verdict. */
   classification?: "argument-rejection" | "domain-rejection" | "guest-code-failure";
-  /** True for a typed no-effect guard or guest-code exception. */
-  diagnosticOnly?: boolean;
   /** Typed eval/runtime discriminator, when the protocol supplies one. */
   failureCode?: string;
   source: "message" | "snapshot";
 }
 
-export interface ExpectedToolFailure {
-  name: string;
-  /** Optional case-insensitive discriminator in the error/result text. */
-  errorIncludes?: string;
-}
+/** One deliberately induced invocation, identified by its canonical code or,
+ * for an untyped external failure, a nonempty error discriminator.
+ * Repeated or additional failures remain unexpected. */
+export type ExpectedToolFailure = { name: string } & (
+  | { failureCode: string; errorIncludes?: string }
+  | { failureCode?: never; errorIncludes: string }
+);
 
 /**
  * Bounded index for the human review of an agentic trajectory. This is not a
@@ -268,7 +268,7 @@ export interface TestExecutionResult {
   modelExecutionEvidence?: unknown;
   /** Runtime/GAD diagnostics collected automatically when a test errors. */
   diagnostics?: Record<string, unknown>;
-  /** Non-fatal tool-call failures observed during the turn. */
+  /** Retained failed invocations; undeclared failures gate the test verdict. */
   toolFailures?: ToolFailureSummary[];
   /** Human-review index for ordinary agent-goal trajectories. */
   trajectoryReview?: AgentTrajectoryReview;

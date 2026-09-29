@@ -459,7 +459,7 @@ describe("TestRunner", () => {
     });
   });
 
-  it("reports failed tool calls without converting a passing task into a failed test", async () => {
+  it("fails a recovered task on every undeclared fault and bounds intentional failures", async () => {
     const messages = [
       {
         id: "prompt-1",
@@ -639,13 +639,18 @@ describe("TestRunner", () => {
     ]);
 
     expect(suite).toMatchObject({
-      passed: 1,
-      failed: 0,
+      passed: 0,
+      failed: 1,
       errored: 0,
-      toolFailureCount: 1,
+      toolFailureCount: 4,
       testsWithToolFailures: 1,
     });
     expect(suite.results[0]!.execution.error).toBeUndefined();
+    expect(suite.results[0]!.result).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("Unexpected failed tool calls"),
+      details: { taskOutcome: { passed: true } },
+    });
     expect(suite.results[0]!.execution.toolFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -656,20 +661,17 @@ describe("TestRunner", () => {
         }),
         expect.objectContaining({
           name: "vcs",
-          diagnosticOnly: true,
           classification: "domain-rejection",
           terminalReasonCode: "WorkingChangesPresent",
         }),
         expect.objectContaining({
           name: "eval",
-          diagnosticOnly: true,
           classification: "guest-code-failure",
           terminalReasonCode: "guest_execution_failed",
           failureKind: "user-code",
         }),
         expect.objectContaining({
           name: "verify",
-          diagnosticOnly: true,
           classification: "guest-code-failure",
           terminalReasonCode: "build_verification_failed",
           failureKind: "user-code",
@@ -695,7 +697,12 @@ describe("TestRunner", () => {
         category: "test",
         description: "intentional tool error recovery",
         prompt: "trigger recovery",
-        expectedToolFailures: [{ name: "eval", errorIncludes: "missingVar" }],
+        expectedToolFailures: [
+          { name: "eval", errorIncludes: "missingVar" },
+          { name: "vcs", failureCode: "WorkingChangesPresent" },
+          { name: "eval", failureCode: "guest_execution_failed" },
+          { name: "verify", failureCode: "build_verification_failed" },
+        ],
         validation: "harness" as const,
         validate: () => ({ passed: true }),
       },
@@ -706,6 +713,41 @@ describe("TestRunner", () => {
       toolFailureCount: 0,
       testsWithToolFailures: 0,
     });
+    messages.push({
+      id: "invocation:call-extra",
+      senderId: "agent",
+      senderMetadata: { type: "agent" },
+      kind: "message",
+      contentType: "invocation",
+      complete: true,
+      content: JSON.stringify({
+        id: "call-extra",
+        name: "eval",
+        execution: {
+          status: "error",
+          isError: true,
+          result: { error: "ReferenceError: missingVar is not defined" },
+        },
+      }),
+    });
+    const repeatedSuite = await tester.runSuite([
+      {
+        name: "repeated-intentional-failure",
+        category: "test",
+        description: "a declared fault cannot excuse a repeated fault",
+        prompt: "Complete the recovery task.",
+        validation: "harness",
+        expectedToolFailures: [
+          { name: "eval", errorIncludes: "missingVar" },
+          { name: "vcs", failureCode: "WorkingChangesPresent" },
+          { name: "eval", failureCode: "guest_execution_failed" },
+          { name: "verify", failureCode: "build_verification_failed" },
+        ],
+        validate: () => ({ passed: true }),
+      },
+    ]);
+    expect(repeatedSuite).toMatchObject({ passed: 0, failed: 1, toolFailureCount: 1 });
+
     expect(expectedSuite.results[0]!.execution.toolFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "eval", expected: true }),
@@ -803,6 +845,45 @@ describe("TestRunner", () => {
     expect(session.close).toHaveBeenCalledOnce();
     expect(listener).toBeUndefined();
   });
+
+  it(
+    "rejects internal instructions in delivered agent-goal follow-ups",
+    async () => {
+      const session = {
+        channelId: "chat-follow-up",
+        messages: [],
+        sendAndWait: vi.fn(),
+        close: vi.fn(async () => undefined),
+      };
+      const runner = {
+        modelRef: TEST_MODEL,
+        spawn: vi.fn(async () => session),
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
+        collectDiagnostics: vi.fn(async () => ({})),
+      } as unknown as HeadlessRunner;
+      const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
+      const { result } = await tester.runOne({
+        name: "follow-up-contract",
+        category: "test",
+        description: "reject an answer-bearing follow-up before delivery",
+        prompt: "Help me finish the task.",
+        orchestrate: async ({ runner: subject, sendAndWait }) => {
+          const target = await subject.spawn();
+          try {
+            await sendAndWait(target, "Call spawn_subagent now.", "recovery");
+          } finally {
+            await target.close();
+          }
+          return { messages: [], duration: 1 };
+        },
+        validate: () => ({ passed: true }),
+      });
+      expect(result.passed).toBe(false);
+      expect(result.reason).toContain("during recovery prescribes internal agent tool name");
+      expect(session.sendAndWait).not.toHaveBeenCalled();
+      expect(session.close).toHaveBeenCalledOnce();
+    },
+  );
 
   it("runs custom test orchestration through the normal validation path", async () => {
     const messages = [

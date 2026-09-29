@@ -73,7 +73,7 @@ export const extensionSurfaceTests: TestCase[] = [
     description: "Invoke a harmless extension method and report the structured result",
     category: "extensions",
     prompt:
-      "Use an available extension for a harmless read-only operation and summarize its structured result.",
+      "Use an available extension for a harmless read-only task and tell me what it returned.",
     validate: (result) => {
       const base = extensionEvidence(result, [["build.listUnits", "extensions.invoke"]]);
       if (!base.passed) return base;

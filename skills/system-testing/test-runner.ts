@@ -26,7 +26,7 @@ import {
 } from "./validation-failure.js";
 import { channelDeliveryLatencyViolations } from "./delivery-latency.js";
 import type { SystemTestJsonValue } from "./structured-error.js";
-import { assertSystemTestDeclaration } from "./prompt-contract.js";
+import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "./prompt-contract.js";
 import {
   findFinalAgentCompletionMessage,
   isAgentCompletionMessage,
@@ -323,6 +323,15 @@ export class TestRunner {
         response: ChatMessage;
         modelExecutionEvidence: unknown;
       }> => {
+        const taskPrompt = test.workspaceRepoFixture
+          ? testRunner.withTaskResources(prompt)
+          : prompt;
+        if (test.validation !== "harness") {
+          assertAgentGoalPrompt(
+            taskPrompt,
+            `Agent-goal system test "${test.name}"${phase ? ` during ${phase}` : ""}`,
+          );
+        }
         const timeoutMessage = phase
           ? `Timed out waiting for agent to finish test "${test.name}" during ${phase}`
           : `Timed out waiting for agent to finish test "${test.name}"`;
@@ -360,9 +369,6 @@ export class TestRunner {
               });
             });
           }
-          const taskPrompt = test.workspaceRepoFixture
-            ? testRunner.withTaskResources(prompt)
-            : prompt;
           const wait = targetSession.sendAndWait(taskPrompt, {
             signal: controller.signal,
             terminalWaitingReasons: NON_INTERACTIVE_TERMINAL_WAIT_REASONS,
@@ -499,6 +505,23 @@ export class TestRunner {
             details: { invocations: inspections },
           };
         }
+      }
+      const unexpected = unexpectedToolFailures(execution.toolFailures);
+      if (unexpected.length > 0) {
+        const failureReason = `Unexpected failed tool calls: ${unexpected
+          .map((failure) => `${failure.name}:${failure.failureCode ?? failure.terminalReasonCode ?? failure.status ?? "error"}`)
+          .join(", ")}`;
+        result = {
+          passed: false,
+          reason: result.passed
+            ? failureReason
+            : `${result.reason ?? "Requested outcome was not established"}; ${failureReason}`,
+          details: {
+            ...(result.details ?? {}),
+            taskOutcome: result,
+            unexpectedToolFailures: unexpected,
+          },
+        };
       }
       outcome = { result, execution };
     } catch (err) {
@@ -1228,8 +1251,9 @@ function classifyToolFailures(
   failures: ToolFailureSummary[],
   expected: TestCase["expectedToolFailures"],
 ): ToolFailureSummary[] {
+  const remaining = [...(expected ?? [])];
   return failures.map((failure) => {
-    const builtIn = classifyBuiltInToolFailure({
+    const classification = classifyBuiltInToolFailure({
       name: failure.name,
       terminalReasonCode: failure.terminalReasonCode,
       failureCode: failure.failureCode,
@@ -1237,38 +1261,24 @@ function classifyToolFailures(
       error: failure.error,
       result: failure.resultSummary,
     });
-    if (builtIn) {
-      // Correctable and fail-closed does not mean intentional. Keep the
-      // classification and retain the invocation, but make the distinction
-      // explicit so a guest-code exception cannot become an infrastructure
-      // regression merely because the agent explored a bad input.
-      const text =
-        `${failure.error ?? ""}\n${failure.resultSummary ?? ""}`.toLowerCase();
-      const deliberatelyExpected = expected?.some(
-        (candidate) =>
-          candidate.name === failure.name &&
-          (!candidate.errorIncludes ||
-            text.includes(candidate.errorIncludes.toLowerCase())),
-      );
-      return deliberatelyExpected
-        ? {
-            ...failure,
-            expected: true,
-            diagnosticOnly: true,
-            classification: builtIn,
-          }
-        : { ...failure, diagnosticOnly: true, classification: builtIn };
-    }
-    if (!expected?.length) return failure;
     const text =
       `${failure.error ?? ""}\n${failure.resultSummary ?? ""}`.toLowerCase();
-    const matched = expected.some(
+    const intentionalIndex = remaining.findIndex(
       (candidate) =>
         candidate.name === failure.name &&
+        (!candidate.failureCode ||
+          candidate.failureCode === failure.failureCode ||
+          candidate.failureCode === failure.terminalReasonCode) &&
         (!candidate.errorIncludes ||
           text.includes(candidate.errorIncludes.toLowerCase())),
     );
-    return matched ? { ...failure, expected: true } : failure;
+    const intentional = intentionalIndex >= 0;
+    if (intentional) remaining.splice(intentionalIndex, 1);
+    return {
+      ...failure,
+      ...(classification ? { classification } : {}),
+      ...(intentional ? { expected: true } : {}),
+    };
   });
 }
 

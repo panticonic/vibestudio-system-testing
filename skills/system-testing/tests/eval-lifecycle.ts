@@ -71,12 +71,12 @@ async function orchestrateDbPersistence(
   try {
     await context.sendAndWait(
       session,
-      "Using exactly one eval call, use synchronous db.run to create a table named system_test_eval_db and insert the row ('probe', 'DB_PERSISTENCE_OK'). Return the inserted value. Do not inspect the API or make any other tool call.",
+      "Save the value DB_PERSISTENCE_OK under the row name probe in a sandbox database table called system_test_eval_db, then tell me what you stored.",
       "write eval database row"
     );
     await context.sendAndWait(
       session,
-      "Using exactly one separate eval call, read system_test_eval_db with db.exec, which directly returns an array of rows. Return that array unchanged. Do not write or recreate the row.",
+      "In a separate check, read back that row from system_test_eval_db and tell me what you find. Do not recreate it.",
       "read eval database row"
     );
   } catch (cause) {
@@ -632,7 +632,7 @@ export const evalLifecycleTests: TestCase[] = [
       ],
     },
     prompt:
-      "Use a sandbox evaluation to list the current workspace permissions while explicitly confining that evaluation to the one read permission it needs. Summarize the result and whether the authority stayed limited to that operation.",
+      "Show me which permissions are granted to this workspace. Use one read-only access request for exactly the permissions list, with no other access, and summarize what you found.",
     validate: validateExactAuthority,
   },
   {
@@ -652,7 +652,7 @@ export const evalLifecycleTests: TestCase[] = [
       ],
     },
     prompt:
-      "Demonstrate that a sandbox evaluation with no granted authority cannot list workspace permissions. Keep the expected refusal contained, do not request broader access, and explain what the system refused.",
+      "Assume no permissions have been granted in advance. Try a read-only check of this workspace's permissions without requesting any new access. If it is unavailable, explain the limitation.",
     validate: validatePregrantedOnly,
   },
   {
@@ -671,7 +671,7 @@ export const evalLifecycleTests: TestCase[] = [
       ],
     },
     prompt:
-      "Use a sandbox evaluation to list workspace permissions through the normal approval-before-execution flow. Report what was approved and the resulting permission summary.",
+      "Check the workspace's current permission list. If access is needed, request only permission to read that list through the normal approval flow. Summarize what was approved and what you found.",
     validate: validatePreauthorization,
   },
   {

@@ -75,8 +75,8 @@ export const mobileTests: TestCase[] = requiringUnits(
       },
       prompt: [
         "Set up Vibestudio on the Android device attached to my connected desktop.",
-        "Follow the complete documented phone onboarding workflow, install only when needed, pair it immediately, and confirm afterward that the compatible app appears as a newly paired hub device.",
-        "Because this is a repository system test, capture the start time before provisioning and then use the documented mobile-debug verifyWorkspaceReady operation with its 180000ms cold-build deadline for the same device to prove that the app completed workspace and panel-host initialization.",
+        "Install the compatible app if needed, pair the phone, and make sure it finishes connecting to its workspace.",
+        "Tell me whether setup completed and whether the phone now appears as a paired device.",
       ].join(" "),
       validate: (result) => {
         const base = completedScenarioEvidence(result);
@@ -163,9 +163,7 @@ export const mobileTests: TestCase[] = requiringUnits(
       },
       prompt: [
         "Install a fresh development Vibestudio mobile client on the single attached ready Android phone or emulator, reset its app data, and launch it.",
-        "Use the workspace's documented mobile debugging workflow from sandboxed eval; do not shell out or call adb directly.",
-        "After installation, verify through the same supported extension surface that the package is installed and its process is rendering.",
-        "Report the selected device, installed package, installation result, and verification result.",
+        "Confirm that the app is installed and visibly running on that device, then tell me what happened.",
       ].join(" "),
       validate: (result) => {
         const base = completedScenarioEvidence(result);

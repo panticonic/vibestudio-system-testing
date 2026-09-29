@@ -244,17 +244,20 @@ Full test state lives in `scope.results.results`, with compact per-stage
 summaries in `scope.systemTestingRun.stageSummaries`. Eval return values are
 only progress/control packets; do not use them as the diagnostic record.
 
-Tool failures are not automatically task failures. If a subagent hits a tool
-error and then recovers enough to satisfy validation, keep the test as passed
-but report the tool failure as an investigation item. Do not trim messages or
-snapshots from passing results; the top-level agent needs the full raw evidence
-to determine whether the issue is runtime, docs, harness, or expected recovery.
-Typed no-effect and guest-code failures are retained as diagnostic-only evidence;
-they are not unexpected failures for suite accounting or rerun selection. An
-unclassified failure remains unexpected and must be investigated.
-`summarizeFailures(scope.results)` includes both failed tests and passed tests
-with tool failures, so use it as the bounded investigation packet before
-drilling into the full raw session state.
+Undeclared tool failures fail the test even when the agent recovers and
+satisfies its outcome validator. Keep the completed work and the original
+fault evidence separately: a successful recovery is useful diagnostic progress,
+not proof that the initial product path was healthy. Argument rejections,
+no-effect domain refusals, and guest-code exceptions remain classified so the
+owning layer can be identified; their classification does not erase a failure.
+
+Only faults deliberately induced by the scenario may be declared in
+`expectedToolFailures`. Each specific declaration covers one de-duplicated
+invocation; any additional or repeated fault still fails. Never expand a
+scenario's expected faults to forgive an incidental error found during a run.
+Do not trim messages or snapshots after recovery. Use
+`summarizeFailures(scope.results)` as the bounded investigation packet before
+reading the retained session evidence.
 
 For a specific terminal tool call, use
 `gad.diagnoseInvocation({ trajectoryId, branchId, invocationId })` before

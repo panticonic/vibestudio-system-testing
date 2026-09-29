@@ -624,9 +624,11 @@ describe("HeadlessRunner", () => {
       "most straightforward supported approach",
     );
     expect(SYSTEM_TEST_AGENT_PROMPT).toContain("normal approval routing");
-    expect(SYSTEM_TEST_AGENT_PROMPT).toContain("pregranted-only");
     expect(SYSTEM_TEST_AGENT_PROMPT).toContain(
-      "If that documented approach fails, stop",
+      "Pursue the requested outcome through documented recovery and verification",
+    );
+    expect(SYSTEM_TEST_AGENT_PROMPT).not.toContain(
+      "unless the test prompt explicitly asks for that fallback",
     );
     expect(SYSTEM_TEST_AGENT_PROMPT).toContain("When reporting a failure");
     expect(SYSTEM_TEST_AGENT_PROMPT).toContain(
@@ -789,7 +791,7 @@ describe("HeadlessRunner", () => {
       "if the task creates",
     );
     expect(runner.withTaskResources("Inspect the prepared project.")).toBe(
-      `Prepared task input:\n- Use this exact disposable repository: projects/${repoName}\n- This is starting material; inspect and modify it as needed to complete the request.\n- Do not search for, create, or substitute another fixture.\n\nInspect the prepared project.`,
+      `The project for this request is at projects/${repoName}.\n\nInspect the prepared project.`,
     );
     expect(mocks.rpc.call).toHaveBeenNthCalledWith(
       1,

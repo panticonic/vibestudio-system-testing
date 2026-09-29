@@ -111,14 +111,14 @@ describe("developer ergonomics scenarios", () => {
     ).toBe(true);
     expect(
       scenario("failed-build-bounded-diagnostics").expectedToolFailures,
-    ).toEqual([{ name: "verify", errorIncludes: "Build failed" }]);
+    ).toEqual([{ name: "verify", failureCode: "build_verification_failed" }]);
     expect(
       scenario("recoverable-infrastructure-failure-continues-turn")
         .expectedToolFailures,
-    ).toEqual([{ name: "eval" }]);
+    ).toEqual([{ name: "eval", failureCode: "recoverable_infrastructure_probe" }]);
     expect(
       scenario("invalid-icon-discover-recover-create").expectedToolFailures,
-    ).toEqual([{ name: "eval", errorIncludes: "project_icon_invalid" }]);
+    ).toEqual([{ name: "eval", failureCode: "project_icon_invalid" }]);
     expect(
       scenario("stale-edit-reobserve-and-apply").expectedToolFailures,
     ).toBeUndefined();

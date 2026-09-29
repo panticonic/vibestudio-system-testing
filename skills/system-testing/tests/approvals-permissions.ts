@@ -236,12 +236,12 @@ async function orchestrateSubagentTaskGrantReuse(
   try {
     await context.sendAndWait(
       session,
-      "Call the documented serverLog.stats() operation once and briefly report its result. Do not modify anything.",
+      "Give me a brief read-only summary of the recent server logs.",
       "parent protected read"
     );
     await context.sendAndWait(
       session,
-      "Spawn one fresh subagent. Its only task is to call the documented serverLog.stats() operation once, report exactly yes if it was readable or no plus the error if it was not, and complete. Wait for that child and summarize its result.",
+      "Ask a fresh collaborator to check whether the recent server logs are readable. Have them reply exactly yes if readable, or no with the error if not. Wait for their reply and summarize it.",
       "subagent protected read"
     );
     const messages = [...session.messages];
@@ -254,7 +254,7 @@ async function orchestrateSubagentTaskGrantReuse(
       // "Return only entries" invited a projection, and the grant's duration —
       // the one field that proves the task-scoped reuse this measures — was
       // the field an agent dropped. Ask for the rows the surface returned.
-      "Call permissions.list() once. Return, unchanged and with every field intact, only those entries whose resource is exactly server-logs.read and whose callerLabel is This task. Do not reshape or summarize the entries, and do not change permissions.",
+      "Show me every permission entry for reading server logs that applies to this task, with its details intact. Do not change permissions.",
       "final permission inventory"
     );
   } catch (cause) {

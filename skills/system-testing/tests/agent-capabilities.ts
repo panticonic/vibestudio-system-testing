@@ -234,7 +234,7 @@ export const agentCapabilityTests: TestCase[] = [
     description: "Agent recovers from a thrown error and retries successfully",
     category: "agent-capabilities",
     prompt: "Show that the sandbox remains usable after a deliberate failure.",
-    expectedToolFailures: [{ name: "eval" }],
+    expectedToolFailures: [{ name: "eval", failureCode: "guest_execution_failed" }],
     validate: deliberateFailureRecovery,
   },
   {

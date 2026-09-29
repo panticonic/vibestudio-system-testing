@@ -78,9 +78,6 @@ async function runOnboardingOpening(
   const start = Date.now();
   const session = await context.runner.spawn({
     syntheticPanelUiTools: true,
-    additionalSystemPrompt: `
-
-Use the shipped onboarding skill to handle this first-run request in the synthetic panel. Keep the overview inline in the conversation rather than publishing a separate action bar.`,
   });
   let sendError: unknown;
   try {
@@ -111,9 +108,6 @@ async function runOnboardingStableIdRoute(
 ): Promise<TestExecutionResult> {
   const start = Date.now();
   const session = await context.runner.spawn({
-    additionalSystemPrompt: `
-
-Use the shipped onboarding skill to handle the selected structured setup action in the synthetic panel.`,
     methods: {
       client_eval: {
         description:

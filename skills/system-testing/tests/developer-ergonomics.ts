@@ -442,7 +442,7 @@ async function orchestrateStaleEditRecovery(
     sessions.push(editor);
     await context.sendAndWait(
       editor,
-      `Read ${path} and remember its heading for a later edit. Do not change anything yet.`,
+      `Please check the current heading in ${path}; I will ask you to update it shortly.`,
       "editor observes the original note",
     );
     initialMessages = [...editor.messages];
@@ -450,12 +450,12 @@ async function orchestrateStaleEditRecovery(
     sessions.push(collaborator);
     await context.sendAndWait(
       collaborator,
-      `Append exactly one new line to ${path}: ${COLLABORATOR_NOTE} Preserve all existing content and do not publish.`,
+      `Add this note to ${path} without changing its existing text: ${COLLABORATOR_NOTE} Leave it unpublished.`,
       "independent collaborator updates the same note",
     );
     await context.sendAndWait(
       editor,
-      `Using the heading you already observed, first attempt a targeted replacement with ${RECOVERED_HEADING}. If your observation is stale, recover by reading the current file before correcting the edit. Preserve all other content, verify the final note by reading it, and do not publish.`,
+      `Update the heading in ${path} to ${RECOVERED_HEADING}. Preserve the rest of the file, check the finished note, and leave it unpublished.`,
       "editor recovers without losing the concurrent addition",
     );
   } catch (cause) {
@@ -666,9 +666,9 @@ function validateUnifiedFileAuthoring(result: TestExecutionResult) {
 }
 
 const SCREENSHOT_PROMPT =
-  "Open a tiny disposable browser view, capture its rendered pixels to a scratch file with no filename extension, read that file as an image, and report the visible heading.";
+  "Capture a small browser view as an image, save it under a filename with no extension, read that image back, and tell me its visible heading.";
 const PANEL_REBUILD_PROMPT =
-  "Create and publish a small isolated counter panel, build and open it, and exercise one increment through a semantic interaction assertion. Then make a visible source improvement, rebuild the same panel, refresh the existing generation-fenced automation session, and prove another increment on the replacement runtime without replaying an uncertain click.";
+  "Create and publish a small counter panel, open it, then make a visible improvement while it is running. Refresh the panel and confirm the improved version still works.";
 
 export const developerErgonomicsTests: TestCase[] = [
   {
@@ -679,7 +679,9 @@ export const developerErgonomicsTests: TestCase[] = [
 
     prompt:
       "Exercise the agent failure protocol once: use eval to throw an Error whose errorData is { code: 'recoverable_infrastructure_probe', failureKind: 'infrastructure', recovery: { action: 'reobserve', instruction: 'Continue this same turn and report RECOVERED_IN_SAME_TURN.' } }. The eval is expected to fail. After receiving that failed tool result, continue in this same turn and answer with exactly RECOVERED_IN_SAME_TURN. Do not retry the eval.",
-    expectedToolFailures: [{ name: "eval" }],
+    expectedToolFailures: [
+      { name: "eval", failureCode: "recoverable_infrastructure_probe" },
+    ],
     validate: validateRecoverableInfrastructureContinuation,
   },
   {
@@ -689,10 +691,8 @@ export const developerErgonomicsTests: TestCase[] = [
 
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Create and publish a brand-new isolated panel whose requested built-in icon is lucide:columns-3x. If that exact icon is unavailable, use the returned workspace catalog evidence to correct the name to the closest supported columns or layout icon and finish the panel creation.",
-    expectedToolFailures: [
-      { name: "eval", errorIncludes: "project_icon_invalid" },
-    ],
+      "Create and publish an isolated panel using the built-in icon `lucide:columns-3x`.",
+    expectedToolFailures: [{ name: "eval", failureCode: "project_icon_invalid" }],
     validate: validateInvalidIconRecovery,
   },
   {
@@ -703,8 +703,8 @@ export const developerErgonomicsTests: TestCase[] = [
 
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "In the disposable package, deliberately introduce more than fifty independent TypeScript errors, inspect the exact structured build failure, then repair the package and prove the same target builds cleanly. Do not publish the deliberate breakage.",
-    expectedToolFailures: [{ name: "verify", errorIncludes: "Build failed" }],
+      "Stress-test the disposable package's build diagnostics by introducing more than 50 separate type errors so the bounded error report is exercised. Then fix the package and confirm it builds cleanly. Leave the temporary breakage unpublished.",
+    expectedToolFailures: [{ name: "verify", failureCode: "build_verification_failed" }],
     validate: validateBoundedBuildDiagnostics,
   },
   {

@@ -16,6 +16,7 @@ command starts an investigation, not a report.
 | --- | --- |
 | Diagnose a run or artifact | [diagnostics and artifacts](references/diagnostics-and-artifacts.md) |
 | Author or revise a scenario | [scenario authoring](references/scenario-authoring.md) |
+| Review technical task instructions | [prompt audit](references/prompt-audit.md) |
 | Select coverage | [scenario catalog](references/scenario-catalog.md) |
 | Repair a discovered defect | [self-improvement](SELF_IMPROVEMENT.md) |
 | Exercise managed source | [Vibestudio VCS](../vibestudio-vcs/SKILL.md) |
@@ -159,7 +160,9 @@ retained lifecycle and transport evidence.
 - Follow typed lifecycle phases and structured errors; never parse explanatory
   prose for control flow.
 - Keep primary operation failure separate from cleanup, rollback, and transport
-  evidence.
+  evidence. Every unexpected recorded failed invocation fails the test even if
+  the agent recovers and delivers the result. Explicit fault probes must declare
+  a specific, single-use fault; recovery never clears the original evidence.
 - Test panel slot commitment separately from boot readiness and rendered
   correctness. Use exact lifecycle waits, not sleeps.
 - Let repository fixtures claim their declared scheduler resources — never add

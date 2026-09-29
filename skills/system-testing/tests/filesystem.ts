@@ -346,7 +346,7 @@ export const filesystemTests: TestCase[] = [
     name: "file-handles",
     description: "Use low-level file handles to write and read",
     category: "filesystem",
-    prompt: "Check the temporary low-level file-handle lifecycle and report what you could verify.",
+    prompt: "Check whether a temporary file remains available after its handle is closed, and tell me what happened.",
     validate: (result) =>
       checkedFs(
         result,

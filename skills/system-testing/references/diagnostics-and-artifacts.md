@@ -46,25 +46,19 @@ journal rows, effect intents, and receipts. Inspect
 or rollback faults must remain secondary. Honor `summary.truncated`; request a
 larger bounded section or the full trajectory only when necessary.
 
-A test may pass after an unexpected platform/tool failure. Preserve that
-failure in the report and rerun set; recovery does not make the underlying
-platform path healthy. Do distinguish this from an eval result explicitly
-typed as `failureKind: "user-code"`: executing, diagnosing, editing, and
-rerunning imperfect guest code is normal agentic development, regardless of
-which stable `failureCode` identifies the particular guest mistake. Keep that
-result in diagnostics as `guest-code-failure`, while infrastructure,
-cancellation, and untyped eval failures remain unexpected. The scenario
-validator must still require the final semantic proof (for example, a later
-successful verification return); diagnostic-only classification is not success
-evidence.
+An undeclared failed invocation makes the test fail even if the final task
+outcome is successful. Inspect both facts: did the requested outcome eventually
+work, and which problem occurred on the way? Recovery must not remove the
+fault from reports or rerun selection.
 
-Typed, pre-effect agent-control refusals are diagnostic-only for the same
-reason. In particular, `inspect_subagent` may return `InvalidReference` for an
-ambiguous run or repository-relative file query, and `notify({ to: 'run:…' })` returns
-`SubagentTerminal` when execution has already ended. Preserve the invocation
-and reason code, require the agent to retry with an exact identity or use the
-retained inspect/read/merge surface, and do not classify the guard as failed
-infrastructure. Untyped subagent errors remain unexpected.
+Classification distinguishes infrastructure failures, guest-code exceptions,
+argument corrections, and typed no-effect guards. It assigns a diagnostic
+owner rather than changing the verdict. For example, an ambiguous subagent
+reference or a stale VCS request can show a working fail-closed mechanism and
+still expose an agent or documentation problem. Keep its invocation and typed
+reason. Only a fault explicitly induced and independently validated by the
+scenario may be expected; that declaration applies to one matching invocation,
+not every failure of the tool.
 
 For VCS mutations, inspect the exact working state, `commandId`, target context,
 work-unit/application/change identities, resulting event, and publication

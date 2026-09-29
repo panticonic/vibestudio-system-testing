@@ -193,7 +193,7 @@ export const edgeCaseTests: TestCase[] = [
     category: "edge-cases",
     prompt:
       "Check that a malformed sandbox request is rejected and that a corrected request still works afterward.",
-    expectedToolFailures: [{ name: "eval" }],
+    expectedToolFailures: [{ name: "eval", failureCode: "invalid_tool_arguments" }],
     validate: (result) => validateRecovery(result, invalidEvalRequest, "invalid-request"),
   },
   {
@@ -213,7 +213,7 @@ export const edgeCaseTests: TestCase[] = [
     },
     prompt:
       "Check that a nonexistent package import fails clearly without preventing later sandbox work.",
-    expectedToolFailures: [{ name: "eval" }],
+    expectedToolFailures: [{ name: "eval", failureCode: "module_not_available" }],
     validate: validateInvalidImportRecovery,
   },
   {
@@ -222,7 +222,7 @@ export const edgeCaseTests: TestCase[] = [
     category: "edge-cases",
     prompt:
       "Check that reading a nonexistent file fails clearly without preventing later sandbox work.",
-    expectedToolFailures: [{ name: "eval" }],
+    expectedToolFailures: [{ name: "eval", errorIncludes: "ENOENT" }],
     validate: validateMissingFileRecovery,
   },
 ];

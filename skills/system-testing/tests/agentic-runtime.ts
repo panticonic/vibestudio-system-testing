@@ -342,7 +342,7 @@ export const agenticRuntimeTests: TestCase[] = [
       ],
     },
     prompt:
-      "Run extensions/test-runner/index.test.ts using the workspace's supported scoped test-running capability, without shelling out. Summarize how many tests passed and failed and identify the execution context.",
+      "Run the focused tests for the test-runner extension and summarize the result and where they ran.",
     validation: "harness",
     validate: scopedTestVerification,
   },
@@ -353,7 +353,7 @@ export const agenticRuntimeTests: TestCase[] = [
     category: "agentic-runtime",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
-      'In the disposable package, change the exported fixtureValue to "atomic-system-test" and add a README that explains that value. Treat both file edits as one coherent workspace change, then verify that the package still builds. Do not publish it.',
+      'In the disposable package, change the exported fixture value to "atomic-system-test" and explain it in the README. Make the related edits together, confirm the package still builds, and leave the change unpublished.',
     validation: "harness",
     validate: atomicPatchBuildVerification,
   },
