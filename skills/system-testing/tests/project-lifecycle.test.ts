@@ -40,6 +40,15 @@ function nativeUiEvidence(
     entries: [
       { type: "open", id, source, kind: "workspace" },
       { type: "reload", id },
+      ...[
+        { action: "fill", role: "textbox", accessibleName: "Task title" },
+        { action: "click", role: "button", accessibleName: "Create task" },
+        { action: "fill", role: "textbox", accessibleName: "Search tasks" },
+        { action: "click", role: "button", accessibleName: "Delete task" },
+      ].map(({ action, ...target }) => ({ type: "interaction", id, receipt: {
+        protocol: "cdp-interaction-outcome.v1", action, delivery: "dispatched",
+        target, effect: { status: "not-asserted" },
+      } })),
       {
         type: "interaction",
         id,
@@ -931,6 +940,22 @@ describe("project lifecycle prompts", () => {
       passed: true,
       reason: undefined,
     });
+
+    // The native receipts are the evidence; eval spelling does not define a
+    // browser verification protocol.
+    const renamed = structuredClone(calls);
+    const renamedCall = renamed.find((entry) => entry.invocation.id === "rebuild-and-verify")!;
+    renamedCall.invocation.arguments["code"] = "handle.rebuild(); return finalRenderedState;";
+    expect(test.validate(todoExecution(renamed))).toEqual({ passed: true, reason: undefined });
+    for (const missingName of ["Task title", "Create task", "Complete", "Search tasks", "Delete task"]) {
+      const incomplete = structuredClone(calls);
+      const verification = incomplete.find((entry) => entry.invocation.id === "rebuild-and-verify")!;
+      const native = verification.invocation.execution.result.details["operationJournal"] as {
+        entries: Array<{ receipt?: { target?: { accessibleName?: string } } }>;
+      };
+      native.entries = native.entries.filter((entry) => entry.receipt?.target?.accessibleName !== missingName);
+      expect(test.validate(todoExecution(incomplete)).passed, `missing native ${missingName}`).toBe(false);
+    }
 
     for (const variant of [
       "truncated",

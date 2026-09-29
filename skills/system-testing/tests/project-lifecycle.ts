@@ -676,9 +676,9 @@ function completeTodoRuntimeVerificationIndex(
       console: number;
       clean: boolean;
       index: number;
+      flows: Set<string>;
     }
   >();
-  let code = "";
   let step = 0;
   for (let index = fromIndex; index < calls.length; index += 1) {
     const call = calls[index]!;
@@ -690,7 +690,6 @@ function completeTodoRuntimeVerificationIndex(
       continue;
     const journal = details(call)?.["operationJournal"];
     if (isRecord(journal) && journal["truncated"] === true) return -1;
-    code += `\n${String(call.arguments?.["code"] ?? "")}`;
     for (const entry of nativePanelOperations(call)) {
       step += 1;
       const id = entry["id"];
@@ -702,6 +701,7 @@ function completeTodoRuntimeVerificationIndex(
         console: 0,
         clean: false,
         index: -1,
+        flows: new Set<string>(),
       };
       const receipt = entry["receipt"];
       if (entry["type"] === "reload") {
@@ -717,6 +717,15 @@ function completeTodoRuntimeVerificationIndex(
       ) {
         state.interaction = step;
         state.clean = false;
+        const target = receipt["target"];
+        const name = String(target["accessibleName"] ?? target["text"] ?? "").toLowerCase();
+        const action = receipt["action"];
+        if (["fill", "press"].includes(String(action)) &&
+            ["textbox", "searchbox"].includes(String(target["role"])) && !/\b(?:search|filter)\b/u.test(name)) state.flows.add("entry");
+        if ((action === "click" || action === "press") && /\b(?:add|create|save)\b/u.test(name)) state.flows.add("create");
+        if (action === "check" || ((action === "click" || action === "press") && /\b(?:complete|done|finish)\b/u.test(name))) state.flows.add("complete");
+        if (["fill", "press", "click", "selectOption"].includes(String(action)) && /\b(?:search|filter|active|completed)\b/u.test(name)) state.flows.add("filter");
+        if ((action === "click" || action === "press") && /\b(?:delete|remove)\b/u.test(name)) state.flows.add("delete");
       }
       if (renderedCaptureObservation(entry)) state.capture = step;
       if (entry["type"] === "consoleHistory" && isRecord(receipt)) {
@@ -727,17 +736,9 @@ function completeTodoRuntimeVerificationIndex(
       states.set(id, state);
     }
   }
-  const lower = code.toLowerCase();
-  if (
-    !/\.(?:fill|type|press)\s*\(/u.test(code) ||
-    !/\.click\s*\(/u.test(code) ||
-    !/\.(?:evaluate|textContent|innerText|locator)\s*\(/u.test(code) ||
-    !/\b(?:filter|active|completed)\b/u.test(lower) ||
-    !/\b(?:delete|remove)\b/u.test(lower)
-  )
-    return -1;
   const verified = [...states.values()].filter(
     (state) =>
+      ["entry", "create", "complete", "filter", "delete"].every((flow) => state.flows.has(flow)) &&
       state.reload > 0 &&
       state.interaction > 0 &&
       state.capture > Math.max(state.reload, state.interaction) &&
