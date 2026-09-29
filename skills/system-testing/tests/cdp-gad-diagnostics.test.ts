@@ -79,6 +79,63 @@ function withSuccessfulImageRead(result: TestExecutionResult): TestExecutionResu
   } as TestExecutionResult;
 }
 
+function nativeClickInvocation(status = "State: clicked") {
+  return {
+    id: "call-native-click",
+    name: "eval",
+    arguments: { code: "return compactProjection;" },
+    execution: {
+      status: "complete",
+      terminalOutcome: "success",
+      result: {
+        details: {
+          returnValue: { status },
+          operationJournal: {
+            protocol: "workspace-operations.v1",
+            truncated: false,
+            entries: [
+              {
+                type: "open",
+                id: "panel:click",
+                kind: "browser",
+                source: "data:text/html,test",
+              },
+              {
+                type: "interaction",
+                id: "panel:click",
+                receipt: {
+                  protocol: "cdp-interaction-outcome.v1",
+                  action: "click",
+                  delivery: "dispatched",
+                },
+              },
+              {
+                type: "screenshot",
+                id: "panel:click",
+                receipt: {
+                  capturedAt: 1,
+                  mimeType: "image/png",
+                  byteSize: 128,
+                },
+              },
+              {
+                type: "evaluation",
+                id: "panel:click",
+                receipt: {
+                  protocol: "cdp-evaluation-outcome.v1",
+                  capturedAt: 2,
+                  value: { status },
+                  truncated: false,
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  };
+}
+
 const clickTest = cdpGadDiagnosticTests.find(
   (test) => test.name === "cdp-page-click-type-evaluate"
 )!;
@@ -232,74 +289,96 @@ describe("cdp-gad diagnostics validators", () => {
     });
   });
 
-  it("accepts a successful browser action only after the screenshot is read as image content", () => {
-    const result = clickTest.validate(
-      withSuccessfulImageRead(
-        executionWithInvocation(CLICK_FINAL, {
-          id: "call-1",
-          name: "eval",
-          arguments: {
-            code: "await page.locator('button').click(); await page.screenshot(); return await page.evaluate(() => 2 + 2);",
-          },
-          execution: {
-            status: "complete",
-            terminalOutcome: "success",
-            result: { details: { returnValue: 4 } },
-          },
-        })
-      )
-    );
-
-    expect(result).toEqual({ passed: true });
+  it("accepts native action evidence after image inspection with arbitrary observed status wording", () => {
+    expect(
+      clickTest.validate(
+        withSuccessfulImageRead(
+          executionWithInvocation(
+            "I clicked the page, captured and inspected its pixels, and evaluated the visible status: Clicked successfully.",
+            nativeClickInvocation("Clicked successfully"),
+          ),
+        ),
+      ),
+    ).toEqual({ passed: true });
   });
 
   it("rejects a successful screenshot call when the image was not read", () => {
-    const result = clickTest.validate(
-      executionWithInvocation(CLICK_FINAL, {
-        id: "call-1",
-        name: "eval",
-        arguments: {
-          code: "await page.locator('button').click(); await page.screenshot(); return await page.evaluate(() => 2 + 2);",
-        },
-        execution: {
-          status: "complete",
-          terminalOutcome: "success",
-          result: { details: { returnValue: 4 } },
-        },
-      })
-    );
-
-    expect(result).toMatchObject({
+    expect(
+      clickTest.validate(
+        executionWithInvocation(CLICK_FINAL, nativeClickInvocation()),
+      ),
+    ).toMatchObject({
       passed: false,
       reason: expect.stringContaining("read it as image content"),
     });
   });
 
-  it("rejects image evidence without the page-specific visible fact", () => {
-    const result = clickTest.validate(
-      withSuccessfulImageRead(
-        executionWithInvocation(
-          "I clicked the disposable page control, evaluated the requested value, and captured a screenshot successfully.",
-          {
-            id: "call-1",
-            name: "eval",
-            arguments: {
-              code: "await page.locator('button').click(); await page.screenshot(); return await page.evaluate(() => 2 + 2);",
-            },
-            execution: {
-              status: "complete",
-              terminalOutcome: "success",
-              result: { details: { returnValue: 4 } },
-            },
-          }
-        )
-      )
-    );
-
-    expect(result).toMatchObject({
+  it("requires the reported fact to agree with the actual native evaluation", () => {
+    expect(
+      clickTest.validate(
+        withSuccessfulImageRead(
+          executionWithInvocation(
+            "I clicked, evaluated, and captured a screenshot. State: clicked.",
+            nativeClickInvocation("Still ready"),
+          ),
+        ),
+      ),
+    ).toMatchObject({
       passed: false,
-      reason: expect.stringContaining("semantically report"),
+      reason: expect.stringContaining("page value reported"),
     });
+  });
+
+  it("rejects guest claims without each native observation and mismatched panels", () => {
+    for (const removed of ["interaction", "screenshot", "evaluation"]) {
+      const invocation = nativeClickInvocation();
+      invocation.execution.result.details.operationJournal.entries =
+        invocation.execution.result.details.operationJournal.entries.filter(
+          (entry) => entry.type !== removed,
+        );
+      expect(
+        clickTest.validate(
+          withSuccessfulImageRead(
+            executionWithInvocation(CLICK_FINAL, invocation),
+          ),
+        ),
+      ).toMatchObject({ passed: false });
+    }
+    const invocation = nativeClickInvocation();
+    invocation.execution.result.details.operationJournal.entries.at(-1)!.id =
+      "panel:other";
+    expect(
+      clickTest.validate(
+        withSuccessfulImageRead(
+          executionWithInvocation(CLICK_FINAL, invocation),
+        ),
+      ),
+    ).toMatchObject({ passed: false });
+  });
+
+  it("rejects observation before the click and truncated native values", () => {
+    const invocation = nativeClickInvocation();
+    const entries =
+      invocation.execution.result.details.operationJournal.entries;
+    entries.push(entries.splice(1, 1)[0]!);
+    expect(
+      clickTest.validate(
+        withSuccessfulImageRead(
+          executionWithInvocation(CLICK_FINAL, invocation),
+        ),
+      ),
+    ).toMatchObject({ passed: false });
+    const truncated = nativeClickInvocation();
+    truncated.execution.result.details.operationJournal.entries.at(
+      -1,
+    )!.receipt!.truncated = true;
+    expect(
+      clickTest.validate(
+        withSuccessfulImageRead(
+          executionWithInvocation(CLICK_FINAL, truncated),
+        ),
+      ),
+    ).toMatchObject({ passed: false });
   });
 
   it("rejects a final success marker when an invocation failed", () => {
@@ -589,7 +668,7 @@ describe("cdp-gad diagnostics validators", () => {
     expect(result).toMatchObject({
       passed: false,
     });
-    expect(result.reason).toContain("Canonical eval");
+    expect(result.reason).toContain("Native click");
   });
 });
 

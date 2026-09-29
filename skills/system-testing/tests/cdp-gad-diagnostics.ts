@@ -42,6 +42,109 @@ interface ToolFailureLike {
   source?: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Judge completed native observations, never the spelling of guest eval code. */
+function checkedBrowserInteraction(
+  result: Parameters<typeof finalMessageHasAll>[0],
+) {
+  const incomplete = noIncompleteInvocations(result);
+  if (!incomplete.passed) return incomplete;
+  const failures = unexpectedToolFailures(result);
+  if (failures.length)
+    return {
+      passed: false,
+      reason: `Expected no failed tool calls, got ${failures.map(formatToolFailure).join(", ")}`,
+    };
+  const final = findLastAgentMessage(result).normalize("NFKC").toLowerCase();
+  const strings = (value: unknown): string[] => {
+    if (typeof value === "string")
+      return value.trim() ? [value.normalize("NFKC").toLowerCase()] : [];
+    if (Array.isArray(value)) return value.flatMap(strings);
+    if (isRecord(value)) return Object.values(value).flatMap(strings);
+    return [];
+  };
+  const panels = new Map<
+    string,
+    { click: boolean; capture: boolean; reportedValue: boolean }
+  >();
+  for (const call of getToolCalls(result)) {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      continue;
+    const output = call.execution.result;
+    const details =
+      isRecord(output) && isRecord(output["details"])
+        ? output["details"]
+        : null;
+    const journal = details?.["operationJournal"];
+    if (
+      !isRecord(journal) ||
+      journal["protocol"] !== "workspace-operations.v1" ||
+      journal["truncated"] !== false ||
+      !Array.isArray(journal["entries"])
+    )
+      continue;
+    for (const entry of journal["entries"]) {
+      if (!isRecord(entry) || typeof entry["id"] !== "string") continue;
+      const id = entry["id"];
+      if (entry["type"] === "open" && entry["kind"] === "browser")
+        panels.set(id, { click: false, capture: false, reportedValue: false });
+      const state = panels.get(id);
+      const receipt = entry["receipt"];
+      if (!state || !isRecord(receipt)) continue;
+      if (
+        entry["type"] === "interaction" &&
+        receipt["protocol"] === "cdp-interaction-outcome.v1" &&
+        receipt["action"] === "click" &&
+        receipt["delivery"] === "dispatched"
+      ) {
+        state.click = true;
+        state.capture = false;
+        state.reportedValue = false;
+      }
+      if (!state.click) continue;
+      if (
+        entry["type"] === "screenshot" &&
+        typeof receipt["byteSize"] === "number" &&
+        receipt["byteSize"] > 0
+      )
+        state.capture = true;
+      if (
+        entry["type"] === "evaluation" &&
+        receipt["protocol"] === "cdp-evaluation-outcome.v1" &&
+        receipt["truncated"] === false
+      ) {
+        state.reportedValue ||= strings(receipt["value"]).some((value) =>
+          final.includes(value),
+        );
+      }
+    }
+  }
+  if (
+    ![...panels.values()].some(
+      (state) => state.click && state.capture && state.reportedValue,
+    )
+  )
+    return {
+      passed: false,
+      reason:
+        "Native click, final rendered capture, and a page value reported in the final response were not observed on the same browser panel",
+    };
+  return hasSuccessfulImageRead(result)
+    ? { passed: true }
+    : {
+        passed: false,
+        reason:
+          "The agent captured a screenshot but did not read it as image content",
+      };
+}
+
 const IMPOSSIBLE_SUCCESS_PHRASES = [
   "not reachable",
   "unreachable",
@@ -641,20 +744,7 @@ export const cdpGadDiagnosticTests: TestCase[] = [
         BROWSER_AUTOMATION_PROMPT,
         "inspect an interactive browser page"
       ),
-    validate: (result) => {
-      const base = checked(
-        result,
-        [/click/iu, /evaluat/iu, /screenshot/iu, /state:\s*clicked/iu],
-        [/click/iu, /evaluat/iu, /screenshot/iu]
-      );
-      if (!base.passed) return base;
-      return hasSuccessfulImageRead(result)
-        ? base
-        : {
-            passed: false,
-            reason: "The agent captured a screenshot but did not read it as image content",
-          };
-    },
+    validate: checkedBrowserInteraction,
   },
   {
     name: "cdp-page-console-dom-inspection",
