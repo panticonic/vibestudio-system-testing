@@ -1,3 +1,4 @@
+import { problemReportingTests } from "./tests/problem-reporting.js";
 import { requiringUnits, type TestCase } from "./types.js";
 import { assertSystemTestDeclaration } from "./prompt-contract.js";
 import { deterministicTestCases } from "./deterministic.js";
@@ -159,6 +160,7 @@ export function allTests(): TestCase[] {
     ...selfDevelopmentTests,
     ...blobstoreTests,
     ...serverLogTests,
+    ...problemReportingTests,
     ...webhookTests,
     ...extensionSurfaceTests,
     ...trustedUnitAuthoringTests,
@@ -167,8 +169,19 @@ export function allTests(): TestCase[] {
     ...imageGenerationTests,
     ...imagePanelTests,
     ...requiringUnits(
-      ["panels/dead-letter-office", "panels/missing-country", "panels/wandering-house", "workers/adventure-world", "workers/adventure-agents"],
-      [...adventureCampaignTests, ...adventureTurnProfileTests, ...adventureUiReviewTests, ...adventureProgrammedInteractionTests]
+      [
+        "panels/dead-letter-office",
+        "panels/missing-country",
+        "panels/wandering-house",
+        "workers/adventure-world",
+        "workers/adventure-agents",
+      ],
+      [
+        ...adventureCampaignTests,
+        ...adventureTurnProfileTests,
+        ...adventureUiReviewTests,
+        ...adventureProgrammedInteractionTests,
+      ],
     ),
     ...mobileTests,
     ...deliveryHardeningTests,
@@ -191,7 +204,10 @@ export function testCategories(tests: TestCase[] = allTests()): string[] {
   return [...new Set(tests.map((test) => test.category))];
 }
 
-export function testStages(tests: TestCase[] = allTests(), maxTestsPerStage?: number): TestStage[] {
+export function testStages(
+  tests: TestCase[] = allTests(),
+  maxTestsPerStage?: number,
+): TestStage[] {
   const stages: TestStage[] = [];
   for (const category of testCategories(tests)) {
     const categoryTests = tests.filter((test) => test.category === category);
@@ -212,7 +228,9 @@ export function testStages(tests: TestCase[] = allTests(), maxTestsPerStage?: nu
   return stages;
 }
 
-export function testStageChoices(stages: TestStage[] = testStages()): TestStageChoice[] {
+export function testStageChoices(
+  stages: TestStage[] = testStages(),
+): TestStageChoice[] {
   return stages.map((stage) => ({
     value: String(stage.index),
     label: `${stage.name} (${stage.tests.length} tests)`,
@@ -221,28 +239,34 @@ export function testStageChoices(stages: TestStage[] = testStages()): TestStageC
 
 export function selectedTestStages(
   tests: TestCase[] = allTests(),
-  run?: TestStageRunState | null
+  run?: TestStageRunState | null,
 ): TestStage[] {
   const stages = testStages(tests);
   const allIndexes = stages.map((stage) => stage.index);
   const selectedIndexes = new Set(
-    Array.isArray(run?.selectedStageIndexes) && run.selectedStageIndexes.length > 0
+    Array.isArray(run?.selectedStageIndexes) &&
+      run.selectedStageIndexes.length > 0
       ? run.selectedStageIndexes.filter((value) => allIndexes.includes(value))
-      : allIndexes
+      : allIndexes,
   );
   return stages.filter((stage) => selectedIndexes.has(stage.index));
 }
 
 export function nextSelectedStage(
   tests: TestCase[] = allTests(),
-  run?: TestStageRunState | null
+  run?: TestStageRunState | null,
 ): NextTestStage | null {
   const selectedStages = selectedTestStages(tests, run);
-  const completed = new Set(Array.isArray(run?.completedStages) ? run.completedStages : []);
+  const completed = new Set(
+    Array.isArray(run?.completedStages) ? run.completedStages : [],
+  );
   const stage = selectedStages.find((item) => !completed.has(item.index));
   if (!stage) return null;
-  const stagePosition = selectedStages.findIndex((item) => item.index === stage.index) + 1;
-  const remainingStages = selectedStages.filter((item) => !completed.has(item.index)).length;
+  const stagePosition =
+    selectedStages.findIndex((item) => item.index === stage.index) + 1;
+  const remainingStages = selectedStages.filter(
+    (item) => !completed.has(item.index),
+  ).length;
   return {
     stage,
     stagePosition,
