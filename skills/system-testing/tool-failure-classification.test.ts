@@ -11,11 +11,17 @@ import {
 } from "./tool-failure-classification.js";
 
 describe("tool failure classification", () => {
-  it.each(["argument-rejection", "domain-rejection", "guest-code-failure"] as const)(
+  it.each([
+    "argument-rejection",
+    "domain-rejection",
+    "guest-code-failure",
+  ] as const)(
     "does not forgive an undeclared %s after recovery",
     (classification) => {
       expect(isUnexpectedToolFailure({ classification })).toBe(true);
-      expect(isUnexpectedToolFailure({ classification, expected: true })).toBe(false);
+      expect(isUnexpectedToolFailure({ classification, expected: true })).toBe(
+        false,
+      );
     },
   );
   it("recognizes only pre-dispatch argument validation failures", () => {
@@ -90,9 +96,15 @@ describe("tool failure classification", () => {
   });
 
   it("keeps an exact-root provenance miss classified separately", () => {
-    expect(isSafeProvenanceDomainRejection("provenance", "InvalidReference")).toBe(true);
-    expect(isSafeProvenanceDomainRejection("provenance", "Unauthorized")).toBe(false);
-    expect(isSafeProvenanceDomainRejection("vcs", "InvalidReference")).toBe(false);
+    expect(
+      isSafeProvenanceDomainRejection("provenance", "InvalidReference"),
+    ).toBe(true);
+    expect(isSafeProvenanceDomainRejection("provenance", "Unauthorized")).toBe(
+      false,
+    );
+    expect(isSafeProvenanceDomainRejection("vcs", "InvalidReference")).toBe(
+      false,
+    );
   });
 
   it("keeps safe typed VCS refusals classified separately", () => {
@@ -113,9 +125,15 @@ describe("tool failure classification", () => {
   });
 
   it("keeps typed pre-execution eval module rejection classified separately", () => {
-    expect(isSafeEvalDomainRejection("eval", "module_not_available")).toBe(true);
-    expect(isSafeEvalDomainRejection("eval", "guest_execution_failed")).toBe(false);
-    expect(isSafeEvalDomainRejection("read", "module_not_available")).toBe(false);
+    expect(isSafeEvalDomainRejection("eval", "module_not_available")).toBe(
+      true,
+    );
+    expect(isSafeEvalDomainRejection("eval", "guest_execution_failed")).toBe(
+      false,
+    );
+    expect(isSafeEvalDomainRejection("read", "module_not_available")).toBe(
+      false,
+    );
   });
 
   it("separates typed guest program and build failures from infrastructure failures", () => {
@@ -147,8 +165,14 @@ describe("tool failure classification", () => {
   });
 
   it("keeps typed ambiguous subagent inspection classified separately", () => {
-    expect(isSafeSubagentDomainRejection("inspect_subagent", "InvalidReference")).toBe(true);
-    expect(isSafeSubagentDomainRejection("inspect_subagent", "unknown_tool_failure")).toBe(false);
-    expect(isSafeSubagentDomainRejection("read", "InvalidReference")).toBe(false);
+    expect(
+      isSafeSubagentDomainRejection("inspect_subagent", "InvalidReference"),
+    ).toBe(true);
+    expect(
+      isSafeSubagentDomainRejection("inspect_subagent", "unknown_tool_failure"),
+    ).toBe(false);
+    expect(isSafeSubagentDomainRejection("read", "InvalidReference")).toBe(
+      false,
+    );
   });
 });

@@ -164,7 +164,9 @@ export interface ToolFailureDisposition {
  * reports, and diagnostics. Recovery and classification cannot turn an
  * incidental failure into a clean execution.
  */
-export function isUnexpectedToolFailure(failure: ToolFailureDisposition): boolean {
+export function isUnexpectedToolFailure(
+  failure: ToolFailureDisposition,
+): boolean {
   return failure.expected !== true;
 }
 

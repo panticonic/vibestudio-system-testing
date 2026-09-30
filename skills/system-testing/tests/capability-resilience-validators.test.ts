@@ -707,7 +707,7 @@ describe("project lifecycle semantic validators", () => {
           ),
         ]),
       ).passed,
-    ).toBe(false); // Source code claiming a dry run is not an observed plan receipt.
+    ).toBe(true); // A saved, rendered copy does not require a dry-run receipt.
     expect(
       scenario(projectLifecycleTests, "panel-fork-dry-run-and-commit").validate(
         execution([

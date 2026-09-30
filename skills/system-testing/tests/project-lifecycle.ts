@@ -1430,7 +1430,7 @@ export const projectLifecycleTests: TestCase[] = [
     authorityPolicy: panelControlAuthorityPolicy("inspect-curated-icon-panel"),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Create and publish a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open it and inspect its rendered content for use.",
+      "Create a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
     validate: validateCuratedIconPanelCreate,
   },
   {
