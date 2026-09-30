@@ -1107,6 +1107,18 @@ describe("project lifecycle prompts", () => {
       reason: undefined,
     });
 
+    const naturalReport = todoExecution(calls);
+    naturalReport.messages.at(-1)!.content =
+      "The typo is repaired. I brightened the dim placeholder and stacked the form on mobile after inspecting the rendered panel. Keyboard submission, completion, filtering, and deletion worked; the console is clean and the finished panel is published.";
+    expect(test.validate(naturalReport)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    const noReply = todoExecution(calls);
+    noReply.messages.pop();
+    expect(test.validate(noReply)).toMatchObject({ passed: false });
+    expect(test.validate(todoExecution([]))).toMatchObject({ passed: false });
+
     // The native receipts are the evidence; eval spelling does not define a
     // browser verification protocol.
     const renamed = structuredClone(calls);

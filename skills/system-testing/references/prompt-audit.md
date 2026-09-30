@@ -134,6 +134,13 @@ Source: `skills/system-testing/tests/project-lifecycle.ts`.
 
 Current prompt retains staged seeded defects, screenshots and refresh/recheck sequence; validator expects that exact debug trajectory.
 
+The lifecycle validators now require a completed agent reply and judge delivery
+through joined native source, build, rendered image, interaction, console, and
+publication evidence. They do not require words such as `UX`, `usability`, or
+`task` in the final report. A real report explaining placeholder contrast and
+mobile layout was incorrectly rejected by that vocabulary gate. Unexpected
+compiler faults still fail the overall verdict, independently of task delivery.
+
 This is an over-specified task journey. Preserve intended To-Do outcome and live verification, remove staged defects/screenshot choreography; redesign validator around finished behavior.
 
 Owning product guidance: `Base/skills/workspace-dev/SKILL.md`, `Base/skills/workspace-dev/PANEL_DEBUG_LOOP.md`. These paths identify the reusable guidance owner, not a place to store evaluator tokens.

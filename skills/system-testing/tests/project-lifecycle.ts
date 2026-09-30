@@ -16,11 +16,7 @@ import {
   panelControlAuthorityPolicy,
   PANEL_AUTOMATION_RESOURCE,
 } from "../panel-authority.js";
-import {
-  findLastAgentMessage,
-  getToolCalls,
-  type InvocationCardPayloadLike,
-} from "./_helpers.js";
+import { getToolCalls, type InvocationCardPayloadLike } from "./_helpers.js";
 import {
   preparedProject,
   publishedPreparation,
@@ -903,14 +899,8 @@ function validateTaskManagementApp(result: TestExecutionResult) {
     };
   }
 
-  const final = findLastAgentMessage(result);
-  if (!/task|project/iu.test(final)) {
-    return {
-      passed: false,
-      reason:
-        "The final response did not report the built, launched, and debugged app evidence",
-    };
-  }
+  // Completion is required by completedScenarioEvidence. Delivery is proven
+  // by the exact build and live behavior above, not by vocabulary in prose.
   return { passed: true, reason: undefined };
 }
 
@@ -1393,18 +1383,9 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
     };
   }
 
-  const final = findLastAgentMessage(result);
-  if (
-    !/compil|type.?check/iu.test(final) ||
-    !/\bux\b|usab|experience/iu.test(final) ||
-    !/add|complete|filter|delete/iu.test(final)
-  ) {
-    return {
-      passed: false,
-      reason:
-        "The final response did not report the observed compiler defect, UX repair, and live behavior",
-    };
-  }
+  // The completed reply and the native repair/verification/publication chain
+  // are independent requirements. Natural descriptions such as improving
+  // placeholder contrast need not recite evaluator words like "UX".
   return { passed: true, reason: undefined };
 }
 
