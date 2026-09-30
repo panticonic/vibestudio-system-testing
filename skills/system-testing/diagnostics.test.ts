@@ -19,7 +19,9 @@ function entryWithMessages(messages: ChatMessage[]): TestSuiteResultEntry {
   };
 }
 
-function passingEntryWithToolFailure(messages: ChatMessage[]): TestSuiteResultEntry {
+function passingEntryWithToolFailure(
+  messages: ChatMessage[],
+): TestSuiteResultEntry {
   return {
     ...entryWithMessages(messages),
     result: { passed: true },
@@ -48,18 +50,26 @@ describe("system-testing diagnostics", () => {
       id: "call-shared",
       name: "eval",
       arguments: { first: shared, second: shared, cycle },
-      execution: { status: "complete" as const, description: "Repeated reference evidence", result: { success: true } },
+      execution: {
+        status: "complete" as const,
+        description: "Repeated reference evidence",
+        result: { success: true },
+      },
     };
-    const diagnostic = summarizeEntry(entryWithMessages([{
-      id: "invocation:call-shared",
-      senderId: "agent",
-      senderMetadata: { type: "agent" },
-      kind: "message",
-      contentType: "invocation",
-      complete: true,
-      content: "",
-      invocation,
-    }]));
+    const diagnostic = summarizeEntry(
+      entryWithMessages([
+        {
+          id: "invocation:call-shared",
+          senderId: "agent",
+          senderMetadata: { type: "agent" },
+          kind: "message",
+          contentType: "invocation",
+          complete: true,
+          content: "",
+          invocation,
+        },
+      ]),
+    );
     expect(diagnostic.invocations[0]?.arguments).toEqual({
       first: { observed: true },
       second: { observed: true },
@@ -83,7 +93,7 @@ describe("system-testing diagnostics", () => {
     const diagnostic = summarizeEntry(entryWithMessages(messages));
 
     expect(diagnostic.finalAgentMessage).toBe(
-      "Reviewed the retained result without integrating it."
+      "Reviewed the retained result without integrating it.",
     );
     expect(diagnostic.conversation[0]).toMatchObject({ who: "agent" });
     expect(diagnostic.likelyIssue).toBe("validation-mismatch");
@@ -276,7 +286,7 @@ describe("system-testing diagnostics", () => {
         skipped: 0,
         duration: 1,
         results: [entry],
-      }).failureCount
+      }).failureCount,
     ).toBe(0);
   });
 
@@ -286,7 +296,8 @@ describe("system-testing diagnostics", () => {
       passed: false,
       reason: "Error: Cannot read properties of undefined (reading 'includes')",
     };
-    entry.execution.error = "Cannot read properties of undefined (reading 'includes')";
+    entry.execution.error =
+      "Cannot read properties of undefined (reading 'includes')";
     entry.execution.failure = {
       phase: "validation",
       error: {
@@ -419,11 +430,15 @@ describe("system-testing diagnostics", () => {
     const diagnostic = summarizeEntry(entry);
     expect(diagnostic.likelyIssue).toBe("cleanup-error");
     expect(diagnostic.channelDeliveryLatency?.violations).toEqual([]);
-    expect(diagnostic.channelDeliveryLatency?.metrics[0]?.overBudget).toBe(false);
+    expect(diagnostic.channelDeliveryLatency?.metrics[0]?.overBudget).toBe(
+      false,
+    );
   });
 
   it("omits the latency projection when channel delivery was never collected", () => {
-    expect(summarizeEntry(entryWithMessages([])).channelDeliveryLatency).toBeNull();
+    expect(
+      summarizeEntry(entryWithMessages([])).channelDeliveryLatency,
+    ).toBeNull();
   });
 
   it("keeps both ends of a long tool error so the diagnosis survives", () => {
@@ -432,10 +447,19 @@ describe("system-testing diagnostics", () => {
     // part that differs between two build failures.
     const error =
       "[tool.verify:execute] unknown_tool_failure: [build.getTestArtifact] Build failed with 1 error:\n" +
-      "/tmp/vibestudio-selfdev/workspaces/system-ws/state/build-sources/".padEnd(600, "x") +
-      "/index.tsx:12:4: ERROR: Could not resolve \"./missing-module\"";
+      "/tmp/vibestudio-selfdev/workspaces/system-ws/state/build-sources/".padEnd(
+        600,
+        "x",
+      ) +
+      '/index.tsx:12:4: ERROR: Could not resolve "./missing-module"';
     entry.execution.toolFailures = [
-      { id: "call-1", name: "verify", status: "error", error, source: "message" },
+      {
+        id: "call-1",
+        name: "verify",
+        status: "error",
+        error,
+        source: "message",
+      },
     ] as never;
 
     const [summary] = summarizeEntry(entry).toolFailures;
@@ -447,7 +471,13 @@ describe("system-testing diagnostics", () => {
   it("leaves a tool error shorter than the limit untouched", () => {
     const entry = entryWithMessages([]);
     entry.execution.toolFailures = [
-      { id: "call-1", name: "verify", status: "error", error: "short", source: "message" },
+      {
+        id: "call-1",
+        name: "verify",
+        status: "error",
+        error: "short",
+        source: "message",
+      },
     ] as never;
     expect(summarizeEntry(entry).toolFailures[0]?.error).toBe("short");
   });
@@ -472,13 +502,16 @@ describe("system-testing diagnostics", () => {
     const entry = entryWithMessages([]);
     entry.execution.diagnostics = {
       scheduledNotification: {
-        runs: Array.from({ length: 40 }, (_, index) => ({ runId: `run-${index}`.padEnd(40, "x") })),
+        runs: Array.from({ length: 40 }, (_, index) => ({
+          runId: `run-${index}`.padEnd(40, "x"),
+        })),
         // The field the validator actually grades, last in the record.
         notifications: [{ id: "notify-1" }, { id: "notify-2" }],
       },
     };
 
-    const carried = summarizeEntry(entry).orchestration?.["scheduledNotification"] ?? "";
+    const carried =
+      summarizeEntry(entry).orchestration?.["scheduledNotification"] ?? "";
     expect(carried).toContain("runs");
     expect(carried).toContain("notify-2");
     expect(carried).toMatch(/chars elided/u);
@@ -508,13 +541,20 @@ describe("system-testing diagnostics", () => {
           repoPath: "packages/system-test-fixture-test-1234",
         },
         unexpectedPublishedRepositoriesRemoved: [
-          { repositoryId: "repository:escaped", repoPath: "projects/outside-fixture" },
+          {
+            repositoryId: "repository:escaped",
+            repoPath: "projects/outside-fixture",
+          },
         ],
-        counteractedChangeIds: ["change:repository-create", "change:file-create"],
+        counteractedChangeIds: [
+          "change:repository-create",
+          "change:file-create",
+        ],
       },
     };
 
     expect(summarizeEntry(entry).workspaceRepoFixture).toEqual({
+      creationScopeError: null,
       testName: "fixture-test",
       contextId: "context:fixture-test",
       kind: "buildable-package",
@@ -531,7 +571,10 @@ describe("system-testing diagnostics", () => {
         repoPath: "packages/system-test-fixture-test-1234",
       },
       unexpectedPublishedRepositoriesRemoved: [
-        { repositoryId: "repository:escaped", repoPath: "projects/outside-fixture" },
+        {
+          repositoryId: "repository:escaped",
+          repoPath: "projects/outside-fixture",
+        },
       ],
       counteractedChangeCount: 2,
     });
@@ -569,7 +612,9 @@ describe("system-testing diagnostics", () => {
       title: null,
     };
 
-    expect(summarizeEntry(entry).cleanupErrors).toEqual(["unsubscribeHeadlessAgent: relay failed"]);
+    expect(summarizeEntry(entry).cleanupErrors).toEqual([
+      "unsubscribeHeadlessAgent: relay failed",
+    ]);
   });
 
   it("keeps structured failures and handles in bounded diagnostics", () => {

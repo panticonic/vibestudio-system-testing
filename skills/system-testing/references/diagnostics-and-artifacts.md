@@ -15,6 +15,14 @@ observation, not a root cause. Correlate it with:
 Use `inspect` for the bounded packet first. Use `trajectory --full --json` only
 for the exact test whose bounded packet is insufficient.
 
+During a running test, inspection is a periodic checkpoint, not a synchronous
+re-execution. Phase updates retain the latest live checkpoint while the next
+inspection refresh is pending; cleanup can still be running after the agent's
+turn has ended. Compare progress phase and checkpoint timestamps before calling
+that a stall. Full trajectories become available after the test and its cleanup
+finish. Native eval operation journals retain completed work independently of a
+later error; require actual outcome evidence, and honor their `truncated` flag.
+
 ## Concrete mismatch template
 
 For each failure, state:
@@ -58,7 +66,10 @@ reference or a stale VCS request can show a working fail-closed mechanism and
 still expose an agent or documentation problem. Keep its invocation and typed
 reason. Only a fault explicitly induced and independently validated by the
 scenario may be expected; that declaration applies to one matching invocation,
-not every failure of the tool.
+not every failure of the tool. Canonical `invalid-input` envelopes with a
+`correct-input` retry policy and the exact tool operation identify argument
+corrections for any tool, including edit/write. This attribution does not
+exempt the failed invocation from the verdict.
 
 For VCS mutations, inspect the exact working state, `commandId`, target context,
 work-unit/application/change identities, resulting event, and publication
@@ -158,6 +169,12 @@ the record, or grant shell/process/filesystem escape hatches.
 Session close failures, fixture leaks, stale participants, and repository
 identities published outside the test's exact fixture ownership fail the run.
 They are infrastructure defects even if the capability marker was present.
+
+`workspaceRepoFixture.creationScopeError` assesses the repository delivery
+contract, separately from teardown. It fails an otherwise successful completed
+case, but an interrupted or already-failed case can have an unfinished delivery
+and still clean up successfully. Inspect that assessment alongside the original
+verdict; do not mistake it for a resource leak or hide real cleanup errors.
 
 Capture session state before close, then inspect the normalized execution-level
 cleanup errors. The snapshot retains the same raw session cleanup events as

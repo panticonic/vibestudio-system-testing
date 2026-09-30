@@ -666,6 +666,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     await expect(
       fixture.cleanup(state, (phase) => phases.push(phase)),
     ).resolves.toEqual({
+      creationScopeError: null,
       publishedFixtureRemoved: {
         repositoryId: "repository:task-created:0",
         repoPath: "panels/task-created",
@@ -704,9 +705,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     );
     const state = await fixture.prepare();
 
-    await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 0: none",
-    );
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: expect.stringContaining(
+        "expected exactly one task-created repository in panels/, found 0: none",
+      ),
+    });
     expect(fake.revert).not.toHaveBeenCalled();
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
@@ -753,9 +756,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const state = await fixture.prepare();
     fake.createTaskRepositories(["panels/notes", "panels/not-a-store"]);
 
-    await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected sections panels, workers",
-    );
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: expect.stringContaining(
+        "expected sections panels, workers",
+      ),
+    });
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
         changeIds: expect.arrayContaining([
@@ -777,9 +782,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const state = await fixture.prepare();
     fake.createTaskRepositories(["panels/first", "panels/second"]);
 
-    await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 2: panels/first, panels/second",
-    );
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: expect.stringContaining(
+        "expected exactly one task-created repository in panels/, found 2: panels/first, panels/second",
+      ),
+    });
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({
         changeIds: ["change:task-created:0", "change:task-created:1"],
@@ -799,9 +806,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const state = await fixture.prepare();
     fake.createTaskRepositories(["packages/not-a-panel"]);
 
-    await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found packages/not-a-panel",
-    );
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: expect.stringContaining(
+        "expected exactly one task-created repository in panels/, found packages/not-a-panel",
+      ),
+    });
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({ changeIds: ["change:task-created:0"] }),
     );
@@ -833,6 +842,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
 
     fake.createTaskRepositories(["panels/system-test-panel-fork"]);
     await expect(fixture.cleanup(state)).resolves.toEqual({
+      creationScopeError: null,
       publishedFixtureRemoved: {
         repositoryId: "repository:task-created:0",
         repoPath: "panels/system-test-panel-fork",
@@ -857,9 +867,11 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     );
     const state = await fixture.prepare();
 
-    await expect(fixture.cleanup(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 0: none",
-    );
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: expect.stringContaining(
+        "expected exactly one task-created repository in panels/, found 0: none",
+      ),
+    });
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
 
@@ -1233,6 +1245,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     fake.publish();
 
     await expect(fixture.cleanup(state)).resolves.toEqual({
+      creationScopeError: null,
       publishedFixtureRemoved: {
         repositoryId: "repository:fixture",
         repoPath: "projects/system-test-content",
@@ -1299,6 +1312,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     fake.escape();
 
     await expect(fixture.cleanup(state)).resolves.toEqual({
+      creationScopeError: null,
       publishedFixtureRemoved: null,
       unexpectedPublishedRepositoriesRemoved: [
         {

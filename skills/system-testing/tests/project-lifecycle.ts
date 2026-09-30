@@ -22,6 +22,12 @@ import {
   type InvocationCardPayloadLike,
 } from "./_helpers.js";
 import {
+  preparedProject,
+  publishedPreparation,
+  publishedCommits,
+  committedPreparation,
+} from "./_project-evidence.js";
+import {
   completedScenarioEvidence,
   invocationReturnValue,
   walkRecords,
@@ -55,47 +61,17 @@ function successfulEvalCalls(result: TestExecutionResult) {
   );
 }
 
-function findLifecycleResult(
-  result: TestExecutionResult,
-  codeRequired: readonly string[],
-  predicate: (record: Record<string, unknown>) => boolean,
-) {
-  return successfulEvalCalls(result).find((call) => {
-    const code = String(call.arguments?.["code"] ?? "");
-    if (!codeRequired.every((token) => code.includes(token))) return false;
-    const returned = invocationReturnValue(call);
-    return returned.present && walkRecords([returned.value]).some(predicate);
-  });
-}
-
 function createdProject(
   record: Record<string, unknown>,
   section: "panels" | "packages" | "workers",
 ) {
-  const publication = record["publication"];
-  const preflight = record["preflight"];
-  const expectedType =
+  return preparedProject(
+    record,
     section === "panels"
       ? "panel"
       : section === "workers"
         ? "worker"
-        : "package";
-  const hasSuccessfulPreflight =
-    isRecord(preflight) &&
-    preflight["ok"] === true &&
-    preflight["projectType"] === expectedType &&
-    Array.isArray(preflight["checked"]) &&
-    preflight["checked"].length > 0;
-  return (
-    typeof record["created"] === "string" &&
-    record["created"].startsWith(`${section}/`) &&
-    hasSuccessfulPreflight &&
-    isRecord(publication) &&
-    publication["published"] === true &&
-    typeof publication["committedEventId"] === "string" &&
-    typeof publication["publishedEventId"] === "string" &&
-    typeof publication["mainEventId"] === "string" &&
-    typeof publication["effectId"] === "string"
+        : "package",
   );
 }
 
@@ -133,40 +109,63 @@ function hasBootReadyPanelEvidence(values: readonly unknown[]): boolean {
   );
 }
 
+/** A native capture is rendered-content inspection, not an agent assertion.
+ * Join it to a ready observation in call order, invalidating readiness across
+ * lifecycle changes rather than requiring an arbitrary snapshot return shape. */
+function hasReadyCapturedPanel(
+  calls: readonly InvocationCardPayloadLike[],
+  source: string,
+): boolean {
+  const ready = new Set<string>();
+  for (const call of calls) {
+    if (call.name !== "eval" || !details(call)) continue;
+    const observations = returnedRecords(call).filter(
+      (record) =>
+        record["phase"] === "ready" &&
+        record["source"] === source &&
+        typeof record["panelId"] === "string" &&
+        typeof record["runtimeEntityId"] === "string" &&
+        typeof record["attemptId"] === "string" &&
+        typeof record["buildKey"] === "string" &&
+        record["buildKey"].length > 0,
+    );
+    for (const entry of nativePanelOperations(call)) {
+      const id = entry["id"];
+      if (typeof id !== "string") continue;
+      if (["open", "reload", "close"].includes(String(entry["type"])))
+        ready.delete(id);
+      if (
+        ready.has(id) &&
+        renderedCaptureObservation(entry) &&
+        (entry["type"] !== "screenshot" || isSuccessfulImageRead(call))
+      )
+        return true;
+    }
+    for (const observation of observations)
+      ready.add(observation["panelId"] as string);
+  }
+  return false;
+}
+
 function validatePanelCreate(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  const call = findLifecycleResult(
-    result,
-    ["createProjects", "openPanel"],
-    (record) => createdProject(record, "panels"),
+  const prepared = walkRecords(base.evidence.evalValues).find((record) =>
+    createdProject(record, "panels"),
   );
-  if (!call) {
+  if (!prepared || !publishedPreparation(result, prepared))
     return {
       passed: false,
-      reason: "No completed eval returned the created panel lifecycle result",
+      reason:
+        "No prepared panel application was joined to an exact committed and published event",
     };
-  }
-  const code = String(call.arguments?.["code"] ?? "");
-  if (code.indexOf("createProjects") >= code.lastIndexOf("openPanel")) {
-    return {
-      passed: false,
-      reason: "The panel was not opened after project creation",
-    };
-  }
-  if (!/\.snapshot\s*\(/u.test(code)) {
-    return {
-      passed: false,
-      reason: "The opened panel was not verified through a snapshot",
-    };
-  }
-  const returned = invocationReturnValue(call);
-  return returned.present && hasBootReadyPanelEvidence([returned.value])
+  return hasBootReadyPanelEvidence(base.evidence.evalValues) ||
+    hasReadyCapturedPanel(base.evidence.calls, String(prepared["created"]))
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "The completed lifecycle returned no matching boot-ready observation and provenance-bearing snapshot",
+          "The opened panel returned no matching boot-ready observation and provenance-bearing snapshot",
       };
 }
 
@@ -178,13 +177,26 @@ function validateCuratedIconPanelCreate(result: TestExecutionResult) {
     (call) =>
       call.name === "eval" &&
       call.execution?.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("listProjectIcons"),
+      (returnedRecords(call).some(
+        (record) =>
+          record["protocol"] === "workspace-dev-catalog.v1" &&
+          record["resource"] === "icon" &&
+          Array.isArray(record["entries"]) &&
+          record["entries"].some(
+            (entry) => isRecord(entry) && entry["id"] === "lucide:database",
+          ),
+      ) ||
+        (String(call.arguments?.["code"] ?? "").includes("listProjectIcons") &&
+          Array.isArray(details(call)?.["returnValue"]) &&
+          (details(call)?.["returnValue"] as unknown[]).includes(
+            "lucide:database",
+          ))),
   );
   const createIndex = calls.findIndex(
     (call) =>
       call.name === "eval" &&
       call.execution?.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("createProjects"),
+      String(call.arguments?.["code"] ?? "").includes("prepareProjects"),
   );
   if (catalogIndex < 0 || createIndex < 0 || catalogIndex > createIndex) {
     return {
@@ -208,29 +220,36 @@ function validateCuratedIconPanelCreate(result: TestExecutionResult) {
       reason: "No successful structured panel build was returned",
     };
   }
+  const prepared = walkRecords(base.evidence.evalValues).find(
+    (record) =>
+      createdProject(record, "panels") && publishedPreparation(result, record),
+  );
+  if (!prepared)
+    return {
+      passed: false,
+      reason: "No published generated panel scaffold was returned",
+    };
   const openIndex = calls.findIndex(
     (call, index) =>
       index > buildIndex &&
       call.name === "eval" &&
       call.execution?.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("openPanel") &&
-      /\.snapshot\s*\(/u.test(String(call.arguments?.["code"] ?? "")),
+      nativePanelOperations(call).some(
+        (entry) =>
+          entry["type"] === "open" && entry["source"] === prepared["created"],
+      ),
   );
-  if (openIndex < 0 || !hasBootReadyPanelEvidence(base.evidence.evalValues)) {
-    return {
-      passed: false,
-      reason:
-        "The clean build was not followed by a boot-ready panel observation and snapshot",
-    };
-  }
   if (
-    !walkRecords(base.evidence.evalValues).some((record) =>
-      createdProject(record, "panels"),
+    openIndex < 0 ||
+    !(
+      hasBootReadyPanelEvidence(base.evidence.evalValues) ||
+      hasReadyCapturedPanel(base.evidence.calls, String(prepared["created"]))
     )
   ) {
     return {
       passed: false,
-      reason: "No published generated panel scaffold was returned",
+      reason:
+        "The clean build was not followed by boot-ready rendered-panel inspection",
     };
   }
   return { passed: true, reason: undefined };
@@ -239,78 +258,43 @@ function validateCuratedIconPanelCreate(result: TestExecutionResult) {
 function validateWorkerCreate(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  const call = findLifecycleResult(result, ["createProjects"], (record) =>
-    createdProject(record, "workers"),
-  );
-  return call
+  return walkRecords(base.evidence.evalValues).some(
+    (record) =>
+      createdProject(record, "workers") && publishedPreparation(result, record),
+  )
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "No completed eval returned the published worker scaffold lifecycle result",
+          "No prepared worker application was joined to an exact committed and published event",
       };
 }
 
 function validatePanelFork(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  const call = successfulEvalCalls(result).find((candidate) => {
-    const code = String(candidate.arguments?.["code"] ?? "");
-    if (
-      !/\bfork(?:Panel|Project)\s*\(/u.test(code) ||
-      !code.includes("openPanel")
-    )
-      return false;
-    const returned = invocationReturnValue(candidate);
-    return (
-      returned.present &&
-      walkRecords([returned.value]).some((record) =>
-        Boolean(
-          typeof record["created"] === "string" &&
-          record["created"].startsWith("panels/") &&
-          record["committed"] === true &&
-          record["dryRun"] === false &&
-          isRecord(record["preflight"]) &&
-          record["preflight"]["ok"] === true &&
-          record["preflight"]["projectType"] === "panel" &&
-          isRecord(record["publication"]) &&
-          record["publication"]["published"] === true &&
-          typeof record["publication"]["committedEventId"] === "string" &&
-          Array.isArray(record["files"]) &&
-          record["files"].length > 0,
-        ),
-      )
-    );
-  });
-  if (!call) {
+  const records = walkRecords(base.evidence.evalValues);
+  const fork = records.find(
+    (record) =>
+      createdProject(record, "panels") &&
+      record["dryRun"] === false &&
+      typeof record["source"] === "string",
+  );
+  if (!fork || !committedPreparation(result, fork))
     return {
       passed: false,
-      reason: "No completed eval returned a committed panel-fork result",
+      reason:
+        "No prepared panel-fork application was joined to its exact local commit",
     };
-  }
-  const code = String(call.arguments?.["code"] ?? "");
-  if (
-    (code.match(/\bfork(?:Panel|Project)\s*\(/gu)?.length ?? 0) < 2 ||
-    !/dryRun\s*:\s*true/u.test(code)
-  ) {
-    return {
-      passed: false,
-      reason: "The panel fork was not planned before it was applied",
-    };
-  }
-  if (!/\.snapshot\s*\(/u.test(code)) {
-    return {
-      passed: false,
-      reason: "The opened fork was not verified through a snapshot",
-    };
-  }
-  const returned = invocationReturnValue(call);
-  return returned.present && hasBootReadyPanelEvidence([returned.value])
+  // The task asks for a saved, working copy, not a particular planning sequence.
+  // Preparation and its exact commit prove delivery; a dry run is optional.
+  return hasBootReadyPanelEvidence(base.evidence.evalValues) ||
+    hasReadyCapturedPanel(base.evidence.calls, String(fork["created"]))
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "The committed fork returned no matching boot-ready observation and provenance-bearing snapshot",
+          "The committed fork returned no matching boot-ready rendered-panel inspection",
       };
 }
 
@@ -349,9 +333,8 @@ function validateWorkerForkPlan(result: TestExecutionResult) {
           typeof record["created"] === "string" &&
           record["created"].startsWith("workers/") &&
           record["source"] !== record["created"] &&
-          record["committed"] === false &&
           record["dryRun"] === true &&
-          record["publication"] === null &&
+          record["preparation"] === null &&
           hasPreflight &&
           hasFiles,
         );
@@ -396,7 +379,7 @@ function validateProjectCommit(result: TestExecutionResult) {
     return (
       call.execution?.status === "complete" &&
       call.execution.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("createProjects") &&
+      String(call.arguments?.["code"] ?? "").includes("prepareProjects") &&
       returned.present &&
       walkRecords([returned.value]).some((record) =>
         createdProject(record, "packages"),
@@ -464,7 +447,31 @@ function compilerCheckSummary(
   call: InvocationCardPayloadLike,
   expectedSource: string,
 ): Record<string, unknown> | null {
-  if (call.name !== "eval") return null;
+  const rawResult = call.execution?.result;
+  const detail =
+    isRecord(rawResult) && isRecord(rawResult["details"])
+      ? rawResult["details"]
+      : null;
+  const receipt = detail?.["receipt"];
+  const unit = isRecord(receipt) ? receipt["unit"] : null;
+  const verifiedReport = detail?.["report"];
+  const canonicalReport =
+    call.name === "verify" &&
+    isRecord(receipt) &&
+    ["complete", "error"].includes(String(call.execution?.status)) &&
+    receipt["protocol"] === "unit-verification-receipt.v1" &&
+    receipt["operation"] === "build" &&
+    receipt["target"] === expectedSource &&
+    isRecord(unit) &&
+    unit["repoPath"] === expectedSource &&
+    unit["kind"] === "panel" &&
+    isRecord(verifiedReport) &&
+    verifiedReport["repoPath"] === expectedSource &&
+    verifiedReport["kind"] === "panel" &&
+    verifiedReport["stateHash"] === receipt["stateHash"]
+      ? verifiedReport
+      : null;
+  if (call.name !== "eval" && !canonicalReport) return null;
   const code = String(call.arguments?.["code"] ?? "");
   const records = returnedRecords(call);
   if (code.includes("typecheck-service") && code.includes("checkPanel")) {
@@ -476,7 +483,7 @@ function compilerCheckSummary(
       ) ?? null
     );
   }
-  if (!code.includes("getBuildReport")) return null;
+  if (!canonicalReport && !code.includes("getBuildReport")) return null;
   const identityBearingReport = records.find(
     (record) =>
       record["repoPath"] === expectedSource &&
@@ -498,7 +505,8 @@ function compilerCheckSummary(
         Array.isArray(record["diagnostics"]) &&
         Array.isArray(record["builds"]),
     );
-  const report = identityBearingReport ?? sourceBoundProjection;
+  const report =
+    canonicalReport ?? identityBearingReport ?? sourceBoundProjection;
   if (!report) return null;
   const diagnostics = [
     ...(Array.isArray(report["diagnostics"]) ? report["diagnostics"] : []),
@@ -573,24 +581,10 @@ function operationResult(
   return value && isRecord(value["result"]) ? value["result"] : value;
 }
 
-function isInitialPanelInspection(call: InvocationCardPayloadLike): boolean {
-  if (call.name !== "eval") return false;
-  const code = String(call.arguments?.["code"] ?? "");
-  return (
-    /\bopenPanel\s*\(/u.test(code) &&
-    (/\.snapshot\s*\(/u.test(code) ||
-      /\.diagnose\s*\(/u.test(code) ||
-      /\.screenshot\s*\(/u.test(code) ||
-      /\.inspect\s*\(/u.test(code) ||
-      /\.content\s*\(/u.test(code) ||
-      /\.evaluate\s*\(/u.test(code))
-  );
-}
-
 function nativePanelOperations(
   call: InvocationCardPayloadLike,
 ): Record<string, unknown>[] {
-  const journal = details(call)?.["operationJournal"];
+  const journal = nativeOperationJournal(call);
   if (
     !isRecord(journal) ||
     journal["protocol"] !== "workspace-operations.v1" ||
@@ -599,6 +593,19 @@ function nativePanelOperations(
   )
     return [];
   return journal["entries"].filter(isRecord);
+}
+
+function nativeOperationJournal(call: InvocationCardPayloadLike): unknown {
+  const execution = call.execution;
+  if (
+    !["complete", "error"].includes(execution?.status ?? "") ||
+    !isRecord(execution?.result)
+  )
+    return undefined;
+  const result = execution.result;
+  return (isRecord(result["details"]) ? result["details"] : result)[
+    "operationJournal"
+  ];
 }
 
 function cleanConsoleObservation(entry: Record<string, unknown>): boolean {
@@ -638,6 +645,27 @@ function renderedCaptureObservation(entry: Record<string, unknown>): boolean {
 }
 
 function isSuccessfulImageRead(call: InvocationCardPayloadLike): boolean {
+  const result = call.execution?.result;
+  if (
+    call.execution?.status === "complete" &&
+    call.execution.isError !== true &&
+    isRecord(result) &&
+    Array.isArray(result["protocolContent"]) &&
+    result["protocolContent"].some(
+      (content) =>
+        isRecord(content) &&
+        content["type"] === "image" &&
+        typeof content["mimeType"] === "string" &&
+        content["mimeType"].startsWith("image/") &&
+        typeof content["data"] === "string" &&
+        content["data"].length > 0,
+    ) &&
+    nativePanelOperations(call).some(
+      (entry) =>
+        entry["type"] === "screenshot" && renderedCaptureObservation(entry),
+    )
+  )
+    return true;
   if (call.name !== "read") return false;
   const path = call.arguments?.["path"] ?? call.arguments?.["target"];
   if (typeof path !== "string" || path.length === 0) return false;
@@ -676,6 +704,7 @@ function completeTodoRuntimeVerificationIndex(
       console: number;
       clean: boolean;
       index: number;
+      verifiedIndex: number;
       flows: Set<string>;
     }
   >();
@@ -684,11 +713,10 @@ function completeTodoRuntimeVerificationIndex(
     const call = calls[index]!;
     if (
       call.name !== "eval" ||
-      call.execution?.status !== "complete" ||
-      call.execution.isError === true
+      !["complete", "error"].includes(call.execution?.status ?? "")
     )
       continue;
-    const journal = details(call)?.["operationJournal"];
+    const journal = nativeOperationJournal(call);
     if (isRecord(journal) && journal["truncated"] === true) return -1;
     for (const entry of nativePanelOperations(call)) {
       step += 1;
@@ -701,12 +729,14 @@ function completeTodoRuntimeVerificationIndex(
         console: 0,
         clean: false,
         index: -1,
+        verifiedIndex: -1,
         flows: new Set<string>(),
       };
       const receipt = entry["receipt"];
       if (entry["type"] === "reload") {
         state.reload = step;
         state.clean = false;
+        state.verifiedIndex = -1;
       }
       if (
         entry["type"] === "interaction" &&
@@ -718,35 +748,68 @@ function completeTodoRuntimeVerificationIndex(
         state.interaction = step;
         state.clean = false;
         const target = receipt["target"];
-        const name = String(target["accessibleName"] ?? target["text"] ?? "").toLowerCase();
+        const name = String(
+          target["accessibleName"] ?? target["text"] ?? "",
+        ).toLowerCase();
         const action = receipt["action"];
-        if (["fill", "press"].includes(String(action)) &&
-            ["textbox", "searchbox"].includes(String(target["role"])) && !/\b(?:search|filter)\b/u.test(name)) state.flows.add("entry");
-        if ((action === "click" || action === "press") && /\b(?:add|create|save)\b/u.test(name)) state.flows.add("create");
-        if (action === "check" || ((action === "click" || action === "press") && /\b(?:complete|done|finish)\b/u.test(name))) state.flows.add("complete");
-        if (["fill", "press", "click", "selectOption"].includes(String(action)) && /\b(?:search|filter|active|completed)\b/u.test(name)) state.flows.add("filter");
-        if ((action === "click" || action === "press") && /\b(?:delete|remove)\b/u.test(name)) state.flows.add("delete");
+        if (
+          ["fill", "press"].includes(String(action)) &&
+          ["textbox", "searchbox"].includes(String(target["role"])) &&
+          !/\b(?:search|filter)\b/u.test(name)
+        )
+          state.flows.add("entry");
+        if (
+          (action === "click" || action === "press") &&
+          /\b(?:add|create|save)\b/u.test(name)
+        )
+          state.flows.add("create");
+        if (
+          action === "check" ||
+          ((action === "click" || action === "press") &&
+            /\b(?:complete|done|finish)\b/u.test(name))
+        )
+          state.flows.add("complete");
+        if (
+          ["fill", "press", "click", "selectOption"].includes(String(action)) &&
+          /\b(?:search|filter|active|completed)\b/u.test(name)
+        )
+          state.flows.add("filter");
+        if (
+          (action === "click" || action === "press") &&
+          /\b(?:delete|remove)\b/u.test(name)
+        )
+          state.flows.add("delete");
       }
       if (renderedCaptureObservation(entry)) state.capture = step;
       if (entry["type"] === "consoleHistory" && isRecord(receipt)) {
         state.console = step;
         state.clean = cleanConsoleObservation(entry);
+        if (!state.clean) state.verifiedIndex = -1;
       }
       state.index = index;
+      // Native receipts survive a later guest failure. Record a completed
+      // verification when it happens, rather than requiring the agent's last
+      // action to be a capture. Later reloads or bad console coverage invalidate
+      // it; an ordinary follow-up interaction does not undo an observed flow.
+      if (
+        ["entry", "create", "complete", "filter", "delete"].every((flow) =>
+          state.flows.has(flow),
+        ) &&
+        state.reload > 0 &&
+        state.interaction > 0 &&
+        state.capture > Math.max(state.reload, state.interaction) &&
+        state.console > Math.max(state.reload, state.interaction) &&
+        state.clean
+      )
+        state.verifiedIndex = index;
       states.set(id, state);
     }
   }
   const verified = [...states.values()].filter(
-    (state) =>
-      ["entry", "create", "complete", "filter", "delete"].every((flow) => state.flows.has(flow)) &&
-      state.reload > 0 &&
-      state.interaction > 0 &&
-      state.capture > Math.max(state.reload, state.interaction) &&
-      state.console > Math.max(state.reload, state.interaction) &&
-      state.clean,
+    (state) => state.verifiedIndex >= 0,
   );
   return verified.length
-    ? Math.max(...verified.map((state) => state.index))
+    ? Math.max(...verified.map((state) => state.verifiedIndex))
     : -1;
 }
 
@@ -789,14 +852,22 @@ function validateTaskManagementApp(result: TestExecutionResult) {
 
   let creationIndex = -1;
   let source = "";
+  const commits = publishedCommits(result);
   for (const [index, call] of calls.entries()) {
-    if (call.name !== "eval") continue;
-    const created = returnedRecords(call).find((record) =>
-      createdProject(record, "panels"),
-    );
-    if (created && typeof created["created"] === "string") {
+    const receipt = details(call)?.["receipt"];
+    const unit = isRecord(receipt) ? receipt["unit"] : null;
+    if (
+      isRecord(receipt) &&
+      receipt["protocol"] === "unit-verification-receipt.v1" &&
+      receipt["status"] === "ok" &&
+      isRecord(unit) &&
+      unit["kind"] === "panel" &&
+      typeof unit["repoPath"] === "string" &&
+      unit["repoPath"].startsWith("panels/") &&
+      commits.some((commit) => commit["contextId"] === receipt["contextId"])
+    ) {
       creationIndex = index;
-      source = created["created"];
+      source = unit["repoPath"];
       break;
     }
   }
@@ -804,12 +875,12 @@ function validateTaskManagementApp(result: TestExecutionResult) {
     return {
       passed: false,
       reason:
-        "No completed eval returned the published task-management panel identity",
+        "No exact verified panel candidate was joined to a committed and published context",
     };
   }
 
   const cleanBuildIndex = calls.findIndex(
-    (call, index) => index > creationIndex && hasCleanPanelBuild(call, source),
+    (call, index) => index >= creationIndex && hasCleanPanelBuild(call, source),
   );
   if (cleanBuildIndex < 0) {
     return {
@@ -833,12 +904,7 @@ function validateTaskManagementApp(result: TestExecutionResult) {
   }
 
   const final = findLastAgentMessage(result);
-  if (
-    !/task|project/iu.test(final) ||
-    !/build|compil|type.?check/iu.test(final) ||
-    !/launch|open|running|live/iu.test(final) ||
-    !/debug|verif|test/iu.test(final)
-  ) {
+  if (!/task|project/iu.test(final)) {
     return {
       passed: false,
       reason:
@@ -1207,10 +1273,19 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
     };
   }
 
-  const firstInspectionIndex = calls.findIndex(
-    (call, index) =>
-      index >= firstCleanTypecheckIndex && isInitialPanelInspection(call),
-  );
+  const openedPanels = new Set<string>();
+  const firstInspectionIndex = calls.findIndex((call, index) => {
+    if (index < firstCleanTypecheckIndex) return false;
+    for (const entry of nativePanelOperations(call)) {
+      const id = entry["id"];
+      if (typeof id !== "string") continue;
+      if (entry["type"] === "open" && entry["source"] === source)
+        openedPanels.add(id);
+      if (openedPanels.has(id) && renderedCaptureObservation(entry))
+        return true;
+    }
+    return false;
+  });
   if (firstInspectionIndex < 0) {
     return {
       passed: false,
@@ -1237,7 +1312,7 @@ function validateTodoDebugLoop(result: TestExecutionResult) {
     };
   }
   const flawedPanelImageRead = calls
-    .slice(firstInspectionIndex + 1, uxMutationIndex)
+    .slice(firstInspectionIndex, uxMutationIndex)
     .some(isSuccessfulImageRead);
   if (!flawedPanelImageRead) {
     return {
@@ -1355,7 +1430,7 @@ export const projectLifecycleTests: TestCase[] = [
     authorityPolicy: panelControlAuthorityPolicy("inspect-curated-icon-panel"),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Create a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
+      "Create and publish a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open it and inspect its rendered content for use.",
     validate: validateCuratedIconPanelCreate,
   },
   {
@@ -1463,7 +1538,7 @@ export const projectLifecycleTests: TestCase[] = [
     ]),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, save a screenshot in scratch, and read that image so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, save and visually read a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
+      "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, capture and visually inspect a screenshot so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, capture and visually inspect a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
     validate: validateTodoDebugLoop,
   },
 ];

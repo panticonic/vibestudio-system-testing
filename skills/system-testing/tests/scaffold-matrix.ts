@@ -8,6 +8,7 @@ import {
   type TestExecutionResult,
   type WorkspaceRepoCreationScope,
 } from "../types.js";
+import { preparedProject, publishedPreparation } from "./_project-evidence.js";
 import { getToolCalls } from "./_helpers.js";
 import {
   completedScenarioEvidence,
@@ -96,18 +97,9 @@ function createdScaffold(
   projectType: ExecutableScaffold["projectType"] | "project",
   section: ExecutableScaffold["section"] | "projects",
 ): boolean {
-  const preflight = record["preflight"];
-  const publication = record["publication"];
   return (
-    typeof record["created"] === "string" &&
-    record["created"].startsWith(`${section}/`) &&
-    isRecord(preflight) &&
-    preflight["ok"] === true &&
-    preflight["projectType"] === projectType &&
-    isRecord(publication) &&
-    publication["published"] === true &&
-    typeof publication["committedEventId"] === "string" &&
-    typeof publication["publishedEventId"] === "string"
+    preparedProject(record, projectType) &&
+    String(record["created"]).startsWith(`${section}/`)
   );
 }
 
@@ -158,8 +150,10 @@ function validateExecutableScaffold(
       call.name === "eval" &&
       call.execution?.status === "complete" &&
       call.execution.isError !== true &&
-      walkRecords([details(call.execution.result)]).some((record) =>
-        createdScaffold(record, variant.projectType, variant.section),
+      walkRecords([details(call.execution.result)]).some(
+        (record) =>
+          createdScaffold(record, variant.projectType, variant.section) &&
+          publishedPreparation(result, record),
       ),
   );
   if (createIndex < 0) {
@@ -202,8 +196,10 @@ function validateExecutableScaffold(
 function validateContentScaffold(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result, ["eval"]);
   if (!base.passed) return base;
-  return walkRecords(base.evidence.evalValues).some((record) =>
-    createdScaffold(record, "project", "projects"),
+  return walkRecords(base.evidence.evalValues).some(
+    (record) =>
+      createdScaffold(record, "project", "projects") &&
+      publishedPreparation(result, record),
   )
     ? { passed: true, reason: undefined }
     : {

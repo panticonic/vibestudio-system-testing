@@ -1,4 +1,5 @@
-const ARGUMENT_REJECTION = /(?:^|unknown_tool_failure:\s*)Invalid arguments for tool\s+/i;
+const ARGUMENT_REJECTION =
+  /(?:^|unknown_tool_failure:\s*)Invalid arguments for tool\s+/i;
 const SAFE_VCS_REJECTIONS = new Set([
   "ConflictPresent",
   "CoupledGroupIncomplete",
@@ -18,28 +19,45 @@ const SAFE_VCS_REJECTIONS = new Set([
  * diagnostics, but do not classify it with execution/infrastructure failures.
  */
 export function isPreExecutionArgumentRejection(...values: unknown[]): boolean {
-  return values.some((value) => typeof value === "string" && ARGUMENT_REJECTION.test(value));
+  return values.some(
+    (value) => typeof value === "string" && ARGUMENT_REJECTION.test(value),
+  );
 }
 
 /**
- * Discovery and verification may reject a request after dispatch when the
- * runtime has the authoritative workspace view. The typed failure proves
- * that no requested execution began and directs the agent to correct its input.
+ * A canonical invalid-input failure is a no-effect rejection, regardless of
+ * which tool owns the surface. Use the exact envelope, not a tool-name roster
+ * or matching words in a rendered diagnostic.
  */
-export function isCorrectableToolInputRejection(toolName: string, ...values: unknown[]): boolean {
-  if (!new Set(["read", "ls", "grep", "find", "glob", "stat", "verify"]).has(toolName)) return false;
+export function isCorrectableToolInputRejection(
+  toolName: string,
+  ...values: unknown[]
+): boolean {
   return values.some((value) => {
-    let rendered: unknown;
+    let parsed: unknown;
     try {
-      rendered = typeof value === "string" ? value : JSON.stringify(value);
+      parsed = typeof value === "string" ? JSON.parse(value) : value;
     } catch {
       return false;
     }
-    if (typeof rendered !== "string") return false;
+    if (!parsed || typeof parsed !== "object") return false;
+    const result = parsed as Record<string, unknown>;
+    const details = result["details"];
+    const container =
+      details && typeof details === "object"
+        ? (details as Record<string, unknown>)
+        : result;
+    const valueFailure = container["failure"];
+    if (!valueFailure || typeof valueFailure !== "object") return false;
+    const failure = valueFailure as Record<string, unknown>;
+    const retry = failure["retry"];
     return (
-      rendered.includes('"protocol":"agent-tool-failure.v1"') &&
-      rendered.includes('"kind":"invalid-input"') &&
-      rendered.includes('"policy":"correct-input"')
+      failure["protocol"] === "agent-tool-failure.v1" &&
+      failure["operation"] === `tool.${toolName}` &&
+      failure["kind"] === "invalid-input" &&
+      retry !== null &&
+      typeof retry === "object" &&
+      (retry as Record<string, unknown>)["policy"] === "correct-input"
     );
   });
 }
@@ -53,7 +71,7 @@ export function isCorrectableToolInputRejection(toolName: string, ...values: unk
  */
 export function isSafeVcsDomainRejection(
   toolName: string,
-  terminalReasonCode: string | undefined
+  terminalReasonCode: string | undefined,
 ): boolean {
   return (
     toolName === "vcs" &&
@@ -69,7 +87,7 @@ export function isSafeVcsDomainRejection(
  */
 export function isSafeProvenanceDomainRejection(
   toolName: string,
-  terminalReasonCode: string | undefined
+  terminalReasonCode: string | undefined,
 ): boolean {
   return toolName === "provenance" && terminalReasonCode === "InvalidReference";
 }
@@ -81,7 +99,7 @@ export function isSafeProvenanceDomainRejection(
  */
 export function isSafeEvalDomainRejection(
   toolName: string,
-  terminalReasonCode: string | undefined
+  terminalReasonCode: string | undefined,
 ): boolean {
   return toolName === "eval" && terminalReasonCode === "module_not_available";
 }
@@ -97,7 +115,7 @@ export function isSafeEvalDomainRejection(
 export function isGuestCodeFailure(
   toolName: string,
   terminalReasonCode: string | undefined,
-  failureKind: string | undefined
+  failureKind: string | undefined,
 ): boolean {
   return (
     (toolName === "eval" || toolName === "verify") &&
@@ -116,9 +134,12 @@ export function isGuestCodeFailure(
  */
 export function isSafeSubagentDomainRejection(
   toolName: string,
-  terminalReasonCode: string | undefined
+  terminalReasonCode: string | undefined,
 ): boolean {
-  if (toolName === "inspect_subagent" && terminalReasonCode === "InvalidReference") {
+  if (
+    toolName === "inspect_subagent" &&
+    terminalReasonCode === "InvalidReference"
+  ) {
     return true;
   }
   return toolName === "notify" && terminalReasonCode === "SubagentTerminal";
@@ -161,17 +182,42 @@ export function classifyBuiltInToolFailure(input: {
   result?: unknown;
   description?: unknown;
 }): BuiltInToolFailureClassification | null {
-  if (isPreExecutionArgumentRejection(input.error, input.result, input.description)) {
-    return "argument-rejection";
-  }
-  if (isCorrectableToolInputRejection(input.name, input.error, input.result, input.description)) {
+  if (
+    isPreExecutionArgumentRejection(
+      input.error,
+      input.result,
+      input.description,
+    )
+  ) {
     return "argument-rejection";
   }
   if (
-    isSafeVcsDomainRejection(input.name, input.terminalReasonCode ?? input.failureCode) ||
-    isSafeProvenanceDomainRejection(input.name, input.terminalReasonCode ?? input.failureCode) ||
-    isSafeEvalDomainRejection(input.name, input.terminalReasonCode ?? input.failureCode) ||
-    isSafeSubagentDomainRejection(input.name, input.terminalReasonCode ?? input.failureCode)
+    isCorrectableToolInputRejection(
+      input.name,
+      input.error,
+      input.result,
+      input.description,
+    )
+  ) {
+    return "argument-rejection";
+  }
+  if (
+    isSafeVcsDomainRejection(
+      input.name,
+      input.terminalReasonCode ?? input.failureCode,
+    ) ||
+    isSafeProvenanceDomainRejection(
+      input.name,
+      input.terminalReasonCode ?? input.failureCode,
+    ) ||
+    isSafeEvalDomainRejection(
+      input.name,
+      input.terminalReasonCode ?? input.failureCode,
+    ) ||
+    isSafeSubagentDomainRejection(
+      input.name,
+      input.terminalReasonCode ?? input.failureCode,
+    )
   ) {
     return "domain-rejection";
   }
@@ -179,7 +225,7 @@ export function classifyBuiltInToolFailure(input: {
     isGuestCodeFailure(
       input.name,
       input.terminalReasonCode ?? input.failureCode,
-      input.failureKind
+      input.failureKind,
     )
   ) {
     return "guest-code-failure";

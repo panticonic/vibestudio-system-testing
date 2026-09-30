@@ -364,7 +364,10 @@ export class TestRunner {
                 // Inspect the canonical current state, not that latest item.
                 for (const message of targetSession.messages) {
                   const failure = unexpectedTestPolicyFailure(message);
-                  if (failure) { reject(failure); break; }
+                  if (failure) {
+                    reject(failure);
+                    break;
+                  }
                 }
               });
             });
@@ -732,6 +735,12 @@ export class TestRunner {
                 ...fixtureCleanup,
               },
             };
+            if (fixtureCleanup.creationScopeError && outcome.result.passed) {
+              outcome.result = {
+                passed: false,
+                reason: `Repository creation contract not delivered: ${fixtureCleanup.creationScopeError}`,
+              };
+            }
           }
           if (
             fixtureCleanup.unexpectedPublishedRepositoriesRemoved.length > 0

@@ -1,3 +1,7 @@
+import {
+  preparation,
+  publicationMessages,
+} from "./_project-evidence-fixtures.js";
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { developerErgonomicsTests } from "./developer-ergonomics.js";
@@ -37,6 +41,7 @@ function execution(calls: ReturnType<typeof call>[]): TestExecutionResult {
     messages: [
       { kind: "message", senderId: "user", complete: true, content: "prompt" },
       ...calls,
+      ...publicationMessages(calls),
       {
         kind: "message",
         senderId: "agent",
@@ -105,9 +110,7 @@ describe("developer ergonomics scenarios", () => {
       "stale-edit-reobserve-and-apply",
     ]);
     expect(
-      developerErgonomicsTests.every(
-        (test) => test.validation !== "harness",
-      ),
+      developerErgonomicsTests.every((test) => test.validation !== "harness"),
     ).toBe(true);
     expect(
       scenario("failed-build-bounded-diagnostics").expectedToolFailures,
@@ -213,7 +216,7 @@ describe("developer ergonomics scenarios", () => {
     const rejected = call(
       "invalid-icon",
       "eval",
-      { code: "return createProjects(requested);" },
+      { code: "return prepareProjects(requested);" },
       failure("project_icon_invalid", {
         recovery: {
           action: "correct-request",
@@ -232,12 +235,12 @@ describe("developer ergonomics scenarios", () => {
     const created = call(
       "created",
       "eval",
-      { code: "return createProjects(corrected);" },
+      { code: "return prepareProjects(corrected);" },
       {
         returnValue: {
           created: "panels/columns-board",
           preflight: { ok: true, projectType: "panel" },
-          publication: { published: true },
+          preparation: preparation(),
         },
       },
     );
@@ -269,12 +272,12 @@ describe("developer ergonomics scenarios", () => {
     const created = call(
       "created",
       "eval",
-      { code: "return createProjects(corrected);" },
+      { code: "return prepareProjects(corrected);" },
       {
         returnValue: {
           created: "panels/columns-board",
           preflight: { ok: true, projectType: "panel" },
-          publication: { published: true },
+          preparation: preparation(),
         },
       },
     );
@@ -295,13 +298,13 @@ describe("developer ergonomics scenarios", () => {
     const published = {
       created: "panels/layout",
       preflight: { ok: true, projectType: "panel" },
-      publication: { published: true },
+      preparation: preparation(),
     };
     const batched = call(
       "discover-and-create",
       "eval",
       {
-        code: "const catalog = await searchProjectCatalog(query); return { catalog, result: await createProjects(corrected) };",
+        code: "const catalog = await searchProjectCatalog(query); return { catalog, result: await prepareProjects(corrected) };",
       },
       { returnValue: { catalog, result: [published] } },
     );
@@ -313,7 +316,7 @@ describe("developer ergonomics scenarios", () => {
     const missingCatalog = call(
       "create-only",
       "eval",
-      { code: "return createProjects(corrected);" },
+      { code: "return prepareProjects(corrected);" },
       { returnValue: published },
     );
     expect(
@@ -645,6 +648,45 @@ describe("developer ergonomics scenarios", () => {
           targetedEdit,
           rebuildOnly,
           refreshOnly,
+          interactionOnly,
+        ]),
+      ).passed,
+    ).toBe(true);
+    const refreshBeforeFailure = call(
+      "refresh-before-failure",
+      "eval",
+      rebuild.invocation.arguments,
+      {
+        operationJournal: {
+          protocol: "workspace-operations.v1",
+          truncated: false,
+          entries: [
+            {
+              type: "cdp.session",
+              id: "panel:counter",
+              receipt: {
+                status: "replaced",
+                generation: canonical.generation,
+                previousGeneration: {
+                  panelId: "panel:counter",
+                  runtimeEntityId: "runtime:old",
+                  attemptId: "attempt:old",
+                  buildKey: "a".repeat(64),
+                },
+              },
+            },
+          ],
+        },
+      },
+      true,
+    );
+    expect(
+      scenario("panel-rebuild-reacquire-and-interact").validate(
+        execution([
+          open,
+          verify,
+          targetedEdit,
+          refreshBeforeFailure,
           interactionOnly,
         ]),
       ).passed,

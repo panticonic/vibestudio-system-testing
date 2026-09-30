@@ -33,6 +33,22 @@ child task, or absence of leaked owned resources. Accept any product path that
 establishes the outcome. Product guidance teaches the behavior and independent
 evidence proves it happened.
 
+For browser workflows, native eval `operationJournal` entries are compact
+evidence independent of the agent's return projection. Interaction receipts
+contain action, target identity, and effect; DOM ancestors/attributes/geometry
+belong to rich inspection, not the journal. Dispatch (`not-asserted`) is not an
+observed application outcome: a click's `expect` records the semantic condition.
+A later standalone `waitFor()` does not rewrite that receipt. Never infer full
+coverage from `truncated: true`, and do not require agents to echo journal fields
+in arbitrary summary keys. Inspect the captured trajectory before blaming an
+agent for missing evidence or relaxing the validator.
+
+Generation-fenced acquisition and refresh journal `cdp.session` receipts with
+`status`, `generation`, and, for replacement/reconnection, `previousGeneration`.
+Use these native lifecycle facts even if a later action in the eval throws.
+A successful refresh followed by a failed click is not a failed refresh; require
+the separately observed interaction after recovery before passing the workflow.
+
 The harness records tool failures independently from task completion and marks
 every ordinary agent trajectory for review. An undeclared failed invocation
 fails the test even if the agent subsequently delivers the requested outcome.
@@ -215,5 +231,7 @@ New tool-failure scenarios must also verify the durable
 operation and stage, causal IDs when available, retry policy, and primary versus
 cleanup ordering. When the scenario creates a scaffold or fork, require
 `preflight.ok === true` before accepting publication evidence. A recovery
-scenario must call `recoverProjectPublication` from the recorded failure and
-prove no second repository edit or commit occurred.
+scenario must follow ordinary typed VCS recovery from the recorded failure.
+Preparation never publishes: join its application to the committed chain and
+the committed event to the protected push. Prove recovery did not recreate the
+repositories; a source repair intentionally requires a new edit and commit.

@@ -23,6 +23,40 @@ import {
 } from "./config.js";
 
 export const SYSTEM_TEST_RUN_SCHEMA_VERSION = 1 as const;
+export const SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT = 48 * 1024;
+
+/** Phase progress and live inspection are independent observations of one run.
+ * A phase update must not erase the last inspection while its next refresh is
+ * pending. Keep the combined checkpoint within EvalDO's durable wire budget. */
+export function systemTestProgressCheckpoint(
+  previous: Record<string, unknown> | null,
+  progress: Record<string, unknown>,
+): Record<string, unknown> {
+  const limit = SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT;
+  let durable: Record<string, unknown> = {
+    ...progress,
+    ...(previous &&
+    progress["status"] === "running" &&
+    previous["runId"] === progress["runId"] &&
+    progress["liveInspection"] === undefined &&
+    previous["liveInspection"]
+      ? { liveInspection: previous["liveInspection"] }
+      : {}),
+    updatedAt: new Date().toISOString(),
+  };
+  if (JSON.stringify(durable).length > limit && durable["liveInspection"]) {
+    const inspection = durable["liveInspection"] as Record<string, unknown>;
+    durable = {
+      ...durable,
+      liveInspection: { inspect: inspection["inspect"], trajectories: {} },
+    };
+  }
+  if (JSON.stringify(durable).length > limit) {
+    const { liveInspection: _omitted, ...withoutInspection } = durable;
+    durable = withoutInspection;
+  }
+  return durable;
+}
 
 export interface SystemTestDescriptor {
   name: string;
@@ -150,7 +184,11 @@ export function failedSystemTestPreparationRecord(
 ): SystemTestRunRecord {
   const completedAt = new Date().toISOString();
   const model = options.model ?? SYSTEM_TEST_AGENT_MODEL;
-  const suite = suiteFromEntries([], 0, Math.max(0, Date.now() - Date.parse(startedAt)));
+  const suite = suiteFromEntries(
+    [],
+    0,
+    Math.max(0, Date.now() - Date.parse(startedAt)),
+  );
   return {
     schemaVersion: SYSTEM_TEST_RUN_SCHEMA_VERSION,
     runId: options.runId,
@@ -165,10 +203,21 @@ export function failedSystemTestPreparationRecord(
       ...(options.category ? { category: options.category } : {}),
       all: options.all === true,
       model,
-      ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
-      modelPolicy: { ...systemTestModelRoute(model, options.model === undefined), activeModel: model, activations: [] },
-      concurrency: normalizePositiveInt(options.concurrency, DEFAULT_CONCURRENCY),
-      ...(options.testTimeoutMs !== undefined ? { testTimeoutMs: options.testTimeoutMs } : {}),
+      ...(options.thinkingLevel
+        ? { thinkingLevel: options.thinkingLevel }
+        : {}),
+      modelPolicy: {
+        ...systemTestModelRoute(model, options.model === undefined),
+        activeModel: model,
+        activations: [],
+      },
+      concurrency: normalizePositiveInt(
+        options.concurrency,
+        DEFAULT_CONCURRENCY,
+      ),
+      ...(options.testTimeoutMs !== undefined
+        ? { testTimeoutMs: options.testTimeoutMs }
+        : {}),
     },
     provenance: {},
     suite,
@@ -254,8 +303,16 @@ export async function installedWorkspaceUnits(): Promise<string[]> {
   async function* entries(path: string) {
     let cursor: string | undefined;
     do {
-      const page = await vcs.listDirectory({ state, path, limit: 500, ...(cursor ? { cursor } : {}) });
-      if (!page) throw new Error(`Workspace repository inventory directory is absent: ${path}`);
+      const page = await vcs.listDirectory({
+        state,
+        path,
+        limit: 500,
+        ...(cursor ? { cursor } : {}),
+      });
+      if (!page)
+        throw new Error(
+          `Workspace repository inventory directory is absent: ${path}`,
+        );
       yield* page.entries;
       cursor = page.nextCursor ?? undefined;
     } while (cursor);

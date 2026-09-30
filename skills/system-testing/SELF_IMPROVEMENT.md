@@ -617,10 +617,12 @@ For workspace-owned source, publication is a semantic protocol:
    projection failure must still retain the previous runnable artifact while
    the published source remains on `main`.
 
-Fresh scaffolds and forks must return `preflight.ok === true` before their
-publication evidence is accepted. If commit succeeded and publication failed,
-call `recoverProjectPublication` with the recorded scaffold failure and prove
-that recovery authored no second repository edit or commit.
+Fresh scaffolds and forks prepare context-local candidates from explicit
+authority decisions. Require `preflight.ok === true`, review the complete
+authority and source, verify, then commit and push through ordinary VCS.
+Join the preparation's application identity to the committed application chain
+and that commit's event to the protected push. If publication fails, recover
+from typed VCS receipts/status without preparing the repositories again.
 
 Every semantic mutation has a stable `commandId`. Retry the same ID only for an
 identical request whose response may have been lost. After a freshness failure

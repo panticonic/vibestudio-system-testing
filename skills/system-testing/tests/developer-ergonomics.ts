@@ -1,3 +1,4 @@
+import { preparedProject, publishedPreparation } from "./_project-evidence.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import {
   BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
@@ -66,20 +67,14 @@ function failure(
     : null;
 }
 
-function createdPublishedPanel(call: InvocationCardPayloadLike): boolean {
-  return records(call).some((record) => {
-    const preflight = record["preflight"];
-    const publication = record["publication"];
-    return (
-      typeof record["created"] === "string" &&
-      record["created"].startsWith("panels/") &&
-      isRecord(preflight) &&
-      preflight["ok"] === true &&
-      preflight["projectType"] === "panel" &&
-      isRecord(publication) &&
-      publication["published"] === true
-    );
-  });
+function createdPublishedPanel(
+  call: InvocationCardPayloadLike,
+  result: TestExecutionResult,
+): boolean {
+  return records(call).some(
+    (record) =>
+      preparedProject(record, "panel") && publishedPreparation(result, record),
+  );
 }
 
 function validateInvalidIconRecovery(result: TestExecutionResult) {
@@ -124,7 +119,7 @@ function validateInvalidIconRecovery(result: TestExecutionResult) {
     (call, index) =>
       index >= catalogIndex &&
       call.name === "eval" &&
-      createdPublishedPanel(call),
+      createdPublishedPanel(call, result),
   );
   return catalogIndex >= 0 && createIndex >= catalogIndex
     ? { passed: true, reason: undefined }
@@ -325,7 +320,7 @@ function validatePanelGenerationRecovery(result: TestExecutionResult) {
     };
   }
   const evalCalls = base.evidence.calls.filter(
-    (call) => call.name === "eval" && isComplete(call),
+    (call) => call.name === "eval" && (isComplete(call) || isFailed(call)),
   );
   const hasObservedInteraction = (call: InvocationCardPayloadLike): boolean =>
     records(call).some((record) => {

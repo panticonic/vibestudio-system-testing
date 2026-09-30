@@ -108,6 +108,8 @@ export type WorkspaceRepoFixtureState =
       });
 
 export interface WorkspaceRepoFixtureCleanup {
+  /** Delivery contract assessment, not a failure to reclaim owned resources. */
+  creationScopeError: string | null;
   publishedFixtureRemoved: WorkspaceRepoFixtureRepository | null;
   unexpectedPublishedRepositoriesRemoved: WorkspaceRepoFixtureRepository[];
   counteractedChangeIds: string[];
@@ -621,16 +623,9 @@ export class WorkspaceRepoFixtureLifecycle {
           )
         : error;
     }
-    if (creationScopeError) {
-      cleanupError = cleanupError
-        ? new AggregateError(
-            [creationScopeError, cleanupError],
-            "Repository creation scope validation and fixture teardown both failed",
-          )
-        : creationScopeError;
-    }
     if (cleanupError) throw cleanupError;
     return {
+      creationScopeError: creationScopeError?.message ?? null,
       publishedFixtureRemoved,
       unexpectedPublishedRepositoriesRemoved,
       counteractedChangeIds,

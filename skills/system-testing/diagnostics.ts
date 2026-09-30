@@ -10,7 +10,10 @@ import {
   summarizeChannelDeliveryLatency,
   type ChannelDeliveryLatencySummary,
 } from "./delivery-latency.js";
-import { findFinalAgentCompletionMessage, isAgentAuthoredMessage } from "./agent-message.js";
+import {
+  findFinalAgentCompletionMessage,
+  isAgentAuthoredMessage,
+} from "./agent-message.js";
 
 export interface DiagnosticInvocation {
   id?: string;
@@ -103,7 +106,9 @@ export interface FailureDiagnostic {
   validationReason: string | null;
   sessionError: string | null;
   failure: SystemTestFailure | null;
-  validationFailure: TestSuiteResultEntry["execution"]["validationFailure"] | null;
+  validationFailure:
+    | TestSuiteResultEntry["execution"]["validationFailure"]
+    | null;
   durationMs: number;
   modelExecution: {
     totalCalls: number;
@@ -123,7 +128,9 @@ export interface FailureDiagnostic {
   conversation: DiagnosticConversationItem[];
   invocations: DiagnosticInvocation[];
   toolFailures: ToolFailureSummary[];
-  trajectoryReview: TestSuiteResultEntry["execution"]["trajectoryReview"] | null;
+  trajectoryReview:
+    | TestSuiteResultEntry["execution"]["trajectoryReview"]
+    | null;
   debugEvents: string[];
   cleanupErrors: string[];
   cleanupFailures: SystemTestFailure[];
@@ -139,6 +146,7 @@ export interface FailureDiagnostic {
     importWorkUnitId: string | null;
     taskBaseEventId: string | null;
     importChangeCount: number;
+    creationScopeError: string | null;
     publishedFixtureRemoved: { repositoryId: string; repoPath: string } | null;
     unexpectedPublishedRepositoriesRemoved: Array<{
       repositoryId: string;
@@ -185,14 +193,17 @@ export type DiagnosticLimits = typeof DEFAULT_LIMITS;
 
 export function summarizeFailures(
   suite: TestSuiteResult,
-  opts?: Partial<DiagnosticLimits>
+  opts?: Partial<DiagnosticLimits>,
 ): FailureReport {
   const limits = { ...DEFAULT_LIMITS, ...opts };
   const failed = suite.results.filter(
     (entry) =>
-      !entry.result.passed || (entry.execution.toolFailures ?? []).some(isUnexpectedToolFailure)
+      !entry.result.passed ||
+      (entry.execution.toolFailures ?? []).some(isUnexpectedToolFailure),
   );
-  const failures = failed.slice(0, limits.failures).map((entry) => summarizeEntry(entry, limits));
+  const failures = failed
+    .slice(0, limits.failures)
+    .map((entry) => summarizeEntry(entry, limits));
   return {
     failureCount: failed.length,
     shownFailureCount: failures.length,
@@ -207,27 +218,29 @@ export function summarizeFailures(
  */
 export function summarizeEntry(
   entry: TestSuiteResultEntry,
-  opts?: Partial<DiagnosticLimits>
+  opts?: Partial<DiagnosticLimits>,
 ): FailureDiagnostic {
   return summarizeFailure(entry, { ...DEFAULT_LIMITS, ...opts });
 }
 
 function summarizeFailure(
   entry: TestSuiteResultEntry,
-  limits: typeof DEFAULT_LIMITS
+  limits: typeof DEFAULT_LIMITS,
 ): FailureDiagnostic {
   const entryExecution = entry["execution"];
   const conversation = entryExecution["messages"]
     .slice(-limits.messages)
     .map((message) => summarizeMessage(message, limits));
   const finalAgentMessage =
-    clipOptional(findFinalAgentMessage(entryExecution["messages"]) ?? undefined, limits.text) ??
-    null;
+    clipOptional(
+      findFinalAgentMessage(entryExecution["messages"]) ?? undefined,
+      limits.text,
+    ) ?? null;
   const snapshot = entryExecution["snapshot"];
   const invocations = summarizeInvocations(
     entryExecution["messages"],
     snapshot?.invocations,
-    limits
+    limits,
   );
   const debugEvents = (snapshot?.debugEvents ?? [])
     .slice(-limits.debugEvents)
@@ -236,19 +249,23 @@ function summarizeFailure(
   // list alongside fixture and harness cleanup. The snapshot retains the raw
   // session events as evidence; combining both here reports one failure twice.
   const cleanupErrors = (entryExecution["cleanupErrors"] ?? []).map((error) =>
-    clip(String(error), limits.text)
+    clip(String(error), limits.text),
   );
-  const participants = Object.entries(snapshot?.participants ?? {}).map(([id, participant]) => ({
-    id,
-    name: participant.name,
-    type: participant.type,
-    handle: participant.handle,
-    connected: participant.connected,
-  }));
+  const participants = Object.entries(snapshot?.participants ?? {}).map(
+    ([id, participant]) => ({
+      id,
+      name: participant.name,
+      type: participant.type,
+      handle: participant.handle,
+      connected: participant.connected,
+    }),
+  );
   const unexpectedToolFailures = (entryExecution["toolFailures"] ?? []).filter(
-    isUnexpectedToolFailure
+    isUnexpectedToolFailure,
   );
-  const channelDeliveryLatency = summarizeChannelDeliveryLatency(entryExecution["diagnostics"]);
+  const channelDeliveryLatency = summarizeChannelDeliveryLatency(
+    entryExecution["diagnostics"],
+  );
 
   return {
     name: entry.test.name,
@@ -261,7 +278,8 @@ function summarizeFailure(
     validationFailure: entryExecution["validationFailure"] ?? null,
     durationMs: entryExecution["duration"],
     modelExecution: summarizeModelExecution(
-      entryExecution["modelExecutionEvidence"] ?? snapshot?.modelExecutionEvidence
+      entryExecution["modelExecutionEvidence"] ??
+        snapshot?.modelExecutionEvidence,
     ),
     finalAgentMessage,
     conversation,
@@ -270,15 +288,22 @@ function summarizeFailure(
       .slice(-limits.invocations)
       .map((failure) => ({
         ...failure,
-        ...(failure.error ? { error: windowText(failure.error, limits.text) } : {}),
+        ...(failure.error
+          ? { error: windowText(failure.error, limits.text) }
+          : {}),
       })),
     trajectoryReview: entryExecution["trajectoryReview"] ?? null,
     debugEvents,
     cleanupErrors,
     cleanupFailures: entryExecution["cleanupFailures"] ?? [],
-    workspaceRepoFixture: summarizeWorkspaceRepoFixture(entryExecution["diagnostics"]),
+    workspaceRepoFixture: summarizeWorkspaceRepoFixture(
+      entryExecution["diagnostics"],
+    ),
     channelDeliveryLatency,
-    orchestration: summarizeOrchestrationDiagnostics(entryExecution["diagnostics"], limits),
+    orchestration: summarizeOrchestrationDiagnostics(
+      entryExecution["diagnostics"],
+      limits,
+    ),
     participants,
     likelyIssue: entry.result.passed
       ? unexpectedToolFailures.length > 0
@@ -289,7 +314,7 @@ function summarizeFailure(
           finalAgentMessage,
           invocations,
           cleanupErrors,
-          channelDeliveryLatency?.violations ?? []
+          channelDeliveryLatency?.violations ?? [],
         ),
   };
 }
@@ -319,10 +344,11 @@ function summarizeOrchestrationDiagnostics(
 }
 
 function summarizeWorkspaceRepoFixture(
-  diagnostics: TestSuiteResultEntry["execution"]["diagnostics"]
+  diagnostics: TestSuiteResultEntry["execution"]["diagnostics"],
 ): FailureDiagnostic["workspaceRepoFixture"] {
   const fixture = diagnostics?.["workspaceRepoFixture"];
-  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) return null;
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture))
+    return null;
   const record = fixture as Record<string, unknown>;
   const stringOrNull = (key: string): string | null =>
     typeof record[key] === "string" ? clip(record[key] as string, 240) : null;
@@ -333,8 +359,11 @@ function summarizeWorkspaceRepoFixture(
           .slice(0, 20)
           .map((value) => clip(value, 240))
       : [];
-  const repository = (value: unknown): { repositoryId: string; repoPath: string } | null => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const repository = (
+    value: unknown,
+  ): { repositoryId: string; repoPath: string } | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return null;
     const candidate = value as Record<string, unknown>;
     if (
       typeof candidate["repositoryId"] !== "string" ||
@@ -347,13 +376,17 @@ function summarizeWorkspaceRepoFixture(
       repoPath: clip(candidate["repoPath"], 240),
     };
   };
-  const repositories = (value: unknown): Array<{ repositoryId: string; repoPath: string }> =>
+  const repositories = (
+    value: unknown,
+  ): Array<{ repositoryId: string; repoPath: string }> =>
     Array.isArray(value)
       ? value
           .map(repository)
           .filter(
-            (candidate): candidate is { repositoryId: string; repoPath: string } =>
-              candidate !== null
+            (
+              candidate,
+            ): candidate is { repositoryId: string; repoPath: string } =>
+              candidate !== null,
           )
           .slice(0, 20)
       : [];
@@ -372,8 +405,9 @@ function summarizeWorkspaceRepoFixture(
       ? record["importChangeIds"].length
       : 0,
     publishedFixtureRemoved: repository(record["publishedFixtureRemoved"]),
+    creationScopeError: stringOrNull("creationScopeError"),
     unexpectedPublishedRepositoriesRemoved: repositories(
-      record["unexpectedPublishedRepositoriesRemoved"]
+      record["unexpectedPublishedRepositoriesRemoved"],
     ),
     counteractedChangeCount: Array.isArray(record["counteractedChangeIds"])
       ? record["counteractedChangeIds"].length
@@ -381,27 +415,43 @@ function summarizeWorkspaceRepoFixture(
   };
 }
 
-function summarizeModelExecution(value: unknown): FailureDiagnostic["modelExecution"] {
+function summarizeModelExecution(
+  value: unknown,
+): FailureDiagnostic["modelExecution"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
   const rawCalls = Array.isArray(record["calls"]) ? record["calls"] : [];
   const calls = rawCalls
     .slice(-10)
-    .filter((call): call is Record<string, unknown> => Boolean(call) && typeof call === "object")
+    .filter(
+      (call): call is Record<string, unknown> =>
+        Boolean(call) && typeof call === "object",
+    )
     .map((call) => ({
       ref: String(call["ref"] ?? ""),
-      ...(typeof call["provider"] === "string" ? { provider: call["provider"] } : {}),
+      ...(typeof call["provider"] === "string"
+        ? { provider: call["provider"] }
+        : {}),
       ...(typeof call["model"] === "string" ? { model: call["model"] } : {}),
       ...(typeof call["api"] === "string" ? { api: call["api"] } : {}),
-      ...(typeof call["baseUrl"] === "string" ? { baseUrl: call["baseUrl"] } : {}),
+      ...(typeof call["baseUrl"] === "string"
+        ? { baseUrl: call["baseUrl"] }
+        : {}),
       ...(typeof call["auth"] === "string" ? { auth: call["auth"] } : {}),
-      ...(typeof call["outcome"] === "string" ? { outcome: call["outcome"] } : {}),
-      ...(call["usage"] && typeof call["usage"] === "object" && !Array.isArray(call["usage"])
+      ...(typeof call["outcome"] === "string"
+        ? { outcome: call["outcome"] }
+        : {}),
+      ...(call["usage"] &&
+      typeof call["usage"] === "object" &&
+      !Array.isArray(call["usage"])
         ? { usage: call["usage"] as Record<string, unknown> }
         : {}),
     }));
   return {
-    totalCalls: typeof record["totalCalls"] === "number" ? record["totalCalls"] : rawCalls.length,
+    totalCalls:
+      typeof record["totalCalls"] === "number"
+        ? record["totalCalls"]
+        : rawCalls.length,
     truncated: record["truncated"] === true || rawCalls.length > calls.length,
     calls,
   };
@@ -417,11 +467,12 @@ function classifyFailure(
   finalAgentMessage: string | null,
   invocations: FailureDiagnostic["invocations"],
   cleanupErrors: string[],
-  channelDeliveryLatencyViolations: string[]
+  channelDeliveryLatencyViolations: string[],
 ): string {
   const failurePhase = entry.execution.failure?.phase;
   if (failurePhase === "validation") return "validator-error";
-  if (failurePhase?.startsWith("workspace-fixture-cleanup")) return "cleanup-error";
+  if (failurePhase?.startsWith("workspace-fixture-cleanup"))
+    return "cleanup-error";
   if (failurePhase?.startsWith("session-cleanup")) return "cleanup-error";
   if (entry["execution"]["error"]) return "session-error";
   if (cleanupErrors.length > 0) return "cleanup-error";
@@ -430,21 +481,30 @@ function classifyFailure(
   // same histogram that produced the reason keeps `likelyIssue` pointed at
   // delivery instead of at agent behavior the ladder below would otherwise
   // blame. Those observations stay visible in `invocations` and `toolFailures`.
-  if (channelDeliveryLatencyViolations.length > 0) return "channel-delivery-latency";
-  const incomplete = invocations.filter((invocation) => invocation.status !== "complete");
+  if (channelDeliveryLatencyViolations.length > 0)
+    return "channel-delivery-latency";
+  const incomplete = invocations.filter(
+    (invocation) => invocation.status !== "complete",
+  );
   if (incomplete.length > 0)
     return `incomplete-invocation:${incomplete.map((i) => i.name).join(",")}`;
-  const toolFailures = (entry.execution.toolFailures ?? []).filter(isUnexpectedToolFailure);
-  if (toolFailures.length > 0) return `tool-error:${toolFailures.map((i) => i.name).join(",")}`;
-  const errored = invocations.filter((invocation) => invocation.error || invocation.isError);
-  if (errored.length > 0) return `tool-error:${errored.map((i) => i.name).join(",")}`;
+  const toolFailures = (entry.execution.toolFailures ?? []).filter(
+    isUnexpectedToolFailure,
+  );
+  if (toolFailures.length > 0)
+    return `tool-error:${toolFailures.map((i) => i.name).join(",")}`;
+  const errored = invocations.filter(
+    (invocation) => invocation.error || invocation.isError,
+  );
+  if (errored.length > 0)
+    return `tool-error:${errored.map((i) => i.name).join(",")}`;
   if (!finalAgentMessage) return "no-final-agent-message";
   return "validation-mismatch";
 }
 
 function summarizeMessage(
   message: ChatMessage,
-  limits: typeof DEFAULT_LIMITS
+  limits: typeof DEFAULT_LIMITS,
 ): DiagnosticConversationItem {
   const invocation = invocationFromChatMessage(message, limits);
   const rawContent = clip(message.content ?? "", limits.text);
@@ -488,13 +548,18 @@ function summarizeMessage(
     ? {
         id: message.inlineUi.id,
         sourceType: message.inlineUi.source.type,
-        path: message.inlineUi.source.type === "file" ? message.inlineUi.source.path : undefined,
+        path:
+          message.inlineUi.source.type === "file"
+            ? message.inlineUi.source.path
+            : undefined,
       }
     : undefined;
 
   return {
     id: message.id,
-    who: isAgentAuthoredMessage(message) ? ("agent" as const) : ("user" as const),
+    who: isAgentAuthoredMessage(message)
+      ? ("agent" as const)
+      : ("user" as const),
     type: message.contentType ?? message.kind ?? "message",
     kind: message.kind,
     contentType: message.contentType,
@@ -519,7 +584,7 @@ function summarizeMessage(
 function summarizeInvocations(
   messages: ChatMessage[],
   snapshotInvocations: ReadonlyArray<unknown> | undefined,
-  limits: typeof DEFAULT_LIMITS
+  limits: typeof DEFAULT_LIMITS,
 ): DiagnosticInvocation[] {
   const fromSnapshot = (snapshotInvocations ?? [])
     .slice(-limits.invocations)
@@ -537,7 +602,7 @@ function summarizeInvocations(
 
 function invocationFromSnapshot(
   invocation: unknown,
-  limits: typeof DEFAULT_LIMITS
+  limits: typeof DEFAULT_LIMITS,
 ): DiagnosticInvocation {
   const inv = invocation as Record<string, unknown>;
   const execution = isRecord(inv["execution"]) ? inv["execution"] : {};
@@ -546,14 +611,18 @@ function invocationFromSnapshot(
   return {
     id: asString(inv["id"]),
     name: asString(inv["name"]) ?? asString(inv["method"]) ?? "(unknown)",
-    status: asString(inv["status"]) ?? asString(execution["status"]) ?? "(unknown)",
+    status:
+      asString(inv["status"]) ?? asString(execution["status"]) ?? "(unknown)",
     error: asString(inv["error"]) ?? asString(execution["error"]),
-    isError: typeof execution["isError"] === "boolean" ? execution["isError"] : undefined,
+    isError:
+      typeof execution["isError"] === "boolean"
+        ? execution["isError"]
+        : undefined,
     arguments: isRecord(args) ? boundRecord(args, limits.text) : undefined,
     result: result === undefined ? undefined : boundValue(result, limits.text),
     consoleOutput: clipOptional(
       asString(inv["consoleOutput"]) ?? asString(execution["consoleOutput"]),
-      limits.text
+      limits.text,
     ),
     argumentSummary: summarizeValue(args, limits.text),
     resultSummary: summarizeValue(result, limits.text),
@@ -562,7 +631,7 @@ function invocationFromSnapshot(
 
 function invocationFromChatMessage(
   message: ChatMessage,
-  limits: typeof DEFAULT_LIMITS
+  limits: typeof DEFAULT_LIMITS,
 ): DiagnosticInvocation | undefined {
   const payload =
     (message.invocation as InvocationPayloadLike | undefined) ??
@@ -578,24 +647,34 @@ function invocationFromChatMessage(
     terminalReasonCode: exec.terminalReasonCode,
     description: clipOptional(exec.description, limits.text),
     error: exec.isError
-      ? summarizeValue(exec.result ?? exec.description ?? message.error, limits.text)
+      ? summarizeValue(
+          exec.result ?? exec.description ?? message.error,
+          limits.text,
+        )
       : clipOptional(message.error, limits.text),
     isError: exec.isError,
     arguments: boundRecord(payload.arguments ?? {}, limits.text),
-    result: exec.result === undefined ? undefined : boundValue(exec.result, limits.text),
+    result:
+      exec.result === undefined
+        ? undefined
+        : boundValue(exec.result, limits.text),
     consoleOutput: clipOptional(exec.consoleOutput, limits.text),
     argumentSummary: summarizeValue(payload.arguments, limits.text),
     resultSummary: summarizeValue(exec.result, limits.text),
   };
 }
 
-function parseInvocationPayload(content: string | undefined): InvocationPayloadLike | null {
+function parseInvocationPayload(
+  content: string | undefined,
+): InvocationPayloadLike | null {
   if (!content) return null;
   const parsed = parseJson(content);
   if (!isRecord(parsed)) return null;
-  if (typeof parsed["id"] !== "string" || typeof parsed["name"] !== "string") return null;
+  if (typeof parsed["id"] !== "string" || typeof parsed["name"] !== "string")
+    return null;
   const execution = parsed["execution"];
-  if (!isRecord(execution) || typeof execution["status"] !== "string") return null;
+  if (!isRecord(execution) || typeof execution["status"] !== "string")
+    return null;
   return {
     id: parsed["id"],
     transportCallId: asString(parsed["transportCallId"]),
@@ -607,7 +686,10 @@ function parseInvocationPayload(content: string | undefined): InvocationPayloadL
       terminalReasonCode: asString(execution["terminalReasonCode"]),
       description: asString(execution["description"]) ?? "",
       result: execution["result"],
-      isError: typeof execution["isError"] === "boolean" ? execution["isError"] : undefined,
+      isError:
+        typeof execution["isError"] === "boolean"
+          ? execution["isError"]
+          : undefined,
       consoleOutput: asString(execution["consoleOutput"]),
     },
   };
@@ -631,7 +713,7 @@ function messageText(
   message: ChatMessage,
   invocation: DiagnosticInvocation | undefined,
   rawContent: string,
-  limit: number
+  limit: number,
 ): string {
   if (invocation) {
     return clip(
@@ -639,23 +721,29 @@ function messageText(
         invocation.argumentSummary ||
         invocation.resultSummary ||
         `${invocation.name} ${invocation.status}`,
-      limit
+      limit,
     );
   }
   if (message.diagnostic) {
     return clip(
-      [message.diagnostic.title, message.diagnostic.detail].filter(Boolean).join("\n"),
-      limit
+      [message.diagnostic.title, message.diagnostic.detail]
+        .filter(Boolean)
+        .join("\n"),
+      limit,
     );
   }
   if (message.lifecycle) {
     return clip(
-      [message.lifecycle.title, message.lifecycle.detail].filter(Boolean).join("\n"),
-      limit
+      [message.lifecycle.title, message.lifecycle.detail]
+        .filter(Boolean)
+        .join("\n"),
+      limit,
     );
   }
-  if (message.approval) return clip(message.approval.question ?? message.approval.status, limit);
-  if (message.custom) return clip(`${message.custom.typeId} custom message`, limit);
+  if (message.approval)
+    return clip(message.approval.question ?? message.approval.status, limit);
+  if (message.custom)
+    return clip(`${message.custom.typeId} custom message`, limit);
   if (message.inlineUi) return clip(`Inline UI ${message.inlineUi.id}`, limit);
   return rawContent;
 }
@@ -694,7 +782,10 @@ function clip(value: string, limit: number): string {
   return `${value.slice(0, limit)}... [truncated ${value.length - limit} chars]`;
 }
 
-function clipOptional(value: string | undefined, limit: number): string | undefined {
+function clipOptional(
+  value: string | undefined,
+  limit: number,
+): string | undefined {
   return value === undefined ? undefined : clip(value, limit);
 }
 
@@ -706,7 +797,10 @@ function parseJson(value: string): unknown {
   }
 }
 
-function boundRecord(value: Record<string, unknown>, stringLimit: number): Record<string, unknown> {
+function boundRecord(
+  value: Record<string, unknown>,
+  stringLimit: number,
+): Record<string, unknown> {
   return boundValue(value, stringLimit) as Record<string, unknown>;
 }
 
@@ -714,7 +808,7 @@ function boundValue(
   value: unknown,
   stringLimit: number,
   depth = 0,
-  ancestors = new WeakSet<object>()
+  ancestors = new WeakSet<object>(),
 ): unknown {
   if (typeof value === "string") return clip(value, stringLimit);
   if (value === null || typeof value !== "object") return value;
@@ -723,8 +817,11 @@ function boundValue(
   try {
     if (Array.isArray(value)) {
       if (depth >= 2) return `[Array(${value.length})]`;
-      const items = value.slice(0, 10).map((item) => boundValue(item, stringLimit, depth + 1, ancestors));
-      if (value.length > items.length) items.push(`[... ${value.length - items.length} more]`);
+      const items = value
+        .slice(0, 10)
+        .map((item) => boundValue(item, stringLimit, depth + 1, ancestors));
+      if (value.length > items.length)
+        items.push(`[... ${value.length - items.length} more]`);
       return items;
     }
 

@@ -755,6 +755,7 @@ describe("HeadlessRunner", () => {
       importChangeIds: ["change:repository-create"],
     });
     expect(cleanup).toEqual({
+      creationScopeError: null,
       publishedFixtureRemoved: null,
       unexpectedPublishedRepositoriesRemoved: [],
       counteractedChangeIds: [],
@@ -986,9 +987,13 @@ describe("HeadlessRunner", () => {
       ],
     );
 
-    await expect(runner.cleanupWorkspaceRepoFixture(state)).rejects.toThrow(
-      "expected exactly one task-created repository in panels/, found 0",
-    );
+    await expect(
+      runner.cleanupWorkspaceRepoFixture(state),
+    ).resolves.toMatchObject({
+      creationScopeError: expect.stringContaining(
+        "expected exactly one task-created repository in panels/, found 0",
+      ),
+    });
     expect(mocks.rpc.call).toHaveBeenLastCalledWith(
       "main",
       "runtime.destroyContext",

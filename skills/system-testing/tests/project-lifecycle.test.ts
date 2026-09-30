@@ -1,5 +1,10 @@
+import {
+  preparation,
+  publicationMessages,
+} from "./_project-evidence-fixtures.js";
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
+import type { ChatMessage } from "@workspace/agentic-core";
 
 import { docsProbeTests } from "./docs-probes.js";
 import { projectLifecycleTests } from "./project-lifecycle.js";
@@ -11,6 +16,8 @@ function invocation(
   details: Record<string, unknown>,
 ) {
   return {
+    id: `message:${id}`,
+    content: "",
     kind: "message" as const,
     senderId: "agent",
     senderMetadata: { type: "agent" },
@@ -21,12 +28,15 @@ function invocation(
       name,
       arguments: args,
       execution: {
-        status: "complete",
-        isError: false,
-        result: { protocolContent: [], details },
+        status: "complete" as NonNullable<
+          ChatMessage["invocation"]
+        >["execution"]["status"],
+        description: "",
+        isError: false as boolean,
+        result: { protocolContent: [] as Record<string, unknown>[], details },
       },
     },
-  };
+  } satisfies ChatMessage;
 }
 
 function nativeUiEvidence(
@@ -45,10 +55,17 @@ function nativeUiEvidence(
         { action: "click", role: "button", accessibleName: "Create task" },
         { action: "fill", role: "textbox", accessibleName: "Search tasks" },
         { action: "click", role: "button", accessibleName: "Delete task" },
-      ].map(({ action, ...target }) => ({ type: "interaction", id, receipt: {
-        protocol: "cdp-interaction-outcome.v1", action, delivery: "dispatched",
-        target, effect: { status: "not-asserted" },
-      } })),
+      ].map(({ action, ...target }) => ({
+        type: "interaction",
+        id,
+        receipt: {
+          protocol: "cdp-interaction-outcome.v1",
+          action,
+          delivery: "dispatched",
+          target,
+          effect: { status: "not-asserted" },
+        },
+      })),
       {
         type: "interaction",
         id,
@@ -108,6 +125,7 @@ function todoExecution(
     messages: [
       { kind: "message", senderId: "user", complete: true, content: "prompt" },
       ...calls,
+      ...publicationMessages(calls),
       {
         kind: "message",
         senderId: "agent",
@@ -194,7 +212,7 @@ describe("project lifecycle prompts", () => {
       "Create a brand-new isolated panel project and open it for use.",
       "Create a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
       "Create a separate panel based on the provided panel project, leave the original unchanged, and open the new panel to confirm it works.",
-      "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, save a screenshot in scratch, and read that image so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, save and visually read a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
+      "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, capture and visually inspect a screenshot so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, capture and visually inspect a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
     ]);
 
     for (const prompt of panelPrompts) {
@@ -202,7 +220,7 @@ describe("project lifecycle prompts", () => {
         /finish with|respond with|\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/iu,
       );
       expect(prompt).not.toMatch(
-        /createProjects|forkProject|openPanel|dryRun/iu,
+        /prepareProjects|forkProject|openPanel|dryRun/iu,
       );
     }
   });
@@ -257,7 +275,7 @@ describe("project lifecycle prompts", () => {
       invocation(
         "publication",
         "eval",
-        { code: "createProjects(); publish();" },
+        { code: "prepareProjects(); publish();" },
         {
           returnValue: [
             { created: panelPath },
@@ -487,7 +505,7 @@ describe("project lifecycle prompts", () => {
       invocation(
         "create",
         "eval",
-        { code: "createProjects()" },
+        { code: "prepareProjects()" },
         {
           returnValue: [
             {
@@ -498,13 +516,7 @@ describe("project lifecycle prompts", () => {
                 projectType: "panel",
                 checked: ["identity"],
               },
-              publication: {
-                published: true,
-                committedEventId: "workspace-event:created",
-                publishedEventId: "workspace-event:created",
-                mainEventId: "workspace-event:created",
-                effectId: "host-effect:created",
-              },
+              preparation: preparation(),
             },
           ],
         },
@@ -517,10 +529,11 @@ describe("project lifecycle prompts", () => {
           receipt: {
             protocol: "unit-verification-receipt.v1",
             operation: "build",
+            contextId: preparation().contextId,
             stateHash: `state:${"a".repeat(64)}`,
             status: "ok",
             target: source,
-            unit: { repoPath: source },
+            unit: { repoPath: source, kind: "panel" },
           },
         },
       ),
@@ -555,6 +568,68 @@ describe("project lifecycle prompts", () => {
     final.content =
       "Built, launched, and debugged the task project with a clean build.";
     expect(test.validate(result)).toEqual({ passed: true, reason: undefined });
+    const projected = structuredClone(result);
+    const created = projected.messages.find(
+      (message) => message.invocation?.id === "create",
+    ) as ReturnType<typeof invocation>;
+    created.invocation.execution.result.details["returnValue"] = {
+      panel: source,
+      worker: "workers/task-manager-store",
+      preparation: preparation(),
+    };
+    expect(test.validate(projected)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    const partial = structuredClone(result);
+    const completedRuntime = partial.messages.find(
+      (message) => message.invocation?.id === "runtime",
+    ) as ReturnType<typeof invocation>;
+    completedRuntime.invocation.execution.status = "error";
+    completedRuntime.invocation.execution.isError = true;
+    completedRuntime.invocation.execution.result.details["failureKind"] =
+      "user-code";
+    completedRuntime.invocation.execution.result.details["error"] =
+      "Later guest expression failed";
+    partial.messages.splice(
+      partial.messages.length - 1,
+      0,
+      invocation(
+        "reset-filter",
+        "eval",
+        {},
+        {
+          operationJournal: {
+            protocol: "workspace-operations.v1",
+            truncated: false,
+            entries: [
+              {
+                type: "interaction",
+                id: "panel:todo",
+                receipt: {
+                  protocol: "cdp-interaction-outcome.v1",
+                  action: "fill",
+                  delivery: "dispatched",
+                  target: { role: "textbox", accessibleName: "Search tasks" },
+                  effect: { status: "not-asserted" },
+                },
+              },
+              {
+                type: "consoleHistory",
+                id: "panel:todo",
+                receipt: {
+                  capturedAt: 200,
+                  errorCoverage: "full",
+                  errorCount: 0,
+                  droppedErrors: 0,
+                },
+              },
+            ],
+          },
+        },
+      ),
+    );
+    expect(test.validate(partial)).toEqual({ passed: true, reason: undefined });
     for (const count of [0, 1]) {
       const logged = structuredClone(result);
       const runtime = logged.messages.find(
@@ -590,7 +665,7 @@ describe("project lifecycle prompts", () => {
           "create-worker-project",
           "eval",
           {
-            code: `return createProjects([{ projectType: "worker", name: "isolated-worker" }]);`,
+            code: `return prepareProjects([{ projectType: "worker", name: "isolated-worker" }]);`,
           },
           {
             returnValue: {
@@ -601,13 +676,7 @@ describe("project lifecycle prompts", () => {
                 projectType: "worker",
                 checked: ["index.ts", "package.json"],
               },
-              publication: {
-                published: true,
-                committedEventId: "event:worker",
-                publishedEventId: "event:worker",
-                mainEventId: "event:worker",
-                effectId: "effect:worker",
-              },
+              preparation: preparation(),
             },
           },
         ),
@@ -621,6 +690,7 @@ describe("project lifecycle prompts", () => {
       ],
     } as TestExecutionResult;
 
+    result.messages.push(...publicationMessages(result.messages));
     expect(test.validate(result)).toEqual({ passed: true, reason: undefined });
     const creation = result.messages[1]! as ReturnType<typeof invocation>;
     const returned = creation.invocation.execution.result.details[
@@ -651,13 +721,13 @@ describe("project lifecycle prompts", () => {
           "catalog",
           "eval",
           { code: "return listProjectIcons();" },
-          { returnValue: { lucide: ["database"], brand: [] } },
+          { returnValue: ["lucide:database"] },
         ),
         invocation(
           "create",
           "eval",
           {
-            code: "return createProjects([{ projectType: 'panel', icon: 'lucide:database' }]);",
+            code: "return prepareProjects([{ projectType: 'panel', icon: 'lucide:database' }]);",
           },
           {
             returnValue: {
@@ -668,13 +738,7 @@ describe("project lifecycle prompts", () => {
                 projectType: "panel",
                 checked: ["index.tsx", "package.json"],
               },
-              publication: {
-                published: true,
-                committedEventId: "event:catalog",
-                publishedEventId: "event:catalog",
-                mainEventId: "event:catalog",
-                effectId: "effect:catalog",
-              },
+              preparation: preparation(),
             },
           },
         ),
@@ -696,6 +760,18 @@ describe("project lifecycle prompts", () => {
             code: "const panel = await openPanel(source); return [await panel.observe(), await panel.snapshot()];",
           },
           {
+            operationJournal: {
+              protocol: "workspace-operations.v1",
+              truncated: false,
+              entries: [
+                {
+                  type: "open",
+                  source,
+                  id: "panel:catalog",
+                  kind: "workspace",
+                },
+              ],
+            },
             returnValue: [
               {
                 source,
@@ -727,7 +803,82 @@ describe("project lifecycle prompts", () => {
       ],
     } as TestExecutionResult;
 
+    result.messages.push(...publicationMessages(result.messages));
     expect(test.validate(result)).toEqual({ passed: true, reason: undefined });
+    const captured = structuredClone(result);
+    const opened = captured.messages[4]! as ReturnType<typeof invocation>;
+    const returned = opened.invocation.execution.result.details[
+      "returnValue"
+    ] as unknown[];
+    opened.invocation.execution.result.details["returnValue"] = returned[0];
+    const capture = invocation(
+      "capture",
+      "eval",
+      { code: "return panel.cdp.screenshot();" },
+      {
+        operationJournal: {
+          protocol: "workspace-operations.v1",
+          truncated: false,
+          entries: [
+            {
+              type: "screenshot",
+              id: "panel:catalog",
+              receipt: {
+                capturedAt: 2,
+                mimeType: "image/png",
+                byteSize: 42,
+              },
+            },
+          ],
+        },
+      },
+    );
+    capture.invocation.execution.result.protocolContent = [
+      { type: "image", data: "native-image", mimeType: "image/png" },
+    ];
+    captured.messages.splice(5, 0, capture);
+    expect(test.validate(captured).passed).toBe(true);
+    capture.invocation.execution.result.protocolContent = [];
+    expect(test.validate(captured).passed).toBe(false);
+    capture.invocation.execution.result.protocolContent = [
+      { type: "image", data: "native-image", mimeType: "image/png" },
+    ];
+    capture.invocation.execution.result.details["operationJournal"] = {
+      protocol: "workspace-operations.v1",
+      truncated: false,
+      entries: [
+        {
+          type: "screenshot",
+          id: "panel:unrelated",
+          receipt: {
+            capturedAt: 2,
+            mimeType: "image/png",
+            byteSize: 42,
+          },
+        },
+      ],
+    };
+    expect(test.validate(captured).passed).toBe(false);
+    const searched = structuredClone(result);
+    const catalog = searched.messages[1]! as ReturnType<typeof invocation>;
+    catalog.invocation.arguments = {
+      code: "return searchProjectCatalog({resource:'icon',query:'database'});",
+    };
+    catalog.invocation.execution.result.details["returnValue"] = {
+      protocol: "workspace-dev-catalog.v1",
+      resource: "icon",
+      entries: [{ id: "lucide:database", family: "lucide", name: "database" }],
+    };
+    expect(test.validate(searched)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    catalog.invocation.execution.result.details["returnValue"] = {
+      protocol: "workspace-dev-catalog.v1",
+      resource: "icon",
+      entries: [],
+    };
+    expect(test.validate(searched)).toMatchObject({ passed: false });
   });
 
   it("grants only panel and dependency inspection to the To-Do loop", () => {
@@ -799,7 +950,7 @@ describe("project lifecycle prompts", () => {
       invocation(
         "create",
         "eval",
-        { code: "createProjects()" },
+        { code: "prepareProjects()" },
         {
           returnValue: {
             created: source,
@@ -809,13 +960,7 @@ describe("project lifecycle prompts", () => {
               projectType: "panel",
               checked: ["package.json"],
             },
-            publication: {
-              published: true,
-              committedEventId: "event:create",
-              publishedEventId: "event:create",
-              mainEventId: "event:create",
-              effectId: "effect:create",
-            },
+            preparation: preparation(),
           },
         },
       ),
@@ -850,6 +995,24 @@ describe("project lifecycle prompts", () => {
         "eval",
         { code: "openPanel(); handle.cdp.page(); handle.snapshot();" },
         {
+          operationJournal: {
+            protocol: "workspace-operations.v1",
+            truncated: false,
+            entries: [
+              { type: "open", id: "panel:todo", source, kind: "workspace" },
+              {
+                type: "snapshot",
+                id: "panel:todo",
+                receipt: {
+                  panelId: "panel:todo",
+                  runtimeEntityId: "runtime:initial",
+                  buildKey: "build:initial",
+                  capturedAt: 1,
+                  documentKind: "synth",
+                },
+              },
+            ],
+          },
           returnValue: [
             {
               source,
@@ -944,17 +1107,137 @@ describe("project lifecycle prompts", () => {
     // The native receipts are the evidence; eval spelling does not define a
     // browser verification protocol.
     const renamed = structuredClone(calls);
-    const renamedCall = renamed.find((entry) => entry.invocation.id === "rebuild-and-verify")!;
-    renamedCall.invocation.arguments["code"] = "handle.rebuild(); return finalRenderedState;";
-    expect(test.validate(todoExecution(renamed))).toEqual({ passed: true, reason: undefined });
-    for (const missingName of ["Task title", "Create task", "Complete", "Search tasks", "Delete task"]) {
+    const renamedCall = renamed.find(
+      (entry) => entry.invocation.id === "rebuild-and-verify",
+    )!;
+    renamedCall.invocation.arguments["code"] =
+      "handle.rebuild(); return finalRenderedState;";
+    expect(test.validate(todoExecution(renamed))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    const splitInspection = calls.flatMap((call) => {
+      if (call.invocation.id !== "clean-launch-and-inspect") return [call];
+      const journal = call.invocation.execution.result.details[
+        "operationJournal"
+      ] as {
+        protocol: string;
+        truncated: boolean;
+        entries: Array<Record<string, unknown>>;
+      };
+      return [
+        invocation(
+          "open-initial",
+          "eval",
+          { code: "scope.handle = await openPanel(source);" },
+          {
+            returnValue:
+              call.invocation.execution.result.details["returnValue"],
+            operationJournal: {
+              ...journal,
+              entries: journal.entries.filter((e) => e["type"] === "open"),
+            },
+          },
+        ),
+        invocation(
+          "inspect-initial",
+          "eval",
+          { code: "return await scope.handle.snapshot();" },
+          {
+            operationJournal: {
+              ...journal,
+              entries: journal.entries.filter((e) => e["type"] === "snapshot"),
+            },
+          },
+        ),
+      ];
+    });
+    expect(test.validate(todoExecution(splitInspection))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    const structuredVerify = calls.map((call) =>
+      call.invocation.id === "broken-build"
+        ? invocation(
+            "broken-build",
+            "verify",
+            { operation: "build", target: source },
+            {
+              receipt: {
+                protocol: "unit-verification-receipt.v1",
+                operation: "build",
+                target: source,
+                stateHash: "state:broken",
+                unit: { repoPath: source, kind: "panel" },
+                status: "failed",
+              },
+              report: {
+                repoPath: source,
+                kind: "panel",
+                stateHash: "state:broken",
+                status: "failed",
+                builds: [{ target: "runtime" }],
+                diagnostics: [
+                  {
+                    severity: "error",
+                    source: "tsc",
+                    message: "Expected token",
+                  },
+                ],
+              },
+            },
+          )
+        : call,
+    );
+    const failedVerify = structuredVerify.find(
+      (call) => call.invocation.id === "broken-build",
+    )!;
+    failedVerify.invocation.execution.status = "error";
+    failedVerify.invocation.execution.isError = true;
+    failedVerify.invocation.execution.result.details["failureKind"] =
+      "user-code";
+    failedVerify.invocation.execution.result.details["failureCode"] =
+      "build_verification_failed";
+    expect(test.validate(todoExecution(structuredVerify))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    const wrongVerify = structuredClone(structuredVerify);
+    wrongVerify.find(
+      (call) => call.invocation.id === "broken-build",
+    )!.invocation.execution.result.details["report"] = {
+      repoPath: "panels/other",
+      kind: "panel",
+      stateHash: "state:broken",
+      status: "failed",
+      diagnostics: [
+        { severity: "error", source: "tsc", message: "Expected token" },
+      ],
+    };
+    expect(test.validate(todoExecution(wrongVerify)).passed).toBe(false);
+    for (const missingName of [
+      "Task title",
+      "Create task",
+      "Complete",
+      "Search tasks",
+      "Delete task",
+    ]) {
       const incomplete = structuredClone(calls);
-      const verification = incomplete.find((entry) => entry.invocation.id === "rebuild-and-verify")!;
-      const native = verification.invocation.execution.result.details["operationJournal"] as {
+      const verification = incomplete.find(
+        (entry) => entry.invocation.id === "rebuild-and-verify",
+      )!;
+      const native = verification.invocation.execution.result.details[
+        "operationJournal"
+      ] as {
         entries: Array<{ receipt?: { target?: { accessibleName?: string } } }>;
       };
-      native.entries = native.entries.filter((entry) => entry.receipt?.target?.accessibleName !== missingName);
-      expect(test.validate(todoExecution(incomplete)).passed, `missing native ${missingName}`).toBe(false);
+      native.entries = native.entries.filter(
+        (entry) => entry.receipt?.target?.accessibleName !== missingName,
+      );
+      expect(
+        test.validate(todoExecution(incomplete)).passed,
+        `missing native ${missingName}`,
+      ).toBe(false);
     }
 
     for (const variant of [
@@ -1042,6 +1325,43 @@ describe("project lifecycle prompts", () => {
         "The agent did not read the compile-clean flawed panel screenshot as image content before choosing the UX repair",
     });
 
+    const nativeImages = screenshotWithoutModelVision.map((call) => {
+      if (
+        !["clean-launch-and-inspect", "rebuild-and-verify"].includes(
+          call.invocation.id,
+        )
+      )
+        return call;
+      const result = call.invocation.execution.result;
+      return {
+        ...call,
+        invocation: {
+          ...call.invocation,
+          execution: {
+            ...call.invocation.execution,
+            result: {
+              ...result,
+              protocolContent: [
+                {
+                  type: "image",
+                  mimeType: "image/png",
+                  data: "rendered-pixels",
+                },
+              ],
+              details: {
+                ...result.details,
+                operationJournal: nativeUiEvidence(source),
+              },
+            },
+          },
+        },
+      };
+    });
+    expect(test.validate(todoExecution(nativeImages))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+
     const wrongBuildIdentity = calls.map((call) =>
       call.invocation.id === "broken-build"
         ? invocation("broken-build", "eval", call.invocation.arguments, {
@@ -1065,7 +1385,16 @@ describe("project lifecycle prompts", () => {
             "clean-launch-and-inspect",
             "eval",
             { code: "openPanel(); handle.cdp.page();" },
-            call.invocation.execution.result.details,
+            {
+              ...call.invocation.execution.result.details,
+              operationJournal: {
+                protocol: "workspace-operations.v1",
+                truncated: false,
+                entries: [
+                  { type: "open", id: "panel:todo", source, kind: "workspace" },
+                ],
+              },
+            },
           )
         : call,
     );
@@ -1082,7 +1411,9 @@ describe("project lifecycle prompts", () => {
               code: "handle.rebuild(); handle.cdp.page(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); const before = await handle.cdp.consoleHistory(); const snapshot = await handle.snapshot(); const after = await handle.cdp.consoleHistory(); return { beforeErrors: before.errors, afterErrors: after.errors, snapshot };",
             },
             {
-              operationJournal: nativeUiEvidence(source, { capture: "snapshot" }),
+              operationJournal: nativeUiEvidence(source, {
+                capture: "snapshot",
+              }),
               returnValue: [
                 {
                   source,
@@ -1181,6 +1512,11 @@ describe("project lifecycle prompts", () => {
     const probe = docsProbeTests.find(
       (test) => test.name === "docs-workspace-dev-change-loop",
     );
+    expect(probe?.workspaceRepoFixture).toEqual({
+      kind: "created-repository",
+      section: "panels",
+    });
+    expect(probe?.resources).toContain("workerd:panel-automation");
 
     expect(probe?.prompt).toContain(
       "Create, publish, and inspect a tiny isolated panel project.",

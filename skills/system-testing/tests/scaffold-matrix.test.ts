@@ -1,3 +1,7 @@
+import {
+  preparation,
+  publicationMessages,
+} from "./_project-evidence-fixtures.js";
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { scaffoldMatrixTests } from "./scaffold-matrix.js";
@@ -36,6 +40,7 @@ function execution(
     messages: [
       { kind: "message", senderId: "user", complete: true, content: "prompt" },
       ...calls,
+      ...publicationMessages(calls),
       {
         kind: "message",
         senderId: "agent",
@@ -60,11 +65,7 @@ function created(projectType: string, target: string) {
         projectType,
         checked: ["canonical project type", "non-empty repository"],
       },
-      publication: {
-        published: true,
-        committedEventId: `event:${projectType}`,
-        publishedEventId: `event:${projectType}`,
-      },
+      preparation: preparation(),
     },
   };
 }
@@ -101,9 +102,15 @@ describe("scaffold build matrix", () => {
       "templates/svelte",
     ]);
     expect(
-      missingUnitsFor(test, ["packages/runtime", "packages/svelte", "templates/svelte"]),
+      missingUnitsFor(test, [
+        "packages/runtime",
+        "packages/svelte",
+        "templates/svelte",
+      ]),
     ).toEqual([]);
-    expect(missingUnitsFor(test, ["packages/svelte"])).toEqual(["templates/svelte"]);
+    expect(missingUnitsFor(test, ["packages/svelte"])).toEqual([
+      "templates/svelte",
+    ]);
     const react = scaffoldMatrixTests.find(
       (test) => test.name === "scaffold-react-panel-build",
     )!;
@@ -128,7 +135,7 @@ describe("scaffold build matrix", () => {
     for (const test of scaffoldMatrixTests) {
       expect(test.validation).toBeUndefined();
       expect(test.prompt).not.toMatch(
-        /createProjects|build-verification-receipt|ctx:/u,
+        /prepareProjects|build-verification-receipt|ctx:/u,
       );
     }
   });
@@ -148,7 +155,7 @@ describe("scaffold build matrix", () => {
       const create = invocation(
         `create:${name}`,
         "eval",
-        { code: "return await createProjects(request);" },
+        { code: "return await prepareProjects(request);" },
         created(projectType, target),
       );
       const verify = invocation(
@@ -177,7 +184,7 @@ describe("scaffold build matrix", () => {
     const create = invocation(
       "create:content",
       "eval",
-      { code: "return await createProjects(request);" },
+      { code: "return await prepareProjects(request);" },
       created("project", "projects/notes"),
     );
 

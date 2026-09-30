@@ -172,6 +172,8 @@ function systemTestEvalCode(
       installedWorkspaceUnits,
       runSystemTests,
       systemTestTrajectory,
+      systemTestProgressCheckpoint,
+      SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT,
     } from "@workspace-skills/system-testing/cli";
     const { blobstore, rpc } = await import("@workspace/runtime");
     const recordOwner = ${JSON.stringify(recordOwner)};
@@ -199,20 +201,10 @@ function systemTestEvalCode(
     // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
     // room for its event envelope and encoded strings instead of measuring
     // against the larger transient RPC transport limit.
-    const durableHeartbeatLimit = 48 * 1024;
+    const durableHeartbeatLimit = SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT;
     let lastProgress = null;
     const publishProgress = (progress) => {
-      let durable = { ...progress, updatedAt: new Date().toISOString() };
-      if (JSON.stringify(durable).length > durableHeartbeatLimit && durable.liveInspection) {
-        durable = {
-          ...durable,
-          liveInspection: { inspect: durable.liveInspection.inspect, trajectories: {} },
-        };
-      }
-      if (JSON.stringify(durable).length > durableHeartbeatLimit) {
-        const { liveInspection: _omitted, ...withoutInspection } = durable;
-        durable = withoutInspection;
-      }
+      const durable = systemTestProgressCheckpoint(lastProgress, progress);
       lastProgress = durable;
       ctx.reportProgress(durable);
     };

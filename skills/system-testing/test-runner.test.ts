@@ -827,8 +827,11 @@ describe("TestRunner", () => {
       },
     });
     const laterMessage = {
-      id: "later-agent-message", senderId: "agent", kind: "message" as const,
-      complete: true, content: "Inspecting the result",
+      id: "later-agent-message",
+      senderId: "agent",
+      kind: "message" as const,
+      complete: true,
+      content: "Inspecting the result",
     };
     session.messages.push(laterMessage);
     listener?.(laterMessage);
@@ -1319,114 +1322,124 @@ describe("TestRunner", () => {
     expect(unrelatedRanWhileFixtureActive).toBe(true);
   });
 
-  it("cancellation finishes the ordinary session and fixture cleanup path", async () => {
-    const cleanupOrder: string[] = [];
-    const session = {
-      channelId: "chat-cancelled-fixture",
-      agentTargetId: "target-cancelled-fixture",
-      messages: [] as ChatMessage[],
-      sendAndWait: vi.fn(
-        async (
-          _prompt: string,
-          opts?: { signal?: AbortSignal },
-        ): Promise<never> =>
-          await new Promise<never>((_resolve, reject) => {
-            const rejectCancelled = () =>
-              reject(new Error("agent wait aborted"));
-            if (opts?.signal?.aborted) rejectCancelled();
-            else
-              opts?.signal?.addEventListener("abort", rejectCancelled, {
-                once: true,
-              });
-          }),
-      ),
-      captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
-      snapshot: vi.fn(() => ({
+  it.each([null, "Expected one task-created repository, found none"])(
+    "cancellation reclaims resources without classifying unfinished delivery as cleanup failure (%s)",
+    async (creationScopeError) => {
+      const cleanupOrder: string[] = [];
+      const session = {
         channelId: "chat-cancelled-fixture",
-        agentEntityId: "agent-cancelled-fixture",
         agentTargetId: "target-cancelled-fixture",
-        agentContextId: "ctx-cancelled-fixture",
-        messages: [],
-        invocations: [],
-        debugEvents: [],
-        cleanupErrors: [],
-        participants: {},
-        connected: true,
-        duration: 10,
-      })),
-      interrupt: vi.fn(async () => {
-        cleanupOrder.push("interrupt");
-      }),
-      close: vi.fn(async () => {
-        cleanupOrder.push("close");
-      }),
-    };
-    const fixtureState = {
-      kind: "content" as const,
-      section: "projects" as const,
-      testName: "cancelled-fixture",
-      contextId: "context:cancelled-fixture",
-      repoName: "system-test-cancelled-fixture",
-      repositoryId: "repository:system-test-cancelled-fixture",
-      repoPath: "projects/system-test-cancelled-fixture",
-      seedFilePaths: [],
-      importWorkUnitId: "work:import:cancelled-fixture",
-      importChangeIds: ["change:import:cancelled-fixture"],
-      taskBaseEventId: "event:main",
-    };
-    const childRunner = {
-      modelRef: TEST_MODEL,
-      closeOwnedDevelopmentSessions: vi.fn(async () => []),
-      withTaskResources: (prompt: string) => prompt,
-      prepareWorkspaceRepoFixture: vi.fn(async () => fixtureState),
-      spawn: vi.fn(async () => session),
-      collectDiagnostics: vi.fn(async () => ({})),
-      cleanupWorkspaceRepoFixture: vi.fn(async () => {
-        cleanupOrder.push("fixture");
-        return {
-          publishedFixtureRemoved: {
-            repositoryId: fixtureState.repositoryId,
-            repoPath: fixtureState.repoPath,
-          },
-          unexpectedPublishedRepositoriesRemoved: [],
-          counteractedChangeIds: [fixtureState.importChangeIds[0]!],
-        };
-      }),
-    };
-    const runner = {
-      ...childRunner,
-      forTest: vi.fn(() => childRunner),
-    } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 60_000 });
-    const running = tester.runSuite([
-      {
-        name: "cancelled-fixture",
-        category: "test",
-        description: "cancelled fixture",
-        prompt: "wait forever",
-        workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
-        validation: "harness" as const,
-        validate: () => ({ passed: true }),
-      },
-    ]);
-    await vi.waitFor(() => expect(session.sendAndWait).toHaveBeenCalledOnce());
+        messages: [] as ChatMessage[],
+        sendAndWait: vi.fn(
+          async (
+            _prompt: string,
+            opts?: { signal?: AbortSignal },
+          ): Promise<never> =>
+            await new Promise<never>((_resolve, reject) => {
+              const rejectCancelled = () =>
+                reject(new Error("agent wait aborted"));
+              if (opts?.signal?.aborted) rejectCancelled();
+              else
+                opts?.signal?.addEventListener("abort", rejectCancelled, {
+                  once: true,
+                });
+            }),
+        ),
+        captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
+        snapshot: vi.fn(() => ({
+          channelId: "chat-cancelled-fixture",
+          agentEntityId: "agent-cancelled-fixture",
+          agentTargetId: "target-cancelled-fixture",
+          agentContextId: "ctx-cancelled-fixture",
+          messages: [],
+          invocations: [],
+          debugEvents: [],
+          cleanupErrors: [],
+          participants: {},
+          connected: true,
+          duration: 10,
+        })),
+        interrupt: vi.fn(async () => {
+          cleanupOrder.push("interrupt");
+        }),
+        close: vi.fn(async () => {
+          cleanupOrder.push("close");
+        }),
+      };
+      const fixtureState = {
+        kind: "content" as const,
+        section: "projects" as const,
+        testName: "cancelled-fixture",
+        contextId: "context:cancelled-fixture",
+        repoName: "system-test-cancelled-fixture",
+        repositoryId: "repository:system-test-cancelled-fixture",
+        repoPath: "projects/system-test-cancelled-fixture",
+        seedFilePaths: [],
+        importWorkUnitId: "work:import:cancelled-fixture",
+        importChangeIds: ["change:import:cancelled-fixture"],
+        taskBaseEventId: "event:main",
+      };
+      const childRunner = {
+        modelRef: TEST_MODEL,
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
+        withTaskResources: (prompt: string) => prompt,
+        prepareWorkspaceRepoFixture: vi.fn(async () => fixtureState),
+        spawn: vi.fn(async () => session),
+        collectDiagnostics: vi.fn(async () => ({})),
+        cleanupWorkspaceRepoFixture: vi.fn(async () => {
+          cleanupOrder.push("fixture");
+          return {
+            creationScopeError,
+            publishedFixtureRemoved: {
+              repositoryId: fixtureState.repositoryId,
+              repoPath: fixtureState.repoPath,
+            },
+            unexpectedPublishedRepositoriesRemoved: [],
+            counteractedChangeIds: [fixtureState.importChangeIds[0]!],
+          };
+        }),
+      };
+      const runner = {
+        ...childRunner,
+        forTest: vi.fn(() => childRunner),
+      } as unknown as HeadlessRunner;
+      const tester = new TestRunner(runner, { testTimeoutMs: 60_000 });
+      const running = tester.runSuite([
+        {
+          name: "cancelled-fixture",
+          category: "test",
+          description: "cancelled fixture",
+          prompt: "wait forever",
+          workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+          validation: "harness" as const,
+          validate: () => ({ passed: true }),
+        },
+      ]);
+      await vi.waitFor(() =>
+        expect(session.sendAndWait).toHaveBeenCalledOnce(),
+      );
 
-    tester.cancel();
-    const suite = await running;
+      tester.cancel();
+      const suite = await running;
 
-    expect(tester.cancelled).toBe(true);
-    expect(suite).toMatchObject({ total: 1, errored: 1 });
-    expect(suite.results[0]!.execution.error).toContain(
-      "System-test run cancelled",
-    );
-    expect(
-      suite.results[0]!.execution.diagnostics?.["workspaceRepoFixture"],
-    ).toMatchObject({
-      repositoryId: fixtureState.repositoryId,
-      publishedFixtureRemoved: { repoPath: fixtureState.repoPath },
-    });
-    expect(cleanupOrder).toEqual(["interrupt", "close", "fixture"]);
-  });
+      expect(tester.cancelled).toBe(true);
+      expect(suite).toMatchObject({ total: 1, errored: 1 });
+      expect(suite.results[0]!.execution.error).toContain(
+        "System-test run cancelled",
+      );
+      expect(
+        suite.results[0]!.execution.diagnostics?.["workspaceRepoFixture"],
+      ).toMatchObject({
+        repositoryId: fixtureState.repositoryId,
+        publishedFixtureRemoved: { repoPath: fixtureState.repoPath },
+      });
+      expect(cleanupOrder).toEqual(["interrupt", "close", "fixture"]);
+      expect(suite.results[0]!.execution.cleanupErrors ?? []).toEqual([]);
+      expect(
+        suite.results[0]!.execution.diagnostics?.["workspaceRepoFixture"],
+      ).toMatchObject({ creationScopeError });
+    },
+  );
 
   it("surfaces workspace repo fixture teardown failures as infrastructure failures", async () => {
     const messages = [
