@@ -1527,6 +1527,12 @@ export const projectLifecycleTests: TestCase[] = [
       "Build, debug, polish, and publish a To-Do panel through the live UI",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
+    // The task explicitly induces one compiler fault, and the validator joins
+    // its failed check to the authored defect and subsequent repair. Additional
+    // compiler or interaction failures remain unexpected, even if recovered.
+    expectedToolFailures: [
+      { name: "verify", failureCode: "build_verification_failed" },
+    ],
     authorityPolicy: panelControlAuthorityPolicy("inspect-created-panel", [
       {
         ruleId: "inspect-screenshot-analysis-dependency",

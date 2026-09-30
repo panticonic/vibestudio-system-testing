@@ -886,6 +886,9 @@ describe("project lifecycle prompts", () => {
       ({ name }) => name === "panel-todo-debug-polish",
     )!;
 
+    expect(test.expectedToolFailures).toEqual([
+      { name: "verify", failureCode: "build_verification_failed" },
+    ]);
     expect(test.authorityPolicy).toEqual({
       authority: [
         {
