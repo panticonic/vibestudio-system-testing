@@ -26,7 +26,10 @@ import {
 } from "./validation-failure.js";
 import { channelDeliveryLatencyViolations } from "./delivery-latency.js";
 import type { SystemTestJsonValue } from "./structured-error.js";
-import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "./prompt-contract.js";
+import {
+  assertAgentGoalPrompt,
+  assertSystemTestDeclaration,
+} from "./prompt-contract.js";
 import {
   findFinalAgentCompletionMessage,
   isAgentCompletionMessage,
@@ -282,8 +285,9 @@ export class TestRunner {
     const startTime = Date.now();
     const testTimeoutMs =
       this.opts?.testTimeoutMs ??
-      test.timeoutMs ??
-      DEFAULT_SYSTEM_TEST_TIMEOUT_MS;
+      (test.timeoutMs === null
+        ? Infinity
+        : (test.timeoutMs ?? DEFAULT_SYSTEM_TEST_TIMEOUT_MS));
     const testDeadline = startTime + testTimeoutMs;
     const testRunner =
       typeof this.runner.forTest === "function"
@@ -512,7 +516,10 @@ export class TestRunner {
       const unexpected = unexpectedToolFailures(execution.toolFailures);
       if (unexpected.length > 0) {
         const failureReason = `Unexpected failed tool calls: ${unexpected
-          .map((failure) => `${failure.name}:${failure.failureCode ?? failure.terminalReasonCode ?? failure.status ?? "error"}`)
+          .map(
+            (failure) =>
+              `${failure.name}:${failure.failureCode ?? failure.terminalReasonCode ?? failure.status ?? "error"}`,
+          )
           .join(", ")}`;
         result = {
           passed: false,
@@ -778,6 +785,7 @@ export class TestRunner {
     message: string,
     controller?: AbortController,
   ): Promise<T> {
+    if (timeoutMs === Infinity) return promise;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
@@ -1159,6 +1167,7 @@ interface InvocationLike {
   error?: unknown;
   result?: unknown;
   arguments?: unknown;
+  args?: unknown;
   execution?: {
     status?: unknown;
     terminalOutcome?: unknown;
@@ -1189,9 +1198,35 @@ export function findSystemTestImplementationInspections(
     const name =
       asString(invocation.name) ?? asString(invocation.method) ?? "(unknown)";
     if (!["read", "grep", "find", "ls", "eval"].includes(name)) return;
-    const args = invocation.arguments;
+    const args = invocation.arguments ?? invocation.args;
     const serialized = args === undefined ? "" : safeJson(args);
-    if (!/skills[\/]system-testing(?:[\/]|\b)/u.test(serialized)) return;
+    const harnessPath = (value: unknown) =>
+      typeof value === "string" &&
+      /(?:^|[\\/])skills[\\/]system-testing(?:[\\/]|$)/u.test(value);
+    let accessesImplementation = false;
+    if (name === "eval") {
+      const result = invocation.execution?.result ?? invocation.result;
+      const details =
+        isRecord(result) && isRecord(result["details"])
+          ? result["details"]
+          : undefined;
+      const journal =
+        details && isRecord(details["operationJournal"])
+          ? details["operationJournal"]
+          : undefined;
+      accessesImplementation =
+        journal?.["protocol"] === "workspace-operations.v1" &&
+        Array.isArray(journal["entries"]) &&
+        journal["entries"].some(
+          (entry: unknown) =>
+            isRecord(entry) &&
+            entry["type"] === "fs.read" &&
+            harnessPath(entry["path"]),
+        );
+    } else {
+      accessesImplementation = isRecord(args) && harnessPath(args["path"]);
+    }
+    if (!accessesImplementation) return;
     const id = asString(invocation.id) ?? null;
     const key = id ?? `${name}:${serialized}`;
     if (seen.has(key)) return;

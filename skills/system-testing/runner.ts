@@ -165,7 +165,7 @@ function fixturePublicationAuthority(
     },
     {
       ruleId: "fixture-publication",
-      capability: { kind: "exact", key: "workspace-main-advance" },
+      capability: { kind: "exact", key: "workspace.publish" },
       // Main advancement authorizes one immutable, atomic publication rather
       // than one repository ref. The fixture still owns and verifies the
       // repository scope: setup gives the case an isolated task context and

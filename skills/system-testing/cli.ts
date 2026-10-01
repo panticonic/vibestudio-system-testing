@@ -1,3 +1,4 @@
+import { selectExplicitSystemTests } from "./selection.js";
 import { rpc, workers, vcs } from "@workspace/runtime";
 import { logIdForChannel } from "@vibestudio/trajectory-identity";
 import { HeadlessRunner } from "./runner.js";
@@ -59,6 +60,7 @@ export function systemTestProgressCheckpoint(
 }
 
 export interface SystemTestDescriptor {
+  explicitOnly?: true;
   name: string;
   category: string;
   description: string;
@@ -278,6 +280,7 @@ export function listSystemTests(
     name: test.name,
     category: test.category,
     description: test.description,
+    ...(test.explicitOnly ? { explicitOnly: true as const } : {}),
     orchestrated: typeof test.orchestrate === "function",
     requiresUnits: [...(test.requiresUnits ?? [])],
     ...(installed
@@ -863,6 +866,7 @@ function selectTests(options: SystemTestRunOptions): {
       options.all === true || names.length === 0 ? tests : selected
     ).filter((test) => test.category === options.category);
   }
+  selected = selectExplicitSystemTests(selected, names);
   const notInstalled: Array<{ name: string; missingUnits: string[] }> = [];
   selected = selected.filter((test) => {
     const missingUnits = missingUnitsFor(test, options.installedUnits);

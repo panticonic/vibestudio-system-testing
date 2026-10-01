@@ -1,7 +1,13 @@
 import type { ChatMessage } from "@workspace/agentic-core";
-import type { HeadlessSession, SessionSnapshot } from "@workspace/agentic-session";
+import type {
+  HeadlessSession,
+  SessionSnapshot,
+} from "@workspace/agentic-session";
 import type { HeadlessRunner } from "./runner.js";
-import type { SystemTestFailure, SystemTestJsonValue } from "./structured-error.js";
+import type {
+  SystemTestFailure,
+  SystemTestJsonValue,
+} from "./structured-error.js";
 import type { WorkspaceRepoCreationScope } from "./workspace-repo-fixture.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 
@@ -117,7 +123,10 @@ export interface ToolFailureSummary {
   /** True when the test explicitly exercises this failure mode. */
   expected?: boolean;
   /** Diagnostic category; classification does not exempt a failure from the verdict. */
-  classification?: "argument-rejection" | "domain-rejection" | "guest-code-failure";
+  classification?:
+    | "argument-rejection"
+    | "domain-rejection"
+    | "guest-code-failure";
   /** Typed eval/runtime discriminator, when the protocol supplies one. */
   failureCode?: string;
   source: "message" | "snapshot";
@@ -138,7 +147,11 @@ export type ExpectedToolFailure = { name: string } & (
  */
 export interface AgentTrajectoryReview {
   required: true;
-  agentReportedOutcome: "completed" | "incomplete" | "unspecified" | "conflicting";
+  agentReportedOutcome:
+    | "completed"
+    | "incomplete"
+    | "unspecified"
+    | "conflicting";
   invocationCount: number;
   modelCallCount: number;
   unexpectedToolFailureCount: number;
@@ -152,16 +165,23 @@ export interface AgentTrajectoryReview {
 
 export interface TestAuthorityPolicyContext {
   testName: string;
-  workspaceRepoFixture: (WorkspaceRepoCreationScope & { repoName: string | null }) | null;
+  workspaceRepoFixture:
+    | (WorkspaceRepoCreationScope & { repoName: string | null })
+    | null;
 }
 
 export type TestAuthorityPolicy =
   | Omit<AgentExecutionTestPolicySpec, "testId" | "agent" | "unexpectedPrompts">
   | ((
-      context: TestAuthorityPolicyContext
-    ) => Omit<AgentExecutionTestPolicySpec, "testId" | "agent" | "unexpectedPrompts">);
+      context: TestAuthorityPolicyContext,
+    ) => Omit<
+      AgentExecutionTestPolicySpec,
+      "testId" | "agent" | "unexpectedPrompts"
+    >);
 
 export interface TestCase {
+  /** Requires an exact name: excluded from category, all, and default staged runs. */
+  explicitOnly?: boolean;
   name: string;
   description: string;
   category: string;
@@ -179,9 +199,10 @@ export interface TestCase {
   /**
    * Case-specific end-to-end budget. Use this only when the user-visible
    * operation has an intrinsically longer deadline than the catalog default.
-   * An explicit run-level timeout still takes precedence.
+   * null means no elapsed-time deadline. An explicit run-level timeout
+   * still takes precedence.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | null;
   /** Natural language task prompt sent to the test agent */
   prompt: string;
   /**
@@ -221,7 +242,9 @@ export interface TestCase {
    * headless agents, ordered phases, or other harness-level setup that a single
    * agent should not fake from inside one context.
    */
-  orchestrate?: (context: TestOrchestrationContext) => Promise<TestExecutionResult>;
+  orchestrate?: (
+    context: TestOrchestrationContext,
+  ) => Promise<TestExecutionResult>;
   /** Deterministic protocol probes use harness execution instead of an agent goal. */
   validation?: "harness";
   /** Every supplied validator gates success on its observed outcome facts. */
@@ -236,7 +259,11 @@ export interface TestOrchestrationContext {
    * that phase. Orchestrated validators use this identity instead of guessing
    * turn boundaries from transcript rows that intentionally omit local user
    * publications. */
-  sendAndWait(session: HeadlessSession, prompt: string, phase: string): Promise<ChatMessage>;
+  sendAndWait(
+    session: HeadlessSession,
+    prompt: string,
+    phase: string,
+  ): Promise<ChatMessage>;
 }
 
 export interface TestExecutionResult {
@@ -316,7 +343,10 @@ export interface TestSuiteResult {
  * built from other templates simply does not have it. Saying so once at the
  * group keeps the requirement next to the reason for it.
  */
-export function requiringUnits(units: readonly string[], cases: TestCase[]): TestCase[] {
+export function requiringUnits(
+  units: readonly string[],
+  cases: TestCase[],
+): TestCase[] {
   return cases.map((test) => ({
     ...test,
     requiresUnits: [...new Set([...(test.requiresUnits ?? []), ...units])],

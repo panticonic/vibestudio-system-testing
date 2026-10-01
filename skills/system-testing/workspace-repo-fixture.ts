@@ -645,12 +645,14 @@ export class WorkspaceRepoFixtureLifecycle {
     const cleanupChangeIds = new Set<string>();
     const counteractedOriginalIds = new Set<string>();
     const observedFrontiers = new Set<string>();
+    const removedFileIds = new Set<string>();
     while (true) {
       const changeIds = await this.currentRepositoryFrontier(
         workingHead,
         createdRepositories,
         cleanupChangeIds,
         counteractedOriginalIds,
+        removedFileIds,
       );
       if (changeIds.length === 0) break;
       const frontier = JSON.stringify({ workingHead, changeIds });
@@ -673,20 +675,40 @@ export class WorkspaceRepoFixtureLifecycle {
       for (const changeId of changeIds) counteractedOriginalIds.add(changeId);
       for (const changeId of reverted.changeIds) cleanupChangeIds.add(changeId);
     }
-    const remainingTaskChangeIds = [...new Set(ownedTaskChangeIds)]
-      .filter((changeId) => !counteractedOriginalIds.has(changeId))
-      .sort();
-    if (remainingTaskChangeIds.length > 0) {
+    // Repository teardown already counteracted the live file coordinates,
+    // including integrated changes authored on another parent. Historical
+    // edits of those removed files are not live effects to replay. The task can
+    // also have changed existing workspace metadata: restore those separately,
+    // newest work first and newest operation first within each work unit.
+    const ownedRepositoryIds = new Set(
+      createdRepositories.map((r) => r.repositoryId),
+    );
+    for (const changeId of [...new Set(ownedTaskChangeIds)]) {
+      if (counteractedOriginalIds.has(changeId)) continue;
+      const inspected = await this.port.vcs.inspect({
+        node: { kind: "change", changeId },
+        edgeLimit: 1,
+      });
+      if (inspected.node.kind !== "change")
+        throw new Error(`Cannot inspect task change ${changeId}`);
+      if (
+        inspected.node.value.effects.every((effect) =>
+          effect.kind === "repository-placement"
+            ? ownedRepositoryIds.has(effect.repositoryId)
+            : removedFileIds.has(effect.fileId),
+        )
+      )
+        continue;
       onPhase?.("counteract-revert");
       const reverted = await this.port.vcs.revert({
         contextId: cleanupContextId,
         commandId: this.command("revert-task-work"),
         expectedWorkingHead: workingHead,
-        changeIds: remainingTaskChangeIds,
+        changeIds: [changeId],
         intentSummary: `Remove published system-test work from ${this.scopeLabel(state)}`,
       });
       workingHead = reverted.workingHead;
-      counteractedChangeIds.push(...remainingTaskChangeIds);
+      counteractedChangeIds.push(changeId);
     }
     if (counteractedChangeIds.length === 0) return [];
     onPhase?.("counteract-commit");
@@ -727,6 +749,7 @@ export class WorkspaceRepoFixtureLifecycle {
     createdRepositories: TaskCreatedRepository[],
     cleanupChangeIds: ReadonlySet<string>,
     counteractedOriginalIds: ReadonlySet<string>,
+    removedFileIds: Set<string>,
   ): Promise<string[]> {
     const changeIds: string[] = [];
     const seen = new Set<string>();
@@ -763,6 +786,7 @@ export class WorkspaceRepoFixtureLifecycle {
         );
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
+      for (const file of files) removedFileIds.add(file.fileId);
       const removals = await Promise.all(
         files.map(async (file) => {
           const changeId = await this.originalFileFrontier(
@@ -1003,7 +1027,20 @@ export class WorkspaceRepoFixtureLifecycle {
       }
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
-    return changeIds;
+    const changes = await Promise.all(
+      changeIds.map(async (changeId) => {
+        const inspected = await this.port.vcs.inspect({
+          node: { kind: "change", changeId },
+          edgeLimit: 1,
+        });
+        if (inspected.node.kind !== "change")
+          throw new Error(`Cannot inspect authored change ${changeId}`);
+        return inspected.node.value;
+      }),
+    );
+    return changes
+      .sort((a, b) => b.operation - a.operation)
+      .map((change) => change.changeId);
   }
 
   private async inspectTaskChanges(
@@ -1024,12 +1061,10 @@ export class WorkspaceRepoFixtureLifecycle {
             `Workspace fixture could not inspect change ${changeId}`,
           );
         }
-        if (change.node.value.kind !== "repository-create") {
-          continue;
-        }
         for (const effect of change.node.value.effects) {
           if (
             effect.kind === "repository-placement" &&
+            effect.beforePath === null &&
             effect.afterPath !== null
           ) {
             const prior = createdRepositories.get(effect.repositoryId);

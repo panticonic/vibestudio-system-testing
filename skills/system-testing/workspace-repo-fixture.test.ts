@@ -46,7 +46,9 @@ function event(eventId: string) {
   return { kind: "event" as const, eventId };
 }
 
-function createPort() {
+function createPort(
+  repositoryBirthKind: "repository-create" | "merge" = "repository-create",
+) {
   let contexts = 0;
   let published = false;
   let escaped = false;
@@ -292,7 +294,7 @@ function createPort() {
               authoredByWorkUnitId: "work:escaped",
               operation: 0,
               kind: repositoryCreate
-                ? ("repository-create" as const)
+                ? repositoryBirthKind
                 : fileCreate
                   ? ("file-create" as const)
                   : ("text-edit" as const),
@@ -695,6 +697,28 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
   });
 
+  it("owns repository births introduced by subagent merge effects", async () => {
+    const fake = createPort("merge");
+    const fixture = new WorkspaceRepoFixtureLifecycle(
+      fake.port,
+      "merged-panel-store",
+      null,
+      CREATED_PANEL_STORE,
+    );
+    const state = await fixture.prepare();
+    fake.createTaskRepositories(["panels/notes", "workers/notes-store"]);
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: null,
+      counteractedChangeIds: expect.arrayContaining([
+        "change:task-created:0",
+        "change:task-created:1",
+      ]),
+    });
+    expect(fake.createContext).toHaveBeenNthCalledWith(2, {
+      counteractionRepoPaths: ["panels/notes", "workers/notes-store"],
+    });
+  });
+
   it("fails a task-created scope when the task creates no repository", async () => {
     const fake = createPort();
     const fixture = new WorkspaceRepoFixtureLifecycle(
@@ -743,6 +767,103 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(fake.revert).toHaveBeenCalledWith(
       expect.objectContaining({ changeIds: ["change:workspace-meta"] }),
     );
+  });
+
+  it("removes integrated file coordinates without replaying obsolete task edits", async () => {
+    const fake = createPort();
+    const fixture = new WorkspaceRepoFixtureLifecycle(
+      fake.port,
+      "integrated-panel-store",
+      null,
+      CREATED_PANEL_STORE,
+    );
+    const state = await fixture.prepare();
+    fake.createTaskRepositories(
+      ["panels/notes", "workers/notes-store"],
+      ["change:obsolete", "change:workspace-meta"],
+    );
+    const originalInspect = fake.inspect.getMockImplementation()!;
+    fake.inspect.mockImplementation(async (input) => {
+      const inspected = await originalInspect(input);
+      if (input.node.kind !== "change") return inspected;
+      if (input.node.changeId === "change:obsolete")
+        return {
+          ...inspected,
+          node: {
+            kind: "change",
+            value: {
+              ...(inspected.node as any).value,
+              kind: "text-edit",
+              effects: [
+                {
+                  kind: "content",
+                  fileId: "file:integrated-owned",
+                  beforeContentHash: "old",
+                  afterContentHash: "intermediate",
+                },
+              ],
+            },
+          },
+        } as any;
+      if (input.node.changeId === "change:live-parent")
+        return {
+          ...inspected,
+          node: {
+            kind: "change",
+            value: {
+              ...(inspected.node as any).value,
+              kind: "file-create",
+              effects: [
+                {
+                  kind: "placement",
+                  fileId: "file:integrated-owned",
+                  before: null,
+                  after: {
+                    repositoryId: "repository:task-created:0",
+                    path: "index.tsx",
+                  },
+                },
+              ],
+            },
+          },
+        } as any;
+      return inspected;
+    });
+    let removed = false;
+    const originalList = fake.listFiles.getMockImplementation()!;
+    fake.listFiles.mockImplementation(async (input) => {
+      const result = await originalList(input);
+      if (input.repositoryId === "repository:task-created:0" && !removed)
+        return {
+          ...result,
+          files: [
+            {
+              fileId: "file:integrated-owned",
+              authoredChangeId: "change:live-parent",
+              path: "index.tsx",
+              contentHash: "live",
+              mode: 420,
+            },
+          ],
+        } as any;
+      return result;
+    });
+    const originalRevert = fake.revert.getMockImplementation()!;
+    fake.revert.mockImplementation(async (input) => {
+      if (input.changeIds.includes("change:obsolete"))
+        throw new Error("Historical edit no longer holds");
+      if (input.changeIds.includes("change:live-parent")) removed = true;
+      return originalRevert(input);
+    });
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      counteractedChangeIds: expect.arrayContaining([
+        "change:live-parent",
+        "change:workspace-meta",
+      ]),
+    });
+    expect(
+      fake.revert.mock.calls.flatMap(([input]) => input.changeIds),
+    ).not.toContain("change:obsolete");
   });
 
   it("rejects a panel-store publication missing either repository kind", async () => {

@@ -746,7 +746,11 @@ describe("TestRunner", () => {
         validate: () => ({ passed: true }),
       },
     ]);
-    expect(repeatedSuite).toMatchObject({ passed: 0, failed: 1, toolFailureCount: 1 });
+    expect(repeatedSuite).toMatchObject({
+      passed: 0,
+      failed: 1,
+      toolFailureCount: 1,
+    });
 
     expect(expectedSuite.results[0]!.execution.toolFailures).toEqual(
       expect.arrayContaining([
@@ -849,44 +853,43 @@ describe("TestRunner", () => {
     expect(listener).toBeUndefined();
   });
 
-  it(
-    "rejects internal instructions in delivered agent-goal follow-ups",
-    async () => {
-      const session = {
-        channelId: "chat-follow-up",
-        messages: [],
-        sendAndWait: vi.fn(),
-        close: vi.fn(async () => undefined),
-      };
-      const runner = {
-        modelRef: TEST_MODEL,
-        spawn: vi.fn(async () => session),
-        closeOwnedDevelopmentSessions: vi.fn(async () => []),
-        collectDiagnostics: vi.fn(async () => ({})),
-      } as unknown as HeadlessRunner;
-      const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
-      const { result } = await tester.runOne({
-        name: "follow-up-contract",
-        category: "test",
-        description: "reject an answer-bearing follow-up before delivery",
-        prompt: "Help me finish the task.",
-        orchestrate: async ({ runner: subject, sendAndWait }) => {
-          const target = await subject.spawn();
-          try {
-            await sendAndWait(target, "Call spawn_subagent now.", "recovery");
-          } finally {
-            await target.close();
-          }
-          return { messages: [], duration: 1 };
-        },
-        validate: () => ({ passed: true }),
-      });
-      expect(result.passed).toBe(false);
-      expect(result.reason).toContain("during recovery prescribes internal agent tool name");
-      expect(session.sendAndWait).not.toHaveBeenCalled();
-      expect(session.close).toHaveBeenCalledOnce();
-    },
-  );
+  it("rejects internal instructions in delivered agent-goal follow-ups", async () => {
+    const session = {
+      channelId: "chat-follow-up",
+      messages: [],
+      sendAndWait: vi.fn(),
+      close: vi.fn(async () => undefined),
+    };
+    const runner = {
+      modelRef: TEST_MODEL,
+      spawn: vi.fn(async () => session),
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      collectDiagnostics: vi.fn(async () => ({})),
+    } as unknown as HeadlessRunner;
+    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
+    const { result } = await tester.runOne({
+      name: "follow-up-contract",
+      category: "test",
+      description: "reject an answer-bearing follow-up before delivery",
+      prompt: "Help me finish the task.",
+      orchestrate: async ({ runner: subject, sendAndWait }) => {
+        const target = await subject.spawn();
+        try {
+          await sendAndWait(target, "Call spawn_subagent now.", "recovery");
+        } finally {
+          await target.close();
+        }
+        return { messages: [], duration: 1 };
+      },
+      validate: () => ({ passed: true }),
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reason).toContain(
+      "during recovery prescribes internal agent tool name",
+    );
+    expect(session.sendAndWait).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledOnce();
+  });
 
   it("runs custom test orchestration through the normal validation path", async () => {
     const messages = [
@@ -1966,6 +1969,23 @@ describe("system-test implementation boundary", () => {
             arguments: {
               code: 'return fs.readFile("skills/system-testing/workspace-repo-fixture.ts")',
             },
+            execution: {
+              result: {
+                details: {
+                  operationJournal: {
+                    protocol: "workspace-operations.v1",
+                    entries: [
+                      {
+                        type: "fs.read",
+                        method: "fs.readFile",
+                        path: "skills/system-testing/workspace-repo-fixture.ts",
+                      },
+                    ],
+                    truncated: false,
+                  },
+                },
+              },
+            },
           },
         },
       ],
@@ -1984,6 +2004,44 @@ describe("system-test implementation boundary", () => {
           '{"code":"return fs.readFile(\\"skills/system-testing/workspace-repo-fixture.ts\\")"}',
       },
     ]);
+  });
+
+  it("does not treat quoted diagnostics or search text as implementation access", () => {
+    const execution = {
+      messages: [],
+      duration: 1,
+      snapshot: {
+        invocations: [
+          {
+            id: "report",
+            name: "eval",
+            arguments: {
+              code: "await rpc.call('main','problemReports.create',[{description:'skills/system-testing/tests/trello-live-import.ts:158: implicit any'}])",
+            },
+            execution: {
+              result: {
+                details: {
+                  operationJournal: {
+                    protocol: "workspace-operations.v1",
+                    entries: [],
+                    truncated: false,
+                  },
+                },
+              },
+            },
+          },
+          {
+            id: "grep",
+            name: "grep",
+            arguments: {
+              path: "projects/example",
+              pattern: "skills/system-testing/tests",
+            },
+          },
+        ],
+      },
+    } as unknown as TestExecutionResult;
+    expect(findSystemTestImplementationInspections(execution)).toEqual([]);
   });
 
   it("records the company a test kept, including an overlap entirely inside its span", async () => {

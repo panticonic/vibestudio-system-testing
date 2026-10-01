@@ -888,7 +888,7 @@ describe("HeadlessRunner", () => {
               },
               {
                 ruleId: "fixture-publication",
-                capability: { kind: "exact", key: "workspace-main-advance" },
+                capability: { kind: "exact", key: "workspace.publish" },
                 resource: {
                   kind: "prefix",
                   prefix: "workspace-source-change:publication:",
@@ -972,7 +972,7 @@ describe("HeadlessRunner", () => {
             authority: expect.arrayContaining([
               {
                 ruleId: "fixture-publication",
-                capability: { kind: "exact", key: "workspace-main-advance" },
+                capability: { kind: "exact", key: "workspace.publish" },
                 resource: {
                   kind: "prefix",
                   prefix: "workspace-source-change:publication:",

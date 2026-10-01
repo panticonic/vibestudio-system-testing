@@ -25,6 +25,10 @@ Implementation entry points: `runner.ts`, `test-runner.ts`, `types.ts`,
 `stages.ts`, `diagnostics.ts`, and `tests/`. Import suite collections from the
 stages entry point, not individual test files.
 
+## Explicit live-data tests
+
+Cases marked `explicitOnly` require their exact name and are excluded from category, all, and staged runs. Read [live Trello migration](references/live-trello-migration.md) before opting into the Firefox/Trello workflow; it uses real personal browser data and live credentials.
+
 ## CLI repair loop
 
 Use one stable, unique instance ID throughout an investigation.
