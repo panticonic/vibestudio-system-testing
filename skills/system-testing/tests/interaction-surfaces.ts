@@ -162,6 +162,7 @@ async function runOnboardingStableIdRoute(
 export const interactionSurfaceTests: TestCase[] = [
   {
     name: "onboarding-opening-overview",
+    requiresUnits: ["skills/onboarding"],
     description: "Publish the self-materializing setup overview inside the inviting panel",
     category: "interaction-surfaces",
     prompt: "I just opened this workspace for the first time. Show me the setup overview.",
@@ -210,6 +211,7 @@ export const interactionSurfaceTests: TestCase[] = [
   },
   {
     name: "onboarding-stable-id-routing",
+    requiresUnits: ["skills/onboarding"],
     description: "Route an onboarding selection from structured interaction metadata",
     category: "interaction-surfaces",
     prompt: "Use the selected setup action.",

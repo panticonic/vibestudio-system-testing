@@ -12,14 +12,14 @@ command starts an investigation, not a report.
 
 ## Read by task
 
-| Task | Reference |
-| --- | --- |
-| Diagnose a run or artifact | [diagnostics and artifacts](references/diagnostics-and-artifacts.md) |
-| Author or revise a scenario | [scenario authoring](references/scenario-authoring.md) |
-| Review technical task instructions | [prompt audit](references/prompt-audit.md) |
-| Select coverage | [scenario catalog](references/scenario-catalog.md) |
-| Repair a discovered defect | [self-improvement](SELF_IMPROVEMENT.md) |
-| Exercise managed source | [Vibestudio VCS](../vibestudio-vcs/SKILL.md) |
+| Task                               | Reference                                                            |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| Diagnose a run or artifact         | [diagnostics and artifacts](references/diagnostics-and-artifacts.md) |
+| Author or revise a scenario        | [scenario authoring](references/scenario-authoring.md)               |
+| Review technical task instructions | [prompt audit](references/prompt-audit.md)                           |
+| Select coverage                    | [scenario catalog](references/scenario-catalog.md)                   |
+| Repair a discovered defect         | [self-improvement](SELF_IMPROVEMENT.md)                              |
+| Exercise managed source            | [Vibestudio VCS](../vibestudio-vcs/SKILL.md)                         |
 
 Implementation entry points: `runner.ts`, `test-runner.ts`, `types.ts`,
 `stages.ts`, `diagnostics.ts`, and `tests/`. Import suite collections from the
@@ -35,7 +35,7 @@ Use one stable, unique instance ID throughout an investigation.
    pnpm system-test --instance <id> doctor
    ```
 
-      Doctor owns creation, readiness, and pairing of an isolated ephemeral
+   Doctor owns creation, readiness, and pairing of an isolated ephemeral
    instance. A missing or unpaired server is not a blocker. Inspect the printed
    supervisor log and repair failed infrastructure before interpreting scenario
    behavior. Never borrow or stop an unrelated instance.
@@ -52,7 +52,7 @@ Use one stable, unique instance ID throughout an investigation.
    pnpm system-test --instance <id> run <test-name>
    ```
 
-      Use `--detach` plus the documented status command for long runs. Treat
+   Use `--detach` plus the documented status command for long runs. Treat
    cancellation and timeouts as terminal records whose cleanup evidence must be
    inspected — never add sleeps or extend deadlines to conceal liveness bugs.
    Pass an explicit model only when the model itself is the experiment. Default
@@ -103,8 +103,8 @@ semantic method on a provisioned instance — including `walk`, `query`, and
 `search` — in about two seconds and without a model in the loop. Attach a probe
 session once (`vibestudio agent attach probe`) and use it to answer "does this
 surface work at all" before writing or rerunning a scenario. An agentic run is
-the right instrument for *whether an agent can find and use* a capability; it is
-a slow and nondeterministic way to learn *whether the capability functions*.
+the right instrument for _whether an agent can find and use_ a capability; it is
+a slow and nondeterministic way to learn _whether the capability functions_.
 
 ## Orchestrator and test subject
 
@@ -187,5 +187,5 @@ explain the mismatch.
 
 The orchestrator can run from eval, workers, Durable Objects, or panels. Use the
 authorized runtime participant identity — never invent a synthetic participant.
-For trusted app failures, read [app development](../appdev/SKILL.md). For host
+For trusted app failures, read the `skills/appdev/SKILL.md` skill in the System workspace. For host
 source repair, use [SELF_IMPROVEMENT.md](SELF_IMPROVEMENT.md).
