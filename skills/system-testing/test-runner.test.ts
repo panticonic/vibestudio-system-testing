@@ -2040,6 +2040,19 @@ describe("system-test implementation boundary", () => {
         arguments: {
           code: 'return fs.readFile("skills/system-testing/SKILL.md")',
         },
+        execution: {
+          result: {
+            details: {
+              operationJournal: {
+                protocol: "workspace-operations.v1",
+                entries: [
+                  { type: "fs.read", path: "skills/system-testing/SKILL.md" },
+                ],
+                truncated: false,
+              },
+            },
+          },
+        },
       },
       {
         name: "grep",
@@ -2112,6 +2125,23 @@ describe("system-test implementation boundary", () => {
             arguments: {
               code: 'return fs.readFile("skills/system-testing/workspace-repo-fixture.ts")',
             },
+            execution: {
+              result: {
+                details: {
+                  operationJournal: {
+                    protocol: "workspace-operations.v1",
+                    entries: [
+                      {
+                        type: "fs.read",
+                        method: "fs.readFile",
+                        path: "skills/system-testing/workspace-repo-fixture.ts",
+                      },
+                    ],
+                    truncated: false,
+                  },
+                },
+              },
+            },
           },
         },
       ],
@@ -2130,6 +2160,44 @@ describe("system-test implementation boundary", () => {
           '{"code":"return fs.readFile(\\"skills/system-testing/workspace-repo-fixture.ts\\")"}',
       },
     ]);
+  });
+
+  it("does not treat quoted diagnostics or search text as implementation access", () => {
+    const execution = {
+      messages: [],
+      duration: 1,
+      snapshot: {
+        invocations: [
+          {
+            id: "report",
+            name: "eval",
+            arguments: {
+              code: "await rpc.call('main','problemReports.create',[{description:'skills/system-testing/tests/trello-live-import.ts:158: implicit any'}])",
+            },
+            execution: {
+              result: {
+                details: {
+                  operationJournal: {
+                    protocol: "workspace-operations.v1",
+                    entries: [],
+                    truncated: false,
+                  },
+                },
+              },
+            },
+          },
+          {
+            id: "grep",
+            name: "grep",
+            arguments: {
+              path: "projects/example",
+              pattern: "skills/system-testing/tests",
+            },
+          },
+        ],
+      },
+    } as unknown as TestExecutionResult;
+    expect(findSystemTestImplementationInspections(execution)).toEqual([]);
   });
 
   it("records the company a test kept, including an overlap entirely inside its span", async () => {
@@ -2247,7 +2315,10 @@ describe("worker fixture runtime observations", () => {
         },
       });
       expect(runner.observeFixtureRuntimeEntities).toHaveBeenCalledWith(
-        expect.objectContaining({ contextId: "ctx-worker", section: "workers" }),
+        expect.objectContaining({
+          contextId: "ctx-worker",
+          section: "workers",
+        }),
       );
       expect(order).toEqual(
         failObservation

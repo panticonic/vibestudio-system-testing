@@ -282,8 +282,9 @@ export class TestRunner {
     const startTime = Date.now();
     const testTimeoutMs =
       this.opts?.testTimeoutMs ??
-      test.timeoutMs ??
-      DEFAULT_SYSTEM_TEST_TIMEOUT_MS;
+      (test.timeoutMs === null
+        ? Infinity
+        : (test.timeoutMs ?? DEFAULT_SYSTEM_TEST_TIMEOUT_MS));
     const testDeadline = startTime + testTimeoutMs;
     const testRunner =
       typeof this.runner.forTest === "function"
@@ -839,6 +840,7 @@ export class TestRunner {
     message: string,
     controller: AbortController,
   ): Promise<T> {
+    if (timeoutMs === Infinity) return promise;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let deadlineError: Error | undefined;
     try {
@@ -1246,6 +1248,7 @@ interface InvocationLike {
   error?: unknown;
   result?: unknown;
   arguments?: unknown;
+  args?: unknown;
   execution?: {
     status?: unknown;
     terminalOutcome?: unknown;
@@ -1276,30 +1279,39 @@ export function findSystemTestImplementationInspections(
     const name =
       asString(invocation.name) ?? asString(invocation.method) ?? "(unknown)";
     // Discovery metadata and published Markdown guides are product surfaces.
-    // Reading/scanning executable harness source is a different operation.
     if (!["read", "grep", "eval"].includes(name)) return;
-    const args = invocation.arguments;
+    const args = invocation.arguments ?? invocation.args;
+
     const serialized = args === undefined ? "" : safeJson(args);
-    const argumentRecord = asRecord(args);
-    const paths =
-      name === "eval"
-        ? Array.from(
-            String(argumentRecord?.["code"] ?? "").matchAll(
-              /["'`](?:[^"'`]*?\/)?(skills\/system-testing(?:\/[^"'`\s]*)?)["'`]/gu,
-            ),
-            (match) => match[1]!,
-          )
-        : typeof argumentRecord?.["path"] === "string"
-          ? [argumentRecord["path"]]
-          : [];
-    if (
-      !paths.some(
-        (path) =>
-          /(?:^|\/)skills\/system-testing(?:\/|$)/u.test(path) &&
-          !/\.md$/iu.test(path),
-      )
-    )
-      return;
+    const harnessPath = (value: unknown) =>
+      typeof value === "string" &&
+      /(?:^|[\\/])skills[\\/]system-testing(?:[\\/]|$)/u.test(value) &&
+      !/\.md$/iu.test(value);
+    let accessesImplementation = false;
+    if (name === "eval") {
+      const result = invocation.execution?.result ?? invocation.result;
+      const details =
+        isRecord(result) && isRecord(result["details"])
+          ? result["details"]
+          : undefined;
+      const journal =
+        details && isRecord(details["operationJournal"])
+          ? details["operationJournal"]
+          : undefined;
+      accessesImplementation =
+        journal?.["protocol"] === "workspace-operations.v1" &&
+        Array.isArray(journal["entries"]) &&
+        journal["entries"].some(
+          (entry: unknown) =>
+            isRecord(entry) &&
+            entry["type"] === "fs.read" &&
+            harnessPath(entry["path"]),
+        );
+    } else {
+      accessesImplementation = isRecord(args) && harnessPath(args["path"]);
+    }
+    if (!accessesImplementation) return;
+
     const id = asString(invocation.id) ?? null;
     const key = id ?? `${name}:${serialized}`;
     if (seen.has(key)) return;

@@ -1,3 +1,4 @@
+import { trelloLiveImportTests } from "./tests/trello-live-import.js";
 import { problemReportingTests } from "./tests/problem-reporting.js";
 import { requiringUnits, type TestCase } from "./types.js";
 import { assertSystemTestDeclaration } from "./prompt-contract.js";
@@ -132,6 +133,7 @@ export type NextTestStage = {
 
 export function allTests(): TestCase[] {
   const tests = [
+    ...trelloLiveImportTests,
     ...smokeTests,
     ...filesystemTests,
     ...vcsTests,
@@ -205,9 +207,10 @@ export function testCategories(tests: TestCase[] = allTests()): string[] {
 }
 
 export function testStages(
-  tests: TestCase[] = allTests(),
+  tests: TestCase[] = allTests().filter((test) => !test.explicitOnly),
   maxTestsPerStage?: number,
 ): TestStage[] {
+  tests = tests.filter((test) => !test.explicitOnly);
   const stages: TestStage[] = [];
   for (const category of testCategories(tests)) {
     const categoryTests = tests.filter((test) => test.category === category);
@@ -238,7 +241,7 @@ export function testStageChoices(
 }
 
 export function selectedTestStages(
-  tests: TestCase[] = allTests(),
+  tests: TestCase[] = allTests().filter((test) => !test.explicitOnly),
   run?: TestStageRunState | null,
 ): TestStage[] {
   const stages = testStages(tests);
@@ -253,7 +256,7 @@ export function selectedTestStages(
 }
 
 export function nextSelectedStage(
-  tests: TestCase[] = allTests(),
+  tests: TestCase[] = allTests().filter((test) => !test.explicitOnly),
   run?: TestStageRunState | null,
 ): NextTestStage | null {
   const selectedStages = selectedTestStages(tests, run);
