@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import type { TestExecutionResult } from "../types.js";
 import { oauthTests } from "./oauth.js";
+import { sha256HexSyncText } from "@vibestudio/content-addressing";
 
 const URL = "https://system-test-missing.invalid/resource";
 
 function credentialMissExecution(
   code: string,
-  result: unknown = { missing: true }
+  result: unknown = { missing: true },
+  native: { found: boolean; requestDigest: string } | null = {
+    found: false,
+    requestDigest: sha256HexSyncText(JSON.stringify([{ url: URL }])),
+  }
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -34,7 +39,13 @@ function credentialMissExecution(
           terminalOutcome: "success",
           isError: false,
           arguments: { code },
-          result: { details: { success: true, returnValue: result } },
+          result: { details: { success: true, returnValue: result,
+            operationJournal: { protocol: "workspace-operations.v1", truncated: false, entries: native ? [{
+              type: "credentials.resolution", receipt: {
+                protocol: "credential-resolution-observation.v1", method: "credentials.resolveCredential", ...native,
+              },
+            }] : [] },
+          } },
         },
       } as unknown as TestExecutionResult["messages"][number],
       {
@@ -57,6 +68,21 @@ function test() {
 }
 
 describe("OAuth system test validators", () => {
+  it("accepts any safe guest summary while requiring native evidence of the exact miss", () => {
+    const code = `return await credentials.resolveCredential({ url: "${URL}" });`;
+    const native = { found: false, requestDigest: sha256HexSyncText(JSON.stringify([{ url: URL }])) };
+    expect(test().validate(credentialMissExecution(code, { found: false }, native)).passed).toBe(true);
+    expect(test().validate(credentialMissExecution(code, { missing: true }, null)).passed).toBe(false);
+    expect(test().validate(credentialMissExecution(code, { missing: true }, { ...native, requestDigest: "a".repeat(64) })).passed).toBe(false);
+    expect(test().validate(credentialMissExecution(code, { missing: true }, { ...native, found: true })).passed).toBe(false);
+  });
+  it("accepts a read-only miss report with ordinary typographic punctuation", () => {
+    const result = credentialMissExecution(`return await credentials.resolveCredential({ url: "${URL}" });`);
+    result.messages[result.messages.length - 1]!.content =
+      "No credential is stored for that URL. This was a read-only lookup; I didn’t connect an account or expose any secrets.";
+    expect(test().validate(result)).toEqual({ passed: true });
+  });
+
   it("proves the null credential-resolution contract without interactive authorization", () => {
     const result = credentialMissExecution(
       `const value = await credentials.resolveCredential({ url: "${URL}" }); return { missing: value === null };`
@@ -88,7 +114,8 @@ describe("OAuth system test validators", () => {
   it("rejects an eval that did not return a true miss observation", () => {
     const result = credentialMissExecution(
       `const value = await credentials.resolveCredential({ url: "${URL}" }); return { missing: value === null };`,
-      { missing: false }
+      { missing: false },
+      { found: true, requestDigest: sha256HexSyncText(JSON.stringify([{ url: URL }])) }
     );
 
     expect(test().validate(result)).toMatchObject({

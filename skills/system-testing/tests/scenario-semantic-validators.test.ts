@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { buildTests } from "./build.js";
+import { messagingTests } from "./messaging.js";
 import { evalLifecycleTests } from "./eval-lifecycle.js";
 import { extensionSurfaceTests } from "./extensions-surface.js";
 import { filesystemTests } from "./filesystem.js";
@@ -9,6 +10,7 @@ import { mobileTests } from "./mobile.js";
 import { workerTests } from "./workers.js";
 import { workspaceTests } from "./workspace.js";
 import { completedScenarioEvidence, requireCodeOperations } from "./_scenario-evidence.js";
+import { getToolCalls } from "./_helpers.js";
 
 interface EvalStep {
   code: string;
@@ -123,6 +125,20 @@ function scenario(tests: { name: string }[], name: string) {
 }
 
 describe("scenario tool protocol semantics", () => {
+  it("recognizes asserted receivers while retaining the exact receiver and method", () => {
+    expect(
+      requireCodeOperations(
+        "await (fs as any).symlink(target, link); await (workers as WorkerClient).list();",
+        [["fs.symlink", "workers.list"]]
+      ).passed
+    ).toBe(true);
+    expect(
+      requireCodeOperations("await (other as any).symlink(target, link);", [["fs.symlink"]]).passed
+    ).toBe(false);
+    expect(
+      requireCodeOperations("await (fs as any).readlink(link);", [["fs.symlink"]]).passed
+    ).toBe(false);
+  });
   it("recognizes quoted operation names independent of JavaScript quote style", () => {
     expect(
       requireCodeOperations("await rpc.call(target, 'providers', [])", [
@@ -151,7 +167,9 @@ describe("scenario tool protocol semantics", () => {
       },
     } as unknown as TestExecutionResult["messages"][number]);
 
-    expect(completedScenarioEvidence(result, [])).toMatchObject({ passed: true });
+    expect(completedScenarioEvidence(result, [])).toMatchObject({
+      passed: true,
+    });
   });
 });
 
@@ -164,8 +182,7 @@ describe("mobile onboarding validator", () => {
       'const devices = await rpc.call(service.targetId, "devices", []);',
       'const provisioned = await rpc.call(service.targetId, "provision", []);',
       'const workspace = await rpc.call(service.targetId, "readiness", [{ deviceId: provisioned.pairedDevice.deviceId }]);',
-      'const ready = await extensions.invoke("mobile-debug", "verifyWorkspaceReady", []);',
-      "return { provisioned, workspace, ready };",
+      "return { provisioned, workspace };",
     ].join("\n");
 
     const provisioned = {
@@ -179,25 +196,37 @@ describe("mobile onboarding validator", () => {
       workspaceStatus: "opening",
       pairedDevice: { deviceId: "mobile-1", label: "Phone", createdAt: 1 },
     };
-    const ready = {
-      ready: true,
-      workspaceConnected: true,
-      panelHostReady: true,
-      issues: [],
+    const workspace = {
+      status: "ready",
+      message: "Mobile workspace connected",
     };
-    const workspace = { status: "ready", message: "Mobile workspace connected" };
-    const check = (receipt: unknown, diagnostics = ready, publicStatus = workspace) =>
-      validator.validate(execution("The phone is set up and ready to use.", [{
-        code: fullWorkflow,
-        returnValue: { provisioned: receipt, workspace: publicStatus, ready: diagnostics },
-      }]));
+    const check = (receipt: unknown, publicStatus = workspace) =>
+      validator.validate(
+        execution("The phone is set up and ready to use.", [
+          {
+            code: fullWorkflow,
+            returnValue: {
+              provisioned: receipt,
+              workspace: publicStatus,
+            },
+          },
+        ])
+      );
 
     expect(check(provisioned)).toMatchObject({ passed: true });
-    expect(check({ ...provisioned, compatibleAppInstalled: false })).toMatchObject({ passed: false });
+    expect(check({ ...provisioned, compatibleAppInstalled: false })).toMatchObject({
+      passed: false,
+    });
     expect(check({ ...provisioned, pairedDevice: "[Circular]" })).toMatchObject({ passed: false });
-    expect(check({ ...provisioned, platform: "ios" })).toMatchObject({ passed: false });
-    expect(check(provisioned, { ...ready, panelHostReady: false })).toMatchObject({ passed: false });
-    expect(check(provisioned, ready, { ...workspace, status: "opening" })).toMatchObject({ passed: false });
+    expect(check({ ...provisioned, platform: "ios" })).toMatchObject({
+      passed: false,
+    });
+    expect(check(provisioned, { ...workspace, status: "failed" })).toMatchObject({
+      passed: false,
+    });
+    expect(check(provisioned, { ...workspace, status: "opening" })).toMatchObject({
+      passed: false,
+    });
   });
 
   it("rejects a provider-less run even when failed attempts contain the full workflow", () => {
@@ -214,7 +243,11 @@ describe("mobile onboarding validator", () => {
     expect(
       validator.validate(
         execution("❌ Could not start provisioning because no desktop provider was available.", [
-          { code: fullWorkflow, status: "error", result: { details: { message: "No desktop provider available" } } },
+          {
+            code: fullWorkflow,
+            status: "error",
+            result: { details: { message: "No desktop provider available" } },
+          },
           {
             code: [
               'const service = await workers.resolveService("vibestudio.phone-provisioning.v1");',
@@ -234,6 +267,46 @@ describe("eval authority lifecycle validators", () => {
     capability: "permissions.read",
     resource: { kind: "exact", key: "permissions.read" },
   };
+
+  it("selects the actual restricted read after discovery and rejects any wider protected read", () => {
+    const validator = scenario(evalLifecycleTests, "eval-exact-authority");
+    const discovery: EvalStep = {
+      code: "return await services.authority.preflight({service:'permissions',method:'list',args:[]});",
+      authority: { effects: "read-only" },
+      returnValue: { leaves: [permissionsRead] },
+    };
+    const read: EvalStep = {
+      code: "return await services.permissions.list();",
+      authority: { effects: "read-only", requests: [permissionsRead] },
+      returnValue: [],
+    };
+    expect(validator.validate(execution("Read permissions only.", [discovery, read])).passed).toBe(
+      true
+    );
+    const widerRead: EvalStep = {
+      ...read,
+      authority: {
+        effects: "read-only",
+        requests: [
+          {
+            capability: "permissions.read",
+            resource: { kind: "prefix", prefix: "" },
+          },
+        ],
+      },
+    };
+    expect(
+      validator.validate(execution("Read permissions only.", [discovery, read, widerRead])).passed
+    ).toBe(false);
+    const unrestrictedRead: EvalStep = {
+      ...read,
+      authority: { effects: "read-only" },
+    };
+    expect(
+      validator.validate(execution("Read permissions only.", [discovery, read, unrestrictedRead]))
+        .passed
+    ).toBe(false);
+  });
 
   it("requires the exact request allowlist and structured result", () => {
     const validator = scenario(evalLifecycleTests, "eval-exact-authority");
@@ -272,8 +345,19 @@ describe("eval authority lifecycle validators", () => {
         execution("The operation was denied without requesting approval.", [
           {
             code: "try { await services.permissions.list(); } catch (error) { return { denied: true, message: String(error) }; }",
-            authority: { requests: [], approvals: "pregranted-only" },
-            returnValue: { denied: true, message: "authority denied" },
+            authority: {
+              effects: "read-only",
+              requests: [],
+              approvals: "pregranted-only",
+            },
+            returnValue: {
+              denied: true,
+              authorityFailure: {
+                reasonCode: "run-manifest-denied",
+                capability: "permissions.read",
+                resourceKey: "permissions.read",
+              },
+            },
           },
         ])
       ).passed
@@ -283,8 +367,172 @@ describe("eval authority lifecycle validators", () => {
         execution("The operation was denied.", [
           {
             code: "return { denied: true, message: 'authority denied' };",
-            authority: { approvals: "pregranted-only", requests: [permissionsRead] },
+            authority: {
+              approvals: "pregranted-only",
+              requests: [permissionsRead],
+            },
             returnValue: { denied: true, message: "authority denied" },
+          },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("accepts the exact typed tool denial and rejects unrelated or widened failures", () => {
+    const validator = scenario(evalLifecycleTests, "eval-pregranted-only");
+    const denied: EvalStep = {
+      code: "return await services.permissions.list();",
+      status: "error",
+      authority: {
+        effects: "read-only",
+        requests: [],
+        approvals: "pregranted-only",
+      },
+      result: {
+        details: {
+          success: false,
+          failureCode: "ERUNMANIFEST",
+          errorData: {
+            denied: true,
+            authorityFailure: {
+              reasonCode: "run-manifest-denied",
+              capability: "permissions.read",
+              resourceKey: "permissions.read",
+            },
+          },
+        },
+      },
+    };
+    expect(validator.validate(execution("Access was denied.", [denied])).passed).toBe(true);
+    expect(
+      validator.validate(
+        execution("Access was denied.", [
+          {
+            ...denied,
+            authority: { ...denied.authority, requests: [permissionsRead] },
+          },
+        ])
+      ).passed
+    ).toBe(false);
+    expect(
+      validator.validate(
+        execution("Access was denied.", [
+          denied,
+          { code: "throw new Error('unrelated failure')", status: "error" },
+        ])
+      ).passed
+    ).toBe(false);
+    expect(
+      validator.validate(
+        execution("Access was denied.", [
+          {
+            ...denied,
+            result: {
+              details: {
+                failureCode: "ERUNMANIFEST",
+                errorData: {
+                  denied: true,
+                  authorityFailure: {
+                    reasonCode: "run-manifest-denied",
+                    capability: "fs.read",
+                    resourceKey: "permissions.read",
+                  },
+                },
+              },
+            },
+          },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("accepts authorization-only preparation followed by the actual read, and rejects a read before preparation", () => {
+    const validator = scenario(evalLifecycleTests, "eval-preauthorization");
+    const prepare: EvalStep = {
+      code: 'return "Prepared without execution";',
+      authority: {
+        effects: "read-only",
+        approvals: "prompt",
+        preauthorize: [{ service: "permissions", method: "list", args: [] }],
+      },
+      returnValue: "Prepared without execution",
+    };
+    const read: EvalStep = {
+      code: "return await services.permissions.list();",
+      returnValue: [],
+    };
+    expect(validator.validate(execution("Read permissions.", [prepare, read])).passed).toBe(true);
+    expect(validator.validate(execution("Read permissions.", [read, prepare])).passed).toBe(false);
+    expect(validator.validate(execution("Prepared permissions.", [prepare])).passed).toBe(false);
+  });
+
+  it("joins same-cell preauthorization by stable invocation identity with a canonical snapshot and bounded inventory", () => {
+    const validator = scenario(evalLifecycleTests, "eval-preauthorization");
+    const result = execution("Read the actual inventory.", [
+      {
+        code: 'return await rpc.call("main", "permissions.list", []);',
+        authority: {
+          preauthorize: [{ service: "permissions", method: "list", args: [] }],
+        },
+        returnValue: {
+          truncated: true,
+          scopeKey: "$lastLargeReturn",
+          scopeValueType: "string",
+          originalChars: 445718,
+          limitChars: 12000,
+          preview: '[{"kind":"capability"}]',
+        },
+      },
+      { code: "return {count:356};", returnValue: { count: 356 } },
+    ]);
+    result.snapshot = {
+      invocations: getToolCalls(result).map((call) => ({
+        id: call.id,
+        name: call.name,
+        status: call.execution?.status,
+        args: call.arguments,
+        result: call.execution?.result,
+      })),
+    } as TestExecutionResult["snapshot"];
+    expect(validator.validate(result).passed).toBe(true);
+    const calls = result.snapshot!.invocations;
+    calls[0]!.args = {
+      code: "return 1;",
+      authority: {
+        preauthorize: [{ service: "permissions", method: "list", args: [] }],
+      },
+    };
+    expect(validator.validate(result).passed).toBe(false);
+  });
+
+  it("accepts a real bounded permissions inventory instead of requiring an unbounded return", () => {
+    const validator = scenario(evalLifecycleTests, "eval-exact-authority");
+    const read: EvalStep = {
+      code: "return await services.permissions.list();",
+      authority: { effects: "read-only", requests: [permissionsRead] },
+      returnValue: {
+        truncated: true,
+        scopeKey: "$lastLargeReturn",
+        scopeValueType: "string",
+        originalChars: 400000,
+        limitChars: 12000,
+        preview: '[{"kind":"capability"}]',
+      },
+    };
+    expect(validator.validate(execution("Read permissions.", [read])).passed).toBe(true);
+    expect(
+      validator.validate(
+        execution("Read permissions.", [
+          {
+            ...read,
+            returnValue: {
+              truncated: true,
+              scopeKey: "$lastLargeReturn",
+              scopeValueType: "string",
+              originalChars: 400000,
+              limitChars: 12000,
+              preview: "invented prose",
+            },
           },
         ])
       ).passed
@@ -299,6 +547,7 @@ describe("eval authority lifecycle validators", () => {
           {
             code: "return await services.permissions.list();",
             authority: {
+              effects: "read-only",
               approvals: "prompt",
               preauthorize: [{ service: "permissions", method: "list", args: [] }],
             },
@@ -313,8 +562,15 @@ describe("eval authority lifecycle validators", () => {
           {
             code: "return await services.permissions.list();",
             authority: {
+              effects: "read-only",
               approvals: "prompt",
-              preauthorize: [{ service: "permissions", method: "list", args: [{ widened: true }] }],
+              preauthorize: [
+                {
+                  service: "permissions",
+                  method: "list",
+                  args: [{ widened: true }],
+                },
+              ],
             },
             returnValue: [],
           },
@@ -325,8 +581,16 @@ describe("eval authority lifecycle validators", () => {
 
   it("requires stable ordered cursor pages instead of a prose event claim", () => {
     const validator = scenario(evalLifecycleTests, "eval-events");
-    const page = { events: [{ sequence: 1, kind: "state" }], next: 1, hasMore: true };
-    const finalPage = { events: [{ sequence: 2, kind: "console" }], next: 2, hasMore: false };
+    const page = {
+      events: [{ sequence: 1, kind: "state" }],
+      next: 1,
+      hasMore: true,
+    };
+    const finalPage = {
+      events: [{ sequence: 2, kind: "console" }],
+      next: 2,
+      hasMore: false,
+    };
     expect(
       validator.validate({
         messages: [],
@@ -361,8 +625,12 @@ describe("eval authority lifecycle validators", () => {
 describe("filesystem semantic validators", () => {
   const cases = [
     ["read-write-text", "fs.writeFile(); fs.readFile();", { written: "alpha", read: "alpha" }],
-    ["append-file", "fs.writeFile(); fs.appendFile(); fs.readFile();", "first\nsecond"],
-    ["directory-ops", "fs.mkdir(); fs.readdir();", ["one.txt", "two.txt"]],
+    [
+      "append-file",
+      "fs.writeFile(); fs.appendFile(); fs.readFile();",
+      "First observation.Second observation.",
+    ],
+    ["directory-ops", "fs.writeFile(); fs.readdir();", ["one.txt", "two.txt"]],
     ["file-stats", "fs.writeFile(); fs.stat();", { size: 5, mtimeMs: 123 }],
     ["rename-copy", "fs.copyFile(); fs.readFile();", { source: "same", destination: "same" }],
     ["remove", "fs.mkdir(); fs.rm();", { exists: false }],
@@ -388,6 +656,147 @@ describe("filesystem semantic validators", () => {
     });
   }
 
+  it("accepts recursive Dirent output without counting its directory as a third file", () => {
+    const validator = scenario(filesystemTests, "directory-ops");
+    const code = "fs.writeFile(); fs.readdir();";
+    const entries = [
+      { name: "one.txt", isFile: "[Function: isFile]" },
+      { name: "nested", isDirectory: "[Function: isDirectory]" },
+      { name: "nested/two.txt", isFile: "[Function: isFile]" },
+    ];
+    expect(
+      validator.validate(
+        execution("Both requested files are present.", [{ code, returnValue: { entries } }])
+      ).passed
+    ).toBe(true);
+    expect(
+      validator.validate(
+        execution("The directory exists.", [
+          { code, returnValue: { entries: entries.slice(0, 2) } },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("accepts handle-based append and rejects incomplete or reversed content", () => {
+    const validator = scenario(filesystemTests, "append-file");
+    const code = `const handle = await fs.open(path, 'a'); await handle.write('Second observation.'); await handle.close(); return fs.readFile(path, 'utf8');`;
+    for (const content of [
+      "First observation.Second observation.",
+      "First observation.\nSecond observation.",
+    ])
+      expect(
+        validator.validate(execution("Both entries remain.", [{ code, returnValue: { content } }]))
+          .passed
+      ).toBe(true);
+    for (const content of ["Second observation.", "Second observation.First observation."])
+      expect(
+        validator.validate(execution("Both entries remain.", [{ code, returnValue: { content } }]))
+          .passed
+      ).toBe(false);
+  });
+
+  it("does not accept discovery output as the outcome of a filesystem call", () => {
+    const validator = scenario(filesystemTests, "append-file");
+    expect(
+      validator.validate(
+        execution("It worked.", [
+          { code: "await help('fs');", returnValue: "First observation.Second observation." },
+          { code: "fs.appendFile(); fs.readFile();", returnValue: { ok: true } },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("requires byte-accurate metadata and accepts a valid mapped stat result", () => {
+    const validator = scenario(filesystemTests, "file-stats");
+    const code = "fs.writeFile(); fs.stat();";
+    for (const returnValue of [
+      { size: 5, mtimeMs: 123 },
+      { metadataSize: 5, modifiedAt: "2026-10-03T08:00:00Z" },
+    ])
+      expect(
+        validator.validate(execution("The five bytes match the file.", [{ code, returnValue }]))
+          .passed
+      ).toBe(true);
+    for (const returnValue of [
+      { size: 33, mtimeMs: 123 },
+      { size: 5 },
+      { size: 5, mtime: "unknown" },
+    ])
+      expect(
+        validator.validate(execution("The metadata matches.", [{ code, returnValue }])).passed
+      ).toBe(false);
+  });
+
+  it("accepts a focused scratch write/read around an actual append evaluation", () => {
+    const validator = scenario(filesystemTests, "append-file");
+    const result = directExecution("Both log entries survived.", [
+      {
+        name: "write",
+        arguments: { path: ".tmp/log.txt", content: "First observation." },
+        result: { details: { storage: "scratch", bytesWritten: 18 } },
+      },
+      {
+        name: "read",
+        arguments: { path: ".tmp/log.txt" },
+        result: {
+          content: [{ type: "text", text: "First observation.Second observation." }],
+          details: { path: ".tmp/log.txt" },
+        },
+      },
+    ]);
+    const append = execution("", [
+      {
+        code: `const handle = await fs.open('.tmp/log.txt', 'a'); await handle.write('Second observation.'); await handle.close();`,
+        returnValue: { bytesWritten: 19 },
+      },
+    ]).messages.find((message) => message.invocation)!;
+    result.messages.splice(2, 0, append);
+    expect(validator.validate(result)).toMatchObject({ passed: true });
+  });
+
+  it("proves a focused append from applied mutations and a later read of the same file", () => {
+    const validator = scenario(filesystemTests, "append-file");
+    const first = "First observation.\n";
+    const both = first + "Second observation.\n";
+    const applied = {
+      details: { protocol: "file-mutation.v1", storage: "scratch", status: "applied" },
+    };
+    const steps: ToolStep[] = [
+      { name: "write", arguments: { path: ".tmp/log.txt", content: first }, result: applied },
+      {
+        name: "edit",
+        arguments: { path: ".tmp/log.txt", oldText: first, newText: both },
+        result: applied,
+      },
+      {
+        name: "read",
+        arguments: { path: ".tmp/log.txt" },
+        result: { protocolContent: [{ type: "text", text: both }] },
+      },
+    ];
+    expect(validator.validate(directExecution("Verified both entries.", steps)).passed).toBe(true);
+    for (const invalid of [
+      [
+        steps[0]!,
+        { ...steps[1]!, arguments: { ...steps[1]!.arguments, newText: "Second observation." } },
+        steps[2]!,
+      ],
+      [steps[0]!, steps[1]!, { ...steps[2]!, arguments: { path: ".tmp/other.txt" } }],
+      [
+        steps[0]!,
+        { ...steps[1]!, result: { details: { ...applied.details, status: "conflict" } } },
+        steps[2]!,
+      ],
+      [steps[0]!, steps[1]!],
+      [steps[1]!, steps[2]!],
+    ])
+      expect(validator.validate(directExecution("Verified both entries.", invalid)).passed).toBe(
+        false
+      );
+  });
+
   it("accepts equivalent named imports from the scoped Node filesystem facade", () => {
     const validator = scenario(filesystemTests, "directory-ops");
     expect(
@@ -395,9 +804,11 @@ describe("filesystem semantic validators", () => {
         execution("I created, listed, and removed the temporary directory.", [
           {
             code: `
-              import { mkdir, readdir as list, rm } from "fs/promises";
+              import { mkdir, writeFile, readdir as list, rm } from "fs/promises";
               await mkdir(".tmp/example");
-              const files = await list(".tmp/example");
+              await writeFile(".tmp/example/one.txt", "first");
+              await writeFile(".tmp/example/nested/two.txt", "second");
+              const files = await list(".tmp/example", { recursive: true });
               await rm(".tmp/example", { recursive: true });
               return files;
             `,
@@ -466,7 +877,10 @@ describe("filesystem semantic validators", () => {
       ).passed
     ).toBe(true);
     expect(validator.validation).toBe("harness");
-    expect(validator.workspaceRepoFixture).toEqual({ kind: "content", section: "projects" });
+    expect(validator.workspaceRepoFixture).toEqual({
+      kind: "content",
+      section: "projects",
+    });
   });
 
   it("accepts focused nested writes and a structured listing as directory evidence", () => {
@@ -481,7 +895,7 @@ describe("filesystem semantic validators", () => {
           },
           {
             name: "write",
-            arguments: { path: ".tmp/example/two.txt", content: "two" },
+            arguments: { path: ".tmp/example/nested/two.txt", content: "two" },
             result: { details: { bytesWritten: 3, storage: "scratch" } },
           },
           {
@@ -489,7 +903,10 @@ describe("filesystem semantic validators", () => {
             arguments: { path: ".tmp/example" },
             result: {
               protocolContent: [{ type: "text", text: "one.txt\ntwo.txt" }],
-              details: { path: ".tmp/example", entries: ["one.txt", "two.txt"] },
+              details: {
+                path: ".tmp/example",
+                entries: ["one.txt", "nested", "nested/two.txt"],
+              },
             },
           },
         ])
@@ -551,7 +968,10 @@ describe("filesystem semantic validators", () => {
         directExecution("The managed file content matched.", [
           {
             name: "write",
-            arguments: { path: "projects/example/file.txt", content: "same text" },
+            arguments: {
+              path: "projects/example/file.txt",
+              content: "same text",
+            },
             result: { details: { bytesWritten: 9, storage: "vcs" } },
           },
           {
@@ -573,7 +993,10 @@ describe("filesystem semantic validators", () => {
             code: "await fs.mkdir(path); await fs.rm(path); return { baseExistsAfter: false };",
             result: {
               protocolContent: [
-                { type: "text", text: '{"baseExistsAfter": false, "treeExistsAfter": false}' },
+                {
+                  type: "text",
+                  text: '{"baseExistsAfter": false, "treeExistsAfter": false}',
+                },
               ],
             },
           },
@@ -596,6 +1019,39 @@ describe("filesystem semantic validators", () => {
         ])
       ).passed
     ).toBe(true);
+  });
+  it("accepts a returned symlink mode and rejects regular-file metadata", () => {
+    const validator = scenario(filesystemTests, "symlinks");
+    const probe: EvalStep = {
+      code: "await fs.symlink(target, link); return await fs.lstat(link);",
+      returnValue: { mode: 0o120777 },
+    };
+    expect(validator.validate(execution("The link is symbolic.", [probe])).passed).toBe(true);
+    expect(
+      validator.validate(
+        execution("The link is symbolic.", [{ ...probe, returnValue: { mode: 0o100600 } }])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("accepts the observed asserted-receiver symlink probe without a prescribed report field", () => {
+    const validator = scenario(filesystemTests, "symlinks");
+    const code =
+      "await (fs as any).symlink(target, link); return { linkStat: (await fs.lstat(link)).isSymbolicLink(), readlink: await (fs as any).readlink(link) };";
+    expect(
+      validator.validate(
+        execution("Links work.", [
+          { code, returnValue: { linkStat: true, readlink: "target.txt" } },
+        ])
+      ).passed
+    ).toBe(true);
+    expect(
+      validator.validate(
+        execution("Links work.", [
+          { code, returnValue: { linkStat: false, readlink: "target.txt" } },
+        ])
+      ).passed
+    ).toBe(false);
   });
 
   it("accepts concrete readlink and realpath observations nested in a probe report", () => {
@@ -745,11 +1201,27 @@ describe("build semantic validators", () => {
 });
 
 describe("workspace semantic validators", () => {
+  it("accepts settings obtained directly from the resolved configuration", () => {
+    expect(scenario(workspaceTests, "get-config").validate(execution(
+      "The default repository is projects/default and the startup panel is about/new.",
+      [{ code: "return workspace.getConfig();", returnValue: { defaultRepo: "projects/default", initPanels: [{ source: "about/new" }] } }]
+    )).passed).toBe(true);
+  });
+  it("rejects arbitrary metadata masquerading as configuration", () => {
+    expect(scenario(workspaceTests, "get-config").validate(execution(
+      "It uses a local origin and main context.",
+      [{ code: "return workspace.getInfo();", returnValue: { origin: "local", context: "main" } }]
+    )).passed).toBe(false);
+  });
+
   it("derives catalog, active identity, and configuration facts from completed results", () => {
     expect(
       scenario(workspaceTests, "list-workspace-units").validate(
         execution("The catalog contains the current panel and worker units.", [
-          { code: "return build.listUnits();", returnValue: [{ id: "panel-1" }] },
+          {
+            code: "return build.listUnits();",
+            returnValue: [{ id: "panel-1" }],
+          },
         ])
       ).passed
     ).toBe(true);
@@ -762,10 +1234,10 @@ describe("workspace semantic validators", () => {
     ).toBe(true);
     expect(
       scenario(workspaceTests, "get-config").validate(
-        execution("The workspace uses a local origin and main context.", [
+        execution("The default repository is projects/default and the panel restore policy is focused.", [
           {
             code: "return workspace.getInfo();",
-            returnValue: { origin: "local", context: "main" },
+            returnValue: { config: { defaultRepo: "projects/default", panelRestorePolicy: "focused" } },
           },
         ])
       ).passed
@@ -840,7 +1312,13 @@ describe("multi-user semantic validators", () => {
           {
             code: "return await chat.getParticipants();",
             returnValue: [
-              { id: "agent-1", name: "AI Chat", type: "agent", isAgent: true, isPerson: false },
+              {
+                id: "agent-1",
+                name: "AI Chat",
+                type: "agent",
+                isAgent: true,
+                isPerson: false,
+              },
               {
                 id: "runner-1",
                 name: "Headless Client",
@@ -966,7 +1444,10 @@ describe("eval lifecycle semantic validators", () => {
 
   it("requires an actual reset boundary after a separate scope confirmation", () => {
     const result = execution("The value survived one evaluation, then was absent after reset.", [
-      { code: "scope.probe = 'retained'; return scope.probe;", returnValue: "retained" },
+      {
+        code: "scope.probe = 'retained'; return scope.probe;",
+        returnValue: "retained",
+      },
       { code: "return scope.probe;", returnValue: "retained" },
       {
         code: "return { fresh: scope.probe === undefined };",
@@ -1055,11 +1536,26 @@ describe("eval lifecycle semantic validators", () => {
 });
 
 describe("extension semantic validators", () => {
+  it("accepts canonical extension identities and readiness in a projected catalog", () => {
+    expect(scenario(extensionSurfaceTests, "extension-list").validate(execution(
+      "Typecheck Service is registered and ready.", [{
+        code: "return (await build.listUnits()).filter(x => x.kind === 'extension').map(({name,status}) => ({name,status}));",
+        returnValue: [{ name: "@workspace-extensions/typecheck-service", status: "ready" }]
+      }]
+    )).passed).toBe(true);
+  });
+
+  it("rejects source names without registered readiness", () => {
+    expect(scenario(extensionSurfaceTests, "extension-list").validate(execution(
+      "Two extensions are ready.", [{ code: "return build.listUnits();", returnValue: [{ name: "typecheck" }] }]
+    )).passed).toBe(false);
+  });
+
   it("requires registry rows for extension discovery", () => {
     const result = execution("Two workspace extensions are currently available.", [
       {
         code: "return (await build.listUnits()).filter((unit) => unit.kind === 'extension');",
-        returnValue: [{ name: "typecheck" }, { name: "test-runner" }],
+        returnValue: [{ name: "@workspace-extensions/typecheck-service", kind: "extension", status: "ready" }, { name: "@workspace-extensions/test-runner", kind: "extension", status: "ready" }],
       },
     ]);
     expect(scenario(extensionSurfaceTests, "extension-list").validate(result).passed).toBe(true);
@@ -1077,11 +1573,37 @@ describe("extension semantic validators", () => {
     ).toBe(true);
   });
 
+  it("rejects a candidate build receipt as evidence of an installed typecheck-service invocation", () => {
+    const result = directExecution("The extension builds with no diagnostics.", [
+      {
+        name: "verify",
+        arguments: { operation: "build", target: "extensions/typecheck-service" },
+        result: {
+          details: {
+            diagnostics: [],
+            receipt: {
+              protocol: "unit-verification-receipt.v1",
+              operation: "build",
+              target: "extensions/typecheck-service",
+              status: "ok",
+            },
+          },
+        },
+      },
+    ]);
+    expect(
+      scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+    ).toBe(false);
+  });
+
   it("joins registry discovery and a successful structured invocation", () => {
     const result = execution("The read-only method returned a structured status record.", [
       {
         code: "const entries = (await build.listUnits()).filter((unit) => unit.kind === 'extension'); return { entries, value: await services.extensions.invoke(entries[0].name, \"status\", []) };",
-        returnValue: { entries: [{ name: "probe" }], value: { status: "ready" } },
+        returnValue: {
+          entries: [{ name: "probe" }],
+          value: { status: "ready" },
+        },
       },
     ]);
     expect(
@@ -1109,6 +1631,7 @@ describe("scenario prompts", () => {
           throw error;
         },
       } as never,
+      signal: new AbortController().signal,
       remainingTimeMs: () => 10_000,
       sendAndWait: async () => {
         throw new Error("Agent turn must not be used");
@@ -1144,5 +1667,77 @@ describe("scenario prompts", () => {
       expect(test.prompt).not.toMatch(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/u);
       expect(test.prompt).not.toMatch(/finish with|respond with|report .*:\s*</iu);
     }
+  });
+});
+
+describe("absent recipient messaging", () => {
+  it("reads a canonical refusal message and rejects substitution with a reachable audience", () => {
+    const validator = scenario(messagingTests, "unreachable-addressee-fails-closed");
+    const result = execution(
+      "The archivist is unavailable; @headless is here. The note remains unsent.",
+      []
+    );
+    const failed = {
+      id: "notify:absent",
+      name: "notify",
+      arguments: { to: ["@archivist"] },
+      execution: {
+        status: "error",
+        terminalOutcome: "tool_error",
+        isError: true,
+        result: {
+          message:
+            'no participant "@archivist" on this channel. Use list_addressees to see who is here.',
+        },
+      },
+    };
+    result.messages.push({
+      id: "notify:absent",
+      senderId: "agent",
+      senderMetadata: { type: "agent" },
+      complete: true,
+      contentType: "invocation",
+      kind: "message",
+      content: JSON.stringify(failed),
+    } as (typeof result.messages)[number]);
+    expect(validator.validate(result).passed).toBe(true);
+    result.messages.push({
+      id: "notify:other",
+      senderId: "agent",
+      senderMetadata: { type: "agent" },
+      complete: true,
+      contentType: "invocation",
+      kind: "message",
+      content: JSON.stringify({
+        ...failed,
+        id: "notify:other",
+        arguments: { to: ["@headless"] },
+        execution: {
+          status: "complete",
+          terminalOutcome: "success",
+          isError: false,
+        },
+      }),
+    } as (typeof result.messages)[number]);
+    expect(validator.validate(result).passed).toBe(false);
+  });
+});
+
+describe("extension facade invocation", () => {
+  it("accepts a successful documented facade without requiring a discovery ceremony", () => {
+    const test = scenario(extensionSurfaceTests, "extension-invoke-roundtrip");
+    const result = execution("The installed extension returned its available engines.", [
+      {
+        code: 'const pdf = extensions.use("@workspace-extensions/pdf-ingest"); return await pdf.engines();',
+        returnValue: [{ id: "pdfjs", available: true }],
+      },
+    ]);
+    expect(test.validate(result).passed).toBe(true);
+    expect(test.validate(execution("It returned engines.", [])).passed).toBe(false);
+    expect(
+      test.validate(
+        execution("It returned engines.", [{ code: 'return extensions.use("pdf-ingest");' }])
+      ).passed
+    ).toBe(false);
   });
 });

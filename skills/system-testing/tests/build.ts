@@ -11,7 +11,10 @@ import {
   invocationReturnValue,
   walkRecords,
 } from "./_scenario-evidence.js";
-import { PANEL_AUTOMATION_RESOURCE, panelControlAuthorityPolicy } from "../panel-authority.js";
+import {
+  PANEL_AUTOMATION_RESOURCE,
+  panelControlAuthorityPolicy,
+} from "../panel-authority.js";
 import type { InvocationCardPayloadLike } from "./_helpers.js";
 import {
   eventRef,
@@ -30,7 +33,10 @@ function validateWorkspaceBuild(result: TestExecutionResult) {
   if (!base.passed) return base;
   const contextId = result.provenance?.contextId;
   if (!contextId) {
-    return { passed: false, reason: "Build verification exposed no exact task context" };
+    return {
+      passed: false,
+      reason: "Build verification exposed no exact task context",
+    };
   }
   const verified = base.evidence.calls.some((call) => {
     const unit = unitForPath(call.arguments?.["target"], "packages");
@@ -40,7 +46,8 @@ function validateWorkspaceBuild(result: TestExecutionResult) {
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "No successful exact-context package build verification was observed",
+        reason:
+          "No successful exact-context package build verification was observed",
       };
 }
 
@@ -51,9 +58,16 @@ function validateSandboxedWorkspaceTest(
   const base = completedScenarioEvidence(result, ["verify"]);
   if (!base.passed) return base;
   const contextId = result.provenance?.contextId;
-  if (!contextId) return { passed: false, reason: "Test verification exposed no exact task context" };
+  if (!contextId)
+    return {
+      passed: false,
+      reason: "Test verification exposed no exact task context",
+    };
   if (base.evidence.calls.some((call) => call.name === "extensions.invoke")) {
-    return { passed: false, reason: "Sandboxed verification reached the native extension route" };
+    return {
+      passed: false,
+      reason: "Sandboxed verification reached the native extension route",
+    };
   }
   const verified = base.evidence.calls.some((call) => {
     if (call.arguments?.["operation"] !== "test") return false;
@@ -75,7 +89,10 @@ function validateSandboxedWorkspaceTest(
   });
   return verified
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: `No prompt-free ${runtime} test receipt was observed` };
+    : {
+        passed: false,
+        reason: `No prompt-free ${runtime} test receipt was observed`,
+      };
 }
 
 function buildPerformanceResult(values: readonly unknown[]): boolean {
@@ -92,7 +109,8 @@ function buildPerformanceResult(values: readonly unknown[]): boolean {
       typeof (firstRun as Record<string, unknown>)["cacheState"] === "string" &&
       verifiedCacheRun !== null &&
       typeof verifiedCacheRun === "object" &&
-      typeof (verifiedCacheRun as Record<string, unknown>)["elapsedMs"] === "number" &&
+      typeof (verifiedCacheRun as Record<string, unknown>)["elapsedMs"] ===
+        "number" &&
       (verifiedCacheRun as Record<string, unknown>)["sameBuildKeys"] === true &&
       Array.isArray(targets) &&
       targets.length > 0 &&
@@ -116,18 +134,30 @@ function validateBuildPerformanceProfile(result: TestExecutionResult) {
   const profiles = base.evidence.calls.flatMap(nativeBuildProfiles);
   return buildPerformanceResult(profiles)
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: "Build profiling retained no native first-run, verified-cache, and size evidence" };
+    : {
+        passed: false,
+        reason:
+          "Build profiling retained no native first-run, verified-cache, and size evidence",
+      };
 }
 
-function nativeBuildProfiles(call: InvocationCardPayloadLike): Record<string, unknown>[] {
+function nativeBuildProfiles(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown>[] {
   const details = successfulToolDetails(call, "eval");
   const journal = record(details?.["operationJournal"]);
-  if (journal?.["protocol"] !== "workspace-operations.v1" || journal["truncated"] !== false ||
-      !Array.isArray(journal["entries"])) return [];
+  if (
+    journal?.["protocol"] !== "workspace-operations.v1" ||
+    journal["truncated"] !== false ||
+    !Array.isArray(journal["entries"])
+  )
+    return [];
   return journal["entries"].flatMap((value) => {
     const entry = record(value);
     const profile = record(entry?.["receipt"]);
-    return entry?.["type"] === "build.profile" && profile?.["version"] === 1 ? [profile] : [];
+    return entry?.["type"] === "build.profile" && profile?.["version"] === 1
+      ? [profile]
+      : [];
   });
 }
 
@@ -140,17 +170,24 @@ interface BuildProfileEvidence {
   initialBytes: Map<string, number>;
 }
 
-function buildProfileEvidence(call: InvocationCardPayloadLike, index: number): BuildProfileEvidence[] {
+function buildProfileEvidence(
+  call: InvocationCardPayloadLike,
+  index: number,
+): BuildProfileEvidence[] {
   return nativeBuildProfiles(call).flatMap((profile) => {
     const evidence = profileEvidence(profile, index);
     return evidence ? [evidence] : [];
   });
 }
 
-function profileEvidence(profile: Record<string, unknown>, index: number): BuildProfileEvidence | null {
+function profileEvidence(
+  profile: Record<string, unknown>,
+  index: number,
+): BuildProfileEvidence | null {
   const unit = unitForPath(profile["source"], "panels");
   const ref = profile["ref"];
-  const contextId = typeof ref === "string" && ref.startsWith("ctx:") ? ref.slice(4) : null;
+  const contextId =
+    typeof ref === "string" && ref.startsWith("ctx:") ? ref.slice(4) : null;
   const report = record(profile["report"]);
   const verifiedCacheRun = record(profile["verifiedCacheRun"]);
   if (
@@ -161,7 +198,9 @@ function profileEvidence(profile: Record<string, unknown>, index: number): Build
     report?.["status"] !== "ok" ||
     report["kind"] !== "panel" ||
     !Array.isArray(report["diagnostics"]) ||
-    report["diagnostics"].some((value) => record(value)?.["severity"] === "error") ||
+    report["diagnostics"].some(
+      (value) => record(value)?.["severity"] === "error",
+    ) ||
     typeof report["stateHash"] !== "string" ||
     verifiedCacheRun?.["sameBuildKeys"] !== true
   ) {
@@ -171,7 +210,8 @@ function profileEvidence(profile: Record<string, unknown>, index: number): Build
   const initialBytes = new Map<string, number>();
   const buildKeys = new Map<string, string>();
   const reportedBuilds = report["builds"];
-  if (!Array.isArray(reportedBuilds) || !Array.isArray(profile["targets"])) return null;
+  if (!Array.isArray(reportedBuilds) || !Array.isArray(profile["targets"]))
+    return null;
   for (const targetValue of profile["targets"] as unknown[]) {
     const target = record(targetValue);
     const bundleReport = record(target?.["bundleReport"]);
@@ -184,25 +224,49 @@ function profileEvidence(profile: Record<string, unknown>, index: number): Build
     ) {
       return null;
     }
-    if (buildKeys.has(target["target"]) || !reportedBuilds.some((value) => {
-      const build = record(value);
-      return build !== null && build["target"] === target["target"] && build["buildKey"] === target["buildKey"];
-    })) return null;
+    if (
+      buildKeys.has(target["target"]) ||
+      !reportedBuilds.some((value) => {
+        const build = record(value);
+        return (
+          build !== null &&
+          build["target"] === target["target"] &&
+          build["buildKey"] === target["buildKey"]
+        );
+      })
+    )
+      return null;
     initialBytes.set(target["target"], initial["bytes"]);
     buildKeys.set(target["target"], target["buildKey"]);
   }
   return initialBytes.size > 0 && reportedBuilds.length === buildKeys.size
-    ? { index, unit, contextId, stateHash: report["stateHash"], buildKeys, initialBytes }
+    ? {
+        index,
+        unit,
+        contextId,
+        stateHash: report["stateHash"],
+        buildKeys,
+        initialBytes,
+      }
     : null;
 }
 
-function profileImproved(before: BuildProfileEvidence, after: BuildProfileEvidence): boolean {
-  if (before.unit !== after.unit || before.contextId !== after.contextId ||
-      before.stateHash === after.stateHash || before.buildKeys.size !== after.buildKeys.size ||
-      [...before.buildKeys.keys()].some((target) => !after.buildKeys.has(target))) return false;
+function profileImproved(
+  before: BuildProfileEvidence,
+  after: BuildProfileEvidence,
+): boolean {
+  if (
+    before.unit !== after.unit ||
+    before.contextId !== after.contextId ||
+    before.stateHash === after.stateHash ||
+    before.buildKeys.size !== after.buildKeys.size ||
+    [...before.buildKeys.keys()].some((target) => !after.buildKeys.has(target))
+  )
+    return false;
   return [...before.initialBytes].some(
     ([target, bytes]) =>
-      typeof after.initialBytes.get(target) === "number" && after.initialBytes.get(target)! < bytes
+      typeof after.initialBytes.get(target) === "number" &&
+      after.initialBytes.get(target)! < bytes,
   );
 }
 
@@ -216,7 +280,10 @@ function validatePanelPerformanceRepair(result: TestExecutionResult) {
     return evidence ? [evidence] : [];
   });
   if (mutations.length === 0) {
-    return { passed: false, reason: "No completed managed panel optimization was observed" };
+    return {
+      passed: false,
+      reason: "No completed managed panel optimization was observed",
+    };
   }
   const units = new Set(mutations.map(({ unit }) => unit));
   const contexts = new Set(mutations.map(({ contextId }) => contextId));
@@ -228,7 +295,8 @@ function validatePanelPerformanceRepair(result: TestExecutionResult) {
   ) {
     return {
       passed: false,
-      reason: "Panel optimization mutations did not form one context-local chain for one unit",
+      reason:
+        "Panel optimization mutations did not form one context-local chain for one unit",
     };
   }
   const unit = [...units][0]!;
@@ -245,13 +313,21 @@ function validatePanelPerformanceRepair(result: TestExecutionResult) {
       continue;
     }
     for (const after of profiles) {
-      if (after.index <= lastMutationIndex || !profileImproved(before, after)) continue;
+      if (after.index <= lastMutationIndex || !profileImproved(before, after))
+        continue;
 
       // profileBuild returns the exact native build/typecheck report itself.
       // Its validated state and target keys are the final verification proof.
-      for (let commitIndex = after.index + 1; commitIndex < calls.length; commitIndex += 1) {
+      for (
+        let commitIndex = after.index + 1;
+        commitIndex < calls.length;
+        commitIndex += 1
+      ) {
         const commitCall = calls[commitIndex]!;
-        if (commitCall.name !== "vcs" || commitCall.arguments?.["operation"] !== "commit") {
+        if (
+          commitCall.name !== "vcs" ||
+          commitCall.arguments?.["operation"] !== "commit"
+        ) {
           continue;
         }
         const commitDetails = successfulToolDetails(commitCall, "vcs");
@@ -264,17 +340,39 @@ function validatePanelPerformanceRepair(result: TestExecutionResult) {
           typeof eventId !== "string" ||
           !stringArray(committedApplicationIds) ||
           committedApplicationIds.length !== applicationIds.length ||
-          !committedApplicationIds.every((id, index) => id === applicationIds[index])
+          !committedApplicationIds.every(
+            (id, index) => id === applicationIds[index],
+          )
         ) {
           continue;
         }
 
-        for (let statusIndex = commitIndex + 1; statusIndex < calls.length; statusIndex += 1) {
+        const committedStatus = record(commitDetails?.["status"]);
+        if (
+          committedStatus?.["contextId"] === contextId &&
+          committedStatus["clean"] === true &&
+          eventRef(committedStatus["committed"], eventId) &&
+          eventRef(committedStatus["workingHead"], eventId) &&
+          zeroWorkingCounts(committedStatus["workingCounts"])
+        ) {
+          return { passed: true, reason: undefined };
+        }
+
+        for (
+          let statusIndex = commitIndex + 1;
+          statusIndex < calls.length;
+          statusIndex += 1
+        ) {
           const statusCall = calls[statusIndex]!;
-          if (statusCall.name !== "vcs" || statusCall.arguments?.["operation"] !== "status") {
+          if (
+            statusCall.name !== "vcs" ||
+            statusCall.arguments?.["operation"] !== "status"
+          ) {
             continue;
           }
-          const status = record(successfulToolDetails(statusCall, "vcs")?.["result"]);
+          const status = record(
+            successfulToolDetails(statusCall, "vcs")?.["result"],
+          );
           if (
             status?.["contextId"] === contextId &&
             status["clean"] === true &&
@@ -306,11 +404,14 @@ function validateNpmImport(result: TestExecutionResult) {
       call.arguments?.["imports"] !== null &&
       typeof call.arguments?.["imports"] === "object" &&
       Object.values(call.arguments!["imports"] as Record<string, unknown>).some(
-        (value) => typeof value === "string" && value.startsWith("npm:")
-      )
+        (value) => typeof value === "string" && value.startsWith("npm:"),
+      ),
   );
   if (!evalCall) {
-    return { passed: false, reason: "No successful eval resolved an npm import-map entry" };
+    return {
+      passed: false,
+      reason: "No successful eval resolved an npm import-map entry",
+    };
   }
   const returned = invocationReturnValue(evalCall);
   return returned.present && hasNonEmptyStructuredResult([returned.value])
@@ -322,7 +423,11 @@ function validateWorkspaceImport(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
   const imported = base.evidence.calls.find((call) => {
-    if (call.name !== "eval" || call.execution?.status !== "complete" || call.execution.isError) {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError
+    ) {
       return false;
     }
     const code = String(call.arguments?.["code"] ?? "");
@@ -332,28 +437,42 @@ function validateWorkspaceImport(result: TestExecutionResult) {
       typeof imports === "object" &&
       !Array.isArray(imports) &&
       Object.values(imports as Record<string, unknown>).some(
-        (value) => typeof value === "string" && !value.startsWith("npm:")
+        (value) => typeof value === "string" && !value.startsWith("npm:"),
       );
     const hasDirectWorkspaceImport =
-      /\b(?:from\s*|import\s*(?:\(\s*)?)["']@workspace(?:-[a-z0-9-]+)?\//u.test(code);
+      /\b(?:from\s*|import\s*(?:\(\s*)?)["']@workspace(?:-[a-z0-9-]+)?\//u.test(
+        code,
+      );
     return hasWorkspaceImportMapEntry || hasDirectWorkspaceImport;
   });
-  if (!imported || !/\bimport\b/u.test(String(imported.arguments?.["code"] ?? ""))) {
-    return { passed: false, reason: "No successful eval imported a workspace-built package" };
+  if (
+    !imported ||
+    !/\bimport\b/u.test(String(imported.arguments?.["code"] ?? ""))
+  ) {
+    return {
+      passed: false,
+      reason: "No successful eval imported a workspace-built package",
+    };
   }
   const returned = invocationReturnValue(imported);
   return returned.present && hasNonEmptyStructuredResult([returned.value])
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: "The workspace import exposed no structured exports" };
+    : {
+        passed: false,
+        reason: "The workspace import exposed no structured exports",
+      };
 }
 
 export const buildTests: TestCase[] = [
   {
     name: "panel-performance-optimize",
-    description: "Measure and remove a disposable panel's avoidable bundle-size waste",
+    description:
+      "Measure and remove a disposable panel's avoidable bundle-size waste",
     category: "performance",
     workspaceRepoFixture: OPTIMIZABLE_PANEL_WORKSPACE_REPO_FIXTURE,
-    authorityPolicy: panelControlAuthorityPolicy("inspect-panel-performance-repair"),
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-panel-performance-repair",
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
       "The disposable panel is much larger than its tiny UI warrants. Please investigate and fix it without changing what it displays.",
@@ -381,7 +500,8 @@ export const buildTests: TestCase[] = [
   },
   {
     name: "test-workspace-worker-workerd",
-    description: "Run a worker suite in its complete workerd runtime without native approval",
+    description:
+      "Run a worker suite in its complete workerd runtime without native approval",
     category: "build",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
     prompt:
@@ -391,7 +511,8 @@ export const buildTests: TestCase[] = [
   },
   {
     name: "test-workspace-panel-browser",
-    description: "Run a panel suite in a visible complete panel runtime under Testbench",
+    description:
+      "Run a panel suite in a visible complete panel runtime under Testbench",
     category: "build",
     workspaceRepoFixture: BUILDABLE_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:

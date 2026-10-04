@@ -197,3 +197,48 @@ describe("skill routing system-test validators", () => {
     ).toEqual({ passed: true });
   });
 });
+
+describe("ongoing child diagnosis validator", () => {
+  const test = skillTests.find((candidate) => candidate.name === "load-headless-sessions")!;
+  function diagnosis(childId = "child:fixture", observedId = childId): TestExecutionResult {
+    const result = choiceExecution(
+      "The child has not produced a final response because its assignment explicitly told it to keep working without concluding. Its workspace is clean; I cannot establish what research it has completed."
+    );
+    result.diagnostics = { fixture: { kind: "real-subagent-in-progress", invocationId: childId } };
+    result.messages.splice(1, 0, {
+      id: "child-inspection",
+      kind: "message",
+      senderId: "agent",
+      complete: true,
+      contentType: "invocation",
+      content: "",
+      invocation: {
+        id: "read-child",
+        name: "read_subagent",
+        arguments: { runId: observedId, afterSeq: 0 },
+        execution: {
+          status: "complete",
+          isError: false,
+          result: {
+            details: {
+              runId: observedId,
+              nextSeq: 20,
+              hasMore: false,
+              messages: [{ seq: 7, text: "Starting a harmless background reading task." }],
+            },
+          },
+        },
+      },
+    } as unknown as TestExecutionResult["messages"][number]);
+    return result;
+  }
+  it("accepts an observed bounded inspection without requiring arbitrary prose markers", () => {
+    expect(test.validate(diagnosis())).toEqual({ passed: true });
+  });
+  it("rejects a different child's inspection and unsupported prose-only claims", () => {
+    expect(test.validate(diagnosis("child:fixture", "child:other")).passed).toBe(false);
+    const uninspected = diagnosis();
+    uninspected.messages.splice(1, 1);
+    expect(test.validate(uninspected).passed).toBe(false);
+  });
+});

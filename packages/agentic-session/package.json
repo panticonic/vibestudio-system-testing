@@ -1,7 +1,7 @@
 {
   "name": "@workspace/agentic-session",
   "version": "0.1.0",
-  "description": "Headless agentic session convenience — wraps SessionManager with headless defaults",
+  "description": "Headless agentic session convenience \u2014 wraps SessionManager with headless defaults",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -11,7 +11,6 @@
     "@workspace/agentic-core": "workspace:*",
     "@workspace/agentic-protocol": "workspace:*",
     "@workspace/eval": "workspace:*",
-    "@workspace/pi-core": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "zod": "^3.25.76"
   }

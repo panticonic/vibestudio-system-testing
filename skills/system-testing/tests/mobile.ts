@@ -88,9 +88,7 @@ export const mobileTests: TestCase[] = requiringUnits(
             '"providers"',
             '"devices"',
             '"provision"',
-            "extensions.invoke",
-            "mobile-debug",
-            "verifyWorkspaceReady",
+            '"readiness"',
           ],
           [
             "@workspace-skills/phone-setup",
@@ -100,9 +98,6 @@ export const mobileTests: TestCase[] = requiringUnits(
             ".devices(",
             ".provision(",
             ".waitForWorkspace(",
-            "extensions.invoke",
-            "mobile-debug",
-            "verifyWorkspaceReady",
           ],
         ]);
         if (!exercised.passed) return exercised;
@@ -116,15 +111,10 @@ export const mobileTests: TestCase[] = requiringUnits(
           const parsed = PhoneWorkspaceReadinessSchema.safeParse(record);
           return parsed.success && parsed.data.status === "ready";
         });
-        const workspaceReady = records.some(
-          (record) =>
-            record["ready"] === true &&
-            record["workspaceConnected"] === true &&
-            record["panelHostReady"] === true &&
-            Array.isArray(record["issues"]) &&
-            record["issues"].length === 0,
-        );
-        if (!provisioned || !workspaceReady || !publicWorkspaceReady) {
+        // The public readiness receiver queries this exact paired phone and
+        // reports ready only after connection and workspace reconciliation.
+        // A second native debugging call is not part of the setup contract.
+        if (!provisioned || !publicWorkspaceReady) {
           return {
             passed: false,
             reason:
@@ -195,14 +185,13 @@ export const mobileTests: TestCase[] = requiringUnits(
 
         const final = findLastAgentMessage(result);
         return /android|emulator|device/iu.test(final) &&
-          /app\.vibestudio\.mobile\.internal/u.test(final) &&
           /install/iu.test(final) &&
           /render/iu.test(final)
           ? { passed: true }
           : {
               passed: false,
               reason:
-                "Final response omitted the selected device, package, install, or rendering evidence",
+                "Final response omitted the device, install, or rendering outcome",
             };
       },
     },

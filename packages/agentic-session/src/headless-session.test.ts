@@ -8,6 +8,7 @@ import {
   type TurnId,
 } from "@workspace/agentic-protocol";
 import type { MethodDefinition } from "@workspace/pubsub";
+import { systemTestFailure } from "../../../skills/system-testing/structured-error.js";
 
 function createConfig(): ConnectionConfig {
   return {
@@ -22,6 +23,75 @@ function createConfig(): ConnectionConfig {
 }
 
 describe("HeadlessSession", () => {
+  it("preserves original setup and every cleanup failure through the runner diagnostic packet", async () => {
+    const setup = Object.assign(
+      new Error("Native owner requires its trusted loaded-image descriptor"),
+      { code: "SchemaImageMissing" }
+    );
+    const disconnect = new Error("Headless disconnect failed");
+    const reclaim = new Error("Isolated context reclaim failed");
+    const methods: string[] = [];
+    const rpcCall = vi.fn(async (_target: string, method: string) => {
+      methods.push(method);
+      if (method === "runtime.createContext") return { contextId: "original-context" };
+      if (method === "runtime.createEntity") throw setup;
+      if (method === "runtime.destroyContext") throw reclaim;
+      throw new Error(`Unexpected RPC ${method}`);
+    });
+    const disconnectSpy = vi
+      .spyOn(HeadlessSession.prototype, "disconnect")
+      .mockRejectedValue(disconnect);
+    try {
+      const failure = await HeadlessSession.createWithAgent({
+        config: createConfig(),
+        rpcCall,
+        source: "workers/agent-worker",
+        className: "AiChatWorker",
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AggregateError);
+      expect((failure as AggregateError).cause).toBe(setup);
+      expect((failure as AggregateError).errors).toEqual([setup, disconnect, reclaim]);
+      expect(methods).toEqual([
+        "runtime.createContext",
+        "runtime.createEntity",
+        "runtime.destroyContext",
+      ]);
+      const packet = systemTestFailure("setup", failure);
+      expect(packet.error.cause).toMatchObject({
+        message: setup.message,
+        code: "SchemaImageMissing",
+      });
+      expect(packet.error.errors?.map((error) => error.message)).toEqual([
+        setup.message,
+        disconnect.message,
+        reclaim.message,
+      ]);
+    } finally {
+      disconnectSpy.mockRestore();
+    }
+  });
+
+  it("rethrows the exact original setup failure after successful owned cleanup", async () => {
+    const setup = new Error("Original setup failure");
+    const rpcCall = vi.fn(async (_target: string, method: string) => {
+      if (method === "runtime.createContext") return { contextId: "original-context" };
+      if (method === "runtime.createEntity") throw setup;
+      if (method === "runtime.destroyContext") return undefined;
+      throw new Error(`Unexpected RPC ${method}`);
+    });
+    await expect(
+      HeadlessSession.createWithAgent({
+        config: createConfig(),
+        rpcCall,
+        source: "workers/agent-worker",
+        className: "AiChatWorker",
+      })
+    ).rejects.toBe(setup);
+    expect(rpcCall).toHaveBeenLastCalledWith("main", "runtime.destroyContext", [
+      { contextId: "original-context", recursive: true },
+    ]);
+  });
+
   it("constructs without connecting", () => {
     const session = HeadlessSession.create({
       config: createConfig(),
@@ -86,9 +156,7 @@ describe("HeadlessSession", () => {
         payload: {
           protocol: AGENTIC_PROTOCOL_VERSION,
           role: "assistant",
-          blocks: [
-            { blockId: "message-1:block:0", type: "text", content: "ready" },
-          ],
+          blocks: [{ blockId: "message-1:block:0", type: "text", content: "ready" }],
           outcome: "completed",
         },
         createdAt: "2026-08-09T00:00:01.000Z",
@@ -132,9 +200,7 @@ describe("HeadlessSession", () => {
       _chatMessages: Map<string, ChatMessage>;
       _chatMessageOrder: string[];
     };
-    internals._chatMessages = new Map([
-      [invocationMessage.id, invocationMessage],
-    ]);
+    internals._chatMessages = new Map([[invocationMessage.id, invocationMessage]]);
     internals._chatMessageOrder = [invocationMessage.id];
     (session as any)._participants = {
       "agent-1": {
@@ -214,9 +280,7 @@ describe("HeadlessSession", () => {
       _chatMessages: Map<string, ChatMessage>;
       _chatMessageOrder: string[];
     };
-    internals._chatMessages = new Map([
-      [invocationMessage.id, invocationMessage],
-    ]);
+    internals._chatMessages = new Map([[invocationMessage.id, invocationMessage]]);
     internals._chatMessageOrder = [invocationMessage.id];
 
     expect(session.snapshot().invocations[0]?.error).toBe("boom");
@@ -229,16 +293,14 @@ describe("HeadlessSession", () => {
 
   it("provides a deterministic one-rejection validation recovery seam", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
-    const methods = (
-      session as any
-    ).buildValidationRetryProbeMethods() as Record<
+    const methods = (session as any).buildValidationRetryProbeMethods() as Record<
       string,
       { execute: (args: unknown) => Promise<unknown> }
     >;
     const probe = methods["validation_retry_probe"]!;
 
     await expect(probe.execute({ value: "first" })).rejects.toThrow(
-      "Invalid arguments for tool validation_retry_probe",
+      "Invalid arguments for tool validation_retry_probe"
     );
     await expect(probe.execute({ value: "corrected" })).resolves.toEqual({
       ok: true,
@@ -259,9 +321,7 @@ describe("HeadlessSession", () => {
   it("awaits the agent pause terminal before interrupt returns", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
     let settle!: (value: { result: unknown }) => void;
-    const result = new Promise<{ result: unknown }>(
-      (resolve) => (settle = resolve),
-    );
+    const result = new Promise<{ result: unknown }>((resolve) => (settle = resolve));
     const callMethod = vi.fn(() => ({ result }));
     (session as any)._client = { callMethod };
 
@@ -272,12 +332,7 @@ describe("HeadlessSession", () => {
     await Promise.resolve();
 
     expect(completed).toBe(false);
-    expect(callMethod).toHaveBeenCalledWith(
-      "agent-1",
-      "pause",
-      {},
-      { timeoutMs: 10_000 },
-    );
+    expect(callMethod).toHaveBeenCalledWith("agent-1", "pause", {}, { timeoutMs: 10_000 });
 
     settle({ result: { paused: true } });
     await interrupt;
@@ -293,9 +348,7 @@ describe("HeadlessSession", () => {
 
     await session.interrupt("agent-direct");
 
-    expect(rpcCall).toHaveBeenCalledWith("agent-direct", "interruptChannel", [
-      "ch-direct",
-    ]);
+    expect(rpcCall).toHaveBeenCalledWith("agent-direct", "interruptChannel", ["ch-direct"]);
     expect((session as any)._client.callMethod).not.toHaveBeenCalled();
   });
 
@@ -308,38 +361,28 @@ describe("HeadlessSession", () => {
 
     await session.interrupt("agent-direct", { timeoutMs: 2_000, signal });
 
-    expect(rpcCall).toHaveBeenCalledWith(
-      "agent-direct",
-      "interruptChannel",
-      ["ch-direct"],
-      {
-        timeoutMs: 2_000,
-        signal,
-      },
-    );
+    expect(rpcCall).toHaveBeenCalledWith("agent-direct", "interruptChannel", ["ch-direct"], {
+      timeoutMs: 2_000,
+      signal,
+    });
   });
 
   it("finishes shared-context unsubscribe before retiring the agent entity", async () => {
     const session = HeadlessSession.create({
       config: createConfig(),
     });
-    const calls: Array<{ target: string; method: string; args: unknown[] }> =
-      [];
+    const calls: Array<{ target: string; method: string; args: unknown[] }> = [];
     let finishUnsubscribe!: () => void;
-    const unsubscribeFinished = new Promise<void>(
-      (resolve) => (finishUnsubscribe = resolve),
-    );
-    (session as any)._agentEntityId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
-    (session as any)._agentTargetId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
+    const unsubscribeFinished = new Promise<void>((resolve) => (finishUnsubscribe = resolve));
+    (session as any)._agentEntityId = "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-1";
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(
       async (target: string, method: string, args: unknown[]) => {
         calls.push({ target, method, args });
         if (method === "unsubscribeChannel") await unsubscribeFinished;
         return undefined;
-      },
+      }
     );
 
     const phases: string[] = [];
@@ -407,12 +450,9 @@ describe("HeadlessSession", () => {
 
   it("unsubscribes before recursively destroying an isolated headless context", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
-    const calls: Array<{ target: string; method: string; args: unknown[] }> =
-      [];
-    (session as any)._agentEntityId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
-    (session as any)._agentTargetId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
+    const calls: Array<{ target: string; method: string; args: unknown[] }> = [];
+    (session as any)._agentEntityId = "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-1";
     (session as any)._agentContextId = "ctx-isolated";
     (session as any)._ownsAgentContext = true;
     (session as any)._channelId = "ch-1";
@@ -420,7 +460,7 @@ describe("HeadlessSession", () => {
       async (target: string, method: string, args: unknown[]) => {
         calls.push({ target, method, args });
         return undefined;
-      },
+      }
     );
 
     await session.close();
@@ -442,46 +482,34 @@ describe("HeadlessSession", () => {
   it("unsubscribes the agent before disconnecting the headless participant", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
     const order: string[] = [];
-    (session as any)._agentEntityId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
-    (session as any)._agentTargetId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentEntityId = "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-1";
     (session as any)._channelId = "ch-1";
-    (session as any)._agentRpcCall = vi.fn(
-      async (_target: string, method: string) => {
-        order.push(method);
-        return undefined;
-      },
-    );
+    (session as any)._agentRpcCall = vi.fn(async (_target: string, method: string) => {
+      order.push(method);
+      return undefined;
+    });
     vi.spyOn(session, "disconnect").mockImplementation(async () => {
       order.push("disconnect");
     });
 
     await session.close();
 
-    expect(order).toEqual([
-      "unsubscribeChannel",
-      "disconnect",
-      "runtime.retireEntity",
-    ]);
+    expect(order).toEqual(["unsubscribeChannel", "disconnect", "runtime.retireEntity"]);
   });
 
   it("closes effect admission before collecting terminal model evidence", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
     const order: string[] = [];
-    (session as any)._agentEntityId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
-    (session as any)._agentTargetId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentEntityId = "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-1";
     (session as any)._channelId = "ch-1";
     (session as any)._client = {};
-    (session as any)._agentRpcCall = vi.fn(
-      async (_target: string, method: string) => {
-        order.push(method);
-        if (method === "getModelExecutionEvidence") return { totalCalls: 1 };
-        return undefined;
-      },
-    );
+    (session as any)._agentRpcCall = vi.fn(async (_target: string, method: string) => {
+      order.push(method);
+      if (method === "getModelExecutionEvidence") return { totalCalls: 1 };
+      return undefined;
+    });
     vi.spyOn(session, "disconnect").mockResolvedValue();
 
     await session.close();
@@ -493,6 +521,91 @@ describe("HeadlessSession", () => {
     ]);
   });
 
+  it("joins retirement evidence after admission closes and before disconnect or destruction", async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    let entered!: () => void;
+    const enteredPromise = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const beforeRetirement = vi.fn(async (identity) => {
+      expect(identity).toEqual({
+        channelId: "ch-1",
+        contextId: "ctx-1",
+        agentTargetId: "target-1",
+      });
+      order.push("observe");
+      entered();
+      await held;
+    });
+    const session = HeadlessSession.create({ config: createConfig(), beforeRetirement });
+    Object.assign(session, {
+      _agentEntityId: "entity-1",
+      _agentTargetId: "target-1",
+      _agentContextId: "ctx-1",
+      _ownsAgentContext: true,
+      _channelId: "ch-1",
+      _agentRpcCall: vi.fn(async (_target: string, method: string) => {
+        order.push(method);
+      }),
+    });
+    vi.spyOn(session, "disconnect").mockImplementation(async () => {
+      order.push("disconnect");
+    });
+    const closing = session.close();
+    await enteredPromise;
+    expect(order).toEqual(["unsubscribeChannel", "observe"]);
+    expect(session.close()).toBe(closing);
+    release();
+    await closing;
+    expect(order).toEqual([
+      "unsubscribeChannel",
+      "observe",
+      "disconnect",
+      "runtime.destroyContext",
+    ]);
+    expect(beforeRetirement).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["sync", "async"])(
+    "preserves %s retirement-observer failure and joins owned teardown",
+    async (mode) => {
+      vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const failure = new Error("diagnostic source disconnected");
+      const session = HeadlessSession.create({
+        config: createConfig(),
+        beforeRetirement: () => {
+          if (mode === "sync") throw failure;
+          return Promise.reject(failure);
+        },
+      });
+      const calls: string[] = [];
+      Object.assign(session, {
+        _agentEntityId: "entity-1",
+        _agentTargetId: "target-1",
+        _agentContextId: "ctx-1",
+        _ownsAgentContext: true,
+        _channelId: "ch-1",
+        _agentRpcCall: vi.fn(async (_target: string, method: string) => {
+          calls.push(method);
+        }),
+      });
+      const error = await session.close().catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(AggregateError);
+      expect((error as AggregateError).errors).toContain(failure);
+      expect(calls).toEqual(["unsubscribeChannel", "runtime.destroyContext"]);
+      expect(session.snapshot().cleanupErrors).toContainEqual(
+        expect.objectContaining({
+          phase: "captureRetirementEvidence",
+          message: failure.message,
+        })
+      );
+    }
+  );
+
   it("reports isolated context cleanup failure without creating a second cleanup owner", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const session = HeadlessSession.create({ config: createConfig() });
@@ -502,18 +615,13 @@ describe("HeadlessSession", () => {
     (session as any)._agentContextId = "ctx-isolated";
     (session as any)._ownsAgentContext = true;
     (session as any)._channelId = "ch-1";
-    (session as any)._agentRpcCall = vi.fn(
-      async (target: string, method: string) => {
-        calls.push({ target, method });
-        if (method === "runtime.destroyContext")
-          throw new Error("destroy failed");
-        return undefined;
-      },
-    );
+    (session as any)._agentRpcCall = vi.fn(async (target: string, method: string) => {
+      calls.push({ target, method });
+      if (method === "runtime.destroyContext") throw new Error("destroy failed");
+      return undefined;
+    });
 
-    await expect(session.close()).rejects.toThrow(
-      /Headless session cleanup failed in 1 phase/,
-    );
+    await expect(session.close()).rejects.toThrow(/Headless session cleanup failed in 1 phase/);
 
     expect(session.snapshot().cleanupErrors).toEqual([
       expect.objectContaining({
@@ -532,13 +640,10 @@ describe("HeadlessSession", () => {
     const session = HeadlessSession.create({
       config: createConfig(),
     });
-    const calls: Array<{ target: string; method: string; args: unknown[] }> =
-      [];
+    const calls: Array<{ target: string; method: string; args: unknown[] }> = [];
     let releaseUnsubscribe: (() => void) | undefined;
-    (session as any)._agentEntityId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
-    (session as any)._agentTargetId =
-      "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentEntityId = "do:workers/agent-worker:AiChatWorker:obj-1";
+    (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-1";
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(
       async (target: string, method: string, args: unknown[]) => {
@@ -549,7 +654,7 @@ describe("HeadlessSession", () => {
           });
         }
         return undefined;
-      },
+      }
     );
 
     let settled = false;
@@ -563,7 +668,7 @@ describe("HeadlessSession", () => {
           method: "unsubscribeChannel",
           args: ["ch-1"],
         },
-      ]),
+      ])
     );
     expect(settled).toBe(false);
 
@@ -588,19 +693,15 @@ describe("HeadlessSession", () => {
   it("waits for owned-context unsubscription before destroying the context", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
     const calls: string[] = [];
-    (session as any)._agentEntityId =
-      "do:workers/agent-worker:AiChatWorker:obj-owned";
-    (session as any)._agentTargetId =
-      "do:workers/agent-worker:AiChatWorker:obj-owned";
+    (session as any)._agentEntityId = "do:workers/agent-worker:AiChatWorker:obj-owned";
+    (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-owned";
     (session as any)._agentContextId = "ctx-owned";
     (session as any)._ownsAgentContext = true;
     (session as any)._channelId = "ch-owned";
-    const rpcCall = vi.fn(
-      async (_target: string, method: string, _args: unknown[]) => {
-        calls.push(method);
-        return undefined;
-      },
-    );
+    const rpcCall = vi.fn(async (_target: string, method: string, _args: unknown[]) => {
+      calls.push(method);
+      return undefined;
+    });
     (session as any)._agentRpcCall = rpcCall;
 
     await expect(session.close()).resolves.toBeUndefined();
@@ -611,14 +712,14 @@ describe("HeadlessSession", () => {
       "do:workers/agent-worker:AiChatWorker:obj-owned",
       "unsubscribeChannel",
       ["ch-owned"],
-      { timeoutMs: 30_000 },
+      { timeoutMs: 30_000 }
     );
     expect(rpcCall).toHaveBeenNthCalledWith(
       2,
       "main",
       "runtime.destroyContext",
       [{ contextId: "ctx-owned", recursive: true }],
-      { timeoutMs: 30_000 },
+      { timeoutMs: 30_000 }
     );
     expect(session.snapshot().cleanupErrors).toEqual([]);
   });
@@ -631,14 +732,11 @@ describe("HeadlessSession", () => {
     (session as any)._agentEntityId = "entity-1";
     (session as any)._agentTargetId = "agent-target";
     (session as any)._channelId = "ch-1";
-    (session as any)._agentRpcCall = vi.fn(
-      async (_target: string, method: string) => {
-        if (method === "unsubscribeChannel")
-          throw new Error("unsubscribe failed");
-        if (method === "runtime.retireEntity") throw new Error("retire failed");
-        return undefined;
-      },
-    );
+    (session as any)._agentRpcCall = vi.fn(async (_target: string, method: string) => {
+      if (method === "unsubscribeChannel") throw new Error("unsubscribe failed");
+      if (method === "runtime.retireEntity") throw new Error("retire failed");
+      return undefined;
+    });
 
     const cleanupError = await session.close().catch((error: unknown) => error);
     expect(cleanupError).toBeInstanceOf(AggregateError);
@@ -659,11 +757,11 @@ describe("HeadlessSession", () => {
     ]);
     expect(warn).toHaveBeenCalledWith(
       "[HeadlessSession] unsubscribeHeadlessAgent failed:",
-      expect.any(Error),
+      expect.any(Error)
     );
     expect(warn).toHaveBeenCalledWith(
       "[HeadlessSession] retireHeadlessAgent failed:",
-      expect.any(Error),
+      expect.any(Error)
     );
     warn.mockRestore();
   });
@@ -676,44 +774,40 @@ describe("HeadlessSession", () => {
       .mockImplementation(async function (
         this: HeadlessSession,
         channelId: string,
-        options?: Parameters<HeadlessSession["connect"]>[1],
+        options?: Parameters<HeadlessSession["connect"]>[1]
       ) {
         order.push(
           `connect:${channelId}:${Object.keys(options?.methods ?? {})
             .sort()
-            .join(",")}`,
+            .join(",")}`
         );
-        (
-          this as unknown as { _channelId: string; _client: unknown }
-        )._channelId = channelId;
+        (this as unknown as { _channelId: string; _client: unknown })._channelId = channelId;
         (this as unknown as { _client: unknown })._client = { close: vi.fn() };
       });
-    const rpcCall = vi.fn(
-      async (target: string, method: string, args: unknown[]) => {
-        order.push(`rpc:${target}:${method}`);
-        if (target === "main" && method === "runtime.createEntity") {
-          if (
-            (args[0] as { execution?: { source?: string } }).execution
-              ?.source === "workers/pubsub-channel"
-          ) {
-            return {
-              id: "channel-entity",
-              targetId: "channel-target",
-              contextId: "ctx-1",
-            };
-          }
+    const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
+      order.push(`rpc:${target}:${method}`);
+      if (target === "main" && method === "runtime.createEntity") {
+        if (
+          (args[0] as { execution?: { source?: string } }).execution?.source ===
+          "workers/pubsub-channel"
+        ) {
           return {
-            id: "entity-1",
-            targetId: "agent-target",
+            id: "channel-entity",
+            targetId: "channel-target",
             contextId: "ctx-1",
           };
         }
-        if (target === "agent-target" && method === "subscribeChannel") {
-          return { ok: true, participantId: "do:agent" };
-        }
-        throw new Error(`unexpected RPC ${target}.${method}`);
-      },
-    );
+        return {
+          id: "entity-1",
+          targetId: "agent-target",
+          contextId: "ctx-1",
+        };
+      }
+      if (target === "agent-target" && method === "subscribeChannel") {
+        return { ok: true, participantId: "do:agent" };
+      }
+      throw new Error(`unexpected RPC ${target}.${method}`);
+    });
 
     let session: HeadlessSession | undefined;
     try {
@@ -755,12 +849,10 @@ describe("HeadlessSession", () => {
       .mockImplementation(async function (
         this: HeadlessSession,
         channelId: string,
-        options?: Parameters<HeadlessSession["connect"]>[1],
+        options?: Parameters<HeadlessSession["connect"]>[1]
       ) {
         registeredMethods = options?.methods ?? {};
-        (
-          this as unknown as { _channelId: string; _client: unknown }
-        )._channelId = channelId;
+        (this as unknown as { _channelId: string; _client: unknown })._channelId = channelId;
         (this as unknown as { _client: unknown })._client = {
           clientId: "headless-panel",
           publish,
@@ -788,21 +880,18 @@ describe("HeadlessSession", () => {
         includeSyntheticPanelUiMethods: true,
       });
 
-      expect(Object.keys(registeredMethods).sort()).toEqual([
-        "inline_ui",
-        "load_action_bar",
-      ]);
+      expect(Object.keys(registeredMethods).sort()).toEqual(["inline_ui", "load_action_bar"]);
       const result = vi.fn((content, options) => ({ content, ...options }));
       const methodContext = { result } as never;
 
       await expect(
-        registeredMethods["inline_ui"]!.execute({}, methodContext),
+        registeredMethods["inline_ui"]!.execute({}, methodContext)
       ).resolves.toMatchObject({
         content: { ok: false, error: "Missing code or path" },
         isError: true,
       });
       await expect(
-        registeredMethods["load_action_bar"]!.execute({}, methodContext),
+        registeredMethods["load_action_bar"]!.execute({}, methodContext)
       ).resolves.toMatchObject({
         content: { ok: false, error: "Missing path" },
         isError: true,
@@ -814,18 +903,15 @@ describe("HeadlessSession", () => {
           id: "setup-overview",
           code: "export default function App() { return null; }",
         },
-        methodContext,
+        methodContext
       );
       await registeredMethods["load_action_bar"]!.execute(
         {
           path: "skills/test/ActionBar.tsx",
         },
-        methodContext,
+        methodContext
       );
-      await registeredMethods["load_action_bar"]!.execute(
-        { clear: true },
-        methodContext,
-      );
+      await registeredMethods["load_action_bar"]!.execute({ clear: true }, methodContext);
     } finally {
       connect.mockRestore();
       HeadlessSession.prototype.connect = originalConnect;
@@ -846,9 +932,7 @@ describe("HeadlessSession", () => {
         }),
       }),
       expect.objectContaining({
-        idempotencyKey: expect.stringContaining(
-          "synthetic-ui:inline:setup-overview:",
-        ),
+        idempotencyKey: expect.stringContaining("synthetic-ui:inline:setup-overview:"),
       }),
     ]);
     expect(publish.mock.calls[1]).toEqual([
@@ -875,9 +959,7 @@ describe("HeadlessSession", () => {
         }),
       }),
       expect.objectContaining({
-        idempotencyKey: expect.stringContaining(
-          "synthetic-ui:action-bar:clear:",
-        ),
+        idempotencyKey: expect.stringContaining("synthetic-ui:action-bar:clear:"),
       }),
     ]);
   });
@@ -890,57 +972,53 @@ describe("HeadlessSession", () => {
       .mockImplementation(async function (
         this: HeadlessSession,
         channelId: string,
-        options?: { contextId?: string; methods?: Record<string, unknown> },
+        options?: { contextId?: string; methods?: Record<string, unknown> }
       ) {
         order.push(`connect:${channelId}:${options?.contextId ?? "missing"}`);
-        (
-          this as unknown as { _channelId: string; _client: unknown }
-        )._channelId = channelId;
+        (this as unknown as { _channelId: string; _client: unknown })._channelId = channelId;
         (this as unknown as { _client: unknown })._client = { close: vi.fn() };
       });
-    const rpcCall = vi.fn(
-      async (target: string, method: string, args: unknown[]) => {
-        order.push(`rpc:${target}:${method}`);
-        if (target === "main" && method === "runtime.createContext") {
-          return { contextId: "ctx-isolated" };
-        }
-        if (target === "main" && method === "runtime.createEntity") {
-          expect(args[0]).toHaveProperty("contextId", "ctx-isolated");
-          if (
-            (args[0] as { execution?: { source?: string } }).execution
-              ?.source === "workers/pubsub-channel"
-          ) {
-            expect(args[0]).toMatchObject({
-              kind: "do",
-              execution: {
-                surface: "code",
-                source: "workers/pubsub-channel",
-              },
-              className: "PubSubChannel",
-              key: "headless-1",
-            });
-            return {
-              id: "channel-entity",
-              targetId: "channel-target",
-              contextId: "ctx-isolated",
-            };
-          }
+    const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
+      order.push(`rpc:${target}:${method}`);
+      if (target === "main" && method === "runtime.createContext") {
+        return { contextId: "ctx-isolated" };
+      }
+      if (target === "main" && method === "runtime.createEntity") {
+        expect(args[0]).toHaveProperty("contextId", "ctx-isolated");
+        if (
+          (args[0] as { execution?: { source?: string } }).execution?.source ===
+          "workers/pubsub-channel"
+        ) {
+          expect(args[0]).toMatchObject({
+            kind: "do",
+            execution: {
+              surface: "code",
+              source: "workers/pubsub-channel",
+            },
+            className: "PubSubChannel",
+            key: "headless-1",
+          });
           return {
-            id: "entity-1",
-            targetId: "agent-target",
+            id: "channel-entity",
+            targetId: "channel-target",
             contextId: "ctx-isolated",
           };
         }
-        if (target === "agent-target" && method === "subscribeChannel") {
-          expect(args[0]).toMatchObject({
-            channelId: "headless-1",
-            contextId: "ctx-isolated",
-          });
-          return { ok: true, participantId: "do:agent" };
-        }
-        throw new Error(`unexpected RPC ${target}.${method}`);
-      },
-    );
+        return {
+          id: "entity-1",
+          targetId: "agent-target",
+          contextId: "ctx-isolated",
+        };
+      }
+      if (target === "agent-target" && method === "subscribeChannel") {
+        expect(args[0]).toMatchObject({
+          channelId: "headless-1",
+          contextId: "ctx-isolated",
+        });
+        return { ok: true, participantId: "do:agent" };
+      }
+      throw new Error(`unexpected RPC ${target}.${method}`);
+    });
 
     let session: HeadlessSession | undefined;
     try {
@@ -985,545 +1063,389 @@ describe("HeadlessSession", () => {
     await expect(session.callMethod("agent-1", "work", {})).resolves.toEqual({
       ok: true,
     });
-    await expect(
-      session.callMethodResult("agent-1", "work", {}),
-    ).resolves.toEqual(envelope);
+    await expect(session.callMethodResult("agent-1", "work", {})).resolves.toEqual(envelope);
   });
 
-  it("sendAndWait starts waiting before publishing the prompt", async () => {
-    const session = HeadlessSession.create({
-      config: createConfig(),
-    }) as HeadlessSession & {
-      waitForIdle: ReturnType<typeof vi.fn>;
-      send: ReturnType<typeof vi.fn>;
-    };
-    const idleMessage = {
-      id: "agent-message",
-      senderId: "agent-1",
-      content: "done",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-    const order: string[] = [];
-    session.waitForIdle = vi.fn(() => {
-      order.push("wait");
-      return Promise.resolve(idleMessage);
-    });
-    session.send = vi.fn(async () => {
-      order.push("send");
-      return "message-user";
-    });
-
-    await expect(session.sendAndWait("hello")).resolves.toBe(idleMessage);
-    expect(order).toEqual(["wait", "send"]);
-  });
-
-  it("waitForIdle waits until the durable agent turn is closed", async () => {
-    vi.useFakeTimers();
-    const session = HeadlessSession.create({
-      config: createConfig(),
-    });
-    const turnId = brandId<TurnId>("turn-open");
-    const idleMessage = {
-      id: "agent-message",
-      senderId: "agent-1",
-      content: "done",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-    (session as any)._channelId = "ch-1";
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
-    };
-
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1000 });
-    (session as any)._chatMessages = new Map([[idleMessage.id, idleMessage]]);
-    (session as any)._chatMessageOrder = [idleMessage.id];
-    (session as any).notifyListeners();
-    await vi.advanceTimersByTimeAsync(20);
-
-    let resolved = false;
-    void wait.then(() => {
-      resolved = true;
-    });
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          ...(session as any)._channelView.turns[turnId],
-          status: "closed",
-          closedAt: "2026-05-27T00:00:01.000Z",
-        },
-      },
-    };
-    (session as any).notifyListeners();
-
-    await expect(wait).resolves.toBe(idleMessage);
-    vi.useRealTimers();
-  });
-
-  it("can treat an externally blocked waiting turn as terminal", async () => {
+  function nativeFixture() {
     const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-credential-wait");
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "waiting",
-          reason: "model_credential_reconnect_required",
-          openedAt: "2026-05-27T00:00:00.000Z",
+    const internal = session as any;
+    internal._channelId = "ch-1";
+    internal._agentEntityId = "agent-1";
+    internal._agentTargetId = "agent-target";
+    const message = {
+      id: "native:3:11:0",
+      senderId: "agent-1",
+      content: "done",
+      kind: "message",
+      complete: true,
+      native: { conversationId: 3, taskId: 7, entryId: 11 },
+    } satisfies ChatMessage;
+    const result = {
+      channelId: "ch-1",
+      conversationId: 3,
+      taskId: 7,
+      inputs: [{ status: "done" }],
+      answers: [
+        {
+          conversationId: 3,
+          entryId: 11,
+          taskId: 7,
+          messages: [
+            {
+              messageId: message.id,
+              text: "done",
+              outcome: "completed",
+              published: true,
+            },
+          ],
+        },
+      ],
+    };
+    const show = (value: ChatMessage) => {
+      internal._chatMessages.set(value.id, value);
+      if (!internal._chatMessageOrder.includes(value.id)) internal._chatMessageOrder.push(value.id);
+      internal.notifyListeners();
+    };
+    const source = (runtimeId = "agent-1", taskId = 7) => ({
+      invocationId: `source:${runtimeId}:${taskId}`,
+      actor: { kind: "agent", id: runtimeId },
+      status: "running",
+      outputs: [],
+      progress: [],
+      nativeSource: {
+        owner: {
+          runtimeId,
+          channelId: "ch-1",
+          authoritySessionId: "authority-session",
+          contextId: "context",
+          incarnation: "incarnation",
+          source: "workers/test-agent",
+          effectiveVersion: "version",
+          className: "TestAgent",
+          objectKey: runtimeId,
+          executionDigest: "a".repeat(64),
+        },
+        task: { taskId, conversationId: 3, kind: "pi.generation", version: 1 },
+        operation: {
+          kind: "model" as const,
+          purpose: "generation" as const,
+          attempt: 0,
+          cutoff: 11,
+          requestDigest: "b".repeat(64),
         },
       },
-    };
-
-    await expect(
-      session.waitForIdle({
-        terminalWaitingReasons: ["model_credential_reconnect_required"],
-      }),
-    ).rejects.toThrow(
-      "Agent turn requires unavailable external action (model_credential_reconnect_required)",
-    );
-  });
-
-  it("waitForIdle does not let a background subagent block a closed parent turn", async () => {
-    vi.useFakeTimers();
-    const session = HeadlessSession.create({
-      config: createConfig(),
     });
-    const turnId = brandId<TurnId>("turn-with-background-child");
-    const invocationId = "spawn-1";
-    const idleMessage = {
-      id: "agent-message",
+    return { session, internal, message, result, show, source };
+  }
+
+  function invocationMessage(
+    id: string,
+    status: "pending" | "complete" | "cancelled"
+  ): ChatMessage {
+    return {
+      id,
+      kind: "message",
       senderId: "agent-1",
-      content: "fixture ready",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-    const childTask = {
-      id: `task:${invocationId}`,
-      senderId: "agent-1",
+      complete: status !== "pending",
       content: "",
-      contentType: "task" as const,
-      kind: "message" as const,
-      complete: false,
-      task: {
-        id: invocationId,
-        taskType: "subagent",
-        title: "background child",
-        execution: {
-          status: "running" as const,
-          description: "",
-        },
-        subagent: {
-          runId: invocationId,
-          mode: "fresh" as const,
-          taskChannelId: "task-1",
-          childParticipantId: "participant-child",
-        },
-      },
-    } satisfies ChatMessage;
-    (session as any)._channelId = "ch-1";
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "closed",
-          openedAt: "2026-05-27T00:00:00.000Z",
-          closedAt: "2026-05-27T00:00:01.000Z",
-        },
+      contentType: "invocation",
+      invocation: {
+        id,
+        name: "model.generation",
+        arguments: {},
+        execution: { status, isError: false, description: "Native model call" },
       },
     };
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1000 });
-    (session as any)._chatMessages = new Map<string, ChatMessage>([
-      [idleMessage.id, idleMessage],
-      [childTask.id, childTask],
-    ]);
-    (session as any)._chatMessageOrder = [idleMessage.id, childTask.id];
-    (session as any)._hasIncomplete = true;
-    (session as any).notifyListeners();
-    await vi.advanceTimersByTimeAsync(4);
-    (session as any).notifyListeners();
-    await vi.advanceTimersByTimeAsync(1);
+  }
 
-    await expect(wait).resolves.toBe(idleMessage);
-    expect(session.isStreaming).toBe(true);
-    vi.useRealTimers();
-  });
-
-  it("waitForIdle rejects an agent failure when its turn closes without recovery", async () => {
-    const session = HeadlessSession.create({
-      config: createConfig(),
+  it("joins the exact retained terminal card without accepting another invocation", async () => {
+    const f = nativeFixture();
+    f.show(invocationMessage("invocation:owned", "pending"));
+    let done = false;
+    const waiting = f.session.waitForInvocation("invocation:owned").then((message) => {
+      done = true;
+      return message;
     });
-    const turnId = brandId<TurnId>("turn-open-failed");
-    const failureMessage = {
-      id: "diagnostic:failed-message",
-      senderId: "agent-1",
-      content: "Codex error: server_error",
-      contentType: "diagnostic",
-      kind: "system" as const,
-      complete: true,
-      error: "Codex error: server_error",
-    } satisfies ChatMessage;
-    (session as any)._channelId = "ch-1";
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
-    };
-
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1000 });
-    (session as any)._chatMessages = new Map([
-      [failureMessage.id, failureMessage],
-    ]);
-    (session as any)._chatMessageOrder = [failureMessage.id];
-    (session as any).notifyListeners();
-
-    let settled = false;
-    void wait.then(
-      () => {
-        settled = true;
-      },
-      () => {
-        settled = true;
-      },
-    );
+    f.show(invocationMessage("invocation:other", "complete"));
     await Promise.resolve();
-    expect(settled).toBe(false);
-
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          ...(session as any)._channelView.turns[turnId],
-          status: "closed",
-          closedAt: "2026-05-27T00:00:01.000Z",
-        },
-      },
-    };
-    (session as any).notifyListeners();
-
-    await expect(wait).rejects.toThrow(
-      "Agent failed: Codex error: server_error",
+    expect(done).toBe(false);
+    const terminal = invocationMessage("invocation:owned", "cancelled");
+    f.show(terminal);
+    await expect(waiting).resolves.toBe(terminal);
+    expect(f.internal._messageListeners.size).toBe(0);
+    expect(f.internal._nativeObservations.size).toBe(0);
+    await expect(f.session.waitForInvocation("invocation:unknown")).rejects.toThrow(
+      "retained identity"
     );
   });
 
-  it("waitForIdle treats a failed model attempt followed by a successful fallback as one turn", async () => {
-    vi.useFakeTimers();
-    const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-fallback");
-    const failureMessage = {
-      id: "diagnostic:failed-primary",
-      senderId: "agent-1",
-      content: "Codex error: usage limit",
-      contentType: "diagnostic",
-      kind: "system" as const,
-      complete: true,
-      error: "Codex error: usage limit",
-    } satisfies ChatMessage;
-    const successMessage = {
-      id: "fallback-success",
-      senderId: "agent-1",
-      content: "continued on fallback",
-      contentType: "text",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-    (session as any)._channelId = "ch-1";
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
-    };
-
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1_000 });
-    (session as any)._chatMessages = new Map([
-      [failureMessage.id, failureMessage],
-    ]);
-    (session as any)._chatMessageOrder = [failureMessage.id];
-    (session as any).notifyListeners();
-
-    (session as any)._chatMessages.set(successMessage.id, successMessage);
-    (session as any)._chatMessageOrder.push(successMessage.id);
-    (session as any).notifyListeners();
-    (session as any)._channelView.turns[turnId] = {
-      ...(session as any)._channelView.turns[turnId],
-      status: "closed",
-      closedAt: "2026-05-27T00:00:01.000Z",
-    };
-    (session as any).notifyListeners();
-
-    await expect(wait).resolves.toBe(successMessage);
-    vi.useRealTimers();
+  it("explicit disconnect cancels and joins pending terminal-card observation", async () => {
+    const f = nativeFixture();
+    f.show(invocationMessage("invocation:owned", "pending"));
+    const waiting = f.session
+      .waitForInvocation("invocation:owned")
+      .catch((error: unknown) => error);
+    await f.session.disconnect();
+    expect(await waiting).toEqual(new Error("Headless session disconnected"));
+    expect(f.internal._messageListeners.size).toBe(0);
+    expect(f.internal._nativeObservations.size).toBe(0);
   });
 
-  it("waitForIdle treats a durable closed failure as terminal", async () => {
-    vi.useFakeTimers();
-    const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-transient-fallback-close");
-    const failureMessage = {
-      id: "diagnostic:transient-failed-primary",
-      senderId: "agent-1",
-      content: "Codex error: usage limit",
-      contentType: "diagnostic",
-      kind: "system" as const,
-      complete: true,
-      error: "Codex error: usage limit",
-    } satisfies ChatMessage;
-    (session as any)._channelId = "ch-1";
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
-    };
-
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1_000 });
-    (session as any)._chatMessages = new Map([
-      [failureMessage.id, failureMessage],
-    ]);
-    (session as any)._chatMessageOrder = [failureMessage.id];
-    (session as any)._channelView.turns[turnId] = {
-      ...(session as any)._channelView.turns[turnId],
-      status: "closed",
-      closedAt: "2026-05-27T00:00:01.000Z",
-    };
-    (session as any).notifyListeners();
-
-    await expect(wait).rejects.toThrow(
-      "Agent failed: Codex error: usage limit",
+  it("close cancels and joins the native RPC observation before remote retirement", async () => {
+    const f = nativeFixture();
+    let released = false;
+    f.session.send = vi.fn(async () => "original-input");
+    f.internal._agentRpcCall = vi.fn(
+      async (
+        _target: string,
+        method: string,
+        _args: unknown[],
+        options?: { signal?: AbortSignal }
+      ) => {
+        if (method !== "waitForNativeRun") {
+          expect(released).toBe(true);
+          return undefined;
+        }
+        return new Promise((_resolve, reject) => {
+          options!.signal!.addEventListener(
+            "abort",
+            () =>
+              queueMicrotask(() => {
+                released = true;
+                reject(options!.signal!.reason);
+              }),
+            { once: true }
+          );
+        });
+      }
     );
-    vi.useRealTimers();
+    const waiting = f.session.sendAndWait("hello").catch((error: unknown) => error);
+    await vi.waitFor(() => expect(f.internal._agentRpcCall).toHaveBeenCalled());
+    await f.session.close();
+    expect(await waiting).toEqual(new Error("Headless session closed"));
+    expect(released).toBe(true);
+    expect(f.internal._messageListeners.size).toBe(0);
+    expect(f.internal._nativeObservations.size).toBe(0);
   });
 
-  it("waitForIdle does not terminalize an attempt failure before its turn projection arrives", async () => {
-    vi.useFakeTimers();
-    const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-late-projection-fallback");
-    const failureMessage = {
-      id: "diagnostic:failed-before-turn-projection",
+  it("retains canonical card attribution after the channel view is retired", () => {
+    const f = nativeFixture();
+    const source = f.source();
+    f.internal._channelView.invocations[source.invocationId] = source;
+    f.show({
+      id: source.invocationId,
       senderId: "agent-1",
-      content: "Codex error: usage limit",
-      contentType: "diagnostic",
-      kind: "system" as const,
-      complete: true,
-      error: "Codex error: usage limit",
-    } satisfies ChatMessage;
-    const successMessage = {
-      id: "late-projection-fallback-success",
-      senderId: "agent-1",
-      content: "fallback succeeded",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1_000 });
-    (session as any)._chatMessages = new Map([
-      [failureMessage.id, failureMessage],
-    ]);
-    (session as any)._chatMessageOrder = [failureMessage.id];
-    (session as any).notifyListeners();
-    let settled = false;
-    void wait.then(
-      () => {
-        settled = true;
-      },
-      () => {
-        settled = true;
-      },
-    );
-    await Promise.resolve();
-    expect(settled).toBe(false);
-
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
-    };
-    (session as any)._chatMessages.set(successMessage.id, successMessage);
-    (session as any)._chatMessageOrder.push(successMessage.id);
-    (session as any)._channelView.turns[turnId] = {
-      ...(session as any)._channelView.turns[turnId],
-      status: "closed",
-      closedAt: "2026-05-27T00:00:01.000Z",
-    };
-    (session as any).notifyListeners();
-
-    await expect(wait).resolves.toBe(successMessage);
-    vi.useRealTimers();
-  });
-
-  it("waitForAgentMessage observes an in-place streaming completion", async () => {
-    const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-streaming-in-place");
-    const streamingMessage = {
-      id: "agent-stream",
-      senderId: "agent-1",
-      content: "part",
-      kind: "message" as const,
+      kind: "message",
       complete: false,
-    } satisfies ChatMessage;
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
+      content: "",
+      contentType: "invocation",
+      invocation: {
+        id: source.invocationId,
+        name: "model_call",
+        nativeSource: source.nativeSource,
+        originatingInput: null,
+        arguments: {},
+        execution: {
+          status: "running",
+          isError: false,
+          description: "Native model call",
         },
       },
-    };
-    (session as any)._chatMessages = new Map([
-      [streamingMessage.id, streamingMessage],
-    ]);
-    (session as any)._chatMessageOrder = [streamingMessage.id];
-
-    const wait = session.waitForAgentMessage({ timeoutMs: 1_000 });
-    const completedMessage = {
-      ...streamingMessage,
-      content: "complete",
-      complete: true,
-    } satisfies ChatMessage;
-    (session as any)._chatMessages.set(completedMessage.id, completedMessage);
-    (session as any).notifyListeners();
-
-    await expect(wait).resolves.toBe(completedMessage);
+    });
+    const capturedMessages = [...f.session.messages];
+    delete f.internal._channelView.invocations[source.invocationId];
+    expect(capturedMessages[0]?.invocation?.nativeSource).toEqual(source.nativeSource);
+    expect(f.session.snapshot().invocations[0]?.nativeSource).toEqual(source.nativeSource);
   });
 
-  it("waitForAgentMessage keeps observing after a failed attempt in an open turn", async () => {
-    const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-message-fallback");
-    const failureMessage = {
-      id: "diagnostic:failed-message-primary",
-      senderId: "agent-1",
-      content: "primary failed",
-      contentType: "diagnostic",
-      kind: "system" as const,
-      complete: true,
-      error: "primary failed",
-    } satisfies ChatMessage;
-    const successMessage = {
-      id: "fallback-message-success",
-      senderId: "agent-1",
-      content: "fallback succeeded",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
+  it("does not recover native attribution from a legacy nested request", () => {
+    const f = nativeFixture();
+    const { nativeSource, ...view } = f.source();
+    f.internal._channelView.invocations.legacy = {
+      ...view,
+      request: { nativeSource },
     };
-
-    const wait = session.waitForAgentMessage({ timeoutMs: 1_000 });
-    (session as any)._chatMessages = new Map([
-      [failureMessage.id, failureMessage],
-    ]);
-    (session as any)._chatMessageOrder = [failureMessage.id];
-    (session as any).notifyListeners();
-
-    (session as any)._chatMessages.set(successMessage.id, successMessage);
-    (session as any)._chatMessageOrder.push(successMessage.id);
-    (session as any).notifyListeners();
-
-    await expect(wait).resolves.toBe(successMessage);
+    expect(f.internal.latestNativeModelTask(new Set())).toBeUndefined();
   });
 
-  it("waitForIdle reports a closed turn with nonterminal foreground state", async () => {
-    const session = HeadlessSession.create({ config: createConfig() });
-    const turnId = brandId<TurnId>("turn-closed-inconsistent");
-    const successMessage = {
-      id: "response-before-inconsistent-close",
-      senderId: "agent-1",
-      content: "response",
-      kind: "message" as const,
-      complete: true,
-    } satisfies ChatMessage;
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          turnId,
-          actor: { kind: "agent", id: "agent-1" },
-          status: "open",
-          openedAt: "2026-05-27T00:00:00.000Z",
-        },
-      },
-    };
-
-    const wait = session.waitForIdle({ debounce: 5, timeoutMs: 1_000 });
-    (session as any)._chatMessages = new Map([
-      [successMessage.id, successMessage],
-    ]);
-    (session as any)._chatMessageOrder = [successMessage.id];
-    (session as any).notifyListeners();
-    (session as any)._channelView = {
-      ...(session as any)._channelView,
-      turns: {
-        [turnId]: {
-          ...(session as any)._channelView.turns[turnId],
-          status: "closed",
-          closedAt: "2026-05-27T00:00:01.000Z",
-        },
-      },
-      messages: {
-        "still-streaming": {
-          messageId: "still-streaming",
-          actor: { kind: "agent", id: "agent-1" },
-          turnId,
-          role: "assistant",
-          status: "streaming",
-        },
-      },
-    };
-    (session as any).notifyListeners();
-
-    await expect(wait).rejects.toThrow(
-      "Agent turn closed with nonterminal message still-streaming (streaming)",
+  it("sendAndWait observes the exact published input even when its accepted answer arrives during send", async () => {
+    const f = nativeFixture();
+    f.session.send = vi.fn(async () => {
+      f.show(f.message);
+      return "original-input";
+    });
+    f.internal._agentRpcCall = vi.fn(async () => f.result);
+    await expect(f.session.sendAndWait("hello")).resolves.toBe(f.message);
+    expect(f.internal._agentRpcCall).toHaveBeenCalledWith(
+      "agent-target",
+      "waitForNativeRun",
+      [{ channelId: "ch-1", inputMessageId: "original-input" }],
+      { signal: expect.any(AbortSignal) }
     );
+  });
+  it("observes the same admitted input after an explicit activation replacement without sending it again", async () => {
+    const f = nativeFixture();
+    f.session.send = vi.fn(() => {
+      throw new Error("Already-admitted input must not be sent again");
+    });
+    f.show(f.message);
+    f.internal._agentRpcCall = vi.fn(async () => f.result);
+    await expect(f.session.waitForInput("original-input")).resolves.toBe(f.message);
+    expect(f.session.send).not.toHaveBeenCalled();
+    expect(f.internal._agentRpcCall).toHaveBeenCalledWith(
+      "agent-target",
+      "waitForNativeRun",
+      [{ channelId: "ch-1", inputMessageId: "original-input" }],
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+  it("waitForIdle joins real original input settlement despite provider task completion and visible text", async () => {
+    const f = nativeFixture();
+    let settle!: (value: typeof f.result) => void;
+    f.internal._channelView.invocations.parent = f.source();
+    f.internal._agentRpcCall = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        })
+    );
+    let done = false;
+    const wait = f.session.waitForIdle().then((value) => {
+      done = true;
+      return value;
+    });
+    await Promise.resolve();
+    f.show(f.message);
+    await Promise.resolve();
+    expect(done).toBe(false);
+    settle(f.result);
+    await expect(wait).resolves.toBe(f.message);
+  });
+  it("filters background child source coordinates even when native task IDs collide", async () => {
+    const f = nativeFixture();
+    f.internal._channelView.invocations.parent = f.source();
+    f.internal._channelView.invocations.child = {
+      ...f.source("child-agent", 7),
+      startedAt: "2099-01-01T00:00:00Z",
+    };
+    f.internal._agentRpcCall = vi.fn(async () => f.result);
+    f.show(f.message);
+    await expect(f.session.waitForIdle()).resolves.toBe(f.message);
+    expect(f.internal._agentRpcCall.mock.calls[0][2]).toEqual([{ channelId: "ch-1", taskId: 7 }]);
+  });
+  it("retains an actual blocked input until explicit observation cancellation and joins its RPC observer", async () => {
+    const f = nativeFixture();
+    const controller = new AbortController();
+    const original = new Error("test explicitly cancelled observation");
+    let joined = false;
+    f.session.send = vi.fn(async () => "input");
+    f.internal._agentRpcCall = vi.fn(async (_target, _method, _args, { signal }) => {
+      await new Promise<void>((resolve) =>
+        signal.addEventListener("abort", () => resolve(), { once: true })
+      );
+      joined = true;
+      throw signal.reason;
+    });
+    const wait = f.session.sendAndWait("hello", { signal: controller.signal });
+    await Promise.resolve();
+    await Promise.resolve();
+    controller.abort(original);
+    await expect(wait).rejects.toBe(original);
+    expect(joined).toBe(true);
+    expect(f.internal._messageListeners.size).toBe(0);
+  });
+  it("propagates the original authenticated settlement or publication failure", async () => {
+    const f = nativeFixture();
+    const original = new Error("canonical answer publication failed");
+    f.session.send = vi.fn(async () => "input");
+    f.internal._agentRpcCall = vi.fn(async () => {
+      throw original;
+    });
+    await expect(f.session.sendAndWait("hello")).rejects.toBe(original);
+    expect(f.internal._messageListeners.size).toBe(0);
+  });
+  it("does not confuse a failed provider attempt with terminal input failure before actual fallback settles", async () => {
+    const f = nativeFixture();
+    let settle!: (value: typeof f.result) => void;
+    f.session.send = vi.fn(async () => "input");
+    f.internal._agentRpcCall = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        })
+    );
+    const wait = f.session.sendAndWait("hello");
+    await Promise.resolve();
+    await Promise.resolve();
+    f.show({
+      id: "failure",
+      senderId: "agent-1",
+      kind: "system",
+      complete: true,
+      content: "primary failed",
+      error: "primary failed",
+    });
+    f.show(f.message);
+    settle(f.result);
+    await expect(wait).resolves.toBe(f.message);
+  });
+  it("reports actual empty settled answers without awaiting a nonexistent chat row", async () => {
+    const f = nativeFixture();
+    f.session.send = vi.fn(async () => "input");
+    f.internal._agentRpcCall = vi.fn(async () => ({
+      ...f.result,
+      answers: [
+        {
+          ...f.result.answers[0],
+          messages: [
+            {
+              messageId: f.message.id,
+              text: "",
+              outcome: "empty",
+              published: true,
+            },
+          ],
+        },
+      ],
+    }));
+    await expect(f.session.sendAndWait("hello")).rejects.toThrow(
+      "settled without a visible answer"
+    );
+    expect(f.internal._messageListeners.size).toBe(0);
+  });
+  it("rejects actual unanswered input and foreign canonical settlement coordinates", async () => {
+    const f = nativeFixture();
+    f.session.send = vi.fn(async () => "input");
+    f.internal._agentRpcCall = vi.fn(async () => ({
+      ...f.result,
+      inputs: [
+        {
+          status: "unanswered",
+          reason: "cancelled",
+          detail: "target destroyed",
+        },
+      ],
+    }));
+    await expect(f.session.sendAndWait("hello")).rejects.toThrow("target destroyed");
+    f.internal._agentRpcCall = vi.fn(async () => ({
+      ...f.result,
+      channelId: "foreign",
+    }));
+    await expect(f.session.sendAndWait("hello")).rejects.toThrow("another source run");
+  });
+  it("observes an in-place streaming completion and ignores recoverable failure diagnostics", async () => {
+    const f = nativeFixture();
+    f.show({ ...f.message, complete: false });
+    const wait = f.session.waitForAgentMessage();
+    f.show({
+      id: "diagnostic",
+      senderId: "agent-1",
+      kind: "system",
+      complete: true,
+      content: "attempt failed",
+      error: "attempt failed",
+    });
+    f.show(f.message);
+    await expect(wait).resolves.toBe(f.message);
   });
 });

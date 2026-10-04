@@ -1,7 +1,48 @@
 import type { TestCase, TestExecutionResult } from "../types.js";
 import { BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
-import { findLastAgentMessage, getToolCalls, noIncompleteInvocations } from "./_helpers.js";
+import { getToolCalls, noIncompleteInvocations } from "./_helpers.js";
+
+import {
+  completedScenarioEvidence,
+  invocationReturnValue,
+  walkRecords,
+} from "./_scenario-evidence.js";
+
+function validateTerminalRoundtrip(result: TestExecutionResult) {
+  const base = completedScenarioEvidence(result);
+  if (!base.passed) return base;
+  const completed = getToolCalls(result).some((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      return false;
+    const code = String(call.arguments?.["code"] ?? "");
+    if (
+      !/extensions\.invoke\s*\(\s*['"]shell['"]\s*,\s*['"]exec['"]/u.test(code)
+    )
+      return false;
+    const returned = invocationReturnValue(call);
+    return (
+      returned.present &&
+      walkRecords([returned.value]).some(
+        (value) =>
+          value["exitCode"] === 0 &&
+          typeof value["stdout"] === "string" &&
+          value["stdout"].includes("agentic-terminal-roundtrip"),
+      )
+    );
+  });
+  return completed
+    ? { passed: true, reason: undefined }
+    : {
+        passed: false,
+        reason:
+          "No successful shell execution returned the requested output with exit code zero",
+      };
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -13,21 +54,17 @@ function callDetails(call: ReturnType<typeof getToolCalls>[number]) {
   return record(record(call.execution?.result)?.["details"]);
 }
 
-/**
- * Compare a run reference the way the product resolves one.
- *
- * `spawn_subagent` reports an elided display handle and the supervision tools
- * accept "the exact runId or any sufficiently long unique prefix; the display
- * ellipsis is optional". An agent that drops the ellipsis is therefore doing
- * exactly what it was told, and a validator demanding one exact spelling grades
- * transcription rather than behaviour.
- */
-function sameRunReference(reference: unknown, handle: string): boolean {
-  if (typeof reference !== "string" || !reference) return false;
-  const bare = (value: string) => value.replace(/…+$/u, "");
-  const left = bare(reference);
-  const right = bare(handle);
-  return left === right || left.startsWith(right) || right.startsWith(left);
+/** Arguments use an issued exact selector; receipts keep the native identity. */
+function sameRunReference(
+  reference: unknown,
+  nativeRunId: string,
+  runRef?: unknown,
+): boolean {
+  return (
+    typeof reference === "string" &&
+    (reference === nativeRunId ||
+      (typeof runRef === "string" && reference === runRef))
+  );
 }
 
 function protocolText(call: ReturnType<typeof getToolCalls>[number]): string {
@@ -48,7 +85,7 @@ function validateSubagentDiff(result: TestExecutionResult, integrate: boolean) {
     (call) =>
       call.name === "spawn_subagent" &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
   if (!spawn) {
     return {
@@ -57,6 +94,7 @@ function validateSubagentDiff(result: TestExecutionResult, integrate: boolean) {
     };
   }
   const runHandle = callDetails(spawn)?.["runId"];
+  const runRef = callDetails(spawn)?.["runRef"];
   if (typeof runHandle !== "string" || !runHandle) {
     return {
       passed: false,
@@ -67,7 +105,7 @@ function validateSubagentDiff(result: TestExecutionResult, integrate: boolean) {
     if (
       call.name !== "inspect_subagent" ||
       call.arguments?.["query"] !== "diff" ||
-      !sameRunReference(call.arguments?.["runId"], runHandle) ||
+      !sameRunReference(call.arguments?.["runId"], runHandle, runRef) ||
       call.execution?.status !== "complete" ||
       call.execution.isError === true
     ) {
@@ -82,71 +120,82 @@ function validateSubagentDiff(result: TestExecutionResult, integrate: boolean) {
       integration["sourceEventId"].length > 0
     );
   });
-  if (!inspection) {
-    return {
-      passed: false,
-      reason:
-        "No bounded diff identified the child's committed event against the unintegrated parent state",
-    };
+  const sourceEventId = inspection
+    ? record(callDetails(inspection)?.["semanticIntegration"])?.[
+        "sourceEventId"
+      ]
+    : undefined;
+  if (!integrate) {
+    if (!inspection || typeof sourceEventId !== "string")
+      return {
+        passed: false,
+        reason:
+          "No bounded diff identified the child's committed event against the unintegrated parent state",
+      };
+    const diff = protocolText(inspection);
+    const escapedEvent = sourceEventId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    if (
+      !new RegExp(`Source\\s+${escapedEvent}:\\s*[1-9]\\d*\\s+adopt`, "u").test(
+        diff,
+      ) ||
+      !/Coordinate:.*\badopt\b/iu.test(diff) ||
+      !/Child source is committed and clean/iu.test(diff)
+    )
+      return {
+        passed: false,
+        reason:
+          "The child-relative diff did not prove a non-empty committed clean change",
+      };
   }
-  const sourceEventId = String(
-    record(callDetails(inspection)?.["semanticIntegration"])?.["sourceEventId"]
-  );
-  const diff = protocolText(inspection);
-  const escapedEvent = sourceEventId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  if (
-    !new RegExp(`Source\\s+${escapedEvent}:\\s*[1-9]\\d*\\s+adopt`, "u").test(diff) ||
-    !/Coordinate:.*\badopt\b/iu.test(diff) ||
-    !/Child source is committed and clean/iu.test(diff)
-  ) {
-    return {
-      passed: false,
-      reason: "The child-relative diff did not prove a non-empty committed clean change",
-    };
-  }
-  // "Deliberately left unintegrated" is a fact about what the parent did, not a
-  // phrase it has to say. Grading the prose failed an agent that wrote "without
-  // integrating" because the alternation happened to list "not integrated" —
-  // that measures wording, not behaviour.
   const merges = calls.filter(
     (call) =>
       call.name === "merge_subagent" &&
-      sameRunReference(call.arguments?.["runId"], runHandle) &&
+      sameRunReference(call.arguments?.["runId"], runHandle, runRef) &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
   if (integrate) {
+    // Ordinary integration reviews the canonical merge resolution itself. A
+    // separate diff is useful for an explicit comparison goal, not a preflight.
     const merged = merges.find((call) => {
       const details = callDetails(call);
       const resolution = record(record(details?.["review"])?.["resolution"]);
+      const nativeMerges = details?.["merges"];
+      const nonempty =
+        Array.isArray(nativeMerges) &&
+        nativeMerges.some((value) => {
+          const mutation = record(value);
+          return (
+            typeof mutation?.["incorporatedChangeCount"] === "number" &&
+            mutation["incorporatedChangeCount"] > 0
+          );
+        });
+      const priorInspection =
+        inspection && calls.indexOf(inspection) < calls.indexOf(call);
       return (
-        calls.indexOf(call) > calls.indexOf(inspection) &&
-        sameRunReference(details?.["runId"], runHandle) &&
-        details?.["sourceEventId"] === sourceEventId &&
+        details?.["protocol"] === "vibestudio.subagent-merge.v1" &&
+        sameRunReference(details["runId"], runHandle) &&
+        typeof details["sourceEventId"] === "string" &&
+        details["sourceEventId"].length > 0 &&
+        (!priorInspection || details["sourceEventId"] === sourceEventId) &&
+        nonempty &&
         resolution?.["complete"] === true &&
         resolution["concluded"] === true &&
         resolution["remainingCoordinateCount"] === 0
       );
     });
-    if (!merged) {
+    if (!merged)
       return {
         passed: false,
-        reason: "The reviewed child event was not completely integrated into the parent",
+        reason:
+          "No non-empty canonical child event was completely integrated into the parent",
       };
-    }
-  } else if (merges.length > 0) {
+  } else if (merges.length > 0)
     return {
       passed: false,
-      reason: "The parent integrated the child's work in a case whose whole point is not to",
+      reason:
+        "The parent integrated the child's work in a case whose whole point is not to",
     };
-  }
-  const final = findLastAgentMessage(result);
-  if (!/export/iu.test(final)) {
-    return {
-      passed: false,
-      reason: "The parent never reported what the child changed, so the review went unreported",
-    };
-  }
   return noIncompleteInvocations(result);
 }
 
@@ -156,8 +205,11 @@ function validateSubagentFollowup(result: TestExecutionResult) {
   const calls = getToolCalls(result);
   const successful = (call: (typeof calls)[number]) =>
     call.execution?.status === "complete" && call.execution.isError !== true;
-  const launches = calls.filter((call) => call.name === "spawn_subagent" && successful(call));
+  const launches = calls.filter(
+    (call) => call.name === "spawn_subagent" && successful(call),
+  );
   const handle = launches[0] ? callDetails(launches[0])?.["runId"] : undefined;
+  const runRef = launches[0] ? callDetails(launches[0])?.["runRef"] : undefined;
   if (launches.length !== 1 || typeof handle !== "string") {
     return {
       passed: false,
@@ -168,13 +220,18 @@ function validateSubagentFollowup(result: TestExecutionResult) {
     (call) =>
       call.name === "inspect_subagent" &&
       call.arguments?.["query"] === "diff" &&
-      sameRunReference(call.arguments?.["runId"], handle) &&
-      successful(call)
+      sameRunReference(call.arguments?.["runId"], handle, runRef) &&
+      successful(call) &&
+      callDetails(call)?.["runId"] === handle &&
+      record(callDetails(call)?.["semanticIntegration"])?.["state"] ===
+        "unattempted",
   );
   const first = inspections[0];
   const last = inspections.at(-1);
   const source = (call: (typeof calls)[number] | undefined) =>
-    call ? record(callDetails(call)?.["semanticIntegration"])?.["sourceEventId"] : undefined;
+    call
+      ? record(callDetails(call)?.["semanticIntegration"])?.["sourceEventId"]
+      : undefined;
   if (
     !first ||
     !last ||
@@ -200,7 +257,7 @@ function validateSubagentFollowup(result: TestExecutionResult) {
         (ref) =>
           typeof ref === "string" &&
           ref.startsWith("run:") &&
-          sameRunReference(ref.slice(4), handle)
+          sameRunReference(ref.slice(4), handle, runRef),
       )
     );
   });
@@ -216,14 +273,28 @@ function validateSubagentFollowup(result: TestExecutionResult) {
       call.name === "merge_subagent" &&
       successful(call) &&
       calls.indexOf(call) > calls.indexOf(last) &&
-      sameRunReference(call.arguments?.["runId"], handle) &&
+      sameRunReference(call.arguments?.["runId"], handle, runRef) &&
+      details?.["runId"] === handle &&
       details?.["sourceEventId"] === source(last) &&
       resolution?.["complete"] === true &&
       resolution["concluded"] === true &&
       resolution["remainingCoordinateCount"] === 0
     );
   });
-  if (!merged) return { passed: false, reason: "The follow-up commit was not integrated" };
+  const integratedBeforeFollowupReview = calls.some(
+    (call) =>
+      call.name === "merge_subagent" &&
+      successful(call) &&
+      sameRunReference(call.arguments?.["runId"], handle, runRef) &&
+      calls.indexOf(call) < calls.indexOf(last),
+  );
+  if (integratedBeforeFollowupReview)
+    return {
+      passed: false,
+      reason: "The child was integrated before the follow-up had been reviewed",
+    };
+  if (!merged)
+    return { passed: false, reason: "The follow-up commit was not integrated" };
   return noIncompleteInvocations(result);
 }
 
@@ -252,7 +323,8 @@ export const agentOrchestrationTests: TestCase[] = [
   },
   {
     name: "subagent-reviewed-merge",
-    description: "A parent reviews a child's committed source diff and integrates that exact event",
+    description:
+      "A parent reviews a child's committed source diff and integrates that exact event",
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
@@ -262,7 +334,8 @@ export const agentOrchestrationTests: TestCase[] = [
   },
   {
     name: "subagent-design-synthesis",
-    description: "Two children explore competing design priorities that the parent synthesizes",
+    description:
+      "Two children explore competing design priorities that the parent synthesizes",
     category: "agent-orchestration",
     prompt:
       "Review this hypothetical brief for a standalone TypeScript library that represents edge-case test corpora; there is no existing codebase, so reason only from the brief. Delegate two independent reviews concurrently: one should favor a simple data model, the other provenance and debuggability. Once both perspectives are back, summarize their main tradeoffs and disagreements concisely.",
@@ -292,6 +365,6 @@ export const agentOrchestrationTests: TestCase[] = [
     },
     prompt:
       "Run a harmless command that prints `agentic-terminal-roundtrip`, then tell me what it printed and whether it completed normally.",
-    validate: validateAgentCompletionReport,
+    validate: validateTerminalRoundtrip,
   },
 ];

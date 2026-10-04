@@ -1,39 +1,66 @@
 import { describe, expect, it } from "vitest";
 import type { ServerLogEvent } from "@workspace/pubsub";
-import { closedChildModelReports } from "./_subagent-evidence.js";
+import { completedChildModelReports } from "./_subagent-evidence.js";
 
-const evidence = { calls: [{ messageId: "message:one", ref: "local:lfm2.5-2.6b", outcome: "completed" }] };
-function transcript(): ServerLogEvent[] {
-  return [
-    { id: 1, senderId: "child", payload: { kind: "message.completed", turnId: "turn:one",
-      causality: { messageId: "message:one" }, payload: { outcome: "completed",
-        blocks: [{ type: "text", content: "Observed heading" }] } } },
-    { id: 2, senderId: "child", payload: { kind: "turn.closed", turnId: "turn:one", payload: {} } },
-  ] as unknown as ServerLogEvent[];
+const event: ServerLogEvent = {
+  id: 4,
+  messageId: "published:answer",
+  type: "agentic.trajectory.v1/event",
+  senderId: "child",
+  ts: 4,
+  payload: {
+    kind: "message.completed",
+    causality: { messageId: "native:3:11:0" },
+    payload: {
+      outcome: "completed",
+      metadata: { nativeTaskId: 7, nativeConversationId: 3, nativeEntryId: 11 },
+      blocks: [{ type: "text", content: "real answer" }],
+    },
+  },
+};
+function evidence(status = "done", answer = 11) {
+  return {
+    calls: [
+      {
+        native: { taskId: 7, conversationId: 3 },
+        entryId: 11,
+        outcome: "completed",
+        ref: "local:model",
+        // The original model task can finish before a successor settles its inputs.
+        task: { status: "terminal", outcome: "completed" },
+        inputs: [{ id: 5, conversationId: 3, type: "input", status, answer }],
+      },
+    ],
+  };
 }
-describe("native child assignment evidence", () => {
-  it("joins the report to its executed model and exact closed turn", () => {
-    expect(closedChildModelReports(transcript(), "child", evidence)).toEqual([
-      { text: "Observed heading", model: "local:lfm2.5-2.6b", messageId: "message:one", turnId: "turn:one" },
+describe("completed native child model evidence", () => {
+  it("joins actual published entry to settled original input without synthetic turn events", () => {
+    expect(completedChildModelReports([event], "child", evidence())).toEqual([
+      {
+        text: "real answer",
+        model: "local:model",
+        messageId: "native:3:11:0",
+        nativeTaskId: 7,
+        nativeEntryId: 11,
+      },
     ]);
   });
-  it.each(["another-sender", "another-turn", "before-report", "failed-turn", "interrupted-turn"])(
-    "rejects %s closure", (mismatch) => {
-      const events = transcript();
-      const close = events[1]!;
-      if (mismatch === "another-sender") close.senderId = "other";
-      if (mismatch === "another-turn") (close.payload as { turnId: string }).turnId = "turn:other";
-      if (mismatch === "before-report") close.id = 0;
-      if (mismatch === "failed-turn") (close.payload as { payload: object }).payload = { reason: "work_failed" };
-      if (mismatch === "interrupted-turn") (close.payload as { payload: object }).payload = { reason: "user_interrupted" };
-      expect(closedChildModelReports(events, "child", evidence)).toEqual([]);
-    },
-  );
-  it("rejects launch settings, unrelated attempts and failed attempts", () => {
-    for (const value of [{ model: "local:lfm2.5-2.6b" },
-      { calls: [{ ...evidence.calls[0], messageId: "message:other" }] },
-      { calls: [{ ...evidence.calls[0], outcome: "failed" }] }]) {
-      expect(closedChildModelReports(transcript(), "child", value)).toEqual([]);
-    }
+  it("does not mistake a terminal generation handover for a settled original input", () => {
+    expect(
+      completedChildModelReports([event], "child", evidence("placed")),
+    ).toEqual([]);
+  });
+  it("rejects a previous response when the original input was answered by a later entry", () => {
+    expect(
+      completedChildModelReports([event], "child", evidence("done", 12)),
+    ).toEqual([]);
+  });
+  it("requires exact native conversation and actual child sender", () => {
+    const foreign = evidence();
+    foreign.calls[0]!.native.conversationId = 9;
+    expect(completedChildModelReports([event], "child", foreign)).toEqual([]);
+    expect(
+      completedChildModelReports([event], "other-child", evidence()),
+    ).toEqual([]);
   });
 });

@@ -12,16 +12,18 @@ function execution(
     childHeading?: string;
     finalHeading?: string;
     executedModel?: string;
-    childClosed?: boolean;
+    inputSettled?: boolean;
     retainEvidence?: boolean;
-  } = {}
+  } = {},
 ): TestExecutionResult {
   const runId = "spawn-local-model";
-  const heading = options.childHeading ?? "system-test-local-model-download-and-task-a1b2c3d4";
+  const heading =
+    options.childHeading ??
+    "system-test-local-model-download-and-task-a1b2c3d4";
   const invocation = (
     name: string,
     arguments_: Record<string, unknown>,
-    extra: Record<string, unknown> = {}
+    extra: Record<string, unknown> = {},
   ) => ({
     id: `${name}-call`,
     senderId: "agent",
@@ -34,7 +36,11 @@ function execution(
       name,
       arguments: arguments_,
       ...extra,
-      execution: { status: "complete", isError: false, result: { details: {} } },
+      execution: {
+        status: "complete",
+        isError: false,
+        result: { details: {} },
+      },
     },
   });
   return {
@@ -51,7 +57,7 @@ function execution(
       invocation(
         "spawn_subagent",
         { prompt: "Read the README heading", config: { model } },
-        { subagent: { launchConfig: { model } } }
+        { subagent: { launchConfig: { model } } },
       ),
       {
         id: runId,
@@ -68,10 +74,16 @@ function execution(
             status: options.taskStatus ?? "complete",
             terminalOutcome: options.terminalOutcome ?? "success",
             description: "",
-            result: { protocolContent: [{ type: "text", text: `# ${heading}` }] },
+            result: {
+              protocolContent: [{ type: "text", text: `# ${heading}` }],
+            },
           },
-          subagent: { launchConfig: { model }, taskChannelId: "child-channel",
-            childParticipantId: "child", childEntityId: "child-entity" },
+          subagent: {
+            launchConfig: { model },
+            taskChannelId: "child-channel",
+            childParticipantId: "child",
+            childEntityId: "child-entity",
+          },
         },
       },
       {
@@ -83,18 +95,62 @@ function execution(
         content: `The README heading is ${options.finalHeading ?? heading}.`,
       },
     ],
-    diagnostics: options.retainEvidence === false ? {} : {
-      subagentEvidence: [{ runId, taskChannelId: "child-channel", childParticipantId: "child",
-        modelExecutionEvidence: { calls: [{ messageId: "child-message",
-          ref: options.executedModel ?? model,
-          outcome: options.terminalOutcome === "tool_error" ? "failed" : "completed" }] },
-        events: [{ id: 1, senderId: "child", payload: {
-          kind: "message.completed", turnId: "child-turn", causality: { messageId: "child-message" },
-          payload: { outcome: "completed", blocks: [{ type: "text", content: `# ${heading}` }] },
-        } }, ...(options.childClosed === false ? [] : [{ id: 2, senderId: "child",
-          payload: { kind: "turn.closed", turnId: "child-turn", payload: {} } }])],
-      }],
-    },
+    diagnostics:
+      options.retainEvidence === false
+        ? {}
+        : {
+            subagentEvidence: [
+              {
+                runId,
+                taskChannelId: "child-channel",
+                childParticipantId: "child",
+                modelExecutionEvidence: {
+                  calls: [
+                    {
+                      native: { taskId: 7, conversationId: 3 },
+                      entryId: 11,
+                      ref: options.executedModel ?? model,
+                      outcome:
+                        options.terminalOutcome === "tool_error"
+                          ? "failed"
+                          : "completed",
+                      inputs: [
+                        {
+                          id: 5,
+                          conversationId: 3,
+                          type: "input",
+                          status:
+                            options.inputSettled === false ? "placed" : "done",
+                          ...(options.inputSettled === false
+                            ? {}
+                            : { answer: 11 }),
+                        },
+                      ],
+                    },
+                  ],
+                },
+                events: [
+                  {
+                    id: 1,
+                    senderId: "child",
+                    payload: {
+                      kind: "message.completed",
+                      causality: { messageId: "child-message" },
+                      payload: {
+                        outcome: "completed",
+                        metadata: {
+                          nativeTaskId: 7,
+                          nativeConversationId: 3,
+                          nativeEntryId: 11,
+                        },
+                        blocks: [{ type: "text", content: `# ${heading}` }],
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
   } as unknown as TestExecutionResult;
 }
 
@@ -108,33 +164,50 @@ describe("local model task evidence", () => {
   });
 
   it("rejects a child launched on a hosted model", () => {
-    expect(taskTest.validate(execution("openai-codex:gpt-5.6-luna"))).toMatchObject({
+    expect(
+      taskTest.validate(execution("openai-codex:gpt-5.6-luna")),
+    ).toMatchObject({
       passed: false,
     });
   });
 
   it("accepts a closed local assignment without retiring its retained collaborator", () => {
     expect(
-      taskTest.validate(execution("local:lfm2.5-2.6b", { taskStatus: "running" }))
+      taskTest.validate(
+        execution("local:lfm2.5-2.6b", { taskStatus: "running" }),
+      ),
     ).toMatchObject({ passed: true });
   });
 
   it("rejects an unclosed or failed local-model execution", () => {
-    expect(taskTest.validate(execution("local:lfm2.5-2.6b", { childClosed: false })))
-      .toMatchObject({ passed: false });
     expect(
-      taskTest.validate(execution("local:lfm2.5-2.6b", { terminalOutcome: "tool_error" }))
+      taskTest.validate(
+        execution("local:lfm2.5-2.6b", { inputSettled: false }),
+      ),
+    ).toMatchObject({ passed: false });
+    expect(
+      taskTest.validate(
+        execution("local:lfm2.5-2.6b", { terminalOutcome: "tool_error" }),
+      ),
     ).toMatchObject({ passed: false });
   });
 
   it("rejects a completion card without native execution and transcript evidence", () => {
-    expect(taskTest.validate(execution("local:lfm2.5-2.6b", { retainEvidence: false })))
-      .toMatchObject({ passed: false });
+    expect(
+      taskTest.validate(
+        execution("local:lfm2.5-2.6b", { retainEvidence: false }),
+      ),
+    ).toMatchObject({ passed: false });
   });
 
   it("rejects a requested local model whose report was actually produced by a hosted model", () => {
-    expect(taskTest.validate(execution("local:lfm2.5-2.6b", { executedModel: "openai-codex:gpt-6-luna" })))
-      .toMatchObject({ passed: false });
+    expect(
+      taskTest.validate(
+        execution("local:lfm2.5-2.6b", {
+          executedModel: "openai-codex:gpt-6-luna",
+        }),
+      ),
+    ).toMatchObject({ passed: false });
   });
 
   it("requires the parent to report the local child's observed heading", () => {
@@ -142,8 +215,8 @@ describe("local model task evidence", () => {
       taskTest.validate(
         execution("local:lfm2.5-2.6b", {
           finalHeading: "system-test-local-model-download-and-task-deadbeef",
-        })
-      )
+        }),
+      ),
     ).toMatchObject({ passed: false });
   });
 });

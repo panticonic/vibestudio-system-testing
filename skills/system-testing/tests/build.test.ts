@@ -2,13 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "@workspace/agentic-core";
 import type { TestExecutionResult } from "../types.js";
-import { PANEL_AUTOMATION_RESOURCE, panelControlAuthorityPolicy } from "../panel-authority.js";
+import {
+  PANEL_AUTOMATION_RESOURCE,
+  panelControlAuthorityPolicy,
+} from "../panel-authority.js";
 import { buildTests } from "./build.js";
 
 const npmTest = buildTests.find((test) => test.name === "build-npm-package")!;
-const workspaceBuildTest = buildTests.find((test) => test.name === "build-workspace-package")!;
-const performanceTest = buildTests.find((test) => test.name === "build-performance-profile")!;
-const optimizationTest = buildTests.find((test) => test.name === "panel-performance-optimize")!;
+const workspaceBuildTest = buildTests.find(
+  (test) => test.name === "build-workspace-package",
+)!;
+const performanceTest = buildTests.find(
+  (test) => test.name === "build-performance-profile",
+)!;
+const optimizationTest = buildTests.find(
+  (test) => test.name === "panel-performance-optimize",
+)!;
 
 describe("workspace package build validation", () => {
   const unit = "packages/system-test-build";
@@ -25,7 +34,9 @@ describe("workspace package build validation", () => {
   it("accepts a successful exact-context first-class build verification", () => {
     const result = execution([
       successfulPackageBuild(unit, contextId),
-      finalAgentMessage("The disposable package built and type-checked successfully."),
+      finalAgentMessage(
+        "The disposable package built and type-checked successfully.",
+      ),
     ]);
     result.provenance = {
       channelId: null,
@@ -35,13 +46,18 @@ describe("workspace package build validation", () => {
       contextId,
     };
 
-    expect(workspaceBuildTest.validate(result)).toEqual({ passed: true, reason: undefined });
+    expect(workspaceBuildTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
   it("rejects a diagnosed failed build instead of accepting truthful failure prose", () => {
     const result = execution([
       failedBuild(unit),
-      finalAgentMessage("The package did not build; the verifier returned diagnostics."),
+      finalAgentMessage(
+        "The package did not build; the verifier returned diagnostics.",
+      ),
     ]);
     result.provenance = {
       channelId: null,
@@ -62,7 +78,7 @@ describe("workspace package build validation", () => {
       completedInvocation(
         "eval",
         { code: `return services.build.getBuildReport("${unit}")` },
-        { returnValue: { repoPath: unit, status: "ok", diagnostics: [] } }
+        { returnValue: { repoPath: unit, status: "ok", diagnostics: [] } },
       ),
       finalAgentMessage("The package built successfully."),
     ]);
@@ -83,7 +99,9 @@ describe("workspace package build validation", () => {
 
 describe("build performance validation", () => {
   it("owns the ordinary panel-control authority and scheduling boundary for live inspection", () => {
-    expect(optimizationTest.authorityPolicy).toEqual(panelControlAuthorityPolicy("inspect-panel-performance-repair"));
+    expect(optimizationTest.authorityPolicy).toEqual(
+      panelControlAuthorityPolicy("inspect-panel-performance-repair"),
+    );
     expect(optimizationTest.resources).toEqual([PANEL_AUTOMATION_RESOURCE]);
   });
 
@@ -91,18 +109,27 @@ describe("build performance validation", () => {
     const result = optimizationExecution();
 
     expect(optimizationTest.validation).toBeUndefined();
-    expect(optimizationTest.validate(result)).toEqual({ passed: true, reason: undefined });
+    expect(optimizationTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
   it("rejects profiles from another unit or context and profiles with no payload improvement", () => {
     expect(
-      optimizationTest.validate(optimizationExecution({ afterUnit: "panels/other" }))
+      optimizationTest.validate(
+        optimizationExecution({ afterUnit: "panels/other" }),
+      ),
     ).toMatchObject({ passed: false });
     expect(
-      optimizationTest.validate(optimizationExecution({ afterContextId: "context:other" }))
+      optimizationTest.validate(
+        optimizationExecution({ afterContextId: "context:other" }),
+      ),
     ).toMatchObject({ passed: false });
     expect(
-      optimizationTest.validate(optimizationExecution({ beforeBytes: 4_096, afterBytes: 4_096 }))
+      optimizationTest.validate(
+        optimizationExecution({ beforeBytes: 4_096, afterBytes: 4_096 }),
+      ),
     ).toMatchObject({ passed: false });
   });
 
@@ -111,51 +138,88 @@ describe("build performance validation", () => {
     const [baseline] = profiledAfterTheEdit.messages.splice(1, 1);
     profiledAfterTheEdit.messages.splice(3, 0, baseline!);
 
-    expect(optimizationTest.validate(profiledAfterTheEdit)).toMatchObject({ passed: false });
+    expect(optimizationTest.validate(profiledAfterTheEdit)).toMatchObject({
+      passed: false,
+    });
   });
 
   it("joins the immutable candidate when verification precedes or follows profiling", () => {
     const verifiedBeforeProfiling = optimizationExecution();
     const [build] = verifiedBeforeProfiling.messages.splice(4, 1);
     verifiedBeforeProfiling.messages.splice(3, 0, build!);
-    expect(optimizationTest.validate(verifiedBeforeProfiling)).toEqual({ passed: true, reason: undefined });
-    expect(optimizationTest.validate(optimizationExecution())).toEqual({ passed: true, reason: undefined });
+    expect(optimizationTest.validate(verifiedBeforeProfiling)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    expect(optimizationTest.validate(optimizationExecution())).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
   it("uses native receipts independently of guest formatting and helper aliases", () => {
     const result = optimizationExecution();
-    for (const message of result.messages.filter((entry) => entry.id.startsWith("eval-optimization"))) {
+    for (const message of result.messages.filter((entry) =>
+      entry.id.startsWith("eval-optimization"),
+    )) {
       const payload = JSON.parse(message.content);
       payload.arguments.code = "return await scope.measure();";
-      payload.execution.result.details.returnValue = { summary: "Measured and improved" };
+      payload.execution.result.details.returnValue = {
+        summary: "Measured and improved",
+      };
       message.content = JSON.stringify(payload);
     }
-    expect(optimizationTest.validate(result)).toEqual({ passed: true, reason: undefined });
+    expect(optimizationTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
-  it.each(["absent", "truncated"])("rejects %s native receipts even when guest returns full profile-shaped values", (fault) => {
-    const result = optimizationExecution();
-    const message = result.messages.find((entry) => entry.id === "eval-optimization-after")!;
-    const payload = JSON.parse(message.content);
-    if (fault === "absent") delete payload.execution.result.details.operationJournal;
-    else payload.execution.result.details.operationJournal.truncated = true;
-    message.content = JSON.stringify(payload);
-    expect(optimizationTest.validate(result)).toMatchObject({ passed: false });
-  });
+  it.each(["absent", "truncated"])(
+    "rejects %s native receipts even when guest returns full profile-shaped values",
+    (fault) => {
+      const result = optimizationExecution();
+      const message = result.messages.find(
+        (entry) => entry.id === "eval-optimization-after",
+      )!;
+      const payload = JSON.parse(message.content);
+      if (fault === "absent")
+        delete payload.execution.result.details.operationJournal;
+      else payload.execution.result.details.operationJournal.truncated = true;
+      message.content = JSON.stringify(payload);
+      expect(optimizationTest.validate(result)).toMatchObject({
+        passed: false,
+      });
+    },
+  );
 
   it("accepts the native profiled build proof without a duplicate verification call", () => {
     const result = optimizationExecution();
     result.messages.splice(4, 1);
-    expect(optimizationTest.validate(result)).toEqual({ passed: true, reason: undefined });
+    expect(optimizationTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
-  it.each(["failed-build", "compiler-error", "unchanged-state", "missing-proof"])("rejects invalid native final profile proof: %s", (fault) => {
+  it.each([
+    "failed-build",
+    "compiler-error",
+    "unchanged-state",
+    "missing-proof",
+  ])("rejects invalid native final profile proof: %s", (fault) => {
     const result = optimizationExecution();
-    const message = result.messages.find((entry) => entry.id === "eval-optimization-after")!;
+    const message = result.messages.find(
+      (entry) => entry.id === "eval-optimization-after",
+    )!;
     const payload = JSON.parse(message.content);
-    const profile = payload.execution.result.details.operationJournal.entries[0].receipt;
+    const profile =
+      payload.execution.result.details.operationJournal.entries[0].receipt;
     if (fault === "failed-build") profile.report.status = "failed";
-    if (fault === "compiler-error") profile.report.diagnostics = [{ severity: "error", message: "Invalid source" }];
+    if (fault === "compiler-error")
+      profile.report.diagnostics = [
+        { severity: "error", message: "Invalid source" },
+      ];
     if (fault === "unchanged-state") profile.report.stateHash = "state:8192";
     if (fault === "missing-proof") delete profile.report;
     message.content = JSON.stringify(payload);
@@ -164,23 +228,60 @@ describe("build performance validation", () => {
 
   it("rejects a profile whose target key contradicts its native build report", () => {
     const result = optimizationExecution();
-    const message = result.messages.find((entry) => entry.id === "eval-optimization-after")!;
+    const message = result.messages.find(
+      (entry) => entry.id === "eval-optimization-after",
+    )!;
     const payload = JSON.parse(message.content);
-    payload.execution.result.details.operationJournal.entries[0].receipt.report.builds[0].buildKey = "build:other";
+    payload.execution.result.details.operationJournal.entries[0].receipt.report.builds[0].buildKey =
+      "build:other";
     message.content = JSON.stringify(payload);
     expect(optimizationTest.validate(result)).toMatchObject({ passed: false });
   });
 
   it("requires the commit to consume the mutation and the later clean status to match its event", () => {
-    const wrongCommit = optimizationExecution({ committedApplicationIds: ["application:other"] });
+    const wrongCommit = optimizationExecution({
+      committedApplicationIds: ["application:other"],
+    });
     const wrongStatus = optimizationExecution({ statusEventId: "event:other" });
     const statusBeforeCommit = optimizationExecution();
     const [status] = statusBeforeCommit.messages.splice(6, 1);
     statusBeforeCommit.messages.splice(5, 0, status!);
 
-    expect(optimizationTest.validate(wrongCommit)).toMatchObject({ passed: false });
-    expect(optimizationTest.validate(wrongStatus)).toMatchObject({ passed: false });
-    expect(optimizationTest.validate(statusBeforeCommit)).toMatchObject({ passed: false });
+    expect(optimizationTest.validate(wrongCommit)).toMatchObject({
+      passed: false,
+    });
+    expect(optimizationTest.validate(wrongStatus)).toMatchObject({
+      passed: false,
+    });
+    expect(optimizationTest.validate(statusBeforeCommit)).toMatchObject({
+      passed: false,
+    });
+  });
+
+  it("accepts the atomic commit cleanliness proof without a redundant status call", () => {
+    const result = optimizationExecution();
+    const commit = result.messages[5]!;
+    const status = JSON.parse(result.messages[6]!.content).execution.result
+      .details.result;
+    const payload = JSON.parse(commit.content);
+    payload.execution.result.details.status = status;
+    commit.content = JSON.stringify(payload);
+    result.messages.splice(6, 1);
+    expect(optimizationTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    for (const patch of [
+      { contextId: "other" },
+      { clean: false },
+      { workingHead: { kind: "event", eventId: "other" } },
+    ]) {
+      payload.execution.result.details.status = { ...status, ...patch };
+      commit.content = JSON.stringify(payload);
+      expect(optimizationTest.validate(result)).toMatchObject({
+        passed: false,
+      });
+    }
   });
 
   it("accepts a bounded exact-build profile with verified cache evidence", () => {
@@ -200,10 +301,15 @@ describe("build performance validation", () => {
           },
         ],
       }),
-      finalAgentMessage("The first observed path took 21 ms and the verified cache took 2 ms."),
+      finalAgentMessage(
+        "The first observed path took 21 ms and the verified cache took 2 ms.",
+      ),
     ]);
 
-    expect(performanceTest.validate(result)).toEqual({ passed: true, reason: undefined });
+    expect(performanceTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
   it("rejects prose or partial timing without the bounded attribution record", () => {
@@ -234,7 +340,9 @@ describe("build npm package validation", () => {
   it("rejects confident prose when the npm eval failed", () => {
     const result = execution([
       evalInvocation("error", true),
-      finalAgentMessage("The dependency loaded correctly and returned a padded value."),
+      finalAgentMessage(
+        "The dependency loaded correctly and returned a padded value.",
+      ),
     ]);
 
     expect(npmTest.validate(result)).toMatchObject({
@@ -246,10 +354,15 @@ describe("build npm package validation", () => {
   it("accepts a successful npm import and observable result with natural prose", () => {
     const result = execution([
       evalInvocation("complete", false, "007"),
-      finalAgentMessage("The package loaded and padded 7 to three characters: 007."),
+      finalAgentMessage(
+        "The package loaded and padded 7 to three characters: 007.",
+      ),
     ]);
 
-    expect(npmTest.validate(result)).toEqual({ passed: true, reason: undefined });
+    expect(npmTest.validate(result)).toEqual({
+      passed: true,
+      reason: undefined,
+    });
   });
 
   it("rejects a recovered result when the trajectory still contains a failed tool call", () => {
@@ -278,7 +391,7 @@ describe("build npm package validation", () => {
 function evalInvocation(
   status: "complete" | "error",
   isError: boolean,
-  returnValue?: unknown
+  returnValue?: unknown,
 ): ChatMessage {
   return {
     id: `eval-${status}-${isError}-${String(returnValue)}`,
@@ -298,13 +411,17 @@ function evalInvocation(
         status,
         terminalOutcome: isError ? "tool_error" : "success",
         isError,
-        result: returnValue === undefined ? undefined : { details: { returnValue } },
+        result:
+          returnValue === undefined ? undefined : { details: { returnValue } },
       },
     }),
   };
 }
 
-function performanceEvalInvocation(returnValue: unknown, id = "performance"): ChatMessage {
+function performanceEvalInvocation(
+  returnValue: unknown,
+  id = "performance",
+): ChatMessage {
   return {
     id: `eval-${id}`,
     kind: "message",
@@ -325,7 +442,16 @@ function performanceEvalInvocation(returnValue: unknown, id = "performance"): Ch
         status: "complete",
         terminalOutcome: "success",
         isError: false,
-        result: { details: { returnValue, operationJournal: { protocol: "workspace-operations.v1", truncated: false, entries: [{ type: "build.profile", receipt: returnValue }] } } },
+        result: {
+          details: {
+            returnValue,
+            operationJournal: {
+              protocol: "workspace-operations.v1",
+              truncated: false,
+              entries: [{ type: "build.profile", receipt: returnValue }],
+            },
+          },
+        },
       },
     }),
   };
@@ -339,7 +465,7 @@ const OPTIMIZATION_EVENT = "event:optimization";
 function performanceProfile(
   bytes: number,
   unit = OPTIMIZATION_UNIT,
-  contextId = OPTIMIZATION_CONTEXT
+  contextId = OPTIMIZATION_CONTEXT,
 ): Record<string, unknown> {
   return {
     version: 1,
@@ -347,7 +473,14 @@ function performanceProfile(
     ref: `ctx:${contextId}`,
     firstRun: { elapsedMs: 20, cacheState: "built-during-profile" },
     verifiedCacheRun: { elapsedMs: 2, sameBuildKeys: true },
-    report: { repoPath: unit, kind: "panel", diagnostics: [], stateHash: `state:${bytes}`, status: "ok", builds: [{ target: "runtime", buildKey: `build:${bytes}` }] },
+    report: {
+      repoPath: unit,
+      kind: "panel",
+      diagnostics: [],
+      stateHash: `state:${bytes}`,
+      status: "ok",
+      builds: [{ target: "runtime", buildKey: `build:${bytes}` }],
+    },
     targets: [
       {
         target: "runtime",
@@ -366,7 +499,7 @@ function performanceProfile(
 function managedOptimization(
   unit = OPTIMIZATION_UNIT,
   contextId = OPTIMIZATION_CONTEXT,
-  applicationId = OPTIMIZATION_APPLICATION
+  applicationId = OPTIMIZATION_APPLICATION,
 ): ChatMessage {
   return completedInvocation(
     "edit",
@@ -380,11 +513,16 @@ function managedOptimization(
         changeIds: ["change:optimization"],
         workingHead: { kind: "application", applicationId },
       },
-    }
+    },
   );
 }
 
-function finalBuild(unit = OPTIMIZATION_UNIT, contextId = OPTIMIZATION_CONTEXT, stateHash = `state:${"a".repeat(64)}`, buildKey = "build:2048"): ChatMessage {
+function finalBuild(
+  unit = OPTIMIZATION_UNIT,
+  contextId = OPTIMIZATION_CONTEXT,
+  stateHash = `state:${"a".repeat(64)}`,
+  buildKey = "build:2048",
+): ChatMessage {
   return completedInvocation(
     "verify",
     { operation: "build", target: unit },
@@ -403,14 +541,14 @@ function finalBuild(unit = OPTIMIZATION_UNIT, contextId = OPTIMIZATION_CONTEXT, 
         unit: { repoPath: unit, kind: "panel" },
         builds: [{ target: "runtime", buildKey }],
       },
-    }
+    },
   );
 }
 
 function optimizationCommit(
   applicationIds: string[] = [OPTIMIZATION_APPLICATION],
   contextId = OPTIMIZATION_CONTEXT,
-  eventId = OPTIMIZATION_EVENT
+  eventId = OPTIMIZATION_EVENT,
 ): ChatMessage {
   return completedInvocation(
     "vcs",
@@ -422,13 +560,13 @@ function optimizationCommit(
         event: { kind: "event", eventId },
         committedApplicationIds: applicationIds,
       },
-    }
+    },
   );
 }
 
 function finalCleanStatus(
   contextId = OPTIMIZATION_CONTEXT,
-  eventId = OPTIMIZATION_EVENT
+  eventId = OPTIMIZATION_EVENT,
 ): ChatMessage {
   return completedInvocation(
     "vcs",
@@ -442,7 +580,7 @@ function finalCleanStatus(
         workingHead: { kind: "event", eventId },
         workingCounts: { applications: 0, workUnits: 0, changes: 0 },
       },
-    }
+    },
   );
 }
 
@@ -456,29 +594,40 @@ function optimizationExecution(
     statusEventId?: string;
     verificationStateHash?: string;
     verificationBuildKey?: string;
-  } = {}
+  } = {},
 ): TestExecutionResult {
   return execution([
     performanceEvalInvocation(
       performanceProfile(options.beforeBytes ?? 8_192),
-      "optimization-before"
+      "optimization-before",
     ),
     managedOptimization(),
     performanceEvalInvocation(
-      performanceProfile(options.afterBytes ?? 2_048, options.afterUnit, options.afterContextId),
-      "optimization-after"
+      performanceProfile(
+        options.afterBytes ?? 2_048,
+        options.afterUnit,
+        options.afterContextId,
+      ),
+      "optimization-after",
     ),
-    finalBuild(undefined, undefined, options.verificationStateHash, options.verificationBuildKey),
+    finalBuild(
+      undefined,
+      undefined,
+      options.verificationStateHash,
+      options.verificationBuildKey,
+    ),
     optimizationCommit(options.committedApplicationIds),
     finalCleanStatus(OPTIMIZATION_CONTEXT, options.statusEventId),
-    finalAgentMessage("The panel now has the same visible output with less initial bundle waste."),
+    finalAgentMessage(
+      "The panel now has the same visible output with less initial bundle waste.",
+    ),
   ]);
 }
 
 function completedInvocation(
   name: string,
   arguments_: Record<string, unknown>,
-  details: Record<string, unknown>
+  details: Record<string, unknown>,
 ): ChatMessage {
   return {
     id: `${name}-${JSON.stringify(arguments_)}`,
@@ -509,7 +658,13 @@ function successfulPackageBuild(unit: string, contextId: string): ChatMessage {
       operation: "build",
       target: unit,
       status: "ok",
-      report: { repoPath: unit, kind: "package", status: "ok", diagnostics: [], builds: [] },
+      report: {
+        repoPath: unit,
+        kind: "package",
+        status: "ok",
+        diagnostics: [],
+        builds: [],
+      },
       receipt: {
         protocol: "unit-verification-receipt.v1",
         operation: "build",
@@ -520,7 +675,7 @@ function successfulPackageBuild(unit: string, contextId: string): ChatMessage {
         status: "ok",
         unit: { repoPath: unit, kind: "package" },
       },
-    }
+    },
   );
 }
 

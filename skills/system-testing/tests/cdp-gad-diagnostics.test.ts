@@ -5,7 +5,7 @@ import { cdpGadDiagnosticTests } from "./cdp-gad-diagnostics.js";
 
 function executionWithFinal(
   content: string,
-  extra: Partial<TestExecutionResult> = {}
+  extra: Partial<TestExecutionResult> = {},
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -31,7 +31,7 @@ function executionWithFinal(
 function executionWithInvocation(
   content: string,
   invocation: Record<string, unknown>,
-  extra: Partial<TestExecutionResult> = {}
+  extra: Partial<TestExecutionResult> = {},
 ): TestExecutionResult {
   const base = executionWithFinal(content, extra);
   return {
@@ -51,7 +51,9 @@ function executionWithInvocation(
   } as TestExecutionResult;
 }
 
-function withSuccessfulImageRead(result: TestExecutionResult): TestExecutionResult {
+function withSuccessfulImageRead(
+  result: TestExecutionResult,
+): TestExecutionResult {
   const final = result.messages.at(-1)!;
   return {
     ...result,
@@ -136,34 +138,180 @@ function nativeClickInvocation(status = "State: clicked") {
   };
 }
 
+function nativeProfileInvocation() {
+  const receipt = {
+    protocol: "cdp-profile-outcome.v1",
+    elapsedMs: 18,
+    runtime: { taskDurationMs: 5 },
+    network: { requestCount: 0 },
+    page: { longTasks: { count: 0 } },
+  };
+  return {
+    id: "call-native-profile",
+    name: "eval",
+    arguments: { code: "return boundedReport;" },
+    execution: {
+      status: "complete",
+      terminalOutcome: "success",
+      result: {
+        details: {
+          returnValue: { report: receipt, finalState: "On" },
+          operationJournal: {
+            protocol: "workspace-operations.v1",
+            truncated: false,
+            entries: [
+              {
+                type: "profile.start",
+                id: "panel:profile",
+                receipt: undefined as unknown,
+              },
+              {
+                type: "interaction",
+                id: "panel:profile",
+                receipt: {
+                  protocol: "cdp-interaction-outcome.v1",
+                  action: "click",
+                  delivery: "dispatched",
+                } as unknown,
+              },
+              {
+                type: "profile",
+                id: "panel:profile",
+                receipt: receipt as unknown,
+              },
+              {
+                type: "evaluation",
+                id: "panel:profile",
+                receipt: {
+                  protocol: "cdp-evaluation-outcome.v1",
+                  truncated: false,
+                  value: "On",
+                } as unknown,
+              },
+            ],
+          },
+        },
+      },
+    },
+  };
+}
+
 const clickTest = cdpGadDiagnosticTests.find(
-  (test) => test.name === "cdp-page-click-type-evaluate"
+  (test) => test.name === "cdp-page-click-type-evaluate",
 )!;
 const profileTest = cdpGadDiagnosticTests.find(
-  (test) => test.name === "cdp-page-performance-profile"
+  (test) => test.name === "cdp-page-performance-profile",
 )!;
 const reloadProfileTest = cdpGadDiagnosticTests.find(
-  (test) => test.name === "workspace-panel-reload-performance-profile"
+  (test) => test.name === "workspace-panel-reload-performance-profile",
 )!;
 const stateArgsTest = cdpGadDiagnosticTests.find(
-  (test) => test.name === "panel-stateargs-cdp-roundtrip"
+  (test) => test.name === "panel-stateargs-cdp-roundtrip",
 )!;
 const integrityTest = cdpGadDiagnosticTests.find(
-  (test) => test.name === "gad-integrity-diagnostics"
-)!;
-const branchTest = cdpGadDiagnosticTests.find(
-  (test) => test.name === "gad-branch-file-diff-probe"
+  (test) => test.name === "gad-integrity-diagnostics",
 )!;
 const CLICK_FINAL =
   "I clicked the disposable page control, evaluated the requested value, and captured a screenshot successfully. The visible status text was State: clicked.";
 const INTEGRITY_FINAL =
   "The GAD assessment covered storage, publication, the current turn and invocation, hashes, and integrity.";
-const BRANCH_FINAL =
-  "The branch files and state probe completed, and the invalid requests produced the expected controlled rejections.";
 const STATE_FINAL =
   "The panel state was visible in the inspected automation snapshot after the change.";
 
 describe("cdp-gad diagnostics validators", () => {
+  it("accepts exposed launch-state reads after a native mutation without requiring a snapshot", () => {
+    const final =
+      'The change was visible immediately in the panel’s exposed state: stateArgs.get() returned {} before the update and {"launch":"x"} afterward.';
+    const invocation = {
+      id: "state-change",
+      name: "eval",
+      arguments: {
+        code: "const before=await child.stateArgs.get(); await child.stateArgs.set({launch:'x'}); const after=await child.stateArgs.get(); return {before,after};",
+      },
+      execution: {
+        status: "complete",
+        terminalOutcome: "success",
+        result: {
+          details: {
+            returnValue: { before: {}, after: { launch: "x" } },
+            operationJournal: {
+              protocol: "workspace-operations.v1",
+              truncated: false,
+              entries: [{ type: "stateArgs.set", id: "panel:state" }],
+            },
+          },
+        },
+      },
+    };
+    expect(
+      stateArgsTest.validate(executionWithInvocation(final, invocation)),
+    ).toMatchObject({ passed: true });
+    expect(stateArgsTest.validate(executionWithFinal(final))).toMatchObject({
+      passed: false,
+    });
+    expect(
+      stateArgsTest.validate(
+        executionWithInvocation(final, {
+          ...invocation,
+          execution: {
+            ...invocation.execution,
+            result: {
+              details: {
+                ...invocation.execution.result.details,
+                operationJournal: {
+                  protocol: "workspace-operations.v1",
+                  truncated: false,
+                  entries: [],
+                },
+              },
+            },
+          },
+        }),
+      ),
+    ).toMatchObject({ passed: false });
+  });
+
+  it("accepts an empty document and empty retained/live console without requiring the word DOM", () => {
+    const test = cdpGadDiagnosticTests.find(
+      ({ name }) => name === "cdp-page-console-dom-inspection",
+    )!;
+    const final =
+      "The visible document was empty: blank title and body. Live console and retained console history were empty, with no errors or dropped entries.";
+    const call = {
+      id: "native-console",
+      name: "eval",
+      arguments: {
+        code: "return {body:await page.evaluate(()=>document.body.innerText),live:page.consoleEvents(),history:await handle.cdp.consoleHistory()};",
+      },
+      execution: {
+        status: "complete",
+        terminalOutcome: "success",
+        result: {
+          details: {
+            returnValue: {
+              body: "",
+              live: [],
+              history: {
+                entries: [],
+                errors: [],
+                dropped: { entries: 0, errors: 0 },
+              },
+            },
+          },
+        },
+      },
+    };
+    expect(test.validate(executionWithInvocation(final, call))).toMatchObject({
+      passed: true,
+    });
+    expect(test.validate(executionWithFinal(final))).toMatchObject({
+      passed: false,
+    });
+    expect(
+      test.validate(executionWithInvocation(final, { ...call, name: "read" })),
+    ).toMatchObject({ passed: false });
+  });
+
   it("accepts a profiled workspace reload with lifecycle and host evidence", () => {
     const result = reloadProfileTest.validate(
       executionWithInvocation(
@@ -192,8 +340,8 @@ describe("cdp-gad diagnostics validators", () => {
               },
             },
           },
-        }
-      )
+        },
+      ),
     );
 
     expect(result).toEqual({ passed: true });
@@ -201,11 +349,13 @@ describe("cdp-gad diagnostics validators", () => {
 
   it("rejects a workspace reload claim based only on the old CDP incarnation", () => {
     const result = reloadProfileTest.validate(
-      executionWithInvocation("The workspace panel reload was profiled and had network requests.", {
-        id: "call-reload-profile",
-        name: "eval",
-        arguments: {
-          code: `
+      executionWithInvocation(
+        "The workspace panel reload was profiled and had network requests.",
+        {
+          id: "call-reload-profile",
+          name: "eval",
+          arguments: {
+            code: `
               const handle = await openPanel("about/testbench", { focus: false });
               const beforeAttemptId = (await handle.snapshot()).attemptId;
               const page = await handle.cdp.page();
@@ -213,80 +363,92 @@ describe("cdp-gad diagnostics validators", () => {
               const afterAttemptId = (await handle.snapshot()).attemptId;
               return { beforeAttemptId, afterAttemptId, requestCount: report.network.requestCount, longTasks: report.page.longTasks.count };
             `,
+          },
+          execution: { status: "complete", terminalOutcome: "success" },
         },
-        execution: { status: "complete", terminalOutcome: "success" },
-      })
+      ),
     );
 
     expect(result).toMatchObject({ passed: false });
   });
 
-  it("accepts a bounded profile only when the eval evidence contains every requested layer", () => {
-    const result = profileTest.validate(
-      executionWithInvocation(
-        "The profiled click reached State: clicked. Elapsed time, runtime task work, and network activity were measured in the bounded report.",
-        {
-          id: "call-profile",
-          name: "eval",
-          arguments: {
-            code: "return await page.profile(async () => { await button.click(); await page.getByText('State: clicked').waitFor(); });",
-          },
-          execution: {
-            status: "complete",
-            terminalOutcome: "success",
-            result: {
-              details: {
-                returnValue: {
-                  status: "State: clicked",
-                  version: 1,
-                  elapsedMs: 18,
-                  runtime: { taskDurationMs: 5 },
-                  network: { requestCount: 0 },
-                  page: { longTasks: { count: 0 } },
-                },
-              },
-            },
-          },
-        }
-      )
-    );
-
-    expect(result).toEqual({ passed: true });
+  it("accepts a native bounded profile with arbitrary final state and latency wording", () => {
+    expect(
+      profileTest.validate(
+        executionWithInvocation(
+          "The profiled click took 18 ms overall. Runtime work and network activity were measured. Final state: On.",
+          nativeProfileInvocation(),
+        ),
+      ),
+    ).toEqual({ passed: true });
   });
 
-  it("rejects a profile claim without the bounded network evidence", () => {
-    const result = profileTest.validate(
-      executionWithInvocation(
-        "The profiled click reached State: clicked. Elapsed time and runtime task work were measured; network profiling succeeded.",
-        {
-          id: "call-profile",
-          name: "eval",
-          arguments: {
-            code: "return await page.profile(async () => { await button.click(); await page.getByText('State: clicked').waitFor(); });",
-          },
-          execution: {
-            status: "complete",
-            terminalOutcome: "success",
-            result: {
-              details: {
-                returnValue: {
-                  status: "State: clicked",
-                  version: 1,
-                  elapsedMs: 18,
-                  runtime: { taskDurationMs: 5 },
-                  page: { longTasks: { count: 0 } },
-                },
-              },
-            },
-          },
-        }
-      )
-    );
+  it("joins native final-state reads inside the profile or in a subsequent cell", () => {
+    for (const placement of ["inside", "next-cell"] as const) {
+      const invocation = nativeProfileInvocation();
+      const entries =
+        invocation.execution.result.details.operationJournal.entries;
+      const observation = entries.splice(3, 1)[0]!;
+      const result = executionWithInvocation(
+        "The profiled click took 18 ms overall. Runtime work and network activity were measured. Final state: On.",
+        invocation,
+      );
+      if (placement === "inside") entries.splice(2, 0, observation);
+      else {
+        const read = nativeProfileInvocation();
+        read.id = "call-native-profile-read";
+        read.execution.result.details.operationJournal.entries = [observation];
+        // Build the execution after the journal mutation so the serialized
+        // invocation contains the actual placement.
+        const followed = executionWithInvocation("", read);
+        result.messages.splice(
+          result.messages.length - 1,
+          0,
+          followed.messages[1]!,
+        );
+      }
+      if (placement === "inside") {
+        expect(
+          profileTest.validate(
+            executionWithInvocation(
+              "The profiled click took 18 ms overall. Runtime work and network activity were measured. Final state: On.",
+              invocation,
+            ),
+          ),
+        ).toEqual({ passed: true });
+      } else expect(profileTest.validate(result)).toEqual({ passed: true });
+    }
+  });
 
-    expect(result).toMatchObject({
-      passed: false,
-      reason: expect.stringContaining("omitted requested diagnostic evidence"),
-    });
+  it("rejects guest profile claims without native measurement or an enclosed same-panel click", () => {
+    for (const fault of [
+      "guest-only",
+      "no-network",
+      "click-before",
+      "other-panel",
+      "wrong-state",
+      "guest-state-only",
+    ] as const) {
+      const invocation = nativeProfileInvocation();
+      const details = invocation.execution.result.details;
+      const entries = details.operationJournal.entries;
+      if (fault === "guest-only") entries.splice(0);
+      if (fault === "no-network")
+        delete (entries[2]!.receipt as Record<string, unknown>)["network"];
+      if (fault === "click-before") entries.unshift(entries.splice(1, 1)[0]!);
+      if (fault === "other-panel") entries[1]!.id = "panel:other";
+      if (fault === "guest-state-only") entries.splice(3, 1);
+      if (fault === "wrong-state")
+        Object.assign(entries[3]!.receipt as object, { value: "Off" });
+      expect(
+        profileTest.validate(
+          executionWithInvocation(
+            "The profiled click took 18 ms overall. Runtime work and network activity were measured. Final state: On.",
+            invocation,
+          ),
+        ),
+      ).toMatchObject({ passed: false });
+    }
   });
 
   it("accepts native action evidence after image inspection with arbitrary observed status wording", () => {
@@ -300,6 +462,53 @@ describe("cdp-gad diagnostics validators", () => {
         ),
       ),
     ).toEqual({ passed: true });
+  });
+
+  it("accepts finite numeric and boolean native page values with exact token boundaries", () => {
+    for (const value of [1, -1.5, true, false]) {
+      const invocation = nativeClickInvocation();
+      const entry =
+        invocation.execution.result.details.operationJournal.entries.find(
+          (entry) => entry.type === "evaluation",
+        )!;
+      Object.assign(entry.receipt!, { value });
+      expect(
+        clickTest.validate(
+          withSuccessfulImageRead(
+            executionWithInvocation(
+              `I clicked and inspected the screenshot. The evaluated value was ${value}.`,
+              invocation,
+            ),
+          ),
+        ),
+      ).toEqual({ passed: true });
+    }
+  });
+
+  it("rejects a different number, a numeric substring, and non-finite values", () => {
+    for (const [value, final] of [
+      [1, "31"],
+      [1, "1.5"],
+      [1, "item1"],
+      [Infinity, "Infinity"],
+    ] as const) {
+      const invocation = nativeClickInvocation();
+      const entry =
+        invocation.execution.result.details.operationJournal.entries.find(
+          (entry) => entry.type === "evaluation",
+        )!;
+      Object.assign(entry.receipt!, { value });
+      expect(
+        clickTest.validate(
+          withSuccessfulImageRead(
+            executionWithInvocation(
+              `I clicked and inspected the screenshot. The evaluated value was ${final}.`,
+              invocation,
+            ),
+          ),
+        ),
+      ).toMatchObject({ passed: false });
+    }
   });
 
   it("rejects a successful screenshot call when the image was not read", () => {
@@ -391,7 +600,7 @@ describe("cdp-gad diagnostics validators", () => {
           isError: true,
           result: { error: "data URL DOM was not reachable" },
         },
-      })
+      }),
     );
 
     expect(result).toMatchObject({
@@ -410,7 +619,7 @@ describe("cdp-gad diagnostics validators", () => {
           terminalOutcome: "tool_error",
           result: "snapshot target not reachable",
         },
-      })
+      }),
     );
 
     expect(result).toMatchObject({
@@ -427,10 +636,12 @@ describe("cdp-gad diagnostics validators", () => {
         execution: {
           status: "complete",
           result: {
-            protocolContent: [{ type: "text", text: "if (result.ok === false) throw err;" }],
+            protocolContent: [
+              { type: "text", text: "if (result.ok === false) throw err;" },
+            ],
           },
         },
-      })
+      }),
     );
 
     expect(result).toMatchObject({ passed: false });
@@ -453,7 +664,7 @@ describe("cdp-gad diagnostics validators", () => {
             summary: { ok: false, problem: "publication mismatch" },
           },
         },
-      })
+      }),
     );
 
     expect(result).toEqual({ passed: true });
@@ -469,7 +680,7 @@ describe("cdp-gad diagnostics validators", () => {
           result:
             '{"storage":{},"publication":{},"turn":{},"invocation":{},"hashes":{},"integrity":{},"summary":{"ok":false}}',
         },
-      })
+      }),
     );
 
     expect(result).toEqual({ passed: true });
@@ -498,8 +709,8 @@ describe("cdp-gad diagnostics validators", () => {
               integrity: { ok: true },
             },
           },
-        }
-      )
+        },
+      ),
     );
 
     expect(result).toEqual({ passed: true });
@@ -508,8 +719,8 @@ describe("cdp-gad diagnostics validators", () => {
   it("rejects health prose without canonical diagnostic evidence", () => {
     const result = integrityTest.validate(
       executionWithFinal(
-        "The GAD assessment covered storage, publication, the current turn and invocation, hashes, and integrity, but overall ok is false only because the current turn is open."
-      )
+        "The GAD assessment covered storage, publication, the current turn and invocation, hashes, and integrity, but overall ok is false only because the current turn is open.",
+      ),
     );
 
     expect(result).toMatchObject({ passed: false });
@@ -517,14 +728,17 @@ describe("cdp-gad diagnostics validators", () => {
 
   it("rejects impossible success wording in the final message", () => {
     const result = stateArgsTest.validate(
-      executionWithInvocation(`${STATE_FINAL} However, the snapshot target was not reachable.`, {
-        id: "call-1",
-        name: "eval",
-        execution: {
-          status: "complete",
-          result: { snapshot: { stateArgs: { value: 2 } } },
+      executionWithInvocation(
+        `${STATE_FINAL} However, the snapshot target was not reachable.`,
+        {
+          id: "call-1",
+          name: "eval",
+          execution: {
+            status: "complete",
+            result: { snapshot: { stateArgs: { value: 2 } } },
+          },
         },
-      })
+      ),
     );
 
     expect(result).toMatchObject({
@@ -533,130 +747,9 @@ describe("cdp-gad diagnostics validators", () => {
     expect(result.reason).toContain("not reachable");
   });
 
-  it("accepts controlled branch probe rejections returned as data", () => {
-    const result = branchTest.validate(
-      executionWithInvocation(BRANCH_FINAL, {
-        id: "call-1",
-        name: "eval",
-        execution: {
-          status: "complete",
-          result: {
-            checks: [{ name: "branch-files", ok: true }],
-            stateProbe: { ok: true },
-            controlledErrors: [
-              { name: "write CTE", ok: false, error: "rawSql writes are disabled" },
-            ],
-          },
-        },
-      })
-    );
-
-    expect(result).toEqual({ passed: true });
-  });
-
-  it("accepts unrelated in-flight agent health during a branch probe", () => {
-    const result = branchTest.validate(
-      executionWithInvocation(BRANCH_FINAL, {
-        id: "call-1",
-        name: "eval",
-        execution: {
-          status: "complete",
-          result: {
-            priorHealth: {
-              summary: {
-                ok: false,
-                publicationIssues: 0,
-                storageIssues: 0,
-                openTurns: 1,
-                nonterminalInvocations: 1,
-              },
-            },
-            branchFiles: [],
-            stateProbe: null,
-            controlledErrors: [{ rejected: true, error: "rawSql writes are disabled" }],
-          },
-        },
-      })
-    );
-
-    expect(result).toEqual({ passed: true });
-  });
-
-  it("accepts in-flight health repeated through a bounded eval preview and final prose", () => {
-    const result = branchTest.validate(
-      executionWithInvocation(
-        `${BRANCH_FINAL} Current health is false because openTurns=1 and nonterminalInvocations=1, with publicationIssues=0 and storageIssues=0.`,
-        {
-          id: "call-1",
-          name: "eval",
-          execution: {
-            status: "complete",
-            result: {
-              protocolContent: [
-                {
-                  type: "text",
-                  text: {
-                    preview:
-                      '[eval] Return value:\n{"health":{"summary":{"ok":false,"publicationIssues":0,"storageIssues":0,"openTurns":1,"nonterminalInvocations":1}}}',
-                  },
-                },
-              ],
-              branchFiles: [],
-              stateProbe: null,
-              controlledErrors: [{ rejected: true, error: "rawSql writes are disabled" }],
-            },
-          },
-        }
-      )
-    );
-
-    expect(result).toEqual({ passed: true });
-  });
-
-  it("still rejects a nonzero integrity issue alongside in-flight health", () => {
-    const result = branchTest.validate(
-      executionWithInvocation(`${BRANCH_FINAL} Current health is false.`, {
-        id: "call-1",
-        name: "eval",
-        execution: {
-          status: "complete",
-          result: {
-            health: {
-              summary: {
-                ok: false,
-                openTurns: 1,
-                nonterminalInvocations: 1,
-                publicationIssues: 1,
-                storageIssues: 0,
-              },
-            },
-          },
-        },
-      })
-    );
-
-    expect(result).toMatchObject({ passed: false });
-  });
-
-  it("accepts stringified controlled branch probe rejections returned as data", () => {
-    const result = branchTest.validate(
-      executionWithInvocation(BRANCH_FINAL, {
-        id: "call-1",
-        name: "eval",
-        execution: {
-          status: "complete",
-          result:
-            '[eval] Return value:\n{"checks":[{"name":"branch-files","ok":true}],"stateProbe":{"ok":true},"controlledErrors":[{"name":"write CTE","ok":false,"error":"rawSql writes are disabled"}]}',
-        },
-      })
-    );
-
-    expect(result).toEqual({ passed: true });
-  });
-
   it("rejects explicit success prose when no diagnostic tool ran", () => {
     const result = clickTest.validate(
-      executionWithFinal(`${CLICK_FINAL} No tool failures occurred.`)
+      executionWithFinal(`${CLICK_FINAL} No tool failures occurred.`),
     );
 
     expect(result).toMatchObject({ passed: false });
@@ -694,17 +787,19 @@ describe("cdp-gad diagnostics prompts", () => {
 
     for (const test of cdpGadDiagnosticTests) {
       for (const detail of brittleDetails) {
-        expect(test.prompt, `${test.name} prompt should not include ${detail}`).not.toContain(
-          detail
-        );
+        expect(
+          test.prompt,
+          `${test.name} prompt should not include ${detail}`,
+        ).not.toContain(detail);
       }
     }
 
     expect(stateArgsTest.prompt).toContain("Open a workspace panel");
     expect(integrityTest.prompt).toContain("health assessment");
-    expect(branchTest.prompt).toContain("branch files and state inspection");
     for (const test of cdpGadDiagnosticTests) {
-      expect(test.prompt).not.toMatch(/Finish with|[A-Z][A-Z0-9_]{3,}_OK|\w+:<count>/u);
+      expect(test.prompt).not.toMatch(
+        /Finish with|[A-Z][A-Z0-9_]{3,}_OK|\w+:<count>/u,
+      );
     }
   });
 });

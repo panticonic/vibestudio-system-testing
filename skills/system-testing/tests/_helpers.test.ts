@@ -13,15 +13,51 @@ import {
   noFailedInvocations,
   requireEvalResultEvidence,
   requireVcsEvidence,
+  reportedEventReferencesAgree,
   successfulEvalCode,
   successfulEvalReturnValues,
   successfulEvalObservedValues,
 } from "./_helpers.js";
 
+describe("event identity presentation", () => {
+  const hash = "0e7c4541" + "a".repeat(56);
+  const eventId = `workspace-event:${hash}`;
+  it("accepts explicit ellipsis presentation while preserving canonical receipt identity", () => {
+    expect(
+      reportedEventReferencesAgree("Committed at workspace-event:0e7c4541…", [
+        eventId,
+      ]),
+    ).toBe(true);
+    expect(
+      reportedEventReferencesAgree("Committed at 0e7c4541...aaaa", [eventId]),
+    ).toBe(true);
+    expect(
+      reportedEventReferencesAgree(`Committed at ${eventId}`, [eventId]),
+    ).toBe(true);
+    expect(
+      reportedEventReferencesAgree("Committed at workspace-event:0e7c4541", [
+        eventId,
+      ]),
+    ).toBe(false);
+    expect(
+      reportedEventReferencesAgree(
+        "Committed at workspace-event:0e7c4541…bbbb",
+        [eventId],
+      ),
+    ).toBe(false);
+    expect(
+      reportedEventReferencesAgree(
+        `Committed at ${eventId} and event:unrelated`,
+        [eventId],
+      ),
+    ).toBe(false);
+  });
+});
+
 function executionWithProjectedInvocation(
   status: string,
   terminalOutcome?: string,
-  isError?: boolean
+  isError?: boolean,
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -46,7 +82,10 @@ function executionWithProjectedInvocation(
   } as TestExecutionResult;
 }
 
-function executionWithInvocation(status: string, terminalOutcome?: string): TestExecutionResult {
+function executionWithInvocation(
+  status: string,
+  terminalOutcome?: string,
+): TestExecutionResult {
   return {
     duration: 0,
     messages: [
@@ -78,7 +117,7 @@ function executionWithInvocation(status: string, terminalOutcome?: string): Test
 function executionWithInvocationResult(
   status: string,
   result: unknown,
-  isError?: boolean
+  isError?: boolean,
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -146,34 +185,55 @@ describe("system-testing validation helpers", () => {
       ],
     } as TestExecutionResult;
 
-    expect(findLastAgentMessage(result)).toBe("Completed from a recipient-specific transcript.");
+    expect(findLastAgentMessage(result)).toBe(
+      "Completed from a recipient-specific transcript.",
+    );
   });
 
   it("does not classify terminal tool errors as incomplete invocations", () => {
-    expect(incompleteToolCalls(executionWithInvocation("error", "tool_error"))).toEqual([]);
+    expect(
+      incompleteToolCalls(executionWithInvocation("error", "tool_error")),
+    ).toEqual([]);
   });
 
   it("does not classify completed invocations as incomplete", () => {
-    expect(incompleteToolCalls(executionWithInvocation("complete", "success"))).toEqual([]);
+    expect(
+      incompleteToolCalls(executionWithInvocation("complete", "success")),
+    ).toEqual([]);
   });
 
   it("normalizes flattened completed invocation cards", () => {
-    const result = executionWithProjectedInvocation("complete", "success", false);
+    const result = executionWithProjectedInvocation(
+      "complete",
+      "success",
+      false,
+    );
     expect(incompleteToolCalls(result)).toEqual([]);
     expect(completedToolNames(result)).toEqual(new Set(["eval"]));
   });
 
   it("normalizes flattened failed invocation cards", () => {
-    const result = executionWithProjectedInvocation("error", "tool_error", true);
+    const result = executionWithProjectedInvocation(
+      "error",
+      "tool_error",
+      true,
+    );
     expect(incompleteToolCalls(result)).toEqual([]);
     expect(failedToolCalls(result).map((call) => call.name)).toEqual(["eval"]);
   });
 
   it("accepts focused agent VCS tools as canonical operation evidence", () => {
-    const result = executionWithProjectedInvocation("complete", "success", false);
+    const result = executionWithProjectedInvocation(
+      "complete",
+      "success",
+      false,
+    );
     const invocation = result.messages[1]!.invocation!;
     invocation.name = "vcs";
-    invocation.arguments = { operation: "compare", sourceEventId: "event:source" };
+    invocation.arguments = {
+      operation: "compare",
+      sourceEventId: "event:source",
+    };
     expect(requireVcsEvidence(result, ["vcs.compare"])).toEqual({
       passed: true,
       reason: undefined,
@@ -182,7 +242,9 @@ describe("system-testing validation helpers", () => {
 
     invocation.name = "provenance";
     invocation.arguments = { target: "command:1" };
-    expect(requireVcsEvidence(result, ["vcs.inspect", "vcs.neighbors"])).toEqual({
+    expect(
+      requireVcsEvidence(result, ["vcs.inspect", "vcs.neighbors"]),
+    ).toEqual({
       passed: true,
       reason: undefined,
     });
@@ -190,7 +252,9 @@ describe("system-testing validation helpers", () => {
 
   it("classifies pending invocations as incomplete", () => {
     expect(
-      incompleteToolCalls(executionWithInvocation("pending")).map((call) => call.name)
+      incompleteToolCalls(executionWithInvocation("pending")).map(
+        (call) => call.name,
+      ),
     ).toEqual(["grep"]);
   });
 
@@ -198,8 +262,8 @@ describe("system-testing validation helpers", () => {
     expect(
       finalMessageHasMarkerCount(
         executionWithFinalAgentMessage("WORKER_LIST_OK: 0"),
-        "WORKER_LIST_OK"
-      )
+        "WORKER_LIST_OK",
+      ),
     ).toEqual({
       passed: true,
       reason: undefined,
@@ -210,8 +274,8 @@ describe("system-testing validation helpers", () => {
     expect(
       finalMessageHasMarkerCount(
         executionWithFinalAgentMessage("WORKER_SOURCES_OK count 30"),
-        "WORKER_SOURCES_OK"
-      )
+        "WORKER_SOURCES_OK",
+      ),
     ).toEqual({
       passed: true,
       reason: undefined,
@@ -222,14 +286,17 @@ describe("system-testing validation helpers", () => {
     expect(
       finalMessageHasMarkerCount(
         executionWithFinalAgentMessage("OAUTH_PROVIDERS_OK count=unknown"),
-        "OAUTH_PROVIDERS_OK"
-      ).passed
+        "OAUTH_PROVIDERS_OK",
+      ).passed,
     ).toBe(false);
   });
 
   it("accepts explicit field values in final messages", () => {
     expect(
-      finalMessageHasField(executionWithFinalAgentMessage("PANEL_OPEN_OK handle=slot-1"), "handle")
+      finalMessageHasField(
+        executionWithFinalAgentMessage("PANEL_OPEN_OK handle=slot-1"),
+        "handle",
+      ),
     ).toEqual({
       passed: true,
       reason: undefined,
@@ -240,8 +307,8 @@ describe("system-testing validation helpers", () => {
     expect(
       finalMessageHasNumericField(
         executionWithFinalAgentMessage("PANEL_SCREENSHOT_OK bytes=135731"),
-        "bytes"
-      )
+        "bytes",
+      ),
     ).toEqual({
       passed: true,
       reason: undefined,
@@ -251,25 +318,40 @@ describe("system-testing validation helpers", () => {
   it("reports failed invocation cards even when a final marker exists", () => {
     expect(
       failedToolCalls(
-        executionWithInvocationResult("error", { error: "No CDP-capable host is available" }, true)
-      ).map((call) => call.name)
+        executionWithInvocationResult(
+          "error",
+          { error: "No CDP-capable host is available" },
+          true,
+        ),
+      ).map((call) => call.name),
     ).toEqual(["eval"]);
   });
 
   it("rejects settled failures even after a success response", () => {
     expect(
       noFailedInvocations(
-        executionWithInvocationResult("error", { error: "No CDP-capable host is available" }, true)
-      )
+        executionWithInvocationResult(
+          "error",
+          { error: "No CDP-capable host is available" },
+          true,
+        ),
+      ),
     ).toEqual({
       passed: false,
-      reason: "Observed failed tool calls: eval:No CDP-capable host is available",
+      reason:
+        "Observed failed tool calls: eval:No CDP-capable host is available",
     });
   });
 
   it("exempts only the invocation whose intentional fault was classified by the runner", () => {
-    const result = executionWithInvocationResult("error", { error: "Deliberate fixture fault" }, true);
-    result.toolFailures = [{ name: "eval", id: "call-1", expected: true, source: "message" }];
+    const result = executionWithInvocationResult(
+      "error",
+      { error: "Deliberate fixture fault" },
+      true,
+    );
+    result.toolFailures = [
+      { name: "eval", id: "call-1", expected: true, source: "message" },
+    ];
     expect(noFailedInvocations(result).passed).toBe(true);
     result.toolFailures[0]!.id = "another-invocation";
     expect(noFailedInvocations(result).passed).toBe(false);
@@ -281,18 +363,27 @@ describe("system-testing validation helpers", () => {
       decisionIds: ["decision-1"],
     });
 
-    expect(requireEvalResultEvidence(result, ["mutated", "decisionIds"])).toEqual({
+    expect(
+      requireEvalResultEvidence(result, ["mutated", "decisionIds"]),
+    ).toEqual({
       passed: true,
       reason: undefined,
     });
-    expect(requireEvalResultEvidence(result, ["sourceBasis"]).passed).toBe(false);
+    expect(requireEvalResultEvidence(result, ["sourceBasis"]).passed).toBe(
+      false,
+    );
   });
 
   it("uses the captured source for a successful file-backed eval", () => {
     const result = {
       duration: 0,
       messages: [
-        { kind: "message", senderId: "user", complete: true, content: "prompt" },
+        {
+          kind: "message",
+          senderId: "user",
+          complete: true,
+          content: "prompt",
+        },
         {
           kind: "message",
           senderId: "agent",

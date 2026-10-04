@@ -1,5 +1,12 @@
-import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
-import { systemTestFailure, type SystemTestFailure } from "../structured-error.js";
+import type {
+  TestCase,
+  TestExecutionResult,
+  TestOrchestrationContext,
+} from "../types.js";
+import {
+  systemTestFailure,
+  type SystemTestFailure,
+} from "../structured-error.js";
 import { getToolCalls } from "./_helpers.js";
 import {
   completedScenarioEvidence,
@@ -13,19 +20,26 @@ function successfulEvalCalls(result: TestExecutionResult) {
     (call) =>
       call.name === "eval" &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
 }
 
-function invocationKernelIncarnation(call: ReturnType<typeof getToolCalls>[number]): string | null {
+function invocationKernelIncarnation(
+  call: ReturnType<typeof getToolCalls>[number],
+): string | null {
   const result = call.execution?.result;
-  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  if (!result || typeof result !== "object" || Array.isArray(result))
+    return null;
   const details = (result as Record<string, unknown>)["details"];
-  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return null;
   const kernel = (details as Record<string, unknown>)["kernel"];
-  if (!kernel || typeof kernel !== "object" || Array.isArray(kernel)) return null;
+  if (!kernel || typeof kernel !== "object" || Array.isArray(kernel))
+    return null;
   const incarnationId = (kernel as Record<string, unknown>)["incarnationId"];
-  return typeof incarnationId === "string" && incarnationId.length > 0 ? incarnationId : null;
+  return typeof incarnationId === "string" && incarnationId.length > 0
+    ? incarnationId
+    : null;
 }
 
 function validateDbPersistence(result: TestExecutionResult) {
@@ -35,34 +49,44 @@ function validateDbPersistence(result: TestExecutionResult) {
   if (calls.length < 2) {
     return {
       passed: false,
-      reason: "Database persistence was not exercised across separate eval calls",
+      reason:
+        "Database persistence was not exercised across separate eval calls",
     };
   }
   const writer = calls.findIndex((call) => {
     const code = String(call.arguments?.["code"] ?? "");
     return (
-      /\bCREATE\b/iu.test(code) && /\bINSERT\b/iu.test(code) && /\bdb\.(?:run|exec)\b/u.test(code)
+      /\bCREATE\b/iu.test(code) &&
+      /\bINSERT\b/iu.test(code) &&
+      /\bdb\.(?:run|exec)\b/u.test(code)
     );
   });
   const reader = calls.findIndex((call, index) => {
     const code = String(call.arguments?.["code"] ?? "");
-    return index > writer && /\bSELECT\b/iu.test(code) && /\bdb\.exec\b/u.test(code);
+    return (
+      index > writer && /\bSELECT\b/iu.test(code) && /\bdb\.exec\b/u.test(code)
+    );
   });
   const readerCall = calls[reader];
   if (writer < 0 || reader < 0 || !readerCall) {
     return {
       passed: false,
-      reason: "Separate eval calls did not write and later read the local database",
+      reason:
+        "Separate eval calls did not write and later read the local database",
     };
   }
   const readValue = invocationReturnValue(readerCall);
-  return readValue.present && walkArrays([readValue.value]).some((rows) => rows.length >= 1)
+  return readValue.present &&
+    walkArrays([readValue.value]).some((rows) => rows.length >= 1)
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: "The later database read did not return the persisted rows" };
+    : {
+        passed: false,
+        reason: "The later database read did not return the persisted rows",
+      };
 }
 
 async function orchestrateDbPersistence(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await context.runner.spawn();
@@ -72,12 +96,12 @@ async function orchestrateDbPersistence(
     await context.sendAndWait(
       session,
       "Save the value DB_PERSISTENCE_OK under the row name probe in a sandbox database table called system_test_eval_db, then tell me what you stored.",
-      "write eval database row"
+      "write eval database row",
     );
     await context.sendAndWait(
       session,
       "In a separate check, read back that row from system_test_eval_db and tell me what you find. Do not recreate it.",
-      "read eval database row"
+      "read eval database row",
     );
   } catch (cause) {
     failure = systemTestFailure("eval-db-persistence", cause);
@@ -94,12 +118,17 @@ async function orchestrateDbPersistence(
     await session.close();
   } catch (cause) {
     execution.cleanupErrors = [`close: ${formatError(cause)}`];
-    execution.cleanupFailures = [systemTestFailure("eval-db-persistence-close", cause)];
+    execution.cleanupFailures = [
+      systemTestFailure("eval-db-persistence-close", cause),
+    ];
   }
   return execution;
 }
 
-function resetResultProvesFresh(result: TestExecutionResult, resetCallIndex: number): boolean {
+function resetResultProvesFresh(
+  result: TestExecutionResult,
+  resetCallIndex: number,
+): boolean {
   const resetCall = successfulEvalCalls(result)[resetCallIndex];
   if (!resetCall) return false;
   const returned = invocationReturnValue(resetCall);
@@ -112,7 +141,7 @@ function resetResultProvesFresh(result: TestExecutionResult, resetCallIndex: num
         record["fresh"] === true ||
         record["present"] === false ||
         record["exists"] === false ||
-        record["oldValue"] === null
+        record["oldValue"] === null,
     )
   );
 }
@@ -122,7 +151,7 @@ function validateScopeReset(result: TestExecutionResult) {
   if (!base.passed) return base;
   const calls = successfulEvalCalls(result);
   const resetIndex = calls.findIndex(
-    (call, index) => index >= 2 && call.arguments?.["reset"] === true
+    (call, index) => index >= 2 && call.arguments?.["reset"] === true,
   );
   if (resetIndex < 2) {
     return {
@@ -147,7 +176,8 @@ function validateScopeReset(result: TestExecutionResult) {
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "The reset call did not return evidence that the old scope value is absent",
+        reason:
+          "The reset call did not return evidence that the old scope value is absent",
       };
 }
 
@@ -155,7 +185,10 @@ function validateCancellation(result: TestExecutionResult) {
   if (result.error) return { passed: false, reason: result.error };
   const probe = result.diagnostics?.["evalCancellation"];
   if (!probe || typeof probe !== "object" || Array.isArray(probe)) {
-    return { passed: false, reason: "The harness did not record eval cancellation evidence" };
+    return {
+      passed: false,
+      reason: "The harness did not record eval cancellation evidence",
+    };
   }
   const record = probe as {
     runId?: unknown;
@@ -171,7 +204,7 @@ function validateCancellation(result: TestExecutionResult) {
     return {
       passed: false,
       reason: `Expected one cooperative cancelled terminal without a forced reset; observed ${JSON.stringify(
-        probe
+        probe,
       )}`,
     };
   }
@@ -183,7 +216,10 @@ function validateAgentReplay(result: TestExecutionResult) {
   if (!base.passed) return base;
   const probe = result.diagnostics?.["evalAgentReplay"];
   if (!probe || typeof probe !== "object" || Array.isArray(probe)) {
-    return { passed: false, reason: "The harness did not record the exact vessel crash" };
+    return {
+      passed: false,
+      reason: "The harness did not record the exact vessel crash",
+    };
   }
   const record = probe as {
     targetId?: unknown;
@@ -194,18 +230,21 @@ function validateAgentReplay(result: TestExecutionResult) {
   if (
     typeof record.targetId !== "string" ||
     typeof record.invocationId !== "string" ||
-    (record.statusBeforeAbort !== "pending" && record.statusBeforeAbort !== "running") ||
+    (record.statusBeforeAbort !== "pending" &&
+      record.statusBeforeAbort !== "running") ||
     record.aborted !== true
   ) {
     return {
       passed: false,
       reason: `The vessel was not fault-aborted while its eval invocation was live: ${JSON.stringify(
-        probe
+        probe,
       )}`,
     };
   }
 
-  const allEvalCalls = getToolCalls(result).filter((call) => call.name === "eval");
+  const allEvalCalls = getToolCalls(result).filter(
+    (call) => call.name === "eval",
+  );
   const uniqueEvalCalls = new Map(allEvalCalls.map((call) => [call.id, call]));
   if (uniqueEvalCalls.size !== 1 || allEvalCalls.length !== 1) {
     return {
@@ -222,18 +261,22 @@ function validateAgentReplay(result: TestExecutionResult) {
   ) {
     return {
       passed: false,
-      reason: "The original eval invocation did not settle successfully after vessel recovery",
+      reason:
+        "The original eval invocation did not settle successfully after vessel recovery",
     };
   }
   const returned = invocationReturnValue(call);
   const records = returned.present ? walkRecords([returned.value]) : [];
   return records.some(
-    (value) => value["marker"] === "EVAL_AGENT_REPLAY_OK" && value["completionCount"] === 1
+    (value) =>
+      value["marker"] === "EVAL_AGENT_REPLAY_OK" &&
+      value["completionCount"] === 1,
   )
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "The recovered invocation lost its result or executed the eval more than once",
+        reason:
+          "The recovered invocation lost its result or executed the eval more than once",
       };
 }
 
@@ -242,7 +285,7 @@ function formatError(error: unknown): string {
 }
 
 function authorityFrom(
-  call: ReturnType<typeof getToolCalls>[number]
+  call: ReturnType<typeof getToolCalls>[number],
 ): Record<string, unknown> | null {
   const authority = call.arguments?.["authority"];
   return authority && typeof authority === "object" && !Array.isArray(authority)
@@ -261,78 +304,130 @@ function exactPermissionsListIntent(value: unknown): boolean {
   );
 }
 
+function permissionsListResult(
+  call: ReturnType<typeof getToolCalls>[number],
+): boolean {
+  const code = String(call.arguments?.["code"] ?? "");
+  if (
+    !/\bservices\.permissions\.list\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.list["']/u.test(
+      code,
+    )
+  )
+    return false;
+  const returned = invocationReturnValue(call);
+  if (!returned.present) return false;
+  if (Array.isArray(returned.value)) return true;
+  // Large permission inventories use the ordinary bounded-result contract.
+  // Requiring an unbounded array would reject the production transport itself.
+  return walkRecords([returned.value]).some(
+    (value) =>
+      value["truncated"] === true &&
+      value["scopeKey"] === "$lastLargeReturn" &&
+      value["scopeValueType"] === "string" &&
+      typeof value["originalChars"] === "number" &&
+      typeof value["limitChars"] === "number" &&
+      value["originalChars"] > value["limitChars"] &&
+      typeof value["preview"] === "string" &&
+      value["preview"].trimStart().startsWith("["),
+  );
+}
+
+function exactPermissionDenial(
+  call: ReturnType<typeof getToolCalls>[number],
+): boolean {
+  const authority = authorityFrom(call);
+  if (
+    call.name !== "eval" ||
+    authority?.["effects"] !== "read-only" ||
+    authority["approvals"] !== "pregranted-only" ||
+    !Array.isArray(authority["requests"]) ||
+    authority["requests"].length !== 0
+  )
+    return false;
+  return walkRecords([call.execution?.result]).some((value) => {
+    const failure = value["authorityFailure"];
+    if (
+      value["denied"] !== true ||
+      !failure ||
+      typeof failure !== "object" ||
+      Array.isArray(failure)
+    )
+      return false;
+    const denial = failure as Record<string, unknown>;
+    return (
+      denial["reasonCode"] === "run-manifest-denied" &&
+      denial["capability"] === "permissions.read" &&
+      denial["resourceKey"] === "permissions.read"
+    );
+  });
+}
+
 function validateExactAuthority(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  const call = successfulEvalCalls(result).find((candidate) => {
-    const authority = authorityFrom(candidate);
-    return Array.isArray(authority?.["requests"]);
-  });
-  const authority = call && authorityFrom(call);
-  const requests = authority?.["requests"];
-  if (
-    !call ||
-    authority?.["effects"] !== "read-only" ||
-    authority?.["approvals"] !== "pregranted-only" ||
-    !Array.isArray(requests) ||
-    requests.length !== 1 ||
-    JSON.stringify(requests[0]) !==
-      JSON.stringify({
-        capability: "permissions.read",
-        resource: { kind: "exact", key: "permissions.read" },
-      })
-  ) {
-    return { passed: false, reason: "Eval did not submit the exact read-only request allowlist" };
-  }
-  const returned = invocationReturnValue(call);
-  return returned.present && Array.isArray(returned.value)
+  // Attenuation belongs to an admitted eval run. Discovering the contract and
+  // processing an already-returned inventory are separate calls; this probe
+  // checks every run that actually performs the protected permissions read.
+  const reads = successfulEvalCalls(result).filter(permissionsListResult);
+  const exact =
+    reads.length > 0 &&
+    reads.every((call) => {
+      const authority = authorityFrom(call);
+      const requests = authority?.["requests"];
+      if (
+        authority?.["effects"] !== "read-only" ||
+        !Array.isArray(requests) ||
+        requests.length !== 1
+      )
+        return false;
+      const request = requests[0];
+      return (
+        request?.capability === "permissions.read" &&
+        request?.resource?.kind === "exact" &&
+        request?.resource?.key === "permissions.read"
+      );
+    });
+  return exact
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "Exact-authority eval did not return the structured permissions result",
+        reason:
+          "Protected permissions reads did not carry the exact read-only request allowlist and structured result",
       };
 }
 
 function validatePregrantedOnly(result: TestExecutionResult) {
-  const base = completedScenarioEvidence(result);
+  const base = completedScenarioEvidence(result, [], {
+    allowFailed: exactPermissionDenial,
+  });
   if (!base.passed) return base;
-  const call = successfulEvalCalls(result).find(
-    (candidate) => authorityFrom(candidate)?.["approvals"] === "pregranted-only"
-  );
-  const authority = call && authorityFrom(call);
-  if (!call || !Array.isArray(authority?.["requests"]) || authority["requests"].length !== 0) {
-    return {
-      passed: false,
-      reason: "The denied operation was not run under an empty pregranted-only request allowlist",
-    };
-  }
-  const returned = invocationReturnValue(call);
-  const records = returned.present ? walkRecords([returned.value]) : [];
-  return records.some(
-    (record) =>
-      record["denied"] === true &&
-      typeof record["message"] === "string" &&
-      /authority|permission|grant|denied/iu.test(record["message"])
-  )
+  const denials = getToolCalls(result).filter(exactPermissionDenial);
+  return denials.length === 1
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "The ungranted operation did not return a structured authority denial",
+        reason:
+          "Expected one exact permissions.read denial under the empty read-only pregranted-only allowlist",
       };
 }
 
 function validatePreauthorization(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result);
   if (!base.passed) return base;
-  const call = successfulEvalCalls(result).find((candidate) => {
+  const calls = successfulEvalCalls(result);
+  const call = calls.find((candidate) => {
     const preauthorize = authorityFrom(candidate)?.["preauthorize"];
-    return Array.isArray(preauthorize) && preauthorize.some(exactPermissionsListIntent);
+    return (
+      Array.isArray(preauthorize) &&
+      preauthorize.some(exactPermissionsListIntent)
+    );
   });
   const authority = call && authorityFrom(call);
   const preauthorize = authority?.["preauthorize"];
   if (
     !call ||
-    authority?.["approvals"] !== "prompt" ||
+    (authority?.["approvals"] !== undefined &&
+      authority["approvals"] !== "prompt") ||
     !Array.isArray(preauthorize) ||
     preauthorize.length !== 1 ||
     !exactPermissionsListIntent(preauthorize[0])
@@ -342,12 +437,18 @@ function validatePreauthorization(result: TestExecutionResult) {
       reason: "Eval did not preauthorize the exact permissions.list invocation",
     };
   }
-  const returned = invocationReturnValue(call);
-  return returned.present && Array.isArray(returned.value)
+  // Authorization can prepare its own cell without executing the operation.
+  // The actual read must follow it, or occur in that same authorized cell.
+  const read = calls.slice(calls.indexOf(call)).find(permissionsListResult);
+  const earlierRead = calls
+    .slice(0, calls.indexOf(call))
+    .some(permissionsListResult);
+  return read && !earlierRead
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "Preauthorized eval did not return the structured permissions result",
+        reason:
+          "Preauthorized eval did not return the structured permissions result",
       };
 }
 
@@ -355,19 +456,41 @@ function validateEventPages(result: TestExecutionResult) {
   if (result.error) return { passed: false, reason: result.error };
   const probe = result.diagnostics?.["evalEventPages"];
   if (!probe || typeof probe !== "object" || Array.isArray(probe)) {
-    return { passed: false, reason: "The harness did not record durable eval event-page evidence" };
+    return {
+      passed: false,
+      reason: "The harness did not record durable eval event-page evidence",
+    };
   }
   const value = probe as {
     terminal?: { status?: unknown; result?: { success?: unknown } };
-    firstPage?: { events?: Array<{ sequence?: unknown }>; next?: unknown; hasMore?: unknown };
+    firstPage?: {
+      events?: Array<{ sequence?: unknown }>;
+      next?: unknown;
+      hasMore?: unknown;
+    };
     repeatedFirstPage?: unknown;
-    pages?: Array<{ events?: Array<{ sequence?: unknown }>; next?: unknown; hasMore?: unknown }>;
+    pages?: Array<{
+      events?: Array<{ sequence?: unknown }>;
+      next?: unknown;
+      hasMore?: unknown;
+    }>;
   };
-  if (value.terminal?.status !== "done" || value.terminal.result?.success !== true) {
-    return { passed: false, reason: "The event probe did not settle a successful eval run" };
+  if (
+    value.terminal?.status !== "done" ||
+    value.terminal.result?.success !== true
+  ) {
+    return {
+      passed: false,
+      reason: "The event probe did not settle a successful eval run",
+    };
   }
-  if (JSON.stringify(value.firstPage) !== JSON.stringify(value.repeatedFirstPage)) {
-    return { passed: false, reason: "The same durable event cursor returned different pages" };
+  if (
+    JSON.stringify(value.firstPage) !== JSON.stringify(value.repeatedFirstPage)
+  ) {
+    return {
+      passed: false,
+      reason: "The same durable event cursor returned different pages",
+    };
   }
   if (
     !Array.isArray(value.pages) ||
@@ -385,19 +508,23 @@ function validateEventPages(result: TestExecutionResult) {
     .filter((sequence): sequence is number => typeof sequence === "number");
   if (
     sequences.length < 2 ||
-    value.pages.flatMap((page) => page.events ?? []).length !== sequences.length ||
-    sequences.some((sequence, index) => index > 0 && sequence <= sequences[index - 1]!)
+    value.pages.flatMap((page) => page.events ?? []).length !==
+      sequences.length ||
+    sequences.some(
+      (sequence, index) => index > 0 && sequence <= sequences[index - 1]!,
+    )
   ) {
     return {
       passed: false,
-      reason: "Durable eval event pages were not strictly ordered by cursor sequence",
+      reason:
+        "Durable eval event pages were not strictly ordered by cursor sequence",
     };
   }
   return { passed: true, reason: undefined };
 }
 
 async function orchestrateEventPages(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   try {
@@ -419,7 +546,7 @@ async function orchestrateEventPages(
 }
 
 async function orchestrateCancellation(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   try {
@@ -441,7 +568,7 @@ async function orchestrateCancellation(
 }
 
 async function orchestrateAgentReplay(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await context.runner.spawn();
@@ -450,24 +577,18 @@ async function orchestrateAgentReplay(
   let replayEvidence: Record<string, unknown> | undefined;
   try {
     const targetId = session.agentTargetId;
-    if (!targetId) throw new Error("Spawned system-test agent has no exact runtime target");
+    if (!targetId)
+      throw new Error("Spawned system-test agent has no exact runtime target");
 
-    const turn = context
-      .sendAndWait(
-        session,
-        [
-          "Using exactly one eval call, run the following logic with timeoutMs 60000:",
-          "await new Promise(resolve => setTimeout(resolve, 15000));",
-          "scope.__evalAgentReplayCompletionCount = (scope.__evalAgentReplayCompletionCount ?? 0) + 1;",
-          'return { marker: "EVAL_AGENT_REPLAY_OK", completionCount: scope.__evalAgentReplayCompletionCount };',
-          "Return the eval result. Do not make any other tool call.",
-        ].join("\n"),
-        "start eval before vessel crash"
-      )
-      .then(
-        () => ({ error: null as unknown }),
-        (cause) => ({ error: cause })
-      );
+    const inputMessageId = await session.send(
+      [
+        "Using exactly one eval call, run the following logic with timeoutMs 60000:",
+        "await new Promise(resolve => setTimeout(resolve, 15000));",
+        "scope.__evalAgentReplayCompletionCount = (scope.__evalAgentReplayCompletionCount ?? 0) + 1;",
+        'return { marker: "EVAL_AGENT_REPLAY_OK", completionCount: scope.__evalAgentReplayCompletionCount };',
+        "Return the eval result. Do not make any other tool call.",
+      ].join("\n"),
+    );
 
     const liveDeadline = Date.now() + 20_000;
     let live: { id: string; status: "pending" | "running" } | undefined;
@@ -477,7 +598,7 @@ async function orchestrateAgentReplay(
         .invocations.find(
           (candidate) =>
             candidate.name === "eval" &&
-            (candidate.status === "pending" || candidate.status === "running")
+            (candidate.status === "pending" || candidate.status === "running"),
         );
       if (invocation) {
         live = {
@@ -488,18 +609,26 @@ async function orchestrateAgentReplay(
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
-    if (!live) throw new Error("Eval invocation did not become live before the fault deadline");
+    if (!live)
+      throw new Error(
+        "Eval invocation did not become live before the fault deadline",
+      );
 
-    const fault = await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
+    const fault =
+      await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
     replayEvidence = {
       targetId,
       invocationId: live.id,
+      inputMessageId,
       statusBeforeAbort: live.status,
       aborted: fault.aborted,
     };
 
-    const settled = await turn;
-    if (settled.error) throw settled.error;
+    // The injected activation loss invalidates its live RPCs, not the admitted
+    // input. Observe that exact input from the replacement activation.
+    await session.waitForInput(inputMessageId, {
+      timeoutMs: context.remainingTimeMs(),
+    });
   } catch (cause) {
     failure = systemTestFailure("eval-agent-replay", cause);
     error = failure.error.message;
@@ -519,13 +648,15 @@ async function orchestrateAgentReplay(
     await session.close();
   } catch (cause) {
     execution.cleanupErrors = [`close: ${formatError(cause)}`];
-    execution.cleanupFailures = [systemTestFailure("eval-agent-replay-close", cause)];
+    execution.cleanupFailures = [
+      systemTestFailure("eval-agent-replay-close", cause),
+    ];
   }
   return execution;
 }
 
 async function orchestrateLiveKernelContinuity(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await context.runner.spawn();
@@ -535,13 +666,13 @@ async function orchestrateLiveKernelContinuity(
     await context.sendAndWait(
       session,
       "Using exactly one eval call, assign scope.__kernelContinuityProbe to a live object with a ping method that returns the string LIVE_KERNEL_OK. Return its method type and result. Do not use db or a second eval.",
-      "create live notebook object"
+      "create live notebook object",
     );
     await new Promise((resolve) => setTimeout(resolve, 15_000));
     await context.sendAndWait(
       session,
       "Without assigning, recreating, or replacing scope.__kernelContinuityProbe, use exactly one eval call to invoke its existing ping method and return { methodType, value }. If it is missing, report that failure rather than reconstructing it.",
-      "invoke live notebook object after idle"
+      "invoke live notebook object after idle",
     );
   } catch (cause) {
     failure = systemTestFailure("eval-live-kernel-continuity", cause);
@@ -559,13 +690,18 @@ async function orchestrateLiveKernelContinuity(
     await session.close();
   } catch (cause) {
     execution.cleanupErrors = [`close: ${formatError(cause)}`];
-    execution.cleanupFailures = [systemTestFailure("eval-live-kernel-continuity-close", cause)];
+    execution.cleanupFailures = [
+      systemTestFailure("eval-live-kernel-continuity-close", cause),
+    ];
   }
   const cleanupErrors = session
     .snapshot()
     .cleanupErrors.map((entry) => `${entry.phase}: ${entry.message}`);
   if (cleanupErrors.length > 0) {
-    execution.cleanupErrors = [...(execution.cleanupErrors ?? []), ...cleanupErrors];
+    execution.cleanupErrors = [
+      ...(execution.cleanupErrors ?? []),
+      ...cleanupErrors,
+    ];
     execution.error ??= `Headless cleanup failed: ${cleanupErrors.join("; ")}`;
   }
   return execution;
@@ -577,7 +713,9 @@ function validateLiveKernelContinuity(result: TestExecutionResult) {
   const calls = successfulEvalCalls(result);
   const writer = calls.findIndex((call) => {
     const code = String(call.arguments?.["code"] ?? "");
-    return /scope\.__kernelContinuityProbe\s*=/u.test(code) && /\bping\b/u.test(code);
+    return (
+      /scope\.__kernelContinuityProbe\s*=/u.test(code) && /\bping\b/u.test(code)
+    );
   });
   const reader = calls.findIndex((call, index) => {
     const code = String(call.arguments?.["code"] ?? "");
@@ -592,33 +730,43 @@ function validateLiveKernelContinuity(result: TestExecutionResult) {
   if (writer < 0 || reader < 0 || !writerCall || !readerCall) {
     return {
       passed: false,
-      reason: "The agent did not create and later invoke one unchanged live scope object",
+      reason:
+        "The agent did not create and later invoke one unchanged live scope object",
     };
   }
   const writerIncarnation = invocationKernelIncarnation(writerCall);
   const readerIncarnation = invocationKernelIncarnation(readerCall);
-  if (!writerIncarnation || !readerIncarnation || writerIncarnation !== readerIncarnation) {
+  if (
+    !writerIncarnation ||
+    !readerIncarnation ||
+    writerIncarnation !== readerIncarnation
+  ) {
     return {
       passed: false,
-      reason: "The eval kernel incarnation changed across the inter-cell idle boundary",
+      reason:
+        "The eval kernel incarnation changed across the inter-cell idle boundary",
     };
   }
   const returned = invocationReturnValue(readerCall);
   const records = returned.present ? walkRecords([returned.value]) : [];
   return records.some(
-    (record) => record["methodType"] === "function" && record["value"] === "LIVE_KERNEL_OK"
+    (record) =>
+      record["methodType"] === "function" &&
+      record["value"] === "LIVE_KERNEL_OK",
   )
     ? { passed: true, reason: undefined }
     : {
         passed: false,
-        reason: "The live scope object's method did not survive the 15-second inter-cell idle",
+        reason:
+          "The live scope object's method did not survive the 15-second inter-cell idle",
       };
 }
 
 export const evalLifecycleTests: TestCase[] = [
   {
     name: "eval-exact-authority",
-    description: "An eval request allowlist admits only its exact read-only permission request",
+    description:
+      "An eval request allowlist admits only its exact read-only permission request",
     category: "eval-lifecycle",
     authorityPolicy: {
       authority: [
@@ -632,7 +780,7 @@ export const evalLifecycleTests: TestCase[] = [
       ],
     },
     prompt:
-      "Show me which permissions are granted to this workspace. Use one read-only access request for exactly the permissions list, with no other access, and summarize what you found.",
+      "Show me which permissions are granted to this workspace. Restrict this run so it can only read the permissions list: allow no other service access and no changes. Summarize what you found.",
     validate: validateExactAuthority,
   },
   {
@@ -640,6 +788,13 @@ export const evalLifecycleTests: TestCase[] = [
     description:
       "An operation outside an empty eval allowlist is denied without an approval prompt",
     category: "eval-lifecycle",
+    expectedToolFailures: [
+      {
+        name: "eval",
+        failureCode: "ERUNMANIFEST",
+        errorIncludes: "permissions.read",
+      },
+    ],
     authorityPolicy: {
       authority: [
         {
@@ -652,12 +807,13 @@ export const evalLifecycleTests: TestCase[] = [
       ],
     },
     prompt:
-      "Assume no permissions have been granted in advance. Try a read-only check of this workspace's permissions without requesting any new access. If it is unavailable, explain the limitation.",
+      "For this run, disable all service permissions, including any already granted to the workspace. Try a read-only check of this workspace's permissions without requesting approval or any new access. Explain the resulting limitation.",
     validate: validatePregrantedOnly,
   },
   {
     name: "eval-preauthorization",
-    description: "A prompted eval preauthorizes one exact service invocation before executing it",
+    description:
+      "A prompted eval preauthorizes one exact service invocation before executing it",
     category: "eval-lifecycle",
     authorityPolicy: {
       authority: [
@@ -671,12 +827,13 @@ export const evalLifecycleTests: TestCase[] = [
       ],
     },
     prompt:
-      "Check the workspace's current permission list. If access is needed, request only permission to read that list through the normal approval flow. Summarize what was approved and what you found.",
+      "Before running the check, have the system authorize exactly the workspace permissions-list operation, without executing it or authorizing other operations. Allow normal approval if needed. Then run that read-only check and summarize the actual result.",
     validate: validatePreauthorization,
   },
   {
     name: "eval-events",
-    description: "A completed eval exposes stable ordered durable event cursor pages",
+    description:
+      "A completed eval exposes stable ordered durable event cursor pages",
     category: "eval-lifecycle",
     prompt: "Harness-orchestrated durable eval event pagination check.",
     orchestrate: orchestrateEventPages,
@@ -688,14 +845,16 @@ export const evalLifecycleTests: TestCase[] = [
     description:
       "An in-flight eval result survives an exact agent-vessel crash without duplicate execution",
     category: "eval-lifecycle",
-    prompt: "Harness-orchestrated exact agent-vessel crash and durable eval replay check.",
+    prompt:
+      "Harness-orchestrated exact agent-vessel crash and durable eval replay check.",
     orchestrate: orchestrateAgentReplay,
     validation: "harness",
     validate: validateAgentReplay,
   },
   {
     name: "eval-live-kernel-continuity",
-    description: "A live scope object retains its methods across idle eval cells",
+    description:
+      "A live scope object retains its methods across idle eval cells",
     category: "eval-lifecycle",
     prompt: "Harness-orchestrated live notebook continuity check.",
     orchestrate: orchestrateLiveKernelContinuity,
@@ -704,7 +863,8 @@ export const evalLifecycleTests: TestCase[] = [
   },
   {
     name: "eval-db-persistence",
-    description: "The eval-local database persists rows across separate eval calls",
+    description:
+      "The eval-local database persists rows across separate eval calls",
     category: "eval-lifecycle",
     prompt: "Harness-orchestrated eval database continuity check.",
     orchestrate: orchestrateDbPersistence,
@@ -713,7 +873,8 @@ export const evalLifecycleTests: TestCase[] = [
   },
   {
     name: "eval-scope-reset",
-    description: "Resetting the sandbox produces a genuinely fresh persistent scope",
+    description:
+      "Resetting the sandbox produces a genuinely fresh persistent scope",
     category: "eval-lifecycle",
     prompt:
       "Put a value in persistent sandbox scope, confirm it later, reset the sandbox, and check whether the old value remains.",
@@ -721,7 +882,8 @@ export const evalLifecycleTests: TestCase[] = [
   },
   {
     name: "eval-cancel-run",
-    description: "A long-running sandbox run can be cancelled and the cancellation is visible",
+    description:
+      "A long-running sandbox run can be cancelled and the cancellation is visible",
     category: "eval-lifecycle",
     prompt: "Harness-orchestrated asynchronous eval cancellation check.",
     orchestrate: orchestrateCancellation,

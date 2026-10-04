@@ -66,6 +66,23 @@ const GOOD_ANSWER =
   "It was set to 64 because the Pelagic relay drops export payloads above 512 KiB.";
 
 describe("provenance question scenarios", () => {
+  it("follows a cause walk's returned reference to the intact original request", () => {
+    const walk = {
+      arguments: { target: "src/export-batching.ts", walk: "cause" },
+      text: "cause · original message excerpt · @r6-ea52",
+      details: { walk: "cause", entryCount: 6 },
+    };
+    const opened = {
+      arguments: { target: "@r6-ea52" },
+      text: GOOD_CAUSE_BLOCK,
+      details: { subjectKind: "trajectory-message", adjacencyCount: 5 },
+    };
+    expect(causeCase.validate(execution(GOOD_ANSWER, [walk, opened])).passed).toBe(true);
+    expect(causeCase.validate(execution(GOOD_ANSWER, [
+      walk, { ...opened, arguments: { target: "@r8-9580" } },
+    ])).passed).toBe(false);
+    expect(causeCase.validate(execution(GOOD_ANSWER, [opened, walk])).passed).toBe(false);
+  });
   it("forks ordinary phases while keeping deliberate local-history continuity explicit", async () => {
     const contexts: string[] = [];
     const session = () => ({
@@ -284,6 +301,23 @@ describe("diagnosis, not just a verdict", () => {
     "prov rejections · @r1-0000 · what was tried and rejected here\n" +
     "  counteractions (1)\n" +
     '    stated: "staging cut the link before the retry fired" · undone · edit src/retry-policy.ts · @r2-0000';
+
+  it("keeps the rejected-change review read-only even when its history answer is correct", () => {
+    const review = provenanceQuestionTests.find((test) => test.name === "provenance-consults-rejections-before-repeating-them")!;
+    const result = execution("The 300-second backoff was reverted because staging cut the link before the retry.", [{
+      arguments: { target: "src/retry-policy.ts", walk: "rejections" }, text: rejectionBlock,
+      details: { walk: "rejections", entryCount: 1 },
+    }]);
+    expect(review.validate(result).passed).toBe(true);
+    result.messages.push({
+      id: "mutation", kind: "message", senderId: "agent", senderMetadata: { type: "agent" },
+      complete: true, contentType: "invocation", content: JSON.stringify({
+        id: "mutation", name: "edit", arguments: { path: "src/retry-policy.ts" },
+        execution: { status: "complete", isError: false, result: {} },
+      }),
+    } as TestExecutionResult["messages"][number]);
+    expect(review.validate(result).passed).toBe(false);
+  });
 
   it("blames the mechanism when the evidence never arrived", () => {
     const result = flagship.validate(

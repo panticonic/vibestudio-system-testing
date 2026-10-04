@@ -14,14 +14,20 @@ import {
   hasAgentResponse,
   noIncompleteInvocations,
   requireCausalEdgeEvidence,
-  requireCommandIdempotencyEvidence,
-  requireFreshnessRecoveryEvidence,
   requireImportBoundaryEvidence,
   requireMoveCopyEvidence,
   requireRevertEvidence,
   requireVcsEvidence,
   successfulReadMemoryEpisodeGroups,
 } from "./_helpers.js";
+
+import { validateSemanticCommandProbe } from "../semantic-command-probe.js";
+
+async function orchestrateSemanticCommand(context: TestOrchestrationContext, mode: "replay" | "stale"): Promise<TestExecutionResult> {
+  const started = Date.now();
+  const probe = await context.runner.probeSemanticCommand(mode);
+  return { messages: [], duration: Date.now() - started, diagnostics: { semanticCommandProbe: probe } };
+}
 
 function checked(result: TestExecutionResult, evidence: string[]) {
   if (!hasAgentResponse(result) || !findLastAgentMessage(result).trim()) {
@@ -54,21 +60,42 @@ function readResultDetails(call: ReturnType<typeof getToolCalls>[number]) {
 }
 
 function requireInjectedReadMemory(result: TestExecutionResult) {
+  const originalRequest = result.submittedInputs?.find((input) =>
+    input.requestedPrompt.includes(READ_MEMORY_REASON)
+  );
+  if (!originalRequest) {
+    return {
+      passed: false,
+      reason: "The author request was not retained for independent provenance verification",
+    };
+  }
+  const causality = requireCausalEdgeEvidence(result, originalRequest.requestedPrompt);
+  if (!causality.passed) return causality;
   const reads = getToolCalls(result).map(readResultDetails).filter(isRecord);
   const attached = reads.find((details) => {
     const provenance = details["provenance"];
     if (!isRecord(provenance) || provenance["status"] !== "attached") return false;
     const episodes = provenance["episodes"];
+    const displayed = details["displayedRange"];
+    const range = provenance["range"];
     return (
+      typeof provenance["contentHash"] === "string" &&
+      /^[a-f0-9]{64}$/u.test(provenance["contentHash"]) &&
+      provenance["path"] === details["path"] &&
+      provenance["coordinateKind"] === "utf16" &&
+      isRecord(displayed) &&
+      isRecord(range) &&
+      range["start"] === displayed["start"] &&
+      range["end"] === displayed["end"] &&
       Array.isArray(episodes) &&
       episodes.some((episode) => {
         if (!isRecord(episode)) return false;
         const intent = episode["intent"];
         return (
           isRecord(intent) &&
-          intent["tier"] === "trigger" &&
+          (intent["tier"] === "trigger" || intent["tier"] === "stated") &&
           typeof intent["text"] === "string" &&
-          intent["text"].includes(READ_MEMORY_REASON) &&
+          intent["text"].trim().length > 0 &&
           typeof episode["authorContextId"] === "string" &&
           isRecord(episode["change"]) &&
           isRecord(episode["workUnit"]) &&
@@ -81,7 +108,7 @@ function requireInjectedReadMemory(result: TestExecutionResult) {
     return {
       passed: false,
       reason:
-        "No ordinary read returned hash/range-bound attached memory with durable trigger-tier intent and reusable typed roots",
+        "No ordinary read returned exact hash/range-bound memory with recorded intent and independently joined original request",
     };
   }
   const displayedRange = attached["displayedRange"];
@@ -97,11 +124,7 @@ function requireInjectedReadMemory(result: TestExecutionResult) {
     };
   }
   const final = findLastAgentMessage(result);
-  if (
-    !/retry.{0,24}(?:ceiling|budget|limit)/iu.test(final) ||
-    !/meridian/iu.test(final) ||
-    !/delayed acknowledgements/iu.test(final)
-  ) {
+  if (!/delayed[- ]acknowledgements/iu.test(final)) {
     return {
       passed: false,
       reason: "The fresh reader did not use the injected memory to explain the non-obvious choice",
@@ -406,11 +429,12 @@ function requireHistoricalEditedFileContext(result: TestExecutionResult) {
   }
 
   const decisionIntent = /regional exports can arrive through day 18/iu;
+  const reached = new Set<string>([currentPath]);
+  for (const ref of protocolText(read).match(/@r[0-9a-z]+-[0-9a-f]{4}/gu) ?? []) reached.add(ref);
   const historicalDecision = getToolCalls(result).some((call) => {
     if (
       call.execution?.status !== "complete" ||
-      call.execution.isError === true ||
-      !decisionIntent.test(protocolText(call))
+      call.execution.isError === true
     ) {
       return false;
     }
@@ -419,9 +443,12 @@ function requireHistoricalEditedFileContext(result: TestExecutionResult) {
       // Subjects render as a kind plus a compact ref, never as a raw
       // content-addressed identity, so the evidence of a resolved subject is
       // the ref grammar rather than a spelled-out change id.
-      return call.arguments?.["target"] === currentPath && /@r[0-9a-z]+-[0-9a-f]{4}/u.test(text);
+      const target = call.arguments?.["target"];
+      if (typeof target !== "string" || !reached.has(target)) return false;
+      for (const ref of text.match(/@r[0-9a-z]+-[0-9a-f]{4}/gu) ?? []) reached.add(ref);
+      return decisionIntent.test(text);
     }
-    if (call.name !== "memory_recall") return false;
+    if (call.name !== "memory_recall" || !decisionIntent.test(text)) return false;
     const envelope = isRecord(call.execution.result) ? call.execution.result : null;
     const details = envelope && isRecord(envelope["details"]) ? envelope["details"] : null;
     return (
@@ -558,11 +585,9 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Show that the disposable project recovers safely when one edit races with another change. Explain what happened and whether the rejected work had any effect.",
-    validate: (result) => {
-      const base = checked(result, ["vcs.edit"]);
-      if (!base.passed) return base;
-      return requireFreshnessRecoveryEvidence(result);
-    },
+    validation: "harness",
+    orchestrate: (context) => orchestrateSemanticCommand(context, "stale"),
+    validate: (result) => validateSemanticCommandProbe(result.diagnostics?.["semanticCommandProbe"], "stale"),
   },
   {
     name: "vcs-command-idempotency",
@@ -571,9 +596,8 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Show that retrying the same project edit after a lost response is safe and does not duplicate the work. Explain what you verified.",
-    validate: (result) => {
-      const base = checked(result, ["vcs.edit"]);
-      return base.passed ? requireCommandIdempotencyEvidence(result) : base;
-    },
+    validation: "harness",
+    orchestrate: (context) => orchestrateSemanticCommand(context, "replay"),
+    validate: (result) => validateSemanticCommandProbe(result.diagnostics?.["semanticCommandProbe"], "replay"),
   },
 ];

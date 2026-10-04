@@ -1,150 +1,33 @@
 import { describe, expect, it } from "vitest";
-
 import type { TestExecutionResult } from "../types.js";
 import { notificationTests } from "./notifications.js";
 
-function execution(
-  code: string,
-  returnValue: unknown,
-  finalMessage = "The temporary notification was displayed with two choices and then dismissed cleanly."
-): TestExecutionResult {
-  return {
-    duration: 0,
-    messages: [
-      { id: "prompt", kind: "message", senderId: "user", complete: true, content: "prompt" },
-      {
-        id: "eval",
-        kind: "message",
-        senderId: "agent",
-        senderMetadata: { type: "agent" },
-        complete: true,
-        contentType: "invocation",
-        content: "",
-        invocation: {
-          id: "eval-call",
-          name: "eval",
-          status: "complete",
-          terminalOutcome: "success",
-          isError: false,
-          arguments: { code },
-          result: { details: { success: true, returnValue } },
-        },
-      } as unknown as TestExecutionResult["messages"][number],
-      {
-        id: "final",
-        kind: "message",
-        senderId: "agent",
-        senderMetadata: { type: "agent" },
-        complete: true,
-        content: finalMessage,
-      },
-    ],
-  } as TestExecutionResult;
+const actionsTest = notificationTests.find((test) => test.name === "show-with-actions")!;
+const show = { protocol: "notification-lifecycle-observation.v1", method: "notification.show", notificationId: "host-notification", actionLabels: ["Accept", "Decline"] };
+const dismiss = { protocol: "notification-lifecycle-observation.v1", method: "notification.dismiss", notificationId: "host-notification" };
+function execution(receipts: unknown[], code = "await notifications.show(input); await notifications.dismiss(id);", summary: unknown = { arbitrarySummary: "done" }): TestExecutionResult {
+  return { duration: 0, messages: [
+    { kind: "message", id: "eval", senderId: "agent", senderMetadata: { type: "agent" }, complete: true, contentType: "invocation", content: "", invocation: {
+      id: "eval-call", name: "eval", arguments: { code }, execution: { status: "complete", isError: false, result: { details: { success: true, returnValue: summary, operationJournal: { protocol: "workspace-operations.v1", truncated: false, entries: receipts.map((receipt) => ({ type: "notification.lifecycle", receipt })) } } },
+    } } },
+    { kind: "message", id: "final", senderId: "agent", senderMetadata: { type: "agent" }, complete: true, content: "The host accepted the test notification and it was explicitly dismissed." },
+  ] } as unknown as TestExecutionResult;
 }
 
-const actionsTest = notificationTests.find((test) => test.name === "show-with-actions")!;
-const actionsCode = `
-const id = await notifications.show({
-  title: "Action system test",
-  message: "notification-actions-marker",
-  actions: [
-    { id: "accept", label: "Accept" },
-    { id: "decline", label: "Decline" },
-  ],
-});
-await notifications.dismiss(id);
-return { shown: typeof id === "string" && id.length > 0, actions: 2, dismissed: true };
-`;
-
-describe("notification system test validators", () => {
-  it("accepts one exact two-action show/cleanup round trip", () => {
-    expect(
-      actionsTest.validate(execution(actionsCode, { shown: true, actions: 2, dismissed: true }))
-    ).toEqual({ passed: true });
+describe("notification lifecycle system test validators", () => {
+  it("joins native acceptance and explicit cleanup independently of the guest summary", () => {
+    expect(actionsTest.validate(execution([show, dismiss]))).toEqual({ passed: true });
+    expect(actionsTest.validate(execution([{ ...show, actionLabels: ["Decline", "Accept"] }, dismiss])).passed).toBe(true);
   });
-
-  it("rejects marker-only notification claims", () => {
-    expect(actionsTest.validate(execution("return true;", true))).toMatchObject({
-      passed: false,
-      reason: "Expected a successful eval showing and dismissing the notification",
-    });
+  it("rejects guest-only claims, missing cleanup, another identity and reversed lifecycle", () => {
+    for (const receipts of [[], [show], [show, { ...dismiss, notificationId: "another" }], [dismiss, show]])
+      expect(actionsTest.validate(execution(receipts, "return {shown:true,dismissed:true}", { shown: true, dismissed: true })).passed).toBe(false);
   });
-
-  it("rejects the wrong number of authored actions", () => {
-    expect(
-      actionsTest.validate(
-        execution(actionsCode.replace('{ id: "decline", label: "Decline" },', ""), {
-          shown: true,
-          actions: 2,
-          dismissed: true,
-        })
-      )
-    ).toMatchObject({
-      passed: false,
-      reason: "Notification eval authored 1 actions, expected 2",
-    });
+  it("checks accepted action labels rather than source-code spelling", () => {
+    for (const labels of [["Accept"], ["Accept", "Later"], ["Accept", "Accept", "Decline"]])
+      expect(actionsTest.validate(execution([{ ...show, actionLabels: labels }, dismiss])).passed).toBe(false);
   });
-
-  it("rejects fabricated user action reports", () => {
-    expect(
-      actionsTest.validate(
-        execution(`${actionsCode}\nawait rpc.call("main", "notification.reportAction", []);`, {
-          shown: true,
-          actions: 2,
-          dismissed: true,
-        })
-      )
-    ).toMatchObject({
-      passed: false,
-      reason: "Notification display probe fabricated a user action",
-    });
-  });
-
-  it("accepts the natural notification id and cleanup result", () => {
-    expect(
-      actionsTest.validate(
-        execution(actionsCode, {
-          notificationId: "notification:created",
-          dismissed: true,
-        })
-      )
-    ).toEqual({ passed: true });
-  });
-
-  it("accepts an awaited cleanup with an ergonomic shown-notification id", () => {
-    expect(
-      actionsTest.validate(
-        execution(actionsCode, {
-          ok: true,
-          shownNotificationId: "notification:created",
-          actionCount: 2,
-          actionLabels: ["Accept", "Decline"],
-        })
-      )
-    ).toEqual({ passed: true });
-  });
-
-  it("accepts the raw notification service spelling and null dismissal result", () => {
-    const code = `
-const id = await rpc.call("main", "notification.show", [{
-  title: "Action system test",
-  message: "notification-actions-marker",
-  actions: [
-    { id: "accept", label: "Accept" },
-    { id: "decline", label: "Decline" },
-  ],
-}]);
-const dismissResult = await rpc.call("main", "notification.dismiss", [id]);
-return { created: typeof id === "string" && id.length > 0, id, dismissResult };
-`;
-    expect(
-      actionsTest.validate(
-        execution(code, {
-          created: true,
-          id: "notification:created",
-          dismissResult: null,
-        })
-      )
-    ).toEqual({ passed: true });
+  it("rejects fabricated user action reporting", () => {
+    expect(actionsTest.validate(execution([show, dismiss], "await notifications.reportAction(id, 'accept');")).passed).toBe(false);
   });
 });

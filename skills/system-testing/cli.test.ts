@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  rpcCall: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({ artifactId: "build-1" })),
+  rpcCall: vi.fn(
+    async (..._args: unknown[]): Promise<unknown> => ({
+      artifactId: "build-1",
+    }),
+  ),
   runSuite: vi.fn(),
   cancelTestRunner: vi.fn(),
   testerCancelled: false,
@@ -58,7 +62,8 @@ vi.mock("./test-runner.js", () => ({
         | undefined;
       for (const test of tests) onTestStart?.(test);
       const result = await mocks.runSuite(tests, opts);
-      for (const entry of result.results ?? []) await onTestResult?.(entry, result);
+      for (const entry of result.results ?? [])
+        await onTestResult?.(entry, result);
       return result;
     }
     cancel() {
@@ -117,7 +122,10 @@ import {
   unusableModelDetail,
   type SystemTestRunRecord,
 } from "./cli.js";
-import { SYSTEM_TEST_AGENT_MODEL, SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL } from "./config.js";
+import {
+  SYSTEM_TEST_AGENT_MODEL,
+  SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+} from "./config.js";
 
 describe("system-testing CLI-neutral API", () => {
   beforeEach(() => {
@@ -134,13 +142,15 @@ describe("system-testing CLI-neutral API", () => {
   });
 
   function configureHealthyDoctorModels(
-    models: Array<{ ref: string; availability: { state: string } }>
+    models: Array<{ ref: string; availability: { state: string } }>,
   ): void {
     mocks.resolveService.mockResolvedValue({
       kind: "durable-object",
       targetId: "do:models",
     });
-    mocks.listUnits.mockResolvedValue([{ name: "workers/agent-worker", status: "running" }]);
+    mocks.listUnits.mockResolvedValue([
+      { name: "workers/agent-worker", status: "running" },
+    ]);
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
       const method = args[1];
       if (method === "build.listUnits") {
@@ -192,13 +202,15 @@ describe("system-testing CLI-neutral API", () => {
     const result = await systemTestDoctor("anthropic:test-model");
 
     expect(result.ok).toBe(true);
-    expect(result.checks.find((check) => check.name === "model")).toMatchObject({
-      ok: true,
-      data: {
-        primary: { model: "anthropic:test-model", availability: "ready" },
-        usageLimitFallback: null,
+    expect(result.checks.find((check) => check.name === "model")).toMatchObject(
+      {
+        ok: true,
+        data: {
+          primary: { model: "anthropic:test-model", availability: "ready" },
+          usageLimitFallback: null,
+        },
       },
-    });
+    );
   });
 
   it("treats an explicit default-model selection as a single-model run", async () => {
@@ -209,49 +221,63 @@ describe("system-testing CLI-neutral API", () => {
     const result = await systemTestDoctor(SYSTEM_TEST_AGENT_MODEL);
 
     expect(result.ok).toBe(true);
-    expect(result.checks.find((check) => check.name === "model")).toMatchObject({
-      ok: true,
-      data: {
-        primary: { model: SYSTEM_TEST_AGENT_MODEL, availability: "ready" },
-        usageLimitFallback: null,
+    expect(result.checks.find((check) => check.name === "model")).toMatchObject(
+      {
+        ok: true,
+        data: {
+          primary: { model: SYSTEM_TEST_AGENT_MODEL, availability: "ready" },
+          usageLimitFallback: null,
+        },
       },
-    });
+    );
   });
 
   it("doctors Luna and its low-effort Sol usage-limit fallback for the default route", async () => {
     expect(SYSTEM_TEST_AGENT_MODEL).toBe("openai-codex:gpt-6-luna");
-    expect(SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL).toBe("openai-codex:gpt-6-sol");
+    expect(SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL).toBe(
+      "openai-codex:gpt-6-sol",
+    );
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
-      { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
+      {
+        ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+        availability: { state: "ready" },
+      },
     ]);
 
     const result = await systemTestDoctor();
 
     expect(result.ok).toBe(true);
-    expect(result.checks.find((check) => check.name === "model")).toMatchObject({
-      ok: true,
-      data: {
-        primary: { model: SYSTEM_TEST_AGENT_MODEL, availability: "ready" },
-        usageLimitFallback: {
-          model: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
-          availability: "ready",
-          thinkingLevel: "low",
-          scope: "all-turns",
+    expect(result.checks.find((check) => check.name === "model")).toMatchObject(
+      {
+        ok: true,
+        data: {
+          primary: { model: SYSTEM_TEST_AGENT_MODEL, availability: "ready" },
+          usageLimitFallback: {
+            model: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+            availability: "ready",
+            thinkingLevel: "low",
+            scope: "all-turns",
+          },
         },
       },
-    });
+    );
   });
 
   it("fails doctor before agentic execution when standalone workspace configuration is invalid", async () => {
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
-      { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
+      {
+        ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+        availability: { state: "ready" },
+      },
     ]);
     const priorImplementation = mocks.rpcCall.getMockImplementation();
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
       if (args[1] === "workspace.validateConfig") {
-        throw new Error("Workspace runtime configuration references an undeclared unit");
+        throw new Error(
+          "Workspace runtime configuration references an undeclared unit",
+        );
       }
       return priorImplementation?.(...args);
     });
@@ -259,7 +285,9 @@ describe("system-testing CLI-neutral API", () => {
     const result = await systemTestDoctor();
 
     expect(result.ok).toBe(false);
-    expect(result.checks.find((check) => check.name === "workspace-configuration")).toMatchObject({
+    expect(
+      result.checks.find((check) => check.name === "workspace-configuration"),
+    ).toMatchObject({
       ok: false,
       detail: expect.stringContaining("undeclared unit"),
     });
@@ -268,34 +296,44 @@ describe("system-testing CLI-neutral API", () => {
   it("treats an RPC-null doctor model as the default two-model route", async () => {
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
-      { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
+      {
+        ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+        availability: { state: "ready" },
+      },
     ]);
 
     const result = await systemTestDoctor(null);
 
-    expect(result.checks.find((check) => check.name === "model")).toMatchObject({
-      ok: true,
-      data: {
-        primary: { model: SYSTEM_TEST_AGENT_MODEL },
-        usageLimitFallback: {
-          model: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
-          thinkingLevel: "low",
-          scope: "all-turns",
+    expect(result.checks.find((check) => check.name === "model")).toMatchObject(
+      {
+        ok: true,
+        data: {
+          primary: { model: SYSTEM_TEST_AGENT_MODEL },
+          usageLimitFallback: {
+            model: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+            thinkingLevel: "low",
+            scope: "all-turns",
+          },
         },
       },
-    });
+    );
   });
 
   it("fails doctor while any declared workspace extension awaits approval", async () => {
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
-      { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
+      {
+        ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+        availability: { state: "ready" },
+      },
     ]);
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
       const method = args[1];
       if (method === "inspectModels") {
         return {
-          models: [{ ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } }],
+          models: [
+            { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
+          ],
         };
       }
       if (method === "build.listUnits") {
@@ -340,16 +378,23 @@ describe("system-testing CLI-neutral API", () => {
     const result = await systemTestDoctor();
 
     expect(result.ok).toBe(false);
-    expect(result.checks.find((check) => check.name === "required-extensions")).toMatchObject({
+    expect(
+      result.checks.find((check) => check.name === "required-extensions"),
+    ).toMatchObject({
       ok: false,
-      detail: expect.stringContaining("@workspace-extensions/shell=approval-required"),
+      detail: expect.stringContaining(
+        "@workspace-extensions/shell=approval-required",
+      ),
     });
   });
 
   it("reports lazy extension states without forcing eager startup", async () => {
     configureHealthyDoctorModels([
       { ref: SYSTEM_TEST_AGENT_MODEL, availability: { state: "ready" } },
-      { ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL, availability: { state: "ready" } },
+      {
+        ref: SYSTEM_TEST_USAGE_LIMIT_FALLBACK_MODEL,
+        availability: { state: "ready" },
+      },
     ]);
     const priorImplementation = mocks.rpcCall.getMockImplementation();
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
@@ -425,7 +470,9 @@ describe("system-testing CLI-neutral API", () => {
     const result = await systemTestDoctor();
 
     expect(result.ok).toBe(true);
-    expect(result.checks.find((check) => check.name === "required-extensions")).toMatchObject({
+    expect(
+      result.checks.find((check) => check.name === "required-extensions"),
+    ).toMatchObject({
       ok: true,
       detail: "declared workspace extensions are approved and build-ready",
     });
@@ -467,46 +514,92 @@ describe("system-testing CLI-neutral API", () => {
   it("reads all repository kinds at one exact main event, including paged sections", async () => {
     const state = { kind: "event", eventId: "workspace-event:main" };
     mocks.mainState.mockReset().mockResolvedValue(state);
-    mocks.listDirectory.mockReset().mockImplementation(async ({ path, cursor }) => ({
-      entries: path === "" ? [
-        { path: "packages", kind: "directory", repositoryRoot: false },
-        { path: "templates", kind: "directory", repositoryRoot: false },
-        { path: "projects", kind: "directory", repositoryRoot: false },
-      ] : path === "packages" ? [
-        { path: cursor ? "packages/runtime" : "packages/svelte", kind: "directory", repositoryRoot: true },
-      ] : [{ path: path === "templates" ? "templates/svelte" : "projects/vibestudio", kind: "directory", repositoryRoot: true }],
-      nextCursor: path === "packages" && !cursor ? "next-packages" : null,
-    }));
+    mocks.listDirectory
+      .mockReset()
+      .mockImplementation(async ({ path, cursor }) => ({
+        entries:
+          path === ""
+            ? [
+                { path: "packages", kind: "directory", repositoryRoot: false },
+                { path: "templates", kind: "directory", repositoryRoot: false },
+                { path: "projects", kind: "directory", repositoryRoot: false },
+              ]
+            : path === "packages"
+              ? [
+                  {
+                    path: cursor ? "packages/runtime" : "packages/svelte",
+                    kind: "directory",
+                    repositoryRoot: true,
+                  },
+                ]
+              : [
+                  {
+                    path:
+                      path === "templates"
+                        ? "templates/svelte"
+                        : "projects/vibestudio",
+                    kind: "directory",
+                    repositoryRoot: true,
+                  },
+                ],
+        nextCursor: path === "packages" && !cursor ? "next-packages" : null,
+      }));
     await expect(installedWorkspaceUnits()).resolves.toEqual([
-      "packages/runtime", "packages/svelte", "projects/vibestudio", "templates/svelte",
+      "packages/runtime",
+      "packages/svelte",
+      "projects/vibestudio",
+      "templates/svelte",
     ]);
     expect(mocks.mainState).toHaveBeenCalledTimes(1);
-    expect(mocks.listDirectory.mock.calls.every(([input]) => input.state === state)).toBe(true);
-    expect(mocks.listDirectory).toHaveBeenCalledWith({ state, path: "packages", limit: 500, cursor: "next-packages" });
+    expect(
+      mocks.listDirectory.mock.calls.every(([input]) => input.state === state),
+    ).toBe(true);
+    expect(mocks.listDirectory).toHaveBeenCalledWith({
+      state,
+      path: "packages",
+      limit: 500,
+      cursor: "next-packages",
+    });
   });
 
   it("propagates repository inventory failures instead of reporting units missing", async () => {
-    mocks.mainState.mockReset().mockResolvedValue({ kind: "event", eventId: "workspace-event:main" });
+    mocks.mainState
+      .mockReset()
+      .mockResolvedValue({ kind: "event", eventId: "workspace-event:main" });
     const error = new Error("Native source unavailable");
     mocks.listDirectory.mockReset().mockRejectedValue(error);
     await expect(installedWorkspaceUnits()).rejects.toBe(error);
   });
 
   it("retains a preparation failure with requested cases and no execution proof", () => {
-    const record = failedSystemTestPreparationRecord({
-      runId: "st_preparation", contextId: "ctx:prepare", names: ["worker-one"],
-    }, "Native inventory failed", "2026-09-29T04:00:00.000Z");
+    const record = failedSystemTestPreparationRecord(
+      {
+        runId: "st_preparation",
+        contextId: "ctx:prepare",
+        names: ["worker-one"],
+      },
+      "Native inventory failed",
+      "2026-09-29T04:00:00.000Z",
+    );
     expect(record).toMatchObject({
-      status: "errored", error: "Native inventory failed",
+      status: "errored",
+      error: "Native inventory failed",
       config: { names: ["worker-one"], modelPolicy: { activations: [] } },
-      summary: { status: "errored", total: 0, passed: 0, error: "Native inventory failed" },
+      summary: {
+        status: "errored",
+        total: 0,
+        passed: 0,
+        error: "Native inventory failed",
+      },
       suite: { results: [], total: 0, passed: 0, failed: 0, errored: 0 },
     });
     expect(record.completedAt).toBe(record.updatedAt);
   });
 
   it("says which listed cases this workspace carries the units for", () => {
-    const listed = listSystemTests({ installedUnits: ["workers/agent-worker"] });
+    const listed = listSystemTests({
+      installedUnits: ["workers/agent-worker"],
+    });
     expect(listed.map((test) => [test.name, test.installed])).toEqual([
       ["alpha", true],
       ["alphabet", true],
@@ -516,7 +609,7 @@ describe("system-testing CLI-neutral API", () => {
     expect(
       listSystemTests({
         installedUnits: ["about/browser-import-inspector"],
-      }).find((test) => test.name === "personal-only")?.installed
+      }).find((test) => test.name === "personal-only")?.installed,
     ).toBe(true);
   });
 
@@ -532,7 +625,12 @@ describe("system-testing CLI-neutral API", () => {
       duration: 3,
       results: [
         {
-          test: { name: "alpha", category: "smoke", description: "alpha test", prompt: "alpha" },
+          test: {
+            name: "alpha",
+            category: "smoke",
+            description: "alpha test",
+            prompt: "alpha",
+          },
           result: { passed: true },
           execution: { messages: [], duration: 3 },
         },
@@ -546,7 +644,10 @@ describe("system-testing CLI-neutral API", () => {
     });
     expect(record.config.names).toEqual(["alpha"]);
     expect(record.summary.notInstalled).toEqual([
-      { name: "personal-only", missingUnits: ["about/browser-import-inspector"] },
+      {
+        name: "personal-only",
+        missingUnits: ["about/browser-import-inspector"],
+      },
     ]);
     expect(record.summary.failed).toBe(0);
   });
@@ -558,7 +659,7 @@ describe("system-testing CLI-neutral API", () => {
         contextId: "ctx",
         names: ["personal-only"],
         installedUnits: ["workers/agent-worker"],
-      })
+      }),
     ).rejects.toThrow(/about\/browser-import-inspector/);
   });
 
@@ -570,7 +671,10 @@ describe("system-testing CLI-neutral API", () => {
         message: "fixture setup failed",
         code: "InternalFailure",
         errorKind: "application",
-        errorData: { code: "InternalFailure", handle: "diagnostic:vcs:inspectable" },
+        errorData: {
+          code: "InternalFailure",
+          handle: "diagnostic:vcs:inspectable",
+        },
         diagnosticHandles: ["diagnostic:vcs:inspectable"],
       },
     };
@@ -595,7 +699,12 @@ describe("system-testing CLI-neutral API", () => {
       },
     };
     const setupEntry = {
-      test: { name: "alpha", category: "smoke", description: "alpha test", prompt: "alpha" },
+      test: {
+        name: "alpha",
+        category: "smoke",
+        description: "alpha test",
+        prompt: "alpha",
+      },
       result: { passed: false, reason: "Error: fixture setup failed" },
       execution: {
         messages: [],
@@ -625,7 +734,9 @@ describe("system-testing CLI-neutral API", () => {
             "TypeError: Cannot read properties of undefined (reading 'includes')\n    at validate (validator.ts:12:3)",
           inputProjection: {
             messageCount: 2,
-            invocations: [{ name: "eval", result: { type: "object", fields: {} } }],
+            invocations: [
+              { name: "eval", result: { type: "object", fields: {} } },
+            ],
           },
         },
         cleanupErrors: ["close: session close failed"],
@@ -685,16 +796,22 @@ describe("system-testing CLI-neutral API", () => {
         ],
       },
     });
-    expect(systemTestTrajectory(record, "alpha")).toMatchObject({ failure: setupFailure });
+    expect(systemTestTrajectory(record, "alpha")).toMatchObject({
+      failure: setupFailure,
+    });
     expect(systemTestTrajectory(record, "alphabet")).toMatchObject({
       failure: primaryFailure,
       validationFailure: primaryEntry.execution.validationFailure,
       cleanupFailures: [cleanupFailure],
     });
-    expect(systemTestTrajectory(record, "alpha", { full: true })).toMatchObject({
-      execution: { failure: setupFailure },
-    });
-    expect(systemTestTrajectory(record, "alphabet", { full: true })).toMatchObject({
+    expect(systemTestTrajectory(record, "alpha", { full: true })).toMatchObject(
+      {
+        execution: { failure: setupFailure },
+      },
+    );
+    expect(
+      systemTestTrajectory(record, "alphabet", { full: true }),
+    ).toMatchObject({
       execution: {
         failure: primaryFailure,
         validationFailure: primaryEntry.execution.validationFailure,
@@ -719,7 +836,12 @@ describe("system-testing CLI-neutral API", () => {
       duration: 12,
       results: [
         {
-          test: { name: "alpha", category: "smoke", description: "alpha test", prompt: "alpha" },
+          test: {
+            name: "alpha",
+            category: "smoke",
+            description: "alpha test",
+            prompt: "alpha",
+          },
           result: { passed: true },
           execution: { messages: [], duration: 12 },
         },
@@ -738,7 +860,10 @@ describe("system-testing CLI-neutral API", () => {
       onProgress: progress,
     });
 
-    expect(mocks.runnerArgs).toEqual(["ctx-1", { model: "openai:test", thinkingLevel: "low" }]);
+    expect(mocks.runnerArgs).toEqual([
+      "ctx-1",
+      { model: "openai:test", thinkingLevel: "low" },
+    ]);
     expect(mocks.runSuite.mock.calls[0]![0]).toHaveLength(1);
     expect(mocks.runSuite.mock.calls[0]![0][0].name).toBe("alpha");
     expect(record.config).toMatchObject({
@@ -747,7 +872,11 @@ describe("system-testing CLI-neutral API", () => {
       concurrency: 2,
       testTimeoutMs: 99,
     });
-    expect(record.summary).toMatchObject({ runId: "st_exact", passed: 1, failed: 0 });
+    expect(record.summary).toMatchObject({
+      runId: "st_exact",
+      passed: 1,
+      failed: 0,
+    });
     expect(progress.mock.calls[0]?.[0]).toMatchObject({
       status: "running",
       total: 1,
@@ -759,7 +888,9 @@ describe("system-testing CLI-neutral API", () => {
       status: "completed",
       queued: [],
       running: [],
-      completed: [expect.objectContaining({ name: "alpha", outcome: "passed" })],
+      completed: [
+        expect.objectContaining({ name: "alpha", outcome: "passed" }),
+      ],
     });
   });
 
@@ -805,7 +936,12 @@ describe("system-testing CLI-neutral API", () => {
       duration: 1,
       results: [
         {
-          test: { name: "alpha", category: "smoke", description: "alpha test", prompt: "alpha" },
+          test: {
+            name: "alpha",
+            category: "smoke",
+            description: "alpha test",
+            prompt: "alpha",
+          },
           result: { passed: true },
           execution: { messages: [], duration: 1 },
         },
@@ -824,10 +960,12 @@ describe("system-testing CLI-neutral API", () => {
         contextId: "ctx-1",
         names: ["alpha"],
         onProgress: progress,
-      })
+      }),
     ).resolves.toMatchObject({ status: "completed" });
     await vi.waitFor(() =>
-      expect(error).toHaveBeenCalledWith(expect.stringContaining("progress unavailable"))
+      expect(error).toHaveBeenCalledWith(
+        expect.stringContaining("progress unavailable"),
+      ),
     );
   });
 
@@ -836,7 +974,7 @@ describe("system-testing CLI-neutral API", () => {
     try {
       let resolveSuite!: (value: unknown) => void;
       mocks.runSuite.mockImplementationOnce(
-        () => new Promise((resolve) => (resolveSuite = resolve))
+        () => new Promise((resolve) => (resolveSuite = resolve)),
       );
       mocks.runSuite.mockResolvedValue({
         total: 0,
@@ -876,7 +1014,7 @@ describe("system-testing CLI-neutral API", () => {
             errored: number;
             failedTests: string[];
           };
-        }) => undefined
+        }) => undefined,
       );
 
       const running = runSystemTests({
@@ -893,7 +1031,12 @@ describe("system-testing CLI-neutral API", () => {
         | undefined;
       expect(onTestResult).toBeTypeOf("function");
       await onTestResult!({
-        test: { name: "alpha", category: "smoke", description: "alpha test", prompt: "alpha" },
+        test: {
+          name: "alpha",
+          category: "smoke",
+          description: "alpha test",
+          prompt: "alpha",
+        },
         result: { passed: false, reason: "alpha failed" },
         execution: { messages: [], duration: 10 },
       });
@@ -916,9 +1059,23 @@ describe("system-testing CLI-neutral API", () => {
       expect(heartbeat).toBeDefined();
       expect(
         (heartbeat!.suite.results as Array<{ test: { name: string } }>).map(
-          (entry) => entry.test.name
-        )
+          (entry) => entry.test.name,
+        ),
       ).toEqual(["alpha", "alphabet"]);
+      expect(
+        (
+          heartbeat!.suite.results as Array<{
+            test: { name: string };
+            execution: { provenance?: unknown };
+          }>
+        ).find((entry) => entry.test.name === "alphabet")?.execution.provenance,
+      ).toEqual({
+        channelId: "headless-alphabet",
+        branchId: "main",
+        agentEntityId: "agent-alphabet",
+        agentTargetId: "target-alphabet",
+        contextId: "ctx-alphabet",
+      });
       expect(heartbeat!.summary).toMatchObject({
         total: 1,
         failed: 1,
@@ -943,7 +1100,9 @@ describe("system-testing CLI-neutral API", () => {
 
   it("waits for the runner-owned cleanup before returning a cancellation record", async () => {
     let resolveSuite!: (value: unknown) => void;
-    mocks.runSuite.mockImplementation(() => new Promise((resolve) => (resolveSuite = resolve)));
+    mocks.runSuite.mockImplementation(
+      () => new Promise((resolve) => (resolveSuite = resolve)),
+    );
     let cleanup: (() => Promise<unknown>) | undefined;
     const running = runSystemTests({
       runId: "st_cancelled",
@@ -973,7 +1132,12 @@ describe("system-testing CLI-neutral API", () => {
       duration: 5,
       results: [
         {
-          test: { name: "alpha", category: "smoke", description: "alpha test", prompt: "alpha" },
+          test: {
+            name: "alpha",
+            category: "smoke",
+            description: "alpha test",
+            prompt: "alpha",
+          },
           result: { passed: false, reason: "System-test run cancelled" },
           execution: {
             messages: [],
@@ -1008,7 +1172,11 @@ describe("system-testing CLI-neutral API", () => {
 
   it("rejects unknown exact names", async () => {
     await expect(
-      runSystemTests({ runId: "st_unknown", contextId: "ctx-1", names: ["alp"] })
+      runSystemTests({
+        runId: "st_unknown",
+        contextId: "ctx-1",
+        names: ["alp"],
+      }),
     ).rejects.toThrow("Unknown system test(s): alp");
     expect(mocks.runSuite).not.toHaveBeenCalled();
   });
@@ -1031,9 +1199,12 @@ describe("system-testing CLI-neutral API", () => {
       concurrency: 8,
     });
 
-    expect(mocks.runSuite).toHaveBeenCalledWith([expect.objectContaining({ name: "worker-one" })], {
-      concurrency: 8,
-    });
+    expect(mocks.runSuite).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "worker-one" })],
+      {
+        concurrency: 8,
+      },
+    );
   });
 
   it("includes passing tests with unexpected tool failures in reruns", () => {
@@ -1093,7 +1264,7 @@ describe("system-testing CLI-neutral API", () => {
             },
           ],
         },
-      })
+      }),
     ).toEqual(["alpha"]);
   });
 });
@@ -1105,18 +1276,18 @@ describe("unusable agent model guidance", () => {
         model: "openai-codex:gpt-5.6-luna",
         availability: "needs-setup",
         detail: "no-credential",
-      })
+      }),
     ).toBe(
-      'model openai-codex:gpt-5.6-luna has no connected credential for provider ' +
+      "model openai-codex:gpt-5.6-luna has no connected credential for provider " +
         '"openai-codex": connect it from the host CLI with `vibestudio model connect openai-codex` ' +
-        "(add `--manual` to print the authorization URL when this host has no browser)"
+        "(add `--manual` to print the authorization URL when this host has no browser)",
     );
     expect(
       unusableModelDetail({
         model: "openai-codex:gpt-5.6-luna",
         availability: "needs-setup",
         detail: "credential-expired",
-      })
+      }),
     ).toContain("vibestudio model connect openai-codex");
   });
 
@@ -1126,13 +1297,15 @@ describe("unusable agent model guidance", () => {
       availability: "needs-setup",
       detail: "not-installed",
     });
-    expect(detail).toBe("model local:qwen3.8-27b is not installed on this host");
+    expect(detail).toBe(
+      "model local:qwen3.8-27b is not installed on this host",
+    );
     expect(detail).not.toContain("model connect");
   });
 
   it("still reports an unrecognized availability state exactly", () => {
-    expect(unusableModelDetail({ model: "openai:gpt-5", availability: "error" })).toBe(
-      "model openai:gpt-5 is not usable (error)"
-    );
+    expect(
+      unusableModelDetail({ model: "openai:gpt-5", availability: "error" }),
+    ).toBe("model openai:gpt-5 is not usable (error)");
   });
 });

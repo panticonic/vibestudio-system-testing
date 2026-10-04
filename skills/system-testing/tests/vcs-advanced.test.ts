@@ -2,12 +2,22 @@ import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { vcsTests } from "./vcs.js";
 import { vcsAdvancedTests } from "./vcs-advanced.js";
+import { requireCausalEdgeEvidence } from "./_helpers.js";
+import {
+  nativeInvocationId,
+  nativeInvocationIdentity,
+  type NativeInvocationSource,
+} from "@vibestudio/service-schemas/nativeInvocation";
+import {
+  channelTrajectoryFor,
+  commandIdForTrajectoryInvocation,
+} from "@vibestudio/trajectory-identity";
 
 function invocation(
   id: string,
   name: string,
   code: string | Record<string, unknown>,
-  result: unknown
+  result: unknown,
 ) {
   return {
     kind: "message" as const,
@@ -24,7 +34,10 @@ function invocation(
   };
 }
 
-function execution(final: string, calls: ReturnType<typeof invocation>[]): TestExecutionResult {
+function execution(
+  final: string,
+  calls: ReturnType<typeof invocation>[],
+): TestExecutionResult {
   return {
     duration: 0,
     messages: [
@@ -42,6 +55,223 @@ function execution(final: string, calls: ReturnType<typeof invocation>[]): TestE
 }
 
 describe("reduced VCS agentic catalog", () => {
+  it("joins native read memory to retained task input and rejects foreign commands and input identities", () => {
+    const nativeSource: NativeInvocationSource = {
+      owner: {
+        runtimeId: "agent:author",
+        authoritySessionId: "lifetime:author",
+        contextId: "context:author",
+        incarnation: "storage:author",
+        channelId: "agent-channel",
+        source: "workers/agent",
+        effectiveVersion: "state:author",
+        className: "Agent",
+        objectKey: "author",
+        executionDigest: "a".repeat(64),
+      },
+      task: { conversationId: 1, taskId: 3, kind: "pi.tool", version: 1 },
+      operation: {
+        kind: "tool",
+        assistantEntryId: 4,
+        callId: "write:author",
+        name: "write",
+        argumentsDigest: "b".repeat(64),
+      },
+    };
+    const originatingInput = {
+      conversationId: 1,
+      submissionId: 2,
+      entryId: 2,
+      channelRef: {
+        source: "workers/pubsub-channel",
+        className: "PubSubChannel",
+        objectKey: "input-channel",
+      },
+      eventSequence: 1,
+      envelopeId: "input-envelope",
+      messageId: "input-message",
+      receiverParticipantId: "agent:author",
+    };
+    const coordinate = {
+      ...channelTrajectoryFor(nativeSource.owner.channelId),
+      invocationId: nativeInvocationId(nativeSource),
+    };
+    const cause = {
+      invocation: { kind: "trajectory-invocation", ...coordinate },
+      nativeInvocation: nativeInvocationIdentity(nativeSource),
+      originatingInput,
+      turn: null,
+      message: {
+        kind: "trajectory-message",
+        ...channelTrajectoryFor("input-channel"),
+        messageId: "input-message",
+      },
+      sender: { kind: "user", id: "user:author" },
+      triggerText: "Preserve the delayed acknowledgement reserve.",
+    };
+    const commandId = commandIdForTrajectoryInvocation(coordinate);
+    const readValue = {
+      details: {
+        provenance: {
+          status: "attached",
+          episodes: [
+            {
+              change: { kind: "change", changeId: "change:authored" },
+              workUnit: { kind: "work-unit", workUnitId: "work:authored" },
+              command: { kind: "command", commandId },
+              cause,
+            },
+          ],
+        },
+      },
+    };
+    const author = invocation(
+      coordinate.invocationId,
+      "write",
+      { path: "packages/demo/retry.ts" },
+      {},
+    );
+    Object.assign(author.invocation, { nativeSource, originatingInput });
+    const check = (
+      value: typeof readValue,
+      submittedInputs?: TestExecutionResult["submittedInputs"],
+    ) =>
+      requireCausalEdgeEvidence(
+        {
+          ...execution("The recorded request explains the reserve.", [
+            author,
+            invocation(
+              "read:memory",
+              "read",
+              { path: "packages/demo/retry.ts" },
+              value,
+            ),
+          ]),
+          submittedInputs,
+        },
+        cause.triggerText,
+      );
+    expect(check(readValue).passed).toBe(true);
+    const prepared = structuredClone(readValue);
+    prepared.details.provenance.episodes[0]!.cause.triggerText = `The supplied project is at packages/demo.\n\n${cause.triggerText}`;
+    const submittedInputs = [
+      {
+        channelId: "input-channel",
+        requestedPrompt: cause.triggerText,
+        submittedPrompt:
+          prepared.details.provenance.episodes[0]!.cause.triggerText,
+      },
+    ];
+    expect(check(prepared).passed).toBe(false);
+    expect(check(prepared, submittedInputs).passed).toBe(true);
+    expect(
+      check(prepared, [
+        { ...submittedInputs[0]!, submittedPrompt: "An unrelated request" },
+      ]).passed,
+    ).toBe(false);
+    const foreignCommand = structuredClone(readValue);
+    foreignCommand.details.provenance.episodes[0]!.command.commandId =
+      "command:unrelated";
+    expect(check(foreignCommand).passed).toBe(false);
+    Object.assign(foreignCommand.details.provenance.episodes[0]!.cause, {
+      turn: {
+        kind: "trajectory-turn",
+        logId: coordinate.logId,
+        head: coordinate.head,
+        turnId: "forged-turn",
+      },
+    });
+    expect(check(foreignCommand).passed).toBe(false);
+    const foreignInput = structuredClone(readValue);
+    foreignInput.details.provenance.episodes[0]!.cause.originatingInput.messageId =
+      "input:unrelated";
+    expect(check(foreignInput).passed).toBe(false);
+    const foreignOwner = structuredClone(readValue);
+    const foreignIdentity =
+      foreignOwner.details.provenance.episodes[0]!.cause.nativeInvocation;
+    foreignOwner.details.provenance.episodes[0]!.cause.nativeInvocation = {
+      ...foreignIdentity,
+      owner: {
+        ...foreignIdentity.owner,
+        authoritySessionId: "lifetime:unrelated",
+      },
+    };
+    expect(check(foreignOwner).passed).toBe(false);
+
+    const graph = {
+      blame: {
+        spans: [
+          {
+            start: 0,
+            end: 1,
+            path: [],
+            ...readValue.details.provenance.episodes[0],
+          },
+        ],
+      },
+      edges: [
+        {
+          kind: "authored-change",
+          from: readValue.details.provenance.episodes[0]!.workUnit,
+          to: readValue.details.provenance.episodes[0]!.change,
+        },
+        {
+          kind: "caused-by",
+          from: readValue.details.provenance.episodes[0]!.workUnit,
+          to: readValue.details.provenance.episodes[0]!.command,
+        },
+        {
+          kind: "caused-by",
+          from: readValue.details.provenance.episodes[0]!.command,
+          to: cause.invocation,
+        },
+        { kind: "triggered-by", from: cause.invocation, to: cause.message },
+      ],
+      inspected: [
+        {
+          node: {
+            kind: "trajectory-invocation",
+            value: {
+              ...coordinate,
+              turnId: null,
+              nativeInvocation: cause.nativeInvocation,
+              originatingInput,
+              requestRef: { digest: "a".repeat(64) },
+            },
+          },
+        },
+        {
+          node: {
+            kind: "trajectory-message",
+            value: {
+              ...cause.message,
+              role: "user",
+              sourceMessageId: "input-message",
+              senderRef: cause.sender,
+              textBlocks: [{ content: cause.triggerText }],
+            },
+          },
+        },
+      ],
+    };
+    const graphCheck = (value: typeof graph) =>
+      requireCausalEdgeEvidence(
+        execution("The request explains the reserve.", [
+          author,
+          invocation(
+            "inspect:causal",
+            "eval",
+            "await vcs.inspect(input)",
+            value,
+          ),
+        ]),
+        cause.triggerText,
+      );
+    expect(graphCheck(graph).passed).toBe(true);
+    const brokenGraph = structuredClone(graph);
+    brokenGraph.edges[3]!.to = { ...cause.message, messageId: "unrelated" };
+    expect(graphCheck(brokenGraph).passed).toBe(false);
+  });
   it("keeps every agent prompt user-like and free of method choreography", () => {
     const tests = [...vcsTests, ...vcsAdvancedTests];
     expect(new Set(tests.map((test) => test.name)).size).toBe(tests.length);
@@ -56,12 +286,78 @@ describe("reduced VCS agentic catalog", () => {
     }
     for (const test of vcsAdvancedTests) {
       expect(test.prompt).not.toMatch(/\bVCS_[A-Z_]+\b/u);
-      expect(test.prompt).not.toMatch(/\b(?:restored|original|counteraction|refusal|recovered):/u);
+      expect(test.prompt).not.toMatch(
+        /\b(?:restored|original|counteraction|refusal|recovered):/u,
+      );
     }
   });
 
   it("requires ordinary read output to carry exact blame-backed memory", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-read-injected-memory")!;
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-read-injected-memory",
+    )!;
+    const originalPrompt =
+      "Meridian relays reserve one retry slot for delayed acknowledgements, so seven is deliberate.";
+    const nativeSource: NativeInvocationSource = {
+      owner: {
+        runtimeId: "agent:author",
+        authoritySessionId: "lifetime:author",
+        contextId: "context:author",
+        incarnation: "storage:author",
+        channelId: "agent-channel",
+        source: "workers/agent",
+        effectiveVersion: "state:author",
+        className: "Agent",
+        objectKey: "author",
+        executionDigest: "a".repeat(64),
+      },
+      task: { conversationId: 1, taskId: 3, kind: "pi.tool", version: 1 },
+      operation: {
+        kind: "tool",
+        assistantEntryId: 4,
+        callId: "write:author",
+        name: "write",
+        argumentsDigest: "b".repeat(64),
+      },
+    };
+    const originatingInput = {
+      conversationId: 1,
+      submissionId: 2,
+      entryId: 2,
+      channelRef: {
+        source: "workers/pubsub-channel",
+        className: "PubSubChannel",
+        objectKey: "input-channel",
+      },
+      eventSequence: 1,
+      envelopeId: "input-envelope",
+      messageId: "input-message",
+      receiverParticipantId: "agent:author",
+    };
+    const coordinate = {
+      ...channelTrajectoryFor(nativeSource.owner.channelId),
+      invocationId: nativeInvocationId(nativeSource),
+    };
+    const author = invocation(
+      coordinate.invocationId,
+      "write",
+      { path: "projects/demo/src/retry-policy.ts" },
+      {},
+    );
+    Object.assign(author.invocation, { nativeSource, originatingInput });
+    const cause = {
+      invocation: { kind: "trajectory-invocation", ...coordinate },
+      nativeInvocation: nativeInvocationIdentity(nativeSource),
+      originatingInput,
+      turn: null,
+      message: {
+        kind: "trajectory-message",
+        ...channelTrajectoryFor("input-channel"),
+        messageId: "input-message",
+      },
+      sender: { kind: "user", id: "user:author" },
+      triggerText: originalPrompt,
+    };
     const read = invocation(
       "read-memory",
       "read",
@@ -85,11 +381,19 @@ describe("reduced VCS agentic catalog", () => {
           },
           provenance: {
             status: "attached",
+            path: "projects/demo/src/retry-policy.ts",
+            contentHash: "c".repeat(64),
+            coordinateKind: "utf16",
+            range: { start: 0, end: 31 },
             episodes: [
               {
                 change: { kind: "change", changeId: "change:retry" },
                 workUnit: { kind: "work-unit", workUnitId: "work-unit:retry" },
-                command: { kind: "command", commandId: "command:retry" },
+                command: {
+                  kind: "command",
+                  commandId: commandIdForTrajectoryInvocation(coordinate),
+                },
+                cause,
                 authorContextId: "context:author",
                 intent: {
                   tier: "trigger",
@@ -99,26 +403,71 @@ describe("reduced VCS agentic catalog", () => {
             ],
           },
         },
-      }
+      },
     );
     const final =
       "The retry ceiling stays at seven because Meridian relays reserve one slot for delayed acknowledgements.";
 
-    expect(test.validate(execution(final, [read]))).toEqual({
+    const check = (value: typeof read) =>
+      test.validate({
+        ...execution(final, [author, value]),
+        submittedInputs: [
+          {
+            channelId: "input-channel",
+            requestedPrompt: originalPrompt,
+            submittedPrompt: originalPrompt,
+          },
+        ],
+      });
+    expect(check(read)).toEqual({
       passed: true,
       reason: undefined,
     });
 
     const withoutMemory = structuredClone(read);
     const details = (
-      withoutMemory.invocation.execution.result as { details: Record<string, unknown> }
+      withoutMemory.invocation.execution.result as {
+        details: Record<string, unknown>;
+      }
     ).details;
     delete details["provenance"];
-    expect(test.validate(execution(final, [withoutMemory])).passed).toBe(false);
+    expect(check(withoutMemory).passed).toBe(false);
+    const explicitIntent = structuredClone(read);
+    const explicitDetails = (
+      explicitIntent.invocation.execution.result as {
+        details: {
+          provenance: {
+            episodes: Array<{
+              intent: { tier: string; text: string };
+              cause: typeof cause;
+            }>;
+          };
+        };
+      }
+    ).details;
+    explicitDetails.provenance.episodes[0]!.intent.tier = "stated";
+    explicitDetails.provenance.episodes[0]!.intent.text =
+      "Preserve Meridian's reserved delayed-acknowledgement retry slot by keeping the ceiling below eight.";
+    expect(check(explicitIntent).passed).toBe(true);
+    const emptyIntent = structuredClone(explicitIntent);
+    (
+      emptyIntent.invocation.execution
+        .result as typeof explicitIntent.invocation.execution.result as {
+        details: {
+          provenance: { episodes: Array<{ intent: { text: string } }> };
+        };
+      }
+    ).details.provenance.episodes[0]!.intent.text = " ";
+    expect(check(emptyIntent).passed).toBe(false);
+    explicitDetails.provenance.episodes[0]!.cause.triggerText =
+      "An unrelated request";
+    expect(check(explicitIntent).passed).toBe(false);
   });
 
   it("requires sizable-history recall to expose the buried decision at a committed event", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-sizable-history-memory-recall")!;
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-sizable-history-memory-recall",
+    )!;
     const recall = invocation(
       "historical-recall",
       "memory_recall",
@@ -131,7 +480,7 @@ describe("reduced VCS agentic catalog", () => {
           },
         ],
         details: { resultCount: 1 },
-      }
+      },
     );
     const final =
       "The codename was Harbor Lantern. It was retired after launch so support and audit records consistently use the public Retention Service name.";
@@ -148,14 +497,14 @@ describe("reduced VCS agentic catalog", () => {
     };
     result.protocolContent[0]!.text = result.protocolContent[0]!.text.replace(
       "workspace-event:retire-codename",
-      "unknown"
+      "unknown",
     );
     expect(test.validate(execution(final, [unanchored])).passed).toBe(false);
   });
 
   it("joins an exact edited-file read to preserved and buried historical evidence", () => {
     const test = vcsAdvancedTests.find(
-      ({ name }) => name === "vcs-sizable-history-edited-file-context"
+      ({ name }) => name === "vcs-sizable-history-edited-file-context",
     )!;
     const path = "projects/history/src/retention-policy.ts";
     const contentHash = "a".repeat(64);
@@ -192,13 +541,19 @@ describe("reduced VCS agentic catalog", () => {
                   text: "Record retention-policy audit checkpoint 36 without changing the approved archive window",
                 },
                 change: { kind: "change", changeId: "change:checkpoint-36" },
-                workUnit: { kind: "work-unit", workUnitId: "work:checkpoint-36" },
-                command: { kind: "command", commandId: "command:checkpoint-36" },
+                workUnit: {
+                  kind: "work-unit",
+                  workUnitId: "work:checkpoint-36",
+                },
+                command: {
+                  kind: "command",
+                  commandId: "command:checkpoint-36",
+                },
               },
             ],
           },
         },
-      }
+      },
     );
     const final =
       "The window moved from 14 to 21 days because regional exports can arrive through day 18. Later checkpoints retained 21 and did not reverse that decision.";
@@ -215,7 +570,7 @@ describe("reduced VCS agentic catalog", () => {
             text: 'past · change @r4-91af · stated: "Extend the archive window from 14 to 21 days because delayed regional exports can arrive through day 18; a three-day buffer prevents premature deletion"',
           },
         ],
-      }
+      },
     );
 
     expect(test.validate(execution(final, [read, history]))).toEqual({
@@ -230,7 +585,9 @@ describe("reduced VCS agentic catalog", () => {
       }
     ).details;
     details.provenance.range.end = 74;
-    expect(test.validate(execution(final, [mismatchedRange, history])).passed).toBe(false);
+    expect(
+      test.validate(execution(final, [mismatchedRange, history])).passed,
+    ).toBe(false);
 
     const missingRoots = structuredClone(read);
     const episode = (
@@ -239,11 +596,38 @@ describe("reduced VCS agentic catalog", () => {
       }
     ).details.provenance.episodes[0]!;
     delete episode["command"];
-    expect(test.validate(execution(final, [missingRoots, history])).passed).toBe(false);
+    expect(
+      test.validate(execution(final, [missingRoots, history])).passed,
+    ).toBe(false);
 
     const wrongFileHistory = structuredClone(history);
-    wrongFileHistory.invocation.arguments["target"] = "projects/history/src/unrelated.ts";
-    expect(test.validate(execution(final, [read, wrongFileHistory])).passed).toBe(false);
+    wrongFileHistory.invocation.arguments["target"] =
+      "projects/history/src/unrelated.ts";
+    expect(
+      test.validate(execution(final, [read, wrongFileHistory])).passed,
+    ).toBe(false);
+
+    const page = invocation(
+      "history-page",
+      "provenance",
+      { target: path },
+      {
+        protocolContent: [
+          { type: "text", text: "more file history → @r7-ed9a" },
+        ],
+      },
+    );
+    const continued = structuredClone(history);
+    continued.invocation.arguments["target"] = "@r7-ed9a";
+    expect(
+      test.validate(execution(final, [read, page, continued])).passed,
+    ).toBe(true);
+    expect(test.validate(execution(final, [read, continued])).passed).toBe(
+      false,
+    );
+    expect(
+      test.validate(execution(final, [read, continued, page])).passed,
+    ).toBe(false);
 
     const recalledDecision = invocation(
       "historical-decision-recall",
@@ -257,7 +641,7 @@ describe("reduced VCS agentic catalog", () => {
           },
         ],
         details: { resultCount: 1 },
-      }
+      },
     );
     expect(test.validate(execution(final, [read, recalledDecision]))).toEqual({
       passed: true,
@@ -266,9 +650,17 @@ describe("reduced VCS agentic catalog", () => {
   });
 
   it("accepts conclusive move/copy receipts and strictly validates an optional deeper walk", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-explicit-move-copy")!;
-    const moveState = { kind: "application", applicationId: "application:move" };
-    const copyState = { kind: "application", applicationId: "application:copy" };
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-explicit-move-copy",
+    )!;
+    const moveState = {
+      kind: "application",
+      applicationId: "application:move",
+    };
+    const copyState = {
+      kind: "application",
+      applicationId: "application:copy",
+    };
     const copySource = {
       state: moveState,
       repositoryId: "repository:fixture",
@@ -315,7 +707,7 @@ describe("reduced VCS agentic catalog", () => {
               to: { kind: "file", ...copySource },
             },
           ],
-        }
+        },
       ),
       invocation(
         "mapped-copy",
@@ -342,11 +734,15 @@ describe("reduced VCS agentic catalog", () => {
               to: { kind: "applied-change", appliedChangeId: "applied:source" },
             },
           ],
-        }
+        },
       ),
     ];
-    const final = "The relocated file retained its identity; the duplicate has linked ancestry.";
-    expect(test.validate(execution(final, calls))).toEqual({ passed: true, reason: undefined });
+    const final =
+      "The relocated file retained its identity; the duplicate has linked ancestry.";
+    expect(test.validate(execution(final, calls))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
     expect(test.validate(execution(final, calls.slice(0, 2)))).toEqual({
       passed: true,
       reason: undefined,
@@ -361,339 +757,32 @@ describe("reduced VCS agentic catalog", () => {
     expect(test.validate(execution(final, arbitraryEdge)).passed).toBe(false);
   });
 
-  it("accepts a structured stale-basis refusal followed by a new command", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-stale-basis-recovery")!;
-    const beforeStale = {
-      contextId: "context:test",
-      committed: { kind: "event", eventId: "event:base" },
-      workingHead: { kind: "application", applicationId: "application:advanced" },
-      clean: false,
-      workingCounts: { applications: 2, workUnits: 2, changes: 2 },
-      integrating: [],
-    };
-    const recoveredHead = { kind: "application", applicationId: "application:recovered" };
-    const result = execution(
-      "The stale attempt changed nothing, and the intended update succeeded from a fresh view.",
-      [
-        invocation(
-          "recover",
-          "eval",
-          [
-            "const advance = await vcs.edit(advanceRequest);",
-            "try { await vcs.edit(staleRequest); } catch (error) { refusal = { code: error.code }; }",
-            "const retry = await vcs.edit(freshRequest);",
-          ].join("\n"),
-          {
-            staleAttempt: {
-              commandId: "command:stale",
-              error: { code: "RevisionChanged" },
-            },
-            statusAfterAdvance: beforeStale,
-            statusAfterStale: structuredClone(beforeStale),
-            retry: {
-              commandId: "command:recovered",
-              contextId: "context:test",
-              workUnitId: "work:recovered",
-              applicationId: "application:recovered",
-              changeCount: 1,
-              changeIds: ["change:recovered"],
-              incorporatedChangeCount: 0,
-              incorporatedChangeIds: [],
-              decisionIds: [],
-              workingHead: recoveredHead,
-            },
-            statusAfterRetry: {
-              ...beforeStale,
-              workingHead: recoveredHead,
-              workingCounts: { applications: 3, workUnits: 3, changes: 3 },
-              integrating: [],
-            },
-          }
-        ),
-      ]
+  it("requires a harness-owned vcs-stale-basis-recovery protocol probe instead of guest-authored command claims", () => {
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-stale-basis-recovery",
+    )!;
+    expect(test.validation).toBe("harness");
+    expect(test.orchestrate).toBeTypeOf("function");
+    expect(test.validate(execution("The edit was safe.", [])).passed).toBe(
+      false,
     );
-    expect(test.validate(result)).toEqual({ passed: true, reason: undefined });
-
-    const naturalSingleCell = execution(
-      "The rejected stale request had no effect, and the fresh retry succeeded.",
-      [
-        invocation(
-          "natural-recovery",
-          "eval",
-          [
-            "const advance = await vcs.edit({ commandId: crypto.randomUUID(), expectedWorkingHead: base, changes });",
-            "try { await vcs.edit({ commandId: crypto.randomUUID(), expectedWorkingHead: base, changes }); } catch (error) { staleError = { code: error.code }; }",
-            "const statusAfterStale = await vcs.status({ contextId });",
-            "const recovered = await vcs.edit({ commandId: crypto.randomUUID(), expectedWorkingHead: statusAfterStale.workingHead, changes });",
-            "const statusFinal = await vcs.status({ contextId });",
-          ].join("\n"),
-          {
-            advance: {
-              commandId: "command:advance",
-              contextId: "context:test",
-              workUnitId: "work:advance",
-              applicationId: "application:advanced",
-              workingHead: { kind: "application", applicationId: "application:advanced" },
-            },
-            staleError: { code: "RevisionChanged" },
-            statusAfterStale: beforeStale,
-            recovered: {
-              commandId: "command:recovered",
-              contextId: "context:test",
-              workUnitId: "work:recovered",
-              applicationId: "application:recovered",
-              workingHead: recoveredHead,
-            },
-            statusFinal: {
-              ...beforeStale,
-              workingHead: recoveredHead,
-              workingCounts: { applications: 3, workUnits: 3, changes: 3 },
-              integrating: [],
-            },
-          }
-        ),
-      ]
-    );
-    expect(test.validate(naturalSingleCell)).toEqual({ passed: true, reason: undefined });
-
-    const rawRpcSingleCell = execution(
-      "The rejected stale request had no effect, and the fresh retry succeeded.",
-      [
-        invocation(
-          "raw-rpc-recovery",
-          "eval",
-          [
-            "const advance2 = await rpc.call('main', 'vcs.edit', [{ commandId: 'command:advance', expectedWorkingHead: base, changes }]);",
-            "try { await rpc.call('main', 'vcs.edit', [{ commandId: 'command:stale', expectedWorkingHead: base, changes }]); } catch (error) { stale = { code: error.code }; }",
-            "const statusAfterStale = await rpc.call('main', 'vcs.status', [{ contextId }]);",
-            "const retry4 = await rpc.call('main', 'vcs.edit', [{ commandId: 'command:fresh', expectedWorkingHead: statusAfterStale.workingHead, changes }]);",
-            "const statusFinal = await rpc.call('main', 'vcs.status', [{ contextId }]);",
-          ].join("\n"),
-          {
-            advance2: {
-              commandId: "command:advance",
-              workUnitId: "work:advance",
-              applicationId: "application:advanced",
-              workingHead: { applicationId: "application:advanced", kind: "application" },
-            },
-            stale: { code: "RevisionChanged" },
-            statusAfterStale: beforeStale,
-            retry4: {
-              commandId: "command:fresh",
-              workUnitId: "work:fresh",
-              applicationId: "application:recovered",
-              workingHead: { applicationId: "application:recovered", kind: "application" },
-            },
-            statusFinal: {
-              ...beforeStale,
-              workingHead: { kind: "application", applicationId: "application:recovered" },
-              workingCounts: { applications: 3, workUnits: 3, changes: 3 },
-              integrating: [],
-            },
-          }
-        ),
-      ]
-    );
-    expect(test.validate(rawRpcSingleCell)).toEqual({ passed: true, reason: undefined });
-
-    const conciseNaturalShape = execution(
-      "The rejected stale request had no effect, and the fresh retry succeeded.",
-      [
-        invocation(
-          "concise-natural-recovery",
-          "eval",
-          [
-            "const cmd = (label) => `demo:${label}:${Date.now()}:${Math.random()}`;",
-            'const first = await rpc.call("main", "vcs.edit", [{ commandId: cmd("advance"), expectedWorkingHead: staleBasis, changes }]);',
-            'try { await rpc.call("main", "vcs.edit", [{ commandId: cmd("stale"), expectedWorkingHead: staleBasis, changes }]); } catch (error) { staleError = { code: error.code }; }',
-            'const afterRefusal = await rpc.call("main", "vcs.status", [{ contextId }]);',
-            'const fresh = await rpc.call("main", "vcs.edit", [{ commandId: cmd("fresh"), expectedWorkingHead: first.workingHead, changes }]);',
-            'const final = await rpc.call("main", "vcs.status", [{ contextId }]);',
-          ].join("\n"),
-          {
-            first: {
-              commandId: "command:advance",
-              workUnitId: "work:advance",
-              applicationId: "application:advanced",
-              workingHead: { applicationId: "application:advanced", kind: "application" },
-            },
-            staleError: { code: "RevisionChanged" },
-            afterRefusal: beforeStale,
-            fresh: {
-              commandId: "command:fresh",
-              workUnitId: "work:fresh",
-              applicationId: "application:recovered",
-              workingHead: { applicationId: "application:recovered", kind: "application" },
-            },
-            final: {
-              ...beforeStale,
-              workingHead: { kind: "application", applicationId: "application:recovered" },
-              workingCounts: { applications: 3, workUnits: 3, changes: 3 },
-              integrating: [],
-            },
-          }
-        ),
-      ]
-    );
-    expect(test.validate(conciseNaturalShape)).toEqual({ passed: true, reason: undefined });
-
-    const splitCellProof = execution(
-      "The rejected stale request had no effect, and the fresh retry succeeded.",
-      [
-        invocation(
-          "advance-cell",
-          "eval",
-          "const first = await vcs.edit({ commandId: 'command:advance', expectedWorkingHead: base, changes });",
-          {
-            first: {
-              commandId: "command:advance",
-              workUnitId: "work:advance",
-              applicationId: "application:advanced",
-              workingHead: { applicationId: "application:advanced", kind: "application" },
-            },
-          }
-        ),
-        invocation(
-          "refusal-and-recovery-cell",
-          "eval",
-          [
-            "try { await vcs.edit({ commandId: 'command:stale', expectedWorkingHead: base, changes }); } catch (error) { staleError = { code: error.code }; }",
-            "const afterRefusalStatus = await vcs.status({ contextId });",
-            "const freshResult = await vcs.edit({ commandId: 'command:fresh', expectedWorkingHead: afterRefusalStatus.workingHead, changes });",
-            "const finalStatus = await vcs.status({ contextId });",
-          ].join("\n"),
-          {
-            staleError: { code: "RevisionChanged" },
-            afterRefusalStatus: beforeStale,
-            freshResult: {
-              commandId: "command:fresh",
-              workUnitId: "work:fresh",
-              applicationId: "application:recovered",
-              workingHead: { applicationId: "application:recovered", kind: "application" },
-            },
-            finalStatus: {
-              ...beforeStale,
-              workingHead: { kind: "application", applicationId: "application:recovered" },
-              workingCounts: { applications: 3, workUnits: 3, changes: 3 },
-              integrating: [],
-            },
-          }
-        ),
-      ]
-    );
-    expect(test.validate(splitCellProof)).toEqual({ passed: true, reason: undefined });
-
-    const neutralStatusNames = execution(
-      "The rejected stale request had no effect, and the fresh retry succeeded.",
-      [
-        invocation(
-          "neutral-status-names",
-          "eval",
-          [
-            "const first = await vcs.edit({ commandId: cmd1, expectedWorkingHead: basis, changes });",
-            "try { await vcs.edit({ commandId: cmd2, expectedWorkingHead: basis, changes }); } catch (error) { staleError = { code: error.code }; }",
-            "const status1 = await vcs.status({ contextId });",
-            "const fresh = await vcs.edit({ commandId: cmd3, expectedWorkingHead: status1.workingHead, changes });",
-            "const finalStatus = await vcs.status({ contextId });",
-          ].join("\n"),
-          {
-            first: {
-              commandId: "command:advance",
-              workUnitId: "work:advance",
-              applicationId: "application:advanced",
-              workingHead: { applicationId: "application:advanced", kind: "application" },
-            },
-            staleError: { code: "RevisionChanged" },
-            status1: beforeStale,
-            fresh: {
-              commandId: "command:fresh",
-              workUnitId: "work:fresh",
-              applicationId: "application:recovered",
-              workingHead: { applicationId: "application:recovered", kind: "application" },
-            },
-            finalStatus: {
-              ...beforeStale,
-              workingHead: { kind: "application", applicationId: "application:recovered" },
-              workingCounts: { applications: 3, workUnits: 3, changes: 3 },
-              integrating: [],
-            },
-          }
-        ),
-      ]
-    );
-    expect(test.validate(neutralStatusNames)).toEqual({ passed: true, reason: undefined });
   });
 
-  it("proves an identical uncertain command retry from canonical results", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-command-idempotency")!;
-    const mutation = {
-      commandId: "command:one",
-      contextId: "context:test",
-      workUnitId: "work:one",
-      applicationId: "application:one",
-      changeCount: 1,
-      changeIds: ["change:one"],
-      incorporatedChangeCount: 0,
-      incorporatedChangeIds: [],
-      decisionIds: [],
-      workingHead: { kind: "application", applicationId: "application:one" },
-    };
-    const proof = {
-      first: mutation,
-      retry: structuredClone(mutation),
-      status: {
-        contextId: "context:test",
-        workingHead: { kind: "application", applicationId: "application:one" },
-        workingCounts: { applications: 1, workUnits: 1, changes: 1 },
-        integrating: [],
-      },
-    };
-    const call = (returnValue: unknown) =>
-      invocation(
-        "idempotency",
-        "eval",
-        "const first = await vcs.edit(request); const retry = await vcs.edit(request);",
-        { details: { returnValue } }
-      );
-    const final = "The uncertain retry returned the same result and created no duplicate history.";
-
-    expect(test.validate(execution(final, [call(proof)]))).toEqual({
-      passed: true,
-      reason: undefined,
-    });
-    const rawCall = invocation(
-      "idempotency-raw",
-      "eval",
-      "const first = await rpc.call('main', 'vcs.edit', [request]); const retry = await rpc.call('main', 'vcs.edit', [request]);",
-      { details: { returnValue: proof } }
+  it("requires a harness-owned vcs-command-idempotency protocol probe instead of guest-authored command claims", () => {
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-command-idempotency",
+    )!;
+    expect(test.validation).toBe("harness");
+    expect(test.orchestrate).toBeTypeOf("function");
+    expect(test.validate(execution("The edit was safe.", [])).passed).toBe(
+      false,
     );
-    expect(test.validate(execution(final, [rawCall]))).toEqual({
-      passed: true,
-      reason: undefined,
-    });
-    expect(
-      test.validate(
-        execution(final, [
-          call({
-            first: mutation,
-            retry: structuredClone(mutation),
-          }),
-        ])
-      )
-    ).toEqual({ passed: true, reason: undefined });
-
-    const oneSubmission = invocation(
-      "one-submission",
-      "eval",
-      "const first = await vcs.edit(request);",
-      { details: { returnValue: proof } }
-    );
-    expect(test.validate(execution(final, [oneSubmission])).passed).toBe(false);
-    expect(test.validate(execution("", [call(proof)])).passed).toBe(false);
   });
 
   it("joins revert to its exact counteracted change and restored final content", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-revert-preserves-history")!;
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-revert-preserves-history",
+    )!;
     const path = "projects/demo/src/value.ts";
     const calls = [
       invocation(
@@ -706,9 +795,12 @@ describe("reduced VCS agentic catalog", () => {
             applicationId: "application:original",
             changeCount: 1,
             changeIds: ["change:original"],
-            workingHead: { kind: "application", applicationId: "application:original" },
+            workingHead: {
+              kind: "application",
+              applicationId: "application:original",
+            },
           },
-        }
+        },
       ),
       invocation(
         "commit-original",
@@ -721,7 +813,7 @@ describe("reduced VCS agentic catalog", () => {
             committedApplicationIds: ["application:original"],
             integrationSourceEventIds: [],
           },
-        }
+        },
       ),
       invocation(
         "revert",
@@ -735,9 +827,12 @@ describe("reduced VCS agentic catalog", () => {
           result: {
             applicationId: "application:counteraction",
             changeIds: ["change:counteraction"],
-            workingHead: { kind: "application", applicationId: "application:counteraction" },
+            workingHead: {
+              kind: "application",
+              applicationId: "application:counteraction",
+            },
           },
-        }
+        },
       ),
       invocation(
         "counteracts",
@@ -751,7 +846,7 @@ describe("reduced VCS agentic catalog", () => {
               to: { kind: "change", changeId: "change:original" },
             },
           ],
-        }
+        },
       ),
       invocation(
         "commit-counteraction",
@@ -764,7 +859,7 @@ describe("reduced VCS agentic catalog", () => {
             committedApplicationIds: ["application:counteraction"],
             integrationSourceEventIds: [],
           },
-        }
+        },
       ),
       invocation(
         "status",
@@ -779,21 +874,26 @@ describe("reduced VCS agentic catalog", () => {
             workingCounts: { applications: 0, workUnits: 0, changes: 0 },
             integrating: [],
           },
-        }
+        },
       ),
       invocation(
         "read",
         "read",
         { path },
         {
-          protocolContent: [{ type: "text", text: "export const value = 1;\n" }],
+          protocolContent: [
+            { type: "text", text: "export const value = 1;\n" },
+          ],
           details: { path },
-        }
+        },
       ),
     ];
     const final =
       "The file is restored and both the original edit and its reversal remain in history.";
-    expect(test.validate(execution(final, calls))).toEqual({ passed: true, reason: undefined });
+    expect(test.validate(execution(final, calls))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
 
     const arbitrary = structuredClone(calls);
     const edge = arbitrary[3]!.invocation.execution.result as {
@@ -804,7 +904,8 @@ describe("reduced VCS agentic catalog", () => {
 
     const attachedCounteraction = structuredClone(calls);
     attachedCounteraction.splice(3, 1);
-    const finalRead = attachedCounteraction.at(-1)!.invocation.execution.result as {
+    const finalRead = attachedCounteraction.at(-1)!.invocation.execution
+      .result as {
       details: Record<string, unknown>;
     };
     finalRead.details["provenance"] = {
@@ -822,6 +923,39 @@ describe("reduced VCS agentic catalog", () => {
       reason: undefined,
     });
 
+    const opaqueTarget = structuredClone(attachedCounteraction);
+    opaqueTarget[2]!.invocation.arguments = {
+      operation: "revert",
+      changeIds: ["@r5-native"],
+    };
+    const opaqueRead = opaqueTarget.at(-1)!.invocation.execution.result as {
+      details: Record<string, unknown>;
+    };
+    const opaqueProvenance = opaqueRead.details["provenance"] as {
+      episodes: Record<string, unknown>[];
+    };
+    opaqueProvenance.episodes[0]!["cause"] = {
+      toolName: "vcs",
+      requestRef: { operation: "revert", changeIds: ["@r5-native"] },
+    };
+    expect(test.validate(execution(final, opaqueTarget)).passed).toBe(true);
+    const foreignTarget = structuredClone(opaqueTarget);
+    foreignTarget[2]!.invocation.arguments = {
+      operation: "revert",
+      changeIds: ["@r6-foreign"],
+    };
+    expect(test.validate(execution(final, foreignTarget)).passed).toBe(false);
+    const unrelatedCounteraction = structuredClone(opaqueTarget);
+    const unrelatedRead = unrelatedCounteraction.at(-1)!.invocation.execution
+      .result as { details: Record<string, unknown> };
+    const unrelatedProvenance = unrelatedRead.details["provenance"] as {
+      episodes: Record<string, unknown>[];
+    };
+    unrelatedProvenance.episodes[0]!["counteractsChangeIds"] = ["change:other"];
+    expect(test.validate(execution(final, unrelatedCounteraction)).passed).toBe(
+      false,
+    );
+
     const committedReadWithoutStatus = structuredClone(attachedCounteraction);
     committedReadWithoutStatus.splice(4, 1);
     committedReadWithoutStatus.unshift(
@@ -838,13 +972,15 @@ describe("reduced VCS agentic catalog", () => {
             workingCounts: { applications: 0, workUnits: 0, changes: 0 },
             integrating: [],
           },
-        }
-      )
+        },
+      ),
     );
-    expect(test.validate(execution(final, committedReadWithoutStatus))).toEqual({
-      passed: true,
-      reason: undefined,
-    });
+    expect(test.validate(execution(final, committedReadWithoutStatus))).toEqual(
+      {
+        passed: true,
+        reason: undefined,
+      },
+    );
 
     const inverseEffectProof = structuredClone(calls);
     inverseEffectProof.pop();
@@ -870,7 +1006,7 @@ describe("reduced VCS agentic catalog", () => {
               ],
             },
           },
-        }
+        },
       ),
       invocation(
         "counteraction-change",
@@ -891,8 +1027,8 @@ describe("reduced VCS agentic catalog", () => {
               ],
             },
           },
-        }
-      )
+        },
+      ),
     );
     expect(test.validate(execution(final, inverseEffectProof))).toEqual({
       passed: true,
@@ -908,7 +1044,9 @@ describe("reduced VCS agentic catalog", () => {
   });
 
   it("joins blame identities through exact causal endpoints to an inspected invocation", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-walkable-causality-blame")!;
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-walkable-causality-blame",
+    )!;
     const resultValue = {
       blame: {
         spans: [
@@ -993,7 +1131,8 @@ describe("reduced VCS agentic catalog", () => {
               terminalOutcome: "success",
               requestRef: {
                 protocol: "vibestudio.blob-ref.v1",
-                digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                digest:
+                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 size: 64,
                 encoding: "json",
                 originalBytes: 64,
@@ -1023,7 +1162,11 @@ describe("reduced VCS agentic catalog", () => {
               messageId: "message:causal",
               role: "user",
               sourceMessageId: "channel-message:causal",
-              senderRef: { kind: "user", id: "user:fixture", participantId: "user:fixture" },
+              senderRef: {
+                kind: "user",
+                id: "user:fixture",
+                participantId: "user:fixture",
+              },
               textBlocks: [{ blockId: "block:causal", content: test.prompt }],
             },
           },
@@ -1037,7 +1180,7 @@ describe("reduced VCS agentic catalog", () => {
         "causality",
         "eval",
         "await vcs.edit(change); await vcs.commit(commit); await vcs.push(push); await vcs.blame(input); await vcs.neighbors(walk); await vcs.inspect(invocation);",
-        resultValue
+        resultValue,
       ),
     ]);
     expect(test.validate(valid)).toEqual({ passed: true, reason: undefined });
@@ -1074,7 +1217,11 @@ describe("reduced VCS agentic catalog", () => {
                     head: "head:causal",
                     messageId: "message:causal",
                   },
-                  sender: { kind: "user", id: "user:fixture", participantId: "user:fixture" },
+                  sender: {
+                    kind: "user",
+                    id: "user:fixture",
+                    participantId: "user:fixture",
+                  },
                   requestRef: {
                     protocol: "vibestudio.blob-ref.v1",
                     digest: "a".repeat(64),
@@ -1089,7 +1236,7 @@ describe("reduced VCS agentic catalog", () => {
             ],
           },
         },
-      }
+      },
     );
     expect(test.validate(execution(final, [attached]))).toEqual({
       passed: true,
@@ -1099,7 +1246,9 @@ describe("reduced VCS agentic catalog", () => {
     const minimalAttached = structuredClone(attached);
     const minimalCause = (
       minimalAttached.invocation.execution.result as {
-        details: { provenance: { episodes: Array<{ cause: Record<string, unknown> }> } };
+        details: {
+          provenance: { episodes: Array<{ cause: Record<string, unknown> }> };
+        };
       }
     ).details.provenance.episodes[0]!.cause;
     delete minimalCause["requestRef"];
@@ -1110,7 +1259,10 @@ describe("reduced VCS agentic catalog", () => {
     });
 
     const mismatched = structuredClone(resultValue);
-    mismatched.walks[0]!.edges[0]!.to = { kind: "change", changeId: "change:other" };
+    mismatched.walks[0]!.edges[0]!.to = {
+      kind: "change",
+      changeId: "change:other",
+    };
     expect(
       test.validate(
         execution(final, [
@@ -1118,10 +1270,10 @@ describe("reduced VCS agentic catalog", () => {
             "causality-mismatch",
             "eval",
             "await vcs.edit(change); await vcs.commit(commit); await vcs.push(push); await vcs.blame(input); await vcs.neighbors(walk); await vcs.inspect(invocation);",
-            mismatched
+            mismatched,
           ),
-        ])
-      ).passed
+        ]),
+      ).passed,
     ).toBe(false);
 
     const unrelatedPrompt = structuredClone(resultValue);
@@ -1135,20 +1287,22 @@ describe("reduced VCS agentic catalog", () => {
             "causality-wrong-prompt",
             "eval",
             "await vcs.edit(change); await vcs.commit(commit); await vcs.push(push); await vcs.blame(input); await vcs.neighbors(walk); await vcs.inspect(invocation);",
-            unrelatedPrompt
+            unrelatedPrompt,
           ),
-        ])
-      ).passed
+        ]),
+      ).passed,
     ).toBe(false);
   });
 
   it("joins imported blame through its ordinary change, import work, and command", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-honest-import-boundary")!;
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-honest-import-boundary",
+    )!;
     expect(test.prompt).toBe(
-      "Who changed an untouched line in the disposable project, and what can we actually establish about why it is here?"
+      "Who changed an untouched line in the disposable project, and what can we actually establish about why it is here?",
     );
     expect(test.prompt).not.toMatch(
-      /pre-import|unknown|source URI|revision|digest|work unit|command|blame|inspect|neighbors/iu
+      /pre-import|unknown|source URI|revision|digest|work unit|command|blame|inspect|neighbors/iu,
     );
     const snapshot = {
       sourceKind: "generated",
@@ -1213,7 +1367,12 @@ describe("reduced VCS agentic catalog", () => {
     const evidenceCalls = (value: typeof evidence) => [
       invocation("boundary-blame", "vcs", { operation: "blame" }, value.blame),
       ...value.inspections.map((inspection, index) =>
-        invocation(`boundary-inspection-${index}`, "provenance", {}, inspection)
+        invocation(
+          `boundary-inspection-${index}`,
+          "provenance",
+          {},
+          inspection,
+        ),
       ),
     ];
     const result = execution(final, evidenceCalls(evidence));
@@ -1234,13 +1393,13 @@ describe("reduced VCS agentic catalog", () => {
                 change: { kind: "change", changeId: "change:import" },
                 workUnit: { kind: "work-unit", workUnitId: "work:import" },
                 command: { kind: "command", commandId: "command:import" },
-                intentSummary,
+                intent: { tier: "stated", text: intentSummary },
                 externalSnapshot: snapshot,
               },
             ],
           },
         },
-      }
+      },
     );
     expect(test.validate(execution(final, [attached]))).toEqual({
       passed: true,
@@ -1249,13 +1408,18 @@ describe("reduced VCS agentic catalog", () => {
 
     const mismatched = structuredClone(evidence);
     mismatched.inspections[0]!.node.value.authoredByWorkUnitId = "work:other";
-    expect(test.validate(execution(final, evidenceCalls(mismatched))).passed).toBe(false);
+    expect(
+      test.validate(execution(final, evidenceCalls(mismatched))).passed,
+    ).toBe(false);
 
     const pseudoBarrier = structuredClone(evidence);
     pseudoBarrier.inspections[0]!.node.value.kind = "import-barrier";
-    expect(test.validate(execution(final, evidenceCalls(pseudoBarrier))).passed).toBe(false);
+    expect(
+      test.validate(execution(final, evidenceCalls(pseudoBarrier))).passed,
+    ).toBe(false);
 
-    const fakeProse = "The line was imported, but this answer has no canonical supporting walk.";
+    const fakeProse =
+      "The line was imported, but this answer has no canonical supporting walk.";
     expect(
       test.validate(
         execution(fakeProse, [
@@ -1263,25 +1427,37 @@ describe("reduced VCS agentic catalog", () => {
             blame: evidence.blame,
             claimedSnapshot: snapshot,
           }),
-        ])
-      ).passed
+        ]),
+      ).passed,
     ).toBe(false);
 
     expect(
       test.validate(
         execution(final, [
-          invocation("boundary-arbitrary-eval", "eval", "return evidence;", evidence),
-        ])
-      ).passed
+          invocation(
+            "boundary-arbitrary-eval",
+            "eval",
+            "return evidence;",
+            evidence,
+          ),
+        ]),
+      ).passed,
     ).toBe(false);
 
     expect(
-      test.validate(execution("A concise explanation in ordinary prose.", evidenceCalls(evidence)))
+      test.validate(
+        execution(
+          "A concise explanation in ordinary prose.",
+          evidenceCalls(evidence),
+        ),
+      ),
     ).toEqual({ passed: true, reason: undefined });
   });
 
   it("requires native intent and untouched import evidence to remain two exact joined origins", () => {
-    const test = vcsAdvancedTests.find(({ name }) => name === "vcs-edited-import-boundary")!;
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-edited-import-boundary",
+    )!;
     const snapshot = {
       sourceKind: "generated",
       sourceUri: "system-test://vcs-edited-import-boundary/project",
@@ -1309,8 +1485,18 @@ describe("reduced VCS agentic catalog", () => {
       stop: "import-boundary",
     };
     const calls = [
-      invocation("mixed-blame", "vcs", { operation: "blame" }, { spans: [nativeSpan, importSpan] }),
-      invocation("import-blame", "vcs", { operation: "blame" }, { spans: [importSpan] }),
+      invocation(
+        "mixed-blame",
+        "vcs",
+        { operation: "blame" },
+        { spans: [nativeSpan, importSpan] },
+      ),
+      invocation(
+        "import-blame",
+        "vcs",
+        { operation: "blame" },
+        { spans: [importSpan] },
+      ),
       invocation(
         "native-walk",
         "provenance",
@@ -1368,7 +1554,7 @@ describe("reduced VCS agentic catalog", () => {
               },
             },
           ],
-        }
+        },
       ),
       invocation(
         "native-invocation",
@@ -1386,7 +1572,7 @@ describe("reduced VCS agentic catalog", () => {
             },
           },
           adjacency: [],
-        }
+        },
       ),
       invocation(
         "native-turn",
@@ -1403,7 +1589,7 @@ describe("reduced VCS agentic catalog", () => {
             },
           },
           adjacency: [],
-        }
+        },
       ),
       invocation(
         "native-message",
@@ -1423,7 +1609,7 @@ describe("reduced VCS agentic catalog", () => {
             },
           },
           adjacency: [],
-        }
+        },
       ),
       invocation(
         "import-change",
@@ -1439,7 +1625,7 @@ describe("reduced VCS agentic catalog", () => {
             },
           },
           adjacency: [],
-        }
+        },
       ),
       invocation(
         "import-work",
@@ -1457,7 +1643,7 @@ describe("reduced VCS agentic catalog", () => {
             },
           },
           adjacency: [],
-        }
+        },
       ),
       invocation(
         "import-command",
@@ -1474,12 +1660,15 @@ describe("reduced VCS agentic catalog", () => {
             },
           },
           adjacency: [],
-        }
+        },
       ),
     ];
     const final =
       "The edited line has native request history; the neighboring line is only known from the imported snapshot onward.";
-    expect(test.validate(execution(final, calls))).toEqual({ passed: true, reason: undefined });
+    expect(test.validate(execution(final, calls))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
 
     const unjoinedNative = structuredClone(calls);
     const nativeWalk = unjoinedNative[2]!.invocation.execution.result as {

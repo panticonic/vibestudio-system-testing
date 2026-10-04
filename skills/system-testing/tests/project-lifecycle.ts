@@ -1,5 +1,6 @@
 import {
   BUILDABLE_PANEL_WITH_DERIVED_WORKSPACE_REPO_FIXTURE,
+  BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
   CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE,
   CREATED_PANEL_STORE_WORKSPACE_REPO_FIXTURE,
   CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
@@ -1399,7 +1400,8 @@ export const projectLifecycleTests: TestCase[] = [
       "inspect-created-project-panel",
     ),
     resources: [PANEL_AUTOMATION_RESOURCE],
-    prompt: "Create a brand-new isolated panel project and open it for use.",
+    prompt:
+      "Create and publish a brand-new isolated panel project, then open it for use.",
     validate: validatePanelCreate,
   },
   {
@@ -1411,7 +1413,7 @@ export const projectLifecycleTests: TestCase[] = [
     authorityPolicy: panelControlAuthorityPolicy("inspect-curated-icon-panel"),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Create a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
+      "Create and publish a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
     validate: validateCuratedIconPanelCreate,
   },
   {
@@ -1436,13 +1438,14 @@ export const projectLifecycleTests: TestCase[] = [
     ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Create a separate panel based on the provided panel project, leave the original unchanged, and open the new panel to confirm it works.",
+      "Create and publish a separate panel based on the provided panel project, leave the original unchanged, and open the published copy to confirm it works.",
     validate: validatePanelFork,
   },
   {
     name: "worker-fork-classmap-dry-run",
     description: "Dry-run a worker fork",
     category: "project-lifecycle",
+    workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Preview a separate copy of the existing worker and confirm the original remains unchanged.",
     validate: validateWorkerForkPlan,

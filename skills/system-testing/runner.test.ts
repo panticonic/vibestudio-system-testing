@@ -887,6 +887,16 @@ describe("HeadlessRunner", () => {
                 decision: "once",
               },
               {
+                ruleId: "fixture-host-publication",
+                capability: { kind: "exact", key: "workspace.publish" },
+                resource: {
+                  kind: "prefix",
+                  prefix: "workspace-source-change:publication:",
+                },
+                tier: "gated",
+                decision: "once",
+              },
+              {
                 ruleId: "fixture-publication",
                 capability: { kind: "exact", key: "workspace-main-advance" },
                 resource: {
@@ -970,6 +980,16 @@ describe("HeadlessRunner", () => {
         {
           testPolicy: expect.objectContaining({
             authority: expect.arrayContaining([
+              {
+                ruleId: "fixture-host-publication",
+                capability: { kind: "exact", key: "workspace.publish" },
+                resource: {
+                  kind: "prefix",
+                  prefix: "workspace-source-change:publication:",
+                },
+                tier: "gated",
+                decision: "once",
+              },
               {
                 ruleId: "fixture-publication",
                 capability: { kind: "exact", key: "workspace-main-advance" },

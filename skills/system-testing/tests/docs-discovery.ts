@@ -1,5 +1,6 @@
 import type { TestCase } from "../types.js";
 import { findLastAgentMessage, getToolCalls, noIncompleteInvocations } from "./_helpers.js";
+import { invocationReturnValue, walkArrays, walkRecords } from "./_scenario-evidence.js";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -66,6 +67,12 @@ function docsSearchChecked(result: Parameters<typeof noIncompleteInvocations>[0]
   return noIncompleteInvocations(result);
 }
 
+function mentionsIdentifier(text: string, label: string, allowMember = false): boolean {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const suffix = allowMember ? "(?![\\p{L}\\p{N}_$])" : "(?![\\p{L}\\p{N}_$]|\\.[\\p{L}\\p{N}_$])";
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}_$.])${escaped}${suffix}`, "iu").test(text);
+}
+
 function docsDescribeChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
   const hits = boundedSearches(result).flatMap((call) => {
     const value = details(call.execution?.result);
@@ -85,21 +92,32 @@ function docsDescribeChecked(result: Parameters<typeof noIncompleteInvocations>[
       reason: "Docs open result was not identity-joined to a bounded search hit",
     };
   }
-  const entry = opened[0]!;
-  const members = Array.isArray(entry["members"]) ? entry["members"] : [];
-  if (members.length === 0) {
+  const observations = opened.flatMap((entry) => {
+    const label = concreteLabel(entry);
+    if (!label) return [];
+    const parent = entry["parent"];
+    const service = typeof parent === "string" && parent.startsWith("service:")
+      ? parent.slice("service:".length)
+      : label;
+    const members = Array.isArray(entry["members"]) ? entry["members"] : [label];
+    const prefix = `${service}.`;
+    return members.flatMap((member) =>
+      typeof member === "string" && member.startsWith(prefix)
+        ? [{ service, member, method: member.slice(prefix.length) }]
+        : [],
+    );
+  });
+  if (observations.length === 0) {
     return {
       passed: false,
-      reason: "Opened service documentation exposed no canonical method members",
+      reason: "Opened service documentation exposed no canonical method identities",
     };
   }
   const final = findLastAgentMessage(result);
-  const entryLabel = concreteLabel(entry);
-  if (
-    !entryLabel ||
-    !final.includes(entryLabel) ||
-    !members.some((member) => typeof member === "string" && final.includes(member))
-  ) {
+  if (!observations.some(({ service, member, method }) =>
+    mentionsIdentifier(final, service, true) &&
+    (mentionsIdentifier(final, member) || mentionsIdentifier(final, method)),
+  )) {
     return {
       passed: false,
       reason: "Final response did not describe the opened service and an observed method",
@@ -109,28 +127,91 @@ function docsDescribeChecked(result: Parameters<typeof noIncompleteInvocations>[
 }
 
 function docsServicesChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
-  const calls = boundedSearches(result).filter((call) => call.arguments?.["surface"] === "service");
-  const hits = calls.flatMap((call) => {
+  const observations: Array<{ count: number; labels: string[] }> = [];
+  const searchCalls = boundedSearches(result).filter(
+    (call) => call.arguments?.["surface"] === "service"
+  );
+  for (const call of searchCalls) {
     const value = details(call.execution?.result);
-    return Array.isArray(value) ? value.filter((item) => record(item)) : [];
-  }) as Record<string, unknown>[];
-  if (hits.length === 0)
-    return { passed: false, reason: "No bounded service-catalog result was observed" };
-  const final = findLastAgentMessage(result);
-  const count = new RegExp(`(?:^|\\D)${hits.length}(?:\\D|$)`, "u");
-  if (
-    !count.test(final) ||
-    !hits.some((hit) => {
-      const label = concreteLabel(hit);
-      return label !== null && final.includes(label);
-    })
-  ) {
-    return {
-      passed: false,
-      reason: "Final response did not report the bounded service count and an observed service",
-    };
+    const hits = Array.isArray(value)
+      ? value.flatMap((item) => (record(item) ? [record(item)!] : []))
+      : [];
+    const labels = hits.flatMap((hit) => (concreteLabel(hit) ? [concreteLabel(hit)!] : []));
+    if (labels.length) observations.push({ count: hits.length, labels });
   }
-  return noIncompleteInvocations(result);
+  const serviceLabels = observations.flatMap(({ labels }) => labels);
+  for (const call of completed(result, "eval")) {
+    const code = String(call.arguments?.["code"] ?? "");
+    if (
+      /(?:docs\.listSurfaces\s*\(|rpc\.call\s*\(\s*["']main["']\s*,\s*["']docs\.listSurfaces["']\s*,)/u.test(
+        code
+      )
+    ) {
+      const returned = invocationReturnValue(call);
+      if (returned.present && serviceLabels.length) {
+        for (const row of walkRecords([returned.value])) {
+          const count = row["count"];
+          if (
+            row["surface"] === "service" &&
+            typeof count === "number" &&
+            Number.isSafeInteger(count) &&
+            count > 0
+          ) {
+            // Catalog entries include service parents and method entries; this
+            // count is distinct from the registered-service enumeration.
+            observations.push({ count, labels: serviceLabels });
+          }
+        }
+      }
+    }
+    const enumeration =
+      /(?:const|let)\s+(\w+)\s*=\s*await\s+(?:(?:services\.)?docs\.listServices\s*\(|rpc\.call\s*\(\s*["']main["']\s*,\s*["']docs\.listServices["']\s*,)/u.exec(
+        code
+      );
+    if (!enumeration) continue;
+    const listName = enumeration[1]!;
+    // Join returned totals to the actual enumeration's length. Other catalog
+    // counts (such as documentation entries by surface) are different facts.
+    const countFields = Array.from(
+      code.matchAll(new RegExp(`(\\w+)\\s*:\\s*${listName}\\.length\\b`, "gu")),
+      (match) => match[1]!
+    );
+    const returned = invocationReturnValue(call);
+    if (!returned.present) continue;
+    for (const entries of walkArrays([returned.value])) {
+      if (entries.length === 0 || entries.length > 100) continue;
+      const labels = entries.flatMap((entry) => {
+        const name = record(entry)?.["name"];
+        return typeof name === "string" && name.length > 0 ? [name] : [];
+      });
+      if (labels.length !== entries.length) continue;
+      // The API returns service descriptors. A bounded eval may return a
+      // representative slice plus the observed total, instead of every row.
+      const totals = walkRecords([returned.value])
+        .filter((value) => Object.values(value).includes(entries))
+        .flatMap((value) => countFields.map((field) => value[field]))
+        .filter(
+          (count): count is number =>
+            typeof count === "number" && Number.isSafeInteger(count) && count >= labels.length
+        );
+      observations.push({ count: totals[0] ?? entries.length, labels });
+    }
+  }
+  if (observations.length === 0)
+    return { passed: false, reason: "No bounded live service-catalog observation was captured" };
+  const final = findLastAgentMessage(result);
+  const reported = observations.some(
+    ({ count, labels }) =>
+      new RegExp(`(?:^|\\D)${count}(?:\\D|$)`, "u").test(final) &&
+      labels.some((label) => final.includes(label))
+  );
+  return reported
+    ? noIncompleteInvocations(result)
+    : {
+        passed: false,
+        reason:
+          "Final response did not report an observed service count and representative service",
+      };
 }
 
 export const docsDiscoveryTests: TestCase[] = [

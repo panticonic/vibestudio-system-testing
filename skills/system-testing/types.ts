@@ -230,7 +230,10 @@ export interface TestCase {
 
 export interface TestOrchestrationContext {
   runner: HeadlessRunner;
-  /** Milliseconds left in this test's one agent-turn budget, or undefined when unbounded. */
+  /** The test owns this cancellation boundary. Awaited orchestration work must
+   * settle on abort and finish its owned cleanup before returning. */
+  signal: AbortSignal;
+  /** Milliseconds left in this test's shared orchestration/turn budget. */
   remainingTimeMs(): number | undefined;
   /** Run one bounded turn and return the exact completed response that ended
    * that phase. Orchestrated validators use this identity instead of guessing
@@ -240,6 +243,8 @@ export interface TestOrchestrationContext {
 }
 
 export interface TestExecutionResult {
+  /** Harness-owned completed inputs, including the exact resource context sent with the goal. */
+  submittedInputs?: Array<{ channelId: string | null; requestedPrompt: string; submittedPrompt: string }>;
   /** Stable identifiers for inspecting the spawned test trajectory after completion. */
   provenance?: {
     channelId: string | null;

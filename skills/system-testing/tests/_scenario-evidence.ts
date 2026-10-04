@@ -193,6 +193,17 @@ export function requireCodeOperations(
 
 function codeOperationPresent(code: string, token: string): boolean {
   if (code.includes(token) || importedFsOperation(code, token)) return true;
+  // A receiver type assertion changes only the TypeScript spelling, not the
+  // operation. Match the receiver and method together, never a loose method name.
+  const member = /^([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)$/u.exec(token);
+  if (
+    member &&
+    new RegExp(
+      `\\(\\s*${escapeRegExp(member[1]!)}\\s+as\\s+[A-Za-z_$][\\w$<>., |\\[\\]]*\\)\\s*\\.\\s*${escapeRegExp(member[2]!)}\\s*\\(`,
+      "u",
+    ).test(code)
+  )
+    return true;
   const quoted = /^(["'])(.*)\1$/u.exec(token);
   if (!quoted?.[2]) return false;
   const value = quoted[2];

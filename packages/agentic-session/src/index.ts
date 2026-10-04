@@ -24,4 +24,3 @@ export type {
   ConnectionConfig,
   ChatMethodResult,
 } from "@workspace/agentic-core";
-export type { AgentMessage } from "@workspace/pi-core";

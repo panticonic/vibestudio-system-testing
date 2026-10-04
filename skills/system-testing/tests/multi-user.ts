@@ -26,7 +26,8 @@ function firstArray(values: readonly unknown[]): unknown[] | null {
 function finalReportsCount(final: string, count: number): boolean {
   return (
     new RegExp(`\\b${count}\\b`, "u").test(final) ||
-    (count === 0 && /\b(?:no one|nobody|none|empty)\b|\[\s*\]/iu.test(final))
+    (count === 0 && /\b(?:no one|nobody|none|empty)\b|\[\s*\]/iu.test(final)) ||
+    (count === 1 && /\b(?:one|single)\b/iu.test(final))
   );
 }
 
@@ -69,7 +70,13 @@ export const multiUserTests: TestCase[] = [
           const record = member as Record<string, unknown>;
           return typeof record["handle"] === "string" && typeof record["role"] === "string";
         });
-        return shaped && finalReportsCount(final, members.length)
+        const observedRolesReported = shaped && members.every((member) => {
+          const record = member as Record<string, string>;
+          const report = final.toLocaleLowerCase();
+          return report.includes(record["handle"]!.toLocaleLowerCase()) &&
+            report.includes(record["role"]!.toLocaleLowerCase());
+        });
+        return observedRolesReported && finalReportsCount(final, members.length)
           ? { passed: true }
           : {
               passed: false,

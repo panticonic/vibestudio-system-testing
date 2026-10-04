@@ -11,127 +11,51 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function stateKey(value: unknown): string | null {
-  const state = record(value);
-  if (state?.["kind"] === "event" && typeof state["eventId"] === "string") {
-    return `event:${state["eventId"]}`;
-  }
-  if (
-    state?.["kind"] === "application" &&
-    typeof state["applicationId"] === "string"
-  ) {
-    return `application:${state["applicationId"]}`;
-  }
-  return null;
-}
-
-/** Return a stable identity only for a complete public semantic root. */
-function rootKey(value: unknown): string | null {
-  const root = record(value);
-  if (!root || typeof root["kind"] !== "string") return null;
-  const one = (field: string) =>
-    typeof root[field] === "string" ? `${root["kind"]}:${root[field]}` : null;
-  switch (root["kind"]) {
-    case "event":
-      return one("eventId");
-    case "application":
-      return one("applicationId");
-    case "work-unit":
-      return one("workUnitId");
-    case "change":
-      return one("changeId");
-    case "decision":
-      return one("decisionId");
-    case "command":
-      return one("commandId");
-    case "trajectory":
-      return typeof root["logId"] === "string" &&
-        typeof root["head"] === "string"
-        ? `trajectory:${root["logId"]}:${root["head"]}`
-        : null;
-    case "trajectory-invocation":
-    case "trajectory-turn":
-    case "trajectory-message": {
-      const identityField =
-        root["kind"] === "trajectory-invocation"
-          ? "invocationId"
-          : root["kind"] === "trajectory-turn"
-            ? "turnId"
-            : "messageId";
-      return typeof root["logId"] === "string" &&
-        typeof root["head"] === "string" &&
-        typeof root[identityField] === "string"
-        ? `${root["kind"]}:${root["logId"]}:${root["head"]}:${root[identityField]}`
-        : null;
-    }
-    case "file":
-    case "repository": {
-      const state = stateKey(root["state"]);
-      if (!state || typeof root["repositoryId"] !== "string") return null;
-      if (root["kind"] === "repository") {
-        return `repository:${state}:${root["repositoryId"]}`;
-      }
-      return typeof root["fileId"] === "string"
-        ? `file:${state}:${root["repositoryId"]}:${root["fileId"]}`
-        : null;
-    }
-    default:
-      return null;
-  }
-}
-
+/** Validate the public compact graph, whose exact identities remain in the reference store. */
 function requireProvenanceRoots(
   result: Parameters<typeof noIncompleteInvocations>[0],
 ) {
-  let returnedRootCount = 0;
+  const kinds = new Set([
+    "event", "application", "work-unit", "applied-change", "change", "decision", "command",
+    "trajectory", "trajectory-invocation", "trajectory-turn", "trajectory-message", "file", "repository",
+  ]);
+  const observedRoots = new Set<string>();
   let edgeCount = 0;
   for (const call of getToolCalls(result)) {
-    if (
-      call.name !== "provenance" ||
-      call.execution?.status !== "complete" ||
-      call.execution.isError === true
-    ) {
-      continue;
-    }
-    const details = record(record(call.execution.result)?.["details"]);
-    const returnedRoot = rootKey(details?.["root"]);
-    if (!returnedRoot) continue;
-    returnedRootCount++;
-    const adjacency = details?.["adjacency"];
-    if (!Array.isArray(adjacency)) continue;
-    for (const rawEdge of adjacency) {
-      const edge = record(rawEdge);
-      const from = rootKey(edge?.["from"]);
-      const to = rootKey(edge?.["to"]);
-      if (!from || !to || typeof edge?.["kind"] !== "string") continue;
-      edgeCount++;
-    }
+    if (call.name !== "provenance" || call.execution?.status !== "complete" || call.execution.isError === true) continue;
+    const returned = record(call.execution.result);
+    const details = record(returned?.["details"]);
+    const ref = details?.["ref"];
+    const kind = details?.["subjectKind"];
+    if (typeof ref !== "string" || !/^@[\w-]+$/u.test(ref) || typeof kind !== "string" || !kinds.has(kind)) continue;
+    const count = details?.["adjacencyCount"];
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count <= 0) continue;
+    const blocks = returned?.["protocolContent"];
+    if (!Array.isArray(blocks)) continue;
+    const text = blocks.flatMap((block) => {
+      const entry = record(block);
+      return entry?.["type"] === "text" && typeof entry["text"] === "string" ? [entry["text"]] : [];
+    }).join("\n");
+    const edges = [...text.matchAll(/^\s*([\w-]+) (@[\w-]+) —([\w-]+)→ ([\w-]+) (@[\w-]+)\s*$/gmu)]
+      .filter((edge) => kinds.has(edge[1]!) && kinds.has(edge[4]!) &&
+        ((edge[2] === ref && edge[1] === kind) || (edge[5] === ref && edge[4] === kind)));
+    if (edges.length === 0 || edges.length > count) continue;
+    observedRoots.add(ref);
+    edgeCount += edges.length;
   }
-  if (edgeCount === 0) {
-    return {
-      passed: false,
-      reason:
-        "Completed provenance results contained no actual typed edge endpoints",
-    };
-  }
-  const final = findLastAgentMessage(result);
-  if (
-    !/(root|trajectory|turn|message|invocation)/iu.test(final) ||
-    !/(edge|caus|trigger|origin|context)/iu.test(final)
-  ) {
-    return {
-      passed: false,
-      reason:
-        "Final response did not explain the observed provenance roots and relationships",
-    };
-  }
-  return {
-    passed: returnedRootCount > 0,
-    reason:
-      returnedRootCount > 0
-        ? undefined
-        : "Completed provenance results contained no reusable typed root",
+  if (edgeCount === 0) return {
+    passed: false,
+    reason: "Completed provenance results contained no identity-joined compact graph edges",
   };
+  const final = findLastAgentMessage(result);
+  const citedRoots = new Set<string>(final.match(/@[\w-]+/gu) ?? []);
+  if (!/(root|trajectory|turn|message|invocation)/iu.test(final) ||
+      !/(edge|caus|trigger|origin|context|relation)/iu.test(final) ||
+      ![...observedRoots].some((ref) => citedRoots.has(ref))) return {
+    passed: false,
+    reason: "Final response did not explain and cite the observed provenance roots and relationships",
+  };
+  return noIncompleteInvocations(result);
 }
 
 function requireMemoryRecall(

@@ -32,11 +32,13 @@ function resultText(call: ToolCall): string {
     .map((block) => record(block)?.["text"])
     .filter((value): value is string => typeof value === "string")
     .join("\n");
-  return `${text}\n${typeof result?.["error"] === "string" ? result["error"] : ""}`;
+  return `${text}\n${typeof result?.["message"] === "string" ? result["message"] : ""}\n${typeof result?.["error"] === "string" ? result["error"] : ""}`;
 }
 
 function succeeded(call: ToolCall): boolean {
-  return call.execution?.status === "complete" && call.execution.isError !== true;
+  return (
+    call.execution?.status === "complete" && call.execution.isError !== true
+  );
 }
 
 function messagesSent(result: TestExecutionResult): ToolCall[] {
@@ -46,7 +48,9 @@ function messagesSent(result: TestExecutionResult): ToolCall[] {
 /** Addressees the tool actually resolved, as it recorded them. */
 function sentEntries(call: ToolCall): Record<string, unknown>[] {
   const sent = callDetails(call)?.["sent"];
-  return Array.isArray(sent) ? sent.flatMap((entry) => (record(entry) ? [record(entry)!] : [])) : [];
+  return Array.isArray(sent)
+    ? sent.flatMap((entry) => (record(entry) ? [record(entry)!] : []))
+    : [];
 }
 
 export const messagingTests: TestCase[] = [
@@ -70,12 +74,20 @@ export const messagingTests: TestCase[] = [
       // degrades into telling everyone. Assert this first — it is the failure
       // that actually costs someone something.
       const broadcast = sends.find(
-        (call) => succeeded(call) && call.arguments?.["to"] === undefined
+        (call) => succeeded(call) && call.arguments?.["to"] === undefined,
       );
       if (broadcast) {
         return {
           passed: false,
-          reason: "The agent addressed the whole channel when its exact addressee was unavailable",
+          reason:
+            "The agent addressed the whole channel when its exact addressee was unavailable",
+        };
+      }
+      if (sends.some(succeeded)) {
+        return {
+          passed: false,
+          reason:
+            "The agent substituted another audience for the absent intended recipient",
         };
       }
       // Either route through the mechanism is correct, and neither is better:
@@ -83,7 +95,7 @@ export const messagingTests: TestCase[] = [
       // nobody. Requiring one of them would grade choreography, not behaviour.
       const refused = sends.find((call) => call.execution?.isError === true);
       const enumerated = getToolCalls(result).find(
-        (call) => call.name === "list_addressees" && succeeded(call)
+        (call) => call.name === "list_addressees" && succeeded(call),
       );
       if (!refused && !enumerated) {
         return {
@@ -94,19 +106,30 @@ export const messagingTests: TestCase[] = [
       }
       // Fail-closed is only useful if it also names an alternative; an agent
       // told nothing but "no" has nowhere to go but a broadcast.
-      if (refused && !/did you mean|list_addressees|no participant/iu.test(resultText(refused))) {
+      if (
+        refused &&
+        !/did you mean|list_addressees|no participant/iu.test(
+          resultText(refused),
+        )
+      ) {
         return {
           passed: false,
-          reason: "The refusal carried neither a suggestion nor a way to see who is addressable",
+          reason:
+            "The refusal carried neither a suggestion nor a way to see who is addressable",
         };
       }
       if (enumerated) {
         const rows = callDetails(enumerated)?.["addressees"];
-        const refs = (Array.isArray(rows) ? rows : []).map((row) => record(row)?.["ref"]);
-        if (refs.some((ref) => typeof ref === "string" && /archivist/iu.test(ref))) {
+        const refs = (Array.isArray(rows) ? rows : []).map(
+          (row) => record(row)?.["ref"],
+        );
+        if (
+          refs.some((ref) => typeof ref === "string" && /archivist/iu.test(ref))
+        ) {
           return {
             passed: false,
-            reason: "The addressee the agent reported unreachable was in fact enumerated as present",
+            reason:
+              "The addressee the agent reported unreachable was in fact enumerated as present",
           };
         }
       }
@@ -114,7 +137,8 @@ export const messagingTests: TestCase[] = [
       if (!/archivist/iu.test(final)) {
         return {
           passed: false,
-          reason: "The final response did not tell the user which addressee could not be reached",
+          reason:
+            "The final response did not tell the user which addressee could not be reached",
         };
       }
       return { passed: true };
@@ -122,7 +146,8 @@ export const messagingTests: TestCase[] = [
   },
   {
     name: "addressees-are-enumerable",
-    description: "An agent can answer who it is able to message here, in the form it would use",
+    description:
+      "An agent can answer who it is able to message here, in the form it would use",
     category: "messaging",
 
     prompt:
@@ -132,20 +157,26 @@ export const messagingTests: TestCase[] = [
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
       const listing = getToolCalls(result).find(
-        (call) => call.name === "list_addressees" && succeeded(call)
+        (call) => call.name === "list_addressees" && succeeded(call),
       );
       if (!listing) {
         return {
           passed: false,
-          reason: "The agent never enumerated its addressees; it answered from guesswork",
+          reason:
+            "The agent never enumerated its addressees; it answered from guesswork",
         };
       }
       const rows = callDetails(listing)?.["addressees"];
       const refs = (Array.isArray(rows) ? rows : [])
         .map((row) => record(row)?.["ref"])
-        .filter((ref): ref is string => typeof ref === "string" && ref.length > 0);
+        .filter(
+          (ref): ref is string => typeof ref === "string" && ref.length > 0,
+        );
       if (refs.length === 0) {
-        return { passed: false, reason: "The addressee listing returned no addressable rows" };
+        return {
+          passed: false,
+          reason: "The addressee listing returned no addressable rows",
+        };
       }
       // The whole point of the surface: what it prints is what the send tool
       // accepts, so an answer that repeats a printed ref proves the round trip.
@@ -153,7 +184,8 @@ export const messagingTests: TestCase[] = [
       if (!refs.some((ref) => final.includes(ref))) {
         return {
           passed: false,
-          reason: "The response quoted none of the enumerated refs, so the round trip is unproven",
+          reason:
+            "The response quoted none of the enumerated refs, so the round trip is unproven",
         };
       }
       return { passed: true };
@@ -161,7 +193,8 @@ export const messagingTests: TestCase[] = [
   },
   {
     name: "steer-a-running-child",
-    description: "A supervisor corrects a live child by messaging it rather than polling it",
+    description:
+      "A supervisor corrects a live child by messaging it rather than polling it",
     category: "messaging",
 
     timeoutMs: 600_000,
@@ -175,7 +208,9 @@ export const messagingTests: TestCase[] = [
         if (!succeeded(call)) return false;
         const to = call.arguments?.["to"];
         const refs = Array.isArray(to) ? to : [to];
-        return refs.some((ref) => typeof ref === "string" && ref.startsWith("run:"));
+        return refs.some(
+          (ref) => typeof ref === "string" && ref.startsWith("run:"),
+        );
       });
       if (!steer) {
         return {
@@ -184,17 +219,21 @@ export const messagingTests: TestCase[] = [
             "The supervisor never steered the child; new instructions reached it by some other route or not at all",
         };
       }
-      if (!sentEntries(steer).some((entry) => typeof entry["runId"] === "string")) {
+      if (
+        !sentEntries(steer).some((entry) => typeof entry["runId"] === "string")
+      ) {
         return {
           passed: false,
-          reason: "The steering send resolved to no exact run, so it cannot have reached one child",
+          reason:
+            "The steering send resolved to no exact run, so it cannot have reached one child",
         };
       }
       const final = findLastAgentMessage(result);
       if (!/\d/u.test(final)) {
         return {
           passed: false,
-          reason: "The supervisor reported no numbers, so the corrected work never came back",
+          reason:
+            "The supervisor reported no numbers, so the corrected work never came back",
         };
       }
       return { passed: true };

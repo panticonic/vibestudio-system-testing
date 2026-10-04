@@ -1,5 +1,8 @@
 import type { ChatMessage } from "@workspace/agentic-core";
-import type { HeadlessSession, SessionSnapshot } from "@workspace/agentic-session";
+import type {
+  HeadlessSession,
+  SessionSnapshot,
+} from "@workspace/agentic-session";
 import {
   CONTENT_WORKSPACE_REPO_FIXTURE,
   type TestCase,
@@ -15,10 +18,12 @@ import {
   requirePublishedCommitEvidence,
   requireVcsEvidence,
   requireWholeChainCommitEvidence,
+  reportedEventReferencesAgree,
 } from "./_helpers.js";
 
 function checked(result: TestExecutionResult, evidence: string[]) {
-  if (!hasAgentResponse(result)) return { passed: false, reason: "No agent response received" };
+  if (!hasAgentResponse(result))
+    return { passed: false, reason: "No agent response received" };
   const invocations = noIncompleteInvocations(result);
   if (!invocations.passed) return invocations;
   return requireVcsEvidence(result, evidence);
@@ -30,7 +35,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function requireMergeArrivalMemory(result: TestExecutionResult) {
   const found = getToolCalls(result).some((call) => {
-    if (call.name !== "read" || call.execution?.status !== "complete") return false;
+    if (call.name !== "read" || call.execution?.status !== "complete")
+      return false;
     const resultValue = call.execution.result;
     const details = isRecord(resultValue) ? resultValue["details"] : null;
     const provenance = isRecord(details) ? details["provenance"] : null;
@@ -50,7 +56,9 @@ function requireMergeArrivalMemory(result: TestExecutionResult) {
           Array.isArray(parents) &&
           parents.some(
             (parent) =>
-              isRecord(parent) && parent["role"] === "source" && isRecord(parent["intent"])
+              isRecord(parent) &&
+              parent["role"] === "source" &&
+              isRecord(parent["intent"]),
           )
         );
       })
@@ -71,7 +79,7 @@ function requireCanonicalStatus(result: TestExecutionResult) {
       call.name === "vcs" &&
       call.arguments?.["operation"] === "status" &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
   const envelope = status?.execution?.result;
   const details = isRecord(envelope) ? envelope["details"] : undefined;
@@ -83,7 +91,9 @@ function requireCanonicalStatus(result: TestExecutionResult) {
     !isRecord(canonical["committed"]) ||
     !isRecord(canonical["workingHead"]) ||
     typeof canonical["mainEventId"] !== "string" ||
-    !["at", "ahead", "behind", "diverged"].includes(String(canonical["mainRelation"]))
+    !["at", "ahead", "behind", "diverged"].includes(
+      String(canonical["mainRelation"]),
+    )
   ) {
     return {
       passed: false,
@@ -100,18 +110,28 @@ function requireCanonicalStatus(result: TestExecutionResult) {
       : working["applicationId"]
     : undefined;
   const final = findLastAgentMessage(result).toLowerCase();
-  const requiredClaims = [
-    committedId,
-    workingId,
-    canonical["mainEventId"],
-    canonical["mainRelation"],
-    canonical["clean"] === true ? "clean" : "dirty",
-  ].filter((value): value is string => typeof value === "string");
-  if (requiredClaims.some((claim) => !final.includes(claim.toLowerCase()))) {
+  const eventIds = [committedId, workingId, canonical["mainEventId"]].filter(
+    (value): value is string => typeof value === "string",
+  );
+  const relation = canonical["mainRelation"];
+  const reportsRelation =
+    relation === "at"
+      ? /\bmain\b/u.test(final) && !/\b(?:ahead|behind|diverged)\b/u.test(final)
+      : final.includes(String(relation));
+  const reportsCleanliness =
+    canonical["clean"] === true
+      ? /\bclean\b|\bno (?:local |uncommitted )?changes\b/u.test(final)
+      : /\bdirty\b|\b(?:local|uncommitted) changes\b/u.test(final);
+  if (
+    eventIds.length !== 3 ||
+    !reportedEventReferencesAgree(final, eventIds) ||
+    !reportsRelation ||
+    !reportsCleanliness
+  ) {
     return {
       passed: false,
       reason:
-        "The final orientation did not report the exact committed, working, main-relation, and cleanliness facts returned by status",
+        "The final orientation disagrees with canonical identities or omits the main relation and cleanliness returned by status",
     };
   }
   const mutations = getToolCalls(result).filter(
@@ -120,13 +140,23 @@ function requireCanonicalStatus(result: TestExecutionResult) {
       call.execution.isError !== true &&
       (["edit", "write", "move_file", "copy_file"].includes(call.name) ||
         (call.name === "vcs" &&
-          ["edit", "move", "copy", "merge", "revert", "commit", "discard", "push"].includes(
-            String(call.arguments?.["operation"])
-          )))
+          [
+            "edit",
+            "move",
+            "copy",
+            "merge",
+            "revert",
+            "commit",
+            "discard",
+            "push",
+          ].includes(String(call.arguments?.["operation"])))),
   );
   return mutations.length === 0
     ? { passed: true }
-    : { passed: false, reason: "Status orientation unexpectedly mutated the workspace" };
+    : {
+        passed: false,
+        reason: "Status orientation unexpectedly mutated the workspace",
+      };
 }
 
 function requireLocalWorkingComparison(result: TestExecutionResult) {
@@ -136,30 +166,39 @@ function requireLocalWorkingComparison(result: TestExecutionResult) {
       candidate.arguments?.["operation"] === "compare" &&
       candidate.arguments?.["view"] === "local" &&
       candidate.execution?.status === "complete" &&
-      candidate.execution.isError !== true
+      candidate.execution.isError !== true,
   );
   const envelope = call?.execution?.result;
   const details = isRecord(envelope) ? envelope["details"] : null;
   const comparison = isRecord(details) ? details["result"] : null;
-  const source = isRecord(comparison) ? comparison["source"] : null;
-  const target = isRecord(comparison) ? comparison["target"] : null;
-  const coordinates = isRecord(comparison) ? comparison["coordinates"] : null;
-  const intents = isRecord(comparison) ? comparison["intents"] : null;
+  // The compact tool retains exact selectors internally. Its public receipt
+  // exposes bounded counts, resolution and continuation, not raw graph roots.
+  const intentCounts = isRecord(comparison) ? comparison["intentCounts"] : null;
+  const counts = isRecord(comparison) ? comparison["counts"] : null;
   if (
-    !isRecord(source) ||
-    source["kind"] !== "application" ||
-    typeof source["applicationId"] !== "string" ||
-    !isRecord(target) ||
-    target["kind"] !== "event" ||
-    !Array.isArray(coordinates) ||
-    coordinates.length === 0 ||
-    !Array.isArray(intents) ||
-    intents.length === 0
+    !isRecord(comparison) ||
+    !isRecord(comparison["resolution"]) ||
+    typeof comparison["coordinateCount"] !== "number" ||
+    comparison["coordinateCount"] <= 0 ||
+    comparison["continuation"] !== null ||
+    comparison["intentsTruncated"] !== false ||
+    !isRecord(counts) ||
+    !isRecord(intentCounts) ||
+    !Object.values(intentCounts).some(
+      (count) => typeof count === "number" && count > 0,
+    ) ||
+    Object.values(counts).some(
+      (count) => typeof count !== "number" || count < 0,
+    ) ||
+    Object.values(counts).reduce<number>(
+      (total, count) => total + Number(count),
+      0,
+    ) < comparison["coordinateCount"]
   ) {
     return {
       passed: false,
       reason:
-        "No completed local comparison exposed an application source, protected-main target, coordinates, and intents",
+        "No completed local comparison exposed complete bounded coordinate and intent evidence",
     };
   }
   const committed = getToolCalls(result).some(
@@ -167,10 +206,13 @@ function requireLocalWorkingComparison(result: TestExecutionResult) {
       candidate.name === "vcs" &&
       candidate.arguments?.["operation"] === "commit" &&
       candidate.execution?.status === "complete" &&
-      candidate.execution.isError !== true
+      candidate.execution.isError !== true,
   );
   return committed
-    ? { passed: false, reason: "The local working comparison committed before inspection" }
+    ? {
+        passed: false,
+        reason: "The local working comparison committed before inspection",
+      }
     : { passed: true };
 }
 
@@ -179,7 +221,7 @@ function requirePhaseEvidence(
   startMessageIndex: number,
   phase: string,
   evidence: string[],
-  options: { forbidPush?: boolean } = {}
+  options: { forbidPush?: boolean } = {},
 ): void {
   const result: TestExecutionResult = {
     messages: [...session.messages].slice(startMessageIndex) as ChatMessage[],
@@ -187,7 +229,9 @@ function requirePhaseEvidence(
   };
   const check = requireVcsEvidence(result, evidence);
   if (!check.passed) {
-    throw new Error(`${phase} did not establish its required postcondition: ${check.reason}`);
+    throw new Error(
+      `${phase} did not establish its required postcondition: ${check.reason}`,
+    );
   }
   if (
     options.forbidPush &&
@@ -196,7 +240,7 @@ function requirePhaseEvidence(
         call.name === "vcs" &&
         call.arguments?.["operation"] === "push" &&
         call.execution?.status === "complete" &&
-        call.execution.isError !== true
+        call.execution.isError !== true,
     )
   ) {
     throw new Error(`${phase} published the milestone that must remain local`);
@@ -205,11 +249,12 @@ function requirePhaseEvidence(
 
 /** Two real contexts advance independently; integration happens as local steps in A. */
 async function orchestrateIncrementalIntegration(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const fixtureName = context.runner.workspaceRepoName;
-  if (!fixtureName) throw new Error("incremental integration requires a repository fixture");
+  if (!fixtureName)
+    throw new Error("incremental integration requires a repository fixture");
   const repoPath = `projects/${fixtureName}`;
   const sessions: Array<{
     role: "agent-a" | "agent-b" | "reader";
@@ -226,7 +271,7 @@ async function orchestrateIncrementalIntegration(
     await context.sendAndWait(
       agentA,
       `Work in ${repoPath}. Create a small shared baseline, commit it, and publish it. Use the workspace guidance and report the published milestone.`,
-      "agent A publishes the shared baseline"
+      "agent A publishes the shared baseline",
     );
     requirePhaseEvidence(agentA, phaseStart, "agent A baseline publication", [
       "vcs.edit",
@@ -237,14 +282,14 @@ async function orchestrateIncrementalIntegration(
     await context.sendAndWait(
       agentA,
       `Now add a separate small local note in ${repoPath} and commit it as a local milestone. Do not publish this second milestone; report when it is ready to integrate with a collaborator.`,
-      "agent A keeps one additional commit local"
+      "agent A keeps one additional commit local",
     );
     requirePhaseEvidence(
       agentA,
       phaseStart,
       "agent A local milestone",
       ["vcs.edit", "vcs.commit"],
-      { forbidPush: true }
+      { forbidPush: true },
     );
     firstPhase = [...agentA.messages] as ChatMessage[];
 
@@ -254,7 +299,7 @@ async function orchestrateIncrementalIntegration(
     await context.sendAndWait(
       agentB,
       `A collaborator has published ${repoPath}. Add a separate small collaborator note there, commit it, and publish it. Follow the workspace guidance and report what happened.`,
-      "agent B advances main independently"
+      "agent B advances main independently",
     );
     requirePhaseEvidence(agentB, phaseStart, "agent B publication", [
       "vcs.edit",
@@ -265,7 +310,7 @@ async function orchestrateIncrementalIntegration(
     await context.sendAndWait(
       agentA,
       `Main advanced while your separate local note remained unpublished. Incorporate both collaborators' work, commit and publish the combined result, then confirm both notes are still present and tell me what happened.`,
-      "agent A incrementally integrates and publishes"
+      "agent A incrementally integrates and publishes",
     );
 
     const reader = await context.runner.spawn({ context: "task" });
@@ -273,7 +318,7 @@ async function orchestrateIncrementalIntegration(
     await context.sendAndWait(
       reader,
       `Freshly inspect ${repoPath}. Read the collaborators' note files through ordinary reads and explain the recorded source intent and how those bytes arrived here.`,
-      "fresh reader observes merged intent and arrival"
+      "fresh reader observes merged intent and arrival",
     );
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause);
@@ -285,10 +330,14 @@ async function orchestrateIncrementalIntegration(
   const messages = [
     ...firstPhase,
     ...(agentB ? ([...agentB.messages] as ChatMessage[]) : []),
+    ...(agentA
+      ? ([...agentA.messages] as ChatMessage[]).slice(firstPhase.length)
+      : []),
     ...(reader ? ([...reader.messages] as ChatMessage[]) : []),
-    ...(agentA ? ([...agentA.messages] as ChatMessage[]).slice(firstPhase.length) : []),
   ];
-  const snapshots = sessions.map(({ role, session }) => safeSnapshot(role, session));
+  const snapshots = sessions.map(({ role, session }) =>
+    safeSnapshot(role, session),
+  );
   const execution: TestExecutionResult = {
     messages,
     duration: Date.now() - startedAt,
@@ -314,10 +363,14 @@ async function orchestrateIncrementalIntegration(
       cleanupErrors.push(
         ...session
           .snapshot()
-          .cleanupErrors.map((entry) => `${role} ${entry.phase}: ${entry.message}`)
+          .cleanupErrors.map(
+            (entry) => `${role} ${entry.phase}: ${entry.message}`,
+          ),
       );
     } catch (cause) {
-      cleanupErrors.push(`${role}: ${cause instanceof Error ? cause.message : String(cause)}`);
+      cleanupErrors.push(
+        `${role}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
     }
   }
   if (cleanupErrors.length > 0) {
@@ -329,7 +382,7 @@ async function orchestrateIncrementalIntegration(
 
 function safeSnapshot(
   role: "agent-a" | "agent-b" | "reader",
-  session: HeadlessSession
+  session: HeadlessSession,
 ): {
   role: "agent-a" | "agent-b" | "reader";
   snapshot?: SessionSnapshot;
@@ -338,14 +391,18 @@ function safeSnapshot(
   try {
     return { role, snapshot: session.snapshot() };
   } catch (cause) {
-    return { role, error: cause instanceof Error ? cause.message : String(cause) };
+    return {
+      role,
+      error: cause instanceof Error ? cause.message : String(cause),
+    };
   }
 }
 
 export const vcsTests: TestCase[] = [
   {
     name: "vcs-status-orientation",
-    description: "Orient on committed, working, and protected-main state without mutation",
+    description:
+      "Orient on committed, working, and protected-main state without mutation",
     category: "vcs",
     prompt:
       "Explain the current local changes and how they compare with the version shared with the team. Include exact identities where they help make the state clear, and do not change anything.",
@@ -356,7 +413,8 @@ export const vcsTests: TestCase[] = [
   },
   {
     name: "vcs-edit-whole-chain-commit",
-    description: "Author several local edits and commit the complete incremental chain",
+    description:
+      "Author several local edits and commit the complete incremental chain",
     category: "vcs",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
@@ -368,7 +426,8 @@ export const vcsTests: TestCase[] = [
   },
   {
     name: "vcs-local-working-compare",
-    description: "Inspect uncommitted local intent and coordinate effects relative to protected main",
+    description:
+      "Inspect uncommitted local intent and coordinate effects relative to protected main",
     category: "vcs",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt:
@@ -380,7 +439,8 @@ export const vcsTests: TestCase[] = [
   },
   {
     name: "vcs-push",
-    description: "Publish one exact committed event after the affected build/typecheck gate",
+    description:
+      "Publish one exact committed event after the affected build/typecheck gate",
     category: "vcs",
     resources: ["vcs:protected-main"],
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
@@ -393,14 +453,16 @@ export const vcsTests: TestCase[] = [
   },
   {
     name: "vcs-incremental-integration",
-    description: "Incorporate concurrent semantic changes through local incremental decisions",
+    description:
+      "Incorporate concurrent semantic changes through local incremental decisions",
     category: "vcs",
     resources: ["vcs:protected-main"],
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     prompt: "Harness-orchestrated two-context semantic integration.",
     orchestrate: orchestrateIncrementalIntegration,
     validate: (result) => {
-      if (!hasAgentResponse(result)) return { passed: false, reason: "No agent response received" };
+      if (!hasAgentResponse(result))
+        return { passed: false, reason: "No agent response received" };
       const invocations = noIncompleteInvocations(result);
       if (!invocations.passed) return invocations;
       const operations = requireVcsEvidence(result, [
@@ -412,7 +474,9 @@ export const vcsTests: TestCase[] = [
       ]);
       if (!operations.passed) return operations;
       const integration = requireIncrementalIntegrationEvidence(result);
-      return integration.passed ? requireMergeArrivalMemory(result) : integration;
+      return integration.passed
+        ? requireMergeArrivalMemory(result)
+        : integration;
     },
   },
 ];

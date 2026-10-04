@@ -37,6 +37,7 @@ import type { BlobReader } from "@workspace/agentic-protocol";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
 import { evalInPanel } from "@workspace/testkit";
 import { publishAtomicPanelStoreFixture } from "./atomic-panel-store-fixture.js";
+import { probeSemanticCommand } from "./semantic-command-probe.js";
 
 // This runner is eval'd server-side (in the orchestrating agent's EvalDO), so it
 // uses the portable client surface — NOT panel-only `getStateArgs`/`slotId`.
@@ -164,6 +165,19 @@ function fixturePublicationAuthority(
       decision: "once",
     },
     {
+      ruleId: "fixture-host-publication",
+      capability: { kind: "exact", key: "workspace.publish" },
+      // The semantic publication and its protected-ref host effect are two
+      // reviewed boundaries of the same immutable fixture publication. Keep
+      // both scoped to publication resources; repo deletion is not included.
+      resource: {
+        kind: "prefix" as const,
+        prefix: "workspace-source-change:publication:",
+      },
+      tier: "gated",
+      decision: "once",
+    },
+    {
       ruleId: "fixture-publication",
       capability: { kind: "exact", key: "workspace-main-advance" },
       // Main advancement authorizes one immutable, atomic publication rather
@@ -262,6 +276,11 @@ export class HeadlessRunner {
   private readonly workspaceRepoFixtureLifecycle: WorkspaceRepoFixtureLifecycle | null;
   private readonly testAuthorityPolicy: AgentExecutionTestPolicySpec | null;
   private developmentTargetPromise: Promise<string> | null = null;
+  /** The session owner seals diagnostics while native state still exists. */
+  private readonly terminalSessionDiagnostics = new Map<
+    string | null,
+    Promise<Record<string, unknown>>
+  >();
   private readonly ownedDevelopmentSessions = new Set<string>();
   private readonly developmentAdmissions = new Set<Promise<unknown>>();
   private readonly ownedDevelopmentRuns = new Map<string, Set<string>>();
@@ -555,6 +574,29 @@ export class HeadlessRunner {
     return this.workspaceRepoFixtureLifecycle?.taskContextId ?? null;
   }
 
+  /** Observe the canonical live inventory before task/fixture cleanup can retire it. */
+  async observeFixtureRuntimeEntities(state: WorkspaceRepoFixtureState) {
+    const repositories =
+      await this.requireWorkspaceRepoFixtureLifecycle().observeRepositories(
+        state,
+      );
+    const workers = repositories.filter(({ repoPath }) =>
+      repoPath.startsWith("workers/"),
+    );
+    if (workers.length !== 1)
+      throw new Error(
+        "Runtime observation requires exactly one task-owned worker repository",
+      );
+    const source = workers[0]!.repoPath;
+    const entities = await rpc.call<
+      Array<{ id: string; source: string; contextId: string; kind: string }>
+    >("main", "runtime.listEntities", []);
+    return {
+      source,
+      entities: entities.filter((entity) => entity.source === source),
+    };
+  }
+
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {
     return this.requireWorkspaceRepoFixtureLifecycle().prepare();
   }
@@ -566,6 +608,19 @@ export class HeadlessRunner {
         "Atomic panel-store fixture has no prepared task context",
       );
     return publishAtomicPanelStoreFixture({ vcs, blobstore, contextId });
+  }
+
+  async probeSemanticCommand(mode: "replay" | "stale") {
+    const contextId = this.requireWorkspaceRepoFixtureLifecycle().taskContextId;
+    const fixture = this.workspaceRepoFixture;
+    if (!contextId || !fixture?.repoName)
+      throw new Error("Semantic command probe has no prepared fixture");
+    return probeSemanticCommand({
+      vcs,
+      contextId,
+      repoPath: `${fixture.section}/${fixture.repoName}`,
+      mode,
+    });
   }
 
   /**
@@ -767,6 +822,11 @@ export class HeadlessRunner {
       ? createRecoveryCoordinator()
       : undefined;
     const session = await HeadlessSession.createWithAgent({
+      beforeRetirement: async ({ channelId }) => {
+        const observation = this.readDiagnostics({ channelId });
+        this.terminalSessionDiagnostics.set(channelId, observation);
+        await observation;
+      },
       config: {
         clientId: rpc.selfId,
         rpc: faultingRpc,
@@ -884,6 +944,16 @@ export class HeadlessRunner {
   }
 
   async collectDiagnostics(opts?: {
+    channelId?: string | null;
+    branchId?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const terminal = this.terminalSessionDiagnostics.get(
+      opts?.channelId ?? null,
+    );
+    return terminal ?? this.readDiagnostics(opts);
+  }
+
+  private async readDiagnostics(opts?: {
     channelId?: string | null;
     branchId?: string | null;
   }): Promise<Record<string, unknown>> {
@@ -1270,7 +1340,10 @@ export class HeadlessRunner {
           });
         const session = await this.callSelfDevelopment<{ state: string }>(
           "closeSession",
-          { sessionId, idempotencyKey: `system-test-owner-close-${sessionId}` },
+          {
+            sessionId,
+            idempotencyKey: `system-test-owner-close-${sessionId}`,
+          },
         );
         const runs = await Promise.all(
           [...runIds].map((runId) =>

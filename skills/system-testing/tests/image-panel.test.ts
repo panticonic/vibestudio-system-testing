@@ -112,6 +112,7 @@ it("cancels and releases owned jobs and archives the panel after a primary failu
         error: "provider unavailable",
       }),
     },
+    signal: new AbortController().signal,
     remainingTimeMs: () => 1000,
   } as never);
   expect(result.error).toContain("provider unavailable");
@@ -156,6 +157,7 @@ it.each(["failed", "cancelled"])(
         openPanelClient: async () => handle,
         evalInPanelClient: read,
       },
+      signal: new AbortController().signal,
       remainingTimeMs: () => 1000,
     } as never);
     expect(result.error).toContain(`Image generation ${status}`);

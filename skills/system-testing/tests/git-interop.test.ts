@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { gitInteropTests } from "./git-interop.js";
 
-function invocation(id: string, name: string, args: Record<string, unknown>, result: unknown) {
+function invocation(
+  id: string,
+  name: string,
+  args: Record<string, unknown>,
+  result: unknown,
+) {
   return {
     kind: "message" as const,
     senderId: "agent",
@@ -21,7 +26,7 @@ function invocation(id: string, name: string, args: Record<string, unknown>, res
 
 function execution(
   final: string,
-  calls: ReturnType<typeof invocation>[] = []
+  calls: ReturnType<typeof invocation>[] = [],
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -41,7 +46,9 @@ function execution(
 
 describe("Git interop agentic validators", () => {
   it("requires upstream prose to cite the canonical status rows", () => {
-    const test = gitInteropTests.find(({ name }) => name === "git-upstream-status")!;
+    const test = gitInteropTests.find(
+      ({ name }) => name === "git-upstream-status",
+    )!;
     const rows = [
       {
         repoPath: "projects/example",
@@ -56,14 +63,36 @@ describe("Git interop agentic validators", () => {
     const call = invocation(
       "status",
       "eval",
-      { code: "return await git.upstreamStatus([]);" },
-      { details: { returnValue: rows } }
+      { code: "return await git.upstreamStatus();" },
+      { details: { returnValue: rows } },
     );
     expect(
       test.validate(
-        execution("1 tracked repository: projects/example is ahead of origin by 2 commits.", [call])
-      )
+        execution(
+          "1 tracked repository: projects/example is ahead of origin by 2 commits.",
+          [call],
+        ),
+      ),
     ).toEqual({ passed: true });
-    expect(test.validate(execution("1 repository is in sync.", [call])).passed).toBe(false);
+    expect(
+      test.validate(execution("1 repository is in sync.", [call])).passed,
+    ).toBe(false);
+  });
+  it("accepts a truthful empty upstream summary without demanding a numeric zero", () => {
+    const test = gitInteropTests[0]!;
+    const call = invocation(
+      "empty",
+      "eval",
+      { code: "return await git.upstreamStatus();" },
+      { details: { returnValue: [] } },
+    );
+    expect(
+      test.validate(
+        execution("No repositories track an external upstream.", [call]),
+      ).passed,
+    ).toBe(true);
+    expect(
+      test.validate(execution("Three repositories are ahead.", [call])).passed,
+    ).toBe(false);
   });
 });

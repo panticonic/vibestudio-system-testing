@@ -1,95 +1,51 @@
 import type { TestCase, TestExecutionResult } from "../types.js";
-import {
-  findLastAgentMessage,
-  noIncompleteInvocations,
-  successfulEvalCode,
-  successfulEvalReturnValues,
-} from "./_helpers.js";
+import { NativeNotificationLifecycleObservationSchema } from "@vibestudio/service-schemas/notification";
+import { findLastAgentMessage, getToolCalls, noIncompleteInvocations, successfulEvalCode } from "./_helpers.js";
 
-function notificationChecked(
-  result: TestExecutionResult,
-  options: { actionCount?: number; actionLabels?: string[] } = {}
-) {
+function notificationChecked(result: TestExecutionResult, actionLabels: string[] = []) {
+  const pending = noIncompleteInvocations(result);
+  if (!pending.passed) return pending;
   const final = findLastAgentMessage(result);
-  if (
-    !/notification/iu.test(final) ||
-    !/(shown|displayed|created)/iu.test(final) ||
-    !/(dismissed|removed|cleaned|closed)/iu.test(final)
-  ) {
-    return {
-      passed: false,
-      reason: "Final response did not semantically report notification display and cleanup",
-    };
-  }
-
+  if (!/notification/iu.test(final) || !/(accepted|shown|displayed|created)/iu.test(final) || !/(dismissed|removed|cleaned|closed)/iu.test(final))
+    return { passed: false, reason: "Final response did not report notification acceptance and explicit cleanup" };
   const code = successfulEvalCode(result);
-  if (
-    !/(?:notifications\.show|["']notification\.show["'])/u.test(code) ||
-    !/(?:notifications\.dismiss|["']notification\.dismiss["'])/u.test(code)
-  ) {
-    return {
-      passed: false,
-      reason: "Expected a successful eval showing and dismissing the notification",
-    };
-  }
-  if (options.actionCount !== undefined) {
-    const actionArray = /actions\s*:\s*\[([\s\S]*?)\]/u.exec(code)?.[1] ?? "";
-    const authoredActions = actionArray.match(/\blabel\s*:/gu)?.length ?? 0;
-    if (authoredActions !== options.actionCount) {
-      return {
-        passed: false,
-        reason: `Notification eval authored ${authoredActions} actions, expected ${options.actionCount}`,
-      };
-    }
-  }
-  if (
-    options.actionLabels &&
-    !options.actionLabels.every((label) =>
-      new RegExp(`\\blabel\\s*:\\s*["']${label}["']`, "iu").test(code)
-    )
-  ) {
-    return { passed: false, reason: "Notification eval omitted a requested action label" };
-  }
-  if (/notification\.reportAction|notifications\.reportAction/u.test(code)) {
-    return { passed: false, reason: "Notification display probe fabricated a user action" };
-  }
-
-  const values = successfulEvalReturnValues(result);
-  const records = values.flatMap((value) =>
-    value && typeof value === "object" && !Array.isArray(value)
-      ? [value as Record<string, unknown>]
-      : []
-  );
-  const hasCreatedProof = records.some((record) => {
-    if (record["shown"] === true || record["created"] === true) return true;
-    return Object.entries(record).some(
-      ([key, value]) =>
-        /^(?:id|notification.*id|shown.*id)$/iu.test(key) &&
-        typeof value === "string" &&
-        value.length > 0
-    );
+  if (/notification\.reportAction|notifications\.reportAction/u.test(code))
+    return { passed: false, reason: "Notification probe fabricated a user action" };
+  const observations = getToolCalls(result).flatMap((call) => {
+    if (call.name !== "eval" || call.execution?.status !== "complete" || call.execution.isError === true) return [];
+    const envelope = call.execution.result as { details?: { operationJournal?: { protocol?: unknown; truncated?: unknown; entries?: unknown[] } } } | undefined;
+    const journal = envelope?.details?.operationJournal;
+    if (journal?.protocol !== "workspace-operations.v1" || journal.truncated !== false || !Array.isArray(journal.entries)) return [];
+    return journal.entries.flatMap((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+      const native = entry as Record<string, unknown>;
+      if (native["type"] !== "notification.lifecycle") return [];
+      const parsed = NativeNotificationLifecycleObservationSchema.safeParse(native["receipt"]);
+      return parsed.success ? [parsed.data] : [];
+    });
   });
-  if (!hasCreatedProof) {
-    return { passed: false, reason: "Notification eval returned no display-and-cleanup proof" };
-  }
-  return noIncompleteInvocations(result);
+  if (observations.length !== 2) return { passed: false, reason: "Expected one native notification acceptance and one explicit dismissal" };
+  const [show, dismiss] = observations;
+  if (show?.method !== "notification.show" || dismiss?.method !== "notification.dismiss" || show.notificationId !== dismiss.notificationId)
+    return { passed: false, reason: "Native notification acceptance and cleanup did not join the same identity in order" };
+  if (JSON.stringify([...show.actionLabels].sort()) !== JSON.stringify([...actionLabels].sort()))
+    return { passed: false, reason: "The accepted notification has different action labels" };
+  return { passed: true };
 }
 
 export const notificationTests: TestCase[] = [
   {
     name: "show-notification",
-    description: "Show and clean up one host notification",
+    description: "Request and explicitly dismiss one host test notification",
     category: "notifications",
-    prompt: "Show a harmless temporary informational notification and confirm that it appeared.",
+    prompt: "Send a harmless informational TEST notification, then remove that same test notification once the host accepts it. Report whether both operations completed.",
     validate: (result) => notificationChecked(result),
   },
   {
     name: "show-with-actions",
-    description: "Show and clean up a notification with exactly two action buttons",
+    description: "Request and dismiss a host test notification with exactly two action buttons",
     category: "notifications",
-    prompt:
-      "Show a temporary notification offering exactly two choices, Accept and Decline, and tell me whether it appeared. Do not claim that the user clicked either choice.",
-    validate: (result) =>
-      notificationChecked(result, { actionCount: 2, actionLabels: ["Accept", "Decline"] }),
+    prompt: "Send a TEST notification offering exactly two choices, Accept and Decline, then remove that same test notification once the host accepts it. Report whether both operations completed. Do not claim that the user clicked either choice.",
+    validate: (result) => notificationChecked(result, ["Accept", "Decline"]),
   },
 ];

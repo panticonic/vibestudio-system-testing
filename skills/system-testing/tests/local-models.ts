@@ -5,7 +5,10 @@ import {
   type TestOrchestrationContext,
 } from "../types.js";
 import { rpc } from "@workspace/runtime";
-import { closedChildModelReports, readRetainedChannelReplay } from "./_subagent-evidence.js";
+import {
+  completedChildModelReports,
+  readRetainedChannelReplay,
+} from "./_subagent-evidence.js";
 import type { ServerLogEvent } from "@workspace/pubsub";
 import { systemTestFailure } from "../structured-error.js";
 import {
@@ -15,7 +18,8 @@ import {
   successfulEvalCode,
 } from "./_helpers.js";
 
-const FIXTURE_HEADING = /\bsystem-test-local-model-download-and-task-[a-z0-9]{8}\b/iu;
+const FIXTURE_HEADING =
+  /\bsystem-test-local-model-download-and-task-[a-z0-9]{8}\b/iu;
 const LOCAL_MODEL_RUNTIME_AUTHORITY = {
   ruleId: "run-bundled-local-model",
   capability: { kind: "exact" as const, key: "internal-model-runtime.use" },
@@ -43,7 +47,9 @@ interface ChildEvidence {
   modelExecutionEvidence: unknown;
 }
 
-function lifecycleInspectionFailure(result: TestExecutionResult): string | null {
+function lifecycleInspectionFailure(
+  result: TestExecutionResult,
+): string | null {
   const code = successfulEvalCode(result);
   if (
     !/extensions\.invoke[\s\S]*["']status["']/u.test(code) ||
@@ -54,7 +60,9 @@ function lifecycleInspectionFailure(result: TestExecutionResult): string | null 
   return null;
 }
 
-function completedLocalModelTasks(result: TestExecutionResult): CompletedLocalModelTask[] {
+function completedLocalModelTasks(
+  result: TestExecutionResult,
+): CompletedLocalModelTask[] {
   const localLaunches = getToolCalls(result).flatMap((call) => {
     if (
       call.name !== "spawn_subagent" ||
@@ -64,26 +72,35 @@ function completedLocalModelTasks(result: TestExecutionResult): CompletedLocalMo
       return [];
     }
     const argumentConfig = call.arguments?.["config"];
-    const model = localModelRef(argumentConfig) ?? localModelRef(call.subagent?.launchConfig);
+    const model =
+      localModelRef(argumentConfig) ??
+      localModelRef(call.subagent?.launchConfig);
     return model ? [{ runId: call.id, model }] : [];
   });
   const retained = result.diagnostics?.["subagentEvidence"];
-  const evidence = Array.isArray(retained) ? retained as ChildEvidence[] : [];
+  const evidence = Array.isArray(retained) ? (retained as ChildEvidence[]) : [];
   return localLaunches.flatMap((launch) => {
     const task = result.messages.find(
       (message) =>
         message.task?.id === launch.runId &&
         message.task.execution.isError !== true &&
-        localModelRef(message.task.subagent?.launchConfig) === launch.model
+        localModelRef(message.task.subagent?.launchConfig) === launch.model,
     )?.task;
     if (!task) return [];
     const child = task.subagent;
-    const exact = evidence.find((entry) => entry.runId === launch.runId &&
-      entry.taskChannelId === child?.taskChannelId &&
-      entry.childParticipantId === child?.childParticipantId);
+    const exact = evidence.find(
+      (entry) =>
+        entry.runId === launch.runId &&
+        entry.taskChannelId === child?.taskChannelId &&
+        entry.childParticipantId === child?.childParticipantId,
+    );
     if (!exact) return [];
-    return closedChildModelReports(exact.events, exact.childParticipantId,
-      exact.modelExecutionEvidence).filter((report) => report.model === launch.model)
+    return completedChildModelReports(
+      exact.events,
+      exact.childParticipantId,
+      exact.modelExecutionEvidence,
+    )
+      .filter((report) => report.model === launch.model)
       .map((report) => ({ ...launch, report: report.text }));
   });
 }
@@ -104,45 +121,78 @@ function requireLocalModelTask(result: TestExecutionResult) {
     };
   }
   const final = findLastAgentMessage(result);
-  if (!completed.some(({ heading }) => final.toLowerCase().includes(heading.toLowerCase()))) {
+  if (
+    !completed.some(({ heading }) =>
+      final.toLowerCase().includes(heading.toLowerCase()),
+    )
+  ) {
     return {
       passed: false,
-      reason: "The parent response did not report the heading observed by the local-model child",
+      reason:
+        "The parent response did not report the heading observed by the local-model child",
     };
   }
   return noIncompleteInvocations(result);
 }
 
-async function orchestrateLocalModelTask(context: TestOrchestrationContext): Promise<TestExecutionResult> {
+async function orchestrateLocalModelTask(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await context.runner.spawn(undefined);
   const evidence: ChildEvidence[] = [];
   let failure: ReturnType<typeof systemTestFailure> | undefined;
   try {
-    await context.sendAndWait(session, LOCAL_MODEL_PROMPT, "local-model README task");
+    await context.sendAndWait(
+      session,
+      LOCAL_MODEL_PROMPT,
+      "local-model README task",
+    );
     const messages = [...session.messages];
     for (const launch of getToolCalls({ messages, duration: 0 })) {
-      if (launch.name !== "spawn_subagent" || launch.execution?.status !== "complete" ||
-          launch.execution.isError === true) continue;
-      const child = messages.find((message) => message.task?.id === launch.id)?.task?.subagent;
-      if (!child?.taskChannelId || !child.childParticipantId || !child.childEntityId)
-        throw new Error("Subagent launch did not retain its exact child coordinates");
+      if (
+        launch.name !== "spawn_subagent" ||
+        launch.execution?.status !== "complete" ||
+        launch.execution.isError === true
+      )
+        continue;
+      const child = messages.find((message) => message.task?.id === launch.id)
+        ?.task?.subagent;
+      if (
+        !child?.taskChannelId ||
+        !child.childParticipantId ||
+        !child.childEntityId
+      )
+        throw new Error(
+          "Subagent launch did not retain its exact child coordinates",
+        );
       const events = await readRetainedChannelReplay(rpc, child.taskChannelId);
-      const modelExecutionEvidence = await rpc.call(child.childEntityId,
-        "getModelExecutionEvidence", [child.taskChannelId]);
-      evidence.push({ runId: launch.id, taskChannelId: child.taskChannelId,
-        childParticipantId: child.childParticipantId, events, modelExecutionEvidence });
+      const modelExecutionEvidence = await rpc.call(
+        child.childEntityId,
+        "getModelExecutionEvidence",
+        [child.taskChannelId],
+      );
+      evidence.push({
+        runId: launch.id,
+        taskChannelId: child.taskChannelId,
+        childParticipantId: child.childParticipantId,
+        events,
+        modelExecutionEvidence,
+      });
     }
   } catch (cause) {
     failure = systemTestFailure("local-model-task-evidence", cause);
   }
   const result: TestExecutionResult = {
-    messages: [...session.messages], duration: Date.now() - startedAt,
-    snapshot: session.snapshot(), diagnostics: { subagentEvidence: evidence },
+    messages: [...session.messages],
+    duration: Date.now() - startedAt,
+    snapshot: session.snapshot(),
+    diagnostics: { subagentEvidence: evidence },
     ...(failure ? { failure, error: failure.error.message } : {}),
   };
-  try { await session.close(); }
-  catch (cause) {
+  try {
+    await session.close();
+  } catch (cause) {
     const cleanup = systemTestFailure("local-model-task-close", cause);
     result.cleanupFailures = [cleanup];
     result.cleanupErrors = [cleanup.error.message];
@@ -156,7 +206,8 @@ const LOCAL_MODEL_PROMPT =
 export const localModelTests: TestCase[] = [
   {
     name: "local-model-download-and-task",
-    description: "Prepare the bundled local model and use it for a real workspace task",
+    description:
+      "Prepare the bundled local model and use it for a real workspace task",
     category: "local-models",
     timeoutMs: 30 * 60_000,
     resources: ["profile:local-models"],

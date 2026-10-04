@@ -1,5 +1,6 @@
 import type { TestCase } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
+import { INITIAL_BROWSER_PAGE, FINAL_BROWSER_PAGE } from "./_browser-navigation-fixture.js";
 import {
   panelControlAuthorityPolicy,
   PANEL_AUTOMATION_RESOURCE,
@@ -13,10 +14,10 @@ const CREATE_PANEL_PROMPT =
   "Please inspect the base chat interface itself and tell me its exact visible heading or interface label. Also check whether its console is clean and confirm that a small JavaScript expression runs in that interface.";
 
 const BROWSER_PANEL_PROMPT =
-  "In the browser view that is already open at https://example.com/, compare its visible heading with what you see after moving that same view to https://example.org/. Base the comparison on the rendered pages, and tell me where that view ends up.";
+  `In the browser view that is already open, compare its visible heading with what you see after moving that same view to this comparison page: ${FINAL_BROWSER_PAGE}. Base the comparison on the rendered pages, and tell me where that view ends up.`;
 
 const PANEL_TREE_NAVIGATION_PROMPT =
-  "I lost track of that browser view in the panel tree. Compare https://example.com/ with https://example.org/ there, then tell me where the investigation lived and which destination it ended on.";
+  `I lost track of that browser view in the panel tree. Find it, then compare its current rendered heading with what you see after moving that same view to this comparison page: ${FINAL_BROWSER_PAGE}, then tell me where the investigation lived and which destination it ended on.`;
 
 // The Browser Import inspector ships in Personal, so this case declares it and
 // runs wherever that unit is installed. In a workspace built from other
@@ -31,9 +32,9 @@ function validateSeededPanelNavigation(
   const evidence = result.diagnostics?.["seededPanelGoal"] as
     | Partial<SeededPanelGoalEvidence>
     | undefined;
-  return evidence?.initialUrl === "https://example.com/" &&
+  return evidence?.initialUrl === INITIAL_BROWSER_PAGE &&
     evidence.initialPhase === "ready" &&
-    evidence.finalUrl === "https://example.org/" &&
+    evidence.finalUrl === FINAL_BROWSER_PAGE &&
     evidence.finalPhase === "ready" &&
     evidence.targetPreserved === true &&
     evidence.reachedExpectedDestination === true &&
@@ -43,7 +44,7 @@ function validateSeededPanelNavigation(
     : {
         passed: false,
         reason:
-          "The harness did not observe the same pre-existing panel-tree target navigate from example.com to example.org",
+          "The harness did not observe the same pre-existing panel-tree target navigate between the two owned comparison pages",
       };
 }
 
@@ -97,8 +98,8 @@ export const panelTests: TestCase[] = [
         context,
         BROWSER_PANEL_PROMPT,
         "compare two rendered web pages",
-        "https://example.com/",
-        { finalUrl: "https://example.org/" },
+        INITIAL_BROWSER_PAGE,
+        { finalUrl: FINAL_BROWSER_PAGE },
       ),
     validate: validateSeededPanelNavigation,
   },
@@ -116,8 +117,8 @@ export const panelTests: TestCase[] = [
         context,
         PANEL_TREE_NAVIGATION_PROMPT,
         "locate and navigate the browser investigation",
-        "https://example.com/",
-        { finalUrl: "https://example.org/" },
+        INITIAL_BROWSER_PAGE,
+        { finalUrl: FINAL_BROWSER_PAGE },
       ),
     validate: validateSeededPanelNavigation,
   },

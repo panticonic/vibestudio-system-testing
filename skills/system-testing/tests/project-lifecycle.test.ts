@@ -173,6 +173,7 @@ describe("project lifecycle prompts", () => {
           throw error;
         },
       } as never,
+      signal: new AbortController().signal,
       remainingTimeMs: () => 10_000,
       sendAndWait: async () => {
         throw new Error("Agent turn must not be used");
@@ -209,9 +210,9 @@ describe("project lifecycle prompts", () => {
       .map((test) => test.prompt);
 
     expect(panelPrompts).toEqual([
-      "Create a brand-new isolated panel project and open it for use.",
-      "Create a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
-      "Create a separate panel based on the provided panel project, leave the original unchanged, and open the new panel to confirm it works.",
+      "Create and publish a brand-new isolated panel project, then open it for use.",
+      "Create and publish a brand-new isolated panel with a supported built-in database-style icon selected from this workspace's available icon catalog. Verify that it builds cleanly, then open the panel for use.",
+      "Create and publish a separate panel based on the provided panel project, leave the original unchanged, and open the published copy to confirm it works.",
       "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, capture and visually inspect a screenshot so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, capture and visually inspect a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
     ]);
 
@@ -1521,6 +1522,10 @@ describe("project lifecycle prompts", () => {
       "Preview a separate copy of the existing worker and confirm the original remains unchanged.",
     );
     expect(worker?.prompt).not.toMatch(/forkProject|dryRun\s*:/u);
+    expect(worker?.workspaceRepoFixture).toEqual({
+      kind: "buildable-worker",
+      section: "workers",
+    });
   });
 
   it("keeps docs workspace-dev probe broad", () => {

@@ -634,6 +634,7 @@ describe("self-development semantic validators", () => {
       )!;
       const result = await test.orchestrate!({
         runner: runner as never,
+        signal: new AbortController().signal,
         remainingTimeMs: () => 10_000,
         sendAndWait: async () => {
           throw new Error("Agent turn must not be used");

@@ -322,56 +322,117 @@ function validatePanelGenerationRecovery(result: TestExecutionResult) {
   const evalCalls = base.evidence.calls.filter(
     (call) => call.name === "eval" && (isComplete(call) || isFailed(call)),
   );
+  const journalEntries = (
+    call: InvocationCardPayloadLike,
+  ): Record<string, unknown>[] => {
+    const output = call.execution?.result;
+    const details =
+      isRecord(output) && isRecord(output["details"])
+        ? output["details"]
+        : null;
+    const journal = details?.["operationJournal"];
+    return isRecord(journal) &&
+      journal["protocol"] === "workspace-operations.v1" &&
+      journal["truncated"] === false &&
+      Array.isArray(journal["entries"])
+      ? journal["entries"].filter(isRecord)
+      : [];
+  };
+  const observedInteractionEntry = (
+    entry: Record<string, unknown>,
+    panelId?: string,
+    following: Record<string, unknown>[] = [],
+  ): boolean => {
+    const receipt = entry["receipt"];
+    const effect = isRecord(receipt) ? receipt["effect"] : null;
+    return (
+      entry["type"] === "interaction" &&
+      (!panelId || entry["id"] === panelId) &&
+      isRecord(receipt) &&
+      receipt["protocol"] === "cdp-interaction-outcome.v1" &&
+      receipt["delivery"] === "dispatched" &&
+      isRecord(effect) &&
+      (effect["status"] === "observed" ||
+        (effect["status"] === "not-asserted" &&
+          following.some((observation) => {
+            const observed = observation["receipt"];
+            return (
+              observation["type"] === "evaluation" &&
+              observation["id"] === entry["id"] &&
+              isRecord(observed) &&
+              observed["protocol"] === "cdp-evaluation-outcome.v1" &&
+              observed["truncated"] === false &&
+              observed["value"] != null
+            );
+          })))
+    );
+  };
   const hasObservedInteraction = (call: InvocationCardPayloadLike): boolean =>
-    records(call).some((record) => {
-      const effect = record["effect"];
-      return (
-        record["protocol"] === "cdp-interaction-outcome.v1" &&
-        record["delivery"] === "dispatched" &&
-        isRecord(effect) &&
-        effect["status"] === "observed"
-      );
-    });
+    journalEntries(call).some((entry, index, entries) =>
+      observedInteractionEntry(entry, undefined, entries.slice(index + 1)),
+    );
   const initial = evalCalls.findIndex(hasObservedInteraction);
-  // Generation identity is the public lifecycle evidence. Arbitrary summary
-  // keys (refreshStatus, sessionStatus, etc.) are not part of that contract.
+  if (initial < 0)
+    return {
+      passed: false,
+      reason: "No native initial interaction was observed",
+    };
+  const initialPanelIds = new Set(
+    journalEntries(evalCalls[initial]!)
+      .filter((entry, index, entries) =>
+        observedInteractionEntry(entry, undefined, entries.slice(index + 1)),
+      )
+      .map((entry) => entry["id"]),
+  );
   const initialGenerations = evalCalls
     .slice(0, initial + 1)
-    .flatMap(records)
+    .flatMap(journalEntries)
     .filter(
-      (record) =>
-        typeof record["panelId"] === "string" &&
-        typeof record["runtimeEntityId"] === "string" &&
-        typeof record["attemptId"] === "string" &&
-        typeof record["buildKey"] === "string",
-    );
-  const refresh = evalCalls.findIndex((call, index) => {
-    if (index <= initial) return false;
-    const code = String(call.arguments?.["code"] ?? "");
-    const rebuilt = evalCalls
-      .slice(initial + 1, index + 1)
-      .some((earlier) =>
-        String(earlier.arguments?.["code"] ?? "").includes(".rebuild("),
-      );
+      (entry) =>
+        entry["type"] === "cdp.session" && initialPanelIds.has(entry["id"]),
+    )
+    .map((entry) =>
+      isRecord(entry["receipt"]) ? entry["receipt"]["generation"] : null,
+    )
+    .filter(isRecord);
+  // The completed native session receipt proves replacement of the actual
+  // lease. Publication may already have replaced the renderer: spelling
+  // rebuild/refresh in guest code is neither necessary nor sufficient proof.
+  const isReplacement = (entry: Record<string, unknown>): boolean => {
+    const receipt = entry["receipt"];
+    if (
+      entry["type"] !== "cdp.session" ||
+      !isRecord(receipt) ||
+      receipt["status"] !== "replaced"
+    )
+      return false;
+    const generation = receipt["generation"],
+      previous = receipt["previousGeneration"];
     return (
-      rebuilt &&
-      code.includes(".refresh(") &&
-      records(call).some(
-        (generation) =>
-          generation["protocol"] === "panel-cdp-generation.v1" &&
-          typeof generation["runtimeEntityId"] === "string" &&
-          typeof generation["attemptId"] === "string" &&
-          typeof generation["buildKey"] === "string" &&
-          initialGenerations.some(
-            (previous) =>
-              generation["panelId"] === previous["panelId"] &&
-              generation["runtimeEntityId"] !== previous["runtimeEntityId"] &&
-              generation["attemptId"] !== previous["attemptId"] &&
-              generation["buildKey"] !== previous["buildKey"],
+      isRecord(generation) &&
+      isRecord(previous) &&
+      generation["protocol"] === "panel-cdp-generation.v1" &&
+      entry["id"] === generation["panelId"] &&
+      initialGenerations.some(
+        (initialGeneration) =>
+          ["panelId", "runtimeEntityId", "attemptId", "buildKey"].every(
+            (key) =>
+              typeof previous[key] === "string" &&
+              previous[key] === initialGeneration[key],
+          ) &&
+          generation["panelId"] === previous["panelId"] &&
+          ["runtimeEntityId", "attemptId", "buildKey"].every(
+            (key) =>
+              typeof generation[key] === "string" &&
+              generation[key] !== previous[key],
           ),
       )
     );
-  });
+  };
+  const refresh = evalCalls.findIndex(
+    (call, index) =>
+      index > initial && journalEntries(call).some(isReplacement),
+  );
   if (initial < 0 || refresh < 0) {
     return {
       passed: false,
@@ -405,9 +466,17 @@ function validatePanelGenerationRecovery(result: TestExecutionResult) {
         "No rendered panel source changed between the initial interaction and rebuild",
     };
   }
-  const observedInteraction = evalCalls
-    .slice(refresh)
-    .some(hasObservedInteraction);
+  const replacementEntries = journalEntries(evalCalls[refresh]!);
+  const replacementIndex = replacementEntries.findIndex(isReplacement);
+  const panelId = String(replacementEntries[replacementIndex]!["id"]);
+  const observedInteraction = evalCalls.slice(refresh).some((call, index) =>
+    journalEntries(call)
+      .slice(index === 0 ? replacementIndex + 1 : 0)
+      .some((entry, entryIndex, entries) =>
+        observedInteractionEntry(entry, panelId, entries.slice(entryIndex + 1)),
+      ),
+  );
+
   return initial >= 0 && refresh > initial && observedInteraction
     ? { passed: true, reason: undefined }
     : {
@@ -663,7 +732,7 @@ function validateUnifiedFileAuthoring(result: TestExecutionResult) {
 const SCREENSHOT_PROMPT =
   "Capture a small browser view as an image, save it under a filename with no extension, read that image back, and tell me its visible heading.";
 const PANEL_REBUILD_PROMPT =
-  "Create and publish a small counter panel, open it, then make a visible improvement while it is running. Refresh the panel and confirm the improved version still works.";
+  "Create and publish a small counter panel, open it, and use its browser automation session to verify the counter controls. Keep that session while making a visible improvement to the running panel. Rebuild the panel, refresh the existing automation session, and verify the improved version still works.";
 
 export const developerErgonomicsTests: TestCase[] = [
   {
@@ -684,10 +753,16 @@ export const developerErgonomicsTests: TestCase[] = [
     description: "Resolve a misspelled icon through bounded discovery",
     category: "developer-ergonomics",
 
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-recovered-icon-panel",
+    ),
+    resources: [PANEL_AUTOMATION_RESOURCE],
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Create and publish an isolated panel using the built-in icon `lucide:columns-3x`.",
-    expectedToolFailures: [{ name: "eval", failureCode: "project_icon_invalid" }],
+    expectedToolFailures: [
+      { name: "eval", failureCode: "project_icon_invalid" },
+    ],
     validate: validateInvalidIconRecovery,
   },
   {
@@ -699,7 +774,9 @@ export const developerErgonomicsTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Stress-test the disposable package's build diagnostics by introducing more than 50 separate type errors so the bounded error report is exercised. Then fix the package and confirm it builds cleanly. Leave the temporary breakage unpublished.",
-    expectedToolFailures: [{ name: "verify", failureCode: "build_verification_failed" }],
+    expectedToolFailures: [
+      { name: "verify", failureCode: "build_verification_failed" },
+    ],
     validate: validateBoundedBuildDiagnostics,
   },
   {

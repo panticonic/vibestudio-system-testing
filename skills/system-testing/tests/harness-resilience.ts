@@ -1,7 +1,14 @@
-import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
+import type {
+  TestCase,
+  TestExecutionResult,
+  TestOrchestrationContext,
+} from "../types.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
-import { getToolCalls } from "./_helpers.js";
-import { completedScenarioEvidence, invocationReturnValue } from "./_scenario-evidence.js";
+import { getToolCalls, getToolExecutions } from "./_helpers.js";
+import {
+  completedScenarioEvidence,
+  invocationReturnValue,
+} from "./_scenario-evidence.js";
 
 type ToolCall = ReturnType<typeof getToolCalls>[number];
 
@@ -26,11 +33,11 @@ function recoverySequence(
   result: TestExecutionResult,
   expected: (call: ToolCall) => boolean,
   label: string,
-  sameTool = false
+  sameTool = false,
 ) {
   const base = completedScenarioEvidence(result, [], { allowFailed: expected });
   if (!base.passed) return base;
-  const calls = getToolCalls(result);
+  const calls = getToolExecutions(result);
   const failures = calls
     .map((call, index) => ({ call, index }))
     .filter(({ call }) => isFailure(call) && expected(call));
@@ -43,7 +50,8 @@ function recoverySequence(
   const failed = failures[0]!;
   const recovered = calls.slice(failed.index + 1).some((call) => {
     if (
-      ((sameTool || failed.call.name === "eval") && call.name !== failed.call.name) ||
+      ((sameTool || failed.call.name === "eval") &&
+        call.name !== failed.call.name) ||
       call.execution?.status !== "complete" ||
       call.execution.isError === true
     ) {
@@ -54,7 +62,10 @@ function recoverySequence(
   });
   return recovered
     ? { passed: true, reason: undefined }
-    : { passed: false, reason: `The ${label} failure had no observable later recovery` };
+    : {
+        passed: false,
+        reason: `The ${label} failure had no observable later recovery`,
+      };
 }
 
 function thrownEval(call: ToolCall): boolean {
@@ -79,7 +90,8 @@ function validateHugeReturn(result: TestExecutionResult) {
     }
     const code = String(call.arguments?.["code"] ?? "");
     const returned = invocationReturnValue(call);
-    if (!/Array|repeat|fill|map/iu.test(code) || !returned.present) return false;
+    if (!/Array|repeat|fill|map/iu.test(code) || !returned.present)
+      return false;
     try {
       const executionResult = call.execution?.result;
       if (
@@ -89,15 +101,19 @@ function validateHugeReturn(result: TestExecutionResult) {
       ) {
         return false;
       }
-      const protocolContent = (executionResult as Record<string, unknown>)["protocolContent"];
+      const protocolContent = (executionResult as Record<string, unknown>)[
+        "protocolContent"
+      ];
       if (!Array.isArray(protocolContent)) return false;
       const protocolText = protocolContent
         .filter(
           (item): item is Record<string, unknown> =>
-            Boolean(item) && typeof item === "object" && !Array.isArray(item)
+            Boolean(item) && typeof item === "object" && !Array.isArray(item),
         )
         .map((item) =>
-          item["type"] === "text" && typeof item["text"] === "string" ? item["text"] : ""
+          item["type"] === "text" && typeof item["text"] === "string"
+            ? item["text"]
+            : "",
         )
         .join("\n");
       const marker = returned.value;
@@ -106,9 +122,11 @@ function validateHugeReturn(result: TestExecutionResult) {
         typeof marker === "object" &&
         !Array.isArray(marker) &&
         (marker as Record<string, unknown>)["truncated"] === true &&
-        typeof (marker as Record<string, unknown>)["originalChars"] === "number" &&
-        ((marker as Record<string, unknown>)["originalChars"] as number) > 100_000 &&
-        (marker as Record<string, unknown>)["scopeKey"] === "$lastLargeReturn"
+        typeof (marker as Record<string, unknown>)["originalChars"] ===
+          "number" &&
+        ((marker as Record<string, unknown>)["originalChars"] as number) >
+          100_000 &&
+        (marker as Record<string, unknown>)["scopeKey"] === "$lastLargeReturn",
       );
       return (
         isBoundedMarker &&
@@ -145,7 +163,7 @@ function invalidToolArguments(call: ToolCall): boolean {
   return (
     isFailure(call) &&
     /invalid arguments?|schema validation|expected (?:string|number|boolean|object|array)/iu.test(
-      errorText(call)
+      errorText(call),
     )
   );
 }
@@ -157,7 +175,7 @@ function formatError(error: unknown): string {
 async function captureOrchestratedSession(
   context: TestOrchestrationContext,
   spawnOptions: Parameters<TestOrchestrationContext["runner"]["spawn"]>[0],
-  exercise: (session: HeadlessSession) => Promise<void>
+  exercise: (session: HeadlessSession) => Promise<void>,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await context.runner.spawn(spawnOptions);
@@ -182,30 +200,37 @@ async function captureOrchestratedSession(
     .snapshot()
     .cleanupErrors.map((entry) => `${entry.phase}: ${entry.message}`);
   if (cleanupErrors.length > 0) {
-    execution.cleanupErrors = [...(execution.cleanupErrors ?? []), ...cleanupErrors];
+    execution.cleanupErrors = [
+      ...(execution.cleanupErrors ?? []),
+      ...cleanupErrors,
+    ];
   }
   return execution;
 }
 
 async function orchestrateFollowupTurn(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   let initialResponseId: string | undefined;
   let followupResponseId: string | undefined;
-  const execution = await captureOrchestratedSession(context, undefined, async (session) => {
-    const initial = await context.sendAndWait(
-      session,
-      "Use a harmless read-only tool to inspect something small and summarize it.",
-      "initial tool-using turn"
-    );
-    initialResponseId = initial.id;
-    const followup = await context.sendAndWait(
-      session,
-      "Now give me a fresh one-sentence recap of what you observed.",
-      "follow-up turn"
-    );
-    followupResponseId = followup.id;
-  });
+  const execution = await captureOrchestratedSession(
+    context,
+    undefined,
+    async (session) => {
+      const initial = await context.sendAndWait(
+        session,
+        "Use a harmless read-only tool to inspect something small and summarize it.",
+        "initial tool-using turn",
+      );
+      initialResponseId = initial.id;
+      const followup = await context.sendAndWait(
+        session,
+        "Now give me a fresh one-sentence recap of what you observed.",
+        "follow-up turn",
+      );
+      followupResponseId = followup.id;
+    },
+  );
   execution.diagnostics = {
     ...(execution.diagnostics ?? {}),
     followupTurn: { initialResponseId, followupResponseId },
@@ -214,7 +239,7 @@ async function orchestrateFollowupTurn(
 }
 
 async function orchestrateValidationRetry(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   return captureOrchestratedSession(
     context,
@@ -223,9 +248,9 @@ async function orchestrateValidationRetry(
       await context.sendAndWait(
         session,
         "Check whether the validation-recovery probe remains usable after it rejects a request.",
-        "validation retry turn"
+        "validation retry turn",
       );
-    }
+    },
   );
 }
 
@@ -233,7 +258,10 @@ function validateFollowupTurn(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result, []);
   if (!base.passed) return base;
   if (result.error || (result.cleanupErrors?.length ?? 0) > 0) {
-    return { passed: false, reason: "The two-turn session or its cleanup failed" };
+    return {
+      passed: false,
+      reason: "The two-turn session or its cleanup failed",
+    };
   }
   const turnEvidence = result.diagnostics?.["followupTurn"] as
     | { initialResponseId?: unknown; followupResponseId?: unknown }
@@ -248,20 +276,22 @@ function validateFollowupTurn(result: TestExecutionResult) {
       message.complete &&
       message.contentType !== "invocation" &&
       message.contentType !== "thinking" &&
-      message.content?.trim()
+      message.content?.trim(),
     );
   };
   const toolIndex = result.messages.findIndex(
     (message) =>
       message.contentType === "invocation" &&
       message.invocation?.execution?.status === "complete" &&
-      message.invocation.execution.isError !== true
+      message.invocation.execution.isError !== true,
   );
   const firstAnswer = result.messages.findIndex(
-    (message, index) => message.id === initialResponseId && isVisibleAgentMessage(index)
+    (message, index) =>
+      message.id === initialResponseId && isVisibleAgentMessage(index),
   );
   const secondAnswer = result.messages.findIndex(
-    (message, index) => message.id === followupResponseId && isVisibleAgentMessage(index)
+    (message, index) =>
+      message.id === followupResponseId && isVisibleAgentMessage(index),
   );
   return toolIndex >= 0 &&
     firstAnswer > toolIndex &&
@@ -286,12 +316,15 @@ export const harnessResilienceTests: TestCase[] = [
     prompt:
       "Show that a deliberate sandbox exception is visible and does not prevent a later successful evaluation.",
     validation: "harness",
-    expectedToolFailures: [{ name: "eval", failureCode: "guest_execution_failed" }],
+    expectedToolFailures: [
+      { name: "eval", failureCode: "guest_execution_failed" },
+    ],
     validate: (result) => recoverySequence(result, thrownEval, "thrown-eval"),
   },
   {
     name: "eval-huge-return-bounded-terminal",
-    description: "A large eval return is bounded and does not silently stall the turn",
+    description:
+      "A large eval return is bounded and does not silently stall the turn",
     category: "harness-resilience",
     prompt:
       "Check how the sandbox handles a return value far too large for a normal tool response.",
@@ -300,13 +333,15 @@ export const harnessResilienceTests: TestCase[] = [
   },
   {
     name: "eval-timeout-error-visible",
-    description: "An explicitly bounded eval timeout is visible and leaves no pending tool",
+    description:
+      "An explicitly bounded eval timeout is visible and leaves no pending tool",
     category: "harness-resilience",
     prompt:
-      "Check what happens when a sandbox task takes too long to finish, then confirm that the sandbox is still usable afterward.",
+      "Verify that a sandbox evaluation with an explicit 100 ms deadline reports expiry for longer work, then confirm that a later evaluation still succeeds.",
     validation: "harness",
     expectedToolFailures: [{ name: "eval", errorIncludes: "timed out" }],
-    validate: (result) => recoverySequence(result, timedOutEval, "timed-out eval"),
+    validate: (result) =>
+      recoverySequence(result, timedOutEval, "timed-out eval"),
   },
   {
     name: "invalid-tool-args-visible-retry",
@@ -317,13 +352,28 @@ export const harnessResilienceTests: TestCase[] = [
       "Check whether the validation-recovery probe remains usable after it rejects a request.",
     validation: "harness",
     orchestrate: orchestrateValidationRetry,
-    validate: (result) => recoverySequence(result, invalidToolArguments, "invalid-argument", true),
+    // One deliberate receiver rejection is retained at the physical call and
+    // propagated to its native owner; the validator requires their exact link.
+    expectedToolFailures: [
+      {
+        name: "validation_retry_probe",
+        errorIncludes: "injected first-call argument rejection",
+      },
+      {
+        name: "validation_retry_probe",
+        errorIncludes: "injected first-call argument rejection",
+      },
+    ],
+    validate: (result) =>
+      recoverySequence(result, invalidToolArguments, "invalid-argument", true),
   },
   {
     name: "post-tool-followup-turn",
-    description: "A follow-up instruction after tool use still gets a fresh assistant response",
+    description:
+      "A follow-up instruction after tool use still gets a fresh assistant response",
     category: "harness-resilience",
-    prompt: "Use a harmless read-only tool to inspect something small and summarize it.",
+    prompt:
+      "Use a harmless read-only tool to inspect something small and summarize it.",
     validation: "harness",
     orchestrate: orchestrateFollowupTurn,
     validate: validateFollowupTurn,

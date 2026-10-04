@@ -1,3 +1,7 @@
+import {
+  nativeInvocationId,
+  type NativeInvocationSource,
+} from "@vibestudio/service-schemas/nativeInvocation";
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { deliveryHardeningTests } from "./delivery-hardening.js";
@@ -28,7 +32,10 @@ function invocation(name: string, id = `invocation:${name}`) {
   } as never;
 }
 
-function execution(diagnostics: Record<string, unknown>, tool?: string): TestExecutionResult {
+function execution(
+  diagnostics: Record<string, unknown>,
+  tool?: string,
+): TestExecutionResult {
   return {
     messages: [...(tool ? [invocation(tool)] : []), agentMessage()],
     duration: 1,
@@ -48,7 +55,9 @@ describe("delivery hardening scenario validators", () => {
         faults: [{ method: "join", injected: true }],
       },
     });
-    expect(test("delivery-first-connect-recovery").validate(result)).toEqual({ passed: true });
+    expect(test("delivery-first-connect-recovery").validate(result)).toEqual({
+      passed: true,
+    });
   });
 
   it("requires one provider execution after a transient claim failure", () => {
@@ -59,17 +68,104 @@ describe("delivery hardening scenario validators", () => {
           faults: [{ method: "claimMethodCall", injected: true }],
         },
       },
-      "delivery_probe"
+      "delivery_probe",
     );
-    expect(test("delivery-transient-claim-recovery").validate(result)).toEqual({ passed: true });
+    expect(test("delivery-transient-claim-recovery").validate(result)).toEqual({
+      passed: true,
+    });
+  });
+
+  it("counts one causally linked method execution while requiring both owner and receiver to settle", () => {
+    const source: NativeInvocationSource = {
+      owner: {
+        runtimeId: "do:workers/agent:Agent:one",
+        authoritySessionId: "lifetime",
+        contextId: "context",
+        incarnation: "storage",
+        channelId: "channel",
+        source: "workers/agent",
+        effectiveVersion: "state",
+        className: "Agent",
+        objectKey: "one",
+        executionDigest: "a".repeat(64),
+      },
+      task: { conversationId: 4, taskId: 38, kind: "pi.tool", version: 2 },
+      operation: {
+        kind: "tool",
+        assistantEntryId: 37,
+        callId: "call:original",
+        name: "delivery_probe",
+        argumentsDigest: "b".repeat(64),
+      },
+    };
+    const ownerId = nativeInvocationId(source);
+    const call = (id: string, extra: Record<string, unknown> = {}) => ({
+      ...(invocation("delivery_probe", id) as object),
+      invocation: {
+        id,
+        name: "delivery_probe",
+        arguments: {},
+        execution: {
+          status: "complete",
+          terminalOutcome: "success",
+          isError: false,
+          result: { ok: true },
+        },
+        ...extra,
+      },
+    });
+    const result = execution({
+      transientClaimRecovery: {
+        executionCount: 1,
+        faults: [{ method: "claimMethodCall", injected: true }],
+      },
+    });
+    result.messages.unshift(
+      call("call:physical") as never,
+      call(ownerId, {
+        nativeSource: source,
+        execution: {
+          status: "complete",
+          terminalOutcome: "success",
+          result: {
+            details: {
+              protocol: "native-channel-method-outcome.v1",
+              invocationId: "call:physical",
+              transportCallId: "transport:original",
+              eventId: 5,
+              kind: "invocation.completed",
+              value: { ok: true },
+            },
+          },
+        },
+      }) as never,
+    );
+    expect(test("delivery-transient-claim-recovery").validate(result)).toEqual({
+      passed: true,
+    });
+    const unrelated = structuredClone(result);
+    (
+      unrelated.messages[1] as any
+    ).invocation.execution.result.details.invocationId = "different-call";
+    expect(
+      test("delivery-transient-claim-recovery").validate(unrelated).passed,
+    ).toBe(false);
+    const stranded = structuredClone(result);
+    (stranded.messages[0] as any).invocation.execution.status = "pending";
+    delete (stranded.messages[0] as any).invocation.execution.terminalOutcome;
+    expect(
+      test("delivery-transient-claim-recovery").validate(stranded).passed,
+    ).toBe(false);
   });
 
   it("requires one terminal identity and one execution across the vessel abort", () => {
     const result = execution(
       { terminalAfterVesselRestart: { aborted: true, executionCount: 1 } },
-      "delayed_delivery_probe"
+      "delayed_delivery_probe",
     );
-    expect(test("delivery-terminal-after-vessel-restart").validate(result)).toEqual({
+    expect(
+      test("delivery-terminal-after-vessel-restart").validate(result),
+    ).toEqual({
       passed: true,
     });
   });
@@ -92,7 +188,9 @@ describe("delivery hardening scenario validators", () => {
         },
       },
     });
-    expect(test("delivery-context-storage-after-wake").validate(passing)).toEqual({
+    expect(
+      test("delivery-context-storage-after-wake").validate(passing),
+    ).toEqual({
       passed: true,
     });
 
@@ -102,6 +200,8 @@ describe("delivery hardening scenario validators", () => {
         after: { mailboxContextCopies: number };
       }
     ).after.mailboxContextCopies = 1;
-    expect(test("delivery-context-storage-after-wake").validate(copied).passed).toBe(false);
+    expect(
+      test("delivery-context-storage-after-wake").validate(copied).passed,
+    ).toBe(false);
   });
 });

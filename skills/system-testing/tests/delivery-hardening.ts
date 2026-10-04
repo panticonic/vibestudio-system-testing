@@ -1,7 +1,15 @@
 import { z } from "zod";
 import type { HeadlessSession } from "@workspace/agentic-session";
-import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
-import { getToolCalls, hasAgentResponse, noIncompleteInvocations } from "./_helpers.js";
+import type {
+  TestCase,
+  TestExecutionResult,
+  TestOrchestrationContext,
+} from "../types.js";
+import {
+  getToolExecutions,
+  hasAgentResponse,
+  noIncompleteInvocations,
+} from "./_helpers.js";
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -9,7 +17,7 @@ function formatError(error: unknown): string {
 
 async function closeSession(
   session: HeadlessSession,
-  execution: TestExecutionResult
+  execution: TestExecutionResult,
 ): Promise<void> {
   try {
     await session.close();
@@ -21,14 +29,21 @@ async function closeSession(
 function successfulExecution(result: TestExecutionResult) {
   if (result.error) return { passed: false, reason: result.error };
   if ((result.cleanupErrors?.length ?? 0) > 0) {
-    return { passed: false, reason: `Session cleanup failed: ${result.cleanupErrors!.join("; ")}` };
+    return {
+      passed: false,
+      reason: `Session cleanup failed: ${result.cleanupErrors!.join("; ")}`,
+    };
   }
   if (!hasAgentResponse(result))
     return { passed: false, reason: "No agent response was delivered" };
   return noIncompleteInvocations(result);
 }
 
-function injectedFault(result: TestExecutionResult, key: string, method: string) {
+function injectedFault(
+  result: TestExecutionResult,
+  key: string,
+  method: string,
+) {
   const value = result.diagnostics?.[key];
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const faults = (value as Record<string, unknown>)["faults"];
@@ -38,12 +53,12 @@ function injectedFault(result: TestExecutionResult, key: string, method: string)
       fault &&
       typeof fault === "object" &&
       (fault as Record<string, unknown>)["method"] === method &&
-      (fault as Record<string, unknown>)["injected"] === true
+      (fault as Record<string, unknown>)["injected"] === true,
   );
 }
 
 async function firstConnectRecovery(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   let session: HeadlessSession | null = null;
@@ -66,7 +81,7 @@ async function firstConnectRecovery(
     await context.sendAndWait(
       session,
       "Confirm in one short sentence that this conversation is ready.",
-      "post-recovery ready turn"
+      "post-recovery ready turn",
     );
   } catch (cause) {
     error = formatError(cause);
@@ -94,7 +109,10 @@ function validateFirstConnectRecovery(result: TestExecutionResult) {
     | { connectedAfterRecovery?: unknown }
     | undefined;
   if (probe?.connectedAfterRecovery !== true) {
-    return { passed: false, reason: "The recovered first connection never reached ready" };
+    return {
+      passed: false,
+      reason: "The recovered first connection never reached ready",
+    };
   }
   return injectedFault(result, "firstConnectRecovery", "join")
     ? { passed: true }
@@ -102,7 +120,7 @@ function validateFirstConnectRecovery(result: TestExecutionResult) {
 }
 
 async function transientClaimRecovery(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   let executionCount = 0;
@@ -119,7 +137,8 @@ async function transientClaimRecovery(
     ],
     methods: {
       delivery_probe: {
-        description: "Return a harmless delivery probe marker from the connected client.",
+        description:
+          "Return a harmless delivery probe marker from the connected client.",
         parameters: z.object({}).strict(),
         execute: async () => {
           executionCount += 1;
@@ -133,7 +152,7 @@ async function transientClaimRecovery(
     await context.sendAndWait(
       session,
       "Ask the connected client to run its harmless delivery probe and report the result.",
-      "claim recovery turn"
+      "claim recovery turn",
     );
   } catch (cause) {
     error = formatError(cause);
@@ -169,25 +188,35 @@ function validateTransientClaimRecovery(result: TestExecutionResult) {
   if (!injectedFault(result, "transientClaimRecovery", "claimMethodCall")) {
     return { passed: false, reason: "The provider claim RPC was not faulted" };
   }
-  const calls = getToolCalls(result).filter((call) => call.name === "delivery_probe");
+  const calls = getToolExecutions(result).filter(
+    (call) => call.name === "delivery_probe",
+  );
   const unique = new Set(calls.map((call) => call.id));
-  return calls.length >= 1 && unique.size === 1 && calls.at(-1)?.execution?.status === "complete"
+  return calls.length >= 1 &&
+    unique.size === 1 &&
+    calls.at(-1)?.execution?.status === "complete"
     ? { passed: true }
     : {
         passed: false,
-        reason: "The recovered provider invocation did not settle once on its original identity",
+        reason:
+          "The recovered provider invocation did not settle once on its original identity",
       };
 }
 
-async function waitFor<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+async function waitFor<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`${label} did not occur within ${timeoutMs}ms`)),
-          timeoutMs
+          () =>
+            reject(new Error(`${label} did not occur within ${timeoutMs}ms`)),
+          timeoutMs,
         );
       }),
     ]);
@@ -197,7 +226,7 @@ async function waitFor<T>(promise: Promise<T>, timeoutMs: number, label: string)
 }
 
 async function terminalAfterVesselRestart(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   let executionCount = 0;
@@ -227,18 +256,19 @@ async function terminalAfterVesselRestart(
   let error: string | undefined;
   let aborted = false;
   try {
-    const turn = context.sendAndWait(
-      session,
+    const inputMessageId = await session.send(
       "Ask the connected client to run its delayed delivery probe and report the returned result.",
-      "pending provider result turn"
     );
     await waitFor(executionStarted, 30_000, "provider execution");
     const targetId = session.agentTargetId;
     if (!targetId) throw new Error("Spawned test agent has no runtime target");
-    const fault = await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
+    const fault =
+      await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
     aborted = fault.aborted;
     releaseResult();
-    await turn;
+    await session.waitForInput(inputMessageId, {
+      timeoutMs: context.remainingTimeMs(),
+    });
   } catch (cause) {
     releaseResult();
     error = formatError(cause);
@@ -268,13 +298,18 @@ function validateTerminalAfterVesselRestart(result: TestExecutionResult) {
       reason: `Expected one execution across an acknowledged vessel abort; observed ${JSON.stringify(probe)}`,
     };
   }
-  const calls = getToolCalls(result).filter((call) => call.name === "delayed_delivery_probe");
+  const calls = getToolExecutions(result).filter(
+    (call) => call.name === "delayed_delivery_probe",
+  );
   const unique = new Set(calls.map((call) => call.id));
-  return calls.length >= 1 && unique.size === 1 && calls.at(-1)?.execution?.status === "complete"
+  return calls.length >= 1 &&
+    unique.size === 1 &&
+    calls.at(-1)?.execution?.status === "complete"
     ? { passed: true }
     : {
         passed: false,
-        reason: "The pending terminal was duplicated or did not settle after vessel recovery",
+        reason:
+          "The pending terminal was duplicated or did not settle after vessel recovery",
       };
 }
 
@@ -285,10 +320,16 @@ interface ContextStorageSnapshot {
   mailboxContextCopies: number;
 }
 
-function contextStorageFromDiagnostics(value: Record<string, unknown>): ContextStorageSnapshot {
-  const channel = value["channelDelivery"] as Record<string, unknown> | undefined;
+function contextStorageFromDiagnostics(
+  value: Record<string, unknown>,
+): ContextStorageSnapshot {
+  const channel = value["channelDelivery"] as
+    | Record<string, unknown>
+    | undefined;
   const delivery = channel?.["delivery"] as Record<string, unknown> | undefined;
-  const storage = delivery?.["contextStorage"] as Record<string, unknown> | undefined;
+  const storage = delivery?.["contextStorage"] as
+    | Record<string, unknown>
+    | undefined;
   const number = (input: unknown, label: string) => {
     if (typeof input !== "number" || !Number.isFinite(input)) {
       throw new Error(`Missing channel diagnostic ${label}`);
@@ -299,12 +340,15 @@ function contextStorageFromDiagnostics(value: Record<string, unknown>): ContextS
     envelopeCount: number(channel?.["envelopeCount"], "envelopeCount"),
     eventRows: number(storage?.["eventRows"], "eventRows"),
     mailboxRows: number(storage?.["mailboxRows"], "mailboxRows"),
-    mailboxContextCopies: number(storage?.["mailboxContextCopies"], "mailboxContextCopies"),
+    mailboxContextCopies: number(
+      storage?.["mailboxContextCopies"],
+      "mailboxContextCopies",
+    ),
   };
 }
 
 async function contextStorageAfterWake(
-  context: TestOrchestrationContext
+  context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await context.runner.spawn();
@@ -316,20 +360,26 @@ async function contextStorageAfterWake(
     await context.sendAndWait(
       session,
       "Reply with one concise sentence confirming the first delivery.",
-      "context storage baseline turn"
+      "context storage baseline turn",
     );
     const channelId = session.channelId;
     const targetId = session.agentTargetId;
-    if (!channelId || !targetId) throw new Error("Session lacks channel or agent identity");
-    before = contextStorageFromDiagnostics(await context.runner.collectDiagnostics({ channelId }));
-    const fault = await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
+    if (!channelId || !targetId)
+      throw new Error("Session lacks channel or agent identity");
+    before = contextStorageFromDiagnostics(
+      await context.runner.collectDiagnostics({ channelId }),
+    );
+    const fault =
+      await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
     aborted = fault.aborted;
     await context.sendAndWait(
       session,
       "Reply with one different concise sentence confirming delivery after wake.",
-      "context storage post-wake turn"
+      "context storage post-wake turn",
     );
-    after = contextStorageFromDiagnostics(await context.runner.collectDiagnostics({ channelId }));
+    after = contextStorageFromDiagnostics(
+      await context.runner.collectDiagnostics({ channelId }),
+    );
   } catch (cause) {
     error = formatError(cause);
   }
@@ -350,12 +400,19 @@ function validateContextStorageAfterWake(result: TestExecutionResult) {
   const base = successfulExecution(result);
   if (!base.passed) return base;
   const probe = result.diagnostics?.["contextStorageAfterWake"] as
-    | { aborted?: unknown; before?: ContextStorageSnapshot; after?: ContextStorageSnapshot }
+    | {
+        aborted?: unknown;
+        before?: ContextStorageSnapshot;
+        after?: ContextStorageSnapshot;
+      }
     | undefined;
   const before = probe?.before;
   const after = probe?.after;
   if (probe?.aborted !== true || !before || !after) {
-    return { passed: false, reason: "The context-storage wake probe did not complete" };
+    return {
+      passed: false,
+      reason: "The context-storage wake probe did not complete",
+    };
   }
   const envelopeDelta = after.envelopeCount - before.envelopeCount;
   const contextDelta = after.eventRows - before.eventRows;
@@ -380,27 +437,33 @@ function validateContextStorageAfterWake(result: TestExecutionResult) {
 export const deliveryHardeningTests: TestCase[] = [
   {
     name: "delivery-first-connect-recovery",
-    description: "A first subscription rejection recovers onto one ready conversation surface",
+    description:
+      "A first subscription rejection recovers onto one ready conversation surface",
     category: "delivery-hardening",
-    prompt: "Confirm that a conversation remains usable after its first connection attempt fails.",
+    prompt:
+      "Confirm that a conversation remains usable after its first connection attempt fails.",
     validation: "harness",
     orchestrate: firstConnectRecovery,
     validate: validateFirstConnectRecovery,
   },
   {
     name: "delivery-transient-claim-recovery",
-    description: "A transient provider claim failure does not terminate the live subscription",
+    description:
+      "A transient provider claim failure does not terminate the live subscription",
     category: "delivery-hardening",
-    prompt: "Run a harmless connected-client operation despite a transient delivery claim failure.",
+    prompt:
+      "Run a harmless connected-client operation despite a transient delivery claim failure.",
     validation: "harness",
     orchestrate: transientClaimRecovery,
     validate: validateTransientClaimRecovery,
   },
   {
     name: "delivery-terminal-after-vessel-restart",
-    description: "An outstanding method terminal is delivered exactly once after vessel restart",
+    description:
+      "An outstanding method terminal is delivered exactly once after vessel restart",
     category: "delivery-hardening",
-    prompt: "Complete a connected-client operation across an agent restart without duplication.",
+    prompt:
+      "Complete a connected-client operation across an agent restart without duplication.",
     validation: "harness",
     orchestrate: terminalAfterVesselRestart,
     validate: validateTerminalAfterVesselRestart,
@@ -410,7 +473,8 @@ export const deliveryHardeningTests: TestCase[] = [
     description:
       "Wake recovery preserves one normalized context row per event without mailbox copies",
     category: "delivery-hardening",
-    prompt: "Exchange messages across an agent wake and verify bounded durable context storage.",
+    prompt:
+      "Exchange messages across an agent wake and verify bounded durable context storage.",
     validation: "harness",
     orchestrate: contextStorageAfterWake,
     validate: validateContextStorageAfterWake,

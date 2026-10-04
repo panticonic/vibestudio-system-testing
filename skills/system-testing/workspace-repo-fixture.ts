@@ -1,5 +1,6 @@
 import type { VcsClient } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDirs";
 import { serializeSystemTestError } from "./structured-error.js";
 
 type FixtureVcs = Pick<
@@ -157,6 +158,41 @@ export class WorkspaceRepoFixtureLifecycle {
 
   get taskContextId(): string | null {
     return this.contextId;
+  }
+
+  /** Observe actual task-owned repository identities before cleanup retires them. */
+  async observeRepositories(
+    state: WorkspaceRepoFixtureState,
+  ): Promise<WorkspaceRepoFixtureRepository[]> {
+    if (
+      state.repositoryId &&
+      state.repoPath &&
+      state.kind !== "buildable-panel-with-derived"
+    )
+      return [{ repositoryId: state.repositoryId, repoPath: state.repoPath }];
+    const status = await this.port.vcs.status({ contextId: state.contextId });
+    if (status.committed.kind !== "event")
+      throw new Error(
+        "Workspace fixture task context has no committed event for attribution",
+      );
+    const events = await this.taskFirstParentEvents(
+      state,
+      status.committed.eventId,
+    );
+    const changes = await this.inspectTaskChanges(
+      await this.taskWorkNewestFirst(events),
+    );
+    const scope = this.resolveCreationScope(state, changes.createdRepositories);
+    if (scope.error) throw scope.error;
+    const repositories = [
+      ...(state.repositoryId && state.repoPath
+        ? [{ repositoryId: state.repositoryId, repoPath: state.repoPath }]
+        : []),
+      ...changes.createdRepositories,
+    ];
+    return repositories
+      .filter(({ repositoryId }) => scope.ownedRepositoryIds.has(repositoryId))
+      .map(({ repositoryId, repoPath }) => ({ repositoryId, repoPath }));
   }
 
   async prepare(): Promise<WorkspaceRepoFixtureState> {
@@ -1209,7 +1245,7 @@ function repositorySeedFiles(
         path: "package.json",
         content: `${JSON.stringify(
           {
-            name: repoName,
+            name: expectedBuildUnitName(`workers/${repoName}`),
             version: "0.0.0",
             private: true,
             type: "module",
@@ -1240,7 +1276,9 @@ function repositorySeedFiles(
           "  // workspace services instead use workspace-service + resolveService.",
           '  @rpc({ website: { kind: "closed", reason: "This disposable test probe is available only to trusted workspace callers." }, principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "write" })',
           "  async inspectProbe(): Promise<unknown> {",
-          '    return this.env["SYSTEM_TEST_PROBE"] ?? null;',
+          "    // Initial state is supplied with stateArgs: { probe: value }, not worker env.",
+          '    const state = this.env["STATE_ARGS"] as { probe?: unknown } | undefined;',
+          "    return { probe: state?.probe ?? null };",
           "  }",
           "}",
           "",
@@ -1254,7 +1292,7 @@ function repositorySeedFiles(
         path: "package.json",
         content: `${JSON.stringify(
           {
-            name: repoName,
+            name: expectedBuildUnitName(`workers/${repoName}`),
             version: "0.0.0",
             private: true,
             type: "module",

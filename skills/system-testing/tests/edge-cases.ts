@@ -73,8 +73,7 @@ function invalidEvalRequest(call: ToolCall): boolean {
   const invalidArguments =
     malformed && /invalid args|code must be a string|schema validation/iu.test(errorText(call));
   const invalidSyntax =
-    typeof args["code"] === "string" &&
-    /unexpected token|parse|syntax/iu.test(errorText(call));
+    typeof args["code"] === "string" && /unexpected token|parse|syntax/iu.test(errorText(call));
   return invalidArguments || invalidSyntax;
 }
 
@@ -164,10 +163,10 @@ function validateMissingFileRecovery(result: TestExecutionResult) {
       const missingError = records.some((record) =>
         Object.entries(record).some(
           ([key, value]) =>
-            ((/code/iu.test(key) && value === "ENOENT") ||
-              (/message|error/iu.test(key) &&
-                typeof value === "string" &&
-                /not found|enoent|does not exist/iu.test(value)))
+            (/code/iu.test(key) && value === "ENOENT") ||
+            (/message|error/iu.test(key) &&
+              typeof value === "string" &&
+              /not found|enoent|does not exist/iu.test(value))
         )
       );
       const observedRecovery = records.some((record) =>
@@ -189,11 +188,14 @@ function validateMissingFileRecovery(result: TestExecutionResult) {
 export const edgeCaseTests: TestCase[] = [
   {
     name: "eval-extra-argument",
-    description: "Reject unsupported eval arguments clearly",
+    description: "Reject malformed eval requests and verify subsequent recovery",
     category: "edge-cases",
     prompt:
       "Check that a malformed sandbox request is rejected and that a corrected request still works afterward.",
-    expectedToolFailures: [{ name: "eval", failureCode: "invalid_tool_arguments" }],
+    expectedToolFailures: [
+      { name: "eval", failureCode: "invalid_tool_arguments" },
+      { name: "eval", failureCode: "guest_execution_failed" },
+    ],
     validate: (result) => validateRecovery(result, invalidEvalRequest, "invalid-request"),
   },
   {
@@ -213,7 +215,10 @@ export const edgeCaseTests: TestCase[] = [
     },
     prompt:
       "Check that a nonexistent package import fails clearly without preventing later sandbox work.",
-    expectedToolFailures: [{ name: "eval", failureCode: "module_not_available" }],
+    expectedToolFailures: [
+      { name: "eval", failureCode: "module_not_available" },
+      { name: "eval", failureCode: "package_not_found" },
+    ],
     validate: validateInvalidImportRecovery,
   },
   {

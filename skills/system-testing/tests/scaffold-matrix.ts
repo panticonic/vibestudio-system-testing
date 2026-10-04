@@ -1,4 +1,8 @@
 import {
+  PANEL_AUTOMATION_RESOURCE,
+  panelControlAuthorityPolicy,
+} from "../panel-authority.js";
+import {
   CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE,
   CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
   CREATED_PROJECT_WORKSPACE_REPO_FIXTURE,
@@ -217,6 +221,14 @@ export const scaffoldMatrixTests: TestCase[] = [
 
       workspaceRepoFixture: variant.fixture,
       requiresUnits: variant.requiresUnits,
+      ...(variant.section === "panels"
+        ? {
+            authorityPolicy: panelControlAuthorityPolicy(
+              `inspect-${variant.name}`,
+            ),
+            resources: [PANEL_AUTOMATION_RESOURCE],
+          }
+        : {}),
       prompt: variant.prompt,
       validate: (result) => validateExecutableScaffold(result, variant),
     }),

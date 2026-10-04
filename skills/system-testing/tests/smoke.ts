@@ -119,7 +119,7 @@ export const smokeTests: TestCase[] = [
     description: "Agent imports a workspace package and inspects exports",
     category: "smoke",
     prompt:
-      "Choose a workspace package and tell me what it actually exposes when loaded at runtime.",
+      "Load one workspace package in the runtime and report the exported names you observe. Verify by loading it; a source-code description alone is not enough.",
     validate: (result) => {
       const completed = completedToolNames(result);
       if (!completed.has("eval")) {

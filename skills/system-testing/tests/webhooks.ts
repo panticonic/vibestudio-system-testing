@@ -1,9 +1,12 @@
+import {
+  NativeWebhookObservationSchema,
+  type NativeWebhookObservation,
+} from "@vibestudio/service-schemas/webhookIngress";
 import type { TestCase } from "../types.js";
 import {
   findLastAgentMessage,
   getToolCalls,
   noIncompleteInvocations,
-  successfulEvalCode,
   successfulEvalReturnValues,
 } from "./_helpers.js";
 import { walkRecords } from "./_scenario-evidence.js";
@@ -12,110 +15,119 @@ function hasSecretField(value: unknown): boolean {
   return walkRecords([value]).some((item) => Object.hasOwn(item, "secret"));
 }
 
-function unavailableWithEvidence(result: Parameters<typeof noIncompleteInvocations>[0]) {
-  const failed = getToolCalls(result).some(
-    (call) =>
-      call.name === "eval" &&
-      call.execution?.isError === true &&
-      /webhooks/iu.test(String(call.arguments?.["code"] ?? ""))
-  );
-  const final = findLastAgentMessage(result);
-  return failed &&
-    /(unavailable|unsupported|blocked|cannot|could not|failed)/iu.test(final) &&
-    final.trim().length > 20
-    ? noIncompleteInvocations(result)
-    : {
-        passed: false,
-        reason:
-          "Webhook unavailability was not backed by a failed canonical invocation and concrete explanation",
-      };
+function observations(
+  result: Parameters<typeof noIncompleteInvocations>[0]
+): NativeWebhookObservation[] {
+  return getToolCalls(result).flatMap((call) => {
+    if (call.name !== "eval" || call.execution?.status !== "complete" || call.execution.isError)
+      return [];
+    const value = call.execution.result as
+      | {
+          details?: {
+            operationJournal?: { protocol?: string; truncated?: boolean; entries?: unknown[] };
+          };
+        }
+      | undefined;
+    const journal = value?.details?.operationJournal;
+    if (
+      journal?.protocol !== "workspace-operations.v1" ||
+      journal.truncated !== false ||
+      !Array.isArray(journal.entries)
+    )
+      return [];
+    return journal.entries.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const value = entry as Record<string, unknown>;
+      if (value["type"] !== "webhook.observation") return [];
+      const parsed = NativeWebhookObservationSchema.safeParse(value["receipt"]);
+      return parsed.success ? [parsed.data] : [];
+    });
+  });
 }
 
 function lifecycleChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
-  const code = successfulEvalCode(result);
-  const methods = ["createSubscription", "listSubscriptions", "rotateSecret", "revokeSubscription"];
-  if (!methods.every((method) => code.includes(`webhooks.${method}`))) {
-    return unavailableWithEvidence(result);
-  }
-  const create = code.indexOf("webhooks.createSubscription");
-  const list = code.indexOf("webhooks.listSubscriptions", create + 1);
-  const rotate = code.indexOf("webhooks.rotateSecret", list + 1);
-  const revoke = code.indexOf("webhooks.revokeSubscription", rotate + 1);
-  const finalList = code.indexOf("webhooks.listSubscriptions", revoke + 1);
-  if (!(create >= 0 && list > create && rotate > list && revoke > rotate && finalList > revoke)) {
+  const facts = observations(result);
+  const verified = facts.some((created, createIndex) => {
+    if (created.method !== "createSubscription" || !created.hasSecret) return false;
+    const revoked = facts.findIndex(
+      (fact, index) =>
+        index > createIndex &&
+        fact.method === "revokeSubscription" &&
+        fact.subscriptionId === created.subscriptionId
+    );
+    if (revoked < 0) return false;
+    return (
+      facts.some(
+        (fact, index) =>
+          index > createIndex &&
+          index < revoked &&
+          fact.method === "rotateSecret" &&
+          fact.subscriptionId === created.subscriptionId &&
+          fact.secretPresent
+      ) &&
+      facts.some(
+        (fact, index) =>
+          index > createIndex &&
+          index < revoked &&
+          fact.method === "listSubscriptions" &&
+          fact.subscriptions.some(
+            (row) => row.subscriptionId === created.subscriptionId && !row.revoked
+          )
+      ) &&
+      !facts.some(
+        (fact, index) =>
+          index > revoked &&
+          fact.method === "listSubscriptions" &&
+          fact.subscriptions.some(
+            (row) => row.subscriptionId === created.subscriptionId && !row.revoked
+          )
+      )
+    );
+  });
+  if (!verified)
     return {
       passed: false,
       reason:
-        "Webhook lifecycle calls were not observed in create/list/rotate/revoke/cleanup order",
+        "Native webhook facts did not join creation, active listing, rotation and completed revocation without contradictory later listings to one subscription",
     };
-  }
-  if (
-    !/rotateSecret\(\s*\w+\.subscriptionId/u.test(code) ||
-    !/revokeSubscription\(\s*\w+\.subscriptionId/u.test(code)
-  ) {
+  if (successfulEvalReturnValues(result).some(hasSecretField))
     return {
       passed: false,
-      reason:
-        "Webhook rotation and revocation were not identity-joined to the created subscription",
+      reason: "Webhook lifecycle returned secret material rather than a redacted report",
     };
-  }
-  const values = successfulEvalReturnValues(result);
-  const proof = walkRecords(values).find(
-    (item) =>
-      item["created"] === true &&
-      item["listed"] === true &&
-      item["rotated"] === true &&
-      (item["removed"] === true || item["revoked"] === true)
-  );
-  if (!proof) return { passed: false, reason: "Webhook lifecycle result did not prove every step" };
-  if (values.some(hasSecretField)) {
-    return {
-      passed: false,
-      reason: "Webhook lifecycle returned secret material instead of a redacted verification proof",
-    };
-  }
   const final = findLastAgentMessage(result);
   if (
     !/webhook|subscription/iu.test(final) ||
     !/rotat/iu.test(final) ||
     !/revok|removed|clean/iu.test(final)
-  ) {
+  )
     return { passed: false, reason: "Final response did not report webhook rotation and cleanup" };
-  }
   return noIncompleteInvocations(result);
 }
 
 function listChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
-  const values = successfulEvalReturnValues(result);
-  if (!/webhooks\.listSubscriptions/iu.test(successfulEvalCode(result)) || values.length === 0) {
-    return { passed: false, reason: "No successful canonical webhook-list observation was found" };
-  }
-  const subscriptions = values
-    .flatMap((value) => {
-      if (Array.isArray(value)) return [value];
-      return walkRecords([value])
-        .map((item) => item["subscriptions"])
-        .filter((item): item is unknown[] => Array.isArray(item));
-    })
-    .find((items) =>
-      items.every(
-        (item) =>
-          item &&
-          typeof item === "object" &&
-          typeof (item as Record<string, unknown>)["subscriptionId"] === "string"
-      )
-    );
-  if (!subscriptions) {
-    return { passed: false, reason: "Webhook list result did not contain canonical subscriptions" };
-  }
+  const lists = observations(result).filter(
+    (fact) => fact.method === "listSubscriptions" && !fact.includeRevoked
+  );
   const final = findLastAgentMessage(result);
-  const exactCount = new RegExp(`(?:^|\\D)${subscriptions.length}(?:\\D|$)`, "u");
-  if (!/webhook|subscription/iu.test(final) || !exactCount.test(final)) {
+  if (
+    !/webhook|subscription/iu.test(final) ||
+    !lists.some((list) => {
+      if (list.method !== "listSubscriptions") return false;
+      const count = list.subscriptions.filter((subscription) => !subscription.revoked).length;
+      return (
+        new RegExp(`(?:^|\\D)${count}(?:\\D|$)`, "u").test(final) ||
+        (count === 0 &&
+          /\b(?:zero|none)\b|\bno (?:active |registered |current |webhook )*subscriptions?\b/iu.test(
+            final
+          ))
+      );
+    })
+  )
     return {
       passed: false,
-      reason: "Final response did not report the observed subscription count",
+      reason: "Final response did not report an actual native active-subscription count",
     };
-  }
   return noIncompleteInvocations(result);
 }
 

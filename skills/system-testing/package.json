@@ -60,6 +60,7 @@
     "./tests/*": "./tests/*.ts"
   },
   "dependencies": {
+    "@vibestudio/workspace-contracts": "workspace:*",
     "@vibestudio/content-addressing": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
     "@vibestudio/shared": "workspace:*",

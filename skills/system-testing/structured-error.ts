@@ -16,6 +16,9 @@ export interface StructuredSystemTestError {
   errorData?: SystemTestJsonValue;
   /** Opaque diagnostic handles copied from errorData for direct artifact search. */
   diagnosticHandles?: string[];
+  /** Only the same bounded/redacted diagnostic fields are retained recursively. */
+  cause?: StructuredSystemTestError;
+  errors?: StructuredSystemTestError[];
 }
 
 export interface SystemTestFailure {
@@ -26,39 +29,109 @@ export interface SystemTestFailure {
 const MAX_TEXT_LENGTH = 4_096;
 const MAX_DEPTH = 8;
 const MAX_COLLECTION_SIZE = 200;
+const MAX_ERROR_NODES = 32;
 const REDACTED = "[redacted]";
 const UNAVAILABLE = "[unavailable]";
 const SENSITIVE_KEY =
   /(?:password|passphrase|secret|token|authorization|cookie|credential|api[-_]?key|private[-_]?key|session[-_]?key)/i;
 const DIAGNOSTIC_HANDLE_KEY = /^(?:diagnostic[-_]?handle|handle)$/i;
-const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor", "stack", "cause"]);
+const FORBIDDEN_KEYS = new Set([
+  "__proto__",
+  "prototype",
+  "constructor",
+  "stack",
+  "cause",
+]);
 
-export function serializeSystemTestError(error: unknown): StructuredSystemTestError {
+export function serializeSystemTestError(
+  error: unknown,
+): StructuredSystemTestError {
+  return serializeErrorNode(error, 0, new WeakSet<object>(), {
+    remaining: MAX_ERROR_NODES,
+  });
+}
+
+function serializeErrorNode(
+  error: unknown,
+  depth: number,
+  ancestors: WeakSet<object>,
+  budget: { remaining: number },
+): StructuredSystemTestError {
   const record = objectRecord(error);
-  const name =
-    boundedString(readDataProperty(record, "name")) ??
-    (error instanceof Error ? "Error" : "ThrownValue");
-  const message =
-    boundedString(readDataProperty(record, "message")) ??
-    (typeof error === "string" ? boundedText(error) : safeThrownValueSummary(error));
-  const errorData = sanitizeJson(readDataProperty(record, "errorData"));
-  const explicitCode = boundedString(readDataProperty(record, "code"));
-  const dataCode =
-    errorData && !Array.isArray(errorData) && typeof errorData === "object"
-      ? boundedString(errorData["code"])
-      : undefined;
-  const code = explicitCode ?? dataCode;
-  const errorKind = boundedString(readDataProperty(record, "errorKind"));
-  const diagnosticHandles = errorData ? collectDiagnosticHandles(errorData) : [];
+  if (depth >= MAX_DEPTH || budget.remaining <= 0)
+    return { name: "TruncatedError", message: "[error-tree-truncated]" };
+  if (record && ancestors.has(record))
+    return { name: "CircularError", message: "[circular]" };
+  budget.remaining--;
+  if (record) ancestors.add(record);
+  try {
+    const name =
+      boundedString(readDataProperty(record, "name")) ??
+      (error instanceof Error ? "Error" : "ThrownValue");
+    const message =
+      boundedString(readDataProperty(record, "message")) ??
+      (typeof error === "string"
+        ? boundedText(error)
+        : safeThrownValueSummary(error));
+    const errorData = sanitizeJson(readDataProperty(record, "errorData"));
+    const explicitCode = boundedString(readDataProperty(record, "code"));
+    const dataCode =
+      errorData && !Array.isArray(errorData) && typeof errorData === "object"
+        ? boundedString(errorData["code"])
+        : undefined;
+    const code = explicitCode ?? dataCode;
+    const errorKind = boundedString(readDataProperty(record, "errorKind"));
+    const diagnosticHandles = errorData
+      ? collectDiagnosticHandles(errorData)
+      : [];
+    const originalCause = readDataProperty(record, "cause");
+    const cause =
+      originalCause === undefined
+        ? undefined
+        : serializeErrorNode(originalCause, depth + 1, ancestors, budget);
+    const originalErrors = readDataProperty(record, "errors");
+    let errors: StructuredSystemTestError[] | undefined;
+    if (Array.isArray(originalErrors)) {
+      errors = [];
+      const length = readDataProperty(originalErrors, "length");
+      if (typeof length === "number")
+        for (
+          let index = 0;
+          index < Math.min(length, MAX_ERROR_NODES);
+          index++
+        ) {
+          errors.push(
+            serializeErrorNode(
+              readArrayDataProperty(originalErrors, index),
+              depth + 1,
+              ancestors,
+              budget,
+            ),
+          );
+          if (budget.remaining <= 0 || index + 1 === MAX_ERROR_NODES) {
+            if (index + 1 < length)
+              errors.push({
+                name: "TruncatedError",
+                message: "[error-tree-truncated]",
+              });
+            break;
+          }
+        }
+    }
 
-  return {
-    name: name || "Error",
-    message,
-    ...(code ? { code } : {}),
-    ...(errorKind ? { errorKind } : {}),
-    ...(errorData !== undefined ? { errorData } : {}),
-    ...(diagnosticHandles.length > 0 ? { diagnosticHandles } : {}),
-  };
+    return {
+      name: name || "Error",
+      message,
+      ...(code ? { code } : {}),
+      ...(errorKind ? { errorKind } : {}),
+      ...(errorData !== undefined ? { errorData } : {}),
+      ...(diagnosticHandles.length > 0 ? { diagnosticHandles } : {}),
+      ...(cause ? { cause } : {}),
+      ...(errors ? { errors } : {}),
+    };
+  } finally {
+    if (record) ancestors.delete(record);
+  }
 }
 
 /** Bounded/redacted stack text for failures whose call site is itself the
@@ -66,13 +139,18 @@ export function serializeSystemTestError(error: unknown): StructuredSystemTestEr
 export function serializeSystemTestStack(error: unknown): string | undefined {
   if (!(error instanceof Error)) return undefined;
   try {
-    return typeof error.stack === "string" ? boundedText(error.stack) : undefined;
+    return typeof error.stack === "string"
+      ? boundedText(error.stack)
+      : undefined;
   } catch {
     return undefined;
   }
 }
 
-export function systemTestFailure(phase: string, error: unknown): SystemTestFailure {
+export function systemTestFailure(
+  phase: string,
+  error: unknown,
+): SystemTestFailure {
   return { phase, error: serializeSystemTestError(error) };
 }
 
@@ -83,12 +161,13 @@ function sanitizeJson(value: unknown): SystemTestJsonValue | undefined {
 function sanitizeJsonValue(
   value: unknown,
   depth: number,
-  ancestors: WeakSet<object>
+  ancestors: WeakSet<object>,
 ): SystemTestJsonValue | undefined {
   if (value === null) return null;
   if (typeof value === "string") return boundedText(value);
   if (typeof value === "boolean") return value;
-  if (typeof value === "number") return Number.isFinite(value) ? value : String(value);
+  if (typeof value === "number")
+    return Number.isFinite(value) ? value : String(value);
   if (typeof value === "bigint") return `${value}n`;
   if (typeof value !== "object") return undefined;
   if (depth >= MAX_DEPTH) return "[max-depth]";
@@ -144,7 +223,11 @@ function collectDiagnosticHandles(value: SystemTestJsonValue): string[] {
       return;
     }
     for (const [key, child] of Object.entries(item)) {
-      if (DIAGNOSTIC_HANDLE_KEY.test(key) && typeof child === "string" && child.length > 0) {
+      if (
+        DIAGNOSTIC_HANDLE_KEY.test(key) &&
+        typeof child === "string" &&
+        child.length > 0
+      ) {
         handles.add(child);
       }
       visit(child);
@@ -155,7 +238,8 @@ function collectDiagnosticHandles(value: SystemTestJsonValue): string[] {
 }
 
 function objectRecord(value: unknown): object | null {
-  return value !== null && (typeof value === "object" || typeof value === "function")
+  return value !== null &&
+    (typeof value === "object" || typeof value === "function")
     ? (value as object)
     : null;
 }
@@ -163,7 +247,11 @@ function objectRecord(value: unknown): object | null {
 function readDataProperty(record: object | null, key: string): unknown {
   if (!record) return undefined;
   try {
-    for (let current: object | null = record; current; current = Object.getPrototypeOf(current)) {
+    for (
+      let current: object | null = record;
+      current;
+      current = Object.getPrototypeOf(current)
+    ) {
       const descriptor = Object.getOwnPropertyDescriptor(current, key);
       if (!descriptor) continue;
       return "value" in descriptor ? descriptor.value : undefined;
@@ -198,10 +286,13 @@ function boundedString(value: unknown): string | undefined {
 function boundedText(value: string): string {
   const redacted = value
     .replace(/\bBearer\s+[^\s,;]+/gi, `Bearer ${REDACTED}`)
-    .replace(/\b(?:sk|ghp|gho|github_pat|xox[baprs])[-_][A-Za-z0-9_=-]{8,}\b/g, REDACTED)
+    .replace(
+      /\b(?:sk|ghp|gho|github_pat|xox[baprs])[-_][A-Za-z0-9_=-]{8,}\b/g,
+      REDACTED,
+    )
     .replace(
       /(\b(?:password|passphrase|secret|token|authorization|cookie|credential|api[-_]?key|private[-_]?key)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
-      `$1${REDACTED}`
+      `$1${REDACTED}`,
     );
   return redacted.length <= MAX_TEXT_LENGTH
     ? redacted
@@ -211,7 +302,11 @@ function boundedText(value: string): string {
 function safeThrownValueSummary(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
     return boundedText(String(value));
   }
   return "Non-Error value thrown";

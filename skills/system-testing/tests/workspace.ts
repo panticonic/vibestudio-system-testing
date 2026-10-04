@@ -1,3 +1,4 @@
+import { WorkspaceConfigSchema } from "@vibestudio/workspace-contracts/workspaceConfigSchema";
 import type { TestCase, TestExecutionResult } from "../types.js";
 import {
   completedScenarioEvidence,
@@ -54,11 +55,13 @@ export const workspaceTests: TestCase[] = [
     description: "Get workspace configuration",
     category: "workspace",
     prompt:
-      "Give me a couple of concrete facts about the configuration of the active workspace.",
+      "Give me a couple of concrete facts from the active workspace’s settings.",
     validate: (result) => {
-      const base = workspaceEvidence(result, [["workspace.getInfo"]]);
+      const base = workspaceEvidence(result, [["workspace.getConfig"], ["workspace.getInfo"]]);
       if (!base.passed) return base;
-      return walkRecords(base.evidence.evalValues).some((record) => Object.keys(record).length >= 2)
+      return walkRecords(base.evidence.evalValues).some((record) =>
+        Object.keys(record).filter((key) => key in WorkspaceConfigSchema.shape).length >= 2
+      )
         ? { passed: true, reason: undefined }
         : {
             passed: false,

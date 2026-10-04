@@ -20,6 +20,7 @@ const modelEvidence = () => ({
   truncated: false,
   calls: [
     {
+      native: { conversationId: 3, taskId: 7, attempt: 1, cutoff: 1 },
       ref: TEST_MODEL,
       provider: "openai-codex",
       model: "gpt-6-luna",
@@ -88,7 +89,6 @@ describe("TestRunner", () => {
     const messages = [lifecycleMessage, diagnosticMessage];
     const cleanupOrder: string[] = [];
     let waitSignal: AbortSignal | undefined;
-    let terminalWaitingReasons: readonly string[] | undefined;
     const session = {
       channelId: "chat-timeout",
       agentTargetId: "agent-target-timeout",
@@ -98,12 +98,14 @@ describe("TestRunner", () => {
           _prompt: string,
           opts?: {
             signal?: AbortSignal;
-            terminalWaitingReasons?: readonly string[];
           },
         ) => {
           waitSignal = opts?.signal;
-          terminalWaitingReasons = opts?.terminalWaitingReasons;
-          return new Promise(() => undefined);
+          return new Promise((_resolve, reject) => {
+            const abort = () => reject(opts?.signal?.reason);
+            if (opts?.signal?.aborted) abort();
+            else opts?.signal?.addEventListener("abort", abort, { once: true });
+          });
         },
       ),
       captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
@@ -155,10 +157,6 @@ describe("TestRunner", () => {
       'Last diagnostic: code=message_empty "No assistant response".',
     );
     expect(waitSignal?.aborted).toBe(true);
-    expect(terminalWaitingReasons).toEqual([
-      "model_credential_required",
-      "model_credential_reconnect_required",
-    ]);
     expect(runner.collectDiagnostics).toHaveBeenCalledWith({
       channelId: "chat-timeout",
     });
@@ -173,7 +171,7 @@ describe("TestRunner", () => {
     expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
     expect(execution.provenance).toEqual({
       channelId: "chat-timeout",
-      branchId: "branch:channel:chat-timeout",
+      branchId: "main",
       agentEntityId: "agent-entity-timeout",
       agentTargetId: "agent-target-timeout",
       contextId: "ctx-timeout",
@@ -190,56 +188,79 @@ describe("TestRunner", () => {
     });
   });
 
-  it("keeps the original test failure when diagnostics collection fails", async () => {
-    const session = {
-      channelId: "chat-fetch-failed",
-      messages: [],
-      sendAndWait: vi.fn(async () => {
-        throw new Error("fetch failed");
-      }),
-      captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
-      snapshot: vi.fn(() => ({
+  it.each([false, true])(
+    "keeps the original test failure and active session when diagnostics collection fails (orchestrated: %s)",
+    async (orchestrated) => {
+      const session = {
+        channelId: "chat-fetch-failed",
         messages: [],
-        invocations: [],
-        debugEvents: [],
-        cleanupErrors: [],
-        participants: {},
-        connected: true,
-        duration: 10,
-      })),
-      close: vi.fn(async () => undefined),
-    };
-    const runner = {
-      modelRef: TEST_MODEL,
-      closeOwnedDevelopmentSessions: vi.fn(async () => []),
-      spawn: vi.fn(async () => session),
-      collectDiagnostics: vi.fn(async () => {
-        throw new Error("diagnostics fetch failed");
-      }),
-    } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
+        sendAndWait: vi.fn(async () => {
+          throw new Error("fetch failed");
+        }),
+        captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
+        snapshot: vi.fn(() => ({
+          channelId: "chat-fetch-failed",
+          messages: [],
+          invocations: [],
+          debugEvents: [],
+          cleanupErrors: [],
+          participants: {},
+          connected: true,
+          duration: 10,
+        })),
+        close: vi.fn(async () => undefined),
+      };
+      const runner = {
+        modelRef: TEST_MODEL,
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
+        spawn: vi.fn(async () => session),
+        collectDiagnostics: vi.fn(async () => {
+          throw new Error("diagnostics fetch failed");
+        }),
+      } as unknown as HeadlessRunner;
+      const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
 
-    const { result, execution } = await tester.runOne({
-      name: "fetch-failed-test",
-      category: "test",
-      description: "fetch failed",
-      prompt: "trigger fetch",
-      validation: "harness" as const,
-      validate: () => ({ passed: true }),
-    });
+      const { result, execution } = await tester.runOne({
+        name: "fetch-failed-test",
+        category: "test",
+        description: "fetch failed",
+        prompt: "trigger fetch",
+        ...(orchestrated
+          ? {
+              orchestrate: async ({
+                runner: scopedRunner,
+                sendAndWait,
+              }: import("./types.js").TestOrchestrationContext) => {
+                const target = await scopedRunner.spawn();
+                try {
+                  await sendAndWait(target, "trigger fetch", "failed phase");
+                  throw new Error("failed turn cannot return success");
+                } finally {
+                  await target.close();
+                }
+              },
+            }
+          : {}),
+        validation: "harness" as const,
+        validate: () => ({ passed: true }),
+      });
 
-    expect(result.passed).toBe(false);
-    expect(execution.error).toBe("fetch failed");
-    expect(execution.diagnostics).toMatchObject({
-      diagnosticCollectionFailure: {
-        phase: "diagnostic:collection",
-        error: { name: "Error", message: "diagnostics fetch failed" },
-      },
-    });
-    expect(execution.diagnostics).not.toHaveProperty(
-      "diagnosticCollectionError",
-    );
-  });
+      expect(result.passed).toBe(false);
+      expect(execution.error).toBe("fetch failed");
+      expect(execution.snapshot?.channelId).toBe("chat-fetch-failed");
+      expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
+      expect(session.close).toHaveBeenCalledOnce();
+      expect(execution.diagnostics).toMatchObject({
+        diagnosticCollectionFailure: {
+          phase: "diagnostic:collection",
+          error: { name: "Error", message: "diagnostics fetch failed" },
+        },
+      });
+      expect(execution.diagnostics).not.toHaveProperty(
+        "diagnosticCollectionError",
+      );
+    },
+  );
 
   it("persists a thrown validator as one terminal test result and still retires the session", async () => {
     const messages = [
@@ -596,15 +617,31 @@ describe("TestRunner", () => {
             id: "call-4",
             name: "verify",
             status: "error",
-            terminalReasonCode: "build_verification_failed",
             execution: {
               status: "error",
               terminalOutcome: "tool_error",
-              terminalReasonCode: "build_verification_failed",
               result: {
                 details: {
                   failureKind: "user-code",
-                  failure: { code: "build_verification_failed" },
+                  failure: {
+                    protocol: "agent-tool-failure.v1",
+                    code: "build_verification_failed",
+                    kind: "domain",
+                    message: "Fixture compilation failed",
+                    operation: "tool.verify",
+                    stage: "execute",
+                    retry: {
+                      policy: "none",
+                      commandIdPolicy: "not-applicable",
+                    },
+                    causes: [
+                      {
+                        role: "primary",
+                        code: "build_verification_failed",
+                        message: "Fixture compilation failed",
+                      },
+                    ],
+                  },
                 },
               },
               isError: true,
@@ -673,7 +710,7 @@ describe("TestRunner", () => {
         expect.objectContaining({
           name: "verify",
           classification: "guest-code-failure",
-          terminalReasonCode: "build_verification_failed",
+          failureCode: "build_verification_failed",
           failureKind: "user-code",
         }),
       ]),
@@ -713,6 +750,41 @@ describe("TestRunner", () => {
       toolFailureCount: 0,
       testsWithToolFailures: 0,
     });
+    const snapshotImplementation = session.snapshot.getMockImplementation()!;
+    const malformedSnapshot = structuredClone(session.snapshot());
+    const malformedVerification = malformedSnapshot.invocations.find(
+      (call) => call.id === "call-4",
+    )!;
+    const verificationResult = malformedVerification.execution.result;
+    if (!("details" in verificationResult) || !verificationResult.details)
+      throw new Error("The fixture lost its verification details");
+    Object.assign(verificationResult.details, {
+      failure: { code: "build_verification_failed" },
+    });
+    session.snapshot.mockImplementation(() => malformedSnapshot);
+    const malformedSuite = await tester.runSuite([
+      {
+        name: "malformed-failure-contract",
+        category: "test",
+        description: "Incomplete failure data cannot waive an error",
+        prompt: "Complete the recovery task.",
+        validation: "harness",
+        expectedToolFailures: [
+          { name: "eval", errorIncludes: "missingVar" },
+          { name: "vcs", failureCode: "WorkingChangesPresent" },
+          { name: "eval", failureCode: "guest_execution_failed" },
+          { name: "verify", failureCode: "build_verification_failed" },
+        ],
+        validate: () => ({ passed: true }),
+      },
+    ]);
+    expect(malformedSuite).toMatchObject({
+      passed: 0,
+      failed: 1,
+      toolFailureCount: 1,
+    });
+    session.snapshot.mockImplementation(snapshotImplementation);
+
     messages.push({
       id: "invocation:call-extra",
       senderId: "agent",
@@ -746,7 +818,11 @@ describe("TestRunner", () => {
         validate: () => ({ passed: true }),
       },
     ]);
-    expect(repeatedSuite).toMatchObject({ passed: 0, failed: 1, toolFailureCount: 1 });
+    expect(repeatedSuite).toMatchObject({
+      passed: 0,
+      failed: 1,
+      toolFailureCount: 1,
+    });
 
     expect(expectedSuite.results[0]!.execution.toolFailures).toEqual(
       expect.arrayContaining([
@@ -771,7 +847,14 @@ describe("TestRunner", () => {
           listener = undefined;
         };
       }),
-      sendAndWait: vi.fn(() => new Promise<never>(() => undefined)),
+      sendAndWait: vi.fn(
+        (_prompt: string, opts?: { signal?: AbortSignal }) =>
+          new Promise<never>((_resolve, reject) => {
+            const abort = () => reject(opts?.signal?.reason);
+            if (opts?.signal?.aborted) abort();
+            else opts?.signal?.addEventListener("abort", abort, { once: true });
+          }),
+      ),
       captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
       snapshot: vi.fn(() => ({
         channelId: "chat-authority-failure",
@@ -849,44 +932,43 @@ describe("TestRunner", () => {
     expect(listener).toBeUndefined();
   });
 
-  it(
-    "rejects internal instructions in delivered agent-goal follow-ups",
-    async () => {
-      const session = {
-        channelId: "chat-follow-up",
-        messages: [],
-        sendAndWait: vi.fn(),
-        close: vi.fn(async () => undefined),
-      };
-      const runner = {
-        modelRef: TEST_MODEL,
-        spawn: vi.fn(async () => session),
-        closeOwnedDevelopmentSessions: vi.fn(async () => []),
-        collectDiagnostics: vi.fn(async () => ({})),
-      } as unknown as HeadlessRunner;
-      const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
-      const { result } = await tester.runOne({
-        name: "follow-up-contract",
-        category: "test",
-        description: "reject an answer-bearing follow-up before delivery",
-        prompt: "Help me finish the task.",
-        orchestrate: async ({ runner: subject, sendAndWait }) => {
-          const target = await subject.spawn();
-          try {
-            await sendAndWait(target, "Call spawn_subagent now.", "recovery");
-          } finally {
-            await target.close();
-          }
-          return { messages: [], duration: 1 };
-        },
-        validate: () => ({ passed: true }),
-      });
-      expect(result.passed).toBe(false);
-      expect(result.reason).toContain("during recovery prescribes internal agent tool name");
-      expect(session.sendAndWait).not.toHaveBeenCalled();
-      expect(session.close).toHaveBeenCalledOnce();
-    },
-  );
+  it("rejects internal instructions in delivered agent-goal follow-ups", async () => {
+    const session = {
+      channelId: "chat-follow-up",
+      messages: [],
+      sendAndWait: vi.fn(),
+      close: vi.fn(async () => undefined),
+    };
+    const runner = {
+      modelRef: TEST_MODEL,
+      spawn: vi.fn(async () => session),
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      collectDiagnostics: vi.fn(async () => ({})),
+    } as unknown as HeadlessRunner;
+    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
+    const { result } = await tester.runOne({
+      name: "follow-up-contract",
+      category: "test",
+      description: "reject an answer-bearing follow-up before delivery",
+      prompt: "Help me finish the task.",
+      orchestrate: async ({ runner: subject, sendAndWait }) => {
+        const target = await subject.spawn();
+        try {
+          await sendAndWait(target, "Call spawn_subagent now.", "recovery");
+        } finally {
+          await target.close();
+        }
+        return { messages: [], duration: 1 };
+      },
+      validate: () => ({ passed: true }),
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reason).toContain(
+      "during recovery prescribes internal agent tool name",
+    );
+    expect(session.sendAndWait).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledOnce();
+  });
 
   it("runs custom test orchestration through the normal validation path", async () => {
     const messages = [
@@ -971,7 +1053,9 @@ describe("TestRunner", () => {
     );
   });
 
-  it("fails an orchestration that never settles instead of running forever", async () => {
+  it("cancels an expired orchestration and joins its finally before retiring the test", async () => {
+    const orchestrationCleanup = deferred<void>();
+    let orchestrationSignal: AbortSignal | undefined;
     let finishCleanup!: () => void;
     const cleanup = new Promise<void>((resolve) => {
       finishCleanup = resolve;
@@ -1003,7 +1087,19 @@ describe("TestRunner", () => {
         description: "an orchestrator that blocks somewhere other than a turn",
         prompt: "unused",
         // Blocking outside sendAndWait is the case the per-turn deadline missed.
-        orchestrate: () => new Promise(() => undefined),
+        orchestrate: async ({ signal }) => {
+          orchestrationSignal = signal;
+          try {
+            await new Promise<void>((_resolve, reject) => {
+              const abort = () => reject(signal.reason);
+              if (signal.aborted) abort();
+              else signal.addEventListener("abort", abort, { once: true });
+            });
+            throw new Error("cancelled orchestration cannot return success");
+          } finally {
+            await orchestrationCleanup.promise;
+          }
+        },
         validation: "harness" as const,
         validate: () => ({ passed: true }),
       })
@@ -1011,6 +1107,10 @@ describe("TestRunner", () => {
         terminal = true;
         return outcome;
       });
+    await vi.waitFor(() => expect(orchestrationSignal?.aborted).toBe(true));
+    expect(runner.closeOwnedDevelopmentSessions).not.toHaveBeenCalled();
+    expect(terminal).toBe(false);
+    orchestrationCleanup.resolve();
     await vi.waitFor(() =>
       expect(runner.closeOwnedDevelopmentSessions).toHaveBeenCalled(),
     );
@@ -1437,7 +1537,9 @@ describe("TestRunner", () => {
       expect(suite.results[0]!.execution.cleanupErrors ?? []).toEqual([]);
       expect(
         suite.results[0]!.execution.diagnostics?.["workspaceRepoFixture"],
-      ).toMatchObject({ creationScopeError });
+      ).toMatchObject({
+        creationScopeError,
+      });
     },
   );
 
@@ -1563,7 +1665,7 @@ describe("TestRunner", () => {
       totalCalls: 5,
       calls: [
         {
-          messageId: "m:t:chat-fallback:first:agent:0",
+          native: { conversationId: 3, taskId: 7, attempt: 1 },
           ref: TEST_MODEL,
           provider: "openai-codex",
           model: "gpt-6-luna",
@@ -1573,7 +1675,7 @@ describe("TestRunner", () => {
           usage: { input: 8, output: 2, totalTokens: 10 },
         },
         {
-          messageId: "m:t:chat-fallback:first:agent:1",
+          native: { conversationId: 3, taskId: 7, attempt: 2 },
           ref: TEST_MODEL,
           provider: "openai-codex",
           model: "gpt-6-luna",
@@ -1583,7 +1685,7 @@ describe("TestRunner", () => {
           error: "usage limit reached",
         },
         {
-          messageId: "m:t:chat-fallback:first:agent:2",
+          native: { conversationId: 3, taskId: 7, attempt: 3 },
           startedAt: "2026-09-12T00:00:02.000Z",
           ref: fallbackModel,
           provider: "openai-codex",
@@ -1594,7 +1696,7 @@ describe("TestRunner", () => {
           usage: { input: 12, output: 4, totalTokens: 16 },
         },
         {
-          messageId: "m:t:chat-fallback:followup:agent:0",
+          native: { conversationId: 3, taskId: 8, attempt: 1 },
           ref: TEST_MODEL,
           provider: "openai-codex",
           model: "gpt-6-luna",
@@ -1603,7 +1705,7 @@ describe("TestRunner", () => {
           outcome: "failed",
         },
         {
-          messageId: "m:t:chat-fallback:followup:agent:1",
+          native: { conversationId: 3, taskId: 8, attempt: 2 },
           startedAt: "2026-09-12T00:00:04.000Z",
           ref: fallbackModel,
           provider: "openai-codex",
@@ -1921,6 +2023,50 @@ describe("validateAgentCompletionReport", () => {
 });
 
 describe("system-test implementation boundary", () => {
+  it("distinguishes public guides and metadata discovery from implementation contents", () => {
+    const calls = [
+      { name: "read", arguments: { path: "skills/system-testing/SKILL.md" } },
+      {
+        name: "read",
+        arguments: { path: "skills/system-testing/references/diagnostics.md" },
+      },
+      {
+        name: "find",
+        arguments: { path: "skills/system-testing", pattern: "**/SKILL.md" },
+      },
+      { name: "ls", arguments: { path: "skills/system-testing" } },
+      {
+        name: "eval",
+        arguments: {
+          code: 'return fs.readFile("skills/system-testing/SKILL.md")',
+        },
+      },
+      {
+        name: "grep",
+        arguments: { path: "skills/system-testing", pattern: "passed" },
+      },
+      {
+        name: "read",
+        arguments: { path: "skills/system-testing/tests/workers.ts" },
+      },
+    ];
+    const execution = {
+      duration: 1,
+      messages: calls.map((call, index) => ({
+        id: `message:${index}`,
+        senderId: "agent",
+        kind: "message",
+        contentType: "invocation",
+        complete: true,
+        content: "",
+        invocation: { id: `call:${index}`, ...call },
+      })),
+    } as unknown as TestExecutionResult;
+    expect(
+      findSystemTestImplementationInspections(execution).map((call) => call.id),
+    ).toEqual(["call:5", "call:6"]);
+  });
+
   it("detects agent reads of harness implementation without matching ordinary workspace files", () => {
     const execution = {
       duration: 1,
@@ -2052,4 +2198,65 @@ describe("system-test implementation boundary", () => {
       quick.execution.diagnostics?.["concurrentTestAgents"],
     ]).toEqual([2, 2]);
   });
+});
+
+describe("worker fixture runtime observations", () => {
+  it.each([false, true])(
+    "observes before teardown and propagates inventory failure (%s)",
+    async (failObservation) => {
+      const order: string[] = [];
+      const failure = new Error("canonical runtime inventory unavailable");
+      const runner = {
+        modelRef: TEST_MODEL,
+        prepareWorkspaceRepoFixture: vi.fn(async () => ({
+          kind: "buildable-worker",
+          section: "workers",
+          contextId: "ctx-worker",
+          repoPath: "workers/probe",
+        })),
+        observeFixtureRuntimeEntities: vi.fn(async () => {
+          order.push("observe");
+          if (failObservation) throw failure;
+          return { source: "workers/probe", entities: [] };
+        }),
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
+        collectDiagnostics: vi.fn(async () => ({})),
+        cleanupWorkspaceRepoFixture: vi.fn(async () => {
+          order.push("cleanup");
+          return {
+            unexpectedPublishedRepositoriesRemoved: [],
+            counteractedChangeIds: [],
+            publishedFixtureRemoved: null,
+          };
+        }),
+      } as unknown as HeadlessRunner;
+      const outcome = await new TestRunner(runner).runOne({
+        name: "worker-inventory-observation",
+        category: "test",
+        description: "observe before cleanup",
+        prompt: "inspect the disposable worker",
+        workspaceRepoFixture: { kind: "buildable-worker", section: "workers" },
+        validation: "harness",
+        orchestrate: async () => ({ messages: [], duration: 0 }),
+        validate: (execution) => {
+          order.push("validate");
+          return {
+            passed:
+              execution.diagnostics?.["fixtureRuntimeEntities"] !== undefined,
+          };
+        },
+      });
+      expect(runner.observeFixtureRuntimeEntities).toHaveBeenCalledWith(
+        expect.objectContaining({ contextId: "ctx-worker", section: "workers" }),
+      );
+      expect(order).toEqual(
+        failObservation
+          ? ["observe", "cleanup"]
+          : ["observe", "validate", "cleanup"],
+      );
+      expect(outcome.result.passed).toBe(!failObservation);
+      if (failObservation)
+        expect(outcome.execution.error).toBe(failure.message);
+    },
+  );
 });

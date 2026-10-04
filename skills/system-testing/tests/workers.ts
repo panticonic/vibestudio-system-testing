@@ -117,72 +117,24 @@ function explicitCleanupProof(values: readonly unknown[]): CleanupObservation {
   return present ? "inconclusive" : "absent";
 }
 
-function completedLifecycleCodeProvesCleanup(evidence: ScenarioEvidence): boolean {
-  return evidence.calls.some((call) => {
-    if (
-      call.name !== "eval" ||
-      call.execution?.status !== "complete" ||
-      call.execution.isError === true
-    ) {
-      return false;
-    }
-    const code = String(call.arguments?.["code"] ?? "");
-    const directCreates = [
-      ...code.matchAll(
-        /\b(?:const\s+|let\s+|var\s+)?([A-Za-z_$][\w$]*)\s*=\s*await\s+workers\.create\s*\(/gu
-      ),
-    ];
-    const rpcCreates = [
-      ...code.matchAll(
-        /\b(?:const\s+|let\s+|var\s+)?([A-Za-z_$][\w$]*)\s*=\s*await\s+rpc\.call\s*\(\s*["']main["']\s*,\s*["']runtime\.createEntity["']/gu
-      ),
-    ];
-    const directDurableCreates = [
-      ...code.matchAll(
-        /\b(?:const\s+|let\s+|var\s+)?([A-Za-z_$][\w$]*)\s*=\s*await\s+workers\.createDurableObject\s*\(/gu
-      ),
-    ];
-    const boundLifecycle = [...directCreates, ...directDurableCreates, ...rpcCreates].some((match) => {
-      const handle = match[1]!;
-      const suffix = code.slice((match.index ?? 0) + match[0].length);
-      const escaped = handle.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-      return (
-        new RegExp(`\\bawait\\s+workers\\.destroy\\s*\\([^)]*\\b${escaped}\\b[^)]*\\)`, "u").test(
-          suffix
-        ) ||
-        new RegExp(
-          `\\bawait\\s+rpc\\.call\\s*\\(\\s*["']main["']\\s*,\\s*["']runtime\\.retireEntity["'][\\s\\S]*?\\b${escaped}\\.(?:id|targetId)\\b`,
-          "u"
-        ).test(suffix)
-      );
-    });
-    if (boundLifecycle) return true;
-
-    // Creation is sometimes wrapped in a small helper. In that form there is no
-    // direct syntactic binding between `createDurableObject` and the target
-    // variable. A completed eval still proves cleanup when resolution occurs
-    // before an awaited canonical retirement in the same invocation.
-    const createdAt = code.indexOf("workers.createDurableObject");
-    if (createdAt === -1) return false;
-    const suffix = code.slice(createdAt);
-    return (
-      /\bawait\s+workers\.destroy\s*\(/u.test(suffix) ||
-      /\bawait\s+rpc\.call\s*\(\s*["']main["']\s*,\s*["']runtime\.retireEntity["']/u.test(suffix)
-    );
-  });
-}
-
-function requireCleanup(evidence: ScenarioEvidence) {
-  const explicit = explicitCleanupProof(evidence.evalValues);
-  const proved =
-    explicit === "proved" ||
-    (explicit !== "contradicted" && completedLifecycleCodeProvesCleanup(evidence));
-  return proved
-    ? { passed: true, reason: undefined }
-    : {
-        passed: false,
-        reason: "Completed lifecycle results did not prove the created runtime entity was retired",
-      };
+function requireCleanup(evidence: ScenarioEvidence, result: TestExecutionResult) {
+  const observation = result.diagnostics?.["fixtureRuntimeEntities"];
+  if (!observation || typeof observation !== "object" || Array.isArray(observation))
+    return {
+      passed: false,
+      reason: "The harness did not observe the fixture runtime inventory before cleanup",
+    };
+  const { source, entities } = observation as { source?: unknown; entities?: unknown };
+  if (typeof source !== "string" || !source.startsWith("workers/") || !Array.isArray(entities))
+    return { passed: false, reason: "The fixture runtime inventory was malformed" };
+  if (entities.length > 0)
+    return {
+      passed: false,
+      reason: "The canonical runtime inventory still contains a fixture instance",
+    };
+  if (explicitCleanupProof(evidence.evalValues) === "contradicted")
+    return { passed: false, reason: "The reported runtime lifecycle contradicts cleanup" };
+  return { passed: true, reason: undefined };
 }
 
 function requireSqlPersistenceEvidence(result: TestExecutionResult) {
@@ -244,10 +196,44 @@ function requireSqlPersistenceEvidence(result: TestExecutionResult) {
       }
     });
   });
-  if (!structuredRows && !loggedRows) {
+  // Returning comparisons and lengths is a bounded observation of the rows,
+  // just as returning the collections is. Require repeated content comparisons
+  // in the completed evaluation and consistent nontrivial counts; a lone
+  // success flag or a single count cannot establish persistence.
+  const comparedRows = base.evidence.calls.some((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      return false;
+    const code = String(call.arguments?.["code"] ?? "");
+    if (
+      (code.match(/JSON\.stringify\([^)]*\)\s*===\s*JSON\.stringify\(/gu)?.length ?? 0) < 2 ||
+      !code.includes(".length")
+    )
+      return false;
+    const returned = invocationReturnValue(call);
+    if (!returned.present) return false;
+    return walkRecords([returned.value]).some((record) => {
+      const values = Object.values(record);
+      const counts = values.filter(
+        (value): value is number => typeof value === "number" && Number.isSafeInteger(value)
+      );
+      const comparisons = values.filter((value): value is boolean => typeof value === "boolean");
+      return (
+        counts.length >= 3 &&
+        counts[0]! >= 2 &&
+        counts.every((count) => count === counts[0]) &&
+        comparisons.length >= 2 &&
+        comparisons.every((equal) => equal)
+      );
+    });
+  });
+  if (!structuredRows && !loggedRows && !comparedRows) {
     return { passed: false, reason: "The second object call did not return the persisted rows" };
   }
-  return requireCleanup(base.evidence);
+  return requireCleanup(base.evidence, result);
 }
 
 function requireDynamicWorkspaceServiceEvidence(result: TestExecutionResult) {
@@ -378,7 +364,7 @@ function requireInstalledWorkspaceServiceConsumerEvidence(result: TestExecutionR
       reason: "The installed consumer returned no observable service result",
     };
   }
-  const cleanup = requireCleanup(base.evidence);
+  const cleanup = requireCleanup(base.evidence, result);
   if (!cleanup.passed) return cleanup;
 
   if (
@@ -436,7 +422,7 @@ export const workerTests: TestCase[] = [
         ["workers.create", "workers.destroy"],
         ["runtime.createEntity", "runtime.retireEntity"],
       ]);
-      return base.passed ? requireCleanup(base.evidence) : base;
+      return base.passed ? requireCleanup(base.evidence, result) : base;
     },
   },
   {
@@ -468,7 +454,7 @@ export const workerTests: TestCase[] = [
         ["workers.create", "workers.list", "workers.destroy"],
         ["runtime.createEntity", "runtime.listEntities", "runtime.retireEntity"],
       ]);
-      return base.passed ? requireCleanup(base.evidence) : base;
+      return base.passed ? requireCleanup(base.evidence, result) : base;
     },
   },
   {
@@ -484,10 +470,17 @@ export const workerTests: TestCase[] = [
         ["runtime.createEntity", "rpc.call", "runtime.retireEntity"],
       ]);
       if (!base.passed) return base;
-      if (!hasNonEmptyStructuredResult(base.evidence.evalValues)) {
-        return { passed: false, reason: "The completed object call returned no observable result" };
+      if (
+        !walkRecords(base.evidence.evalValues).some(
+          (value) => value["probe"] !== undefined && value["probe"] !== null
+        )
+      ) {
+        return {
+          passed: false,
+          reason: "The completed object call returned no non-null probe value",
+        };
       }
-      return requireCleanup(base.evidence);
+      return requireCleanup(base.evidence, result);
     },
   },
   {
@@ -576,7 +569,7 @@ export const workerTests: TestCase[] = [
       ) {
         return { passed: false, reason: "The worker-side probe returned no evidence" };
       }
-      return requireCleanup(base.evidence);
+      return requireCleanup(base.evidence, result);
     },
   },
   {

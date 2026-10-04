@@ -5,6 +5,7 @@ import {
   hasNonEmptyStructuredResult,
   invocationReturnValue,
   walkRecords,
+  walkArrays,
 } from "./_scenario-evidence.js";
 
 function successfulEvalCalls(result: TestExecutionResult) {
@@ -202,15 +203,16 @@ function validateIndependentScope(result: TestExecutionResult) {
     const writtenKeys = new Set(directKeys);
     const reader = calls.slice(index + 1).find((call) => {
       const returned = invocationReturnValue(call);
-      return (
-        /scope\s*(?:\.|\[)/u.test(String(call.arguments?.["code"] ?? "")) &&
-        returned.present &&
-        walkRecords([returned.value]).some(
-          (record) =>
-            [...writtenKeys].filter((key) =>
-              Object.prototype.hasOwnProperty.call(record, key)
-            ).length >= 3
+      const reads = new Set(
+        [...String(call.arguments?.["code"] ?? "").matchAll(/scope\.([A-Za-z_$][\w$]*)/gu)].map(
+          (match) => match[1]!
         )
+      );
+      return (
+        [...writtenKeys].filter((key) => reads.has(key)).length >= 3 &&
+        returned.present &&
+        (walkArrays([returned.value]).some((values) => values.length >= 3) ||
+          walkRecords([returned.value]).some((record) => Object.keys(record).length >= 3))
       );
     });
     if (reader) return { passed: true, reason: undefined };

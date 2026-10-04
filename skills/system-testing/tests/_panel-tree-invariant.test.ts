@@ -106,6 +106,7 @@ describe("panel-tree invariant", () => {
         panelTreeClient: panelTree,
         spawn: vi.fn(async () => session),
       },
+      signal: new AbortController().signal,
       remainingTimeMs: () => 1_000,
       sendAndWait: vi.fn(async () => {
         visible.set("leaked-child", {
@@ -188,6 +189,7 @@ describe("panel-tree invariant", () => {
     };
     const context = {
       runner: { panelTreeClient: panelTree, spawn: vi.fn(async () => session) },
+      signal: new AbortController().signal,
       remainingTimeMs: () => 1_000,
       sendAndWait: vi.fn(async () => {
         visible.set("deliverable-panel", {
@@ -297,6 +299,7 @@ describe("panel-tree invariant", () => {
           return session;
         }),
       },
+      signal: new AbortController().signal,
       remainingTimeMs: () => 1_000,
       sendAndWait: vi.fn(async () => {
         lifecycle.push("send-prompt");
@@ -368,6 +371,7 @@ describe("panel-tree invariant", () => {
         panelTreeClient: {},
         spawn: vi.fn(async () => session),
       },
+      signal: new AbortController().signal,
       remainingTimeMs: () => 1_000,
       sendAndWait: vi.fn(),
     } as unknown as TestOrchestrationContext;

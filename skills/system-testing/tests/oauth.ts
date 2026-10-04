@@ -1,4 +1,6 @@
 import type { TestCase } from "../types.js";
+import { NativeCredentialResolutionObservationSchema } from "@vibestudio/service-schemas/credentials";
+import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
   findLastAgentMessage,
   getToolCalls,
@@ -16,7 +18,7 @@ function credentialMissChecked(result: Parameters<typeof noIncompleteInvocations
     !/(not (?:found|available|configured|bound)|no [^.\n]*(?:credential|binding)|missing|unavailable)/iu.test(
       final
     ) ||
-    !/(quiet|non.?interactive|(without|did not|didn't|no)\b[^.\n]*(prompt|window|browser|secret|authoriz))/iu.test(
+    !/(quiet|read.?only|non.?interactive|(without|did not|didn['’]t|no)\b[^.\n]*(prompt|window|browser|secret|authoriz))/iu.test(
       final
     )
   ) {
@@ -59,12 +61,21 @@ function credentialMissChecked(result: Parameters<typeof noIncompleteInvocations
     values.length === 1 && values[0] && typeof values[0] === "object" && !Array.isArray(values[0])
       ? (values[0] as Record<string, unknown>)
       : null;
-  const observedMiss =
-    value?.["missing"] === true ||
-    value?.["exists"] === false ||
-    value?.["hasCredential"] === false ||
-    value?.["credential"] === null ||
-    value?.["value"] === null;
+  const expectedRequest = sha256HexSyncText(JSON.stringify([{ url: MISSING_CREDENTIAL_AUDIENCE }]));
+  const observedMiss = evalCalls.some((call) => {
+    const envelope = call.execution?.result as { details?: { operationJournal?: {
+      protocol?: unknown; truncated?: unknown; entries?: unknown[];
+    } } } | undefined;
+    const journal = envelope?.details?.operationJournal;
+    if (journal?.protocol !== "workspace-operations.v1" || journal.truncated !== false || !Array.isArray(journal.entries)) return false;
+    return journal.entries.some((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+      const native = entry as Record<string, unknown>;
+      if (native["type"] !== "credentials.resolution") return false;
+      const parsed = NativeCredentialResolutionObservationSchema.safeParse(native["receipt"]);
+      return parsed.success && !parsed.data.found && parsed.data.requestDigest === expectedRequest;
+    });
+  });
   const exposedCredentialData =
     value !== null &&
     Object.entries(value).some(

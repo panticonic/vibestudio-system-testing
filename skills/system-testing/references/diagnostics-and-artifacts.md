@@ -90,8 +90,9 @@ authoritative surface:
 - `build.listUnits()` for declared source/build readiness, followed by
   `runtime.supervision.health(identity)` and `logs(identity)` for the exact live
   entity identity returned by `runtime.supervision.list()`;
-- the agent debug port for an open turn with no completion, tool call, or
-  `turn.closed` event;
+- the agent debug port and actual native input settlement for an admitted input
+  with no answer or tool progress; a generation task's terminal handover is not
+  input completion;
 - joined suspension diagnostics for tool projection/effect mismatches;
 - GAD health/integrity inspection for publication, branch, invocation, and
   semantic graph failures;
@@ -131,7 +132,7 @@ must release its observation unless the transcript is open.
 
 When diagnosing recipient latency, verify the mailbox's versioned at-sequence
 decision context as one unit: relationships and application config, channel
-conversation config and folded state, and reply-to sender identity. The
+conversation config and canonical decision state, and reply-to sender identity. The
 recipient claim must not call back into the channel for policy state, config,
 participants, or message sender lookup. A read receipt is a monotone projection
 update; its optional external-session signal is presentation only and must not

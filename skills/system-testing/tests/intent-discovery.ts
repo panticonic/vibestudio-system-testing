@@ -42,7 +42,7 @@ const phoneDiscoveryAuthority = {
       },
       resource: {
         kind: "exact" as const,
-        key: "phone:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
+        key: "mobile-device:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
       },
       tier: "gated" as const,
       decision: "once" as const,

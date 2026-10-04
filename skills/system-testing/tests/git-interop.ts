@@ -38,7 +38,9 @@ function exactNumber(message: string, value: number): boolean {
   return word ? new RegExp(`\\b${word}\\b`, "iu").test(message) : false;
 }
 
-function upstreamStatusChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
+function upstreamStatusChecked(
+  result: Parameters<typeof noIncompleteInvocations>[0],
+) {
   const invocations = noIncompleteInvocations(result);
   if (!invocations.passed) return invocations;
   if (!successfulEvalCode(result).includes("git.upstreamStatus")) {
@@ -53,34 +55,49 @@ function upstreamStatusChecked(result: Parameters<typeof noIncompleteInvocations
       items.every(
         (item) =>
           isRecord(item) &&
-          (typeof item["repoPath"] === "string" || typeof item["repo"] === "string") &&
-          typeof item["state"] === "string"
-      )
+          (typeof item["repoPath"] === "string" ||
+            typeof item["repo"] === "string") &&
+          typeof item["state"] === "string",
+      ),
     );
-  if (!rows) return { passed: false, reason: "Git status result contained no canonical row set" };
+  if (!rows)
+    return {
+      passed: false,
+      reason: "Git status result contained no canonical row set",
+    };
   const final = findLastAgentMessage(result);
-  if (!exactNumber(final, rows.length)) {
-    return { passed: false, reason: "Final response did not report the observed upstream count" };
-  }
   if (rows.length === 0) {
-    return /no|none|zero|not track/iu.test(final)
+    return /\bno\b|\bnone\b|\bzero\b|not track/iu.test(final)
       ? invocations
-      : { passed: false, reason: "Final response did not explain the empty upstream set" };
+      : {
+          passed: false,
+          reason: "Final response did not explain the empty upstream set",
+        };
+  }
+  if (!exactNumber(final, rows.length)) {
+    return {
+      passed: false,
+      reason: "Final response did not report the observed upstream count",
+    };
   }
   return rows.some(
     (item) =>
       isRecord(item) &&
       final.includes(String(item["repoPath"] ?? item["repo"])) &&
-      final.toLowerCase().includes(String(item["state"]).toLowerCase())
+      final.toLowerCase().includes(String(item["state"]).toLowerCase()),
   )
     ? invocations
-    : { passed: false, reason: "Final response did not cite an observed repository and state" };
+    : {
+        passed: false,
+        reason: "Final response did not cite an observed repository and state",
+      };
 }
 
 export const gitInteropTests: TestCase[] = [
   {
     name: "git-upstream-status",
-    description: "Inspect external Git upstream tracking across workspace repos",
+    description:
+      "Inspect external Git upstream tracking across workspace repos",
     category: "git-interop",
     resources: ["workspace-config:git"],
     prompt:

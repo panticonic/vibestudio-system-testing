@@ -27,23 +27,21 @@ function hasDiagnostics(values: readonly unknown[]): boolean {
   );
 }
 
-function hasInvocationResult(values: readonly unknown[]): boolean {
-  return walkRecords(values).some((record) => {
-    const value = record["result"] ?? record["value"];
-    return hasNonEmptyStructuredResult([value]);
-  });
-}
-
 export const extensionSurfaceTests: TestCase[] = [
   {
     name: "extension-list",
     description: "List the extensions available in this workspace",
     category: "extensions",
-    prompt: "Which extensions are available in this workspace?",
+    prompt: "Which extensions are currently registered and ready to use in this workspace?",
     validate: (result) => {
       const base = extensionEvidence(result, [["build.listUnits"]]);
       if (!base.passed) return base;
-      return walkArrays(base.evidence.evalValues).some((entries) => entries.length > 0)
+      return walkArrays(base.evidence.evalValues).some((entries) => entries.some((entry) =>
+        entry !== null && typeof entry === "object" &&
+        typeof (entry as Record<string, unknown>)["name"] === "string" &&
+        ((entry as Record<string, unknown>)["name"] as string).startsWith("@workspace-extensions/") &&
+        (entry as Record<string, unknown>)["status"] === "ready"
+      ))
         ? { passed: true, reason: undefined }
         : { passed: false, reason: "The completed extension registry call returned no entries" };
     },
@@ -53,7 +51,7 @@ export const extensionSurfaceTests: TestCase[] = [
     description: "Typecheck a workspace unit through the typecheck extension",
     category: "extensions",
     prompt:
-      "Type-check a small existing workspace unit through its extension surface and summarize the diagnostics.",
+      "Use the installed typecheck extension to request diagnostics for a small existing workspace unit, and summarize what it reports.",
     validate: (result) => {
       const base = extensionEvidence(result, [
         ["extensions.invoke", "typecheck", "check"],
@@ -75,9 +73,9 @@ export const extensionSurfaceTests: TestCase[] = [
     prompt:
       "Use an available extension for a harmless read-only task and tell me what it returned.",
     validate: (result) => {
-      const base = extensionEvidence(result, [["build.listUnits", "extensions.invoke"]]);
+      const base = extensionEvidence(result, [["extensions.invoke"], ["extensions.use"]]);
       if (!base.passed) return base;
-      return hasInvocationResult(base.evidence.evalValues)
+      return hasNonEmptyStructuredResult(base.evidence.evalValues)
         ? { passed: true, reason: undefined }
         : {
             passed: false,

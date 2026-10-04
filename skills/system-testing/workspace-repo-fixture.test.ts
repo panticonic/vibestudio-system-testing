@@ -695,6 +695,27 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
   });
 
+  it("observes a created worker through its committed task lineage before cleanup", async () => {
+    const fake = createPort();
+    const fixture = new WorkspaceRepoFixtureLifecycle(
+      fake.port,
+      "create-worker",
+      null,
+      { kind: "created-repository", section: "workers" },
+    );
+    const state = await fixture.prepare();
+    await expect(fixture.observeRepositories(state)).rejects.toThrow("found 0");
+    fake.createTaskRepositories(["workers/task-created"]);
+    await expect(fixture.observeRepositories(state)).resolves.toEqual([
+      {
+        repositoryId: "repository:task-created:0",
+        repoPath: "workers/task-created",
+      },
+    ]);
+    expect(fake.destroyContext).not.toHaveBeenCalled();
+    expect(fake.revert).not.toHaveBeenCalled();
+  });
+
   it("fails a task-created scope when the task creates no repository", async () => {
     const fake = createPort();
     const fixture = new WorkspaceRepoFixtureLifecycle(
@@ -1130,6 +1151,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
     expect(seededText).toContain('"kind": "worker"');
+    expect(seededText).toContain(
+      '"name": "@workspace-workers/system-test-worker"',
+    );
     expect(seededText).toContain('"entry": "index.ts"');
     expect(seededText).toContain('"authority": {');
     expect(seededText).toContain('"requests": []');
@@ -1139,6 +1163,8 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(seededText).toContain(
       "Direct resolveDurableObject methods are runtime-intrinsic",
     );
+    expect(seededText).toContain('this.env["STATE_ARGS"]');
+    expect(seededText).not.toContain('this.env["SYSTEM_TEST_PROBE"]');
     expect(fake.importSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         repositories: [
@@ -1169,6 +1195,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const state = await fixture.prepare();
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
     expect(seededText).toContain('runtime.rpc.expose("inspectProbe"');
+    expect(seededText).toContain(
+      '"name": "@workspace-workers/system-test-regular-worker"',
+    );
     expect(seededText).toContain('{ kind: "closed", reason:');
 
     await fixture.cleanup(state);

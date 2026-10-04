@@ -1,8 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { createTestDO } from "@workspace/runtime/worker/test-utils";
+import { afterEach, describe, expect, it } from "vitest";
+import { createNativeVesselTestDO } from "@workspace/agentic-do/testing/native-vessel";
 import { AGENTIC_EVENT_PAYLOAD_KIND } from "@workspace/agentic-protocol";
+import type { ChannelEvent } from "@workspace/harness";
 
 import { TestAgentWorker } from "./test-agent-worker.js";
+
+const databases = new Set<{ close(): void }>();
+afterEach(() => {
+  for (const database of databases) database.close();
+  databases.clear();
+});
+async function nativeWorker<T>(
+  ...args: Parameters<typeof createNativeVesselTestDO<T>>
+) {
+  const fixture = await createNativeVesselTestDO<T>(...args);
+  databases.add(fixture.db);
+  return fixture.instance;
+}
 
 const STANDARD_METHODS = [
   "pause",
@@ -18,6 +32,10 @@ const STANDARD_METHODS = [
 ];
 
 class CapturingTestAgentWorker extends TestAgentWorker {
+  observeEvent(channelId: string, event: ChannelEvent) {
+    return this.onChannelEvent(channelId, event);
+  }
+
   published: Array<{
     event: { kind?: string; turnId?: string };
     opts?: unknown;
@@ -63,7 +81,7 @@ class ContractTestAgentWorker extends TestAgentWorker {
 
 describe("TestAgentWorker", () => {
   it("exposes the standard agent control methods", async () => {
-    const { instance } = await createTestDO(ContractTestAgentWorker);
+    const instance = await nativeWorker(ContractTestAgentWorker);
     const methodNames = instance
       .participant()
       .methods?.map((method) => method.name);
@@ -72,11 +90,11 @@ describe("TestAgentWorker", () => {
   });
 
   it("publishes deterministic replies inside an explicit open and closed turn", async () => {
-    const { instance } = await createTestDO(CapturingTestAgentWorker);
+    const instance = await nativeWorker(CapturingTestAgentWorker);
     const worker = instance as CapturingTestAgentWorker;
     worker.seedDeterministicSubscription();
 
-    await worker.processChannelEvent("ch-1", {
+    const handled = await worker.observeEvent("ch-1", {
       id: 1,
       messageId: "msg-1",
       type: AGENTIC_EVENT_PAYLOAD_KIND,
@@ -99,6 +117,8 @@ describe("TestAgentWorker", () => {
       ts: Date.now(),
     });
 
+    expect(handled).toBe(true);
+
     expect(worker.published.map(({ event }) => event.kind)).toEqual([
       "turn.opened",
       "invocation.started",
@@ -110,5 +130,22 @@ describe("TestAgentWorker", () => {
     expect(new Set(worker.published.map(({ event }) => event.turnId))).toEqual(
       new Set(["deterministic-turn-msg-1"]),
     );
+  });
+
+  it("leaves ordinary subscriptions and non-message events to native intake", async () => {
+    const worker = await nativeWorker(CapturingTestAgentWorker);
+    const event: ChannelEvent = {
+      id: 1,
+      messageId: "presence-1",
+      type: "presence",
+      senderId: "panel:user",
+      senderMetadata: { type: "panel", name: "User", handle: "user" },
+      payload: {},
+      ts: Date.now(),
+    };
+    expect(await worker.observeEvent("ch-1", event)).toBe(false);
+    worker.seedDeterministicSubscription();
+    expect(await worker.observeEvent("ch-1", event)).toBe(false);
+    expect(worker.published).toEqual([]);
   });
 });

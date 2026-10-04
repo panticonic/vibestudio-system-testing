@@ -288,12 +288,16 @@ for (const r of scope.results.results.filter((r) => !r.result.passed)) {
   if (r.execution.error) console.log(`Session error: ${r.execution.error}`);
 
   // 1. Full conversation — every message exchanged
-  console.log(`\n--- Conversation (${r.execution.messages.length} messages) ---`);
+  console.log(
+    `\n--- Conversation (${r.execution.messages.length} messages) ---`,
+  );
   const selfId = r.execution.messages[0]?.senderId;
   for (const m of r.execution.messages) {
     const who = m.senderId === selfId ? "USER" : "AGENT";
     const type = m.contentType ?? m.kind ?? "text";
-    console.log(`  [${who}] (${type}) ${m.content?.slice(0, 500) ?? "(empty)"}`);
+    console.log(
+      `  [${who}] (${type}) ${m.content?.slice(0, 500) ?? "(empty)"}`,
+    );
     if (m.error) console.log(`    ERROR: ${m.error}`);
   }
 
@@ -320,15 +324,17 @@ for (const r of scope.results.results.filter((r) => !r.result.passed)) {
     console.log(`\n--- Participants ---`);
     for (const [id, p] of Object.entries(snap.participants)) {
       console.log(
-        `  ${p.name} (${p.type}/${p.handle}): ${p.connected ? "connected" : "DISCONNECTED"}`
+        `  ${p.name} (${p.type}/${p.handle}): ${p.connected ? "connected" : "DISCONNECTED"}`,
       );
     }
   }
 }
 ```
 
-If lifecycle events show `turn.opened` but no assistant message, tool call, or
-`turn.closed`, compare durable GAD health with the activation-local agent view:
+If an admitted native input has no answer or tool progress, compare its actual
+submission settlement and durable GAD health with the activation-local agent view.
+Native production does not emit `turn.closed`; a terminal generation task can
+hand work to a successor while its original input remains live:
 
 ```typescript
 const health = await gad.inspectAgentHealth({ channelId: chat.channelId });
@@ -336,9 +342,10 @@ const debug = await chat.callMethod(agentParticipantId, "getDebugState", {});
 console.log(JSON.stringify(debug, null, 2).slice(0, 4000));
 ```
 
-The local snapshot never hydrates its folded loop through GAD. Treat
-`loaded: false` as an explicit activation-local absence and use `health` for
-durable terminality and provenance. For an out-of-band or cross-channel probe,
+The local snapshot observes an already admitted native Session; inspection does
+not open execution. In `debug.conversations[channelId]`, treat `loaded: false`
+as activation-local absence and use `health` for durable terminality and
+provenance. For an out-of-band or cross-channel probe,
 use the channel DO's bounded `inspectAgent` path described in
 `docs/agent-debug-port.md`.
 
@@ -376,8 +383,12 @@ waiting on a unit-install-review card indicates a host bypass, not missing promp
 // Raw server services target "main".
 return {
   recent: await rpc.call("main", "build.listRecentBuildEvents", []),
-  forUnit: await rpc.call("main", "build.listRecentBuildEvents", ["panels/example"]),
-  unit: await rpc.call("main", "build.inspectBuildProvenance", ["panels/example"]),
+  forUnit: await rpc.call("main", "build.listRecentBuildEvents", [
+    "panels/example",
+  ]),
+  unit: await rpc.call("main", "build.inspectBuildProvenance", [
+    "panels/example",
+  ]),
 };
 ```
 
@@ -582,9 +593,15 @@ Edit source files in the checkout using fs operations. For a Vibestudio
 application checkout, paths are relative to `projects/vibestudio/`:
 
 ```typescript
-const content = await fs.readFile("projects/vibestudio/src/server/services/fsService.ts", "utf-8");
+const content = await fs.readFile(
+  "projects/vibestudio/src/server/services/fsService.ts",
+  "utf-8",
+);
 // ... modify content ...
-await fs.writeFile("projects/vibestudio/src/server/services/fsService.ts", fixedContent);
+await fs.writeFile(
+  "projects/vibestudio/src/server/services/fsService.ts",
+  fixedContent,
+);
 ```
 
 **Fix checklist:**

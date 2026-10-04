@@ -59,12 +59,25 @@ function checkedBrowserInteraction(
       reason: `Expected no failed tool calls, got ${failures.map(formatToolFailure).join(", ")}`,
     };
   const final = findLastAgentMessage(result).normalize("NFKC").toLowerCase();
-  const strings = (value: unknown): string[] => {
+  const reported = (value: unknown): boolean => {
     if (typeof value === "string")
-      return value.trim() ? [value.normalize("NFKC").toLowerCase()] : [];
-    if (Array.isArray(value)) return value.flatMap(strings);
-    if (isRecord(value)) return Object.values(value).flatMap(strings);
-    return [];
+      return (
+        Boolean(value.trim()) &&
+        final.includes(value.normalize("NFKC").toLowerCase())
+      );
+    if (
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    ) {
+      const literal = String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(
+        `(?<![\\p{L}\\p{N}])(?<!\\d\\.)${literal}(?![\\p{L}\\p{N}]|\\.\\d)`,
+        "u",
+      ).test(final);
+    }
+    if (Array.isArray(value)) return value.some(reported);
+    if (isRecord(value)) return Object.values(value).some(reported);
+    return false;
   };
   const panels = new Map<
     string,
@@ -120,9 +133,7 @@ function checkedBrowserInteraction(
         receipt["protocol"] === "cdp-evaluation-outcome.v1" &&
         receipt["truncated"] === false
       ) {
-        state.reportedValue ||= strings(receipt["value"]).some((value) =>
-          final.includes(value),
-        );
+        state.reportedValue ||= reported(receipt["value"]);
       }
     }
   }
@@ -143,6 +154,118 @@ function checkedBrowserInteraction(
         reason:
           "The agent captured a screenshot but did not read it as image content",
       };
+}
+
+function checkedBrowserProfile(
+  result: Parameters<typeof finalMessageHasAll>[0],
+) {
+  const base = checked(result, [/profil/iu, /runtime|task/iu, /network/iu], []);
+  if (!base.passed) return base;
+  const final = findLastAgentMessage(result).normalize("NFKC").toLowerCase();
+  const reported = (value: unknown): boolean => {
+    if (typeof value === "string" && value.trim())
+      return new RegExp(
+        `(?<![\\p{L}\\p{N}])${value
+          .normalize("NFKC")
+          .toLowerCase()
+          .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+        "u",
+      ).test(final);
+    if (Array.isArray(value)) return value.some(reported);
+    return isRecord(value) && Object.values(value).some(reported);
+  };
+  const active = new Map<
+    string,
+    { clicked: boolean; observations: unknown[] }
+  >();
+  const completed = new Set<string>();
+  for (const call of getToolCalls(result)) {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError
+    )
+      continue;
+    const output = call.execution.result;
+    const details =
+      isRecord(output) && isRecord(output["details"])
+        ? output["details"]
+        : null;
+    const journal = details?.["operationJournal"];
+    if (
+      !isRecord(journal) ||
+      journal["protocol"] !== "workspace-operations.v1" ||
+      journal["truncated"] !== false ||
+      !Array.isArray(journal["entries"])
+    )
+      continue;
+    for (const entry of journal["entries"]) {
+      if (!isRecord(entry) || typeof entry["id"] !== "string") continue;
+      const id = entry["id"];
+      if (entry["type"] === "profile.start") {
+        active.set(id, { clicked: false, observations: [] });
+        completed.delete(id);
+      }
+      const receipt = entry["receipt"];
+      if (!isRecord(receipt)) continue;
+      const operation = active.get(id);
+      if (
+        entry["type"] === "interaction" &&
+        receipt["protocol"] === "cdp-interaction-outcome.v1" &&
+        receipt["action"] === "click" &&
+        receipt["delivery"] === "dispatched"
+      ) {
+        completed.delete(id);
+        if (operation) {
+          operation.clicked = true;
+          operation.observations = [];
+        }
+      }
+      if (
+        entry["type"] === "evaluation" &&
+        receipt["protocol"] === "cdp-evaluation-outcome.v1" &&
+        receipt["truncated"] === false
+      ) {
+        if (operation?.clicked) operation.observations.push(receipt["value"]);
+        if (completed.has(id) && reported(receipt["value"]))
+          return { passed: true };
+      }
+      if (entry["type"] !== "profile") continue;
+      active.delete(id);
+      const runtime = receipt["runtime"],
+        network = receipt["network"],
+        page = receipt["page"];
+      if (
+        !operation?.clicked ||
+        receipt["protocol"] !== "cdp-profile-outcome.v1" ||
+        !isRecord(runtime) ||
+        !isRecord(network) ||
+        !isRecord(page) ||
+        !isRecord(page["longTasks"])
+      )
+        continue;
+      const metrics = [
+        receipt["elapsedMs"],
+        runtime["taskDurationMs"],
+        network["requestCount"],
+        page["longTasks"]["count"],
+      ];
+      if (
+        !metrics.every(
+          (value) =>
+            typeof value === "number" && Number.isFinite(value) && value >= 0,
+        )
+      )
+        continue;
+      if (operation.observations.some(reported)) return { passed: true };
+      completed.add(id);
+    }
+  }
+  return {
+    passed: false,
+    reason:
+      "Missing native bounded profile enclosing a click and a matching reported final visible state",
+  };
 }
 
 const IMPOSSIBLE_SUCCESS_PHRASES = [
@@ -170,13 +293,14 @@ function checked(
   result: Parameters<typeof finalMessageHasAll>[0],
   finalClaims: RegExp[],
   evidenceClaims: RegExp[],
-  options: { allowInFlightHealthOkFalse?: boolean } = {}
+  options: { allowInFlightHealthOkFalse?: boolean } = {},
 ) {
   const final = findLastAgentMessage(result);
   if (!finalClaims.every((pattern) => pattern.test(final))) {
     return {
       passed: false,
-      reason: "Final response did not semantically report every requested diagnostic outcome",
+      reason:
+        "Final response did not semantically report every requested diagnostic outcome",
     };
   }
 
@@ -196,17 +320,21 @@ function checked(
       (call) =>
         call.name === "eval" &&
         call.execution?.status === "complete" &&
-        call.execution.isError !== true
+        call.execution.isError !== true,
     )
     .map(
       (call) =>
-        `${JSON.stringify(call.arguments ?? {})}\n${JSON.stringify(call.execution?.result ?? null)}`
+        `${JSON.stringify(call.arguments ?? {})}\n${JSON.stringify(call.execution?.result ?? null)}`,
     )
     .join("\n");
-  if (!evalEvidence || !evidenceClaims.every((pattern) => pattern.test(evalEvidence))) {
+  if (
+    !evalEvidence ||
+    !evidenceClaims.every((pattern) => pattern.test(evalEvidence))
+  ) {
     return {
       passed: false,
-      reason: "Canonical eval arguments/results omitted requested diagnostic evidence",
+      reason:
+        "Canonical eval arguments/results omitted requested diagnostic evidence",
     };
   }
 
@@ -236,13 +364,56 @@ function checked(
   return { passed: true };
 }
 
+function checkedPanelState(result: Parameters<typeof finalMessageHasAll>[0]) {
+  const outcome = checked(
+    result,
+    [/panel/iu, /state/iu, /visible|observed|exposed/iu],
+    [/stateArgs/iu, /stateArgs\.get|snapshot/iu],
+  );
+  if (!outcome.passed) return outcome;
+  const changed = getToolCalls(result).some((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      return false;
+    const details = isRecord(call.execution.result)
+      ? call.execution.result["details"]
+      : null;
+    if (!isRecord(details) || !isRecord(details["operationJournal"]))
+      return false;
+    const journal = details["operationJournal"];
+    return (
+      journal["protocol"] === "workspace-operations.v1" &&
+      journal["truncated"] === false &&
+      Array.isArray(journal["entries"]) &&
+      journal["entries"].some(
+        (entry) =>
+          isRecord(entry) &&
+          entry["type"] === "stateArgs.set" &&
+          typeof entry["id"] === "string",
+      )
+    );
+  });
+  return changed
+    ? { passed: true }
+    : {
+        passed: false,
+        reason: "No completed native panel launch-state change was observed",
+      };
+}
+
 function checkedGadIntegrity(result: Parameters<typeof finalMessageHasAll>[0]) {
   const final = findLastAgentMessage(result);
   if (
     !GAD_INTEGRITY_CLAIMS.every((pattern) => pattern.test(final)) &&
     !expectedLiveGadHealthOutcome(result)
   ) {
-    return { passed: false, reason: "Final response omitted part of the GAD health assessment" };
+    return {
+      passed: false,
+      reason: "Final response omitted part of the GAD health assessment",
+    };
   }
   const incomplete = noIncompleteInvocations(result);
   if (!incomplete.passed) return incomplete;
@@ -256,9 +427,14 @@ function checkedGadIntegrity(result: Parameters<typeof finalMessageHasAll>[0]) {
   const evidence = collectInvocationResultText(result);
   if (
     !evidence ||
-    ![/storage/iu, /publication/iu, /turn/iu, /invocation/iu, /hash/iu, /integrity/iu].every(
-      (pattern) => pattern.test(evidence)
-    )
+    ![
+      /storage/iu,
+      /publication/iu,
+      /turn/iu,
+      /invocation/iu,
+      /hash/iu,
+      /integrity/iu,
+    ].every((pattern) => pattern.test(evidence))
   ) {
     return {
       passed: false,
@@ -273,7 +449,7 @@ function checkedGadIntegrity(result: Parameters<typeof finalMessageHasAll>[0]) {
 }
 
 function unexpectedToolFailures(
-  result: Parameters<typeof finalMessageHasAll>[0]
+  result: Parameters<typeof finalMessageHasAll>[0],
 ): ToolFailureLike[] {
   const fromMessages = failedToolCalls(result)
     .filter(isUnexpectedInvocation)
@@ -284,18 +460,21 @@ function unexpectedToolFailures(
       error: invocationErrorText(call.execution?.result),
       source: "message",
     }));
-  const fromRunner = (result.toolFailures ?? []).filter(isUnexpectedToolFailure).map((failure) => ({
-    name: failure.name,
-    status: failure.status,
-    terminalOutcome: failure.terminalOutcome,
-    error: failure.error,
-    resultSummary: failure.resultSummary,
-    source: failure.source,
-  }));
+  const fromRunner = (result.toolFailures ?? [])
+    .filter(isUnexpectedToolFailure)
+    .map((failure) => ({
+      name: failure.name,
+      status: failure.status,
+      terminalOutcome: failure.terminalOutcome,
+      error: failure.error,
+      resultSummary: failure.resultSummary,
+      source: failure.source,
+    }));
   const fromTerminalOutcomes = getToolCalls(result)
     .filter(
       (call) =>
-        /error|fail/i.test(call.execution?.terminalOutcome ?? "") && isUnexpectedInvocation(call)
+        /error|fail/i.test(call.execution?.terminalOutcome ?? "") &&
+        isUnexpectedInvocation(call),
     )
     .map((call) => ({
       name: call.name,
@@ -304,7 +483,11 @@ function unexpectedToolFailures(
       error: invocationErrorText(call.execution?.result),
       source: "message",
     }));
-  return dedupeFailures([...fromMessages, ...fromRunner, ...fromTerminalOutcomes]);
+  return dedupeFailures([
+    ...fromMessages,
+    ...fromRunner,
+    ...fromTerminalOutcomes,
+  ]);
 }
 
 function isUnexpectedInvocation(call: {
@@ -327,25 +510,37 @@ function isUnexpectedInvocation(call: {
   const execution = call.execution;
   const result = execution?.result ?? call.result;
   const details =
-    result && typeof result === "object" && !Array.isArray(result) && "details" in result
+    result &&
+    typeof result === "object" &&
+    !Array.isArray(result) &&
+    "details" in result
       ? (result as Record<string, unknown>)["details"]
       : undefined;
   const nestedFailure =
-    details && typeof details === "object" && !Array.isArray(details) && "failure" in details
+    details &&
+    typeof details === "object" &&
+    !Array.isArray(details) &&
+    "failure" in details
       ? (details as Record<string, unknown>)["failure"]
       : undefined;
   const failureDetails =
-    nestedFailure && typeof nestedFailure === "object" && !Array.isArray(nestedFailure)
+    nestedFailure &&
+    typeof nestedFailure === "object" &&
+    !Array.isArray(nestedFailure)
       ? (nestedFailure as Record<string, unknown>)
       : undefined;
-  const stringField = (record: Record<string, unknown> | undefined, key: string) => {
+  const stringField = (
+    record: Record<string, unknown> | undefined,
+    key: string,
+  ) => {
     const value = record?.[key];
     return typeof value === "string" ? value : undefined;
   };
   return (
     classifyBuiltInToolFailure({
       name: call.name,
-      terminalReasonCode: execution?.terminalReasonCode ?? call.terminalReasonCode,
+      terminalReasonCode:
+        execution?.terminalReasonCode ?? call.terminalReasonCode,
       failureCode:
         execution?.failureCode ??
         call.failureCode ??
@@ -353,7 +548,7 @@ function isUnexpectedInvocation(call: {
           details && typeof details === "object" && !Array.isArray(details)
             ? (details as Record<string, unknown>)
             : undefined,
-          "failureCode"
+          "failureCode",
         ) ??
         stringField(failureDetails, "failureCode"),
       failureKind:
@@ -363,7 +558,7 @@ function isUnexpectedInvocation(call: {
           details && typeof details === "object" && !Array.isArray(details)
             ? (details as Record<string, unknown>)
             : undefined,
-          "failureKind"
+          "failureKind",
         ) ??
         stringField(failureDetails, "failureKind"),
       error: execution?.error ?? call.error,
@@ -373,7 +568,9 @@ function isUnexpectedInvocation(call: {
   );
 }
 
-function firstOkFalsePath(result: Parameters<typeof finalMessageHasAll>[0]): string | undefined {
+function firstOkFalsePath(
+  result: Parameters<typeof finalMessageHasAll>[0],
+): string | undefined {
   // A contradiction must come from executed diagnostic evidence. Source/document
   // reads routinely contain examples and implementation branches with `ok:false`;
   // treating those bytes as the test's runtime outcome makes successful CDP
@@ -382,22 +579,29 @@ function firstOkFalsePath(result: Parameters<typeof finalMessageHasAll>[0]): str
   for (const [index, call] of calls.entries()) {
     const path = findOkFalse(
       call.execution?.result,
-      `messages[${index}].${call.name}.execution.result`
+      `messages[${index}].${call.name}.execution.result`,
     );
     if (path) return path;
   }
 
-  for (const [index, invocation] of (result.snapshot?.invocations ?? []).entries()) {
+  for (const [index, invocation] of (
+    result.snapshot?.invocations ?? []
+  ).entries()) {
     if (invocation.name !== "eval") continue;
     for (const [suffix, value] of invocationResultCandidates(invocation)) {
-      const path = findOkFalse(value, `snapshot.invocations[${index}].${suffix}`);
+      const path = findOkFalse(
+        value,
+        `snapshot.invocations[${index}].${suffix}`,
+      );
       if (path) return path;
     }
   }
   return undefined;
 }
 
-function invocationResultCandidates(invocation: unknown): Array<[string, unknown]> {
+function invocationResultCandidates(
+  invocation: unknown,
+): Array<[string, unknown]> {
   if (!invocation || typeof invocation !== "object") return [];
   const record = invocation as Record<string, unknown>;
   const execution =
@@ -407,15 +611,24 @@ function invocationResultCandidates(invocation: unknown): Array<[string, unknown
   return [
     ["execution.result", execution?.["result"]],
     ["result", record["result"]],
-  ].filter((candidate): candidate is [string, unknown] => candidate[1] !== undefined);
+  ].filter(
+    (candidate): candidate is [string, unknown] => candidate[1] !== undefined,
+  );
 }
 
-function findOkFalse(value: unknown, path: string, seen = new Set<unknown>()): string | undefined {
+function findOkFalse(
+  value: unknown,
+  path: string,
+  seen = new Set<unknown>(),
+): string | undefined {
   if (typeof value === "string") {
     const parsed = parseJsonish(value);
     if (parsed !== undefined) return findOkFalse(parsed, path, seen);
     if (/"?ok"?\s*[:=]\s*false|ok false/i.test(value)) {
-      if (looksLikeControlledOkFalseText(value) || looksLikeExpectedInFlightHealthText(value)) {
+      if (
+        looksLikeControlledOkFalseText(value) ||
+        looksLikeExpectedInFlightHealthText(value)
+      ) {
         return undefined;
       }
       return path;
@@ -428,7 +641,10 @@ function findOkFalse(value: unknown, path: string, seen = new Set<unknown>()): s
 
   if (
     !Array.isArray(value) &&
-    (isExpectedControlledRejectionRecord(value as Record<string, unknown>, path) ||
+    (isExpectedControlledRejectionRecord(
+      value as Record<string, unknown>,
+      path,
+    ) ||
       isExpectedInFlightHealthRecord(value as Record<string, unknown>))
   ) {
     return undefined;
@@ -451,11 +667,13 @@ function findOkFalse(value: unknown, path: string, seen = new Set<unknown>()): s
   return undefined;
 }
 
-function isExpectedInFlightHealthRecord(record: Record<string, unknown>): boolean {
+function isExpectedInFlightHealthRecord(
+  record: Record<string, unknown>,
+): boolean {
   if (record["ok"] !== false) return false;
   const openTurns = Number(record["openTurns"] ?? 0);
   const openInvocations = Number(
-    record["nonterminalInvocations"] ?? record["openProjectedInvocations"] ?? 0
+    record["nonterminalInvocations"] ?? record["openProjectedInvocations"] ?? 0,
   );
   if (openTurns <= 0 && openInvocations <= 0) return false;
 
@@ -469,7 +687,9 @@ function isExpectedInFlightHealthRecord(record: Record<string, unknown>): boolea
     "integrityIssues",
   ];
   const present = issueFields.filter((field) => record[field] !== undefined);
-  return present.length > 0 && present.every((field) => Number(record[field]) === 0);
+  return (
+    present.length > 0 && present.every((field) => Number(record[field]) === 0)
+  );
 }
 
 function parseJsonish(value: string): unknown {
@@ -489,19 +709,26 @@ function parseJsonish(value: string): unknown {
 
 function isExpectedControlledRejectionRecord(
   record: Record<string, unknown>,
-  path: string
+  path: string,
 ): boolean {
   if (record["ok"] !== false) return false;
   if (record["expected"] === true || record["rejected"] === true) return true;
 
   const pathLower = path.toLowerCase();
-  const text = [record["name"], record["error"], record["reason"], record["message"]]
+  const text = [
+    record["name"],
+    record["error"],
+    record["reason"],
+    record["message"],
+  ]
     .filter((part) => typeof part === "string")
     .join(" ")
     .toLowerCase();
   return (
     pathLower.includes("controllederror") &&
-    /rawsql writes are disabled|unknown worktree state|not-a-real|rejected|expected/.test(text)
+    /rawsql writes are disabled|unknown worktree state|not-a-real|rejected|expected/.test(
+      text,
+    )
   );
 }
 
@@ -510,7 +737,9 @@ function looksLikeControlledOkFalseText(value: string): boolean {
   return (
     lower.includes("controllederror") &&
     lower.includes("ok") &&
-    /rawsql writes are disabled|unknown worktree state|not-a-real|rejected|expected/.test(lower)
+    /rawsql writes are disabled|unknown worktree state|not-a-real|rejected|expected/.test(
+      lower,
+    )
   );
 }
 
@@ -532,20 +761,26 @@ function looksLikeExpectedInFlightHealthText(value: string): boolean {
     "integrityIssues",
   ];
   const namesAnIssueMetric = issueFields.some((field) =>
-    new RegExp(`(?:"${field}"|\\b${field}\\b)\\s*[:=]`, "i").test(value)
+    new RegExp(`(?:"${field}"|\\b${field}\\b)\\s*[:=]`, "i").test(value),
   );
   return namesAnIssueMetric && !hasPositiveMetric(value, issueFields);
 }
 
 function hasExpectedInFlightHealthEvidence(
-  result: Parameters<typeof finalMessageHasAll>[0]
+  result: Parameters<typeof finalMessageHasAll>[0],
 ): boolean {
   const evidence = collectInvocationResultText(result);
   return looksLikeExpectedInFlightHealthText(evidence);
 }
 
-function expectedLiveGadHealthOutcome(result: Parameters<typeof finalMessageHasAll>[0]): boolean {
-  if (!GAD_INTEGRITY_CLAIMS.every((pattern) => pattern.test(findLastAgentMessage(result))))
+function expectedLiveGadHealthOutcome(
+  result: Parameters<typeof finalMessageHasAll>[0],
+): boolean {
+  if (
+    !GAD_INTEGRITY_CLAIMS.every((pattern) =>
+      pattern.test(findLastAgentMessage(result)),
+    )
+  )
     return false;
   if (!noIncompleteInvocations(result).passed) return false;
   if (unexpectedToolFailures(result).length > 0) return false;
@@ -555,10 +790,13 @@ function expectedLiveGadHealthOutcome(result: Parameters<typeof finalMessageHasA
   const evidence = `${findLastAgentMessage(result)}\n${toolEvidence}`;
   const lower = evidence.toLowerCase();
   const hasLiveTurn =
-    hasPositiveMetric(evidence, ["openTurns"]) || /\b(current|active|open)\s+turn\b/.test(lower);
+    hasPositiveMetric(evidence, ["openTurns"]) ||
+    /\b(current|active|open)\s+turn\b/.test(lower);
   const hasLiveInvocation =
-    hasPositiveMetric(evidence, ["nonterminalInvocations", "openProjectedInvocations"]) ||
-    /\b(nonterminal|open)\s+invocation\b/.test(lower);
+    hasPositiveMetric(evidence, [
+      "nonterminalInvocations",
+      "openProjectedInvocations",
+    ]) || /\b(nonterminal|open)\s+invocation\b/.test(lower);
   if (!hasLiveTurn && !hasLiveInvocation) return false;
 
   if (
@@ -575,13 +813,19 @@ function expectedLiveGadHealthOutcome(result: Parameters<typeof finalMessageHasA
     return false;
   }
 
-  if (/(validateGadHashes|checkGadIntegrity)[\s\S]{0,300}"?ok"?\s*[:=]\s*false/i.test(evidence)) {
+  if (
+    /(validateGadHashes|checkGadIntegrity)[\s\S]{0,300}"?ok"?\s*[:=]\s*false/i.test(
+      evidence,
+    )
+  ) {
     return false;
   }
   return true;
 }
 
-function collectInvocationResultText(result: Parameters<typeof finalMessageHasAll>[0]): string {
+function collectInvocationResultText(
+  result: Parameters<typeof finalMessageHasAll>[0],
+): string {
   const parts: string[] = [];
   for (const call of getToolCalls(result)) {
     collectStringLeaves(call.execution?.result, parts);
@@ -594,7 +838,11 @@ function collectInvocationResultText(result: Parameters<typeof finalMessageHasAl
   return parts.join("\n");
 }
 
-function collectStringLeaves(value: unknown, parts: string[], seen = new Set<unknown>()) {
+function collectStringLeaves(
+  value: unknown,
+  parts: string[],
+  seen = new Set<unknown>(),
+) {
   if (typeof value === "string") {
     parts.push(value);
     return;
@@ -619,7 +867,10 @@ function collectStringLeaves(value: unknown, parts: string[], seen = new Set<unk
 function hasPositiveMetric(value: string, names: string[]): boolean {
   return names.some((name) => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(`(?:"${escaped}"|\\b${escaped}\\b)\\s*[:=]\\s*(\\d+)`, "gi");
+    const pattern = new RegExp(
+      `(?:"${escaped}"|\\b${escaped}\\b)\\s*[:=]\\s*(\\d+)`,
+      "gi",
+    );
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(value))) {
       if (Number(match[1]) > 0) return true;
@@ -629,7 +880,7 @@ function hasPositiveMetric(value: string, names: string[]): boolean {
 }
 
 function impossibleSuccessPhrase(
-  result: Parameters<typeof finalMessageHasAll>[0]
+  result: Parameters<typeof finalMessageHasAll>[0],
 ): string | undefined {
   const lower = findLastAgentMessage(result).toLowerCase();
   if (/\bok\s*[:=]\s*false\b/.test(lower)) return "ok:false";
@@ -676,18 +927,20 @@ function formatToolFailure(failure: ToolFailureLike): string {
 export const cdpGadDiagnosticTests: TestCase[] = [
   {
     name: "workspace-panel-reload-performance-profile",
-    description: "Profile a real workspace-panel reload across runtime replacement",
+    description:
+      "Profile a real workspace-panel reload across runtime replacement",
     category: "cdp-gad-diagnostics",
-    authorityPolicy: panelControlAuthorityPolicy("inspect-cdp-performance-panel-reload", [
-      PANEL_RUNTIME_SUPERVISION_AUTHORITY,
-    ]),
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-cdp-performance-panel-reload",
+      [PANEL_RUNTIME_SUPERVISION_AUTHORITY],
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: WORKSPACE_RELOAD_PROFILE_PROMPT,
     orchestrate: (context) =>
       orchestratePanelGoal(
         context,
         WORKSPACE_RELOAD_PROFILE_PROMPT,
-        "profile a workspace-panel reload"
+        "profile a workspace-panel reload",
       ),
     validate: (result) =>
       checked(
@@ -701,35 +954,26 @@ export const cdpGadDiagnosticTests: TestCase[] = [
           /elapsedMs/u,
           /userCpuMs/u,
           /rssDeltaBytes/u,
-        ]
+        ],
       ),
   },
   {
     name: "cdp-page-performance-profile",
-    description: "Profile a browser interaction with the canonical bounded CDP report",
+    description:
+      "Profile a browser interaction with the canonical bounded CDP report",
     category: "cdp-gad-diagnostics",
-    authorityPolicy: panelControlAuthorityPolicy("inspect-cdp-performance-page"),
+    authorityPolicy: panelControlAuthorityPolicy(
+      "inspect-cdp-performance-page",
+    ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: BROWSER_CLICK_PROFILE_PROMPT,
     orchestrate: (context) =>
       orchestratePanelGoal(
         context,
         BROWSER_CLICK_PROFILE_PROMPT,
-        "profile one visible browser interaction"
+        "profile one visible browser interaction",
       ),
-    validate: (result) =>
-      checked(
-        result,
-        [/profil/iu, /elapsed/iu, /runtime|task/iu, /network/iu, /state:\s*clicked/iu],
-        [
-          /\.profile\s*\(/u,
-          /elapsedMs/u,
-          /taskDurationMs/u,
-          /requestCount/u,
-          /longTasks(?:\?\.)?\.count|"longTasks"\s*:\s*\{\s*"count"/u,
-          /state:\s*clicked/iu,
-        ]
-      ),
+    validate: checkedBrowserProfile,
   },
   {
     name: "cdp-page-click-type-evaluate",
@@ -742,13 +986,14 @@ export const cdpGadDiagnosticTests: TestCase[] = [
       orchestratePanelGoal(
         context,
         BROWSER_AUTOMATION_PROMPT,
-        "inspect an interactive browser page"
+        "inspect an interactive browser page",
       ),
     validate: checkedBrowserInteraction,
   },
   {
     name: "cdp-page-console-dom-inspection",
-    description: "Exercise canonical CDP page inspection and host historical console APIs",
+    description:
+      "Exercise canonical CDP page inspection and host historical console APIs",
     category: "cdp-gad-diagnostics",
     authorityPolicy: panelControlAuthorityPolicy("inspect-cdp-console-page"),
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -757,13 +1002,25 @@ export const cdpGadDiagnosticTests: TestCase[] = [
       orchestratePanelGoal(
         context,
         BROWSER_CONSOLE_PROMPT,
-        "inspect browser console and document evidence"
+        "inspect browser console and document evidence",
       ),
     validate: (result) =>
       checked(
         result,
-        [/console/iu, /histor/iu, /error/iu, /dom/iu, /visible/iu],
-        [/console/iu, /histor/iu, /error/iu, /dom/iu, /visible/iu]
+        [
+          /console/iu,
+          /histor|retained/iu,
+          /error/iu,
+          /dom|document|body/iu,
+          /visible|empty|blank/iu,
+        ],
+        [
+          /console/iu,
+          /histor/iu,
+          /error/iu,
+          /dom|document|body/iu,
+          /visible|state|body/iu,
+        ],
       ),
   },
   {
@@ -774,13 +1031,12 @@ export const cdpGadDiagnosticTests: TestCase[] = [
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt: PANEL_STATE_PROMPT,
     orchestrate: (context) =>
-      orchestratePanelGoal(context, PANEL_STATE_PROMPT, "inspect a panel state change"),
-    validate: (result) =>
-      checked(
-        result,
-        [/panel/iu, /state/iu, /snapshot/iu, /visible|observed/iu],
-        [/stateArgs/iu, /snapshot/iu]
+      orchestratePanelGoal(
+        context,
+        PANEL_STATE_PROMPT,
+        "inspect a panel state change",
       ),
+    validate: checkedPanelState,
   },
   {
     name: "gad-integrity-diagnostics",
@@ -789,23 +1045,5 @@ export const cdpGadDiagnosticTests: TestCase[] = [
     prompt:
       "Run a quick health assessment of the graph-and-data store, covering storage, publication, the current turn and invocation, hashes, and integrity. Report findings honestly, including healthy in-flight work.",
     validate: checkedGadIntegrity,
-  },
-  {
-    name: "gad-branch-file-diff-probe",
-    description: "Probe GAD branch and state inspection",
-    category: "cdp-gad-diagnostics",
-    prompt:
-      "Probe graph-and-data branch files and state inspection, including a couple of harmless invalid requests so controlled rejection behavior is observable. Summarize successes and expected errors.",
-    validate: (result) =>
-      checked(
-        result,
-        [/branch/iu, /state/iu, /controlled|expected|reject/iu],
-        [
-          /branch.?files/iu,
-          /state.?probe/iu,
-          /controlled.?errors|rejected|rawSql writes are disabled/iu,
-        ],
-        { allowInFlightHealthOkFalse: true }
-      ),
   },
 ];

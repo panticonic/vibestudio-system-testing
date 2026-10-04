@@ -178,9 +178,18 @@ function walkDelivered(
   walk: "cause" | "cohort" | "rejections",
   carried: RegExp,
 ): TestResult {
-  const delivered = provenanceCalls(result).some(
-    (entry) => entry.details["walk"] === walk && carried.test(entry.text),
-  );
+  const reachedRefs = new Set<string>();
+  const delivered = provenanceCalls(result).some((entry) => {
+    const target = entry.call.arguments?.["target"];
+    const reached = entry.details["walk"] === walk ||
+      (typeof target === "string" && reachedRefs.has(target));
+    if (!reached) return false;
+    // Compact walks deliberately excerpt long messages. Opening a returned
+    // reference is the public continuation contract, not a second mechanism.
+    for (const ref of entry.text.match(/@r[0-9a-z]+-[0-9a-f]+/gu) ?? [])
+      reachedRefs.add(ref);
+    return carried.test(entry.text);
+  });
   return delivered
     ? { passed: true }
     : {
@@ -520,16 +529,20 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
   {
     name: "provenance-consults-rejections-before-repeating-them",
     description:
-      "A fresh agent finds that the change it was asked to make was already tried and undone, and says why",
+      "A fresh agent reviewing a proposed change finds it was already tried and undone, and says why",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
 
     prompt:
-      "Retries are churning in the disposable project. Raise backoffCeilingSeconds in src/retry-policy.ts to 300 so we back off harder. Before you change anything, check whether this workspace already has something to say about that value, and tell me what you find.",
+      "Retries are churning in the disposable project. I am considering raising backoffCeilingSeconds in src/retry-policy.ts to 300 so we back off harder. Check what this workspace already knows about that value, and tell me what happened before and whether repeating it makes sense. This is a review; do not change the project.",
     validate: (result) =>
       all(
         provenanceSurfacesAreLive(result),
         consultedNegativeEvidence(result),
+        getToolCalls(result).some((call) =>
+          ["write", "edit", "apply_patch", "move_file", "copy_file"].includes(call.name) ||
+          (call.name === "vcs" && ["merge", "revert", "commit", "push", "discard", "importSnapshot"].includes(String(call.arguments?.["operation"])))
+        ) ? { passed: false, reason: "The history review mutated the project instead of reporting the recorded evidence" } : { passed: true },
         // Grade the facts the answer must carry, not the sentence shape it
         // carries them in: that this exact value was raised before, that the
         // raise was undone, and why.

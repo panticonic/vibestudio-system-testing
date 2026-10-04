@@ -1,4 +1,8 @@
-import { BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE, type TestCase } from "../types.js";
+import {
+  BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+  type TestCase,
+} from "../types.js";
+import { invocationReturnValue } from "./_scenario-evidence.js";
 import { PANEL_AUTOMATION_RESOURCE } from "../panel-authority.js";
 import { orchestratePanelGoal } from "./_panel-tree-invariant.js";
 import {
@@ -6,28 +10,37 @@ import {
   findLastAgentMessage,
   getToolCalls,
   noIncompleteInvocations,
+  responseContains,
 } from "./_helpers.js";
 
 function semanticEval(
   result: Parameters<typeof noIncompleteInvocations>[0],
   codePatterns: RegExp[],
   finalPatterns: RegExp[],
-  evidencePatterns: RegExp[] = []
+  evidencePatterns: RegExp[] = [],
 ) {
   const calls = getToolCalls(result).filter(
     (call) =>
       call.name === "eval" &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
-  const code = calls.map((call) => String(call.arguments?.["code"] ?? "")).join("\n");
-  if (calls.length === 0 || !codePatterns.every((pattern) => pattern.test(code))) {
+  const code = calls
+    .map((call) => String(call.arguments?.["code"] ?? ""))
+    .join("\n");
+  if (
+    calls.length === 0 ||
+    !codePatterns.every((pattern) => pattern.test(code))
+  ) {
     return {
       passed: false,
-      reason: "Canonical eval arguments did not exercise the required runtime capability",
+      reason:
+        "Canonical eval arguments did not exercise the required runtime capability",
     };
   }
-  const evidence = calls.map((call) => JSON.stringify(call.execution?.result ?? null)).join("\n");
+  const evidence = calls
+    .map((call) => JSON.stringify(call.execution?.result ?? null))
+    .join("\n");
   if (!evidencePatterns.every((pattern) => pattern.test(evidence))) {
     return {
       passed: false,
@@ -38,28 +51,90 @@ function semanticEval(
   if (!finalPatterns.every((pattern) => pattern.test(final))) {
     return {
       passed: false,
-      reason: "Final response did not semantically report the observed runtime outcome",
+      reason:
+        "Final response did not semantically report the observed runtime outcome",
     };
   }
   return noIncompleteInvocations(result);
 }
 
-function channelInspectionIsBounded(result: Parameters<typeof findLastAgentMessage>[0]) {
+function statusMetricsReported(
+  result: Parameters<typeof findLastAgentMessage>[0],
+) {
+  const final = findLastAgentMessage(result).replaceAll(",", "");
+  const observed = getToolCalls(result).some((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError
+    )
+      return false;
+    const code = String(call.arguments?.["code"] ?? "");
+    const statusCall =
+      /gad\.status\s*\(/u.test(code) ||
+      (/workers\.resolveService\([\s\S]*["']vibestudio\.workspace-source\.v1["']/u.test(
+        code,
+      ) &&
+        /rpc\.call\([\s\S]*["']getStatus["']/u.test(code));
+    if (!statusCall) return false;
+    const returned = invocationReturnValue(call);
+    if (!returned.present || !Array.isArray(returned.value)) return false;
+    return returned.value.some((row: unknown) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+      const { metric, value } = row as Record<string, unknown>;
+      if (
+        typeof metric !== "string" ||
+        !metric.trim() ||
+        typeof value !== "number" ||
+        !Number.isFinite(value)
+      )
+        return false;
+      const number = String(value)
+        .replaceAll(".", "[.]")
+        .replaceAll("+", "[+]");
+      return (
+        responseContains(result, metric) &&
+        new RegExp(`(?<![0-9.+-])${number}(?![0-9]|[.][0-9])`, "u").test(final)
+      );
+    });
+  });
+  return observed
+    ? noIncompleteInvocations(result)
+    : {
+        passed: false,
+        reason:
+          "No reported metric/value pair matched a completed runtime status observation",
+      };
+}
+
+function channelInspectionIsBounded(
+  result: Parameters<typeof findLastAgentMessage>[0],
+) {
   const message = findLastAgentMessage(result);
   const boundedCall = getToolCalls(result).some((call) => {
-    if (call.name !== "eval" || call.execution?.status !== "complete" || call.execution.isError) {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError
+    ) {
       return false;
     }
-    const code = typeof call.arguments?.["code"] === "string" ? call.arguments["code"] : "";
+    const code =
+      typeof call.arguments?.["code"] === "string"
+        ? call.arguments["code"]
+        : "";
     const boundedChannelInspector =
       /inspectChannelEnvelopes/.test(code) || /inspectAgentHealth/.test(code);
-    const positiveLimit = /\b(?:envelopeLimit|limit)\s*:\s*[1-9]\d*\b/.test(code);
+    const positiveLimit = /\b(?:envelopeLimit|limit)\s*:\s*[1-9]\d*\b/.test(
+      code,
+    );
     return boundedChannelInspector && positiveLimit;
   });
   if (!boundedCall) {
     return {
       passed: false,
-      reason: "Canonical eval arguments did not contain a positive channel-inspection limit",
+      reason:
+        "Canonical eval arguments did not contain a positive channel-inspection limit",
     };
   }
   if (
@@ -68,24 +143,27 @@ function channelInspectionIsBounded(result: Parameters<typeof findLastAgentMessa
   ) {
     return {
       passed: false,
-      reason: "Final response did not report the bounded channel-inspection outcome",
+      reason:
+        "Final response did not report the bounded channel-inspection outcome",
     };
   }
   return noIncompleteInvocations(result);
 }
 
-function runtimeVcsIsUsable(result: Parameters<typeof findLastAgentMessage>[0]) {
+function runtimeVcsIsUsable(
+  result: Parameters<typeof findLastAgentMessage>[0],
+) {
   const directVcsCall = getToolCalls(result).some(
     (call) =>
       call.name === "vcs" &&
       call.execution?.status === "complete" &&
-      call.execution.isError !== true
+      call.execution.isError !== true,
   );
   if (!directVcsCall) {
     return semanticEval(
       result,
       [/\bvcs\b/iu],
-      [/version.control|\bvcs\b/iu, /available|usable|present|exposed/iu]
+      [/version.control|\bvcs\b/iu, /available|usable|present|exposed/iu],
     );
   }
   const final = findLastAgentMessage(result);
@@ -95,13 +173,16 @@ function runtimeVcsIsUsable(result: Parameters<typeof findLastAgentMessage>[0]) 
   ) {
     return {
       passed: false,
-      reason: "Final response did not semantically report the observed VCS capability",
+      reason:
+        "Final response did not semantically report the observed VCS capability",
     };
   }
   return noIncompleteInvocations(result);
 }
 
-function scopedTestVerification(result: Parameters<typeof findLastAgentMessage>[0]) {
+function scopedTestVerification(
+  result: Parameters<typeof findLastAgentMessage>[0],
+) {
   const verification = getToolCalls(result).find(
     (call) =>
       call.name === "verify" &&
@@ -109,7 +190,7 @@ function scopedTestVerification(result: Parameters<typeof findLastAgentMessage>[
       call.execution.isError !== true &&
       call.arguments?.["operation"] === "test" &&
       call.arguments?.["target"] === "extensions/test-runner" &&
-      call.arguments?.["file"] === "index.test.ts"
+      call.arguments?.["file"] === "index.test.ts",
   );
   const evidence = JSON.stringify(verification?.execution?.result ?? null);
   if (
@@ -122,7 +203,8 @@ function scopedTestVerification(result: Parameters<typeof findLastAgentMessage>[
   ) {
     return {
       passed: false,
-      reason: "First-class verification did not return a passing scoped test report",
+      reason:
+        "First-class verification did not return a passing scoped test report",
     };
   }
   const failed = failedToolCalls(result);
@@ -138,7 +220,9 @@ function scopedTestVerification(result: Parameters<typeof findLastAgentMessage>[
 const STATE_ARGS_IMMEDIATE_PROMPT =
   "Use a disposable Help panel to check whether a small change to its launch state becomes observable immediately. Keep the investigation out of the way and summarize the before-and-after state you actually see.";
 
-function atomicPatchBuildVerification(result: Parameters<typeof findLastAgentMessage>[0]) {
+function atomicPatchBuildVerification(
+  result: Parameters<typeof findLastAgentMessage>[0],
+) {
   const patch = getToolCalls(result).find((call) => {
     if (
       call.name !== "apply_patch" ||
@@ -149,15 +233,22 @@ function atomicPatchBuildVerification(result: Parameters<typeof findLastAgentMes
     }
     const operations = call.arguments?.["operations"];
     if (!Array.isArray(operations) || operations.length !== 2) return false;
-    const records = operations.filter((operation): operation is Record<string, unknown> =>
-      Boolean(operation && typeof operation === "object" && !Array.isArray(operation))
+    const records = operations.filter(
+      (operation): operation is Record<string, unknown> =>
+        Boolean(
+          operation &&
+          typeof operation === "object" &&
+          !Array.isArray(operation),
+        ),
     );
     const source = records.find(
       (operation) =>
         operation["kind"] === "replace" &&
         typeof operation["path"] === "string" &&
         operation["path"].endsWith("/src/index.ts") &&
-        JSON.stringify(operation["replacements"] ?? []).includes("atomic-system-test")
+        JSON.stringify(operation["replacements"] ?? []).includes(
+          "atomic-system-test",
+        ),
     );
     const readme = records.find(
       (operation) =>
@@ -165,7 +256,7 @@ function atomicPatchBuildVerification(result: Parameters<typeof findLastAgentMes
         typeof operation["path"] === "string" &&
         operation["path"].endsWith("/README.md") &&
         typeof operation["content"] === "string" &&
-        operation["content"].includes("atomic-system-test")
+        operation["content"].includes("atomic-system-test"),
     );
     if (records.length !== 2) return false;
     const repoOf = (operation: Record<string, unknown> | undefined) =>
@@ -178,11 +269,16 @@ function atomicPatchBuildVerification(result: Parameters<typeof findLastAgentMes
   const sourcePath = Array.isArray(operations)
     ? operations
         .map((operation) =>
-          operation && typeof operation === "object" && !Array.isArray(operation)
+          operation &&
+          typeof operation === "object" &&
+          !Array.isArray(operation)
             ? (operation as Record<string, unknown>)["path"]
-            : undefined
+            : undefined,
         )
-        .find((path): path is string => typeof path === "string" && path.endsWith("/src/index.ts"))
+        .find(
+          (path): path is string =>
+            typeof path === "string" && path.endsWith("/src/index.ts"),
+        )
     : undefined;
   const repoPath = sourcePath?.split("/").slice(0, 2).join("/");
   const verification = getToolCalls(result).find(
@@ -192,12 +288,13 @@ function atomicPatchBuildVerification(result: Parameters<typeof findLastAgentMes
       call.execution.isError !== true &&
       call.arguments?.["operation"] === "build" &&
       call.arguments?.["target"] === repoPath &&
-      /"status":"ok"/u.test(JSON.stringify(call.execution.result ?? null))
+      /"status":"ok"/u.test(JSON.stringify(call.execution.result ?? null)),
   );
   if (!patch || !repoPath || !verification) {
     return {
       passed: false,
-      reason: "One atomic two-file patch was not joined to a successful build of the same fixture",
+      reason:
+        "One atomic two-file patch was not joined to a successful build of the same fixture",
     };
   }
   const failed = failedToolCalls(result);
@@ -232,13 +329,13 @@ export const agenticRuntimeTests: TestCase[] = [
       orchestratePanelGoal(
         context,
         STATE_ARGS_IMMEDIATE_PROMPT,
-        "inspect immediate panel launch-state visibility"
+        "inspect immediate panel launch-state visibility",
       ),
     validate: (result) =>
       semanticEval(
         result,
         [/stateArgs/iu, /(?:set|update|change)/iu],
-        [/state/iu, /immediate|visible|observed/iu]
+        [/state/iu, /immediate|visible|observed/iu],
       ),
   },
   {
@@ -251,17 +348,12 @@ export const agenticRuntimeTests: TestCase[] = [
   },
   {
     name: "gad-status-summary",
-    description: "GAD status metrics are readable through the typed runtime client",
+    description:
+      "GAD status metrics are readable through the typed runtime client",
     category: "agentic-runtime",
     prompt:
       "Read the graph-and-data store's compact status metrics through its typed runtime client and summarize one returned metric.",
-    validate: (result) =>
-      semanticEval(
-        result,
-        [/gad\.status/iu],
-        [/status|metric/iu, /result|value|returned/iu],
-        [/metric/iu, /value/iu]
-      ),
+    validate: statusMetricsReported,
   },
   {
     name: "channel-envelope-inspection-bounded",
@@ -282,7 +374,7 @@ export const agenticRuntimeTests: TestCase[] = [
       semanticEval(
         result,
         [/2000|2_000/u],
-        [/(?:2000|2[,\s]000|two thousand)/iu, /summar|items?|entries|values/iu]
+        [/(?:2000|2[,\s]000|two thousand)/iu, /summar|items?|entries|values/iu],
       ),
   },
   {
@@ -290,12 +382,12 @@ export const agenticRuntimeTests: TestCase[] = [
     description: "Agent debug state is inspectable",
     category: "agentic-runtime",
     prompt:
-      "Check whether this chat agent exposes debug state and report either what is available or that the capability is unavailable.",
+      "Inspect this chat agent’s own advertised debug-state interface. Report what you actually observe, or establish that the capability is unavailable.",
     validate: (result) =>
       semanticEval(
         result,
         [/(?:debugState|getDebugState|debug state|agent\.describe)/iu],
-        [/debug/iu, /available|unavailable|exposed|not exposed/iu]
+        [/debug/iu, /available|unavailable|exposed|not exposed/iu],
       ),
   },
   {
@@ -307,7 +399,9 @@ export const agenticRuntimeTests: TestCase[] = [
       "Use an appropriate read-only tool for a trivial check, then give me a visible final response.",
     validate: (result) => {
       const completed = getToolCalls(result).some(
-        (call) => call.execution?.status === "complete" && call.execution.isError !== true
+        (call) =>
+          call.execution?.status === "complete" &&
+          call.execution.isError !== true,
       );
       if (!completed)
         return {
@@ -315,13 +409,17 @@ export const agenticRuntimeTests: TestCase[] = [
           reason: "No successful tool invocation preceded the final response",
         };
       if (findLastAgentMessage(result).trim().length < 8)
-        return { passed: false, reason: "No substantive visible final response" };
+        return {
+          passed: false,
+          reason: "No substantive visible final response",
+        };
       return noIncompleteInvocations(result);
     },
   },
   {
     name: "workspace-test-runner-extension",
-    description: "Agent runs workspace unit tests through the scoped test-runner extension",
+    description:
+      "Agent runs workspace unit tests through the scoped test-runner extension",
     category: "agentic-runtime",
     authorityPolicy: {
       authority: [

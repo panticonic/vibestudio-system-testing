@@ -24,6 +24,9 @@ describe("vague intent discovery scenarios", () => {
     expect(policy).not.toBeInstanceOf(Function);
     if (!policy || policy instanceof Function)
       throw new Error("Expected a static authority policy");
+    expect(policy.authority[1]?.resource).toEqual({
+      kind: "exact", key: "mobile-device:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
+    });
     expect(policy.authority.map((rule) => rule.capability)).toEqual([
       { kind: "exact", key: "workspace-service:phone.provisioning" },
       {

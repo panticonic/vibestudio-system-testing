@@ -111,16 +111,16 @@ function formatError(error: unknown): string {
 async function waitForRunningChild(
   session: HeadlessSession,
   timeoutMs: number
-): Promise<{ invocationId: string; tool: string | null }> {
+): Promise<{ invocationId: string }> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const spawn = [...session.snapshot().tasks].reverse().find((task) => task.type === "subagent");
     if (spawn && (spawn.status === "started" || spawn.status === "running")) {
-      return { invocationId: spawn.id, tool: null };
+      return { invocationId: spawn.id };
     }
     if (Date.now() >= deadline) {
       throw new Error(
-        "Headless diagnostic fixture did not expose a child tool invocation before the setup deadline"
+        "Headless diagnostic fixture did not expose an in-progress child before the setup deadline"
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -133,7 +133,7 @@ async function orchestrateHeadlessDiagnosis(
   const startedAt = Date.now();
   const session = await context.runner.spawn();
   let error: string | undefined;
-  let fixture: { invocationId: string; tool: string | null } | undefined;
+  let fixture: { invocationId: string } | undefined;
 
   try {
     await context.sendAndWait(
@@ -165,9 +165,8 @@ async function orchestrateHeadlessDiagnosis(
     diagnostics: {
       orchestrated: true,
       fixture: {
-        kind: "real-subagent-with-in-flight-tool",
+        kind: "real-subagent-in-progress",
         invocationId: fixture?.invocationId ?? null,
-        tool: fixture?.tool ?? null,
       },
     },
   };
@@ -211,7 +210,11 @@ export const skillTests: TestCase[] = [
     prompt:
       "I want to change a workspace panel. Which development workflow fits this request, and why?",
     validate: (result) =>
-      skillChoiceChecked(result, "workspace-dev", /(workspace|panel|development|workflow)/iu),
+      skillChoiceChecked(result, "workspace-dev", /(workspace|panel|development|workflow)/iu, {
+        // This is a workflow orientation question, already covered by the
+        // supplied skill index and routing guidance; it performs no authoring.
+        allowEmbeddedGuidance: true,
+      }),
   },
   {
     name: "load-api-integrations",
@@ -222,26 +225,46 @@ export const skillTests: TestCase[] = [
   },
   {
     name: "load-headless-sessions",
-    description: "Apply the headless-sessions skill to diagnose a stalled agent",
+    description: "Diagnose an ongoing child from bounded observed evidence",
     category: "skills",
     prompt:
-      "Diagnose why a headless agent used a tool but never produced a final response. Keep the investigation bounded and explain the observed state.",
+      "Inspect why a child agent has not finished. Keep the investigation bounded and explain the observed state.",
     orchestrate: orchestrateHeadlessDiagnosis,
-    // The fixture deliberately leaves one child invocation in flight. Validate
-    // the diagnostic agent's final response here; the suite's independent
-    // unexpected-tool-failure accounting still rejects any unintended errors.
+    // The fixture leaves a real child in progress. Join the bounded inspection
+    // to that exact child; an ongoing assignment is not evidence of a failure.
+    // Independent tool-failure accounting still rejects unintended errors.
     validate: (result) => {
       const fixture = result.diagnostics?.["fixture"] as Record<string, unknown> | undefined;
       const final = findLastAgentMessage(result);
-      return fixture?.["kind"] === "real-subagent-with-in-flight-tool" &&
-        typeof fixture["invocationId"] === "string" &&
-        /(in[- ]flight|pending|running|stalled)/iu.test(final) &&
-        /(bounded|limit|recent|one child)/iu.test(final)
+      const childId = fixture?.["invocationId"];
+      const inspected =
+        typeof childId === "string" &&
+        getToolCalls(result).some((call) => {
+          if (
+            call.name !== "read_subagent" ||
+            call.arguments?.["runId"] !== childId ||
+            call.execution?.status !== "complete" ||
+            call.execution.isError === true
+          )
+            return false;
+          const details = (
+            call.execution.result as { details?: Record<string, unknown> } | undefined
+          )?.details;
+          return (
+            details?.["runId"] === childId &&
+            Number.isInteger(details["nextSeq"]) &&
+            typeof details["hasMore"] === "boolean" &&
+            Array.isArray(details["messages"])
+          );
+        });
+      return fixture?.["kind"] === "real-subagent-in-progress" &&
+        inspected &&
+        /(?:assignment|instruction|told)/iu.test(final)
         ? { passed: true }
         : {
             passed: false,
             reason:
-              "Diagnosis lacked the real in-flight child evidence or a bounded semantic conclusion",
+              "Diagnosis did not inspect the exact in-progress child or explain the observed child state",
           };
     },
   },

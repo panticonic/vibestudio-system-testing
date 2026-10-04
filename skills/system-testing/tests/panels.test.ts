@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { panelTests } from "./panels.js";
+import { INITIAL_BROWSER_PAGE, FINAL_BROWSER_PAGE } from "./_browser-navigation-fixture.js";
 
 const createPanelTest = panelTests.find(
   (test) => test.name === "create-panel",
@@ -89,13 +90,13 @@ describe("panel system-test declarations", () => {
     )!;
     const evidence = {
       panelId: "seeded-browser",
-      expectedFinalUrl: "https://example.org/",
-      initialSource: "browser:https://example.com/",
-      initialUrl: "https://example.com/",
+      expectedFinalUrl: FINAL_BROWSER_PAGE,
+      initialSource: `browser:${INITIAL_BROWSER_PAGE}`,
+      initialUrl: INITIAL_BROWSER_PAGE,
       initialPhase: "ready",
       initialPathIds: ["seeded-browser"],
-      finalSource: "browser:https://example.com/",
-      finalUrl: "https://example.org/",
+      finalSource: `browser:${INITIAL_BROWSER_PAGE}`,
+      finalUrl: FINAL_BROWSER_PAGE,
       finalPhase: "ready",
       finalPathIds: ["seeded-browser"],
       targetPreserved: true,
@@ -114,7 +115,7 @@ describe("panel system-test declarations", () => {
         messages: [],
         duration: 1,
         diagnostics: {
-          seededPanelGoal: { ...evidence, finalUrl: "https://example.com/" },
+          seededPanelGoal: { ...evidence, finalUrl: INITIAL_BROWSER_PAGE },
         },
       }),
     ).toMatchObject({ passed: false });

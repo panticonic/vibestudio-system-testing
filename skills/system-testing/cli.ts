@@ -1,5 +1,5 @@
 import { rpc, workers, vcs } from "@workspace/runtime";
-import { logIdForChannel } from "@vibestudio/trajectory-identity";
+import { headForChannel } from "@vibestudio/trajectory-identity";
 import { HeadlessRunner } from "./runner.js";
 import { allTests } from "./stages.js";
 import { TestRunner } from "./test-runner.js";
@@ -946,7 +946,7 @@ function snapshotProvenance(
 ) {
   return {
     channelId: snapshot.channelId,
-    branchId: snapshot.channelId ? logIdForChannel(snapshot.channelId) : null,
+    branchId: snapshot.channelId ? headForChannel(snapshot.channelId) : null,
     agentEntityId: snapshot.agentEntityId,
     agentTargetId: snapshot.agentTargetId,
     contextId: snapshot.agentContextId,

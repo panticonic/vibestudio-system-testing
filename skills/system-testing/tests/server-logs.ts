@@ -1,12 +1,18 @@
-import type { TestAuthorityPolicy, TestCase } from "../types.js";
+import type {
+  TestAuthorityPolicy,
+  TestCase,
+  TestExecutionResult,
+} from "../types.js";
+import {
+  NativeServerLogObservationSchema,
+  type NativeServerLogObservation,
+} from "@vibestudio/service-schemas/serverLog";
 import {
   findLastAgentMessage,
+  getToolCalls,
   hasLoadedSkill,
   noIncompleteInvocations,
-  successfulEvalCode,
-  successfulEvalReturnValues,
 } from "./_helpers.js";
-import { walkRecords } from "./_scenario-evidence.js";
 
 const serverLogReadAuthority: TestAuthorityPolicy = {
   authority: [
@@ -21,134 +27,142 @@ const serverLogReadAuthority: TestAuthorityPolicy = {
 };
 
 function exactNumber(message: string, value: number): boolean {
-  return new RegExp(`(?:^|\\D)${value}(?:\\D|$)`, "u").test(message);
+  const normalized = message.replace(/\b\d{1,3}(?:,\d{3})+\b/gu, (number) =>
+    number.replaceAll(",", ""),
+  );
+  return new RegExp(`(?:^|\\D)${value}(?:\\D|$)`, "u").test(normalized);
 }
 
-function coordinatedLogSnapshots(values: readonly unknown[]) {
-  return values.flatMap((value) => {
-    const nested = walkRecords([value]);
-    const isLogRecord = (record: Record<string, unknown>) =>
-      Number.isInteger(record["seq"]) &&
-      typeof record["level"] === "string" &&
-      (typeof record["message"] === "string" ||
-        typeof record["msg"] === "string");
-    const snapshots = nested.filter(
-      (record) =>
-        Number.isInteger(record["latestSeq"]) &&
-        typeof record["serverBootId"] === "string",
-    );
-    const bootIds = new Set(
-      snapshots.map((snapshot) => snapshot["serverBootId"]),
-    );
-    return snapshots.flatMap((snapshot) => {
-      const ownRecords = walkRecords([snapshot]).filter(isLogRecord);
-      // A compact return can keep metadata beside its rows. It is unambiguous
-      // only when that observation contains one boot identity.
-      const records = ownRecords.length
-        ? ownRecords
-        : bootIds.size === 1
-          ? nested.filter(isLogRecord)
-          : [];
-      return records.length
-        ? [
-            {
-              serverBootId: String(snapshot["serverBootId"]),
-              latestSeq: Number(snapshot["latestSeq"]),
-              observedSeqs: records.map((record) => Number(record["seq"])),
-            },
-          ]
-        : [];
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/** Read facts are recorded by native dispatch before guest projection/mutation. */
+function observations(
+  result: TestExecutionResult,
+): NativeServerLogObservation[] {
+  return getToolCalls(result).flatMap((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError
+    )
+      return [];
+    const details = record(record(call.execution.result)?.["details"]);
+    const journal = record(details?.["operationJournal"]);
+    if (
+      journal?.["protocol"] !== "workspace-operations.v1" ||
+      journal["truncated"] !== false ||
+      !Array.isArray(journal["entries"])
+    )
+      return [];
+    return journal["entries"].flatMap((entry) => {
+      const value = record(entry);
+      if (value?.["type"] !== "server-log.observation") return [];
+      const parsed = NativeServerLogObservationSchema.safeParse(
+        value["receipt"],
+      );
+      return parsed.success ? [parsed.data] : [];
     });
   });
 }
 
-function startupDiagnosisChecked(
-  result: Parameters<typeof noIncompleteInvocations>[0],
-) {
-  if (!hasLoadedSkill(result, "server-logs")) {
+function startupDiagnosisChecked(result: TestExecutionResult) {
+  if (!hasLoadedSkill(result, "server-logs"))
     return {
       passed: false,
       reason: "The vague incident did not route through server-log guidance",
     };
-  }
-
-  const code = successfulEvalCode(result);
-  const boundedInspection =
-    /serverLog\.tail\(\s*[1-9]\d*/u.test(code) ||
-    /serverLog\.query\(\s*\{[\s\S]*?\blimit\s*:\s*[1-9]\d*/u.test(code) ||
-    /rpc\.call\(\s*["']main["']\s*,\s*["']serverLog\.tail["']\s*,\s*\[\s*[1-9]\d*/u.test(
-      code,
-    ) ||
-    /rpc\.call\(\s*["']main["']\s*,\s*["']serverLog\.query["']\s*,\s*\[\s*\{[\s\S]*?\blimit\s*:\s*[1-9]\d*/u.test(
-      code,
-    );
-  if (!boundedInspection) {
-    return {
-      passed: false,
-      reason:
-        "The startup diagnosis did not use one bounded host-log inspection",
-    };
-  }
-
-  const snapshots = coordinatedLogSnapshots(successfulEvalReturnValues(result));
-  if (snapshots.length === 0) {
-    return {
-      passed: false,
-      reason: "No coordinated server-log snapshot was observed",
-    };
-  }
-
   const final = findLastAgentMessage(result);
+  const snapshots = observations(result).filter(
+    (receipt) => receipt.kind === "records",
+  );
   if (
     !snapshots.some(
-      (snapshot) =>
-        final.includes(String(snapshot["serverBootId"])) &&
-        [Number(snapshot["latestSeq"]), ...snapshot.observedSeqs].some((seq) =>
-          exactNumber(final, seq),
+      (receipt) =>
+        final.includes(receipt.serverBootId) &&
+        [receipt.latestSeq, receipt.firstSeq, receipt.lastSeq].some(
+          (seq) => seq !== null && exactNumber(final, seq),
         ),
     ) ||
-    !/(?:start|startup|boot|slow|delay|build|normal|warn|error|incident)/iu.test(
+    !/start|startup|boot|slow|delay|build|normal|warn|error|incident/iu.test(
       final,
     )
-  ) {
+  )
     return {
       passed: false,
       reason:
-        "The final diagnosis did not preserve the observed boot/sequence coordinates and explain the startup evidence",
+        "The diagnosis did not preserve observed boot/sequence coordinates and explain the startup evidence",
     };
-  }
   return noIncompleteInvocations(result);
 }
 
-function checked(
-  result: Parameters<typeof noIncompleteInvocations>[0],
-  methods: RegExp[],
-  bounded: RegExp,
-  prove: (values: unknown[], final: string) => boolean,
-) {
-  const code = successfulEvalCode(result);
-  if (!methods.every((method) => method.test(code)) || !bounded.test(code)) {
-    return {
-      passed: false,
-      reason:
-        "Canonical eval arguments omitted a required bounded server-log operation",
-    };
-  }
-  const values = successfulEvalReturnValues(result);
-  if (values.length === 0)
-    return {
-      passed: false,
-      reason: "No canonical server-log result was observed",
-    };
+function queryStatsChecked(result: TestExecutionResult) {
+  const receipts = observations(result);
+  const samples = receipts.filter(
+    (
+      receipt,
+    ): receipt is Extract<NativeServerLogObservation, { kind: "records" }> =>
+      receipt.kind === "records" &&
+      receipt.method === "query" &&
+      ["warn", "error"].includes(receipt.minimumLevel ?? ""),
+  );
+  const stats = receipts.filter((receipt) => receipt.kind === "stats");
   const final = findLastAgentMessage(result);
-  if (!prove(values, final)) {
-    return {
-      passed: false,
-      reason:
-        "Final response did not semantically report the observed server logs",
-    };
-  }
-  return noIncompleteInvocations(result);
+  const reportsSample = samples.some(
+    (sample) =>
+      exactNumber(final, sample.count) ||
+      (sample.count === 0 &&
+        /no (?:warnings|errors)|zero (?:warnings|errors)/iu.test(final)),
+  );
+  // A later tail sequence is not the earlier statistics total. Join the
+  // captured total to the clause which actually reports overall statistics.
+  const statsClauses = final
+    .split(/\.\s|\n/gu)
+    .filter(
+      (clause) =>
+        /captur|total|overall|stat/iu.test(clause) &&
+        /records?|entries|captur|buffer|total/iu.test(clause),
+    );
+  const reportsStats = stats.some((snapshot) =>
+    statsClauses.some((clause) => exactNumber(clause, snapshot.totalCaptured)),
+  );
+  return reportsSample &&
+    reportsStats &&
+    /server|host/iu.test(final) &&
+    /warn|error/iu.test(final)
+    ? noIncompleteInvocations(result)
+    : {
+        passed: false,
+        reason:
+          "Final response did not report the observed warning sample and actual statistics total",
+      };
+}
+
+function tailChecked(result: TestExecutionResult) {
+  const final = findLastAgentMessage(result);
+  const tails = observations(result).filter(
+    (
+      receipt,
+    ): receipt is Extract<NativeServerLogObservation, { kind: "records" }> =>
+      receipt.kind === "records" && receipt.method === "tail",
+  );
+  return /newest|latest|tail/iu.test(final) &&
+    tails.some(
+      (tail) =>
+        exactNumber(final, tail.count) &&
+        (tail.newestLevel
+          ? final.toLowerCase().includes(tail.newestLevel)
+          : /none|no entries|empty/iu.test(final)),
+    )
+    ? noIncompleteInvocations(result)
+    : {
+        passed: false,
+        reason:
+          "Final response did not report the observed tail count and newest severity",
+      };
 }
 
 export const serverLogTests: TestCase[] = [
@@ -171,49 +185,7 @@ export const serverLogTests: TestCase[] = [
     authorityPolicy: serverLogReadAuthority,
     prompt:
       "Inspect a bounded recent sample of the server's own host logs at warning level or higher, and summarize both what the sample contains and the overall log statistics.",
-    validate: (result) =>
-      checked(
-        result,
-        [/serverLog\.query/iu, /serverLog\.stats/iu],
-        /\blimit\s*:\s*[1-9]\d*/u,
-        (values, final) => {
-          const all = walkRecords(values);
-          const envelope = all.find(
-            (item) =>
-              Array.isArray(item["records"]) &&
-              Number.isInteger(item["latestSeq"]) &&
-              typeof item["serverBootId"] === "string",
-          );
-          const stats = all.find(
-            (item) =>
-              Number.isInteger(item["totalCaptured"]) &&
-              Number.isInteger(item["bufferSize"]) &&
-              typeof item["byLevel"] === "object",
-          );
-          if (!envelope || !stats) return false;
-          const logRecords = envelope["records"] as unknown[];
-          if (
-            !logRecords.every(
-              (item) =>
-                item &&
-                typeof item === "object" &&
-                ["warn", "error"].includes(
-                  String((item as Record<string, unknown>)["level"] ?? ""),
-                ),
-            )
-          ) {
-            return false;
-          }
-          const count = logRecords.length;
-          return (
-            /server|host/iu.test(final) &&
-            /warn|error/iu.test(final) &&
-            /stat|total|count/iu.test(final) &&
-            exactNumber(final, count) &&
-            exactNumber(final, Number(stats["totalCaptured"]))
-          );
-        },
-      ),
+    validate: queryStatsChecked,
   },
   {
     name: "server-log-tail",
@@ -222,33 +194,6 @@ export const serverLogTests: TestCase[] = [
     authorityPolicy: serverLogReadAuthority,
     prompt:
       "Look at only the newest few entries in the server's host-log tail. Tell me how many you observed and the severity of the newest entry.",
-    validate: (result) =>
-      checked(
-        result,
-        [/serverLog\.tail/iu],
-        /serverLog\.tail\(\s*[1-9]\d*/u,
-        (values, final) => {
-          const envelope = walkRecords(values).find(
-            (item) =>
-              Array.isArray(item["records"]) &&
-              Number.isInteger(item["latestSeq"]) &&
-              typeof item["serverBootId"] === "string",
-          );
-          if (!envelope) return false;
-          const logRecords = envelope["records"] as unknown[];
-          const newest = logRecords.at(-1);
-          const newestLevel =
-            newest && typeof newest === "object"
-              ? (newest as Record<string, unknown>)["level"]
-              : undefined;
-          return (
-            /newest|latest|tail/iu.test(final) &&
-            exactNumber(final, logRecords.length) &&
-            (typeof newestLevel === "string"
-              ? final.toLowerCase().includes(newestLevel.toLowerCase())
-              : /none|no entries|empty/iu.test(final))
-          );
-        },
-      ),
+    validate: tailChecked,
   },
 ];

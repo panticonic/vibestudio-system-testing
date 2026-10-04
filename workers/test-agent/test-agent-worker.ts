@@ -22,7 +22,10 @@ function delay(ms: number): Promise<void> {
 export class TestAgentWorker extends AgentWorkerBase {
   static override schemaVersion = AgentWorkerBase.schemaVersion;
 
-  constructor(ctx: ConstructorParameters<typeof AgentWorkerBase>[0], env: unknown) {
+  constructor(
+    ctx: ConstructorParameters<typeof AgentWorkerBase>[0],
+    env: unknown,
+  ) {
     super(ctx, env);
     void this.setOwnTitle("Test Agent");
   }
@@ -34,10 +37,14 @@ export class TestAgentWorker extends AgentWorkerBase {
 
   protected override getParticipantInfo(
     _channelId: string,
-    config?: unknown
+    config?: unknown,
   ): ParticipantDescriptor {
-    const cfg = config && typeof config === "object" ? (config as Record<string, unknown>) : {};
-    const handle = typeof cfg["handle"] === "string" ? cfg["handle"] : "test-agent";
+    const cfg =
+      config && typeof config === "object"
+        ? (config as Record<string, unknown>)
+        : {};
+    const handle =
+      typeof cfg["handle"] === "string" ? cfg["handle"] : "test-agent";
     return {
       handle,
       name: typeof cfg["name"] === "string" ? cfg["name"] : "Test Agent",
@@ -47,16 +54,19 @@ export class TestAgentWorker extends AgentWorkerBase {
     };
   }
 
-  override async processChannelEvent(channelId: string, event: ChannelEvent): Promise<void> {
+  protected override async onChannelEvent(
+    channelId: string,
+    event: ChannelEvent,
+  ): Promise<boolean> {
     const config = this.subscriptions.getConfig(channelId);
     if (!config || config["deterministicResponse"] !== true) {
-      await super.processChannelEvent(channelId, event);
-      return;
+      return false;
     }
-    if (!this.shouldProcess(event)) return;
+    if (!this.shouldProcess(event)) return false;
 
     const participantId = this.subscriptions.getParticipantId(channelId);
-    if (!participantId) throw new Error(`Not subscribed to channel ${channelId}`);
+    if (!participantId)
+      throw new Error(`Not subscribed to channel ${channelId}`);
 
     const input = this.buildTurnInput(event);
     const channel = this.createChannelClient(channelId);
@@ -78,12 +88,13 @@ export class TestAgentWorker extends AgentWorkerBase {
       typeof config["responseText"] === "string"
         ? config["responseText"]
         : `Deterministic response to: ${input.content}`;
-    const delayMs = typeof config["delayMs"] === "number" ? config["delayMs"] : 250;
+    const delayMs =
+      typeof config["delayMs"] === "number" ? config["delayMs"] : 250;
     await this.maybeWriteVaultSwitchMarker(config, input.content);
 
     // Deterministic mode is a synthetic channel transcript for tests. It
-    // publishes turn boundaries for chat-state fidelity, but still bypasses
-    // TurnDispatcher and PiRunner by design.
+    // publishes turn boundaries for chat-state fidelity. It does not establish
+    // native model/tool execution; ordinary subscriptions use native intake.
     const publish = async (agenticEvent: AgenticEvent, key: string) => {
       await channel.publishAgenticEvent(participantId, agenticEvent, {
         idempotencyKey: `test-agent:${channelId}:${event.messageId}:${key}`,
@@ -101,7 +112,7 @@ export class TestAgentWorker extends AgentWorkerBase {
         },
         createdAt: now,
       },
-      "turn-opened"
+      "turn-opened",
     );
 
     await publish(
@@ -118,7 +129,7 @@ export class TestAgentWorker extends AgentWorkerBase {
         },
         createdAt: now,
       },
-      "invocation-started"
+      "invocation-started",
     );
 
     await delay(delayMs);
@@ -135,7 +146,7 @@ export class TestAgentWorker extends AgentWorkerBase {
         },
         createdAt: new Date().toISOString(),
       },
-      "invocation-output"
+      "invocation-output",
     );
 
     await delay(delayMs);
@@ -156,7 +167,7 @@ export class TestAgentWorker extends AgentWorkerBase {
         }),
         createdAt: new Date().toISOString(),
       },
-      "invocation-completed"
+      "invocation-completed",
     );
 
     await publish(
@@ -168,12 +179,18 @@ export class TestAgentWorker extends AgentWorkerBase {
         payload: {
           protocol: AGENTIC_PROTOCOL_VERSION,
           role: "assistant",
-          blocks: [{ blockId: `${messageId}:block:0` as never, type: "text", content: responseText }],
+          blocks: [
+            {
+              blockId: `${messageId}:block:0` as never,
+              type: "text",
+              content: responseText,
+            },
+          ],
           outcome: "completed",
         },
         createdAt: new Date().toISOString(),
       },
-      "message-completed"
+      "message-completed",
     );
 
     await publish(
@@ -187,24 +204,31 @@ export class TestAgentWorker extends AgentWorkerBase {
         },
         createdAt: new Date().toISOString(),
       },
-      "turn-closed"
+      "turn-closed",
     );
+    return true;
   }
 
   private async maybeWriteVaultSwitchMarker(
     config: Record<string, unknown>,
-    content: string
+    content: string,
   ): Promise<void> {
     if (config["writeVaultSwitchMarker"] !== true) return;
     const current = /Current vault:\s*`([^`]+)`/.exec(content)?.[1];
     if (!current) return;
-    const currentDir = path.posix.normalize(current.replace(/\\/g, "/")).replace(/\/+$/, "");
+    const currentDir = path.posix
+      .normalize(current.replace(/\\/g, "/"))
+      .replace(/\/+$/, "");
     if (!currentDir.startsWith("/projects/")) return;
     const markerPath =
-      typeof config["markerPath"] === "string" ? config["markerPath"] : "AgentProof.mdx";
+      typeof config["markerPath"] === "string"
+        ? config["markerPath"]
+        : "AgentProof.mdx";
     const normalizedMarker = markerPath.replace(/^\/+/, "");
     if (normalizedMarker.includes("..")) return;
-    const fullPath = path.posix.normalize(path.posix.join(currentDir, normalizedMarker));
+    const fullPath = path.posix.normalize(
+      path.posix.join(currentDir, normalizedMarker),
+    );
     if (!fullPath.startsWith(`${currentDir}/`)) return;
     const title = normalizedMarker.replace(/\.mdx$/, "");
     await this.fs.writeFile(
@@ -218,7 +242,7 @@ export class TestAgentWorker extends AgentWorkerBase {
         "",
         `Deterministic agent wrote this in ${current}.`,
         "",
-      ].join("\n")
+      ].join("\n"),
     );
   }
 }

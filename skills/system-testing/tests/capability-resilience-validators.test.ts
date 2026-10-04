@@ -1,12 +1,11 @@
-import {
-  preparation,
-  publicationMessages,
-} from "./_project-evidence-fixtures.js";
+import { childLogReadReplay, taskRuleSnapshots, serverLogReadJournal } from "./_authority-evidence-fixtures.js";
+import { preparation, publicationMessages } from "./_project-evidence-fixtures.js";
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "@workspace/agentic-core";
 import type { SavedPermissionGrant } from "@vibestudio/service-schemas/permissions";
 import type { TestCase, TestExecutionResult } from "../types.js";
+import { agentOrchestrationTests } from "./agent-orchestration.js";
 import { agentCapabilityTests } from "./agent-capabilities.js";
 import { approvalPermissionTests } from "./approvals-permissions.js";
 import { edgeCaseTests } from "./edge-cases.js";
@@ -47,7 +46,7 @@ function invocationMessage(invocation: Invocation, index: number): ChatMessage {
 function execution(
   invocations: Invocation[],
   final = "The requested behavior was observed.",
-  diagnostics?: Record<string, unknown>,
+  diagnostics?: Record<string, unknown>
 ) {
   return {
     duration: 0,
@@ -77,7 +76,7 @@ function execution(
 function evalCall(
   code: string,
   returnValue: unknown,
-  extra: Record<string, unknown> = {},
+  extra: Record<string, unknown> = {}
 ): Invocation {
   return {
     name: "eval",
@@ -131,14 +130,10 @@ describe("capability and resilience prompts", () => {
       ...projectLifecycleTests,
     ];
     for (const test of tests) {
+      expect(test.prompt, test.name).not.toMatch(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/u);
+      expect(test.prompt, test.name).not.toMatch(/finish with|respond with|return exactly/iu);
       expect(test.prompt, test.name).not.toMatch(
-        /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/u,
-      );
-      expect(test.prompt, test.name).not.toMatch(
-        /finish with|respond with|return exactly/iu,
-      );
-      expect(test.prompt, test.name).not.toMatch(
-        /\b(?:prepareProjects|forkProject|openPanel|approvals|permissions)\.\w+\s*\(/u,
+        /\b(?:prepareProjects|forkProject|openPanel|approvals|permissions)\.\w+\s*\(/u
       );
     }
   });
@@ -155,9 +150,7 @@ describe("agent capability semantic validators", () => {
     ]);
     expect(test.validate(result)).toEqual({ passed: true, reason: undefined });
     expect(
-      test.validate(
-        execution([evalCall("return { answer: 42 };", { answer: 42 })]),
-      ).passed,
+      test.validate(execution([evalCall("return { answer: 42 };", { answer: 42 })])).passed
     ).toBe(false);
     expect(
       test.validate(
@@ -165,15 +158,12 @@ describe("agent capability semantic validators", () => {
           evalCall("scope.saved = 'marker-1'; return { set: scope.saved };", {
             set: "marker-1",
           }),
-          evalCall(
-            "return { persistedValue: scope.saved, keys: Object.keys(scope) };",
-            {
-              persistedValue: "marker-1",
-              keys: ["saved"],
-            },
-          ),
-        ]),
-      ),
+          evalCall("return { persistedValue: scope.saved, keys: Object.keys(scope) };", {
+            persistedValue: "marker-1",
+            keys: ["saved"],
+          }),
+        ])
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 
@@ -187,19 +177,13 @@ describe("agent capability semantic validators", () => {
     };
     expect(
       test.validate(
-        execution([
-          failure,
-          evalCall("return { recovered: true };", { recovered: true }),
-        ]),
-      ),
+        execution([failure, evalCall("return { recovered: true };", { recovered: true })])
+      )
     ).toEqual({ passed: true, reason: undefined });
     expect(
       test.validate(
-        execution([
-          evalCall("return { recovered: true };", { recovered: true }),
-          failure,
-        ]),
-      ).passed,
+        execution([evalCall("return { recovered: true };", { recovered: true }), failure])
+      ).passed
     ).toBe(false);
   });
 
@@ -207,15 +191,11 @@ describe("agent capability semantic validators", () => {
     expect(
       scenario(agentCapabilityTests, "dynamic-import").validate(
         execution([
-          evalCall(
-            "const pkg = await import('tiny'); return pkg.default('ok');",
-            "ok",
-            {
-              imports: { tiny: "npm:just-camel-case" },
-            },
-          ),
-        ]),
-      ).passed,
+          evalCall("const pkg = await import('tiny'); return pkg.default('ok');", "ok", {
+            imports: { tiny: "npm:just-camel-case" },
+          }),
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(agentCapabilityTests, "console-streaming").validate(
@@ -227,41 +207,59 @@ describe("agent capability semantic validators", () => {
             },
             result: { details: { returnValue: true, console: "a\nb\nc\n" } },
           },
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(agentCapabilityTests, "concurrent-scope").validate(
         execution([
-          evalCall(
-            "scope.first = 1; scope.second = 2; scope.third = 3; return true;",
-            true,
-          ),
-          evalCall(
-            "return { first: scope.first, second: scope.second, third: scope.third };",
-            {
-              first: 1,
-              second: 2,
-              third: 3,
-            },
-          ),
-        ]),
-      ).passed,
+          evalCall("scope.first = 1; scope.second = 2; scope.third = 3; return true;", true),
+          evalCall("return { first: scope.first, second: scope.second, third: scope.third };", {
+            first: 1,
+            second: 2,
+            third: 3,
+          }),
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(agentCapabilityTests, "concurrent-scope").validate(
         execution([
-          evalCall(
-            "scope.first = 1; scope.second = 2; scope.third = 3; return true;",
-            true,
-          ),
+          evalCall("scope.first = 1; scope.second = 2; scope.third = 3; return true;", true),
           evalCall(
             "return { first: scope.first, second: scope.second, third: scope.third, allPresent: true };",
-            { first: 1, second: 2, third: 3, allPresent: true },
+            { first: 1, second: 2, third: 3, allPresent: true }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
+  });
+});
+
+describe("independent scope projections", () => {
+  it("accepts array projections of the three values read in a later evaluation", () => {
+    const test = scenario(agentCapabilityTests, "concurrent-scope");
+    const write = evalCall(
+      "scope.first = 'cedar'; scope.second = 27; scope.third = { marker: 'kite' }; return true;",
+      true
+    );
+    expect(
+      test.validate(
+        execution([
+          write,
+          evalCall("return { checked: [scope.first, scope.second, scope.third] };", {
+            checked: ["cedar", 27, { marker: "kite" }],
+          }),
+        ])
+      ).passed
+    ).toBe(true);
+    for (const read of [
+      evalCall("return { checked: [scope.first] };", { checked: ["cedar"] }),
+      evalCall("return { checked: [scope.other, scope.second, scope.third] };", {
+        checked: ["cedar", 27, { marker: "kite" }],
+      }),
+    ])
+      expect(test.validate(execution([write, read])).passed).toBe(false);
   });
 });
 
@@ -284,63 +282,45 @@ describe("permission semantic validators", () => {
     capability: "permissions.read",
   };
 
-  it("accepts the read-only canonical permission inventory", () => {
-    expect(
-      scenario(approvalPermissionTests, "permissions-list").validate(
-        execution([
-          evalCall('return rpc.call("main", "permissions.list", []);', [grant]),
-        ]),
-      ).passed,
-    ).toBe(true);
-    expect(
-      scenario(approvalPermissionTests, "permissions-list").validate(
-        execution([evalCall("return await services.permissions.list();", [])]),
-      ).passed,
-    ).toBe(true);
+  const inventory = (total: number, returnValue: unknown = { summarized: true }): Invocation => ({
+    name: "eval", arguments: { code: "return await summarizePermissions();" },
+    result: { details: { returnValue, operationJournal: {
+      protocol: "workspace-operations.v1", truncated: false, entries: [{
+        type: "permissions.inventory", receipt: {
+          protocol: "permission-inventory-observation.v1", method: "permissions.list", total,
+          counts: { capability: total, "credential-use": 0, "browser-site": 0 },
+        },
+      }],
+    } } },
   });
 
-  it("rejects wrappers and malformed grant rows instead of accepting array-shaped claims", () => {
+  it("accepts native inventory completion independently of guest summary or transport truncation", () => {
     const validator = scenario(approvalPermissionTests, "permissions-list");
-    expect(
-      validator.validate(
-        execution([
-          evalCall('return rpc.call("main", "permissions.list", []);', {
-            grants: [grant],
-          }),
-        ]),
-      ).passed,
-    ).toBe(false);
-    expect(
-      validator.validate(
-        execution([
-          evalCall("return await services.permissions.list();", [
-            { id: "not-a-grant" },
-          ]),
-        ]),
-      ).passed,
-    ).toBe(false);
+    expect(validator.validate(execution([inventory(355, { truncated: true })])).passed).toBe(true);
+    expect(validator.validate(execution([inventory(0, [])])).passed).toBe(true);
   });
 
-  it("rejects a permission mutation even when a later listing succeeds", () => {
+  it("rejects guest-fabricated inventory claims and inconsistent native counts", () => {
     const validator = scenario(approvalPermissionTests, "permissions-list");
-    expect(
-      validator.validate(
-        execution([
-          evalCall(
-            'await rpc.call("main", "permissions.revoke", [{ kind: "capability", id: "x" }]);',
-            undefined,
-          ),
-          evalCall("return await services.permissions.list();", []),
-        ]),
-      ).passed,
-    ).toBe(false);
+    expect(validator.validate(execution([
+      evalCall('return rpc.call("main", "permissions.list", []);', [grant]),
+    ])).passed).toBe(false);
+    const forged = inventory(1);
+    const result = forged.result as { details: { operationJournal: { entries: { receipt: { total: number } }[] } } };
+    result.details.operationJournal.entries[0]!.receipt.total = 2;
+    expect(validator.validate(execution([forged])).passed).toBe(false);
+  });
+
+  it("rejects a permission mutation even when a later native inventory succeeds", () => {
+    const validator = scenario(approvalPermissionTests, "permissions-list");
+    expect(validator.validate(execution([
+      evalCall('await rpc.call("main", "permissions.revoke", [{ kind: "capability", id: "x" }]);', undefined),
+      inventory(0),
+    ])).passed).toBe(false);
   });
 
   it("requires two permission reads backed by one final chat-task rule", () => {
-    const validator = scenario(
-      approvalPermissionTests,
-      "chat-task-permission-reuse",
-    );
+    const validator = scenario(approvalPermissionTests, "chat-task-permission-reuse");
     const taskRule = {
       id: taskGrant.id,
       capability: "permissions.read",
@@ -352,10 +332,7 @@ describe("permission semantic validators", () => {
       validator.validate(
         execution(
           [
-            evalCall(
-              'return await rpc.call("main", "permissions.listAgentProfiles", []);',
-              [],
-            ),
+            evalCall('return await rpc.call("main", "permissions.listAgentProfiles", []);', []),
             evalCall("return await services.permissions.list();", [taskGrant]),
           ],
           "The requested behavior was observed.",
@@ -364,9 +341,9 @@ describe("permission semantic validators", () => {
               afterFirstTurn: [taskRule],
               afterSecondTurn: [taskRule],
             },
-          },
-        ),
-      ),
+          }
+        )
+      )
     ).toEqual({ passed: true, reason: undefined });
     expect(
       validator.validate(
@@ -379,29 +356,22 @@ describe("permission semantic validators", () => {
           {
             chatTaskRuleReuse: {
               afterFirstTurn: [taskRule],
-              afterSecondTurn: [
-                taskRule,
-                { ...taskRule, id: "grant:duplicate" },
-              ],
+              afterSecondTurn: [taskRule, { ...taskRule, id: "grant:duplicate" }],
             },
-          },
-        ),
-      ).passed,
+          }
+        )
+      ).passed
     ).toBe(false);
   });
 
-  it("checks subagent grant reuse by typed scope independently of display wording", () => {
-    const validator = scenario(
-      approvalPermissionTests,
-      "subagent-task-permission-reuse",
-    );
+  it("checks subagent grant reuse from native snapshots independently of guest inventory wording", () => {
+    const validator = scenario(approvalPermissionTests, "subagent-task-permission-reuse");
     const serverLogGrant: SavedPermissionGrant = {
       ...grant,
       kind: "capability",
       callerLabel: "This task",
       resource: "server-logs.read",
-      duration:
-        "For the current approved task; Revoking this permission ends its access",
+      duration: "For the current approved task; Revoking this permission ends its access",
       authority: {
         effect: "allow" as const,
         provenance: "preauthorization",
@@ -412,9 +382,9 @@ describe("permission semantic validators", () => {
       },
     };
     const result = execution([
-      evalCall("return await services.serverLog.stats();", {
-        totalCaptured: 10,
-      }),
+      { name: "eval", arguments: { code: "return await services.serverLog.stats();" }, result: {
+        details: { returnValue: { totalCaptured: 10 }, operationJournal: serverLogReadJournal() },
+      } },
       {
         name: "spawn_subagent",
         arguments: { mode: "fresh", task: "Read server logs" },
@@ -432,48 +402,68 @@ describe("permission semantic validators", () => {
         subagent: {
           runId: "invocation-1",
           childParticipantId: "child",
+          childEntityId: "child-entity",
           taskChannelId: "child-channel",
         },
       },
     } as ChatMessage);
     const childReplay = [
+      ...childLogReadReplay(),
       {
         id: 1,
         senderId: "child",
         payload: {
           kind: "message.completed",
+          causality: { messageId: "native:3:11:0" },
           payload: {
             outcome: "completed",
+            metadata: {
+              nativeTaskId: 7,
+              nativeConversationId: 3,
+              nativeEntryId: 11,
+            },
             blocks: [{ type: "text", content: "yes" }],
           },
         },
       },
-      { id: 2, senderId: "child", payload: { kind: "turn.closed" } },
     ];
-    result.diagnostics = { childReplay };
+    const childModelExecutionEvidence = {
+      calls: [
+        {
+          native: { taskId: 7, conversationId: 3 },
+          entryId: 11,
+          outcome: "completed",
+          ref: "openai-codex:gpt-6-luna",
+          task: { status: "terminal", outcome: "completed" },
+          inputs: [
+            {
+              id: 5,
+              conversationId: 3,
+              type: "input",
+              status: "done",
+              answer: 11,
+            },
+          ],
+        },
+      ],
+    };
+    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots() };
     expect(validator.validate(result)).toEqual({
       passed: true,
       reason: undefined,
     });
-    result.diagnostics = { childReplay: childReplay.slice(0, 1) };
+    result.diagnostics = { childReplay };
     expect(validator.validate(result).passed).toBe(false);
     result.diagnostics = {
+      childModelExecutionEvidence,
       childReplay: childReplay.map((event) => ({
         ...event,
         senderId: "other",
       })),
     };
     expect(validator.validate(result).passed).toBe(false);
-    result.diagnostics = { childReplay };
-    result.messages[3] = invocationMessage(
-      evalCall("return await services.permissions.list();", [
-        {
-          ...serverLogGrant,
-          authority: { ...serverLogGrant.authority, scope: "once" },
-        },
-      ]),
-      2,
-    );
+    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots() };
+    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots(2) };
     expect(validator.validate(result).passed).toBe(false);
   });
 });
@@ -516,12 +506,8 @@ describe("edge and harness semantic validators", () => {
     ];
     for (const [name, failure] of cases) {
       const test = scenario(edgeCaseTests, name);
-      expect(test.validate(execution([failure, recovery])).passed, name).toBe(
-        true,
-      );
-      expect(test.validate(execution([recovery, failure])).passed, name).toBe(
-        false,
-      );
+      expect(test.validate(execution([failure, recovery])).passed, name).toBe(true);
+      expect(test.validate(execution([recovery, failure])).passed, name).toBe(false);
     }
   });
 
@@ -541,10 +527,10 @@ describe("edge and harness semantic validators", () => {
               missingReadFailed: true,
               missingError: "ENOENT: no such file or directory",
               followingReadLength: 100,
-            },
+            }
           ),
-        ]),
-      ),
+        ])
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 
@@ -560,8 +546,8 @@ describe("edge and harness semantic validators", () => {
             result: "Unexpected token (1:14)",
           },
           recovery,
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
   });
 
@@ -577,8 +563,8 @@ describe("edge and harness semantic validators", () => {
             result: 'Module "__definitely_not_real__" not available',
           },
           recovery,
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
   });
 
@@ -598,19 +584,16 @@ describe("edge and harness semantic validators", () => {
               missingImportError:
                 'Module "definitely-missing" not available in EvalDO; use the imports parameter.',
               sandboxStillWorks: true,
-            },
+            }
           ),
-        ]),
-      ),
+        ])
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 
   it("proves a huge return and an explicit timeout from canonical eval results", () => {
     expect(
-      scenario(
-        harnessResilienceTests,
-        "eval-huge-return-bounded-terminal",
-      ).validate(
+      scenario(harnessResilienceTests, "eval-huge-return-bounded-terminal").validate(
         execution([
           {
             name: "eval",
@@ -632,8 +615,8 @@ describe("edge and harness semantic validators", () => {
               },
             },
           },
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(harnessResilienceTests, "eval-timeout-error-visible").validate(
@@ -645,8 +628,8 @@ describe("edge and harness semantic validators", () => {
             result: "Evaluation timed out after 5ms",
           },
           recovery,
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
   });
 });
@@ -665,10 +648,10 @@ describe("project lifecycle semantic validators", () => {
               preparation: preparation(),
               openedPanelId: "panel:1",
               ...bootEvidence("panel:1"),
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(projectLifecycleTests, "panel-create-commit-open").validate(
@@ -683,10 +666,10 @@ describe("project lifecycle semantic validators", () => {
               preflightOk: true,
               preparation: preparation(),
               ...bootEvidence("panel:summary"),
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(false);
     expect(
       scenario(projectLifecycleTests, "panel-fork-dry-run-and-commit").validate(
@@ -703,10 +686,10 @@ describe("project lifecycle semantic validators", () => {
               preparation: preparation(),
               openedPanelId: "panel:2",
               ...bootEvidence("panel:2"),
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true); // A saved, rendered copy does not require a dry-run receipt.
     expect(
       scenario(projectLifecycleTests, "panel-fork-dry-run-and-commit").validate(
@@ -733,10 +716,10 @@ describe("project lifecycle semantic validators", () => {
                 preparation: preparation(),
               },
               ...bootEvidence("panel:typed"),
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(projectLifecycleTests, "panel-fork-dry-run-and-commit").validate(
@@ -775,10 +758,10 @@ describe("project lifecycle semantic validators", () => {
                 buildKey: "build:projected",
                 text: "Rendered projected panel content",
               },
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(projectLifecycleTests, "panel-fork-dry-run-and-commit").validate(
@@ -811,18 +794,15 @@ describe("project lifecycle semantic validators", () => {
                 buildKey: "build:boot-only",
                 phase: "ready",
               },
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(false);
   });
 
   it("rejects incomplete lifecycle projections without assuming optional arrays exist", () => {
-    const validator = scenario(
-      projectLifecycleTests,
-      "panel-create-commit-open",
-    );
+    const validator = scenario(projectLifecycleTests, "panel-create-commit-open");
     const code =
       "const created = await prepareProjects([input]); const opened = await openPanel(created.created); return { created: created.created, publication: created.publication, observation: await opened.observe(), snapshot: await opened.snapshot() };";
     const malformed = [
@@ -844,12 +824,8 @@ describe("project lifecycle semantic validators", () => {
     ];
 
     for (const returnValue of malformed) {
-      expect(() =>
-        validator.validate(execution([evalCall(code, returnValue)])),
-      ).not.toThrow();
-      expect(
-        validator.validate(execution([evalCall(code, returnValue)])).passed,
-      ).toBe(false);
+      expect(() => validator.validate(execution([evalCall(code, returnValue)]))).not.toThrow();
+      expect(validator.validate(execution([evalCall(code, returnValue)])).passed).toBe(false);
     }
   });
 
@@ -866,8 +842,8 @@ describe("project lifecycle semantic validators", () => {
             preparation: null,
             preflight: preflight("worker"),
           }),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
     expect(
       scenario(projectLifecycleTests, "worker-fork-classmap-dry-run").validate(
@@ -882,23 +858,20 @@ describe("project lifecycle semantic validators", () => {
               dryRun: true,
               preparation: null,
               preflightOk: true,
-            },
+            }
           ),
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
 
     const applicationId = "application:package-edit";
     const result = execution([
-      evalCall(
-        "return prepareProjects([{ projectType: 'package', name: 'new-package' }]);",
-        {
-          created: "packages/new-package",
-          files: ["index.ts"],
-          preflight: preflight("package"),
-          preparation: preparation(),
-        },
-      ),
+      evalCall("return prepareProjects([{ projectType: 'package', name: 'new-package' }]);", {
+        created: "packages/new-package",
+        files: ["index.ts"],
+        preflight: preflight("package"),
+        preparation: preparation(),
+      }),
       {
         name: "edit",
         arguments: { path: "packages/new-package/index.ts" },
@@ -927,13 +900,34 @@ describe("project lifecycle semantic validators", () => {
         },
       },
     ]);
-    expect(
-      scenario(projectLifecycleTests, "commit-existing-project").validate(
-        result,
-      ),
-    ).toEqual({
+    expect(scenario(projectLifecycleTests, "commit-existing-project").validate(result)).toEqual({
       passed: true,
       reason: undefined,
     });
+  });
+});
+
+describe("terminal command delivery evidence", () => {
+  it("requires the actual successful command output rather than a completion report", () => {
+    const test = scenario(agentOrchestrationTests, "terminal-extension-capability-acquisition");
+    const code =
+      'return await extensions.invoke("shell", "exec", [{ intent: { kind: "argv", executable: "/usr/bin/printf", args: ["agentic-terminal-roundtrip"] } }]);';
+    expect(
+      test.validate!(
+        execution([
+          evalCall(code, { exitCode: 0, stdout: "agentic-terminal-roundtrip", stderr: "" }),
+        ])
+      ).passed
+    ).toBe(true);
+    for (const returned of [
+      { exitCode: 1, stdout: "agentic-terminal-roundtrip" },
+      { exitCode: 0, stdout: "" },
+    ]) {
+      expect(test.validate!(execution([evalCall(code, returned)])).passed).toBe(false);
+    }
+    expect(
+      test.validate!(execution([], "It printed agentic-terminal-roundtrip and completed normally."))
+        .passed
+    ).toBe(false);
   });
 });

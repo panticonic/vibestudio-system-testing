@@ -1,3 +1,4 @@
+import { agentToolFailureSchema } from "@workspace/agentic-protocol";
 import type {
   TestCase,
   TestSuiteResult,
@@ -16,7 +17,7 @@ import type {
   HeadlessSession,
   SessionSnapshot,
 } from "@workspace/agentic-session";
-import { logIdForChannel } from "@vibestudio/trajectory-identity";
+import { headForChannel } from "@vibestudio/trajectory-identity";
 import { systemTestFailure } from "./structured-error.js";
 import { materializeValidationEvidence } from "./validation-evidence.js";
 import { DEFAULT_SYSTEM_TEST_TIMEOUT_MS } from "./config.js";
@@ -26,16 +27,15 @@ import {
 } from "./validation-failure.js";
 import { channelDeliveryLatencyViolations } from "./delivery-latency.js";
 import type { SystemTestJsonValue } from "./structured-error.js";
-import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "./prompt-contract.js";
+import {
+  assertAgentGoalPrompt,
+  assertSystemTestDeclaration,
+} from "./prompt-contract.js";
 import {
   findFinalAgentCompletionMessage,
   isAgentCompletionMessage,
 } from "./agent-message.js";
 
-const NON_INTERACTIVE_TERMINAL_WAIT_REASONS = [
-  "model_credential_required",
-  "model_credential_reconnect_required",
-] as const;
 const AGENT_INTERRUPT_TIMEOUT_MS = 30_000;
 
 type MaybePromise<T> = T | Promise<T>;
@@ -293,6 +293,7 @@ export class TestRunner {
           })
         : this.runner;
     let session: HeadlessSession | undefined;
+    let orchestrationSession: HeadlessSession | undefined;
     let outcome:
       | { result: TestResult; execution: TestExecutionResult }
       | undefined;
@@ -301,6 +302,12 @@ export class TestRunner {
       | undefined;
     let failurePhase = "test-declaration";
     let validationInputProjection: SystemTestJsonValue | undefined;
+    const submittedInputs: NonNullable<TestExecutionResult["submittedInputs"]> =
+      [];
+    const orchestrationController = new AbortController();
+    this.activeWaits.add(orchestrationController);
+    if (this.cancellationError)
+      orchestrationController.abort(this.cancellationError);
     const enterPhase = (phase: string): void => {
       failurePhase = phase;
       this.opts?.onTestPhase?.(test, phase);
@@ -323,6 +330,9 @@ export class TestRunner {
         response: ChatMessage;
         modelExecutionEvidence: unknown;
       }> => {
+        // Keep the actual active session available even when an orchestrator
+        // has not returned its execution record yet.
+        orchestrationSession = targetSession;
         const taskPrompt = test.workspaceRepoFixture
           ? testRunner.withTaskResources(prompt)
           : prompt;
@@ -336,8 +346,19 @@ export class TestRunner {
           ? `Timed out waiting for agent to finish test "${test.name}" during ${phase}`
           : `Timed out waiting for agent to finish test "${test.name}"`;
         const controller = new AbortController();
+        const abortFromOrchestration = () =>
+          controller.abort(orchestrationController.signal.reason);
+        orchestrationController.signal.addEventListener(
+          "abort",
+          abortFromOrchestration,
+          {
+            once: true,
+          },
+        );
+        if (orchestrationController.signal.aborted) abortFromOrchestration();
         let stopAuthorityWatch: (() => void) | undefined;
         let authorityFailure: Promise<never> | undefined;
+        let wait: Promise<ChatMessage> | undefined;
         let response!: ChatMessage;
         this.activeWaits.add(controller);
         if (this.cancellationError) controller.abort(this.cancellationError);
@@ -372,9 +393,8 @@ export class TestRunner {
               });
             });
           }
-          const wait = targetSession.sendAndWait(taskPrompt, {
+          wait = targetSession.sendAndWait(taskPrompt, {
             signal: controller.signal,
-            terminalWaitingReasons: NON_INTERACTIVE_TERMINAL_WAIT_REASONS,
           });
           response = (await this.withTimeout(
             authorityFailure ? Promise.race([wait, authorityFailure]) : wait,
@@ -385,14 +405,24 @@ export class TestRunner {
           stopAuthorityWatch?.();
         } catch (error) {
           const terminalError = this.cancellationError ?? error;
-          try {
-            await this.interruptActiveTurn(targetSession);
-          } catch (interruptError) {
+          controller.abort(terminalError);
+          const [interruption, observation] = await Promise.allSettled([
+            this.interruptActiveTurn(targetSession),
+            wait ?? Promise.resolve(),
+          ]);
+          const failures = [terminalError];
+          if (interruption.status === "rejected")
+            failures.push(interruption.reason);
+          if (
+            observation.status === "rejected" &&
+            observation.reason !== terminalError &&
+            observation.reason !== controller.signal.reason
+          )
+            failures.push(observation.reason);
+          if (failures.length > 1) {
             throw new AggregateError(
-              [terminalError, interruptError],
-              `${errorMessage(terminalError)}; agent interruption failed: ${errorMessage(
-                interruptError,
-              )}`,
+              failures,
+              `${errorMessage(terminalError)}; agent cancellation or observation failed`,
             );
           }
           throw terminalError;
@@ -401,8 +431,17 @@ export class TestRunner {
           // rejection cannot turn into a long model retry loop. Remove it on
           // both ordinary completion and interruption.
           stopAuthorityWatch?.();
+          orchestrationController.signal.removeEventListener(
+            "abort",
+            abortFromOrchestration,
+          );
           this.activeWaits.delete(controller);
         }
+        submittedInputs.push({
+          channelId: targetSession.channelId,
+          requestedPrompt: prompt,
+          submittedPrompt: taskPrompt,
+        });
         return {
           response,
           modelExecutionEvidence: await this.captureAndAssertModelExecution(
@@ -421,6 +460,7 @@ export class TestRunner {
         ? await this.withTimeout(
             test.orchestrate({
               runner: testRunner,
+              signal: orchestrationController.signal,
               remainingTimeMs,
               sendAndWait: async (targetSession, prompt, phase) => {
                 const completed = await sendAndCapture(
@@ -433,6 +473,7 @@ export class TestRunner {
             }),
             remainingTimeMs(),
             `Timed out running test "${test.name}": its orchestration did not settle within ${testTimeoutMs}ms`,
+            orchestrationController,
           )
         : await (async (): Promise<TestExecutionResult> => {
             session = await testRunner.spawn();
@@ -454,8 +495,19 @@ export class TestRunner {
             };
           })();
       execution.duration ||= Date.now() - startTime;
+      execution.submittedInputs = submittedInputs;
       execution.modelExecutionEvidence ??=
         execution.snapshot?.modelExecutionEvidence;
+      if (workspaceRepoFixtureState?.section === "workers") {
+        enterPhase("validation");
+        execution.diagnostics = {
+          ...execution.diagnostics,
+          fixtureRuntimeEntities:
+            await testRunner.observeFixtureRuntimeEntities(
+              workspaceRepoFixtureState,
+            ),
+        };
+      }
       const validationExecution = await materializeValidationEvidence(
         execution,
         testRunner.validationEvidenceReader,
@@ -512,7 +564,10 @@ export class TestRunner {
       const unexpected = unexpectedToolFailures(execution.toolFailures);
       if (unexpected.length > 0) {
         const failureReason = `Unexpected failed tool calls: ${unexpected
-          .map((failure) => `${failure.name}:${failure.failureCode ?? failure.terminalReasonCode ?? failure.status ?? "error"}`)
+          .map(
+            (failure) =>
+              `${failure.name}:${failure.failureCode ?? failure.terminalReasonCode ?? failure.status ?? "error"}`,
+          )
           .join(", ")}`;
         result = {
           passed: false,
@@ -529,12 +584,15 @@ export class TestRunner {
       outcome = { result, execution };
     } catch (err) {
       const duration = Date.now() - startTime;
-      const messages = session ? ([...session.messages] as ChatMessage[]) : [];
+      const failureSession = session ?? orchestrationSession;
+      const messages = failureSession
+        ? ([...failureSession.messages] as ChatMessage[])
+        : [];
       let modelExecutionEvidence: unknown;
-      if (session) {
+      if (failureSession) {
         try {
           modelExecutionEvidence =
-            await session.captureModelExecutionEvidence();
+            await failureSession.captureModelExecutionEvidence();
         } catch (evidenceErr) {
           console.warn(
             "[system-testing] Failed to capture model evidence for failed headless session:",
@@ -544,7 +602,7 @@ export class TestRunner {
       }
       let snapshot: SessionSnapshot | undefined;
       try {
-        snapshot = session?.snapshot();
+        snapshot = failureSession?.snapshot();
       } catch (snapshotErr) {
         console.warn(
           "[system-testing] Failed to snapshot failed headless session:",
@@ -560,6 +618,7 @@ export class TestRunner {
       const execution: TestExecutionResult = {
         messages,
         duration,
+        submittedInputs,
         error: errorMessage,
         failure,
         snapshot,
@@ -588,6 +647,7 @@ export class TestRunner {
         execution,
       };
     } finally {
+      this.activeWaits.delete(orchestrationController);
       try {
         enterPhase("development-session-cleanup");
         const ownedDevelopmentSessions =
@@ -606,10 +666,39 @@ export class TestRunner {
           "close",
         );
       }
+      try {
+        if (session) {
+          // Remote retirement is part of a test's terminal state. Passing turns
+          // can still own channel delivery, eval, model, and runtime resources;
+          // releasing the fixture/lock before their acknowledged teardown makes
+          // later tests race work from an earlier trajectory.
+          enterPhase("session-cleanup");
+          await session.close({
+            onPhase: (cleanup) =>
+              enterPhase(`session-cleanup:${cleanup.phase}`),
+          });
+          if (outcome) {
+            outcome.execution.diagnostics = {
+              ...(outcome.execution.diagnostics ?? {}),
+              headlessCleanup: {
+                mode: "awaited",
+                remoteCleanupAwaited: true,
+              },
+            };
+          }
+        }
+      } catch (cleanupErr) {
+        console.warn(
+          "[system-testing] Failed to close headless session:",
+          cleanupErr,
+        );
+        recordCleanupFailure(outcome, "session-close", cleanupErr, "close");
+      }
       if (outcome) {
         try {
           const diagnosticChannelId =
             session?.channelId ??
+            orchestrationSession?.channelId ??
             outcome.execution.provenance?.channelId ??
             outcome.execution.snapshot?.channelId;
           const sharedDiagnostics = await testRunner.collectDiagnostics({
@@ -645,34 +734,6 @@ export class TestRunner {
             ),
           };
         }
-      }
-      try {
-        if (session) {
-          // Remote retirement is part of a test's terminal state. Passing turns
-          // can still own channel delivery, eval, model, and runtime resources;
-          // releasing the fixture/lock before their acknowledged teardown makes
-          // later tests race work from an earlier trajectory.
-          enterPhase("session-cleanup");
-          await session.close({
-            onPhase: (cleanup) =>
-              enterPhase(`session-cleanup:${cleanup.phase}`),
-          });
-          if (outcome) {
-            outcome.execution.diagnostics = {
-              ...(outcome.execution.diagnostics ?? {}),
-              headlessCleanup: {
-                mode: "awaited",
-                remoteCleanupAwaited: true,
-              },
-            };
-          }
-        }
-      } catch (cleanupErr) {
-        console.warn(
-          "[system-testing] Failed to close headless session:",
-          cleanupErr,
-        );
-        recordCleanupFailure(outcome, "session-close", cleanupErr, "close");
       }
       let cleanupErrors: NonNullable<SessionSnapshot["cleanupErrors"]> = [];
       try {
@@ -776,19 +837,37 @@ export class TestRunner {
     promise: Promise<T>,
     timeoutMs: number,
     message: string,
-    controller?: AbortController,
+    controller: AbortController,
   ): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadlineError: Error | undefined;
     try {
       return await Promise.race([
         promise,
         new Promise<T>((_resolve, reject) => {
           timer = setTimeout(() => {
-            reject(new Error(message));
-            controller?.abort();
+            deadlineError = new Error(message);
+            controller.abort(deadlineError);
+            reject(deadlineError);
           }, timeoutMs);
         }),
       ]);
+    } catch (error) {
+      if (deadlineError) {
+        // A test deadline cancels its owned operation; it cannot retire the
+        // admitted eval while that operation's finally blocks are still using
+        // its authority. Join real settlement before reporting the deadline.
+        try {
+          await promise;
+        } catch (settlementError) {
+          if (settlementError !== error && settlementError !== deadlineError)
+            throw new AggregateError(
+              [error, settlementError],
+              `${message}; owned operation failed during cancellation`,
+            );
+        }
+      }
+      throw error;
     } finally {
       if (timer !== undefined) clearTimeout(timer);
     }
@@ -855,23 +934,31 @@ export class TestRunner {
         ].join(" then ")}`,
       );
     }
+    const callsByRun = new Map<string, typeof calls>();
+    for (const call of calls) {
+      const native = asRecord(call?.["native"]);
+      const taskId = native?.["taskId"];
+      const conversationId = native?.["conversationId"];
+      if (
+        typeof taskId !== "number" ||
+        !Number.isSafeInteger(taskId) ||
+        taskId <= 0 ||
+        typeof conversationId !== "number" ||
+        !Number.isSafeInteger(conversationId) ||
+        conversationId <= 0
+      ) {
+        throw new Error(
+          `System test "${testName}" recorded a model call without native task identity during ${phase}`,
+        );
+      }
+      const runKey = `${conversationId}:${taskId}`;
+      const runCalls = callsByRun.get(runKey) ?? [];
+      runCalls.push(call);
+      callsByRun.set(runKey, runCalls);
+    }
     if (allowedRefs.size > 1) {
       const fallbackModel = policy.fallbackModel;
-      const callsByTurn = new Map<string, typeof calls>();
-      for (const call of calls) {
-        const messageId = String(call?.["messageId"] ?? "");
-        if (!messageId) {
-          throw new Error(
-            `System test "${testName}" recorded a model call without turn identity during ${phase}`,
-          );
-        }
-        // Model message ids end in the per-turn call index.
-        const turnKey = messageId.replace(/:\d+$/u, "");
-        const turnCalls = callsByTurn.get(turnKey) ?? [];
-        turnCalls.push(call);
-        callsByTurn.set(turnKey, turnCalls);
-      }
-      const invalidTransition = [...callsByTurn.values()].some((turnCalls) => {
+      const invalidTransition = [...callsByRun.values()].some((turnCalls) => {
         const refs = turnCalls.map((call) => String(call?.["ref"] ?? ""));
         const fallbackIndex = fallbackModel ? refs.indexOf(fallbackModel) : -1;
         const primaryCalls = turnCalls.slice(0, fallbackIndex);
@@ -887,17 +974,17 @@ export class TestRunner {
       if (invalidTransition) {
         throw new Error(
           `System test "${testName}" has an invalid model transition during ${phase}; ` +
-            `expected each turn to use primary-only calls or ${policy.primaryModel} calls ending in failure followed only by ${fallbackModel}`,
+            `expected each native task to use primary-only calls or ${policy.primaryModel} calls ending in failure followed only by ${fallbackModel}`,
         );
       }
-      // The transition check already knows which turns fell back; report them
+      // The transition check already knows which native tasks fell back; report them
       // so the run record answers what happened, rather than only refusing a
       // transition that should not have.
       if (
         fallbackModel &&
         typeof this.runner.recordModelFallbackActivations === "function"
       ) {
-        const observed = [...callsByTurn.values()].flatMap((turnCalls) => {
+        const observed = [...callsByRun.values()].flatMap((turnCalls) => {
           const refs = turnCalls.map((call) => String(call?.["ref"] ?? ""));
           const fallbackIndex = refs.indexOf(fallbackModel);
           if (fallbackIndex <= 0) return [];
@@ -1022,7 +1109,7 @@ function provenanceFromSnapshot(
 ): NonNullable<TestExecutionResult["provenance"]> {
   return {
     channelId: snapshot.channelId,
-    branchId: snapshot.channelId ? logIdForChannel(snapshot.channelId) : null,
+    branchId: snapshot.channelId ? headForChannel(snapshot.channelId) : null,
     agentEntityId: snapshot.agentEntityId,
     agentTargetId: snapshot.agentTargetId,
     contextId: snapshot.agentContextId,
@@ -1188,10 +1275,31 @@ export function findSystemTestImplementationInspections(
     if (!invocation || typeof invocation !== "object") return;
     const name =
       asString(invocation.name) ?? asString(invocation.method) ?? "(unknown)";
-    if (!["read", "grep", "find", "ls", "eval"].includes(name)) return;
+    // Discovery metadata and published Markdown guides are product surfaces.
+    // Reading/scanning executable harness source is a different operation.
+    if (!["read", "grep", "eval"].includes(name)) return;
     const args = invocation.arguments;
     const serialized = args === undefined ? "" : safeJson(args);
-    if (!/skills[\/]system-testing(?:[\/]|\b)/u.test(serialized)) return;
+    const argumentRecord = asRecord(args);
+    const paths =
+      name === "eval"
+        ? Array.from(
+            String(argumentRecord?.["code"] ?? "").matchAll(
+              /["'`](?:[^"'`]*?\/)?(skills\/system-testing(?:\/[^"'`\s]*)?)["'`]/gu,
+            ),
+            (match) => match[1]!,
+          )
+        : typeof argumentRecord?.["path"] === "string"
+          ? [argumentRecord["path"]]
+          : [];
+    if (
+      !paths.some(
+        (path) =>
+          /(?:^|\/)skills\/system-testing(?:\/|$)/u.test(path) &&
+          !/\.md$/iu.test(path),
+      )
+    )
+      return;
     const id = asString(invocation.id) ?? null;
     const key = id ?? `${name}:${serialized}`;
     if (seen.has(key)) return;
@@ -1336,16 +1444,19 @@ function summarizeToolFailure(
     resultDetails && isRecord(resultDetails["failure"])
       ? resultDetails["failure"]
       : undefined;
+  const parsedFailure = agentToolFailureSchema.safeParse(nestedFailure);
+  const canonicalFailure = parsedFailure.success
+    ? parsedFailure.data
+    : undefined;
   const failureKind =
     asString(exec.failureKind) ??
     asString(invocation.failureKind) ??
-    (resultDetails ? asString(resultDetails["failureKind"]) : undefined) ??
-    (nestedFailure ? asString(nestedFailure["failureKind"]) : undefined);
+    (resultDetails ? asString(resultDetails["failureKind"]) : undefined);
   const failureCode =
     asString(exec.failureCode) ??
     asString(invocation.failureCode) ??
     (resultDetails ? asString(resultDetails["failureCode"]) : undefined) ??
-    (nestedFailure ? asString(nestedFailure["failureCode"]) : undefined);
+    canonicalFailure?.code;
   const name =
     asString(invocation.name) ?? asString(invocation.method) ?? "(unknown)";
   return {

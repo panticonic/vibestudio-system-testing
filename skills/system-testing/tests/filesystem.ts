@@ -113,13 +113,89 @@ function checkedFs(
   const focusedCalls = options.allowFocusedTools
     ? successfulCalls.filter((call) => focusedFsOperations(call).length > 0)
     : [];
-  const evalCalls = successfulCalls.filter((call) => call.name === "eval");
+  const operationNames = new Set(operations.flat());
+  const evalCalls = successfulCalls.filter(
+    (call) =>
+      call.name === "eval" &&
+      typeof call.arguments?.["code"] === "string" &&
+      [...operationNames].some(
+        (operation) =>
+          requireCodeOperations(call.arguments!["code"] as string, [[operation]]).passed
+      )
+  );
+  // Discovery output is not outcome evidence for a different operation. Keep
+  // returned/console data attached to the completed filesystem calls that ran.
   const values = structuredInvocationEvidence([
-    ...base.evidence.evalValues,
     ...focusedCalls.flatMap((call) => [call.arguments, call.execution?.result]),
     ...evalCalls.map((call) => call.execution?.result),
   ]);
   return prove(values) ? { passed: true, reason: undefined } : { passed: false, reason };
+}
+
+function appendLogEvidence(result: TestExecutionResult) {
+  const base = completedScenarioEvidence(result, []);
+  if (!base.passed) return base;
+  const calls = base.evidence.calls;
+  for (let index = 0; index < calls.length; index++) {
+    const edit = calls[index]!;
+    const args = edit.arguments;
+    const details = record(record(edit.execution?.result)?.["details"]);
+    if (
+      edit.name !== "edit" ||
+      details?.["protocol"] !== "file-mutation.v1" ||
+      details["storage"] !== "scratch" ||
+      details["status"] !== "applied" ||
+      typeof args?.["path"] !== "string" ||
+      typeof args["oldText"] !== "string" ||
+      typeof args["newText"] !== "string"
+    )
+      continue;
+    const oldText = args["oldText"];
+    const newText = args["newText"];
+    if (
+      !oldText.includes("First observation.") ||
+      oldText.includes("Second observation.") ||
+      !newText.startsWith(oldText) ||
+      !newText.slice(oldText.length).includes("Second observation.")
+    )
+      continue;
+    const initialized = calls.slice(0, index).some((call) => {
+      const receipt = record(record(call.execution?.result)?.["details"]);
+      return (
+        call.name === "write" &&
+        call.arguments?.["path"] === args["path"] &&
+        call.arguments?.["content"] === oldText &&
+        receipt?.["protocol"] === "file-mutation.v1" &&
+        receipt["storage"] === "scratch" &&
+        receipt["status"] === "applied"
+      );
+    });
+    const verified = calls
+      .slice(index + 1)
+      .some(
+        (call) =>
+          call.name === "read" &&
+          call.arguments?.["path"] === args["path"] &&
+          strings([record(call.execution?.result)?.["protocolContent"]]).includes(newText)
+      );
+    if (initialized && verified) return { passed: true, reason: undefined };
+  }
+  return checkedFs(
+    result,
+    [
+      ["fs.appendFile", "fs.readFile"],
+      ["fs.open", '\"a\"'],
+      ["fs.open", '\"a+\"'],
+      ["fs.open", "fs.constants.O_APPEND"],
+    ],
+    (values) =>
+      strings(values).some((value) => {
+        const first = value.indexOf("First observation.");
+        return first >= 0 && value.indexOf("Second observation.") > first;
+      }),
+    "The completed append probe did not return both pieces of content",
+    { allowFocusedTools: true }
+  );
 }
 
 const BINARY_ROUND_TRIP_BASE64 = "AP8B/g==";
@@ -224,33 +300,30 @@ export const filesystemTests: TestCase[] = [
     name: "append-file",
     description: "Append content to a file and verify all content is present",
     category: "filesystem",
-    prompt: "Verify that appending to a temporary file preserves both pieces of content.",
-    validate: (result) =>
-      checkedFs(
-        result,
-        [["fs.writeFile", "fs.appendFile", "fs.readFile"]],
-        (values) =>
-          strings(values).some((value) => value.split(/\r?\n/u).filter(Boolean).length >= 2),
-        "The completed append probe did not return both pieces of content"
-      ),
+    prompt:
+      "Keep two entries in a temporary scratch log: ‘First observation.’ and ‘Second observation.’. Add the second by appending, then verify both entries remain in order.",
+    validate: appendLogEvidence,
   },
   {
     name: "directory-ops",
     description: "Create nested directories and list contents",
     category: "filesystem",
-    prompt: "Create a temporary nested directory with two files and inspect what is inside.",
+    prompt:
+      "Create a temporary nested directory with one.txt at the top and two.txt in a child directory. Inspect what is inside.",
     validate: (result) =>
       checkedFs(
         result,
-        [
-          ["fs.mkdir", "fs.readdir"],
-          ["fs.writeFile", "fs.readdir"],
-        ],
-        (values) =>
-          walkArrays(values).some(
-            (value) => value.length === 2 && value.every((entry) => typeof entry === "string")
-          ),
-        "The completed directory listing did not contain exactly two entries",
+        [["fs.writeFile", "fs.readdir"]],
+        (values) => {
+          const names = walkArrays(values).flatMap((entries) =>
+            entries.flatMap((entry) => {
+              const name = typeof entry === "string" ? entry : record(entry)?.["name"];
+              return typeof name === "string" ? [name.split("/").at(-1)] : [];
+            })
+          );
+          return names.includes("one.txt") && names.includes("two.txt");
+        },
+        "The completed directory inspection did not expose both requested files",
         { allowFocusedTools: true }
       ),
   },
@@ -259,19 +332,23 @@ export const filesystemTests: TestCase[] = [
     description: "Get file statistics including size and modification time",
     category: "filesystem",
     prompt:
-      "Inspect the metadata of a temporary file and verify it agrees with the file you wrote.",
+      "Create a temporary file containing ‘hello’. Inspect its size and modification time, and verify that the byte size agrees with that content.",
     validate: (result) =>
       checkedFs(
         result,
         [["fs.writeFile", "fs.stat"]],
         (values) =>
-          walkRecords(values).some(
-            (record) =>
-              typeof record["size"] === "number" &&
-              record["size"] > 0 &&
-              (record["mtime"] !== undefined || record["mtimeMs"] !== undefined)
-          ),
-        "The completed stat probe did not expose a positive size and modification time"
+          walkRecords(values).some((record) => {
+            const size = record["size"] ?? record["metadataSize"];
+            const modified = record["mtimeMs"] ?? record["mtime"] ?? record["modifiedAt"];
+            return (
+              size === 5 &&
+              ((typeof modified === "number" && Number.isFinite(modified) && modified > 0) ||
+                (typeof modified === "string" && Number.isFinite(Date.parse(modified))))
+            );
+          }),
+        "The completed stat probe did not expose the requested five-byte size and a valid modification time",
+        { allowFocusedTools: true }
       ),
   },
   {
@@ -334,6 +411,8 @@ export const filesystemTests: TestCase[] = [
               record["symlinkCreated"] === true ||
               record["isSym"] === true ||
               record["isSymbolicLink"] === true ||
+              (record["linkStat"] === true && typeof record["readlink"] === "string") ||
+              (typeof record["mode"] === "number" && (record["mode"] & 0xf000) === 0xa000) ||
               (typeof record["linkPath"] === "string" &&
                 typeof record["readlink"] === "string" &&
                 typeof record["realpath"] === "string") ||
@@ -346,7 +425,8 @@ export const filesystemTests: TestCase[] = [
     name: "file-handles",
     description: "Use low-level file handles to write and read",
     category: "filesystem",
-    prompt: "Check whether a temporary file remains available after its handle is closed, and tell me what happened.",
+    prompt:
+      "Check whether a temporary file remains available after its handle is closed, and tell me what happened.",
     validate: (result) =>
       checkedFs(
         result,

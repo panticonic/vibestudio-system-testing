@@ -1,10 +1,29 @@
+import { canonicalJson } from "@vibestudio/shared/canonicalJson";
+import {
+  nativeInvocationId,
+  nativeInvocationIdentity,
+  nativeInvocationIdentitySchema,
+  nativeOriginatingInputSchema,
+} from "@vibestudio/service-schemas/nativeInvocation";
+import {
+  commandIdForTrajectoryInvocation,
+  channelTrajectoryFor,
+} from "@vibestudio/trajectory-identity";
+import type { NativeInvocationSource } from "@vibestudio/service-schemas/nativeInvocation";
 import type { TestExecutionResult } from "../types.js";
-import { findFinalAgentCompletionMessage, isAgentCompletionMessage } from "../agent-message.js";
+import {
+  findFinalAgentCompletionMessage,
+  isAgentCompletionMessage,
+} from "../agent-message.js";
 import { isUnexpectedToolFailure } from "../tool-failure-classification.js";
 
 export interface InvocationCardPayloadLike {
   id: string;
   name: string;
+  nativeSource?: NativeInvocationSource;
+  originatingInput?:
+    | import("@vibestudio/service-schemas/nativeInvocation").NativeOriginatingInput
+    | null;
   arguments?: Record<string, unknown>;
   status?: string;
   terminalOutcome?: string;
@@ -42,8 +61,13 @@ export function hasAgentResponse(result: TestExecutionResult): boolean {
 }
 
 /** Check that the response contains a specific string (case-insensitive) */
-export function responseContains(result: TestExecutionResult, text: string): boolean {
-  return normalizeMarkerText(findLastAgentMessage(result)).includes(normalizeMarkerText(text));
+export function responseContains(
+  result: TestExecutionResult,
+  text: string,
+): boolean {
+  return normalizeMarkerText(findLastAgentMessage(result)).includes(
+    normalizeMarkerText(text),
+  );
 }
 
 /** Normalize harmless prose/Markdown presentation around validator markers.
@@ -64,12 +88,14 @@ function normalizeMarkerText(value: string): string {
 
 export function finalMessageHasAll(
   result: TestExecutionResult,
-  tokens: readonly string[]
+  tokens: readonly string[],
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
   const normalized = normalizeMarkerText(msg);
-  const missing = tokens.filter((token) => !normalized.includes(normalizeMarkerText(token)));
+  const missing = tokens.filter(
+    (token) => !normalized.includes(normalizeMarkerText(token)),
+  );
   return {
     passed: missing.length === 0,
     reason:
@@ -86,12 +112,14 @@ export function finalMessageHasAll(
  */
 export function agentMessageHasAll(
   result: TestExecutionResult,
-  tokens: readonly string[]
+  tokens: readonly string[],
 ): { passed: boolean; reason?: string } {
   const messages = result.messages.filter(isAgentCompletionMessage);
   const found = messages.some((message) => {
     const normalized = normalizeMarkerText(message.content ?? "");
-    return tokens.every((token) => normalized.includes(normalizeMarkerText(token)));
+    return tokens.every((token) =>
+      normalized.includes(normalizeMarkerText(token)),
+    );
   });
   return {
     passed: found,
@@ -105,12 +133,14 @@ export function agentMessageHasAll(
 
 export function finalMessageHasAny(
   result: TestExecutionResult,
-  tokens: readonly string[]
+  tokens: readonly string[],
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
   const normalized = normalizeMarkerText(msg);
-  const found = tokens.some((token) => normalized.includes(normalizeMarkerText(token)));
+  const found = tokens.some((token) =>
+    normalized.includes(normalizeMarkerText(token)),
+  );
   return {
     passed: found,
     reason: found
@@ -121,14 +151,14 @@ export function finalMessageHasAny(
 
 export function finalMessageHasMarkerCount(
   result: TestExecutionResult,
-  marker: string
+  marker: string,
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
   const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = new RegExp(
     `\\b${escapedMarker}\\b\\s*[:=-]?\\s*(?:count\\s*[:=-]?\\s*)?(\\d+)\\b`,
-    "i"
+    "i",
   ).exec(msg);
   return {
     passed: Boolean(match),
@@ -140,21 +170,25 @@ export function finalMessageHasMarkerCount(
 
 export function finalMessageHasNumericField(
   result: TestExecutionResult,
-  field: string
+  field: string,
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
   const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`\\b${escapedField}\\s*[:=]\\s*(\\d+)\\b`, "i").exec(msg);
+  const match = new RegExp(`\\b${escapedField}\\s*[:=]\\s*(\\d+)\\b`, "i").exec(
+    msg,
+  );
   return {
     passed: Boolean(match),
-    reason: match ? undefined : `Missing ${field}=<number> in response: ${msg.slice(0, 400)}`,
+    reason: match
+      ? undefined
+      : `Missing ${field}=<number> in response: ${msg.slice(0, 400)}`,
   };
 }
 
 export function finalMessageHasField(
   result: TestExecutionResult,
-  field: string
+  field: string,
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
@@ -162,14 +196,16 @@ export function finalMessageHasField(
   const match = new RegExp(`\\b${escapedField}\\s*[:=]\\s*\\S+`, "i").exec(msg);
   return {
     passed: Boolean(match),
-    reason: match ? undefined : `Missing ${field}=<value> in response: ${msg.slice(0, 400)}`,
+    reason: match
+      ? undefined
+      : `Missing ${field}=<value> in response: ${msg.slice(0, 400)}`,
   };
 }
 
 /** Require semantic identity fields to contain real values rather than marker placeholders. */
 export function finalMessageHasConcreteFields(
   result: TestExecutionResult,
-  fields: readonly string[]
+  fields: readonly string[],
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
@@ -189,11 +225,13 @@ export function finalMessageHasConcreteFields(
   const invalid: string[] = [];
   for (const field of fields) {
     const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = new RegExp(`\\b${escapedField}\\s*[:=]\\s*[*_\x60~]*([^\\s,*_\x60~]+)`, "i").exec(
-      msg
-    );
+    const match = new RegExp(
+      `\\b${escapedField}\\s*[:=]\\s*[*_\x60~]*([^\\s,*_\x60~]+)`,
+      "i",
+    ).exec(msg);
     const value = match?.[1]?.replace(/[.;]+$/, "").toLowerCase();
-    if (!value || placeholders.has(value)) invalid.push(`${field}:${value ?? "missing"}`);
+    if (!value || placeholders.has(value))
+      invalid.push(`${field}:${value ?? "missing"}`);
   }
   return {
     passed: invalid.length === 0,
@@ -225,9 +263,11 @@ export function noFailedInvocations(result: TestExecutionResult): {
   const expectedIds = new Set(
     (result.toolFailures ?? [])
       .filter((failure) => !isUnexpectedToolFailure(failure))
-      .flatMap((failure) => failure.id ? [failure.id] : []),
+      .flatMap((failure) => (failure.id ? [failure.id] : [])),
   );
-  const failed = failedToolCalls(result).filter((call) => !expectedIds.has(call.id));
+  const failed = failedToolCalls(result).filter(
+    (call) => !expectedIds.has(call.id),
+  );
   return {
     passed: failed.length === 0,
     reason:
@@ -240,7 +280,7 @@ export function noFailedInvocations(result: TestExecutionResult): {
 /** Check that the response does NOT contain error-indicating phrases alongside the expected content */
 export function responseSucceeds(
   result: TestExecutionResult,
-  expectedContent: string
+  expectedContent: string,
 ): { passed: boolean; reason?: string } {
   const msg = findLastAgentMessage(result);
   if (!msg) return { passed: false, reason: "No agent response received" };
@@ -254,31 +294,44 @@ export function responseSucceeds(
   return { passed: true };
 }
 
-export function getToolCalls(result: TestExecutionResult): InvocationCardPayloadLike[] {
+export function getToolCalls(
+  result: TestExecutionResult,
+): InvocationCardPayloadLike[] {
   const calls: InvocationCardPayloadLike[] = [];
   for (const msg of result.messages) {
     if (msg.contentType !== "invocation") continue;
     if (msg.invocation) {
-      calls.push(normalizeInvocationCard(msg.invocation as InvocationCardPayloadLike));
+      calls.push(
+        normalizeInvocationCard(msg.invocation as InvocationCardPayloadLike),
+      );
       continue;
     }
     try {
       const parsed = JSON.parse(msg.content ?? "") as InvocationCardPayloadLike;
-      if (parsed && typeof parsed.name === "string") calls.push(normalizeInvocationCard(parsed));
+      if (parsed && typeof parsed.name === "string")
+        calls.push(normalizeInvocationCard(parsed));
     } catch {
       // Ignore malformed invocation content; validation can fail on missing calls.
     }
   }
   const snapshotById = new Map(
-    (result.snapshot?.invocations ?? []).map((invocation) => [invocation.id, invocation] as const)
+    (result.snapshot?.invocations ?? []).map(
+      (invocation) => [invocation.id, invocation] as const,
+    ),
   );
   const merged = calls.map((call) => {
     const snapshot = snapshotById.get(call.id);
     if (!snapshot) return call;
     snapshotById.delete(call.id);
-    const snapshotArguments = isRecord(snapshot.args) ? snapshot.args : undefined;
+    const snapshotArguments = isRecord(snapshot.args)
+      ? snapshot.args
+      : undefined;
     return {
       ...call,
+      ...(snapshot.nativeSource ? { nativeSource: snapshot.nativeSource } : {}),
+      ...(snapshot.originatingInput !== undefined
+        ? { originatingInput: snapshot.originatingInput }
+        : {}),
       ...(snapshotArguments ? { arguments: snapshotArguments } : {}),
       execution: {
         ...(call.execution ?? {}),
@@ -293,24 +346,87 @@ export function getToolCalls(result: TestExecutionResult): InvocationCardPayload
       normalizeInvocationCard({
         id: snapshot.id,
         name: snapshot.name,
+        ...(snapshot.nativeSource
+          ? { nativeSource: snapshot.nativeSource }
+          : {}),
+        ...(snapshot.originatingInput !== undefined
+          ? { originatingInput: snapshot.originatingInput }
+          : {}),
         ...(isRecord(snapshot.args) ? { arguments: snapshot.args } : {}),
         status: snapshot.status,
         ...(snapshot.result !== undefined ? { result: snapshot.result } : {}),
         ...(snapshot.error !== undefined ? { error: snapshot.error } : {}),
-      })
+      }),
     );
   }
   return merged;
 }
 
+/** The consumed canonical method receipt links a physical call to its native
+ * owner. Observe every invocation for settlement, but count the owner's tool
+ * attempt once rather than treating propagation as another execution. */
+export function getToolExecutions(
+  result: TestExecutionResult,
+): InvocationCardPayloadLike[] {
+  const calls = getToolCalls(result);
+  const consumed = new Set<string>();
+  for (const call of calls) {
+    const source = call.nativeSource;
+    if (
+      !source ||
+      source.operation.kind === "model" ||
+      source.operation.name !== call.name ||
+      nativeInvocationId(source) !== call.id
+    )
+      continue;
+    const result = call.execution?.result;
+    if (!result || typeof result !== "object" || Array.isArray(result))
+      continue;
+    const receipt = (result as Record<string, unknown>)["details"];
+    if (!receipt || typeof receipt !== "object" || Array.isArray(receipt))
+      continue;
+    const value = receipt as Record<string, unknown>;
+    if (
+      value["protocol"] !== "native-channel-method-outcome.v1" ||
+      typeof value["invocationId"] !== "string" ||
+      typeof value["transportCallId"] !== "string" ||
+      !Number.isSafeInteger(value["eventId"]) ||
+      (value["eventId"] as number) <= 0
+    )
+      continue;
+    const child = calls.find(
+      (candidate) => candidate.id === value["invocationId"],
+    );
+    if (
+      !child ||
+      child.id === call.id ||
+      child.name !== call.name ||
+      !child.arguments ||
+      !call.arguments ||
+      canonicalJson(child.arguments) !== canonicalJson(call.arguments) ||
+      child.execution?.terminalOutcome !== call.execution?.terminalOutcome
+    )
+      continue;
+    consumed.add(child.id);
+  }
+  return calls.filter((call) => !consumed.has(call.id));
+}
+
 /** A skill may be opened through the generated docs catalog or read from its
  * canonical workspace path. Both surfaces resolve the same skill source and
  * are valid evidence that the agent followed catalog routing. */
-export function hasLoadedSkill(result: TestExecutionResult, skillName: string): boolean {
+export function hasLoadedSkill(
+  result: TestExecutionResult,
+  skillName: string,
+): boolean {
   const normalized = skillName.trim().toLowerCase();
   if (!normalized) return false;
   return getToolCalls(result).some((call) => {
-    if (call.execution?.status !== "complete" || call.execution.isError === true) return false;
+    if (
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      return false;
     if (call.name === "docs_open") {
       return String(call.arguments?.["id"] ?? "").toLowerCase() === normalized;
     }
@@ -354,7 +470,9 @@ export function hasSuccessfulImageRead(result: TestExecutionResult): boolean {
 }
 
 /** Normalize historical nested cards and current flattened invocation projections. */
-function normalizeInvocationCard(call: InvocationCardPayloadLike): InvocationCardPayloadLike {
+function normalizeInvocationCard(
+  call: InvocationCardPayloadLike,
+): InvocationCardPayloadLike {
   const nested = call.execution;
   const hasExecution =
     nested !== undefined ||
@@ -393,7 +511,8 @@ export function successfulEvalCode(result: TestExecutionResult): string {
   const writtenSources = new Map<string, string>();
   const successfulSources: string[] = [];
   for (const call of getToolCalls(result)) {
-    const successful = call.execution?.status === "complete" && call.execution.isError !== true;
+    const successful =
+      call.execution?.status === "complete" && call.execution.isError !== true;
     if (
       successful &&
       call.name === "write" &&
@@ -419,17 +538,20 @@ export function successfulEvalCode(result: TestExecutionResult): string {
 }
 
 /** Values returned through the canonical successful eval result projection. */
-export function successfulEvalReturnValues(result: TestExecutionResult): unknown[] {
+export function successfulEvalReturnValues(
+  result: TestExecutionResult,
+): unknown[] {
   return getToolCalls(result)
     .filter(
       (call) =>
         call.name === "eval" &&
         call.execution?.status === "complete" &&
-        call.execution.isError !== true
+        call.execution.isError !== true,
     )
     .flatMap((call) => {
       const executionResult = call.execution?.result;
-      if (!isRecord(executionResult) || !isRecord(executionResult["details"])) return [];
+      if (!isRecord(executionResult) || !isRecord(executionResult["details"]))
+        return [];
       const details = executionResult["details"];
       return Object.prototype.hasOwnProperty.call(details, "returnValue")
         ? [details["returnValue"]]
@@ -482,7 +604,9 @@ function embeddedJsonValues(text: string): unknown[] {
  * evidence too; agents should not need a redundant `return` after inspecting
  * and reporting the same runtime value.
  */
-export function successfulEvalObservedValues(result: TestExecutionResult): unknown[] {
+export function successfulEvalObservedValues(
+  result: TestExecutionResult,
+): unknown[] {
   const values = successfulEvalReturnValues(result);
   for (const call of getToolCalls(result)) {
     if (
@@ -493,21 +617,26 @@ export function successfulEvalObservedValues(result: TestExecutionResult): unkno
       continue;
     }
     const executionResult = call.execution.result;
-    if (!isRecord(executionResult) || !isRecord(executionResult["details"])) continue;
+    if (!isRecord(executionResult) || !isRecord(executionResult["details"]))
+      continue;
     const consoleOutput = executionResult["details"]["console"];
-    if (typeof consoleOutput === "string") values.push(...embeddedJsonValues(consoleOutput));
+    if (typeof consoleOutput === "string")
+      values.push(...embeddedJsonValues(consoleOutput));
   }
   return values;
 }
 
 export function requireEvalEvidence(
   result: TestExecutionResult,
-  required: readonly string[]
+  required: readonly string[],
 ): { passed: boolean; reason?: string } {
   const code = successfulEvalCode(result);
   const missing = required.filter((token) => !code.includes(token));
   if (missing.length > 0) {
-    return { passed: false, reason: `Successful eval did not exercise ${missing.join(", ")}` };
+    return {
+      passed: false,
+      reason: `Successful eval did not exercise ${missing.join(", ")}`,
+    };
   }
   return { passed: true };
 }
@@ -520,7 +649,7 @@ export function requireEvalEvidence(
  */
 export function requireVcsEvidence(
   result: TestExecutionResult,
-  required: readonly string[]
+  required: readonly string[],
 ): { passed: boolean; reason?: string } {
   const exercised = new Set<string>();
   const code = successfulEvalCode(result);
@@ -528,12 +657,20 @@ export function requireVcsEvidence(
     if (code.includes(token)) exercised.add(token);
   }
   for (const call of getToolCalls(result)) {
-    if (call.execution?.status !== "complete" || call.execution.isError === true) continue;
-    if (call.name === "vcs" && typeof call.arguments?.["operation"] === "string") {
+    if (
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      continue;
+    if (
+      call.name === "vcs" &&
+      typeof call.arguments?.["operation"] === "string"
+    ) {
       exercised.add(`vcs.${call.arguments["operation"]}`);
       continue;
     }
-    for (const operation of VCS_TOOL_OPERATIONS[call.name] ?? []) exercised.add(operation);
+    for (const operation of VCS_TOOL_OPERATIONS[call.name] ?? [])
+      exercised.add(operation);
   }
   const missing = required.filter((token) => !exercised.has(token));
   return {
@@ -554,6 +691,45 @@ const VCS_TOOL_OPERATIONS: Readonly<Record<string, readonly string[]>> = {
   provenance: ["vcs.inspect", "vcs.neighbors"],
 };
 
+/** Exact event identity comes from the joined receipts. Reports need not expose
+ * an internal ID; if they do name one, it must match that retained identity. */
+export function reportedEventReferencesAgree(
+  message: string,
+  eventIds: readonly string[],
+): boolean {
+  const references: readonly string[] =
+    message.match(
+      /\b(?:workspace-event|event):[A-Za-z0-9:_-]+(?:(?:…|\.\.\.)[a-f0-9]*)?|\b[a-f0-9]{64}\b|\b[a-f0-9]{8,63}(?:…|\.\.\.)[a-f0-9]*/gu,
+    ) ?? [];
+  return references.every((reference) =>
+    eventIds.some((eventId) => {
+      const hash = eventId.startsWith("workspace-event:")
+        ? eventId.slice("workspace-event:".length)
+        : eventId;
+      if (reference === eventId || reference === hash) return true;
+      const abbreviated = reference.replace(/^workspace-event:/u, "");
+      const parts = /^([a-f0-9]{8,63})(?:…|\.\.\.)([a-f0-9]*)$/u.exec(
+        abbreviated,
+      );
+      return Boolean(
+        parts &&
+        /^[a-f0-9]{64}$/u.test(hash) &&
+        hash.startsWith(parts[1]!) &&
+        hash.endsWith(parts[2]!),
+      );
+    }),
+  );
+}
+
+function reportedEventMatches(
+  result: TestExecutionResult,
+  eventId: string,
+): boolean {
+  const message = findLastAgentMessage(result);
+  if (!message.trim()) return false;
+  return reportedEventReferencesAgree(message, [eventId]);
+}
+
 /** Prove that two focused authoring steps were exactly the chain committed and then observed clean. */
 export function requireWholeChainCommitEvidence(result: TestExecutionResult): {
   passed: boolean;
@@ -564,16 +740,16 @@ export function requireWholeChainCommitEvidence(result: TestExecutionResult): {
     .map((call, index) => ({ call, index, value: focusedMutationResult(call) }))
     .filter(
       (
-        entry
+        entry,
       ): entry is {
         call: InvocationCardPayloadLike;
         index: number;
         value: Record<string, unknown>;
-      } => entry.value !== null
+      } => entry.value !== null,
     );
   if (steps.length !== 2) {
     return fail(
-      `Expected exactly two completed managed edit/write application steps; observed ${steps.length}`
+      `Expected exactly two completed managed edit/write application steps; observed ${steps.length}`,
     );
   }
   const applicationIds: string[] = [];
@@ -589,13 +765,15 @@ export function requireWholeChainCommitEvidence(result: TestExecutionResult): {
       value["changeIds"].length !== 1
     ) {
       return fail(
-        "A completed managed edit/write did not expose one exact application and authored change"
+        "A completed managed edit/write did not expose one exact application and authored change",
       );
     }
     applicationIds.push(applicationId);
   }
   if (new Set(applicationIds).size !== 2) {
-    return fail("The two managed authoring steps reused an application identity");
+    return fail(
+      "The two managed authoring steps reused an application identity",
+    );
   }
 
   const commit = calls
@@ -608,12 +786,12 @@ export function requireWholeChainCommitEvidence(result: TestExecutionResult): {
       (entry) =>
         entry.index > steps[1]!.index &&
         entry.value !== null &&
-        arraysEqual(entry.value["committedApplicationIds"], applicationIds)
+        arraysEqual(entry.value["committedApplicationIds"], applicationIds),
     );
   const eventId = commit?.value ? eventIdFromCommit(commit.value) : null;
   if (!commit?.value || !eventId) {
     return fail(
-      "No completed commit consumed exactly the two observed application identities into an event"
+      "No completed commit consumed exactly the two observed application identities into an event",
     );
   }
 
@@ -626,11 +804,13 @@ export function requireWholeChainCommitEvidence(result: TestExecutionResult): {
     !zeroWorkingCounts(status["workingCounts"])
   ) {
     return fail(
-      "The commit response did not join its event to a clean event working head with zero local counts"
+      "The commit response did not join its event to a clean event working head with zero local counts",
     );
   }
-  if (!findLastAgentMessage(result).includes(eventId)) {
-    return fail(`The final answer did not report the committed event ${eventId}`);
+  if (!reportedEventMatches(result, eventId)) {
+    return fail(
+      `The final answer did not report the committed event ${eventId}`,
+    );
   }
   return { passed: true, reason: undefined };
 }
@@ -647,131 +827,128 @@ export function requirePublishedCommitEvidence(result: TestExecutionResult): {
     if (!eventId) continue;
     for (let index = commitIndex + 1; index < calls.length; index++) {
       const push = focusedVcsResult(calls[index]!, "push");
-      if (push?.["eventId"] !== eventId || push["mainEventId"] !== eventId) continue;
-      if (!findLastAgentMessage(result).includes(eventId)) {
-        return fail(`The final answer did not report the published event ${eventId}`);
+      if (push?.["eventId"] !== eventId || push["mainEventId"] !== eventId)
+        continue;
+      if (!reportedEventMatches(result, eventId)) {
+        return fail(
+          `The final answer did not report the published event ${eventId}`,
+        );
       }
       return { passed: true, reason: undefined };
     }
   }
   return fail(
-    "Completed commit and push results did not join one event identity to published protected main"
+    "Completed commit and push results did not join one event identity to published protected main",
   );
 }
 
-/** Prove one source event was resolved locally, re-compared complete, parented, and pushed. */
-export function requireIncrementalIntegrationEvidence(result: TestExecutionResult): {
-  passed: boolean;
-  reason?: string;
-} {
+/** Join the public merge receipt and committed source to both preserved line origins. */
+export function requireIncrementalIntegrationEvidence(
+  result: TestExecutionResult,
+): { passed: boolean; reason?: string } {
   const calls = getToolCalls(result);
   for (const [commitIndex, call] of calls.entries()) {
     const commit = focusedCommitResult(call);
-    const sourceEventIds =
-      commit && Array.isArray(commit["integrationSourceEventIds"])
-        ? commit["integrationSourceEventIds"].filter(
-            (value): value is string => typeof value === "string"
-          )
-        : [];
-    const sourceEventId = sourceEventIds.length === 1 ? sourceEventIds[0]! : null;
-    const eventId = commit ? eventIdFromCommit(commit) : null;
-    if (!commit || !sourceEventId || !eventId) continue;
-    if ((call.arguments ?? {})["integratesEventIds"] !== undefined) continue;
-    const sourceWasPublished = calls.slice(0, commitIndex).some((candidate) => {
-      const push = focusedVcsResult(candidate, "push");
-      return push?.["eventId"] === sourceEventId && push["mainEventId"] === sourceEventId;
-    });
-    if (!sourceWasPublished) continue;
-    const sourceMatches = (value: Record<string, unknown>): boolean => {
-      const source = recordField(value, "source");
-      return source?.["kind"] === "event" && source["eventId"] === sourceEventId;
-    };
-    const merges = calls
-      .slice(0, commitIndex)
-      .map((candidate, index) => ({ index, value: focusedVcsResult(candidate, "merge") }))
-      .filter((entry): entry is { index: number; value: Record<string, unknown> } =>
-        Boolean(
-          entry.value &&
-          stringField(entry.value, "decisionId") &&
-          stringField(entry.value, "applicationId")
-        )
-      );
-    if (merges.length === 0) continue;
-    const firstMerge = merges[0]!;
-    const sourceCompare = calls
-      .slice(0, firstMerge.index)
-      .map((candidate, index) => ({ index, value: focusedVcsResult(candidate, "compare") }))
-      .find(({ value }) => value !== null && sourceMatches(value));
-    if (!sourceCompare?.value) continue;
-    const localTarget = recordField(sourceCompare.value, "target");
-    const localEventId =
-      localTarget?.["kind"] === "event" && typeof localTarget["eventId"] === "string"
-        ? localTarget["eventId"]
-        : null;
-    if (!localEventId || localEventId === sourceEventId) continue;
-    let localCommitIndex = -1;
-    for (let index = sourceCompare.index - 1; index >= 0; index -= 1) {
-      const candidateCommit = focusedCommitResult(calls[index]!);
-      if (candidateCommit && eventIdFromCommit(candidateCommit) === localEventId) {
-        localCommitIndex = index;
-        break;
-      }
-    }
-    if (localCommitIndex < 0) continue;
-    const localWasPublished = calls.slice(localCommitIndex + 1, commitIndex).some((candidate) => {
-      const push = focusedVcsResult(candidate, "push");
-      return push?.["eventId"] === localEventId || push?.["mainEventId"] === localEventId;
-    });
-    if (localWasPublished) continue;
-    const committedApplications = commit["committedApplicationIds"];
+    const eventId = commit && eventIdFromCommit(commit);
+    const sources = commit?.["integrationSourceEventIds"];
+    if (!commit || !eventId || !isStringArray(sources) || sources.length !== 1)
+      continue;
+    const sourceEventId = sources[0]!;
+    const contextId = commit["contextId"];
     if (
-      !isStringArray(committedApplications) ||
-      merges.some(
-        (entry) => !committedApplications.includes(entry.value["applicationId"] as string)
-      )
+      typeof contextId !== "string" ||
+      call.arguments?.["integratesEventIds"] !== undefined
     )
       continue;
-
-    const lastMerge = merges.at(-1)!;
-    const resolvedCompare = calls
-      .slice(lastMerge.index + 1, commitIndex)
-      .map((candidate) => focusedVcsResult(candidate, "compare"))
-      .find((compare) => {
-        if (
-          !compare ||
-          !sourceMatches(compare) ||
-          !sameState(compare["target"], lastMerge.value["workingHead"])
-        ) {
-          return false;
-        }
-        const resolution = recordField(compare, "resolution");
-        return Boolean(
-          resolution?.["complete"] === true &&
-          resolution["concluded"] === true &&
-          resolution["remainingCoordinateCount"] === 0
+    const sourcePublished = calls.slice(0, commitIndex).some((candidate) => {
+      const push = focusedVcsResult(candidate, "push");
+      return (
+        push?.["eventId"] === sourceEventId &&
+        push["mainEventId"] === sourceEventId
+      );
+    });
+    if (!sourcePublished) continue;
+    const mergeIndex = calls.findIndex((candidate, index) => {
+      if (
+        index >= commitIndex ||
+        candidate.arguments?.["source"] !== sourceEventId
+      )
+        return false;
+      const merge = focusedVcsResult(candidate, "merge");
+      const resolution = merge && recordField(merge, "resolution");
+      return (
+        resolution?.["complete"] === true &&
+        resolution["concluded"] === true &&
+        resolution["remainingCoordinateCount"] === 0
+      );
+    });
+    if (mergeIndex < 0) continue;
+    let localEventId: string | null = null;
+    let localCommitIndex = -1;
+    for (let index = mergeIndex - 1; index >= 0; index--) {
+      const local = focusedCommitResult(calls[index]!);
+      if (local?.["contextId"] !== contextId) continue;
+      const localId = eventIdFromCommit(local);
+      if (!localId || localId === sourceEventId) break;
+      const applications = local["committedApplicationIds"];
+      if (!isStringArray(applications) || applications.length === 0) break;
+      localEventId = localId;
+      localCommitIndex = index;
+      break;
+    }
+    if (
+      !localEventId ||
+      calls.slice(localCommitIndex + 1, commitIndex).some((candidate) => {
+        const push = focusedVcsResult(candidate, "push");
+        return (
+          push?.["eventId"] === localEventId ||
+          push?.["mainEventId"] === localEventId
         );
-      });
-    if (!resolvedCompare) continue;
-
-    const published = calls.slice(commitIndex + 1).some((candidate) => {
+      })
+    )
+      continue;
+    const later = calls.slice(commitIndex + 1);
+    const published = later.some((candidate) => {
       const push = focusedVcsResult(candidate, "push");
       return push?.["eventId"] === eventId && push["mainEventId"] === eventId;
     });
-    if (!published) continue;
-    const clean = calls.slice(commitIndex + 1).some((candidate) => {
-      const status = focusedVcsResult(candidate, "status");
-      return Boolean(
-        status?.["clean"] === true &&
-        eventRefEquals(status["committed"], eventId) &&
-        eventRefEquals(status["workingHead"], eventId) &&
-        zeroWorkingCounts(status["workingCounts"])
-      );
+    const status =
+      later
+        .map((candidate) => focusedVcsResult(candidate, "status"))
+        .filter(isRecord)
+        .at(-1) ?? focusedCommitStatus(call);
+    if (
+      !published ||
+      status?.["clean"] !== true ||
+      !eventRefEquals(status["committed"], eventId) ||
+      !eventRefEquals(status["workingHead"], eventId) ||
+      !zeroWorkingCounts(status["workingCounts"])
+    )
+      continue;
+    const origins = later.flatMap((candidate) => {
+      const details = focusedToolDetails(candidate, "read");
+      const provenance = details && recordField(details, "provenance");
+      if (
+        provenance?.["status"] !== "attached" ||
+        !eventRefEquals(provenance["state"], eventId) ||
+        !Array.isArray(provenance["episodes"])
+      )
+        return [];
+      return provenance["episodes"].filter(isRecord).flatMap((episode) => {
+        const origin = recordField(episode, "commit");
+        const event = origin && recordField(origin, "event");
+        return typeof event?.["eventId"] === "string" ? [event["eventId"]] : [];
+      });
     });
-    if (!clean) continue;
-    return { passed: true, reason: undefined };
+    if (
+      origins.includes(localEventId) &&
+      origins.includes(sourceEventId) &&
+      reportedEventMatches(result, eventId)
+    )
+      return { passed: true, reason: undefined };
   }
   return fail(
-    "Completed canonical results did not identity-join an unpublished local commit and published source through local decisions, a complete comparison, the integration commit, clean final state, and final push"
+    "Public merge, commit and push receipts did not join the unpublished local event and published source to both preserved origins in the clean final state",
   );
 }
 
@@ -781,9 +958,14 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
   reason?: string;
 } {
   const calls = getToolCalls(result);
-  const move = calls.map((call) => focusedToolDetails(call, "move_file")).find(Boolean) ?? null;
-  const copy = calls.map((call) => focusedToolDetails(call, "copy_file")).find(Boolean) ?? null;
-  if (!move || !copy) return fail("Completed move_file and copy_file details were both required");
+  const move =
+    calls.map((call) => focusedToolDetails(call, "move_file")).find(Boolean) ??
+    null;
+  const copy =
+    calls.map((call) => focusedToolDetails(call, "copy_file")).find(Boolean) ??
+    null;
+  if (!move || !copy)
+    return fail("Completed move_file and copy_file details were both required");
   const moveSource = recordField(move, "source");
   const moveDestination = recordField(move, "destination");
   if (
@@ -811,7 +993,9 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
     !stringField(copy, "workUnitId") ||
     copy["workUnitId"] === move["workUnitId"]
   ) {
-    return fail("copy_file details did not mint a new file identity in a distinct work unit");
+    return fail(
+      "copy_file details did not mint a new file identity in a distinct work unit",
+    );
   }
 
   const provenanceDetails = calls
@@ -826,7 +1010,9 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
     return { passed: true, reason: undefined };
   }
   const edges = provenanceDetails.flatMap((details) =>
-    Array.isArray(details["adjacency"]) ? details["adjacency"].filter(isRecord) : []
+    Array.isArray(details["adjacency"])
+      ? details["adjacency"].filter(isRecord)
+      : [],
   );
   const sourceEndpoint = edges.some((edge) => {
     const from = recordField(edge, "from");
@@ -842,7 +1028,9 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
     );
   });
   if (!sourceEndpoint) {
-    return fail("Copy provenance did not expose the exact authored change → source file endpoint");
+    return fail(
+      "Copy provenance did not expose the exact authored change → source file endpoint",
+    );
   }
 
   const realization = edges.find((edge) => {
@@ -857,7 +1045,9 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
     );
   });
   const child = realization ? recordField(realization, "from") : null;
-  const childAppliedChangeId = child ? stringField(child, "appliedChangeId") : null;
+  const childAppliedChangeId = child
+    ? stringField(child, "appliedChangeId")
+    : null;
   const mappedCopy = childAppliedChangeId
     ? edges.find((edge) => {
         const from = recordField(edge, "from");
@@ -884,7 +1074,7 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
   });
   if (!mappedCopy || !inspectedChild) {
     return fail(
-      "Copy provenance did not join its application/change to a mapped copies-content edge between exact applied-change coordinate identities"
+      "Copy provenance did not join its application/change to a mapped copies-content edge between exact applied-change coordinate identities",
     );
   }
   return { passed: true, reason: undefined };
@@ -908,20 +1098,51 @@ export function requireRevertEvidence(result: TestExecutionResult): {
     ) {
       continue;
     }
-    const originalChangeId = revertArgs["changeIds"][0]!;
+    const requestedChange = revertArgs["changeIds"][0]!;
     const counteractionChangeId = revert["changeIds"][0]!;
+    // Agent-facing references are opaque. Resolve the target only through the
+    // native counteraction episode that records this exact revert request;
+    // never compare a displayed @ref to a canonical semantic identity.
+    const counteractionEpisode = successfulReadMemoryEpisodes(result).find(
+      (episode) => {
+        const change = recordField(episode, "change");
+        const cause = recordField(episode, "cause");
+        const request = cause ? recordField(cause, "requestRef") : null;
+        return (
+          change?.["changeId"] === counteractionChangeId &&
+          cause?.["toolName"] === "vcs" &&
+          request?.["operation"] === "revert" &&
+          isStringArray(request["changeIds"]) &&
+          request["changeIds"].length === 1 &&
+          request["changeIds"][0] === requestedChange &&
+          isStringArray(episode["counteractsChangeIds"]) &&
+          episode["counteractsChangeIds"].length === 1
+        );
+      },
+    );
+    const originalChangeId = requestedChange.startsWith("change:")
+      ? requestedChange
+      : (
+          counteractionEpisode?.["counteractsChangeIds"] as string[] | undefined
+        )?.[0];
+    if (!originalChangeId) continue;
     const revertApplicationId = stringField(revert, "applicationId");
-    if (!revertApplicationId || counteractionChangeId === originalChangeId) continue;
+    if (!revertApplicationId || counteractionChangeId === originalChangeId)
+      continue;
 
     const authored = calls
       .slice(0, revertIndex)
-      .map((call, index) => ({ call, index, value: focusedMutationResult(call) }))
+      .map((call, index) => ({
+        call,
+        index,
+        value: focusedMutationResult(call),
+      }))
       .reverse()
       .find(
         (entry) =>
           entry.value !== null &&
           isStringArray(entry.value["changeIds"]) &&
-          entry.value["changeIds"].includes(originalChangeId)
+          entry.value["changeIds"].includes(originalChangeId),
       );
     if (!authored?.value) continue;
     const originalApplicationId = stringField(authored.value, "applicationId");
@@ -937,7 +1158,14 @@ export function requireRevertEvidence(result: TestExecutionResult): {
       typeof authored.call.arguments?.["newText"] === "string"
         ? authored.call.arguments["newText"]
         : null;
-    if (!originalApplicationId || !path || !oldText || !newText || oldText === newText) continue;
+    if (
+      !originalApplicationId ||
+      !path ||
+      !oldText ||
+      !newText ||
+      oldText === newText
+    )
+      continue;
 
     const originalCommit = calls
       .slice(authored.index + 1, revertIndex)
@@ -946,7 +1174,7 @@ export function requireRevertEvidence(result: TestExecutionResult): {
         (commit) =>
           commit !== null &&
           isStringArray(commit["committedApplicationIds"]) &&
-          commit["committedApplicationIds"].includes(originalApplicationId)
+          commit["committedApplicationIds"].includes(originalApplicationId),
       );
     if (!originalCommit) continue;
 
@@ -957,7 +1185,7 @@ export function requireRevertEvidence(result: TestExecutionResult): {
           entry.index > revertIndex &&
           entry.value !== null &&
           isStringArray(entry.value["committedApplicationIds"]) &&
-          entry.value["committedApplicationIds"].includes(revertApplicationId)
+          entry.value["committedApplicationIds"].includes(revertApplicationId),
       );
     const restoredEventId = counteractionCommitEntry?.value
       ? eventIdFromCommit(counteractionCommitEntry.value)
@@ -968,7 +1196,9 @@ export function requireRevertEvidence(result: TestExecutionResult): {
       .map((call) => focusedToolDetails(call, "provenance"))
       .filter((value): value is Record<string, unknown> => value !== null)
       .flatMap((details) =>
-        Array.isArray(details["adjacency"]) ? details["adjacency"].filter(isRecord) : []
+        Array.isArray(details["adjacency"])
+          ? details["adjacency"].filter(isRecord)
+          : [],
       );
     const explicitCounteracts = edges.some((edge) => {
       const from = recordField(edge, "from");
@@ -981,22 +1211,26 @@ export function requireRevertEvidence(result: TestExecutionResult): {
         to["changeId"] === originalChangeId
       );
     });
-    const attachedCounteracts = successfulReadMemoryEpisodes(result).some((episode) => {
-      const change = recordField(episode, "change");
-      return (
-        change?.["kind"] === "change" &&
-        change["changeId"] === counteractionChangeId &&
-        isStringArray(episode["counteractsChangeIds"]) &&
-        episode["counteractsChangeIds"].includes(originalChangeId)
-      );
-    });
+    const attachedCounteracts = successfulReadMemoryEpisodes(result).some(
+      (episode) => {
+        const change = recordField(episode, "change");
+        return (
+          change?.["kind"] === "change" &&
+          change["changeId"] === counteractionChangeId &&
+          isStringArray(episode["counteractsChangeIds"]) &&
+          episode["counteractsChangeIds"].includes(originalChangeId)
+        );
+      },
+    );
     const counteracts = explicitCounteracts || attachedCounteracts;
     if (!counteracts) continue;
 
     const contentEffectsFor = (changeId: string): Record<string, unknown>[] =>
       calls
         .map((call) => focusedToolDetails(call, "provenance"))
-        .filter((details): details is Record<string, unknown> => details !== null)
+        .filter(
+          (details): details is Record<string, unknown> => details !== null,
+        )
         .flatMap((details) => {
           const node = recordField(details, "node");
           const value = node ? recordField(node, "value") : null;
@@ -1009,7 +1243,7 @@ export function requireRevertEvidence(result: TestExecutionResult): {
                   effect["kind"] === "content" &&
                   typeof effect["fileId"] === "string" &&
                   typeof effect["beforeContentHash"] === "string" &&
-                  typeof effect["afterContentHash"] === "string"
+                  typeof effect["afterContentHash"] === "string",
               )
             : [];
         });
@@ -1019,18 +1253,22 @@ export function requireRevertEvidence(result: TestExecutionResult): {
       counteractionEffects.some(
         (counteractionEffect) =>
           counteractionEffect["fileId"] === originalEffect["fileId"] &&
-          counteractionEffect["beforeContentHash"] === originalEffect["afterContentHash"] &&
-          counteractionEffect["afterContentHash"] === originalEffect["beforeContentHash"]
-      )
+          counteractionEffect["beforeContentHash"] ===
+            originalEffect["afterContentHash"] &&
+          counteractionEffect["afterContentHash"] ===
+            originalEffect["beforeContentHash"],
+      ),
     );
-    const afterCounteractionCommit = calls.slice(counteractionCommitEntry.index + 1);
+    const afterCounteractionCommit = calls.slice(
+      counteractionCommitEntry.index + 1,
+    );
     const cleanStatus = afterCounteractionCommit.some((call) => {
       const status = focusedVcsResult(call, "status");
       return Boolean(
         status?.["clean"] === true &&
         eventRefEquals(status["committed"], restoredEventId) &&
         eventRefEquals(status["workingHead"], restoredEventId) &&
-        zeroWorkingCounts(status["workingCounts"])
+        zeroWorkingCounts(status["workingCounts"]),
       );
     });
     const restoredRead = afterCounteractionCommit.find(
@@ -1038,26 +1276,31 @@ export function requireRevertEvidence(result: TestExecutionResult): {
         call.name === "read" &&
         call.arguments?.["path"] === path &&
         focusedToolProtocolText(call).includes(oldText) &&
-        !focusedToolProtocolText(call).includes(newText)
+        !focusedToolProtocolText(call).includes(newText),
     );
-    const restoredReadDetails = restoredRead ? focusedToolDetails(restoredRead, "read") : null;
+    const restoredReadDetails = restoredRead
+      ? focusedToolDetails(restoredRead, "read")
+      : null;
     const readProvenance = restoredReadDetails
       ? recordField(restoredReadDetails, "provenance")
       : null;
     const readAtCommittedEvent =
       readProvenance?.["status"] === "attached" &&
       eventRefEquals(readProvenance["state"], restoredEventId);
-    const restoredByRead = Boolean(restoredRead) && Boolean(cleanStatus || readAtCommittedEvent);
+    const restoredByRead =
+      Boolean(restoredRead) && Boolean(cleanStatus || readAtCommittedEvent);
     const restoredByInverseEffect = cleanStatus && inverseContentEffect;
     if (!restoredByRead && !restoredByInverseEffect) continue;
     return { passed: true, reason: undefined };
   }
   return fail(
-    "Completed canonical evidence did not join the authored change, exact counteraction relationship, counteraction commit, and either restored committed content or inverse semantic content effects at a clean state"
+    "Completed canonical evidence did not join the authored change, exact counteraction relationship, counteraction commit, and either restored committed content or inverse semantic content effects at a clean state",
   );
 }
 
-function focusedMutationResult(call: InvocationCardPayloadLike): Record<string, unknown> | null {
+function focusedMutationResult(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown> | null {
   if (call.name !== "edit" && call.name !== "write") return null;
   const details = focusedToolDetails(call, call.name);
   return details?.["storage"] === "vcs" && isRecord(details["vcsResult"])
@@ -1065,11 +1308,15 @@ function focusedMutationResult(call: InvocationCardPayloadLike): Record<string, 
     : null;
 }
 
-function focusedCommitResult(call: InvocationCardPayloadLike): Record<string, unknown> | null {
-  if (call.name !== "vcs" || call.arguments?.["operation"] !== "commit") return null;
+function focusedCommitResult(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown> | null {
+  if (call.name !== "vcs" || call.arguments?.["operation"] !== "commit")
+    return null;
   const details = focusedToolDetails(call, "vcs");
   if (!details) return null;
-  if (details["operation"] !== undefined && details["operation"] !== "commit") return null;
+  if (details["operation"] !== undefined && details["operation"] !== "commit")
+    return null;
   return isRecord(details["result"])
     ? details["result"]
     : eventIdFromCommit(details)
@@ -1077,26 +1324,31 @@ function focusedCommitResult(call: InvocationCardPayloadLike): Record<string, un
       : null;
 }
 
-function focusedCommitStatus(call: InvocationCardPayloadLike): Record<string, unknown> | null {
-  if (call.name !== "vcs" || call.arguments?.["operation"] !== "commit") return null;
+function focusedCommitStatus(
+  call: InvocationCardPayloadLike,
+): Record<string, unknown> | null {
+  if (call.name !== "vcs" || call.arguments?.["operation"] !== "commit")
+    return null;
   const details = focusedToolDetails(call, "vcs");
   return details && isRecord(details["status"]) ? details["status"] : null;
 }
 
 function focusedVcsResult(
   call: InvocationCardPayloadLike,
-  operation: string
+  operation: string,
 ): Record<string, unknown> | null {
-  if (call.name !== "vcs" || call.arguments?.["operation"] !== operation) return null;
+  if (call.name !== "vcs" || call.arguments?.["operation"] !== operation)
+    return null;
   const details = focusedToolDetails(call, "vcs");
   if (!details) return null;
-  if (details["operation"] !== undefined && details["operation"] !== operation) return null;
+  if (details["operation"] !== undefined && details["operation"] !== operation)
+    return null;
   return isRecord(details["result"]) ? details["result"] : details;
 }
 
 function focusedToolDetails(
   call: InvocationCardPayloadLike,
-  name: string
+  name: string,
 ): Record<string, unknown> | null {
   if (
     call.name !== name ||
@@ -1113,12 +1365,13 @@ function focusedToolDetails(
 
 /** Canonical work episodes grouped by the exact managed-text read that observed them. */
 export function successfulReadMemoryEpisodeGroups(
-  result: TestExecutionResult
+  result: TestExecutionResult,
 ): Record<string, unknown>[][] {
   return getToolCalls(result).flatMap((call) => {
     const details = focusedToolDetails(call, "read");
     const provenance = details && recordField(details, "provenance");
-    return provenance?.["status"] === "attached" && Array.isArray(provenance["episodes"])
+    return provenance?.["status"] === "attached" &&
+      Array.isArray(provenance["episodes"])
       ? [provenance["episodes"].filter(isRecord)]
       : [];
   });
@@ -1126,7 +1379,7 @@ export function successfulReadMemoryEpisodeGroups(
 
 /** Canonical work episodes attached by ordinary managed-text reads. */
 export function successfulReadMemoryEpisodes(
-  result: TestExecutionResult
+  result: TestExecutionResult,
 ): Record<string, unknown>[] {
   return successfulReadMemoryEpisodeGroups(result).flat();
 }
@@ -1143,7 +1396,9 @@ function focusedToolProtocolText(call: InvocationCardPayloadLike): string {
   return call.execution.result["protocolContent"]
     .filter(isRecord)
     .map((content) =>
-      content["type"] === "text" && typeof content["text"] === "string" ? content["text"] : ""
+      content["type"] === "text" && typeof content["text"] === "string"
+        ? content["text"]
+        : "",
     )
     .join("\n");
 }
@@ -1155,16 +1410,26 @@ function eventIdFromCommit(value: Record<string, unknown>): string | null {
     : null;
 }
 
-function recordField(value: Record<string, unknown>, key: string): Record<string, unknown> | null {
+function recordField(
+  value: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
   return isRecord(value[key]) ? value[key] : null;
 }
 
-function stringField(value: Record<string, unknown>, key: string): string | null {
-  return typeof value[key] === "string" && value[key].length > 0 ? value[key] : null;
+function stringField(
+  value: Record<string, unknown>,
+  key: string,
+): string | null {
+  return typeof value[key] === "string" && value[key].length > 0
+    ? value[key]
+    : null;
 }
 
 function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+  return (
+    Array.isArray(value) && value.every((entry) => typeof entry === "string")
+  );
 }
 
 function arraysEqual(value: unknown, expected: readonly string[]): boolean {
@@ -1176,14 +1441,18 @@ function arraysEqual(value: unknown, expected: readonly string[]): boolean {
 }
 
 function eventRefEquals(value: unknown, eventId: string): boolean {
-  return isRecord(value) && value["kind"] === "event" && value["eventId"] === eventId;
+  return (
+    isRecord(value) && value["kind"] === "event" && value["eventId"] === eventId
+  );
 }
 
 function sameState(left: unknown, right: unknown): boolean {
-  if (!isRecord(left) || !isRecord(right) || left["kind"] !== right["kind"]) return false;
+  if (!isRecord(left) || !isRecord(right) || left["kind"] !== right["kind"])
+    return false;
   return left["kind"] === "event"
     ? left["eventId"] === right["eventId"]
-    : left["kind"] === "application" && left["applicationId"] === right["applicationId"];
+    : left["kind"] === "application" &&
+        left["applicationId"] === right["applicationId"];
 }
 
 function zeroWorkingCounts(value: unknown): boolean {
@@ -1209,19 +1478,21 @@ function fail(reason: string): { passed: false; reason: string } {
  */
 export function requireEvalResultEvidence(
   result: TestExecutionResult,
-  required: readonly string[]
+  required: readonly string[],
 ): { passed: boolean; reason?: string } {
   const resultText = getToolCalls(result)
     .filter(
       (call) =>
         call.name === "eval" &&
         call.execution?.status === "complete" &&
-        call.execution.isError !== true
+        call.execution.isError !== true,
     )
     .map((call) => JSON.stringify(call.execution?.result ?? null))
     .join("\n")
     .toLowerCase();
-  const missing = required.filter((value) => !resultText.includes(value.toLowerCase()));
+  const missing = required.filter(
+    (value) => !resultText.includes(value.toLowerCase()),
+  );
   return {
     passed: missing.length === 0,
     reason:
@@ -1243,7 +1514,9 @@ interface ObservedBlameOrigin {
   commandId: string;
 }
 
-function blameOrigin(record: Record<string, unknown>): ObservedBlameOrigin | null {
+function blameOrigin(
+  record: Record<string, unknown>,
+): ObservedBlameOrigin | null {
   const change = record["change"];
   const workUnit = record["workUnit"];
   const command = record["command"];
@@ -1276,6 +1549,53 @@ interface InvocationCoordinate {
 interface InspectedInvocation extends InvocationCoordinate {
   turnId: string | null;
   requestDigest: string | null;
+  nativeInvocation: unknown;
+  originatingInput: unknown;
+}
+
+function joinedNativeInput(
+  calls: InvocationCardPayloadLike[],
+  coordinate: InvocationCoordinate,
+  commandId: string,
+  identityValue: unknown,
+  inputValue: unknown,
+) {
+  const identity = nativeInvocationIdentitySchema.safeParse(identityValue);
+  const input = nativeOriginatingInputSchema.safeParse(inputValue);
+  const call = calls.find((entry) => entry.id === coordinate.invocationId);
+  if (
+    !identity.success ||
+    !input.success ||
+    !call?.nativeSource ||
+    call.originatingInput == null ||
+    call.execution?.status !== "complete" ||
+    call.execution.isError === true ||
+    canonicalJson(identity.data) !==
+      canonicalJson(nativeInvocationIdentity(call.nativeSource)) ||
+    canonicalJson(input.data) !== canonicalJson(call.originatingInput) ||
+    nativeInvocationId(identity.data) !== coordinate.invocationId ||
+    input.data.receiverParticipantId !== identity.data.owner.runtimeId ||
+    coordinate.logId !== call.nativeSource.owner.channelId ||
+    coordinate.head !== channelTrajectoryFor(coordinate.logId).head ||
+    commandId !== commandIdForTrajectoryInvocation(coordinate)
+  )
+    return null;
+  return input.data;
+}
+
+function matchesOriginatingPrompt(
+  result: TestExecutionResult,
+  channelId: string,
+  text: string,
+  expected: string,
+): boolean {
+  const inputs = result.submittedInputs?.filter(
+    (input) =>
+      input.channelId === channelId && input.requestedPrompt === expected,
+  );
+  return inputs?.length
+    ? inputs.some((input) => text.trim() === input.submittedPrompt.trim())
+    : text.trim() === expected.trim();
 }
 
 interface InspectedTurn {
@@ -1306,11 +1626,12 @@ interface InspectedMessage {
  */
 export function requireCausalEdgeEvidence(
   result: TestExecutionResult,
-  expectedPromptText: string
+  expectedPromptText: string,
 ): {
   passed: boolean;
   reason?: string;
 } {
+  const calls = getToolCalls(result);
   const attachedProof = successfulReadMemoryEpisodes(result).some((episode) => {
     const change = recordField(episode, "change");
     const workUnit = recordField(episode, "workUnit");
@@ -1320,6 +1641,31 @@ export function requireCausalEdgeEvidence(
     const turn = cause && recordField(cause, "turn");
     const message = cause && recordField(cause, "message");
     const sender = cause && recordField(cause, "sender");
+    const coordinate = invocation && trajectoryInvocation(invocation);
+    const input =
+      coordinate && typeof command?.["commandId"] === "string"
+        ? joinedNativeInput(
+            calls,
+            coordinate,
+            command["commandId"],
+            cause?.["nativeInvocation"],
+            cause?.["originatingInput"],
+          )
+        : null;
+    const nativeJoined =
+      input !== null &&
+      message?.["logId"] === input.channelRef.objectKey &&
+      message?.["head"] ===
+        channelTrajectoryFor(input.channelRef.objectKey).head &&
+      message?.["messageId"] === input.messageId;
+    const nativeCause =
+      cause?.["nativeInvocation"] != null ||
+      cause?.["originatingInput"] != null ||
+      calls.some(
+        (call) =>
+          call.id === invocation?.["invocationId"] &&
+          call.nativeSource !== undefined,
+      );
     return (
       change?.["kind"] === "change" &&
       typeof change["changeId"] === "string" &&
@@ -1329,14 +1675,21 @@ export function requireCausalEdgeEvidence(
       typeof command["commandId"] === "string" &&
       invocation?.["kind"] === "trajectory-invocation" &&
       typeof invocation["invocationId"] === "string" &&
-      turn?.["kind"] === "trajectory-turn" &&
-      typeof turn["turnId"] === "string" &&
+      (nativeCause
+        ? nativeJoined
+        : turn?.["kind"] === "trajectory-turn" &&
+          typeof turn["turnId"] === "string") &&
       message?.["kind"] === "trajectory-message" &&
       typeof message["messageId"] === "string" &&
       typeof sender?.["id"] === "string" &&
       cause !== null &&
       typeof cause["triggerText"] === "string" &&
-      cause["triggerText"].trim() === expectedPromptText.trim()
+      matchesOriginatingPrompt(
+        result,
+        String(message?.["logId"]),
+        cause["triggerText"],
+        expectedPromptText,
+      )
     );
   });
   if (attachedProof) return { passed: true, reason: undefined };
@@ -1346,8 +1699,12 @@ export function requireCausalEdgeEvidence(
   const inspectedInvocations: InspectedInvocation[] = [];
   const inspectedTurns: InspectedTurn[] = [];
   const inspectedMessages: InspectedMessage[] = [];
-  for (const call of getToolCalls(result)) {
-    if (call.execution?.status !== "complete" || call.execution.isError === true) continue;
+  for (const call of calls) {
+    if (
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      continue;
     collectCausalEvidence(
       call.execution.result,
       edges,
@@ -1355,7 +1712,7 @@ export function requireCausalEdgeEvidence(
       inspectedInvocations,
       inspectedTurns,
       inspectedMessages,
-      new Set<object>()
+      new Set<object>(),
     );
   }
 
@@ -1364,52 +1721,122 @@ export function requireCausalEdgeEvidence(
       (edge) =>
         edge.kind === "authored-change" &&
         isNode(edge.from, "work-unit", "workUnitId", origin.workUnitId) &&
-        isNode(edge.to, "change", "changeId", origin.changeId)
+        isNode(edge.to, "change", "changeId", origin.changeId),
     );
     if (!authored) continue;
     const workCause = edges.some(
       (edge) =>
         edge.kind === "caused-by" &&
         isNode(edge.from, "work-unit", "workUnitId", origin.workUnitId) &&
-        isNode(edge.to, "command", "commandId", origin.commandId)
+        isNode(edge.to, "command", "commandId", origin.commandId),
     );
     if (!workCause) continue;
     const invocationEdge = edges.find(
       (edge) =>
         edge.kind === "caused-by" &&
         isNode(edge.from, "command", "commandId", origin.commandId) &&
-        trajectoryInvocation(edge.to) !== null
+        trajectoryInvocation(edge.to) !== null,
     );
-    const coordinate = invocationEdge ? trajectoryInvocation(invocationEdge.to) : null;
+    const coordinate = invocationEdge
+      ? trajectoryInvocation(invocationEdge.to)
+      : null;
     if (!coordinate) continue;
     const inspected = inspectedInvocations.find(
       (candidate) =>
         candidate.logId === coordinate.logId &&
         candidate.head === coordinate.head &&
-        candidate.invocationId === coordinate.invocationId
+        candidate.invocationId === coordinate.invocationId,
     );
-    if (!inspected?.turnId || !inspected.requestDigest) continue;
+    if (!inspected?.requestDigest) continue;
+    const input = joinedNativeInput(
+      calls,
+      coordinate,
+      origin.commandId,
+      inspected.nativeInvocation,
+      inspected.originatingInput,
+    );
+    if (input) {
+      const inputCoordinate = channelTrajectoryFor(input.channelRef.objectKey);
+      const messageEdge = edges.some(
+        (edge) =>
+          edge.kind === "triggered-by" &&
+          sameInvocation(edge.from, coordinate) &&
+          isTrajectoryNode(
+            edge.to,
+            "trajectory-message",
+            "messageId",
+            input.messageId,
+            inputCoordinate,
+          ),
+      );
+      const message = inspectedMessages.some(
+        (candidate) =>
+          candidate.logId === inputCoordinate.logId &&
+          candidate.head === inputCoordinate.head &&
+          candidate.messageId === input.messageId &&
+          candidate.role === "user" &&
+          Boolean(candidate.sourceMessageId) &&
+          Boolean(candidate.senderId) &&
+          matchesOriginatingPrompt(
+            result,
+            inputCoordinate.logId,
+            candidate.text,
+            expectedPromptText,
+          ),
+      );
+      if (messageEdge && message) return { passed: true, reason: undefined };
+      continue;
+    }
+    if (
+      inspected.nativeInvocation != null ||
+      inspected.originatingInput != null ||
+      calls.some(
+        (call) =>
+          call.id === coordinate.invocationId &&
+          call.nativeSource !== undefined,
+      )
+    )
+      continue;
+    if (!inspected.turnId) continue;
     const turnId = inspected.turnId;
     const turnEdge = edges.find(
       (edge) =>
         edge.kind === "part-of-turn" &&
         sameInvocation(edge.from, coordinate) &&
-        isTrajectoryNode(edge.to, "trajectory-turn", "turnId", turnId, coordinate)
+        isTrajectoryNode(
+          edge.to,
+          "trajectory-turn",
+          "turnId",
+          turnId,
+          coordinate,
+        ),
     );
     if (!turnEdge) continue;
     const turn = inspectedTurns.find(
       (candidate) =>
         candidate.logId === coordinate.logId &&
         candidate.head === coordinate.head &&
-        candidate.turnId === turnId
+        candidate.turnId === turnId,
     );
     if (!turn?.triggerMessageId) continue;
     const triggerMessageId = turn.triggerMessageId;
     const messageEdge = edges.find(
       (edge) =>
         edge.kind === "triggered-by" &&
-        isTrajectoryNode(edge.from, "trajectory-turn", "turnId", turn.turnId, coordinate) &&
-        isTrajectoryNode(edge.to, "trajectory-message", "messageId", triggerMessageId, coordinate)
+        isTrajectoryNode(
+          edge.from,
+          "trajectory-turn",
+          "turnId",
+          turn.turnId,
+          coordinate,
+        ) &&
+        isTrajectoryNode(
+          edge.to,
+          "trajectory-message",
+          "messageId",
+          triggerMessageId,
+          coordinate,
+        ),
     );
     if (!messageEdge) continue;
     const message = inspectedMessages.find(
@@ -1420,7 +1847,12 @@ export function requireCausalEdgeEvidence(
         candidate.role === "user" &&
         Boolean(candidate.sourceMessageId) &&
         Boolean(candidate.senderId) &&
-        candidate.text.trim() === expectedPromptText.trim()
+        matchesOriginatingPrompt(
+          result,
+          coordinate.logId,
+          candidate.text,
+          expectedPromptText,
+        ),
     );
     if (message) return { passed: true, reason: undefined };
   }
@@ -1428,7 +1860,7 @@ export function requireCausalEdgeEvidence(
   return {
     passed: false,
     reason:
-      "Completed tool results did not contain one identity-joined blame → change → work unit → command → invocation with request reference → turn → exact current user prompt with source message and sender identities",
+      "Completed tool results did not join blame, authored work, its command and invocation to the exact originating input with source message and sender identities",
   };
 }
 
@@ -1459,7 +1891,7 @@ const ORDINARY_CHANGE_KINDS = new Set([
  */
 export function requireImportBoundaryEvidence(
   result: TestExecutionResult,
-  expected: { sourceKind: string; sourceUriPrefix: string }
+  expected: { sourceKind: string; sourceUriPrefix: string },
 ): {
   passed: boolean;
   reason?: string;
@@ -1469,6 +1901,7 @@ export function requireImportBoundaryEvidence(
     const workUnit = recordField(episode, "workUnit");
     const command = recordField(episode, "command");
     const snapshot = recordField(episode, "externalSnapshot");
+    const intent = recordField(episode, "intent");
     return (
       episode["stop"] === "import-boundary" &&
       ORDINARY_CHANGE_KINDS.has(String(episode["changeKind"])) &&
@@ -1478,8 +1911,8 @@ export function requireImportBoundaryEvidence(
       typeof workUnit["workUnitId"] === "string" &&
       command?.["kind"] === "command" &&
       typeof command["commandId"] === "string" &&
-      typeof episode["intentSummary"] === "string" &&
-      episode["intentSummary"].trim().length > 0 &&
+      typeof intent?.["text"] === "string" &&
+      intent["text"].trim().length > 0 &&
       snapshot?.["sourceKind"] === expected.sourceKind &&
       typeof snapshot["sourceUri"] === "string" &&
       snapshot["sourceUri"].startsWith(expected.sourceUriPrefix) &&
@@ -1492,7 +1925,11 @@ export function requireImportBoundaryEvidence(
   });
   if (attachedProof) return { passed: true, reason: undefined };
 
-  const origins: Array<{ changeId: string; workUnitId: string; commandId: string }> = [];
+  const origins: Array<{
+    changeId: string;
+    workUnitId: string;
+    commandId: string;
+  }> = [];
   const changes = new Map<string, Record<string, unknown>>();
   const workUnits = new Map<string, Record<string, unknown>>();
   const commands = new Map<string, Record<string, unknown>>();
@@ -1506,11 +1943,20 @@ export function requireImportBoundaryEvidence(
       const node = record["node"];
       if (isRecord(node) && isRecord(node["value"])) {
         const inspected = node["value"];
-        if (node["kind"] === "change" && typeof inspected["changeId"] === "string") {
+        if (
+          node["kind"] === "change" &&
+          typeof inspected["changeId"] === "string"
+        ) {
           changes.set(inspected["changeId"], inspected);
-        } else if (node["kind"] === "work-unit" && typeof inspected["workUnitId"] === "string") {
+        } else if (
+          node["kind"] === "work-unit" &&
+          typeof inspected["workUnitId"] === "string"
+        ) {
           workUnits.set(inspected["workUnitId"], inspected);
-        } else if (node["kind"] === "command" && typeof inspected["commandId"] === "string") {
+        } else if (
+          node["kind"] === "command" &&
+          typeof inspected["commandId"] === "string"
+        ) {
           commands.set(inspected["commandId"], inspected);
         }
       }
@@ -1518,7 +1964,11 @@ export function requireImportBoundaryEvidence(
     for (const child of Object.values(value)) visit(child, seen);
   };
   for (const call of getToolCalls(result)) {
-    if (call.execution?.status !== "complete" || call.execution.isError === true) continue;
+    if (
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      continue;
     // `vcs` and `provenance` are host-shaped tool results. An eval program may
     // call the same services, but its returned object is arbitrary agent code
     // and cannot serve as validator evidence by itself.
@@ -1586,14 +2036,22 @@ function collectCausalEvidence(
   inspectedInvocations: InspectedInvocation[],
   inspectedTurns: InspectedTurn[],
   inspectedMessages: InspectedMessage[],
-  seen: Set<object>
+  seen: Set<object>,
 ): void {
   if (!value || typeof value !== "object" || seen.has(value)) return;
   seen.add(value);
   if (!Array.isArray(value)) {
     const record = value as Record<string, unknown>;
-    if (typeof record["kind"] === "string" && isRecord(record["from"]) && isRecord(record["to"])) {
-      edges.push({ kind: record["kind"], from: record["from"], to: record["to"] });
+    if (
+      typeof record["kind"] === "string" &&
+      isRecord(record["from"]) &&
+      isRecord(record["to"])
+    ) {
+      edges.push({
+        kind: record["kind"],
+        from: record["from"],
+        to: record["to"],
+      });
     }
     const origin = blameOrigin(record);
     if (
@@ -1614,9 +2072,12 @@ function collectCausalEvidence(
       if (coordinate) {
         inspectedInvocations.push({
           ...coordinate,
+          nativeInvocation: value["nativeInvocation"],
+          originatingInput: value["originatingInput"],
           turnId: typeof value["turnId"] === "string" ? value["turnId"] : null,
           requestDigest:
-            isRecord(value["requestRef"]) && typeof value["requestRef"]["digest"] === "string"
+            isRecord(value["requestRef"]) &&
+            typeof value["requestRef"]["digest"] === "string"
               ? value["requestRef"]["digest"]
               : null,
         });
@@ -1638,7 +2099,9 @@ function collectCausalEvidence(
           head: value["head"],
           turnId: value["turnId"],
           triggerMessageId:
-            typeof value["triggerMessageId"] === "string" ? value["triggerMessageId"] : null,
+            typeof value["triggerMessageId"] === "string"
+              ? value["triggerMessageId"]
+              : null,
         });
       }
     }
@@ -1659,16 +2122,19 @@ function collectCausalEvidence(
           messageId: value["messageId"],
           role: typeof value["role"] === "string" ? value["role"] : null,
           sourceMessageId:
-            typeof value["sourceMessageId"] === "string" ? value["sourceMessageId"] : null,
+            typeof value["sourceMessageId"] === "string"
+              ? value["sourceMessageId"]
+              : null,
           senderId:
-            isRecord(value["senderRef"]) && typeof value["senderRef"]["id"] === "string"
+            isRecord(value["senderRef"]) &&
+            typeof value["senderRef"]["id"] === "string"
               ? value["senderRef"]["id"]
               : null,
           text: Array.isArray(value["textBlocks"])
             ? value["textBlocks"]
                 .filter(
                   (block): block is Record<string, unknown> =>
-                    isRecord(block) && typeof block["content"] === "string"
+                    isRecord(block) && typeof block["content"] === "string",
                 )
                 .map((block) => block["content"] as string)
                 .join("\n")
@@ -1685,7 +2151,7 @@ function collectCausalEvidence(
       inspectedInvocations,
       inspectedTurns,
       inspectedMessages,
-      seen
+      seen,
     );
   }
 }
@@ -1698,13 +2164,18 @@ function isNode(
   value: Record<string, unknown>,
   kind: string,
   identityField: string,
-  identity: string
+  identity: string,
 ): boolean {
   return value["kind"] === kind && value[identityField] === identity;
 }
 
-function trajectoryInvocation(value: Record<string, unknown>): InvocationCoordinate | null {
-  if (value["kind"] !== undefined && value["kind"] !== "trajectory-invocation") {
+function trajectoryInvocation(
+  value: Record<string, unknown>,
+): InvocationCoordinate | null {
+  if (
+    value["kind"] !== undefined &&
+    value["kind"] !== "trajectory-invocation"
+  ) {
     return null;
   }
   return typeof value["logId"] === "string" &&
@@ -1718,13 +2189,16 @@ function trajectoryInvocation(value: Record<string, unknown>): InvocationCoordin
     : null;
 }
 
-function sameInvocation(value: Record<string, unknown>, coordinate: InvocationCoordinate): boolean {
+function sameInvocation(
+  value: Record<string, unknown>,
+  coordinate: InvocationCoordinate,
+): boolean {
   const candidate = trajectoryInvocation(value);
   return Boolean(
     candidate &&
     candidate.logId === coordinate.logId &&
     candidate.head === coordinate.head &&
-    candidate.invocationId === coordinate.invocationId
+    candidate.invocationId === coordinate.invocationId,
   );
 }
 
@@ -1733,7 +2207,7 @@ function isTrajectoryNode(
   kind: "trajectory-turn" | "trajectory-message",
   identityField: "turnId" | "messageId",
   identity: string,
-  coordinate: Pick<InvocationCoordinate, "logId" | "head">
+  coordinate: Pick<InvocationCoordinate, "logId" | "head">,
 ): boolean {
   return (
     value["kind"] === kind &&
@@ -1743,64 +2217,14 @@ function isTrajectoryNode(
   );
 }
 
-/** Prove an uncertain exact mutation retry replayed one terminal result without
- * creating a second semantic application, work unit, or change. */
-export function requireCommandIdempotencyEvidence(result: TestExecutionResult): {
-  passed: boolean;
-  reason?: string;
-} {
-  const evalCode = successfulEvalCode(result);
-  const editSubmissions =
-    (evalCode.match(/\bvcs\.edit\s*\(/gu) ?? []).length +
-    (evalCode.match(/\brpc\.call\s*\(\s*["'][^"']+["']\s*,\s*["']vcs\.edit["']/gu) ?? []).length;
-  if (editSubmissions < 2) {
-    return fail("A successful eval did not submit the same semantic edit twice");
-  }
-  return { passed: true, reason: undefined };
-}
-
-/**
- * Keep the mechanical gate deliberately broad: prove the agent exercised the
- * race and observed the platform's typed refusal. Whether its recovery and
- * explanation were sensible is judged from the captured trajectory.
- */
-export function requireFreshnessRecoveryEvidence(result: TestExecutionResult): {
-  passed: boolean;
-  reason?: string;
-} {
-  const code = successfulEvalCode(result);
-  const editSubmissions =
-    (code.match(/\bvcs\.edit\s*\(/gu) ?? []).length +
-    (code.match(/\brpc\.call\s*\(\s*["'][^"']+["']\s*,\s*["']vcs\.edit["']/gu) ?? []).length;
-  const observedRevisionChanged = getToolCalls(result)
-    .filter(
-      (call) =>
-        call.name === "eval" &&
-        call.execution?.status === "complete" &&
-        call.execution.isError !== true
-    )
-    .some((call) =>
-      containsExactValue(call.execution?.result, "RevisionChanged", new Set<object>())
-    );
-  if (editSubmissions < 3 || !observedRevisionChanged) {
-    return fail("A successful eval did not exercise a stale edit refusal and fresh retry");
-  }
-  return { passed: true, reason: undefined };
-}
-
-function containsExactValue(value: unknown, expected: unknown, seen: Set<object>): boolean {
-  if (value === expected) return true;
-  if (!value || typeof value !== "object" || seen.has(value)) return false;
-  seen.add(value);
-  return Object.values(value).some((child) => containsExactValue(child, expected, seen));
-}
-
 export function requireAnyEvalEvidence(
   result: TestExecutionResult,
-  alternatives: readonly (readonly string[])[]
+  alternatives: readonly (readonly string[])[],
 ): { passed: boolean; reason?: string } {
   const code = successfulEvalCode(result);
-  const matched = alternatives.some((required) => required.every((token) => code.includes(token)));
+  const matched = alternatives.some((required) =>
+    required.every((token) => code.includes(token)),
+  );
   if (!matched) {
     return {
       passed: false,
@@ -1815,16 +2239,23 @@ export function requireAnyEvalEvidence(
 export function completedToolNames(result: TestExecutionResult): Set<string> {
   return new Set(
     getToolCalls(result)
-      .filter((call) => call.execution?.status === "complete" && !call.execution?.isError)
-      .map((call) => call.name)
+      .filter(
+        (call) =>
+          call.execution?.status === "complete" && !call.execution?.isError,
+      )
+      .map((call) => call.name),
   );
 }
 
-export function incompleteToolCalls(result: TestExecutionResult): InvocationCardPayloadLike[] {
+export function incompleteToolCalls(
+  result: TestExecutionResult,
+): InvocationCardPayloadLike[] {
   return getToolCalls(result).filter((call) => !isSettledInvocation(call));
 }
 
-export function failedToolCalls(result: TestExecutionResult): InvocationCardPayloadLike[] {
+export function failedToolCalls(
+  result: TestExecutionResult,
+): InvocationCardPayloadLike[] {
   return getToolCalls(result).filter((call) => {
     const execution = call.execution;
     if (!execution) return false;
@@ -1836,8 +2267,12 @@ export function failedToolCalls(result: TestExecutionResult): InvocationCardPayl
 function isSettledInvocation(call: InvocationCardPayloadLike): boolean {
   const execution = call.execution;
   if (!execution) return false;
-  if (execution.status === "complete" || execution.status === "error") return true;
-  return typeof execution.terminalOutcome === "string" && execution.terminalOutcome.length > 0;
+  if (execution.status === "complete" || execution.status === "error")
+    return true;
+  return (
+    typeof execution.terminalOutcome === "string" &&
+    execution.terminalOutcome.length > 0
+  );
 }
 
 function formatInvocationError(call: InvocationCardPayloadLike): string {

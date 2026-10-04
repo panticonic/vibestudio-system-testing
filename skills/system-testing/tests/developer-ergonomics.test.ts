@@ -118,7 +118,9 @@ describe("developer ergonomics scenarios", () => {
     expect(
       scenario("recoverable-infrastructure-failure-continues-turn")
         .expectedToolFailures,
-    ).toEqual([{ name: "eval", failureCode: "recoverable_infrastructure_probe" }]);
+    ).toEqual([
+      { name: "eval", failureCode: "recoverable_infrastructure_probe" },
+    ]);
     expect(
       scenario("invalid-icon-discover-recover-create").expectedToolFailures,
     ).toEqual([{ name: "eval", failureCode: "project_icon_invalid" }]);
@@ -460,28 +462,54 @@ describe("developer ergonomics scenarios", () => {
     ).toBe(false);
   });
 
-  it("requires a replaced session and an observed postcondition after rebuild", () => {
-    const open = call(
-      "open",
-      "eval",
-      { code: "scope.session = await scope.panel.cdp.session();" },
-      {
-        returnValue: {
-          session: { protocol: "panel-cdp-session.v1" },
-          observation: {
-            panelId: "panel:counter",
-            runtimeEntityId: "runtime:old",
-            attemptId: "attempt:old",
-            buildKey: "a".repeat(64),
-          },
-          interaction: {
-            protocol: "cdp-interaction-outcome.v1",
-            delivery: "dispatched",
-            effect: { status: "observed", state: "visible" },
+  it("requires native replacement of the issued lease and a subsequent observed interaction", () => {
+    const validator = scenario("panel-rebuild-reacquire-and-interact").validate;
+    const old = {
+      protocol: "panel-cdp-generation.v1",
+      panelId: "panel:counter",
+      runtimeEntityId: "runtime:old",
+      attemptId: "attempt:old",
+      buildKey: "a".repeat(64),
+    };
+    const next = {
+      ...old,
+      runtimeEntityId: "runtime:new",
+      attemptId: "attempt:new",
+      buildKey: "b".repeat(64),
+    };
+    const interaction = {
+      type: "interaction",
+      id: old.panelId,
+      receipt: {
+        protocol: "cdp-interaction-outcome.v1",
+        delivery: "dispatched",
+        effect: { status: "observed" },
+      },
+    };
+    const session = (
+      status: string,
+      generation: typeof old,
+      previousGeneration?: typeof old,
+    ) => ({
+      type: "cdp.session",
+      id: generation.panelId,
+      receipt: { status, generation, previousGeneration },
+    });
+    const native = (id: string, entries: unknown[], failed = false) =>
+      call(
+        id,
+        "eval",
+        { code: "return compactProjection;" },
+        {
+          operationJournal: {
+            protocol: "workspace-operations.v1",
+            truncated: false,
+            entries,
           },
         },
-      },
-    );
+        failed,
+      );
+    const open = native("open", [session("acquired", old), interaction]);
     const verify = call(
       "verify",
       "verify",
@@ -490,232 +518,159 @@ describe("developer ergonomics scenarios", () => {
     );
     const edit = call(
       "edit",
-      "apply_patch",
-      { operations: [{ path: "panels/counter/index.tsx" }] },
-      { applicationId: "application:counter" },
-    );
-    const rebuild = call(
-      "rebuild",
-      "eval",
-      {
-        code: "await scope.panel.rebuild(); const refreshed = await scope.session.refresh();",
-      },
-      {
-        returnValue: {
-          status: "replaced",
-          generation: {
-            protocol: "panel-cdp-generation.v1",
-            panelId: "panel:counter",
-            runtimeEntityId: "runtime:new",
-            attemptId: "attempt:new",
-            buildKey: "b".repeat(64),
-          },
-          interaction: {
-            protocol: "cdp-interaction-outcome.v1",
-            delivery: "dispatched",
-            effect: { status: "observed", state: "visible" },
-          },
-        },
-      },
-    );
-
-    expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, edit, rebuild]),
-      ),
-    ).toEqual({ passed: true, reason: undefined });
-
-    const targetedEdit = call(
-      "targeted-edit",
       "edit",
       { path: "panels/counter/index.tsx" },
-      { applicationId: "application:counter-edit" },
+      { applicationId: "change:counter" },
     );
+    const refresh = session("replaced", next, old);
+    const replacement = native("replacement", [refresh, interaction]);
+    const judge = (...tail: ReturnType<typeof call>[]) =>
+      validator(execution([open, verify, edit, ...tail])).passed;
+    expect(judge(replacement)).toBe(true);
+    // The native receipt also proves publication-driven replacement; method
+    // spelling and guest return projection cannot substitute for this proof.
     expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, targetedEdit, rebuild]),
+      judge(native("refresh", [refresh]), native("click", [interaction])),
+    ).toBe(true);
+    const partial = native("partial", [refresh], true);
+    expect(judge(partial, native("click", [interaction]))).toBe(true);
+    expect(
+      judge(
+        call(
+          "summary",
+          "eval",
+          { code: "await panel.rebuild(); await lease.refresh();" },
+          {
+            returnValue: { generation: next, interaction: interaction.receipt },
+          },
+        ),
       ),
-    ).toEqual({ passed: true, reason: undefined });
-
-    const buildReport = call(
-      "build-report",
-      "eval",
-      {
-        code: "const report = await services.build.getBuildReport(scope.panelSource, `ctx:${ctx.contextId}`); return { status: report.status, diagnostics: report.diagnostics };",
-      },
-      { returnValue: { status: "ok", diagnostics: [] } },
-    );
+    ).toBe(false);
     expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, buildReport, targetedEdit, rebuild]),
+      judge(
+        native("fresh-acquisition", [
+          session("acquired", next, old),
+          interaction,
+        ]),
       ),
-    ).toEqual({ passed: true, reason: undefined });
-    const failedReport = call(
-      "failed-build-report",
-      "eval",
-      buildReport.invocation.arguments,
-      {
-        returnValue: {
-          status: "failed",
-          diagnostics: [{ message: "Compiler error" }],
-        },
-      },
-    );
-    expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, failedReport, targetedEdit, rebuild]),
-      ).passed,
     ).toBe(false);
-
-    const readmeOnly = call(
-      "readme-only",
-      "write",
-      { path: "panels/counter/README.md", content: "Usage note" },
-      { applicationId: "application:readme" },
-    );
+    expect(judge(native("no-postcondition", [refresh]))).toBe(false);
     expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, buildReport, readmeOnly, rebuild]),
-      ).passed,
+      judge(native("pre-refresh-interaction", [interaction, refresh])),
     ).toBe(false);
-
-    // Summary wording does not establish a new executable incarnation.
-    const summaryOnly = call(
-      "summary-only",
-      "eval",
-      rebuild.invocation.arguments,
-      {
-        returnValue: {
-          status: "replaced",
-          before: "Count: 0",
-          after: "Count: 1",
-          clickStatus: "observed",
-        },
-      },
-    );
     expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, targetedEdit, summaryOnly]),
-      ).passed,
-    ).toBe(false);
-    const canonical = rebuild.invocation.execution.result.details.returnValue;
-    const renamedSummary = call(
-      "renamed-summary",
-      "eval",
-      rebuild.invocation.arguments,
-      {
-        returnValue: {
-          ...canonical,
-          status: undefined,
-          refreshStatus: "replaced",
-        },
-      },
-    );
-    expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([open, verify, targetedEdit, renamedSummary]),
-      ).passed,
-    ).toBe(true);
-    const rebuildOnly = call(
-      "rebuild-only",
-      "eval",
-      {
-        code: "scope.observation = await scope.panel.rebuild(); return scope.observation;",
-      },
-      { returnValue: { phase: "ready" } },
-    );
-    const refreshOnly = call(
-      "refresh-only",
-      "eval",
-      {
-        code: "scope.refreshed = await scope.session.refresh(); return scope.refreshed.session.generation;",
-      },
-      { returnValue: canonical.generation },
-    );
-    const interactionOnly = call(
-      "interaction-only",
-      "eval",
-      {
-        code: "return await scope.refreshed.session.page.getByRole('button').click({expect});",
-      },
-      { returnValue: canonical.interaction },
-    );
-    expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([
-          open,
-          verify,
-          targetedEdit,
-          rebuildOnly,
-          refreshOnly,
-          interactionOnly,
+      judge(
+        native("other-panel-interaction", [
+          refresh,
+          { ...interaction, id: "panel:other" },
         ]),
-      ).passed,
-    ).toBe(true);
-    const refreshBeforeFailure = call(
-      "refresh-before-failure",
-      "eval",
-      rebuild.invocation.arguments,
-      {
-        operationJournal: {
-          protocol: "workspace-operations.v1",
-          truncated: false,
-          entries: [
-            {
-              type: "cdp.session",
-              id: "panel:counter",
-              receipt: {
-                status: "replaced",
-                generation: canonical.generation,
-                previousGeneration: {
-                  panelId: "panel:counter",
-                  runtimeEntityId: "runtime:old",
-                  attemptId: "attempt:old",
-                  buildKey: "a".repeat(64),
-                },
-              },
-            },
-          ],
-        },
-      },
-      true,
-    );
-    expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([
-          open,
-          verify,
-          targetedEdit,
-          refreshBeforeFailure,
-          interactionOnly,
-        ]),
-      ).passed,
-    ).toBe(true);
+      ),
+    ).toBe(false);
     for (const generation of [
-      { ...canonical.generation, buildKey: "a".repeat(64) },
-      { ...canonical.generation, panelId: "panel:unrelated" },
-      { ...canonical.generation, runtimeEntityId: "runtime:old" },
-      { ...canonical.generation, attemptId: "attempt:old" },
-    ]) {
-      const stale = call("stale", "eval", rebuild.invocation.arguments, {
-        returnValue: { ...canonical, generation },
-      });
+      { ...next, buildKey: old.buildKey },
+      { ...next, panelId: "panel:other" },
+      { ...next, runtimeEntityId: old.runtimeEntityId },
+      { ...next, attemptId: old.attemptId },
+    ])
       expect(
-        scenario("panel-rebuild-reacquire-and-interact").validate(
-          execution([open, verify, targetedEdit, stale]),
-        ).passed,
+        judge(
+          native("stale", [session("replaced", generation, old), interaction]),
+        ),
       ).toBe(false);
-    }
-
-    const sessionOnly = call(
-      "session-only",
-      "eval",
-      { code: "scope.session = await scope.panel.cdp.session();" },
-      { returnValue: { protocol: "panel-cdp-session.v1" } },
-    );
     expect(
-      scenario("panel-rebuild-reacquire-and-interact").validate(
-        execution([sessionOnly, verify, targetedEdit, rebuild]),
+      judge(
+        native("foreign-lease", [
+          session("replaced", next, {
+            ...old,
+            runtimeEntityId: "runtime:other",
+          }),
+          interaction,
+        ]),
+      ),
+    ).toBe(false);
+    const separatelyRead = {
+      ...interaction,
+      receipt: { ...interaction.receipt, effect: { status: "not-asserted" } },
+    };
+    const observation = {
+      type: "evaluation",
+      id: old.panelId,
+      receipt: {
+        protocol: "cdp-evaluation-outcome.v1",
+        truncated: false,
+        value: "Count: 1",
+      },
+    };
+    expect(
+      judge(native("read-after-click", [refresh, separatelyRead, observation])),
+    ).toBe(true);
+    expect(
+      judge(native("no-read-after-click", [refresh, separatelyRead])),
+    ).toBe(false);
+    expect(
+      judge(
+        native("read-before-click", [refresh, observation, separatelyRead]),
+      ),
+    ).toBe(false);
+    expect(
+      judge(
+        native("foreign-read", [
+          refresh,
+          separatelyRead,
+          { ...observation, id: "panel:other" },
+        ]),
+      ),
+    ).toBe(false);
+    expect(
+      judge(
+        native("truncated-read", [
+          refresh,
+          separatelyRead,
+          {
+            ...observation,
+            receipt: { ...observation.receipt, truncated: true },
+          },
+        ]),
+      ),
+    ).toBe(false);
+    const unobserved = {
+      ...interaction,
+      receipt: { ...interaction.receipt, effect: { status: "not-observed" } },
+    };
+    expect(judge(native("unobserved", [refresh, unobserved]))).toBe(false);
+    expect(
+      validator(
+        execution([
+          native("no-initial", [session("acquired", old)]),
+          verify,
+          edit,
+          replacement,
+        ]),
+      ).passed,
+    ).toBe(false);
+    expect(
+      validator(
+        execution([
+          open,
+          verify,
+          call("readme", "write", { path: "panels/counter/README.md" }, {}),
+          replacement,
+        ]),
+      ).passed,
+    ).toBe(false);
+    expect(
+      validator(
+        execution([
+          open,
+          call(
+            "bad-build",
+            "verify",
+            { operation: "build", target: "panels/counter" },
+            { status: "failed" },
+          ),
+          edit,
+          replacement,
+        ]),
       ).passed,
     ).toBe(false);
   });
