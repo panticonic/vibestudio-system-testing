@@ -7,7 +7,7 @@ import {
   systemTestFailure,
   type SystemTestFailure,
 } from "../structured-error.js";
-import { getToolCalls } from "./_helpers.js";
+import { getToolCalls, getToolExecutions } from "./_helpers.js";
 import {
   completedScenarioEvidence,
   invocationReturnValue,
@@ -762,7 +762,222 @@ function validateLiveKernelContinuity(result: TestExecutionResult) {
       };
 }
 
+/** Model turns exercise the real notebook; only native receipts establish continuity. */
+async function orchestrateNotebookCells(
+  context: TestOrchestrationContext,
+  name: string,
+  prompts: readonly string[],
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await context.runner.spawn();
+  let failure: SystemTestFailure | undefined;
+  try {
+    for (const [index, prompt] of prompts.entries()) {
+      await context.sendAndWait(session, prompt, `${name} cell ${index + 1}`);
+    }
+  } catch (cause) {
+    failure = systemTestFailure(name, cause);
+  }
+  const execution: TestExecutionResult = {
+    duration: Date.now() - startedAt,
+    messages: [...session.messages],
+    snapshot: session.snapshot(),
+    ...(failure ? { failure, error: failure.error.message } : {}),
+  };
+  try {
+    await session.close();
+  } catch (cause) {
+    execution.cleanupFailures = [systemTestFailure(`${name}-close`, cause)];
+    execution.cleanupErrors = [formatError(cause)];
+  }
+  const cleanupErrors = session
+    .snapshot()
+    .cleanupErrors.map((entry) => `${entry.phase}: ${entry.message}`);
+  if (cleanupErrors.length)
+    execution.cleanupErrors = [
+      ...(execution.cleanupErrors ?? []),
+      ...cleanupErrors,
+    ];
+  if (execution.cleanupErrors?.length)
+    execution.error ??= `Headless cleanup failed: ${execution.cleanupErrors.join("; ")}`;
+  return execution;
+}
+
+function notebookCells(
+  result: TestExecutionResult,
+  expectedFailure?: (call: ReturnType<typeof getToolCalls>[number]) => boolean,
+) {
+  const base = completedScenarioEvidence(result, ["eval"], {
+    ...(expectedFailure ? { allowFailed: expectedFailure } : {}),
+  });
+  if (!base.passed) return base;
+  const calls = getToolExecutions(result).filter(
+    (call) => call.name === "eval",
+  );
+  if (calls.length !== 3)
+    return {
+      passed: false as const,
+      reason: `Expected three distinct eval cells; observed ${calls.length}`,
+    };
+  const incarnations = calls.map(invocationKernelIncarnation);
+  if (
+    !incarnations[0] ||
+    incarnations.some((value) => value !== incarnations[0])
+  )
+    return {
+      passed: false as const,
+      reason:
+        "Native receipts did not prove one unchanged kernel across all cells",
+    };
+  return { passed: true as const, calls };
+}
+
+function returnedRecordMatches(
+  call: ReturnType<typeof getToolCalls>[number],
+  expected: Record<string, unknown>,
+): boolean {
+  const returned = invocationReturnValue(call);
+  return (
+    returned.present &&
+    walkRecords([returned.value]).some((record) =>
+      Object.entries(expected).every(([key, value]) => record[key] === value),
+    )
+  );
+}
+
+function validateCellLocalImports(result: TestExecutionResult) {
+  const cells = notebookCells(result);
+  if (!cells.passed) return cells;
+  const [first, second, third] = cells.calls;
+  const code = cells.calls.map((call) =>
+    String(call.arguments?.["code"] ?? ""),
+  );
+  const importsBinding = (value: string) =>
+    /import\s*\{[^}]*basename\s+as\s+notebookBasename[^}]*\}\s*from\s*["']node:path["']/u.test(
+      value,
+    );
+  if (
+    !first ||
+    !second ||
+    !third ||
+    !importsBinding(code[0]!) ||
+    !importsBinding(code[2]!) ||
+    /\bimport\b/u.test(code[1]!) ||
+    !/scope\.__cellImportProbe\s*=/u.test(code[0]!) ||
+    /scope\.__cellImportProbe\s*=|(?:const|let|var)\s+notebookBasename/u.test(
+      code[1]!,
+    )
+  )
+    return {
+      passed: false,
+      reason:
+        "Cells did not import locally, retain the function explicitly, and later read it without reconstruction",
+    };
+  return returnedRecordMatches(first, {
+    bindingType: "function",
+    value: "first.txt",
+  }) &&
+    returnedRecordMatches(second, {
+      bindingType: "undefined",
+      retainedType: "function",
+      value: "second.txt",
+    }) &&
+    returnedRecordMatches(third, {
+      bindingType: "function",
+      value: "third.txt",
+    })
+    ? { passed: true, reason: undefined }
+    : {
+        passed: false,
+        reason:
+          "Captured returns did not prove cell-local imports and the retained callable",
+      };
+}
+
+function expectedLiveScopeThrow(call: ReturnType<typeof getToolCalls>[number]) {
+  return (
+    call.name === "eval" &&
+    call.execution?.isError === true &&
+    /throw\s+new\s+Error/u.test(String(call.arguments?.["code"] ?? "")) &&
+    JSON.stringify(call.execution).includes("LIVE_SCOPE_DELIBERATE_FAILURE")
+  );
+}
+
+function validateRejectedCellScope(result: TestExecutionResult) {
+  const cells = notebookCells(result, expectedLiveScopeThrow);
+  if (!cells.passed) return cells;
+  const [first, rejected, recovered] = cells.calls;
+  if (
+    !first ||
+    !rejected ||
+    !recovered ||
+    !expectedLiveScopeThrow(rejected) ||
+    !/scope\.__rejectedCellProbe\s*=/u.test(
+      String(first.arguments?.["code"] ?? ""),
+    ) ||
+    /scope\.__rejectedCellProbe\s*=/u.test(
+      String(recovered.arguments?.["code"] ?? ""),
+    )
+  )
+    return {
+      passed: false,
+      reason:
+        "The deliberate failed cell was not followed by use of the original live object",
+    };
+  return returnedRecordMatches(first, { methodType: "function", count: 1 }) &&
+    returnedRecordMatches(recovered, { methodType: "function", count: 2 })
+    ? { passed: true, reason: undefined }
+    : {
+        passed: false,
+        reason:
+          "The original callable and its live counter did not survive the rejected cell",
+      };
+}
+
 export const evalLifecycleTests: TestCase[] = [
+  {
+    name: "eval-cell-local-imports-retained-handle",
+    description:
+      "Static imports remain cell-local while an explicitly retained imported function stays callable across model turns",
+    category: "eval-lifecycle",
+    validation: "harness",
+    prompt:
+      "Check import binding lifetime and explicit scope retention across separate notebook cells.",
+    orchestrate: (context) =>
+      orchestrateNotebookCells(
+        context,
+        "eval-cell-local-imports-retained-handle",
+        [
+          "Using exactly one eval, statically import { basename as notebookBasename } from 'node:path', assign that function to scope.__cellImportProbe, and return { bindingType: typeof notebookBasename, value: notebookBasename('/first/first.txt') }. Finish this turn; do not run another eval.",
+          "Using exactly one eval and no imports or assignments, inspect typeof notebookBasename and the existing scope.__cellImportProbe. Return { bindingType: typeof notebookBasename, retainedType: typeof scope.__cellImportProbe, value: scope.__cellImportProbe('/second/second.txt') }. Do not recreate missing state; report failure if missing. Finish this turn.",
+          "Using exactly one eval, statically import { basename as notebookBasename } from 'node:path' again and return { bindingType: typeof notebookBasename, value: notebookBasename('/third/third.txt') }. Finish this turn.",
+        ],
+      ),
+    validate: validateCellLocalImports,
+  },
+  {
+    name: "eval-rejected-cell-preserves-live-scope",
+    description:
+      "A deliberate failed cell preserves a live callable and its counter for a later model turn in the same kernel",
+    category: "eval-lifecycle",
+    validation: "harness",
+    expectedToolFailures: [
+      { name: "eval", failureCode: "guest_execution_failed" },
+    ],
+    prompt:
+      "Check live notebook state across a deliberate failed cell and a later turn.",
+    orchestrate: (context) =>
+      orchestrateNotebookCells(
+        context,
+        "eval-rejected-cell-preserves-live-scope",
+        [
+          "Using exactly one eval, assign scope.__rejectedCellProbe to a live object with count initially 0 and a next method that increments and returns its count. Return { methodType: typeof scope.__rejectedCellProbe.next, count: scope.__rejectedCellProbe.next() }, with next() called only in that count field; do not call it separately. Finish this turn.",
+          "Using exactly one eval, throw new Error('LIVE_SCOPE_DELIBERATE_FAILURE'). Report the original observed error and finish this turn without another eval or changing any scope state.",
+          "Using exactly one eval, return { methodType: typeof scope.__rejectedCellProbe.next, count: scope.__rejectedCellProbe.next() }, with the existing next() called only in that count field; do not call it separately. Do not assign, reconstruct, or replace the object. If missing, report failure. Finish this turn.",
+        ],
+      ),
+    validate: validateRejectedCellScope,
+  },
   {
     name: "eval-exact-authority",
     description:

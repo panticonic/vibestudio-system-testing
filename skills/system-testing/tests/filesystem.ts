@@ -273,6 +273,49 @@ function focusedBinaryRoundTrip(result: TestExecutionResult) {
 
 export const filesystemTests: TestCase[] = [
   {
+    name: "scratch-file-handle-survives-rename",
+    description:
+      "An open scratch file descriptor keeps reading the same file after rename and an update through its new path",
+    category: "filesystem",
+    validation: "harness",
+    prompt:
+      "Inspect the live fs help, then check the documented portable scratch-file handle across rename: create a temporary file containing BEFORE, open a handle, rename the file, overwrite the renamed path with AFTER!, then read the updated bytes through both the original open handle and the new path. Return { throughHandle, throughPath, oldPathExists, closed: true } from eval with the actual observed values. Close the handle and remove your temporary files in finally, including on failure. Use scratch storage, not workspace source files.",
+    validate: (result) => {
+      const code = getToolCalls(result)
+        .filter(
+          (call) =>
+            call.name === "eval" &&
+            call.execution?.status === "complete" &&
+            call.execution.isError !== true,
+        )
+        .map((call) => String(call.arguments?.["code"] ?? ""))
+        .join("\n");
+      if (
+        !/\.read\s*\(/u.test(code) ||
+        !/\.close\s*\(/u.test(code) ||
+        !/\bfinally\b/u.test(code)
+      )
+        return {
+          passed: false,
+          reason:
+            "The execution did not read its retained handle and explicitly close it in finally",
+        };
+      return checkedFs(
+        result,
+        [["fs.open", "fs.rename", "fs.writeFile", "fs.readFile"]],
+        (values) =>
+          walkRecords(values).some(
+            (value) =>
+              value["throughHandle"] === "AFTER!" &&
+              value["throughPath"] === "AFTER!" &&
+              value["oldPathExists"] === false &&
+              value["closed"] === true,
+          ),
+        "The completed execution did not prove descriptor continuity, the renamed path, and explicit close",
+      );
+    },
+  },
+  {
     name: "read-write-text",
     description: "Write and read a text file",
     category: "filesystem",

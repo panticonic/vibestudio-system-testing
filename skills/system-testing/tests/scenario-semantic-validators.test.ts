@@ -1741,3 +1741,164 @@ describe("extension facade invocation", () => {
     ).toBe(false);
   });
 });
+
+describe("notebook and scratch lifetime regressions", () => {
+  const importSteps: EvalStep[] = [
+    {
+      code: "import { basename as notebookBasename } from 'node:path'; scope.__cellImportProbe = notebookBasename; return { bindingType: typeof notebookBasename, value: notebookBasename('/first/first.txt') };",
+      kernelIncarnationId: "kernel-live",
+      returnValue: { bindingType: "function", value: "first.txt" },
+    },
+    {
+      code: "return { bindingType: typeof notebookBasename, retainedType: typeof scope.__cellImportProbe, value: scope.__cellImportProbe('/second/second.txt') };",
+      kernelIncarnationId: "kernel-live",
+      returnValue: {
+        bindingType: "undefined",
+        retainedType: "function",
+        value: "second.txt",
+      },
+    },
+    {
+      code: "import { basename as notebookBasename } from 'node:path'; return { bindingType: typeof notebookBasename, value: notebookBasename('/third/third.txt') };",
+      kernelIncarnationId: "kernel-live",
+      returnValue: { bindingType: "function", value: "third.txt" },
+    },
+  ];
+  it("requires captured import lifetime, explicit retention, and the same native kernel", () => {
+    const test = scenario(
+      evalLifecycleTests,
+      "eval-cell-local-imports-retained-handle",
+    );
+    expect(
+      test.validate(execution("Observed the three cells.", importSteps)).passed,
+    ).toBe(true);
+    expect(test.validate(execution("It worked.", [])).passed).toBe(false);
+    for (const changed of [
+      { ...importSteps[1]!, kernelIncarnationId: "replacement-kernel" },
+      { ...importSteps[1]!, kernelIncarnationId: undefined },
+      {
+        ...importSteps[1]!,
+        returnValue: {
+          bindingType: "function",
+          retainedType: "function",
+          value: "second.txt",
+        },
+      },
+      {
+        ...importSteps[1]!,
+        code: "scope.__cellImportProbe = () => 'second.txt'; return scope.__cellImportProbe();",
+      },
+    ])
+      expect(
+        test.validate(
+          execution("Claimed success.", [
+            importSteps[0]!,
+            changed,
+            importSteps[2]!,
+          ]),
+        ).passed,
+      ).toBe(false);
+  });
+  const rejectedSteps: EvalStep[] = [
+    {
+      code: "scope.__rejectedCellProbe = { count: 0, next() { return ++this.count; } }; return { methodType: typeof scope.__rejectedCellProbe.next, count: scope.__rejectedCellProbe.next() };",
+      kernelIncarnationId: "kernel-live",
+      returnValue: { methodType: "function", count: 1 },
+    },
+    {
+      code: "throw new Error('LIVE_SCOPE_DELIBERATE_FAILURE');",
+      status: "error",
+      result: {
+        error: "LIVE_SCOPE_DELIBERATE_FAILURE",
+        details: {
+          kernel: { incarnationId: "kernel-live" },
+          failureCode: "guest_execution_failed",
+          failureKind: "user-code",
+        },
+      },
+    },
+    {
+      code: "return { methodType: typeof scope.__rejectedCellProbe.next, count: scope.__rejectedCellProbe.next() };",
+      kernelIncarnationId: "kernel-live",
+      returnValue: { methodType: "function", count: 2 },
+    },
+  ];
+  it("requires original state after exactly one deliberate failed cell", () => {
+    const test = scenario(
+      evalLifecycleTests,
+      "eval-rejected-cell-preserves-live-scope",
+    );
+    expect(
+      test.validate(
+        execution("Recovered the original callable.", rejectedSteps),
+      ).passed,
+    ).toBe(true);
+    for (const changed of [
+      { ...rejectedSteps[2]!, kernelIncarnationId: "replacement-kernel" },
+      {
+        ...rejectedSteps[2]!,
+        returnValue: { methodType: "function", count: 1 },
+      },
+      {
+        ...rejectedSteps[2]!,
+        code: "scope.__rejectedCellProbe = { count: 1, next() { return ++this.count; } }; return { count: 2 };",
+      },
+    ])
+      expect(
+        test.validate(
+          execution("Claimed recovery.", [
+            rejectedSteps[0]!,
+            rejectedSteps[1]!,
+            changed,
+          ]),
+        ).passed,
+      ).toBe(false);
+    expect(
+      test.validate(
+        execution("Wrong error.", [
+          rejectedSteps[0]!,
+          { ...rejectedSteps[1]!, result: { error: "unrelated fault" } },
+          rejectedSteps[2]!,
+        ]),
+      ).passed,
+    ).toBe(false);
+  });
+  it("requires the updated content through both the retained descriptor and renamed path", () => {
+    const test = scenario(
+      filesystemTests,
+      "scratch-file-handle-survives-rename",
+    );
+    const step = {
+      code: "const handle = await fs.open('.tmp/old', 'r'); try { await fs.rename('.tmp/old', '.tmp/new'); await fs.writeFile('.tmp/new', 'AFTER!'); const data = await handle.read(new Uint8Array(6), 0, 6, 0); const path = await fs.readFile('.tmp/new', 'utf8'); } finally { await handle.close(); }",
+      returnValue: {
+        throughHandle: "AFTER!",
+        throughPath: "AFTER!",
+        oldPathExists: false,
+        closed: true,
+      },
+    };
+    expect(test.validate(execution("Read both paths.", [step])).passed).toBe(
+      true,
+    );
+    expect(
+      test.validate(
+        execution("Claimed success.", [
+          {
+            ...step,
+            code: "return { throughHandle: 'AFTER!', throughPath: 'AFTER!', oldPathExists: false, closed: true };",
+          },
+        ]),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test.validate(
+        execution("Stale handle.", [
+          {
+            ...step,
+            returnValue: { ...step.returnValue, throughHandle: "BEFORE" },
+          },
+        ]),
+      ).passed,
+    ).toBe(false);
+  });
+});
