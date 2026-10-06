@@ -102,7 +102,6 @@ describe("publishAtomicPanelStoreFixture", () => {
       type: "module",
       vibestudio: {
         entry: "index.tsx",
-        tests: [{ runtime: "browser" }],
         authority: {
           requests: expect.arrayContaining([
             {
@@ -125,7 +124,6 @@ describe("publishAtomicPanelStoreFixture", () => {
       },
       dependencies: {
         "@workspace/runtime": "workspace:*",
-        "@workspace/test-runtime": "workspace:*",
       },
     });
     const workerManifest = manifestFor(worker);
@@ -135,13 +133,17 @@ describe("publishAtomicPanelStoreFixture", () => {
       vibestudio: {
         entry: "index.ts",
         durable: { classes: [{ className: "NotesStore" }] },
-        tests: [{ runtime: "workerd" }],
       },
       dependencies: {
         "@workspace/runtime": "workspace:*",
-        "@workspace/test-runtime": "workspace:*",
       },
     });
+    // The fixture authors application sources only, so neither unit declares
+    // a test backend or a dependency for a suite that does not exist.
+    for (const manifest of [panelManifest, workerManifest]) {
+      expect(manifest.vibestudio).not.toHaveProperty("tests");
+      expect(manifest.dependencies).not.toHaveProperty("@workspace/test-runtime");
+    }
     expect(vcs.push).toHaveBeenCalledWith({
       contextId: "fixture-context",
       commandId: "system-test:atomic-panel-store:push",
