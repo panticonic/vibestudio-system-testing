@@ -760,6 +760,13 @@ export const developerErgonomicsTests: TestCase[] = [
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Create and publish an isolated panel using the built-in icon `lucide:columns-3x`.",
+    orchestrate: (context) =>
+      orchestratePanelGoal(
+        context,
+        "Create and publish an isolated panel using the built-in icon `lucide:columns-3x`.",
+        "discover a valid icon and publish one panel",
+        { expectedCreatedRootCount: 1 },
+      ),
     expectedToolFailures: [
       { name: "eval", failureCode: "project_icon_invalid" },
     ],
