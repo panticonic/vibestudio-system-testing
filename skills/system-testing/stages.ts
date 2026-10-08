@@ -53,6 +53,7 @@ import { adventureProgrammedInteractionTests } from "./tests/adventure-programme
 import { adventureUiReviewTests } from "./tests/adventure-ui-review.js";
 import { adventureTurnProfileTests } from "./tests/adventure-turn-profile.js";
 import { adventureCampaignTests } from "./tests/adventure-campaign-play.js";
+import { richUiPropensityTests } from "./tests/rich-ui-propensity.js";
 
 export {
   agentCapabilityTests,
@@ -77,6 +78,7 @@ export {
   imageGenerationTests,
   imagePanelTests,
   adventureCampaignTests,
+  richUiPropensityTests,
   adventureTurnProfileTests,
   adventureUiReviewTests,
   adventureProgrammedInteractionTests,
@@ -190,6 +192,7 @@ export function allTests(): TestCase[] {
     ...intentDiscoveryTests,
     ...docsDiscoveryTests,
     ...interactionSurfaceTests,
+    ...richUiPropensityTests,
     ...projectLifecycleTests,
     ...scaffoldMatrixTests,
     ...developerErgonomicsTests,

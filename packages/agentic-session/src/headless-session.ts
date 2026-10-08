@@ -51,6 +51,7 @@ import {
   type AgenticEvent,
   type ChannelEnvelope,
   type ChannelViewState,
+  type UiFeedbackPayload,
 } from "@workspace/agentic-protocol";
 import { z } from "zod";
 import type { NativeInvocationSource } from "@vibestudio/service-schemas/nativeInvocation";
@@ -275,6 +276,14 @@ interface MessageListener {
   (msg: ChatMessage): void;
 }
 
+/** One `ui.feedback` event observed on the session's channel. */
+export interface ObservedUiFeedback {
+  pubsubId?: number;
+  senderId?: string;
+  ts?: number;
+  payload: UiFeedbackPayload;
+}
+
 export class HeadlessSession {
   private _connection: ConnectionManager;
   private _client: PubSubClient<ChatParticipantMetadata> | null = null;
@@ -295,6 +304,7 @@ export class HeadlessSession {
   private _hasIncomplete = false;
   private _participants: Record<string, Participant<ChatParticipantMetadata>> = {};
   private _debugEvents: Array<AgentDebugPayload & { ts: number }> = [];
+  private _uiFeedback: ObservedUiFeedback[] = [];
   private _cleanupErrors: SessionCleanupError[] = [];
   private _cleanupFailureCauses: unknown[] = [];
   private _cleanupState: SessionCleanupState = {
@@ -313,6 +323,8 @@ export class HeadlessSession {
 
   // Listeners
   private _messageListeners = new Set<MessageListener>();
+  /** Fired on every channel event and roster change; backs `waitUntil`. */
+  private _stateListeners = new Set<() => void>();
   private readonly _observationLifetime = new AbortController();
   private readonly _nativeObservations = new Set<{
     controller: AbortController;
@@ -478,6 +490,14 @@ export class HeadlessSession {
     };
   }
 
+  /** The method caller, recorded as the requester of UI published on its behalf. */
+  private callerRef(context: MethodExecutionContext) {
+    return participantRefFromMetadata(
+      context.callerId,
+      this._client?.roster?.[context.callerId]?.metadata
+    );
+  }
+
   private async publishSyntheticPanelUiEvent(
     event: AgenticEvent<"ui.inline_rendered" | "ui.action_bar.updated">,
     idempotencyKey: string
@@ -527,6 +547,7 @@ export class HeadlessSession {
         const eventPayload: AgenticEvent<"ui.inline_rendered">["payload"] = {
           protocol: AGENTIC_PROTOCOL_VERSION,
           uiType: "inline",
+          requestedBy: this.callerRef(context),
           id,
           source,
         };
@@ -571,6 +592,7 @@ export class HeadlessSession {
               payload: {
                 protocol: AGENTIC_PROTOCOL_VERSION,
                 uiType: "action_bar",
+                requestedBy: this.callerRef(context),
                 cleared: true,
                 result: { ok: true },
               },
@@ -589,6 +611,7 @@ export class HeadlessSession {
         const eventPayload: AgenticEvent<"ui.action_bar.updated">["payload"] = {
           protocol: AGENTIC_PROTOCOL_VERSION,
           uiType: "action_bar",
+          requestedBy: this.callerRef(context),
           id,
           source: { type: "file", path: trimmedPath },
           result: { ok: true },
@@ -642,6 +665,16 @@ export class HeadlessSession {
 
   private handleEvent(event: IncomingEvent): void {
     if (event.type === AGENTIC_EVENT_PAYLOAD_KIND) {
+      const agentic = (event as IncomingEvent & { payload?: AgenticEvent }).payload;
+      if (agentic?.kind === "ui.feedback") {
+        const wire = event as IncomingEvent & { pubsubId?: number; senderId?: string; ts?: number };
+        this._uiFeedback.push({
+          ...(wire.pubsubId !== undefined ? { pubsubId: wire.pubsubId } : {}),
+          ...(wire.senderId !== undefined ? { senderId: wire.senderId } : {}),
+          ...(wire.ts !== undefined ? { ts: wire.ts } : {}),
+          payload: agentic.payload as UiFeedbackPayload,
+        });
+      }
       this._channelView = reduceChannelView(
         this._channelView,
         this.pubsubAgenticEventToEnvelope(event)
@@ -654,6 +687,7 @@ export class HeadlessSession {
       }
       this.recomputeHasIncomplete();
       this.notifyListeners();
+      this.notifyStateListeners();
     }
 
     if (event.type === "agent-debug") {
@@ -711,6 +745,7 @@ export class HeadlessSession {
     // Roster subscription
     this._client.onRoster?.((update) => {
       this._participants = { ...update.participants };
+      this.notifyStateListeners();
     });
 
     this._hotPathTrace.push({
@@ -742,6 +777,48 @@ export class HeadlessSession {
         console.error("[HeadlessSession] message listener threw:", err);
       }
     }
+  }
+
+  private notifyStateListeners(): void {
+    for (const listener of [...this._stateListeners]) listener();
+  }
+
+  /**
+   * Resolve with the first defined value `read` returns, re-evaluated on every
+   * channel event and roster change. Settles only on that observation, a
+   * thrown read, the caller's abort, or the session closing.
+   */
+  waitUntil<T>(read: () => T | undefined, opts?: { signal?: AbortSignal }): Promise<T> {
+    const signals = [this._observationLifetime.signal, ...(opts?.signal ? [opts.signal] : [])];
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        this._stateListeners.delete(evaluate);
+        for (const signal of signals) signal.removeEventListener("abort", aborted);
+      };
+      function aborted(this: AbortSignal) {
+        cleanup();
+        reject(this.reason ?? new Error("Headless observation aborted"));
+      }
+      const evaluate = () => {
+        try {
+          const value = read();
+          if (value === undefined) return;
+          cleanup();
+          resolve(value);
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      };
+      const abortedSignal = signals.find((signal) => signal.aborted);
+      if (abortedSignal) {
+        reject(abortedSignal.reason ?? new Error("Headless observation aborted"));
+        return;
+      }
+      for (const signal of signals) signal.addEventListener("abort", aborted, { once: true });
+      this._stateListeners.add(evaluate);
+      evaluate();
+    });
   }
 
   /**
@@ -1040,6 +1117,11 @@ export class HeadlessSession {
 
   get debugEvents(): readonly (AgentDebugPayload & { ts: number })[] {
     return this._debugEvents;
+  }
+
+  /** `ui.feedback` events observed on the channel, in arrival order. */
+  get uiFeedback(): readonly ObservedUiFeedback[] {
+    return this._uiFeedback;
   }
 
   get isStreaming(): boolean {

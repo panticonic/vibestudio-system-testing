@@ -66,6 +66,7 @@ export {
   projectLifecycleTests,
   scaffoldMatrixTests,
   rpcTests,
+  richUiPropensityTests,
   selfDevelopmentTests,
   selectedTestStages,
   skillTests,

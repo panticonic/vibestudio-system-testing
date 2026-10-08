@@ -71,8 +71,8 @@ present:
 ```
 
 The selection is a capability boundary, not a CSS visibility switch. Omitting
-`feedback` removes `feedback_form`, `feedback_custom`, `confirm`, and
-`ui_prompt` from the joined participant as well as the stock feedback area.
+`feedback` removes `feedback_form` and `feedback_custom` from the joined
+participant as well as the stock feedback area.
 Omitting `inline-ui` removes `inline_ui`, skips component compilation, and
 hides historical inline-UI cards from the stock transcript. Omitting
 `action-bar` similarly removes `load_action_bar` and its stock presentation.

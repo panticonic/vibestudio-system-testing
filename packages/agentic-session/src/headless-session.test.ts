@@ -172,6 +172,47 @@ describe("HeadlessSession", () => {
     ]);
   });
 
+  it("records channel ui.feedback events and resolves waitUntil on their arrival", async () => {
+    const session = HeadlessSession.create({ config: createConfig() });
+    (session as any)._channelId = "headless-1";
+    const abort = new AbortController();
+    const arrived = session.waitUntil(
+      () => session.uiFeedback.find((event) => event.payload.occurrenceKey === "k1"),
+      { signal: abort.signal }
+    );
+    (session as any).handleEvent({
+      type: AGENTIC_EVENT_PAYLOAD_KIND,
+      senderId: "panel-1",
+      senderMetadata: { name: "Chat", type: "panel" },
+      contentClass: "internal",
+      externalKeys: [],
+      pubsubId: 7,
+      payload: {
+        kind: "ui.feedback",
+        actor: { kind: "panel", id: "chat" },
+        payload: {
+          protocol: AGENTIC_PROTOCOL_VERSION,
+          target: { kind: "agent", id: "agent-1", participantId: "agent-1" },
+          category: "compile_failed",
+          refs: { inlineUiId: "ui-1" },
+          error: { message: "boom" },
+          occurrenceKey: "k1",
+        },
+        createdAt: "2026-08-09T00:00:00.000Z",
+      },
+    });
+    await expect(arrived).resolves.toMatchObject({
+      pubsubId: 7,
+      senderId: "panel-1",
+      payload: { category: "compile_failed", refs: { inlineUiId: "ui-1" } },
+    });
+    expect(session.messages).toEqual([]);
+
+    const never = session.waitUntil(() => undefined, { signal: abort.signal });
+    abort.abort(new Error("stop"));
+    await expect(never).rejects.toThrow("stop");
+  });
+
   it("snapshot exposes transcript messages, invocation diagnostics, debug events, and participants", () => {
     const session = HeadlessSession.create({
       config: createConfig(),
@@ -882,7 +923,7 @@ describe("HeadlessSession", () => {
 
       expect(Object.keys(registeredMethods).sort()).toEqual(["inline_ui", "load_action_bar"]);
       const result = vi.fn((content, options) => ({ content, ...options }));
-      const methodContext = { result } as never;
+      const methodContext = { result, callerId: "do:requester" } as never;
 
       await expect(
         registeredMethods["inline_ui"]!.execute({}, methodContext)
@@ -925,6 +966,7 @@ describe("HeadlessSession", () => {
         payload: expect.objectContaining({
           uiType: "inline",
           id: "setup-overview",
+          requestedBy: expect.objectContaining({ kind: "agent", id: "do:requester" }),
           source: {
             type: "code",
             code: "export default function App() { return null; }",
@@ -954,6 +996,7 @@ describe("HeadlessSession", () => {
         kind: "ui.action_bar.updated",
         payload: expect.objectContaining({
           uiType: "action_bar",
+          requestedBy: expect.objectContaining({ kind: "agent", id: "do:requester" }),
           cleared: true,
           result: { ok: true },
         }),

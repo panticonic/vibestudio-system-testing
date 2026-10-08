@@ -7,6 +7,7 @@ export { HeadlessSession } from "./headless-session.js";
 export type {
   HeadlessSessionConfig,
   HeadlessWithAgentConfig,
+  ObservedUiFeedback,
   SessionSnapshot,
 } from "./headless-session.js";
 

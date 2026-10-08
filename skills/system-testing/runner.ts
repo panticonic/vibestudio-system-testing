@@ -4,6 +4,7 @@ import {
   type SessionSnapshot,
 } from "@workspace/agentic-session";
 import type { ConnectionConfig } from "@workspace/agentic-core";
+import type { PanelHandle } from "@workspace/runtime";
 import {
   blobstore,
   extensions,
@@ -38,6 +39,12 @@ import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordi
 import { evalInPanel } from "@workspace/testkit";
 import { publishAtomicPanelStoreFixture } from "./atomic-panel-store-fixture.js";
 import { probeSemanticCommand } from "./semantic-command-probe.js";
+import {
+  CHAT_PANEL_SOURCE,
+  awaitChatPanelConnected,
+  observeChatPanelRendering,
+  type ChatPanelRenderEvidence,
+} from "./real-chat-panel.js";
 
 // This runner is eval'd server-side (in the orchestrating agent's EvalDO), so it
 // uses the portable client surface — NOT panel-only `getStateArgs`/`slotId`.
@@ -290,6 +297,8 @@ export class HeadlessRunner {
     HeadlessSession,
     SystemTestRpcFaultEvidence[]
   >();
+  /** Real chat panels bound to session channels; archived before retirement. */
+  private readonly chatPanels = new Map<string, PanelHandle>();
 
   /**
    * Model is per-agent, so each spawned headless agent is created with the
@@ -643,7 +652,8 @@ export class HeadlessRunner {
    * tools like inline_ui and feedback_form are simply absent because no panel
    * is connected to this headless session. Tests that specifically exercise
    * UI-tool selection may opt into synthetic panel UI methods; those publish
-   * the same typed channel events but do not mount browser renderers.
+   * the same typed channel events but do not mount browser renderers. Tests
+   * that judge what the user actually sees opt into `realChatPanel` instead.
    *
    * Per-test prompt overrides can be passed through spawn extraConfig as
    * `systemPrompt` and `systemPromptMode`.
@@ -665,6 +675,17 @@ export class HeadlessRunner {
      */
     syntheticPanelUiTools?: boolean;
     /**
+     * Bind the stock chat panel to the session channel in a server-hosted
+     * renderer. Its participant advertises the real panel UI methods and
+     * renders every message, so `observeChatPanelRendering` can report real
+     * compile/render outcomes and `ui.feedback` events. Spawn returns once
+     * the panel reports its channel subscription established; it is archived as part
+     * of session close, before the agent context is retired.
+     */
+    realChatPanel?: boolean;
+    /** Cancels waiting for a real chat panel to join. */
+    signal?: AbortSignal;
+    /**
      * Advertise a deterministic first-call argument-rejection probe. This is a
      * fault-injection seam for harness resilience tests, not a product tool.
      */
@@ -678,6 +699,8 @@ export class HeadlessRunner {
     /** Test-specific policy appended after the shared system-test prompt. */
     additionalSystemPrompt?: string;
   }): Promise<HeadlessSession> {
+    if (opts?.realChatPanel && opts.syntheticPanelUiTools)
+      throw new Error("A session uses either the real chat panel or synthetic panel UI tools, not both");
     const policy = this.shared.modelPolicy;
     const model = policy.activeModel;
     const contextMode =
@@ -823,9 +846,13 @@ export class HeadlessRunner {
       : undefined;
     const session = await HeadlessSession.createWithAgent({
       beforeRetirement: async ({ channelId }) => {
-        const observation = this.readDiagnostics({ channelId });
-        this.terminalSessionDiagnostics.set(channelId, observation);
-        await observation;
+        try {
+          const observation = this.readDiagnostics({ channelId });
+          this.terminalSessionDiagnostics.set(channelId, observation);
+          await observation;
+        } finally {
+          await this.archiveChatPanel(channelId);
+        }
       },
       config: {
         clientId: rpc.selfId,
@@ -870,6 +897,7 @@ export class HeadlessRunner {
           : {}),
       },
     });
+    if (opts?.realChatPanel) await this.attachChatPanel(session, opts.signal);
     this.sessionRpcFaultEvidence.set(session, rpcFaultEvidence);
     this.shared.sessions.add(session);
     this.shared.testNames.set(session, this.testName);
@@ -884,6 +912,64 @@ export class HeadlessRunner {
     };
     this.shared.sessionPolicies.set(session, sessionPolicy);
     return session;
+  }
+
+  /**
+   * Open the stock chat panel on the session's channel in its agent context
+   * and wait until it reports its channel subscription established. A failed attach closes
+   * the session, which archives a panel that was already opened.
+   */
+  private async attachChatPanel(session: HeadlessSession, signal?: AbortSignal): Promise<void> {
+    const channelId = session.channelId;
+    const contextId = session.agentContextId;
+    try {
+      if (!channelId || !contextId)
+        throw new Error("A real chat panel needs a connected session with an agent context");
+      const panel = await openPanel(CHAT_PANEL_SOURCE, {
+        contextId,
+        stateArgs: { channelName: channelId },
+        parentId: null,
+        focus: false,
+        ...(signal ? { signal } : {}),
+      });
+      this.chatPanels.set(channelId, panel);
+      await awaitChatPanelConnected(panel, signal);
+    } catch (error) {
+      try {
+        await session.close();
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "Real chat panel attach failed and the session could not be closed",
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+  }
+
+  private async archiveChatPanel(channelId: string | null): Promise<void> {
+    if (!channelId) return;
+    const panel = this.chatPanels.get(channelId);
+    if (!panel) return;
+    this.chatPanels.delete(channelId);
+    await panel.archive();
+  }
+
+  /**
+   * Settle the session's real chat panel and report what it rendered: every
+   * channel `ui.feedback` event, and which render failures remain unresolved.
+   */
+  async observeChatPanelRendering(
+    session: HeadlessSession,
+    options?: { signal?: AbortSignal; screenshot?: boolean },
+  ): Promise<ChatPanelRenderEvidence> {
+    const panel = session.channelId ? this.chatPanels.get(session.channelId) : undefined;
+    if (!panel) throw new Error("Session was not spawned with realChatPanel");
+    return observeChatPanelRendering(session, panel, {
+      ...(options?.signal ? { signal: options.signal } : {}),
+      ...(options?.screenshot ? { storeScreenshot: (data) => blobstore.putBase64(data) } : {}),
+    });
   }
 
   /**
