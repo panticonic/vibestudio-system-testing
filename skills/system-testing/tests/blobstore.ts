@@ -140,7 +140,7 @@ function textRoundTripChecked(result: Parameters<typeof noIncompleteInvocations>
     };
   const final = findLastAgentMessage(result);
   if (
-    ![/text|document/iu, /range|bytes/iu, /search|grep|marker|match/iu].every((claim) =>
+    ![/text|document/iu, /\b(?:range|slice|bytes?)\b/iu, /search|grep|marker|match/iu].every((claim) =>
       claim.test(final)
     )
   )

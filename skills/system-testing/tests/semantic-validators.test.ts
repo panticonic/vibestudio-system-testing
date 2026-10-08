@@ -1162,6 +1162,43 @@ describe("semantic system-test validators", () => {
     ).toEqual({ passed: true, reason: undefined });
   });
 
+  it.each([
+    { metric: "Log events", value: 289 },
+    { count: 6, metric: { metric: "Log events", value: 289 } },
+    { summary: [{ metric: "Log events", value: 289 }] },
+  ])("accepts a bounded typed status observation: %j", (returnValue) => {
+    const test = agenticRuntimeTests.find(
+      (candidate) => candidate.name === "gad-status-summary",
+    )!;
+    const call = {
+      name: "eval",
+      arguments: {
+        code: "const metrics = await gad.status(); return { count: metrics.length, metric: metrics[0] };",
+      },
+      execution: {
+        status: "complete",
+        isError: false,
+        result: { details: { returnValue } },
+      },
+    };
+    expect(test.validate(execution("Log events — 289.", [call])).passed).toBe(
+      true,
+    );
+    expect(test.validate(execution("Log events — 290.", [call])).passed).toBe(
+      false,
+    );
+    expect(test.validate(execution("Other metric — 289.", [call])).passed).toBe(
+      false,
+    );
+    expect(
+      test.validate(
+        execution("Log events — 289.", [
+          { ...call, execution: { ...call.execution, isError: true } },
+        ]),
+      ).passed,
+    ).toBe(false);
+  });
+
   it("accepts metrics obtained from the documented workspace-source service", () => {
     const test = agenticRuntimeTests.find(
       (candidate) => candidate.name === "gad-status-summary",

@@ -2,7 +2,7 @@ import {
   BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
   type TestCase,
 } from "../types.js";
-import { invocationReturnValue } from "./_scenario-evidence.js";
+import { invocationReturnValue, walkRecords } from "./_scenario-evidence.js";
 import { PANEL_AUTOMATION_RESOURCE } from "../panel-authority.js";
 import { orchestratePanelGoal } from "./_panel-tree-invariant.js";
 import {
@@ -78,10 +78,8 @@ function statusMetricsReported(
         /rpc\.call\([\s\S]*["']getStatus["']/u.test(code));
     if (!statusCall) return false;
     const returned = invocationReturnValue(call);
-    if (!returned.present || !Array.isArray(returned.value)) return false;
-    return returned.value.some((row: unknown) => {
-      if (!row || typeof row !== "object" || Array.isArray(row)) return false;
-      const { metric, value } = row as Record<string, unknown>;
+    if (!returned.present) return false;
+    return walkRecords([returned.value]).some(({ metric, value }) => {
       if (
         typeof metric !== "string" ||
         !metric.trim() ||

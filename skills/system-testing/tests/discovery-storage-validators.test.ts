@@ -159,6 +159,21 @@ describe("storage and discovery semantic validators", () => {
     const final =
       "The document text round-tripped successfully; the byte range matched, and the stored marker search returned the expected match.";
     expect(test.validate(execution(final, [call]))).toEqual({ passed: true });
+    expect(
+      test.validate(
+        execution(
+          "Stored the document. The full read matched the original; read an 8-byte slice and found the marker using the stored search operation.",
+          [call],
+        ),
+      ),
+    ).toEqual({ passed: true });
+    expect(
+      test.validate(
+        execution("The document round-tripped and marker search succeeded.", [
+          call,
+        ]),
+      ),
+    ).toMatchObject({ passed: false });
     const guestOnly = structuredClone(call);
     delete (guestOnly.invocation.execution.result as { details: Record<string, unknown> }).details[
       "operationJournal"
