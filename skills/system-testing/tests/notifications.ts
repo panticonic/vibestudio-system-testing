@@ -38,14 +38,14 @@ export const notificationTests: TestCase[] = [
     name: "show-notification",
     description: "Request and explicitly dismiss one host test notification",
     category: "notifications",
-    prompt: "Send a harmless informational TEST notification, then remove that same test notification once the host accepts it. Report whether both operations completed.",
+    prompt: "Show a harmless temporary informational TEST notification in the shell chrome, then remove it once the host accepts it. Report whether both operations completed.",
     validate: (result) => notificationChecked(result),
   },
   {
     name: "show-with-actions",
     description: "Request and dismiss a host test notification with exactly two action buttons",
     category: "notifications",
-    prompt: "Send a TEST notification offering exactly two choices, Accept and Decline, then remove that same test notification once the host accepts it. Report whether both operations completed. Do not claim that the user clicked either choice.",
+    prompt: "Show a temporary TEST notification in the shell chrome with exactly two clickable action buttons, Accept and Decline, then remove it once the host accepts it. Report whether both operations completed. Do not claim that the user clicked either choice.",
     validate: (result) => notificationChecked(result, ["Accept", "Decline"]),
   },
 ];
