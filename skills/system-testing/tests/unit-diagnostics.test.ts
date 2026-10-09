@@ -181,13 +181,62 @@ describe("canonical automation count presentation", () => {
       generatedAt: 1_791_535_180_253,
     }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toEqual({ passed: true });
   });
-  it("accepts the observed empty-cursor overview projection and checks its exact counts", () => {
+  it("accepts the observed overview counts in separate rows", () => {
     expect(automationTest.validate(execution(code, {
       stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
       itemCount: 1,
       nextCursor: null,
       generatedAt: 1_791_535_180_253,
-    }, "Configured: 1; Active: 1; Running: 0; Failed/completed with errors in the last 24 hours: 0"))).toEqual({ passed: true });
+    }, "Configured: 1\nActive: 1\nRunning: 0\nFailed/completed with errors in the last 24 hours: 0"))).toEqual({ passed: true });
+  });
+  it("binds inline counts to their own labels and ignores duration quantities", () => {
+    const observed = {
+      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    };
+    for (const final of [
+      "Configured: 1; Active: 1; Running: 0; Failed/completed with errors in the last 24 hours: 0",
+      "1 configured, 1 active, 0 running, 0 failures over the last 24 hours",
+      "Configured: 1 and Active: 1 and Running: 0 and Failed in last 24 hours: 0",
+      "Configured 1 Active 1 Running 0 Failed 0",
+      "Configured automations: 1\nActive automations: 1\nRunning automations: 0\nFailed automations in the last 24 hours: 0",
+      "Configured: 1; Active: 1; Running: 0; Failed in the last 12 hours: 0",
+      "| Configured automations | 1 |\n| Active | 1 |\n| Running | 0 |\n| Failed in last 24 hours | 0 |",
+    ]) {
+      expect(automationTest.validate(execution(code, observed, final))).toEqual({ passed: true });
+    }
+  });
+  it("does not borrow a neighboring count or treat a duration as the failed count", () => {
+    const observed = {
+      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    };
+    for (const final of [
+      "Configured: 1; Active: 1; Running: 0; Failed/completed with errors in the last 24 hours",
+      "Configured: 1; Active: 1; Running: 0; Failed/completed with errors in the last 24 hours: 1",
+      "Configured: 1; Active: 1; Running: 0; Failed/completed with errors in the last 24 hours: 24",
+      "Configured: 1; Active: 1; Running: 0; Failed in the last 12 hours",
+      "Configured: 1 Active: 1 Running: 0 Failed in the last 24 hours",
+    ]) {
+      expect(automationTest.validate(execution(code, observed, final))).toMatchObject({ passed: false });
+    }
+  });
+  it("rejects contradictory repeated claims across separate fields", () => {
+    const observed = {
+      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    };
+    expect(
+      automationTest.validate(
+        execution(code, observed, "Configured: 1; Active: 1; Running: 0; Running: 1; Failed: 0"),
+      ),
+    ).toMatchObject({ passed: false });
   });
   it("accepts a valid canonical continuation cursor", () => {
     expect(automationTest.validate(execution(code, {

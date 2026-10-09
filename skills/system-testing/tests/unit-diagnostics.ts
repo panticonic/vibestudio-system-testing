@@ -126,15 +126,109 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
     };
   }
   const final = findLastAgentMessage(result);
-  const labeled = (label: string, count: number) =>
-    new RegExp(`\\b(?:${label})\\b[^\\d\\n]{0,45}\\b${count}\\b`, "iu").test(final) ||
-    new RegExp(`\\b${count}\\b[^\\d\\n]{0,45}\\b(?:${label})\\b`, "iu").test(final);
-  if (!labeled("configured|automations?|total", stats.total) ||
-      !labeled("active", stats.active) || !labeled("running", stats.running) ||
-      !labeled("failed|failures?|issues?", stats.issueRunsLast24Hours)) {
+  const reported = automationOverviewCountClaims(final);
+  const matchesObserved = (claims: number[], expected: number) =>
+    claims.length > 0 && claims.every((claim) => claim === expected);
+  if (
+    !matchesObserved(reported.total, stats.total) ||
+    !matchesObserved(reported.active, stats.active) ||
+    !matchesObserved(reported.running, stats.running) ||
+    !matchesObserved(reported.issuesLast24Hours, stats.issueRunsLast24Hours)
+  ) {
     return { passed: false, reason: "Final response did not report the observed automation counts" };
   }
   return noIncompleteInvocations(result);
+}
+
+type AutomationCountName = "total" | "active" | "running" | "issuesLast24Hours";
+
+/**
+ * Pair each count with one adjacent metric token in report order. This keeps
+ * neighboring values from satisfying a missing count and ignores numeric time
+ * windows such as "last 24 hours".
+ */
+function automationOverviewCountClaims(final: string): Record<AutomationCountName, number[]> {
+  const claims: Record<AutomationCountName, number[]> = {
+    total: [],
+    active: [],
+    running: [],
+    issuesLast24Hours: [],
+  };
+  const fields = final.split(/[\n;]+|,(?!\d{3}\b)/u);
+  for (const field of fields) {
+    const numbers = [...field.matchAll(/\b\d+(?:,\d{3})*\b/gu)]
+      .map((match) => ({
+        kind: "count" as const,
+        value: Number(match[0].replaceAll(",", "")),
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[0].length,
+      }))
+      .filter(({ end }) => {
+        const following = field.slice(end);
+        return !/^\s*(?:[-–]\s*)?(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?|wks?|months?|mos?|years?|yrs?)\b/iu.test(
+          following,
+        );
+      });
+    const explicitLabels = [
+      ...field.matchAll(/\b(?:configured|total)\b/giu),
+      ...field.matchAll(/\bactive\b/giu),
+      ...field.matchAll(/\brunning\b/giu),
+      ...field.matchAll(/\b(?:failed|failures?|issues?)\b/giu),
+    ].map((match) => {
+      const text = match[0].toLocaleLowerCase();
+      const name: AutomationCountName =
+        text === "configured" || text === "total"
+          ? "total"
+          : text === "active"
+            ? "active"
+            : text === "running"
+              ? "running"
+              : "issuesLast24Hours";
+      return {
+        kind: "label" as const,
+        name,
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[0].length,
+      };
+    });
+    const hasExplicitTotal = explicitLabels.some(({ name }) => name === "total");
+    const genericLabels = [...field.matchAll(/\bautomations?\b/giu)].map((match) => {
+      const start = match.index ?? 0;
+      const preceding = explicitLabels
+        .filter((label) => label.start < start)
+        .sort((left, right) => right.start - left.start)[0];
+      const hasCountBetween = preceding
+        ? numbers.some((number) => number.start >= preceding.end && number.end <= start)
+        : false;
+      return {
+        kind: "label" as const,
+        name:
+          !hasExplicitTotal && preceding && preceding.name !== "total" && !hasCountBetween
+            ? preceding.name
+            : "total" as AutomationCountName,
+        start,
+        end: start + match[0].length,
+      };
+    });
+    const labels = hasExplicitTotal
+      ? explicitLabels
+      : [...explicitLabels, ...genericLabels];
+    const tokens = [...numbers, ...labels].sort((left, right) => left.start - right.start);
+    for (let index = 0; index + 1 < tokens.length; ) {
+      const first = tokens[index]!;
+      const second = tokens[index + 1]!;
+      if (first.kind === "count" && second.kind === "label") {
+        claims[second.name].push(first.value);
+        index += 2;
+      } else if (first.kind === "label" && second.kind === "count") {
+        claims[first.name].push(second.value);
+        index += 2;
+      } else {
+        index += 1;
+      }
+    }
+  }
+  return claims;
 }
 
 /** Read the canonical aggregate counters directly or from a full overview. */
