@@ -338,7 +338,7 @@ export const agentOrchestrationTests: TestCase[] = [
       "Two children explore competing design priorities that the parent synthesizes",
     category: "agent-orchestration",
     prompt:
-      "Review this hypothetical brief for a standalone TypeScript library that represents edge-case test corpora; there is no existing codebase, so reason only from the brief. Delegate two independent reviews concurrently: one should favor a simple data model, the other provenance and debuggability. Once both perspectives are back, summarize their main tradeoffs and disagreements concisely.",
+      "Review this hypothetical brief for a standalone TypeScript library that represents edge-case test corpora; there is no existing codebase, so reason only from the brief. Brief: A few TypeScript packages will share a checked-in corpus of edge-case fixtures. Each case has input and an expected outcome. Maintainers add cases by hand and from generated reproducers. Tests need deterministic iteration and filters by suite. When a case fails, maintainers need to trace it to the originating issue, reproducer, or generator revision. The library must work without a runtime service dependency. Delegate two independent reviews concurrently: one should favor a simple data model, the other provenance and debuggability. Once both perspectives are back, summarize their main tradeoffs and disagreements concisely.",
     validate: validateAgentCompletionReport,
   },
   {
