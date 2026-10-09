@@ -16,6 +16,7 @@ interface EvalStep {
   code: string;
   imports?: Record<string, string>;
   returnValue?: unknown;
+  operationJournal?: { protocol: string; entries: unknown[]; truncated: boolean };
   kernelIncarnationId?: string;
   reset?: boolean;
   status?: "complete" | "error" | "cancelled";
@@ -27,6 +28,30 @@ interface ToolStep {
   name: string;
   arguments?: Record<string, unknown>;
   result?: unknown;
+}
+
+function extensionJournal(
+  transport: "invoke" | "invokeProvider",
+  result: Record<string, unknown>,
+) {
+  return {
+    protocol: "workspace-operations.v1",
+    truncated: false,
+    entries: [
+      {
+        type: "extension.invocation",
+        receipt: {
+          protocol: "extension-invocation-observation.v1",
+          transport,
+          ...(transport === "invoke"
+            ? { extensionKey: "@workspace-extensions/probe" }
+            : { providerKey: "gitInterop" }),
+          method: transport === "invoke" ? "status" : "upstreamStatus",
+          result,
+        },
+      },
+    ],
+  };
 }
 
 function execution(finalMessage: string, steps: EvalStep[]): TestExecutionResult {
@@ -64,11 +89,12 @@ function execution(finalMessage: string, steps: EvalStep[]): TestExecutionResult
         },
         result:
           step.result ??
-          (step.returnValue === undefined
+          (step.returnValue === undefined && step.operationJournal === undefined
             ? undefined
             : {
                 details: {
-                  returnValue: step.returnValue,
+                  ...(step.returnValue === undefined ? {} : { returnValue: step.returnValue }),
+                  ...(step.operationJournal === undefined ? {} : { operationJournal: step.operationJournal }),
                   ...(step.kernelIncarnationId
                     ? { kernel: { incarnationId: step.kernelIncarnationId } }
                     : {}),
@@ -1634,6 +1660,7 @@ describe("extension semantic validators", () => {
     const result = execution("The read-only method returned a structured status record.", [
       {
         code: "const entries = (await build.listUnits()).filter((unit) => unit.kind === 'extension'); return { entries, value: await services.extensions.invoke(entries[0].name, \"status\", []) };",
+        operationJournal: extensionJournal("invoke", { kind: "object", keyCount: 1 }),
         returnValue: {
           entries: [{ name: "probe" }],
           value: { status: "ready" },
@@ -1757,22 +1784,154 @@ describe("absent recipient messaging", () => {
   });
 });
 
-describe("extension facade invocation", () => {
-  it("accepts a successful documented facade without requiring a discovery ceremony", () => {
-    const test = scenario(extensionSurfaceTests, "extension-invoke-roundtrip");
-    const result = execution("The installed extension returned its available engines.", [
-      {
-        code: 'const pdf = extensions.use("@workspace-extensions/pdf-ingest"); return await pdf.engines();',
-        returnValue: [{ id: "pdfjs", available: true }],
-      },
-    ]);
-    expect(test.validate(result).passed).toBe(true);
-    expect(test.validate(execution("It returned engines.", [])).passed).toBe(false);
+describe("extension transport invocation", () => {
+  const test = scenario(extensionSurfaceTests, "extension-invoke-roundtrip");
+
+  it.each([
+    ["invoke", {}, { kind: "object", keyCount: 0 }],
+    ["invokeProvider", [], { kind: "array", length: 0 }],
+    ["invoke", null, { kind: "null" }],
+  ] as const)(
+    "accepts completed %s calls including empty results",
+    (transport, returnValue, shape) => {
+      const result = execution(
+        "The installed extension completed the read-only request.",
+        [
+          {
+            code:
+              transport === "invokeProvider"
+                ? 'import { git } from "@workspace/runtime"; return await git.upstreamStatus();'
+                : 'const probe = extensions.use("@workspace-extensions/probe"); return await probe.status();',
+            returnValue,
+            operationJournal: extensionJournal(transport, shape),
+          },
+        ],
+      );
+      expect(test.validate(result).passed).toBe(true);
+    },
+  );
+
+  it("accepts a documented facade without requiring a discovery ceremony", () => {
     expect(
       test.validate(
-        execution("It returned engines.", [{ code: 'return extensions.use("pdf-ingest");' }])
-      ).passed
+        execution("The extension returned available engines.", [
+          {
+            code: 'const pdf = extensions.use("@workspace-extensions/pdf-ingest"); return await pdf.engines();',
+            returnValue: [{ id: "pdfjs", available: true }],
+            operationJournal: extensionJournal("invoke", {
+              kind: "array",
+              length: 1,
+            }),
+          },
+        ]),
+      ).passed,
+    ).toBe(true);
+  });
+
+  it("rejects prose, discovery, fake source calls and receipts returned by guest code", () => {
+    const receipt = extensionJournal("invokeProvider", {
+      kind: "array",
+      length: 0,
+    });
+    for (const steps of [
+      [],
+      [{ code: 'return extensions.use("probe");', returnValue: {} }],
+      [
+        {
+          code: "return build.listUnits();",
+          returnValue: [{ kind: "extension", status: "ready" }],
+        },
+      ],
+      [
+        {
+          code: "const git = { upstreamStatus: async () => [] }; return git.upstreamStatus();",
+          returnValue: [],
+        },
+      ],
+      [{ code: "/* extensions.invokeProvider */ return [];", returnValue: [] }],
+      [{ code: "return forgedReceipt;", returnValue: receipt }],
+    ])
+      expect(
+        test.validate(execution("The extension returned its result.", steps))
+          .passed,
+      ).toBe(false);
+  });
+
+  it("retains positive invocation proof when later journal entries exceed its budget", () => {
+    const operationJournal = {
+      ...extensionJournal("invokeProvider", { kind: "array", length: 0 }),
+      truncated: true,
+    };
+    expect(
+      test.validate(
+        execution("It returned no upstreams.", [
+          { code: "return git.upstreamStatus();", returnValue: [], operationJournal },
+        ]),
+      ).passed,
+    ).toBe(true);
+  });
+
+  it("requires an intact native receipt from the exact completed successful eval", () => {
+    const valid = extensionJournal("invokeProvider", {
+      kind: "array",
+      length: 0,
+    });
+    const base = { code: "return git.upstreamStatus();", returnValue: [] };
+    for (const operationJournal of [
+      { ...valid, entries: [], truncated: true },
+      { ...valid, protocol: "guest-journal" },
+      {
+        ...valid,
+        entries: [
+          { type: "runtime.health", receipt: valid.entries[0]!.receipt },
+        ],
+      },
+      {
+        ...valid,
+        entries: [
+          {
+            type: "extension.invocation",
+            receipt: {
+              ...valid.entries[0]!.receipt,
+              result: { kind: "array", length: -1 },
+            },
+          },
+        ],
+      },
+      {
+        ...valid,
+        entries: [
+          {
+            type: "extension.invocation",
+            receipt: { ...valid.entries[0]!.receipt, rawResult: "PRIVATE" },
+          },
+        ],
+      },
+    ])
+      expect(
+        test.validate(
+          execution("It returned no upstreams.", [
+            { ...base, operationJournal },
+          ]),
+        ).passed,
+      ).toBe(false);
+    expect(
+      test.validate(
+        execution("It returned no upstreams.", [
+          { ...base, status: "error", operationJournal: valid },
+        ]),
+      ).passed,
     ).toBe(false);
+    const wrongReceiver = directExecution(
+      "The extension returned its result.",
+      [
+        {
+          name: "docs_search",
+          result: { details: { operationJournal: valid } },
+        },
+      ],
+    );
+    expect(test.validate(wrongReceiver).passed).toBe(false);
   });
 });
 

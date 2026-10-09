@@ -1,3 +1,4 @@
+import { evalOperationJournalSchema } from "@vibestudio/service-schemas/eval";
 import type { TestExecutionResult } from "../types.js";
 import {
   findLastAgentMessage,
@@ -13,6 +14,30 @@ export interface ScenarioEvidence {
   calls: InvocationCardPayloadLike[];
   evalCode: string;
   evalValues: unknown[];
+}
+
+/** Host-owned journal entries from completed evals; guest return values are never evidence receipts. */
+export function completedEvalOperationEntries(
+  result: TestExecutionResult,
+): Record<string, unknown>[] {
+  return getToolCalls(result).flatMap((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    )
+      return [];
+    const payload = call.execution.result;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload))
+      return [];
+    const details = (payload as Record<string, unknown>)["details"];
+    if (!details || typeof details !== "object" || Array.isArray(details))
+      return [];
+    const journal = evalOperationJournalSchema.safeParse(
+      (details as Record<string, unknown>)["operationJournal"],
+    );
+    return journal.success ? journal.data.entries : [];
+  });
 }
 
 export function invocationReturnValue(

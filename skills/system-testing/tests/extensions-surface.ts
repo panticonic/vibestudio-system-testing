@@ -1,7 +1,8 @@
+import { NativeExtensionInvocationObservationSchema } from "@vibestudio/service-schemas/extensions";
 import type { TestCase, TestExecutionResult } from "../types.js";
 import {
   completedScenarioEvidence,
-  hasNonEmptyStructuredResult,
+  completedEvalOperationEntries,
   requireCodeOperations,
   walkArrays,
   walkRecords,
@@ -73,13 +74,20 @@ export const extensionSurfaceTests: TestCase[] = [
     prompt:
       "Use an available extension for a harmless read-only task and tell me what it returned.",
     validate: (result) => {
-      const base = extensionEvidence(result, [["extensions.invoke"], ["extensions.use"]]);
+      const base = completedScenarioEvidence(result);
       if (!base.passed) return base;
-      return hasNonEmptyStructuredResult(base.evidence.evalValues)
+      const invoked = completedEvalOperationEntries(result).some(
+        (entry) =>
+          entry["type"] === "extension.invocation" &&
+          NativeExtensionInvocationObservationSchema.safeParse(entry["receipt"])
+            .success,
+      );
+      return invoked
         ? { passed: true, reason: undefined }
         : {
             passed: false,
-            reason: "The completed extension invocation returned no observable result",
+            reason:
+              "No completed extension invocation was observed through its native transport",
           };
     },
   },
