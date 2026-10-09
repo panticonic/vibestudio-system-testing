@@ -1,4 +1,5 @@
 import type { TestCase, TestExecutionResult } from "../types.js";
+import { workspacePresenceEntrySchema } from "@vibestudio/service-schemas/workspacePresence";
 import {
   completedScenarioEvidence,
   requireCodeOperations,
@@ -93,12 +94,36 @@ export const multiUserTests: TestCase[] = [
       checked(result, [["workspacePresence.list"]], (values, final) => {
         const presence = firstArray(values);
         if (!presence) return { passed: false, reason: "Presence lookup returned no array" };
-        return finalReportsCount(final, presence.length) &&
-          /(present|presence|online|nobody|no one)/iu.test(final)
+        const parsed = presence.map((entry) => workspacePresenceEntrySchema.safeParse(entry));
+        if (parsed.some((entry) => !entry.success)) {
+          return { passed: false, reason: "Presence lookup returned malformed presence entries" };
+        }
+        const online = parsed.flatMap((entry) =>
+          entry.success && entry.data.online ? [entry.data] : []
+        );
+        const report = final.toLocaleLowerCase();
+        if (online.length === 0) {
+          const reportsNoLiveUsers =
+            /\b(?:nobody|no one|no users?|none)\b/iu.test(final) ||
+            /\b0\s+(?:users?|people)\b/iu.test(final) ||
+            /\[\s*\]/u.test(final);
+          return reportsNoLiveUsers
+            ? { passed: true }
+            : {
+                passed: false,
+                reason: "Final response did not report that no users are currently present",
+              };
+        }
+        const identifiesOnlineUsers = online.every((entry) =>
+          [entry.handle, entry.displayName].some(
+            (name) => name.length > 0 && report.includes(name.toLocaleLowerCase())
+          )
+        );
+        return identifiesOnlineUsers
           ? { passed: true }
           : {
               passed: false,
-              reason: "Final response did not summarize the observed presence list",
+              reason: "Final response did not identify the currently present users",
             };
       }),
   },

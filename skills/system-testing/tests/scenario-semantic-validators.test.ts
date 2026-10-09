@@ -1316,6 +1316,105 @@ describe("workspace semantic validators", () => {
 });
 
 describe("multi-user semantic validators", () => {
+  it("reports named online users without counting recently departed users", () => {
+    const validator = scenario(multiUserTests, "workspace-presence");
+    expect(
+      validator.validate(
+        execution("Alice, Bob", [
+          {
+            code: "return await services.workspacePresence.list();",
+            returnValue: [
+              {
+                userId: "u1",
+                handle: "alice",
+                displayName: "Alice",
+                online: true,
+                lastSeen: 10,
+                endpoints: 1,
+              },
+              {
+                userId: "u2",
+                handle: "bob",
+                displayName: "Bob",
+                online: true,
+                lastSeen: 11,
+                endpoints: 2,
+              },
+              { userId: "u3", handle: "carol", displayName: "Carol", online: false, lastSeen: 9 },
+            ],
+          },
+        ])
+      ).passed
+    ).toBe(true);
+  });
+
+  it("accepts natural zero-presence answers for empty and all-offline results", () => {
+    const validator = scenario(multiUserTests, "workspace-presence");
+    const cases = [
+      { rows: [], answer: "Nobody is here." },
+      {
+        rows: [{ userId: "u1", handle: "alice", displayName: "Alice", online: false, lastSeen: 9 }],
+        answer: "No users online.",
+      },
+      { rows: [], answer: "0 users are currently present." },
+      { rows: [], answer: "The presence list is []." },
+    ];
+    for (const { rows, answer } of cases) {
+      expect(
+        validator.validate(
+          execution(answer, [
+            { code: "return await services.workspacePresence.list();", returnValue: rows },
+          ])
+        ).passed
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a named presence answer that omits an online user", () => {
+    const validator = scenario(multiUserTests, "workspace-presence");
+    expect(
+      validator.validate(
+        execution("Alice is here.", [
+          {
+            code: "return await services.workspacePresence.list();",
+            returnValue: [
+              { userId: "u1", handle: "alice", displayName: "Alice", online: true, lastSeen: 10 },
+              { userId: "u2", handle: "bob", displayName: "Bob", online: true, lastSeen: 11 },
+            ],
+          },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("rejects malformed presence entries", () => {
+    const validator = scenario(multiUserTests, "workspace-presence");
+    expect(
+      validator.validate(
+        execution("Alice is currently online.", [
+          {
+            code: "return await services.workspacePresence.list();",
+            returnValue: [{ userId: "u1", handle: "alice", displayName: "Alice", lastSeen: 10 }],
+          },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
+  it("rejects channel roster evidence as workspace presence", () => {
+    const validator = scenario(multiUserTests, "workspace-presence");
+    expect(
+      validator.validate(
+        execution("Alice is currently present.", [
+          {
+            code: "return await services.gad.inspectChannelRoster();",
+            returnValue: [{ participantId: "user-1", type: "user", name: "Alice" }],
+          },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
   it("accepts a live account profile whose durable identity is a handle", () => {
     const validator = scenario(multiUserTests, "account-whoami");
     expect(
