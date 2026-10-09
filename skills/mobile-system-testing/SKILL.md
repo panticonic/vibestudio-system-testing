@@ -5,9 +5,9 @@ description: Android provisioning and mobile-extension system-test scenarios for
 
 # Mobile system testing
 
-This package contributes Android provisioning and mobile extension scenarios
-when it is included in the workspace source. Templates that include mobile
+When this package is part of the workspace source, it adds Android
+provisioning and mobile-extension scenarios. Templates that include mobile
 tooling open as separate workspaces; they are not installed into the current
-workspace. Run scenarios in the workspace that owns the required tooling.
+workspace, so run these scenarios in the workspace that contains the tooling.
 Core system testing does not assume a mobile client, debugging extension, or
-attached device exists.
+attached device.
