@@ -26,7 +26,27 @@ type ExecutableScaffold = {
   projectType: "panel" | "worker" | "package" | "skill";
   section: "panels" | "workers" | "packages" | "skills";
   fixture: WorkspaceRepoCreationScope;
+  template?: "agentic";
   requiresUnits?: TestCase["requiresUnits"];
+  authorityPolicy?: TestCase["authorityPolicy"];
+};
+
+const AGENTIC_WORKER_TEST_AUTHORITY_POLICY: TestCase["authorityPolicy"] = {
+  authority: [
+    {
+      ruleId: "agentic-worker-native-suite-verification",
+      capability: {
+        kind: "prefix",
+        prefix: "userland:extensions/test-runner/native.code.execute-tests#",
+      },
+      resource: {
+        kind: "exact",
+        key: "native.code.tests:extension:@workspace-extensions/test-runner",
+      },
+      tier: "gated",
+      decision: "once",
+    },
+  ],
 };
 
 const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
@@ -66,6 +86,8 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     projectType: "worker",
     section: "workers",
     fixture: CREATED_WORKER_WORKSPACE_REPO_FIXTURE,
+    template: "agentic",
+    authorityPolicy: AGENTIC_WORKER_TEST_AUTHORITY_POLICY,
   },
   {
     name: "scaffold-package-build",
@@ -104,6 +126,37 @@ function createdScaffold(
   return (
     preparedProject(record, projectType) &&
     String(record["created"]).startsWith(`${section}/`)
+  );
+}
+
+function hasAgenticWorkerEvidence(record: Record<string, unknown>): boolean {
+  const preflight = record["preflight"];
+  const files = record["files"];
+  const created = record["created"];
+  if (
+    !isRecord(preflight) ||
+    !Array.isArray(preflight["importedPackages"]) ||
+    !Array.isArray(files) ||
+    typeof created !== "string"
+  ) {
+    return false;
+  }
+  const importedPackages = new Set(
+    preflight["importedPackages"].filter(
+      (value): value is string => typeof value === "string",
+    ),
+  );
+  const generatedFiles = new Set(
+    files.filter((value): value is string => typeof value === "string"),
+  );
+  const workerName = created.split("/").at(-1);
+  return Boolean(
+    workerName &&
+      ["@workspace/agentic-do", "@workspace/harness", "vitest"].every((name) =>
+        importedPackages.has(name),
+      ) &&
+      generatedFiles.has(`${workerName}-worker.ts`) &&
+      generatedFiles.has(`${workerName}-worker.test.ts`),
   );
 }
 
@@ -157,13 +210,18 @@ function validateExecutableScaffold(
       walkRecords([details(call.execution.result)]).some(
         (record) =>
           createdScaffold(record, variant.projectType, variant.section) &&
+          (variant.template !== "agentic" ||
+            hasAgenticWorkerEvidence(record)) &&
           publishedPreparation(result, record),
       ),
   );
   if (createIndex < 0) {
     return {
       passed: false,
-      reason: `No published ${variant.projectType} scaffold was returned`,
+      reason:
+        variant.template === "agentic"
+          ? "No published agentic worker scaffold with its canonical dependencies and native suite was returned"
+          : `No published ${variant.projectType} scaffold was returned`,
     };
   }
   const target = walkRecords([details(calls[createIndex]!.execution?.result)])
@@ -228,6 +286,9 @@ export const scaffoldMatrixTests: TestCase[] = [
             ),
             resources: [PANEL_AUTOMATION_RESOURCE],
           }
+        : {}),
+      ...(variant.authorityPolicy
+        ? { authorityPolicy: variant.authorityPolicy }
         : {}),
       prompt: variant.prompt,
       validate: (result) => validateExecutableScaffold(result, variant),

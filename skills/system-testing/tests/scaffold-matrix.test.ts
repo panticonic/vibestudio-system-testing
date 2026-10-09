@@ -63,11 +63,29 @@ function created(projectType: string, target: string) {
         scope: "planned-repository",
         semanticBuildGate: "pending-publication",
         projectType,
+        authorityRequestCount: 0,
+        importedPackages: [] as string[],
         checked: ["canonical project type", "non-empty repository"],
       },
       preparation: preparation(),
     },
   };
+}
+
+function createdAgenticWorker(target: string) {
+  const result = created("worker", target);
+  result.returnValue.files = [
+    "package.json",
+    "index.ts",
+    `${target.split("/").at(-1)}-worker.ts`,
+    `${target.split("/").at(-1)}-worker.test.ts`,
+  ];
+  result.returnValue.preflight.importedPackages = [
+    "@workspace/agentic-do",
+    "@workspace/harness",
+    "vitest",
+  ];
+  return result;
 }
 
 function buildReceipt(target: string) {
@@ -117,6 +135,35 @@ describe("scaffold build matrix", () => {
     expect(missingUnitsFor(react, ["packages/runtime"])).toEqual([]);
   });
 
+  it("limits native test-runner preauthorization to the agentic worker suite", () => {
+    const agentic = scaffoldMatrixTests.find(
+      (test) => test.name === "scaffold-agentic-worker-build",
+    )!;
+    const stateless = scaffoldMatrixTests.find(
+      (test) => test.name === "scaffold-stateless-worker-build",
+    )!;
+    const agenticPolicy =
+      typeof agentic.authorityPolicy === "object"
+        ? agentic.authorityPolicy
+        : undefined;
+    expect(agenticPolicy?.authority).toEqual([
+      {
+        ruleId: "agentic-worker-native-suite-verification",
+        capability: {
+          kind: "prefix",
+          prefix: "userland:extensions/test-runner/native.code.execute-tests#",
+        },
+        resource: {
+          kind: "exact",
+          key: "native.code.tests:extension:@workspace-extensions/test-runner",
+        },
+        tier: "gated",
+        decision: "once",
+      },
+    ]);
+    expect(stateless.authorityPolicy).toBeUndefined();
+  });
+
   it("covers every canonical scaffold variant through a real repository fixture", () => {
     expect(
       scaffoldMatrixTests.map((test) => [
@@ -156,7 +203,9 @@ describe("scaffold build matrix", () => {
         `create:${name}`,
         "eval",
         { code: "return await prepareProjects(request);" },
-        created(projectType, target),
+        name === "scaffold-agentic-worker-build"
+          ? createdAgenticWorker(target)
+          : created(projectType, target),
       );
       const verify = invocation(
         `verify:${name}`,
@@ -176,6 +225,31 @@ describe("scaffold build matrix", () => {
       });
     });
   }
+
+  it("rejects a stateless worker as evidence for the agentic worker scaffold", () => {
+    const test = scaffoldMatrixTests.find(
+      (candidate) => candidate.name === "scaffold-agentic-worker-build",
+    )!;
+    const target = "workers/stateless-worker";
+    const create = invocation(
+      "create:agentic-from-stateless",
+      "eval",
+      { code: "return await prepareProjects(request);" },
+      created("worker", target),
+    );
+    const verify = invocation(
+      "verify:stateless",
+      "verify",
+      { operation: "build", target },
+      buildReceipt(target),
+    );
+
+    expect(test.validate(execution([create, verify]))).toEqual({
+      passed: false,
+      reason:
+        "No published agentic worker scaffold with its canonical dependencies and native suite was returned",
+    });
+  });
 
   it("accepts the content-only scaffold without inventing a build target", () => {
     const test = scaffoldMatrixTests.find(
