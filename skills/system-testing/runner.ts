@@ -3,7 +3,7 @@ import {
   type HeadlessWithAgentConfig,
   type SessionSnapshot,
 } from "@workspace/agentic-session";
-import type { ConnectionConfig } from "@workspace/agentic-core";
+import type { ChatMessage, ConnectionConfig } from "@workspace/agentic-core";
 import type { PanelHandle } from "@workspace/runtime";
 import {
   blobstore,
@@ -957,16 +957,18 @@ export class HeadlessRunner {
   }
 
   /**
-   * Settle the session's real chat panel and report what it rendered: every
+   * Settle the session's real chat panel for one answered turn, including the
+   * feedback repair turn Base owes it, and report what it rendered: every
    * channel `ui.feedback` event, and which render failures remain unresolved.
    */
   async observeChatPanelRendering(
     session: HeadlessSession,
+    answer: ChatMessage,
     options?: { signal?: AbortSignal; screenshot?: boolean },
   ): Promise<ChatPanelRenderEvidence> {
     const panel = session.channelId ? this.chatPanels.get(session.channelId) : undefined;
     if (!panel) throw new Error("Session was not spawned with realChatPanel");
-    return observeChatPanelRendering(session, panel, {
+    return observeChatPanelRendering(session, panel, answer, {
       ...(options?.signal ? { signal: options.signal } : {}),
       ...(options?.screenshot ? { storeScreenshot: (data) => blobstore.putBase64(data) } : {}),
     });

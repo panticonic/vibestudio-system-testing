@@ -6,8 +6,10 @@ import type {
 import {
   compileFailureCount,
   extractRichUiSignals,
+  repairCounts,
   scoreRichUi,
   summarizeRender,
+  usedCustomUi,
   type RichUiPrompt,
   type RichUiResponseEvidence,
 } from "./rich-ui-signals.js";
@@ -57,12 +59,37 @@ export const RICH_UI_PROMPTS: readonly RichUiPrompt[] = [
     kind: "ui-worthy",
     prompt: "Explain how a 4-stroke engine works.",
   },
+  // Bespoke: interactive and UI-worthy, but no catalog component fits. The
+  // catalog's Chart/Stats/Compare/Timeline/Checklist/PlaceMap/Choices/
+  // Calculator/ActionButton present data, sequences of text, or numeric forms
+  // with a single formula. Mixing light needs a live swatch driven by three
+  // sliders; stepping an engine needs a drawn, animated state per stroke
+  // (Timeline is static text); a pendulum needs a simulation whose motion
+  // depends on a continuously changed length (Calculator yields numbers only).
+  {
+    id: "rgb-light-mixing",
+    kind: "bespoke",
+    prompt:
+      "I want to get a feel for how mixing red, green and blue light makes colors — let me play with it.",
+  },
+  {
+    id: "engine-strokes",
+    kind: "bespoke",
+    prompt: "Let me step through what happens inside a 4-stroke engine, one stroke at a time.",
+  },
+  {
+    id: "pendulum-length",
+    kind: "bespoke",
+    prompt:
+      "Show me how a pendulum's swing changes when I make the string longer or shorter, so I can try different lengths.",
+  },
   { id: "peru-capital", kind: "plain", prompt: "What's the capital of Peru?" },
   { id: "typo-fix", kind: "plain", prompt: "Fix the typo: 'recieve'" },
   { id: "multiply", kind: "plain", prompt: "What's 17 times 23?" },
 ];
 
 export const POSITIVE_RATE_THRESHOLD = 0.75;
+export const BESPOKE_CUSTOM_RATE_THRESHOLD = 2 / 3;
 const EVIDENCE_KEY = "richUiPropensity";
 
 function formatError(error: unknown): string {
@@ -71,7 +98,8 @@ function formatError(error: unknown): string {
 
 /**
  * One fresh session for one prompt, with the stock chat panel rendering the
- * channel. After the response, the settled panel reports what it rendered.
+ * channel. After the response (and the feedback repair turn Base owes it when
+ * its output failed), the settled panel reports what it rendered.
  */
 async function runPrompt(
   context: TestOrchestrationContext,
@@ -85,9 +113,9 @@ async function runPrompt(
   let sendError: unknown;
   let render: RichUiResponseEvidence["render"];
   try {
-    await context.sendAndWait(session, prompt.prompt, prompt.id);
+    const answer = await context.sendAndWait(session, prompt.prompt, prompt.id);
     render = summarizeRender(
-      await context.runner.observeChatPanelRendering(session, {
+      await context.runner.observeChatPanelRendering(session, answer, {
         signal: context.signal,
         screenshot: true,
       }),
@@ -167,17 +195,23 @@ function renderProblem(response: RichUiResponseEvidence): string | undefined {
   if (!render) return "No rendered-panel evidence was recorded";
   if (render.undelivered.length > 0)
     return `The panel showed failures it could not report: ${render.undelivered.join(", ")}`;
-  if (render.unresolved.length > 0)
-    return `Rich UI failed to render: ${render.unresolved
+  if (render.unresolved.length > 0) {
+    const repair = render.repair.ran
+      ? `repair turn ${render.repair.outcome}${render.repair.closeReason ? ` (${render.repair.closeReason})` : ""}, produced ${render.repair.subjects.length} output(s)`
+      : `no repair turn: ${render.repair.notOwed ?? "not owed"}`;
+    return `Rich UI failed to render (${repair}): ${render.unresolved
       .map((failure) => `${failure.category} ${failure.subject ?? "?"}: ${failure.message}`)
       .join("; ")}`;
+  }
   return undefined;
 }
 
 /**
- * `compileFailureCount` is the number of final unresolved render failures
- * (compile_failed / render_failed / props_invalid `ui.feedback` from the real
- * chat panel) summed over sessions; see `classifyRenderFailures`.
+ * `compileFailureCount` (= `unrepairedCount`) is the number of final
+ * unresolved render failures (compile_failed / render_failed / props_invalid
+ * `ui.feedback` from the real chat panel) summed over sessions, after each
+ * answer's feedback repair turn; `repairedCount` counts the failures that a
+ * clean re-render or the repair turn fixed. See `classifyRenderFailures`.
  */
 export function validatePropensityScore(result: TestExecutionResult) {
   const responses = responsesOf(result);
@@ -185,6 +219,7 @@ export function validatePropensityScore(result: TestExecutionResult) {
   const details = {
     ...score,
     compileFailureCount: compileFailureCount(responses),
+    ...repairCounts(responses),
     perPrompt: responses,
   };
   if (score.erroredPrompts.length > 0) {
@@ -206,11 +241,24 @@ export function validatePropensityScore(result: TestExecutionResult) {
   }
   if (score.positiveRate < POSITIVE_RATE_THRESHOLD) {
     const missed = responses
-      .filter((r) => r.kind === "ui-worthy" && !r.signals.usedRichUi)
+      .filter((r) => r.kind !== "plain" && !r.signals.usedRichUi)
       .map((r) => r.promptId);
     return {
       passed: false,
       reason: `positiveRate ${score.positiveRate.toFixed(2)} is below ${POSITIVE_RATE_THRESHOLD}; plain-text answers for: ${missed.join(", ")}`,
+      details,
+    };
+  }
+  if (
+    score.bespokeCount > 0 &&
+    score.bespokeCustomRate < BESPOKE_CUSTOM_RATE_THRESHOLD - 1e-9
+  ) {
+    const missed = responses
+      .filter((r) => r.kind === "bespoke" && !usedCustomUi(r.signals))
+      .map((r) => r.promptId);
+    return {
+      passed: false,
+      reason: `bespokeCustomRate ${score.bespokeCustomRate.toFixed(2)} is below ${BESPOKE_CUSTOM_RATE_THRESHOLD.toFixed(2)}; no custom component or inline_ui for: ${missed.join(", ")}`,
       details,
     };
   }
@@ -234,11 +282,21 @@ export function validateSinglePrompt(result: TestExecutionResult) {
   const details = {
     ...response,
     compileFailureCount: compileFailureCount([response]),
+    ...repairCounts([response]),
   };
   if (response.error)
     return { passed: false, reason: response.error, details };
   const problem = renderProblem(response);
   if (problem) return { passed: false, reason: problem, details };
+  if (response.kind === "bespoke")
+    return usedCustomUi(response.signals)
+      ? { passed: true, details }
+      : {
+          passed: false,
+          reason:
+            "Answered a bespoke interactive prompt without a custom component or inline_ui",
+          details,
+        };
   const wanted = response.kind === "ui-worthy";
   return response.signals.usedRichUi === wanted
     ? { passed: true, details }

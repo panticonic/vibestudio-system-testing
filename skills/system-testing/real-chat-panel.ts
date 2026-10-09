@@ -3,6 +3,7 @@ import type {
   HeadlessSession,
   ObservedUiFeedback,
 } from "@workspace/agentic-session";
+import type { ProjectedTurn } from "@workspace/agentic-protocol";
 import type { PanelHandle } from "@workspace/runtime";
 import { isAgentCompletionMessage } from "./agent-message.js";
 
@@ -41,15 +42,44 @@ export interface SettledChatPanel {
   subjects: string[];
 }
 
+/**
+ * The one repair turn Base owes an ordinary agent turn whose output the panel
+ * reported failing (see Base `feedbackRepairAdmission`): a `ui.feedback`
+ * addressed to the agent whose `refs.turnId` names that turn wakes the agent
+ * once; failures of the repair turn's own output never wake it again.
+ */
+export interface FeedbackRepairEvidence {
+  /** The ordinary turn being judged. */
+  turnId: string;
+  /** Occurrence keys of delivered feedback that admitted the repair turn. */
+  admittedBy: string[];
+  /** Why no repair turn was owed, when `admittedBy` is empty. */
+  notOwed?: string;
+  /** The repair turn the agent opened, or null when none was owed. */
+  repairTurnId: string | null;
+  /** `completed` when the repair turn closed normally. */
+  outcome: "not_owed" | "completed" | "failed";
+  /** The repair turn's close reason when it did not complete. */
+  closeReason?: string;
+  /** `kind:id` subjects the repair turn produced. */
+  subjects: string[];
+}
+
 export interface ChatPanelRenderEvidence {
   panelId: string;
   settled: SettledChatPanel;
   /** Every `ui.feedback` event observed on the channel. */
   feedback: ObservedUiFeedback[];
-  /** Render failures whose subject's final revision still fails (or never re-rendered). */
+  /** Render failures still shown once the judged turn's own output settled. */
+  initialFailures: ObservedUiFeedback[];
+  /** The judged turn's feedback repair lifecycle. */
+  repair: FeedbackRepairEvidence;
+  /** Render failures neither re-rendered cleanly nor repaired. */
   unresolved: ObservedUiFeedback[];
   /** Render failures superseded by a successful render of the same subject. */
   resolved: ObservedUiFeedback[];
+  /** Render failures of the judged turn fixed by its repair turn. */
+  repaired: ObservedUiFeedback[];
   /** Failures the panel shows but could not report to their author. */
   undelivered: MountedFailureReport[];
   screenshot?: { digest: string; mimeType: string; width: number; height: number };
@@ -68,29 +98,38 @@ export function feedbackSubject(event: ObservedUiFeedback): string | null {
 }
 
 /**
- * Split render-failure reports into unresolved and resolved.
+ * Split render-failure reports into unresolved, resolved, and repaired.
  *
  * A failure occurrence is identified by its `occurrenceKey`, which the panel
  * derives from the subject's rendered revision. The panel mounts a reporter
  * exactly while it shows that failure. In the settled panel a reported
- * failure is therefore:
- *  - unresolved when its reporter is still mounted (the subject's final
- *    revision fails this way), or when its subject is no longer rendered at
- *    all (nothing replaced it with a working render), or when it names no
- *    subject that could be re-rendered;
- *  - resolved when its subject is rendered and the failure is no longer shown,
- *    i.e. a later revision of the same inline UI / action bar / message
- *    compiled and rendered without it.
+ * failure F of subject S is:
+ *  - resolved when S is rendered and F is no longer shown, i.e. a later
+ *    revision of the same inline UI / action bar / message compiled and
+ *    rendered without it;
+ *  - repaired when F came from the judged turn's output (`refs.turnId`), that
+ *    turn's repair turn completed and produced at least one replacement
+ *    output, and every subject the repair turn produced is rendered without
+ *    an unresolved failure. An MDX message never re-renders, so this is how a
+ *    failed message is fixed: by a new message from the repair turn;
+ *  - unresolved otherwise: still shown, its subject gone, no subject at all,
+ *    or nothing repaired it. Failures of the repair turn's own output are
+ *    never repaired; they are resolved only by a clean re-render.
  * Repeated events with one occurrence key count once.
  */
 export function classifyRenderFailures(
   feedback: readonly ObservedUiFeedback[],
   settled: SettledChatPanel,
-): { unresolved: ObservedUiFeedback[]; resolved: ObservedUiFeedback[] } {
+  repair?: FeedbackRepairEvidence,
+): {
+  unresolved: ObservedUiFeedback[];
+  resolved: ObservedUiFeedback[];
+  repaired: ObservedUiFeedback[];
+} {
   const shown = new Set(settled.reports.map((report) => report.occurrenceKey));
   const rendered = new Set(settled.subjects);
   const seen = new Set<string>();
-  const unresolved: ObservedUiFeedback[] = [];
+  const failing: ObservedUiFeedback[] = [];
   const resolved: ObservedUiFeedback[] = [];
   for (const event of feedback) {
     if (!RENDER_FAILURE_CATEGORIES.has(event.payload.category)) continue;
@@ -98,10 +137,148 @@ export function classifyRenderFailures(
     seen.add(event.payload.occurrenceKey);
     const subject = feedbackSubject(event);
     if (shown.has(event.payload.occurrenceKey) || !subject || !rendered.has(subject))
-      unresolved.push(event);
+      failing.push(event);
     else resolved.push(event);
   }
-  return { unresolved, resolved };
+  const failingSubjects = new Set(failing.map(feedbackSubject));
+  const repairHeld =
+    repair?.outcome === "completed" &&
+    repair.subjects.length > 0 &&
+    repair.subjects.every(
+      (subject) => rendered.has(subject) && !failingSubjects.has(subject),
+    );
+  const unresolved: ObservedUiFeedback[] = [];
+  const repaired: ObservedUiFeedback[] = [];
+  for (const event of failing)
+    (repairHeld && event.payload.refs?.turnId === repair.turnId
+      ? repaired
+      : unresolved
+    ).push(event);
+  return { unresolved, resolved, repaired };
+}
+
+const NATIVE_RUN_TURN = /^native-run:([^:]+):([1-9]\d*)$/u;
+
+/**
+ * Native runs of the judged turn's conversation opened after it. No user
+ * input follows the judged turn while it is observed, so each such run was
+ * opened by a non-user input; Base admits exactly one, the feedback repair.
+ */
+function laterNativeRuns(
+  session: HeadlessSession,
+  turnId: string,
+): ProjectedTurn[] {
+  const judged = NATIVE_RUN_TURN.exec(turnId);
+  if (!judged) return [];
+  return Object.values(session.channelView.turns).filter((turn) => {
+    const run = NATIVE_RUN_TURN.exec(turn.turnId);
+    return run !== null && run[1] === judged[1] && Number(run[2]) > Number(judged[2]);
+  });
+}
+
+/** The agent-authored surfaces one turn produced, as `kind:id` subjects. */
+function turnSubjects(session: HeadlessSession, turnId: string): string[] {
+  const subjects = new Set<string>();
+  for (const message of session.messages) {
+    if (isRenderedAgentText(message) && message.turnId === turnId)
+      subjects.add(`message:${message.id}`);
+    if (
+      message.contentType === "inline_ui" &&
+      message.inlineUi?.id &&
+      (message.inlineUi.turnId ?? message.turnId) === turnId
+    )
+      subjects.add(`inline_ui:${message.inlineUi.id}`);
+  }
+  for (const bar of Object.values(session.channelView.actionBars))
+    if (bar?.id && bar.turnId === turnId && !bar.cleared)
+      subjects.add(`action_bar:${bar.id}`);
+  return [...subjects];
+}
+
+/**
+ * Join the judged turn's feedback repair through its real lifecycle.
+ *
+ * Whether a repair is owed is decided from the admission rule's own inputs,
+ * not from elapsed time: a `ui.feedback` the channel accepted (the session
+ * observed it) is delivered to its target durably, and Base admits a repair
+ * input for the first such feedback addressed to the agent that names an
+ * ordinary native turn. When owed, the repair run's `turn.closed` on the
+ * channel is the terminal event; it follows the run's published answers in
+ * the same ordered delivery chain.
+ */
+export async function observeFeedbackRepair(
+  session: HeadlessSession,
+  answer: ChatMessage,
+  signal?: AbortSignal,
+): Promise<FeedbackRepairEvidence> {
+  const turnId = answer.turnId;
+  if (!turnId || !NATIVE_RUN_TURN.test(turnId))
+    return {
+      turnId: turnId ?? "",
+      admittedBy: [],
+      notOwed: `the answer names no ordinary native turn (${turnId ?? "no turnId"})`,
+      repairTurnId: null,
+      outcome: "not_owed",
+      subjects: [],
+    };
+  const naming = session.uiFeedback.filter(
+    (event) => event.payload.refs?.turnId === turnId,
+  );
+  const admittedBy = [
+    ...new Set(
+      naming
+        .filter((event) => event.payload.target.participantId === answer.senderId)
+        .map((event) => event.payload.occurrenceKey),
+    ),
+  ];
+  if (admittedBy.length === 0) {
+    const unaddressed = session.uiFeedback.filter(
+      (event) =>
+        RENDER_FAILURE_CATEGORIES.has(event.payload.category) &&
+        event.payload.refs?.turnId !== turnId,
+    );
+    return {
+      turnId,
+      admittedBy,
+      ...(naming.length > 0
+        ? {
+            notOwed: `feedback naming ${turnId} was addressed to ${naming
+              .map((event) => event.payload.target.participantId ?? "no participant")
+              .join(", ")}, not the agent ${answer.senderId}`,
+          }
+        : unaddressed.length > 0
+          ? {
+              notOwed: `render failures named no ordinary turn of this answer: ${unaddressed
+                .map((event) => `${event.payload.occurrenceKey} (turn ${event.payload.refs?.turnId ?? "none"})`)
+                .join(", ")}`,
+            }
+          : { notOwed: "no feedback was delivered" }),
+      repairTurnId: null,
+      outcome: "not_owed",
+      subjects: [],
+    };
+  }
+  const repairTurn = await session.waitUntil(
+    () => {
+      const later = laterNativeRuns(session, turnId);
+      if (later.length > 1)
+        throw new Error(
+          `Feedback for ${turnId} opened more than one later run: ${later
+            .map((turn) => turn.turnId)
+            .join(", ")}`,
+        );
+      return later[0]?.status === "closed" ? later[0] : undefined;
+    },
+    signal ? { signal } : undefined,
+  );
+  return {
+    turnId,
+    admittedBy,
+    repairTurnId: repairTurn.turnId,
+    outcome: repairTurn.reason ? "failed" : "completed",
+    ...(repairTurn.reason ? { closeReason: repairTurn.reason } : {}),
+    subjects: turnSubjects(session, repairTurn.turnId),
+  };
 }
 
 /**
@@ -205,18 +382,15 @@ const SETTLE_EXPRESSION = `(async (expected) => {
 })`;
 
 /**
- * Observe the rendered outcome of the session's transcript in its real chat
- * panel: wait until the panel has settled every agent-authored surface, then
- * join each failure it shows to the `ui.feedback` event it published.
+ * Settle every agent-authored surface the session's transcript holds in the
+ * panel, then wait until each shown failure whose report the channel accepted
+ * has reached this session too (that exact occurrence, not a sample).
  */
-export async function observeChatPanelRendering(
+async function settleChatPanel(
   session: HeadlessSession,
   panel: PanelHandle,
-  options: {
-    signal?: AbortSignal;
-    storeScreenshot?: (base64: string) => Promise<{ digest: string }>;
-  } = {},
-): Promise<ChatPanelRenderEvidence> {
+  signal?: AbortSignal,
+): Promise<SettledChatPanel> {
   const messageIds = session.messages.filter(isRenderedAgentText).map((m) => m.id);
   const inlineUiIds = [
     ...new Set(
@@ -228,10 +402,8 @@ export async function observeChatPanelRendering(
   const settled = await evaluateInPanel<SettledChatPanel>(
     panel,
     `${SETTLE_EXPRESSION}(${JSON.stringify({ messageIds, inlineUiIds })})`,
-    options.signal,
+    signal,
   );
-  // A shown failure whose report was accepted by the channel must reach this
-  // session too; wait for that exact occurrence rather than sampling.
   const sent = settled.reports.filter((report) => report.delivery === "sent");
   await session.waitUntil(
     () =>
@@ -240,16 +412,46 @@ export async function observeChatPanelRendering(
           (event) => event.payload.occurrenceKey === report.occurrenceKey,
         ),
       ) || undefined,
-    options.signal ? { signal: options.signal } : undefined,
+    signal ? { signal } : undefined,
   );
+  return settled;
+}
+
+/**
+ * Observe the rendered outcome of one answered turn in the session's real
+ * chat panel: settle its output, join the feedback repair turn Base owes it
+ * when the panel reported that output failing, settle again with the repair's
+ * output, and classify every reported failure (`classifyRenderFailures`).
+ */
+export async function observeChatPanelRendering(
+  session: HeadlessSession,
+  panel: PanelHandle,
+  answer: ChatMessage,
+  options: {
+    signal?: AbortSignal;
+    storeScreenshot?: (base64: string) => Promise<{ digest: string }>;
+  } = {},
+): Promise<ChatPanelRenderEvidence> {
+  let settled = await settleChatPanel(session, panel, options.signal);
+  const initialFailures = classifyRenderFailures(session.uiFeedback, settled).unresolved;
+  const repair = await observeFeedbackRepair(session, answer, options.signal);
+  if (repair.repairTurnId)
+    settled = await settleChatPanel(session, panel, options.signal);
   const feedback = [...session.uiFeedback];
-  const { unresolved, resolved } = classifyRenderFailures(feedback, settled);
+  const { unresolved, resolved, repaired } = classifyRenderFailures(
+    feedback,
+    settled,
+    repair,
+  );
   const evidence: ChatPanelRenderEvidence = {
     panelId: panel.id,
     settled,
     feedback,
+    initialFailures,
+    repair,
     unresolved,
     resolved,
+    repaired,
     undelivered: settled.reports.filter((report) => report.delivery === "failed"),
   };
   if (options.storeScreenshot) {

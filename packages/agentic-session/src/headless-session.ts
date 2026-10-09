@@ -1133,6 +1133,14 @@ export class HeadlessSession {
     return this._uiFeedback;
   }
 
+  /**
+   * The channel's reduced projection (turn lifecycle, action bars, ...) as of
+   * the last observed event; `waitUntil` re-evaluates on every change.
+   */
+  get channelView(): Readonly<ChannelViewState> {
+    return this._channelView;
+  }
+
   get isStreaming(): boolean {
     return this._hasIncomplete;
   }
