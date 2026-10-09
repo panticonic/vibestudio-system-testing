@@ -28,7 +28,6 @@ const STANDARD_METHODS = [
   "setRespondPolicy",
   "getAgentSettings",
   "getModelExecutionEvidence",
-  "getDebugState",
 ];
 
 class CapturingTestAgentWorker extends TestAgentWorker {
