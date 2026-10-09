@@ -26,8 +26,14 @@ export const RICH_UI_PROMPTS: readonly RichUiPrompt[] = [
   },
   {
     id: "bill-split",
-    kind: "ui-worthy",
+    kind: "plain",
     prompt: "Help me split a $180 dinner bill among 4 people with an 18% tip.",
+  },
+  {
+    id: "bill-split-what-if",
+    kind: "ui-worthy",
+    prompt:
+      "Help me explore how each person's share of a $180 dinner changes as we adjust the tip and number of people. Consider a small group of 4 and a larger group of 6, and show what happens from a 15% tip to a 22% tip.",
   },
   {
     id: "inflation",

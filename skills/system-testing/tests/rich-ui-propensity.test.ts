@@ -200,10 +200,44 @@ describe("scoring", () => {
     expect(validatePropensityScore(withEvidence(rows)).passed).toBe(false);
   });
 
-  it("single-prompt validator checks the expected direction", () => {
+  it("keeps fixed bill arithmetic plain and classifies variable split scenarios as UI-worthy", () => {
+    const fixed = RICH_UI_PROMPTS.find((prompt) => prompt.id === "bill-split");
+    const whatIf = RICH_UI_PROMPTS.find((prompt) => prompt.id === "bill-split-what-if");
+    expect(fixed?.kind).toBe("plain");
+    expect(whatIf?.kind).toBe("ui-worthy");
+
+    const score = scoreRichUi([
+      ...evidence([["bill-split", "plain", false]]),
+      ...evidence([["bill-split-what-if", "ui-worthy", true]]),
+    ]);
+    expect(score).toMatchObject({
+      positiveRate: 1,
+      negativeLeak: 0,
+      uiWorthyCount: 1,
+      plainCount: 1,
+    });
+  });
+
+  it("single-prompt validator checks the expected direction and never accepts broken rich UI", () => {
     expect(validateSinglePrompt(withEvidence(evidence([["a", "ui-worthy", true]]))).passed).toBe(true);
+    expect(validateSinglePrompt(withEvidence(evidence([["a", "plain", false]]))).passed).toBe(true);
     expect(validateSinglePrompt(withEvidence(evidence([["a", "plain", true]]))).passed).toBe(false);
     expect(validateSinglePrompt(withEvidence([])).passed).toBe(false);
+
+    const broken = evidence([["fixed-bill", "plain", true]]);
+    broken[0]!.render = {
+      ...cleanRender(),
+      feedbackCount: 1,
+      unresolved: [{
+        category: "props_invalid",
+        subject: "message:m1",
+        message: "Calculator fields must be a non-empty array",
+        occurrenceKey: "broken-calculator",
+      }],
+    };
+    const failed = validateSinglePrompt(withEvidence(broken));
+    expect(failed.passed).toBe(false);
+    expect(failed.reason).toContain("Rich UI failed to render");
   });
 });
 
