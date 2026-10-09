@@ -427,6 +427,7 @@ export const filesystemTests: TestCase[] = [
               record["exists"] === false ||
               record["removed"] === true ||
               record["cleaned"] === true ||
+              record["gone"] === true ||
               Object.entries(record).some(
                 ([key, value]) => /exists.*after|after.*exists/iu.test(key) && value === false
               )

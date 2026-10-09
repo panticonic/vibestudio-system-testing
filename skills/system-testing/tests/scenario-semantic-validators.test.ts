@@ -1089,6 +1089,40 @@ describe("filesystem semantic validators", () => {
     ).toBe(false);
   });
 
+  it("accepts a natural gone result from a completed removal probe", () => {
+    const validator = scenario(filesystemTests, "remove");
+    const code = "await fs.mkdir(path); await fs.rm(path); return { gone: !(await fs.exists(path)) };";
+    expect(
+      validator.validate(
+        execution("The temporary directory is gone.", [
+          { code, returnValue: { gone: true } },
+        ])
+      ).passed
+    ).toBe(true);
+    expect(
+      validator.validate(
+        execution("The temporary directory is gone.", [
+          { code, returnValue: { gone: false } },
+        ])
+      ).passed
+    ).toBe(false);
+    expect(
+      validator.validate(
+        execution("The temporary directory is gone.", [
+          { code: "return await help();", returnValue: { gone: true } },
+          { code },
+        ])
+      ).passed
+    ).toBe(false);
+    expect(
+      validator.validate(
+        execution("The temporary directory is gone.", [
+          { code, status: "error", returnValue: { gone: true } },
+        ])
+      ).passed
+    ).toBe(false);
+  });
+
   it("accepts explicit post-removal existence evidence", () => {
     const validator = scenario(filesystemTests, "remove");
     expect(
