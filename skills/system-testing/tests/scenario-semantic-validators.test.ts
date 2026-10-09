@@ -54,6 +54,28 @@ function extensionJournal(
   };
 }
 
+function typecheckJournal(
+  extensionKey = "@workspace-extensions/typecheck-service",
+  method = "checkPanel",
+) {
+  return {
+    protocol: "workspace-operations.v1",
+    truncated: false,
+    entries: [
+      {
+        type: "extension.invocation",
+        receipt: {
+          protocol: "extension-invocation-observation.v1",
+          transport: "invoke",
+          extensionKey,
+          method,
+          result: { kind: "object", keyCount: 3 },
+        },
+      },
+    ],
+  };
+}
+
 function execution(finalMessage: string, steps: EvalStep[]): TestExecutionResult {
   const messages: TestExecutionResult["messages"] = [
     {
@@ -1724,12 +1746,118 @@ describe("extension semantic validators", () => {
     const result = execution("The selected unit type-checks without diagnostics.", [
       {
         code: 'return services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["panels/app"]);',
+        operationJournal: typecheckJournal(),
         returnValue: { diagnostics: [], success: true },
       },
     ]);
     expect(
       scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
     ).toBe(true);
+  });
+
+  it("accepts an explicit compact diagnostic summary from the installed typecheck service", () => {
+    const result = execution("The typecheck reported 26 errors and no warnings.", [
+      {
+        code: 'const result = await services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["packages/about-shared"]); return { errorCount: result.errorCount, warningCount: result.warningCount };',
+        operationJournal: typecheckJournal(),
+        returnValue: { errorCount: 26, warningCount: 0 },
+      },
+    ]);
+    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(true);
+  });
+
+  it("accepts an aliased invocation when its native receipt proves the exact typecheck call", () => {
+    const result = execution("The typecheck reported 26 errors and no warnings.", [
+      {
+        code: 'const extensionClient = services.extensions; const check = extensionClient.invoke; return check("@workspace-extensions/typecheck-service", "checkPanel", ["packages/about-shared"]);',
+        operationJournal: typecheckJournal(),
+        returnValue: { errorCount: 26, warningCount: 0 },
+      },
+    ]);
+    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(true);
+  });
+
+  it("rejects negative and fractional diagnostic counts", () => {
+    for (const returnValue of [
+      { errorCount: -1, warningCount: 0 },
+      { errorCount: 1.5, warningCount: 0 },
+    ]) {
+      const result = execution("The typecheck reported diagnostics.", [
+        {
+          code: 'return services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["packages/about-shared"]);',
+          operationJournal: typecheckJournal(),
+          returnValue,
+        },
+      ]);
+      expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(false);
+    }
+  });
+
+  it("accepts the official large-return envelope when the answer summarizes diagnostics", () => {
+    const result = execution("The typecheck reported 26 errors and no warnings.", [
+      {
+        code: 'const result = await services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["packages/about-shared"]); return result;',
+        operationJournal: typecheckJournal(),
+        returnValue: {
+          truncated: true,
+          reason: "eval return value exceeded result transport/storage limit",
+          originalChars: 20592,
+          limitChars: 12000,
+          measuredAs: "json-indent-2",
+          scopeKey: "$lastLargeReturn",
+          scopeValueType: "string",
+          preview: "{ ...",
+        },
+      },
+    ]);
+    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(true);
+  });
+
+  it("rejects summaries and truncation without exact native typecheck evidence", () => {
+    const code = 'return services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["panels/app"]);';
+    const value = { errorCount: 26, warningCount: 0 };
+    for (const [journal, returnValue] of [
+      [undefined, value],
+      [typecheckJournal("@workspace-extensions/other-service"), value],
+      [typecheckJournal("@workspace-extensions/typecheck-service", "listUnits"), value],
+      [typecheckJournal(), {
+        truncated: true,
+        reason: "eval return value exceeded result transport/storage limit",
+        scopeKey: "$lastLargeReturn",
+        scopeValueType: "string",
+        originalChars: 20592,
+        limitChars: 0,
+        measuredAs: "json-indent-2",
+        preview: "partial output",
+      }],
+      [typecheckJournal(), {
+        truncated: true,
+        reason: "eval return value exceeded result transport/storage limit",
+        scopeKey: "$lastLargeReturn",
+        scopeValueType: "string",
+        originalChars: 12000,
+        limitChars: 12000,
+        measuredAs: "json-indent-2",
+        preview: "partial output",
+      }],
+    ] as const) {
+      const result = execution("The typecheck reported 26 errors and no warnings.", [
+        { code, ...(journal ? { operationJournal: journal } : {}), returnValue },
+      ]);
+      expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(false);
+    }
+  });
+
+  it("rejects a failed typecheck invocation even when its return value resembles diagnostics", () => {
+    const result = execution("The typecheck reported 26 errors.", [
+      {
+        code: 'return services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["panels/app"]);',
+        operationJournal: typecheckJournal(),
+        returnValue: { errorCount: 26 },
+        status: "error",
+      },
+    ]);
+    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(false);
   });
 
   it("rejects a candidate build receipt as evidence of an installed typecheck-service invocation", () => {

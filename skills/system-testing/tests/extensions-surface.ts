@@ -7,6 +7,7 @@ import {
   walkArrays,
   walkRecords,
 } from "./_scenario-evidence.js";
+import { findLastAgentMessage } from "./_helpers.js";
 
 function extensionEvidence(
   result: TestExecutionResult,
@@ -26,6 +27,51 @@ function hasDiagnostics(values: readonly unknown[]): boolean {
         typeof record["result"] === "object" &&
         Array.isArray((record["result"] as Record<string, unknown>)["diagnostics"]))
   );
+}
+
+function isTypecheckInvocation(result: TestExecutionResult): boolean {
+  return completedEvalOperationEntries(result).some((entry) => {
+    if (entry["type"] !== "extension.invocation") return false;
+    const parsed = NativeExtensionInvocationObservationSchema.safeParse(entry["receipt"]);
+    return (
+      parsed.success &&
+      parsed.data.transport === "invoke" &&
+      parsed.data.extensionKey === "@workspace-extensions/typecheck-service" &&
+      (parsed.data.method === "check" || parsed.data.method === "checkPanel")
+    );
+  });
+}
+
+function hasTypecheckSummary(values: readonly unknown[]): boolean {
+  return walkRecords(values).some((record) => {
+    const counts = ["diagnosticCount", "errorCount", "warningCount"]
+      .filter((key) => Object.hasOwn(record, key))
+      .map((key) => record[key]);
+    return counts.length > 0 && counts.every(
+      (count) => typeof count === "number" && Number.isInteger(count) && count >= 0,
+    );
+  });
+}
+
+function hasOfficialReturnTruncation(values: readonly unknown[]): boolean {
+  return walkRecords(values).some(
+    (record) =>
+      record["truncated"] === true &&
+      record["reason"] === "eval return value exceeded result transport/storage limit" &&
+      record["scopeKey"] === "$lastLargeReturn" &&
+      record["scopeValueType"] === "string" &&
+      Number.isInteger(record["originalChars"]) &&
+      (record["originalChars"] as number) > 0 &&
+      Number.isInteger(record["limitChars"]) &&
+      (record["limitChars"] as number) > 0 &&
+      (record["originalChars"] as number) > (record["limitChars"] as number) &&
+      record["measuredAs"] === "json-indent-2" &&
+      typeof record["preview"] === "string",
+  );
+}
+
+function summarizesDiagnostics(message: string): boolean {
+  return /diagnostic|\berrors?\b|\bwarnings?\b|type[- ]?checks? (?:clean|passed|failed)/i.test(message);
 }
 
 export const extensionSurfaceTests: TestCase[] = [
@@ -54,16 +100,21 @@ export const extensionSurfaceTests: TestCase[] = [
     prompt:
       "Use the installed typecheck extension to request diagnostics for a small existing workspace unit, and summarize what it reports.",
     validate: (result) => {
-      const base = extensionEvidence(result, [
-        ["extensions.invoke", "typecheck", "check"],
-        ["extensions.use", "typecheck", "check"],
-      ]);
+      const base = completedScenarioEvidence(result);
       if (!base.passed) return base;
-      return hasDiagnostics(base.evidence.evalValues)
+      if (!isTypecheckInvocation(result))
+        return {
+          passed: false,
+          reason: "No completed native invocation of the installed typecheck extension was observed",
+        };
+      const values = base.evidence.evalValues;
+      const hasDirectResult = hasDiagnostics(values) || hasTypecheckSummary(values);
+      const hasTruncatedResult = hasOfficialReturnTruncation(values);
+      return hasDirectResult || (hasTruncatedResult && summarizesDiagnostics(findLastAgentMessage(result)))
         ? { passed: true, reason: undefined }
         : {
             passed: false,
-            reason: "The completed typecheck invocation returned no diagnostics collection",
+            reason: "The completed typecheck invocation returned no diagnostics or bounded summary",
           };
     },
   },
