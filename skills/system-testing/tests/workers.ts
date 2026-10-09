@@ -260,10 +260,12 @@ function requireDynamicWorkspaceServiceEvidence(result: TestExecutionResult) {
       call.execution?.status === "complete" &&
       call.execution.isError !== true
   );
-  const invoked = evalCalls.find((call) => {
-    const code = String(call.arguments?.["code"] ?? "");
-    return /workers\.resolveService\s*\(/u.test(code) && /rpc\.call\s*\(/u.test(code);
-  });
+  const resolvedIndex = evalCalls.findIndex((call) =>
+    /workers\.resolveService\s*\(/u.test(String(call.arguments?.["code"] ?? ""))
+  );
+  const invoked = resolvedIndex < 0 ? undefined : evalCalls.slice(resolvedIndex).find((call) =>
+    /rpc\.call\s*\(/u.test(String(call.arguments?.["code"] ?? ""))
+  );
   const returned = invoked ? invocationReturnValue(invoked) : { present: false as const };
   if (!returned.present || !hasNonEmptyStructuredResult([returned.value])) {
     return {
@@ -574,7 +576,7 @@ export const workerTests: TestCase[] = [
   },
   {
     name: "dynamic-workspace-service",
-    description: "Author and consume a service that exists only in the task context",
+    description: "Author and consume a private RPC service in the task context",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
     authorityPolicy: ({ workspaceRepoFixture }) => {
@@ -598,7 +600,7 @@ export const workerTests: TestCase[] = [
       };
     },
     prompt:
-      "Give the disposable worker in this task a small context-local service that reports a value, discover it the same way another workspace unit would, call it, and tell me what answered. Do not publish anything.",
+      "Give the disposable worker in this task a small private context-local RPC service that reports a value, discover it the same way another workspace unit would, call it, and tell me what answered. Do not publish anything.",
     validate: requireDynamicWorkspaceServiceEvidence,
   },
   {

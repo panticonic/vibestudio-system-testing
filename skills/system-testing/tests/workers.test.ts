@@ -652,6 +652,33 @@ describe("worker test validators", () => {
     typed.messages.splice(1, 0, docs, typedAuthored);
     expect(test("dynamic-workspace-service").validate(typed).passed).toBe(true);
 
+    const split = execution(
+      "The context-local probe answered with its value.",
+      'scope.service = await workers.resolveService("test.probe.v1"); return scope.service;',
+      { kind: "durable-object", targetId: "do:workers/probe:ProbeDO:task" }
+    );
+    split.messages.splice(1, 0, docs, typedAuthored);
+    const invoke = execution(
+      "The context-local probe answered with its value.",
+      'return rpc.call(scope.service.targetId, "report", []);',
+      { answer: "context-local" }
+    ).messages[1]!;
+    invoke.id = "split-invoke-message";
+    (invoke as unknown as { invocation: { id: string } }).invocation.id = "split-invoke";
+    split.messages.splice(-1, 0, invoke);
+    expect(test("dynamic-workspace-service").validate(split).passed).toBe(true);
+
+    const missingResolution = structuredClone(split);
+    missingResolution.messages = missingResolution.messages.filter(
+      (message) => message.id !== "call-eval-message"
+    );
+    expect(test("dynamic-workspace-service").validate(missingResolution).passed).toBe(false);
+    const missingInvocation = structuredClone(split);
+    missingInvocation.messages = missingInvocation.messages.filter(
+      (message) => message.id !== "split-invoke-message"
+    );
+    expect(test("dynamic-workspace-service").validate(missingInvocation).passed).toBe(false);
+
     const noDocs = execution(
       "The context-local probe answered with its value.",
       'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
