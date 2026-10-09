@@ -204,7 +204,14 @@ describe("automation native launch system test validator", () => {
       code: "const status = await vcs.status(); return status.clean ? { protocol: 'automation-completion.v1', response: 'The project is clean.' } : status;",
     },
     conversation: { mode: "fresh" },
-    operations: [{ service: "vcs", method: "status", use: "action" }],
+    operations: [
+      {
+        service: "vcs",
+        method: "status",
+        args: [{ contextId: "project-status-context" }],
+        use: "action",
+      },
+    ],
   };
 
   it("authorizes only the requested immediate run through the declared mission gate", () => {
