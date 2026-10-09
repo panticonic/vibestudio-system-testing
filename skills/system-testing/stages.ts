@@ -1,6 +1,13 @@
 import { trelloLiveImportTests } from "./tests/trello-live-import.js";
 import { problemReportingTests } from "./tests/problem-reporting.js";
-import { requiringUnits, type TestCase } from "./types.js";
+import {
+  requiringUnits,
+  type TestCase,
+  type TestSuiteResult,
+} from "./types.js";
+import type { HeadlessRunner } from "./runner.js";
+import { TestRunner } from "./test-runner.js";
+import { isUnexpectedToolFailure } from "./tool-failure-classification.js";
 import { assertSystemTestDeclaration } from "./prompt-contract.js";
 import { deterministicTestCases } from "./deterministic.js";
 import { smokeTests } from "./tests/smoke.js";
@@ -279,4 +286,241 @@ export function nextSelectedStage(
     selectedStages,
     remainingStages,
   };
+}
+
+/** A stage as stored on the run state: test names only, never TestCase objects. */
+export type StoredTestStage = {
+  index: number;
+  name: string;
+  category: string;
+  tests: string[];
+};
+
+export type TestStageSummary = {
+  index: number;
+  name: string;
+  category: string;
+  position: number;
+  selectedStageCount: number;
+  total: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  toolFailureCount: number;
+  testsWithToolFailures: number;
+  durationMs: number;
+  concurrency: number;
+  failedTests: string[];
+  toolFailures: string[];
+};
+
+/**
+ * The whole state of one interactive staged run. Keep it in
+ * `scope.systemTestingRun`; `results` is the full diagnostic record.
+ */
+export type SystemTestingRun = TestStageRunState & {
+  runId: string;
+  stages: StoredTestStage[];
+  completedStages: number[];
+  results: TestSuiteResult;
+  stageSummaries: TestStageSummary[];
+  lastStageSummary?: TestStageSummary;
+};
+
+export type SystemTestingRunControls = {
+  runId: string;
+  stageOptions: TestStageChoice[];
+  defaultStages: string[];
+  stageCount: number;
+  testCount: number;
+};
+
+/** Compact, return-safe result of one `runNextSelectedStage` call. */
+export type StageRunResult = {
+  done: boolean;
+  runId: string;
+  stage?: string;
+  remainingStages: number;
+  total: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  toolFailureCount: number;
+  testsWithToolFailures: number;
+  skipped: number;
+  failedTestCount: number;
+  toolFailureTestCount: number;
+  /** Short markdown stage report for the user; absent once every stage ran. */
+  report?: string;
+};
+
+function runnableTests(): TestCase[] {
+  return allTests().filter((test) => !test.explicitOnly);
+}
+
+/** Create the run state and the control data a stage-selection form needs. */
+export function createSystemTestingRun(): {
+  run: SystemTestingRun;
+  controls: SystemTestingRunControls;
+} {
+  const tests = runnableTests();
+  const stages = testStages(tests);
+  const stageOptions = testStageChoices(stages);
+  const run: SystemTestingRun = {
+    runId: crypto.randomUUID(),
+    stages: stages.map((stage) => ({
+      index: stage.index,
+      name: stage.name,
+      category: stage.category,
+      tests: stage.tests.map((test) => test.name),
+    })),
+    completedStages: [],
+    stageSummaries: [],
+    results: {
+      total: 0,
+      passed: 0,
+      failed: 0,
+      errored: 0,
+      toolFailureCount: 0,
+      testsWithToolFailures: 0,
+      skipped: tests.length,
+      duration: 0,
+      results: [],
+    },
+  };
+  return {
+    run,
+    controls: {
+      runId: run.runId,
+      stageOptions,
+      defaultStages: stageOptions.map((option) => option.value),
+      stageCount: stages.length,
+      testCount: tests.length,
+    },
+  };
+}
+
+function stageRunResult(
+  run: SystemTestingRun,
+  fields: Partial<StageRunResult> & { done: boolean; remainingStages: number },
+): StageRunResult {
+  const aggregate = run.results;
+  return {
+    runId: run.runId,
+    total: aggregate.total,
+    passed: aggregate.passed,
+    failed: aggregate.failed,
+    errored: aggregate.errored,
+    toolFailureCount: aggregate.toolFailureCount ?? 0,
+    testsWithToolFailures: aggregate.testsWithToolFailures ?? 0,
+    skipped: aggregate.skipped,
+    failedTestCount: 0,
+    toolFailureTestCount: 0,
+    ...fields,
+  };
+}
+
+/**
+ * Run the next selected, not yet completed stage of `run` and fold its
+ * results into the run in place: cumulative counts, completed stages, the
+ * per-stage summary, and the full result entries. Runs exactly one stage.
+ */
+export async function runNextSelectedStage(
+  run: SystemTestingRun,
+  runner: HeadlessRunner,
+): Promise<StageRunResult> {
+  if (!run || typeof run !== "object" || !run.results) {
+    throw new Error(
+      "runNextSelectedStage: no systemTestingRun; create one with createSystemTestingRun() first.",
+    );
+  }
+  const tests = runnableTests();
+  const next = nextSelectedStage(tests, run);
+  if (!next) return stageRunResult(run, { done: true, remainingStages: 0 });
+
+  const { stage, stagePosition, selectedStages, remainingStages } = next;
+  const tester = new TestRunner(runner, {
+    onTestStart: (test) => console.log(`  Running: ${test.name}...`),
+    onTestEnd: (test, result, execution) =>
+      console.log(
+        `  ${result.passed ? "PASS" : "FAIL"}: ${test.name} (${execution.duration}ms)`,
+      ),
+    onTestResult: (_entry, aggregate) =>
+      console.log(
+        `  Stage progress: ${stage.name} ${aggregate.total}/${stage.tests.length}`,
+      ),
+  });
+  const concurrency =
+    stage.category === "workers" ? 1 : Math.min(2, Math.max(1, stage.tests.length));
+  const partial = await tester.runSuite(stage.tests, { concurrency });
+
+  const aggregate = run.results;
+  aggregate.total += partial.total;
+  aggregate.passed += partial.passed;
+  aggregate.failed += partial.failed;
+  aggregate.errored += partial.errored;
+  aggregate.toolFailureCount =
+    (aggregate.toolFailureCount ?? 0) + (partial.toolFailureCount ?? 0);
+  aggregate.testsWithToolFailures =
+    (aggregate.testsWithToolFailures ?? 0) + (partial.testsWithToolFailures ?? 0);
+  aggregate.duration += partial.duration;
+  aggregate.results.push(...partial.results);
+  aggregate.skipped = tests.length - aggregate.total;
+  run.completedStages = [...new Set([...(run.completedStages ?? []), stage.index])];
+
+  const failedTests = partial.results
+    .filter((entry) => !entry.result.passed || entry.execution.error)
+    .map((entry) => {
+      const reason =
+        entry.execution.error || entry.result.reason || "No reason captured";
+      return `${entry.test.name}: ${reason.slice(0, 240)}`;
+    });
+  const toolFailures = partial.results.flatMap((entry) => {
+    const failures = (entry.execution.toolFailures ?? []).filter(
+      isUnexpectedToolFailure,
+    );
+    if (failures.length === 0) return [];
+    const names = failures.map((failure) => failure.name).join(", ");
+    return [`${entry.test.name}: ${failures.length} tool failure(s): ${names}`];
+  });
+  const summary: TestStageSummary = {
+    index: stage.index,
+    name: stage.name,
+    category: stage.category,
+    position: stagePosition,
+    selectedStageCount: selectedStages.length,
+    total: partial.total,
+    passed: partial.passed,
+    failed: partial.failed,
+    errored: partial.errored,
+    toolFailureCount: partial.toolFailureCount ?? 0,
+    testsWithToolFailures: partial.testsWithToolFailures ?? 0,
+    durationMs: partial.duration,
+    concurrency,
+    failedTests,
+    toolFailures,
+  };
+  run.stageSummaries = [...(run.stageSummaries ?? []), summary];
+  run.lastStageSummary = summary;
+
+  const remaining = remainingStages - 1;
+  const report = [
+    `**System Test Stage ${stagePosition}/${selectedStages.length}: ${stage.name}**`,
+    `- Stage results: ${partial.passed} passed, ${partial.failed} failed, ${partial.errored} errored`,
+    `- Concurrency: ${concurrency} test agents`,
+    `- Cumulative results: ${aggregate.passed} passed, ${aggregate.failed} failed, ${aggregate.errored} errored, ${aggregate.skipped} not run/skipped`,
+    failedTests.length
+      ? `- Findings: ${failedTests.join("; ")}`
+      : "- Findings: no failures in this stage",
+    `- Next: ${remaining ? "continuing to the next selected stage" : "all selected stages complete"}`,
+  ].join("\n");
+
+  return stageRunResult(run, {
+    done: false,
+    stage: stage.name,
+    remainingStages: remaining,
+    failedTestCount: failedTests.length,
+    toolFailureTestCount: toolFailures.length,
+    report,
+  });
 }

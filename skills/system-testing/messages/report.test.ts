@@ -52,7 +52,6 @@ function makeScope(
   return {
     systemTestingRun: {
       runId: "run-1",
-      // The init eval stores tests as a compact array of name strings.
       stages: [{ ...stage, tests: entries.map((e) => e.test.name) }],
       lastStageSummary: { index: stage.index, name: stage.name, category: stage.category },
       results: aggregate,
@@ -219,17 +218,12 @@ describe("reportStage", () => {
           index: number;
           name: string;
           category: string;
-          tests: Array<{ name: string }>;
+          tests: string[];
         }>;
       }
     ).stages = [
-      { index: 0, name: "filesystem 1/2", category: "filesystem", tests: [{ name: "fs-1" }] },
-      {
-        index: 1,
-        name: "filesystem 2/2",
-        category: "filesystem",
-        tests: [{ name: "fs-2" }, { name: "fs-3" }],
-      },
+      { index: 0, name: "filesystem 1/2", category: "filesystem", tests: ["fs-1"] },
+      { index: 1, name: "filesystem 2/2", category: "filesystem", tests: ["fs-2", "fs-3"] },
     ];
     const { chat, published } = makeChat();
 

@@ -51,6 +51,7 @@ export {
   allTests,
   buildTests,
   cdpGadDiagnosticTests,
+  createSystemTestingRun,
   docsProbeTests,
   deliveryHardeningTests,
   developerErgonomicsTests,
@@ -67,6 +68,7 @@ export {
   scaffoldMatrixTests,
   rpcTests,
   richUiPropensityTests,
+  runNextSelectedStage,
   selfDevelopmentTests,
   selectedTestStages,
   skillTests,
@@ -78,4 +80,14 @@ export {
   workerTests,
   workspaceTests,
 } from "./stages.js";
-export type { NextTestStage, TestStage, TestStageChoice, TestStageRunState } from "./stages.js";
+export type {
+  NextTestStage,
+  StageRunResult,
+  StoredTestStage,
+  SystemTestingRun,
+  SystemTestingRunControls,
+  TestStage,
+  TestStageChoice,
+  TestStageRunState,
+  TestStageSummary,
+} from "./stages.js";

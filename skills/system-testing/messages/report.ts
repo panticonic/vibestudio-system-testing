@@ -9,7 +9,8 @@
 
 import type { ChatSandboxValue } from "@workspace/agentic-core";
 import { summarizeEntry } from "../diagnostics.js";
-import type { TestSuiteResult, TestSuiteResultEntry } from "../types.js";
+import type { TestSuiteResultEntry } from "../types.js";
+import type { SystemTestingRun } from "../stages.js";
 import { isUnexpectedToolFailure } from "../tool-failure-classification.js";
 import type {
   StageReportCounts,
@@ -35,35 +36,6 @@ const STAGE_REPORT_IMPORTS: Record<string, string> = {
   "@radix-ui/themes": "npm:^3.2.1",
   "@radix-ui/react-icons": "npm:^1.3.2",
 };
-
-/**
- * A stage as stored on the run state. The init eval compacts `tests` to an
- * array of name strings, but tolerate full `{ name }` objects too.
- */
-interface RunStage {
-  index: number;
-  name: string;
-  category: string;
-  tests: Array<string | { name: string }>;
-}
-
-function stageTestName(test: string | { name: string }): string {
-  return typeof test === "string" ? test : test.name;
-}
-
-interface RunStageSummary {
-  index: number;
-  name: string;
-  category?: string;
-}
-
-/** Minimal shape we read off `scope.systemTestingRun`. */
-interface SystemTestingRun {
-  runId: string;
-  results?: TestSuiteResult;
-  stages?: RunStage[];
-  lastStageSummary?: RunStageSummary;
-}
 
 /** Title-case a machine category, e.g. "filesystem" -> "Filesystem". */
 function titleForCategory(category: string): string {
@@ -138,7 +110,7 @@ export async function reportStage(
   const title = stage?.name ?? category ?? `Stage ${stageIndex}`;
 
   // Bound to this stage's own tests (categories may span multiple stages).
-  const stageTestNames = stage ? new Set(stage.tests.map(stageTestName)) : null;
+  const stageTestNames = stage ? new Set(stage.tests) : null;
   const entries = aggregate.results.filter((entry) =>
     stageTestNames ? stageTestNames.has(entry.test.name) : entry.test.category === category
   );
