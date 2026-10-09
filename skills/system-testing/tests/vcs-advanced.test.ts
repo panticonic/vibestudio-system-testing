@@ -483,7 +483,7 @@ describe("reduced VCS agentic catalog", () => {
       },
     );
     const final =
-      "The codename was Harbor Lantern. It was retired after launch so support and audit records consistently use the public Retention Service name.";
+      "The codename was Harbor Lantern. It was retired after launch so support and audit records consistently use the public Retention Service name. The recorded evidence is the committed workspace event.";
 
     expect(test.validate(execution(final, [recall]))).toEqual({
       passed: true,
@@ -500,6 +500,100 @@ describe("reduced VCS agentic catalog", () => {
       "unknown",
     );
     expect(test.validate(execution(final, [unanchored])).passed).toBe(false);
+  });
+
+  it("accepts resolved native provenance for the imported historical decision with or without search", () => {
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-sizable-history-memory-recall",
+    )!;
+    const final =
+      "The codename was Harbor Lantern. It was retired after launch so support and audit records use Retention Service. The recorded evidence is the imported work-unit history.";
+    const search = invocation(
+      "history-search",
+      "provenance",
+      { target: "search: rollout codename retired", limit: 5 },
+      {
+        protocolContent: [{
+          type: "text",
+          text: 'prov search · "rollout codename retired" · 1 hit\n  work-unit · stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name" · @r3-740b',
+        }],
+        details: { subjectKind: "command", hitCount: 1 },
+      },
+    );
+    const inspect = invocation(
+      "history-inspect",
+      "provenance",
+      { target: "@r3-740b", limit: 5 },
+      {
+        protocolContent: [{
+          type: "text",
+          text: 'prov · @r3-740b · 5 edges\n  node · work-unit · import · stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name" · command @r4-45cb · 2 authored changes (2 in preview) · 0 incorporated changes (0 in preview) · external snapshot generated:"system-test://vcs-sizable-history-memory-recall/project/history" @ "fixture:history:11:abc"\n  work-unit @r3-740b —caused-by→ command @r4-45cb\n  work-unit @r3-740b —authored-change→ change @r6-3ff3\n  work-unit @r3-740b —authored-change→ change @r7-aaad\n  work-unit @r3-740b —imports-repository→ repository @r8-9a3e',
+        }],
+        details: { subjectKind: "work-unit", adjacencyCount: 5 },
+      },
+    );
+
+    expect(test.validate(execution(final, [search, inspect])).passed).toBe(true);
+    expect(test.validate(execution(final, [search])).passed).toBe(false);
+    expect(test.validate(execution(final, [inspect])).passed).toBe(true);
+
+    const unrelatedNode = structuredClone(inspect);
+    unrelatedNode.invocation.arguments.target = "@r9-dead";
+    expect(test.validate(execution(final, [search, unrelatedNode])).passed).toBe(false);
+
+    const noCause = structuredClone(inspect);
+    const noCauseResult = noCause.invocation.execution.result as {
+      protocolContent: Array<{ text: string }>;
+    };
+    noCauseResult.protocolContent[0]!.text = noCauseResult.protocolContent[0]!.text.replace(
+      /  work-unit @r3-740b —caused-by→ command @r4-45cb\n/u,
+      "",
+    );
+    expect(test.validate(execution(final, [search, noCause])).passed).toBe(false);
+
+    const foreignHistory = structuredClone(inspect);
+    const foreignResult = foreignHistory.invocation.execution.result as {
+      protocolContent: Array<{ text: string }>;
+    };
+    foreignResult.protocolContent[0]!.text = foreignResult.protocolContent[0]!.text.replace(
+      "system-test://vcs-sizable-history-memory-recall/",
+      "system-test://another-history/",
+    );
+    expect(test.validate(execution(final, [search, foreignHistory])).passed).toBe(false);
+
+    const foreignEdge = structuredClone(inspect);
+    const foreignEdgeResult = foreignEdge.invocation.execution.result as {
+      protocolContent: Array<{ text: string }>;
+    };
+    foreignEdgeResult.protocolContent[0]!.text +=
+      "\n  work-unit @r9-dead —authored-change→ change @ra-dead";
+    (foreignEdge.invocation.execution.result as {
+      details: { adjacencyCount: number };
+    }).details.adjacencyCount += 1;
+    expect(test.validate(execution(final, [search, foreignEdge])).passed).toBe(false);
+
+    const wrongDecision = structuredClone(inspect);
+    const wrongDecisionResult = wrongDecision.invocation.execution.result as {
+      protocolContent: Array<{ text: string }>;
+    };
+    wrongDecisionResult.protocolContent[0]!.text = wrongDecisionResult.protocolContent[0]!.text.replace(
+      "support and audit records consistently use the public Retention Service name",
+      "technical support requested a temporary alias",
+    );
+    expect(test.validate(execution(final, [search, wrongDecision])).passed).toBe(false);
+
+    const failedInspection = structuredClone(inspect);
+    failedInspection.invocation.execution.status = "failed";
+    expect(test.validate(execution(final, [search, failedInspection])).passed).toBe(false);
+
+    const proseOnly = invocation("unrelated", "search", { query: "history" }, {
+      protocolContent: [{
+        type: "text",
+        text: "Harbor Lantern was retired after launch; Retention Service replaced it.",
+      }],
+      details: { resultCount: 1 },
+    });
+    expect(test.validate(execution(final, [proseOnly])).passed).toBe(false);
   });
 
   it("joins an exact edited-file read to preserved and buried historical evidence", () => {

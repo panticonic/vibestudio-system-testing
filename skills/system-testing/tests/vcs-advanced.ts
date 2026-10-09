@@ -319,7 +319,7 @@ function protocolText(call: ReturnType<typeof getToolCalls>[number]): string {
     : "";
 }
 
-function requireHistoricalMemoryRecall(result: TestExecutionResult) {
+function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
   const answer = requireHistoricalAnswer(result, [
     /Harbor Lantern/iu,
     /retir/iu,
@@ -356,12 +356,45 @@ function requireHistoricalMemoryRecall(result: TestExecutionResult) {
       /Retention Service/iu.test(text)
     );
   });
-  return recall
+  if (recall) return answer;
+
+  // Native provenance inspection is an equally valid route through semantic
+  // history. Require the inspected graph to connect the intent to its causal
+  // command, authored changes, and the imported history fixture.
+  const calls = getToolCalls(result).filter(
+    (call) =>
+      call.name === "provenance" &&
+      call.execution?.status === "complete" &&
+      call.execution.isError !== true,
+  );
+  const historicalDecisionEvidence = calls.some((call) => {
+    const target = call.arguments?.["target"];
+    const envelope = isRecord(call.execution?.result) ? call.execution.result : null;
+    const details = envelope && isRecord(envelope["details"]) ? envelope["details"] : null;
+    const text = protocolText(call);
+    const cause = /work-unit\s+(@r[0-9a-z]+-[0-9a-f]{4})\s+—caused-by→\s+command\s+(@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
+    const authoredChanges = [...text.matchAll(/work-unit\s+(@r[0-9a-z]+-[0-9a-f]{4})\s+—authored-change→\s+change\s+@r[0-9a-z]+-[0-9a-f]{4}/gu)];
+    const importedRepositories = [...text.matchAll(/work-unit\s+(@r[0-9a-z]+-[0-9a-f]{4})\s+—imports-repository→\s+repository\s+(@r[0-9a-z]+-[0-9a-f]{4})/gu)];
+    return (
+      typeof target === "string" &&
+      /^@r[0-9a-z]+-[0-9a-f]{4}$/u.test(target) &&
+      details?.["subjectKind"] === "work-unit" &&
+      typeof details["adjacencyCount"] === "number" &&
+      Number.isFinite(details["adjacencyCount"]) &&
+      details["adjacencyCount"] >= 1 + authoredChanges.length + importedRepositories.length &&
+      cause?.[1] === target &&
+      authoredChanges.length > 0 && authoredChanges.every((edge) => edge[1] === target) &&
+      importedRepositories.length > 0 && importedRepositories.every((edge) => edge[1] === target) &&
+      /external snapshot generated:"system-test:\/\/vcs-sizable-history-memory-recall\//u.test(text) &&
+      /stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name"/u.test(text)
+    );
+  });
+  return historicalDecisionEvidence
     ? answer
     : {
         passed: false,
         reason:
-          "No bounded workspace-memory recall returned the retired decision with an exact committed-event anchor",
+          "No bounded memory recall or resolved native history graph connected the retired decision to its causal command and imported fixture",
       };
 }
 
@@ -488,7 +521,7 @@ export const vcsAdvancedTests: TestCase[] = [
     prompt:
       "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer?",
 
-    validate: requireHistoricalMemoryRecall,
+    validate: requireHistoricalDecisionEvidence,
   },
   {
     name: "vcs-sizable-history-edited-file-context",
