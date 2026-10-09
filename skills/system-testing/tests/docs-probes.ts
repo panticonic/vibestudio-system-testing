@@ -174,8 +174,10 @@ export const docsProbeTests: TestCase[] = [
     "I added a Durable Object RPC method in workspace source, but the live call reports WORKSPACE_RPC_METHOD_UNDECLARED. Explain why and what I should do next.",
     /WORKSPACE_RPC_METHOD_UNDECLARED|exact active provider build|declared methods|(?:publish|publication|active service)[\s\S]{0,300}(?:build|candidate|contract)|(?:build|candidate|contract)[\s\S]{0,300}(?:publish|publication|active service)/iu,
     [
-      /exact|active.*(?:build|contract)|(?:build|contract).*active/iu,
-      /publish|activate/iu,
+      /\b(?:workspace\s+)?source\b|\bcandidate\b/iu,
+      /\b(?:live|active|published)\b/iu,
+      /\b(?:build|contract|catalog|service|receiver|rpc method)\b/iu,
+      /\b(?:publish(?:ed|es|ing)?|publication|activat(?:e|es|ed|ion|ing))\b/iu,
       /declar|live service docs/iu,
     ],
   ),

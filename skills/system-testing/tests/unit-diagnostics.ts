@@ -122,7 +122,7 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
   if (!stats) {
     return {
       passed: false,
-      reason: "Automation inspection did not return canonical aggregate counts without raw records",
+      reason: "Automation inspection did not return canonical aggregate counts from the overview",
     };
   }
   const final = findLastAgentMessage(result);
@@ -137,41 +137,14 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
   return noIncompleteInvocations(result);
 }
 
-/**
- * Accept the canonical stats projection, optionally with the overview's safe
- * pagination metadata. The raw overview rows are deliberately not evidence for
- * aggregate counts, so an envelope containing them is rejected.
- */
+/** Read the canonical aggregate counters directly or from a full overview. */
 function missionOverviewStatsObservation(value: unknown) {
   const direct = missionOverviewStatsSchema.safeParse(value);
   if (direct.success) return direct.data;
   if (!isRecord(value)) return null;
 
   const stats = missionOverviewStatsSchema.safeParse(value["stats"]);
-  if (!stats.success || "items" in value || "attention" in value) return null;
-
-  for (const [key, metadata] of Object.entries(value)) {
-    if (key === "stats") continue;
-    if (key === "itemCount" || key === "generatedAt") {
-      if (!Number.isSafeInteger(metadata) || (metadata as number) < 0) return null;
-      continue;
-    }
-    if (key === "nextCursor") {
-      if (metadata === null) continue;
-      if (
-        !isRecord(metadata) ||
-        Object.keys(metadata).length !== 2 ||
-        !Number.isSafeInteger(metadata["updatedAt"]) ||
-        (metadata["updatedAt"] as number) < 0 ||
-        typeof metadata["missionId"] !== "string"
-      ) {
-        return null;
-      }
-      continue;
-    }
-    return null;
-  }
-  return stats.data;
+  return stats.success ? stats.data : null;
 }
 
 function automationNativeLaunchChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {

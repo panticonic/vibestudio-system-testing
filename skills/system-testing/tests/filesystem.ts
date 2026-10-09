@@ -235,14 +235,27 @@ function focusedBinaryRoundTrip(result: TestExecutionResult) {
         .find((operation) => operation?.["kind"] === "write_binary")?.["path"]
     : undefined;
   const read = calls.find(
-    (call) =>
-      call.name === "read_binary" &&
-      call.execution?.status === "complete" &&
-      call.execution.isError !== true &&
-      call.arguments?.["path"] === binaryPath &&
-      call.arguments?.["offset"] === 0 &&
-      typeof call.arguments?.["limit"] === "number" &&
-      call.arguments["limit"] >= 4
+    (call) => {
+      const args = call.arguments;
+      if (
+        call.name !== "read_binary" ||
+        call.execution?.status !== "complete" ||
+        call.execution.isError === true ||
+        !args ||
+        args["path"] !== binaryPath
+      ) {
+        return false;
+      }
+      const offset = args["offset"];
+      const limit = args["limit"];
+      return (
+        (offset === undefined || offset === 0) &&
+        (limit === undefined ||
+          (typeof limit === "number" &&
+            Number.isSafeInteger(limit) &&
+            limit >= 4))
+      );
+    }
   );
   const evidence = JSON.stringify(read?.execution?.result ?? null);
   const exactRead =

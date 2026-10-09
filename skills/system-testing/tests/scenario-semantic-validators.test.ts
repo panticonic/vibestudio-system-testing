@@ -931,6 +931,89 @@ describe("filesystem semantic validators", () => {
     });
   });
 
+  it("accepts the documented default offset and byte limit for an exact binary read", () => {
+    const validator = scenario(filesystemTests, "read-write-binary");
+    const path = "projects/system-test-binary/asset.bin";
+    expect(
+      validator.validate(
+        directExecution("The exact bytes 00 ff 01 fe survived.", [
+          {
+            name: "apply_patch",
+            arguments: {
+              operations: [{ kind: "write_binary", path, base64: "AP8B/g==" }],
+            },
+            result: { details: { status: "applied", paths: [path] } },
+          },
+          {
+            name: "read_binary",
+            arguments: { path },
+            result: {
+              protocolContent: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    path,
+                    encoding: "base64",
+                    range: { start: 0, end: 4, totalBytes: 4 },
+                    base64: "AP8B/g==",
+                  }),
+                },
+              ],
+              details: {
+                encoding: "base64",
+                byteRange: { start: 0, end: 4, totalBytes: 4 },
+              },
+            },
+          },
+        ])
+      ).passed
+    ).toBe(true);
+  });
+
+  it("rejects a binary read whose explicit range cannot prove the complete four bytes", () => {
+    const validator = scenario(filesystemTests, "read-write-binary");
+    const path = "projects/system-test-binary/asset.bin";
+    for (const readArguments of [
+      { path, offset: 1, limit: 4 },
+      { path, offset: 0, limit: 3 },
+    ]) {
+      expect(
+        validator.validate(
+          directExecution("The bytes matched.", [
+            {
+              name: "apply_patch",
+              arguments: {
+                operations: [{ kind: "write_binary", path, base64: "AP8B/g==" }],
+              },
+              result: { details: { status: "applied", paths: [path] } },
+            },
+            {
+              name: "read_binary",
+              arguments: readArguments,
+              result: {
+                protocolContent: [
+                  {
+                    type: "text",
+                    text: JSON.stringify({
+                      path,
+                      encoding: "base64",
+                      range: { start: 0, end: 4, totalBytes: 4 },
+                      base64: "AP8B/g==",
+                    }),
+                  },
+                ],
+                details: {
+                  encoding: "base64",
+                  byteRange: { start: 0, end: 4, totalBytes: 4 },
+                },
+              },
+            },
+          ])
+        ).passed
+      ).toBe(false);
+    }
+  });
+
   it("accepts focused nested writes and a structured listing as directory evidence", () => {
     const validator = scenario(filesystemTests, "directory-ops");
     expect(

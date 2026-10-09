@@ -711,6 +711,54 @@ describe("semantic system-test validators", () => {
     expect(
       test.validate(
         execution(
+          "WORKSPACE_RPC_METHOD_UNDECLARED means the live Durable Object receiver has no declared RPC entry for this method. Workspace source alone does not change its live contract. Verify the candidate, commit and publish the provider, wait for publication, then resolve the service again and retry.",
+          [docsRead],
+        ),
+      ).passed,
+    ).toBe(true);
+    expect(
+      test.validate(
+        execution(
+          "The declared RPC catalog belongs to the live receiver contract, while workspace source is its candidate view. Verification followed by publication activates that provider revision; resolve the service again before using it.",
+          [docsRead],
+        ),
+      ).passed,
+    ).toBe(true);
+    expect(
+      test.validate(
+        execution(
+          "The active provider's declared RPC contract is published. Resolve the service again before calling it.",
+          [docsRead],
+        ),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test.validate(
+        execution(
+          "The source change alone does not update the live receiver contract; retry the method after checking the candidate.",
+          [docsRead],
+        ),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test.validate(
+        execution(
+          "Workspace source alone does not change the active provider contract. Verify the candidate, commit and publish, wait for publication, then resolve the service again.",
+          [docsRead],
+        ),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test.validate(
+        execution(
+          "The source change alone does not update the live service's declared RPC catalog. Verify the candidate, commit and publish, then retry.",
+          [docsRead],
+        ),
+      ).passed,
+    ).toBe(true);
+    expect(
+      test.validate(
+        execution(
           "Adding source does not update the active RPC contract. Check the receiver declaration, commit and publish, then resolve the service again.",
         ),
       ).passed,
