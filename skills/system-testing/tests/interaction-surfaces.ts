@@ -10,7 +10,6 @@ import {
   getToolCalls,
   noIncompleteInvocations,
 } from "./_helpers.js";
-import { z } from "zod";
 import {
   completedScenarioEvidence,
   requireCodeOperations,
@@ -142,26 +141,7 @@ async function runOnboardingStableIdRoute(
   context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
   const start = Date.now();
-  const session = await context.runner.spawn({
-    methods: {
-      client_eval: {
-        description:
-          "Execute TypeScript in the synthetic panel which initiated this turn. Static workspace imports resolve in that client context.",
-        parameters: z
-          .object({
-            code: z.string(),
-            syntax: z
-              .enum(["javascript", "typescript", "jsx", "tsx"])
-              .optional(),
-          })
-          .strict(),
-        execute: async (args: unknown) => ({
-          handled: true,
-          received: args,
-        }),
-      },
-    },
-  });
+  const session = await context.runner.spawn({ syntheticPanelUiTools: true });
   let sendError: unknown;
   try {
     const remainingTimeMs = context.remainingTimeMs();
@@ -170,13 +150,20 @@ async function runOnboardingStableIdRoute(
         ? undefined
         : { timeoutMs: remainingTimeMs },
     );
-    await session.send("Use the selected setup action.", {
+    // SetupHub opens client-owned routes itself; an owner-skill route reaches
+    // the agent with the routed selection it computed from the user's click.
+    await session.send("Set up GitHub", {
       metadata: {
         interaction: {
           source: "onboarding-setup-hub",
           kind: "onboarding-capability",
           action: "setup",
           targetId: "connection.github",
+        },
+        selection: {
+          handled: false,
+          target: { via: "owner-skill" },
+          ownerSkillPath: "skills/github/SKILL.md",
         },
       },
     });
@@ -274,48 +261,38 @@ export const interactionSurfaceTests: TestCase[] = [
   },
   {
     name: "onboarding-stable-id-routing",
-    requiresUnits: ["skills/onboarding"],
+    requiresUnits: ["skills/onboarding", "skills/github"],
     description:
-      "Route an onboarding selection from structured interaction metadata",
+      "Follow an agent-owned onboarding selection from its routed metadata",
     category: "interaction-surfaces",
-    prompt: "Use the selected setup action.",
+    prompt: "Set up GitHub",
     orchestrate: runOnboardingStableIdRoute,
     validate: (result) => {
-      const tools = requireCompletedTools(result, ["client_eval"]);
+      const tools = requireCompletedTools(result, ["read"]);
       if (!tools.passed) return tools;
-      if (completedNamedToolCalls(result, "eval").length > 0) {
+      const rerouted = [
+        ...completedNamedToolCalls(result, "client_eval"),
+        ...completedNamedToolCalls(result, "eval"),
+      ].find((call) =>
+        String(call.arguments?.["code"] ?? "").includes(
+          "executeOnboardingSelection",
+        ),
+      );
+      if (rerouted) {
         return {
           passed: false,
           reason:
-            "Onboarding routing used server-side eval instead of inviting-panel client_eval",
+            "The agent re-ran onboarding routing instead of following the routed selection",
         };
       }
-      const route = completedNamedToolCalls(result, "client_eval").find(
-        (call) => nativeChannelMethodValue(call) !== undefined,
-      );
-      const code = route?.arguments?.["code"];
-      if (
-        typeof code !== "string" ||
-        !code.includes("@workspace-skills/onboarding") ||
-        !code.includes("executeOnboardingSelection") ||
-        !code.includes("connection.github") ||
-        !code.includes("setup")
-      ) {
-        return {
-          passed: false,
-          reason: `Expected stable GitHub setup through client_eval; received ${JSON.stringify(
-            route?.arguments ?? null,
-          )}`,
-        };
-      }
-      const outcome = route && nativeChannelMethodValue(route);
-      const received = outcome?.["received"] as { code?: unknown } | undefined;
-      return outcome?.["handled"] === true && received?.code === code
+      return completedNamedToolCalls(result, "read").some(
+        (call) => call.arguments?.["path"] === "skills/github/SKILL.md",
+      )
         ? { passed: true, reason: undefined }
         : {
             passed: false,
             reason:
-              "The synthetic inviting-panel receiver did not acknowledge the exact selection request",
+              "The agent did not read the selection's owner skill, skills/github/SKILL.md",
           };
     },
   },
@@ -385,14 +362,14 @@ export const interactionSurfaceTests: TestCase[] = [
       const actionBarCalls = completedNamedToolCalls(result, "load_action_bar");
       if (
         !actionBarCalls.some((call) => {
-          const toolPath = call.arguments?.["path"];
-          return typeof toolPath === "string" && toolPath.length > 0;
+          const source = call.arguments?.["code"] ?? call.arguments?.["path"];
+          return typeof source === "string" && source.length > 0;
         })
       ) {
         return {
           passed: false,
           reason:
-            "load_action_bar completed but no load call with a path was observed",
+            "load_action_bar completed but no load call with code or a path was observed",
         };
       }
       if (!actionBarCalls.some((call) => call.arguments?.["clear"] === true)) {
@@ -406,7 +383,8 @@ export const interactionSurfaceTests: TestCase[] = [
       if (!base.passed) return base;
       const loaded = actionBarCalls.some(
         (call) =>
-          typeof call.arguments?.["path"] === "string" &&
+          typeof (call.arguments?.["code"] ?? call.arguments?.["path"]) ===
+            "string" &&
           nativeChannelMethodValue(call)?.["ok"] === true &&
           typeof nativeChannelMethodValue(call)?.["id"] === "string",
       );

@@ -82,7 +82,7 @@ export default function LiveImageStudio() {
     try {
       const job = await images.generate({requestId:crypto.randomUUID(),prompt:reference ? "Paint this same moonlit ferry landing at dawn. Preserve its composition, buildings, and restrained gouache brushwork; warm pink sunrise, no lettering." : "A moonlit ferry landing with a tiny weathered customs house, wet cobblestones and warm brass lanterns. Classic painted adventure-game background, restrained gouache, indigo shadows and amber light, no lettering.",size:"1536x1024",quality:"low",references:reference && asset ? [asset] : []});
       jobs = [...jobs,job.id]; setJobId(job.id);
-      await panel.stateArgs.set({jobs,selectedJob:job.id});
+      await panel.stateArgs.patch({jobs,selectedJob:job.id});
     } catch(cause) { setError(String(cause));setStatus("failed"); }
   };
   return <main data-testid="image-studio" data-boot={boot} data-job={jobId} data-asset={asset?.id ?? ""} data-digest={asset?.digest ?? ""} data-status={status}>

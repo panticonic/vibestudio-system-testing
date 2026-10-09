@@ -226,7 +226,7 @@ describe("cdp-gad diagnostics validators", () => {
       id: "state-change",
       name: "eval",
       arguments: {
-        code: "const before=await child.stateArgs.get(); await child.stateArgs.set({launch:'x'}); const after=await child.stateArgs.get(); return {before,after};",
+        code: "const before=await child.stateArgs.get(); await child.stateArgs.patch({launch:'x'}); const after=await child.stateArgs.get(); return {before,after};",
       },
       execution: {
         status: "complete",
@@ -237,7 +237,7 @@ describe("cdp-gad diagnostics validators", () => {
             operationJournal: {
               protocol: "workspace-operations.v1",
               truncated: false,
-              entries: [{ type: "stateArgs.set", id: "panel:state" }],
+              entries: [{ type: "stateArgs.patch", id: "panel:state" }],
             },
           },
         },
@@ -358,7 +358,8 @@ describe("cdp-gad diagnostics validators", () => {
             code: `
               const handle = await openPanel("about/testbench", { focus: false });
               const beforeAttemptId = (await handle.snapshot()).attemptId;
-              const page = await handle.cdp.page();
+              const session = await handle.cdp.session();
+              const page = session.page;
               const report = await page.profile(async () => { await handle.reload(); });
               const afterAttemptId = (await handle.snapshot()).attemptId;
               return { beforeAttemptId, afterAttemptId, requestCount: report.network.requestCount, longTasks: report.page.longTasks.count };

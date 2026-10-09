@@ -94,7 +94,8 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       throw new Error(label + " constrains the story inside a nested scroll area");
   };
   const checkNaturalScroll = async (handle: (typeof handles)[number], label: string) => {
-    const page = await handle.cdp.page();
+    const session = await handle.cdp.session();
+    const page = session.page;
     try {
       await page.locator(".adventure-composer").scrollIntoViewIfNeeded();
       await page.locator("#adventure-intention").focus();
@@ -143,7 +144,8 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       if (opening.overflow) throw new Error(id + " desktop content overflows horizontally");
       await checkNaturalScroll(handle, id + " desktop");
       await capture(handle, id + "-desktop");
-      const page = await handle.cdp.page();
+      const session = await handle.cdp.session();
+    const page = session.page;
       try {
         await page.locator(".adventure-entity").first().click();
         const inspected = await wait(handle, id + " free inspection", (f) => !!f.inspector);
@@ -183,7 +185,8 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
     const handle = handles[0]!;
     active = handle;
     await setViewport(handle, { width: 1440, height: 1000 });
-    const page = await handle.cdp.page();
+    const session = await handle.cdp.session();
+    const page = session.page;
     try {
       const before = await wait(
         handle,

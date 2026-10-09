@@ -299,11 +299,12 @@ async function evaluateInPanel<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   signal?.throwIfAborted();
-  const page = await panel.cdp.page();
-  // Closing the page rejects the in-flight evaluation; the evaluation's own
+  const session = await panel.cdp.session();
+  const page = session.page;
+  // Closing the session rejects the in-flight evaluation; the evaluation's own
   // rejection is what the caller sees, so a close failure is not a second
   // unhandled one.
-  const abort = () => void page.close().catch(() => undefined);
+  const abort = () => void session.close().catch(() => undefined);
   signal?.addEventListener("abort", abort, { once: true });
   try {
     return await Promise.race([
@@ -323,7 +324,7 @@ async function evaluateInPanel<T>(
     throw error;
   } finally {
     signal?.removeEventListener("abort", abort);
-    if (!signal?.aborted) await page.close();
+    if (!signal?.aborted) await session.close();
   }
 }
 

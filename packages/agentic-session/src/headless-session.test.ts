@@ -934,7 +934,7 @@ describe("HeadlessSession", () => {
       await expect(
         registeredMethods["load_action_bar"]!.execute({}, methodContext)
       ).resolves.toMatchObject({
-        content: { ok: false, error: "Missing path" },
+        content: { ok: false, error: "Provide exactly one of code or path" },
         isError: true,
       });
       expect(result).toHaveBeenCalledTimes(2);

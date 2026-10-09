@@ -115,7 +115,8 @@ async function orchestrate(
       focus: false,
     });
     handles.push(source);
-    const sourcePage = await source.cdp.page();
+    const sourceSession = await source.cdp.session();
+    const sourcePage = sourceSession.page;
     let sourceData: SourceBoard;
     try {
       sourceData = (await sourcePage.evaluate(
@@ -156,7 +157,8 @@ async function orchestrate(
     const activeApp = app;
     handles.push(activeApp);
     const read = async () => {
-      const page = await activeApp.cdp.page();
+      const session = await activeApp.cdp.session();
+      const page = session.page;
       try {
         // A delivered panel and reload receipt establish the observation boundary.
         // Expected data is a validation condition, never a readiness condition:

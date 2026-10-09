@@ -554,7 +554,7 @@ describe("project lifecycle prompts", () => {
         {
           code:
             liveFlowCode +
-            "const session = await panel.cdp.session(); await session.page.screenshot(); await panel.reload(); await session.refresh(); " +
+            "const session = await panel.cdp.session(); await session.page.screenshot(); await panel.reload(); await session.page.title(); " +
             "const history = await panel.cdp.consoleHistory(); return { history };",
         },
         {
@@ -648,7 +648,7 @@ describe("project lifecycle prompts", () => {
       ) as ReturnType<typeof invocation>;
       runtime.invocation.arguments["code"] =
         liveFlowCode +
-        "const session = await panel.cdp.session(); await session.page.screenshot(); await panel.reload(); await session.refresh(); " +
+        "const session = await panel.cdp.session(); await session.page.screenshot(); await panel.reload(); await session.page.title(); " +
         "const history = await panel.cdp.consoleHistory(); console.log({ errors: history.errors.length });";
       const details = runtime.invocation.execution.result.details;
       const returned = details["returnValue"] as Record<string, unknown>;
@@ -1005,7 +1005,7 @@ describe("project lifecycle prompts", () => {
       invocation(
         "clean-launch-and-inspect",
         "eval",
-        { code: "openPanel(); handle.cdp.page(); handle.snapshot();" },
+        { code: "openPanel(); handle.cdp.session(); handle.snapshot();" },
         {
           operationJournal: {
             protocol: "workspace-operations.v1",
@@ -1063,7 +1063,7 @@ describe("project lifecycle prompts", () => {
         "rebuild-and-verify",
         "eval",
         {
-          code: "handle.rebuild(); handle.cdp.page(); screenshot(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); const consoleHistory = await handle.cdp.consoleHistory(); return { consoleErrors: consoleHistory.errors.length };",
+          code: "handle.rebuild(); handle.cdp.session(); screenshot(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); const consoleHistory = await handle.cdp.consoleHistory(); return { consoleErrors: consoleHistory.errors.length };",
         },
         {
           operationJournal: nativeUiEvidence(source),
@@ -1513,7 +1513,7 @@ describe("project lifecycle prompts", () => {
         ? invocation(
             "clean-launch-and-inspect",
             "eval",
-            { code: "openPanel(); handle.cdp.page();" },
+            { code: "openPanel(); handle.cdp.session();" },
             {
               ...call.invocation.execution.result.details,
               operationJournal: {
@@ -1537,7 +1537,7 @@ describe("project lifecycle prompts", () => {
             "rebuild-and-verify",
             "eval",
             {
-              code: "handle.rebuild(); handle.cdp.page(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); const before = await handle.cdp.consoleHistory(); const snapshot = await handle.snapshot(); const after = await handle.cdp.consoleHistory(); return { beforeErrors: before.errors, afterErrors: after.errors, snapshot };",
+              code: "handle.rebuild(); handle.cdp.session(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); const before = await handle.cdp.consoleHistory(); const snapshot = await handle.snapshot(); const after = await handle.cdp.consoleHistory(); return { beforeErrors: before.errors, afterErrors: after.errors, snapshot };",
             },
             {
               operationJournal: nativeUiEvidence(source, {
@@ -1610,7 +1610,7 @@ describe("project lifecycle prompts", () => {
             "rebuild-and-verify",
             "eval",
             {
-              code: "handle.rebuild(); handle.cdp.page(); screenshot(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); await handle.cdp.consoleHistory(); return { consoleErrors: 0 };",
+              code: "handle.rebuild(); handle.cdp.session(); screenshot(); field.fill('task'); button.click(); row.evaluate(() => true); filter.click(); active.click(); completed.click(); remove.click(); await handle.cdp.consoleHistory(); return { consoleErrors: 0 };",
             },
             {
               returnValue:

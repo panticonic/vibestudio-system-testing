@@ -47,15 +47,36 @@ export default function AtomicNotes() {
 
 const storeFiles = {
   "package.json": `${JSON.stringify(
-    buildProjectManifest({
-      projectType: "worker",
-      name: "atomic-notes-store",
-      title: "Atomic Notes Store",
-      entry: "index.ts",
-      authority: { requests: [], provides: [] },
-      durableClasses: ["NotesStore"],
-      dependencies: { "@workspace/runtime": "workspace:*" },
-    }),
+    (() => {
+      const manifest = buildProjectManifest({
+        projectType: "worker",
+        name: "atomic-notes-store",
+        title: "Atomic Notes Store",
+        entry: "index.ts",
+        authority: { requests: [], provides: [] },
+        durableClasses: ["NotesStore"],
+        dependencies: { "@workspace/runtime": "workspace:*" },
+      });
+      const manifestRecord = manifest as Record<string, unknown>;
+      const vibestudio = manifestRecord["vibestudio"] as Record<string, unknown>;
+      vibestudio["services"] = [
+        {
+          name: "atomic-notes-store",
+          title: "Atomic Notes Store",
+          action: "store notes",
+          description: "Stores notes for the atomic publication acceptance.",
+          notability: "everyday",
+          presentation: { domain: "automation", verb: "manage" },
+          protocols: [protocol],
+          authority: {
+            principals: ["user", "code"],
+            binding: { declaredFor: [panelPath] },
+          },
+          durableObject: { className: "NotesStore" },
+        },
+      ];
+      return manifest;
+    })(),
     null,
     2,
   )}\n`,
@@ -114,17 +135,6 @@ export async function publishAtomicPanelStoreFixture(input: {
     {
       source: storePath,
       name: "atomic-notes-store",
-      title: "Atomic Notes Store",
-      action: "store notes",
-      description: "Stores notes for the atomic publication acceptance",
-      notability: "everyday",
-      presentation: { domain: "automation", verb: "manage" },
-      protocols: [protocol],
-      authority: {
-        principals: ["user", "code"],
-        binding: { declaredFor: [panelPath] },
-      },
-      durableObject: { className: "NotesStore" },
     },
   ]);
   document.set("singletonObjects", [
@@ -134,9 +144,28 @@ export async function publishAtomicPanelStoreFixture(input: {
     { source: storePath, className: "NotesStore", key: "workspace" },
   ]);
   const configSource = String(document);
+  const providerManifests = new Map<string, string>([[storePath, storeFiles["package.json"]]]);
+  for (const service of Array.isArray(config["services"]) ? config["services"] : []) {
+    if (!service || typeof service !== "object" || typeof service.source !== "string") continue;
+    if (providerManifests.has(service.source)) continue;
+    const provider = await input.vcs.resolveRepository({
+      state: status.workingHead,
+      repoPath: service.source,
+    });
+    if (!provider) throw new Error(`Atomic fixture cannot resolve provider ${service.source}`);
+    const packageFile = await input.vcs.readFile({
+      state: status.workingHead,
+      repositoryId: provider.repositoryId,
+      file: { kind: "path", path: "package.json" },
+    });
+    if (!packageFile || packageFile.content.kind !== "text")
+      throw new Error(`Atomic fixture cannot read ${service.source}/package.json`);
+    providerManifests.set(service.source, packageFile.content.text);
+  }
   parseWorkspaceConfigContentWithId(
     configSource,
     "system-test-atomic-panel-store",
+    (source) => providerManifests.get(source) ?? null,
   );
   const configBlob = await input.blobstore.putText(configSource);
   const store = async (files: Record<string, string>) =>

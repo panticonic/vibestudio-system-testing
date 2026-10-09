@@ -1439,7 +1439,7 @@ describe("semantic system-test validators", () => {
     expect(test.validate(execution(final))).toMatchObject({ passed: false });
   });
 
-  it("does not require eval when action-bar files are already available", () => {
+  it("accepts an action bar loaded from inline code or a file path", () => {
     const test = interactionSurfaceTests.find(
       (candidate) => candidate.name === "load-action-bar-transcript-event",
     )!;
@@ -1469,58 +1469,49 @@ describe("semantic system-test validators", () => {
         ]),
       ),
     ).toEqual({ passed: true });
+    expect(
+      test.validate(
+        execution("Displayed the conversation action bar, then cleared it.", [
+          completed("load", {
+            code: "export default function ActionBar() { return null; }",
+          }),
+          completed("clear", { clear: true }),
+        ]),
+      ),
+    ).toEqual({ passed: true });
   });
 
-  it("requires the exact stable onboarding request and its native receiver acknowledgement", () => {
+  it("requires the routed owner skill without re-running onboarding routing", () => {
     const test = interactionSurfaceTests.find(
       (candidate) => candidate.name === "onboarding-stable-id-routing",
     )!;
-    const code =
-      'import { executeOnboardingSelection } from "@workspace-skills/onboarding"; return await executeOnboardingSelection({source:"onboarding-setup-hub",kind:"onboarding-capability",action:"setup",targetId:"connection.github"});';
-    const call = (request: string, received: string, native = true) => ({
+    const complete = { status: "complete", isError: false, result: "ok" };
+    const ownerRead = {
+      name: "read",
+      arguments: { path: "skills/github/SKILL.md" },
+      execution: complete,
+    };
+    const rerouted = {
       name: "client_eval",
-      arguments: { code: request },
-      execution: {
-        status: "complete",
-        isError: false,
-        result: native
-          ? {
-              details: {
-                protocol: "native-channel-method-outcome.v1",
-                value: { handled: true, received: { code: received } },
-              },
-            }
-          : { handled: true, received: { code: received } },
+      arguments: {
+        code: 'import { executeOnboardingSelection } from "@workspace-skills/onboarding"; return await executeOnboardingSelection({source:"onboarding-setup-hub",kind:"onboarding-capability",action:"setup",targetId:"connection.github"});',
       },
-    });
+      execution: complete,
+    };
+
     expect(
-      test.validate(
-        execution("Selection forwarded.", [
-          call(code, code, false),
-          call(code, code),
-        ]),
-      ).passed,
+      test.validate(execution("Opening GitHub setup.", [ownerRead])).passed,
     ).toBe(true);
     expect(
       test.validate(
-        execution("Selection forwarded.", [call(code, "another request")]),
+        execution("Opening GitHub setup.", [rerouted, ownerRead]),
       ).passed,
     ).toBe(false);
     expect(
       test.validate(
-        execution("Selection forwarded.", [call(code, code, false)]),
-      ).passed,
-    ).toBe(false);
-    const unbound =
-      'import { executeOnboardingSelection } from "@workspace-skills/onboarding"; return await executeOnboardingSelection(interaction);';
-    expect(
-      test.validate(execution("Selection forwarded.", [call(unbound, unbound)]))
-        .passed,
-    ).toBe(false);
-    const otherTarget = code.replace("connection.github", "connection.other");
-    expect(
-      test.validate(
-        execution("Selection forwarded.", [call(otherTarget, otherTarget)]),
+        execution("Opening GitHub setup.", [
+          { ...ownerRead, arguments: { path: "skills/onboarding/SKILL.md" } },
+        ]),
       ).passed,
     ).toBe(false);
   });

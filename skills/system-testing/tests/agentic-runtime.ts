@@ -332,7 +332,7 @@ export const agenticRuntimeTests: TestCase[] = [
     validate: (result) =>
       semanticEval(
         result,
-        [/stateArgs/iu, /(?:set|update|change)/iu],
+        [/stateArgs/iu, /(?:patch|update|change)/iu],
         [/state/iu, /immediate|visible|observed/iu],
       ),
   },

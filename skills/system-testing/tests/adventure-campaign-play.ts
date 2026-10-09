@@ -202,7 +202,8 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       "postal scene before interaction",
       (f) => f.ready && f.enabled && f.loaded && !!f.asset && !f.pending
     );
-    const page = await handle.cdp.page();
+    const session = await handle.cdp.session();
+    const page = session.page;
     await page
       .locator("#adventure-intention")
       .fill("Go into the customs house and ask Elin about the letter addressed to Mara Vale.");
@@ -238,7 +239,8 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
         CAMPAIGNS[index]!.id + " before interaction",
         (f) => f.ready && f.enabled && f.loaded && !!f.asset && !f.pending
       );
-      const page = await other.cdp.page();
+      const session = await other.cdp.session();
+      const page = session.page;
       await page.locator("#adventure-intention").fill(text);
       await page.locator('button[type="submit"]').click();
       e.sideGames.push(

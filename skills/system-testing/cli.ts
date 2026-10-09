@@ -781,7 +781,10 @@ export async function systemTestDoctor(
         "meta/vibestudio.yml",
         "utf8",
       ]);
-      return rpc.call("main", "workspace.validateConfig", [source]);
+      return rpc.call("main", "workspace.validateConfig", [{
+        manifest: source,
+        serviceManifests: {},
+      }]);
     },
     "the workspace has a valid standalone runtime configuration",
   );

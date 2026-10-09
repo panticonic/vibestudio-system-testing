@@ -94,7 +94,7 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
   const code = successfulEvalCode(result);
   if (
     evalCalls.length !== 1 ||
-    !code.includes("vibestudio.missions.v1") ||
+    !/\bmissions\b/u.test(code) ||
     !/\boverview\b/u.test(code)
   ) {
     return {

@@ -110,6 +110,17 @@ describe("automation overview system test validator", () => {
     ).toEqual({ passed: true });
   });
 
+  it("accepts the runtime missions client", () => {
+    expect(
+      automationTest.validate(
+        execution(
+          "import { missions } from '@workspace/runtime'; const overview = await missions.overview(); return overview.stats;",
+          { total: 4, active: 2, running: 1, issueRunsLast24Hours: 1, completed: 1 }
+        )
+      )
+    ).toEqual({ passed: true });
+  });
+
   it("pregrants only the canonical automation service read", () => {
     expect(automationTest.authorityPolicy).toEqual({
       authority: [
@@ -316,7 +327,6 @@ describe("automation native launch system test validator", () => {
       {
         service: "vcs",
         method: "status",
-        args: [{ contextId: "project-status-context" }],
         use: "action",
       },
     ],

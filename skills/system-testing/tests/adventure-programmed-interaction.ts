@@ -67,7 +67,8 @@ async function orchestrate(
       "opening",
       (f) => f.ready && f.enabled && f.loaded && f.asset && !f.pending,
     );
-    const page = await active.cdp.page();
+    const session = await active.cdp.session();
+    const page = session.page;
     try {
       await page
         .getByRole("button", { name: "The harbour lamp", exact: false })
@@ -118,7 +119,8 @@ async function orchestrate(
         !f.pending &&
         f.asset === evidence["painted"].asset,
     );
-    const reopened = await active.cdp.page();
+    const reopenedSession = await active.cdp.session();
+    const reopened = reopenedSession.page;
     try {
       await reopened
         .getByRole("button", { name: "The harbour lamp", exact: false })

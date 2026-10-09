@@ -734,7 +734,7 @@ const SCREENSHOT_PROMPT =
 const INVALID_ICON_PANEL_PROMPT =
   "Create, publish, and open an isolated panel using the built-in icon `lucide:columns-3x`.";
 const PANEL_REBUILD_PROMPT =
-  "Create and publish a small counter panel, open it, and use its browser automation session to verify the counter controls. Keep that session while making a visible improvement to the running panel. Rebuild the panel, refresh the existing automation session, and verify the improved version still works.";
+  "Create and publish a small counter panel, open it, and use its browser automation session to verify the counter controls. Keep that session while making a visible improvement to the running panel. Rebuild the panel, continue using the same stable session page, and verify the improved version still works.";
 
 export const developerErgonomicsTests: TestCase[] = [
   {
@@ -805,7 +805,7 @@ export const developerErgonomicsTests: TestCase[] = [
   {
     name: "panel-rebuild-reacquire-and-interact",
     description:
-      "Refresh a generation-fenced CDP session after rebuilding a panel",
+      "Rebind a stable CDP session after rebuilding a panel",
     category: "developer-ergonomics",
 
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,

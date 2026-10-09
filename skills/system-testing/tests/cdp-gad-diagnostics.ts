@@ -391,7 +391,7 @@ function checkedPanelState(result: Parameters<typeof finalMessageHasAll>[0]) {
       journal["entries"].some(
         (entry) =>
           isRecord(entry) &&
-          entry["type"] === "stateArgs.set" &&
+          entry["type"] === "stateArgs.patch" &&
           typeof entry["id"] === "string",
       )
     );

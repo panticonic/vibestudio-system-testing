@@ -575,8 +575,9 @@ export class HeadlessSession {
 
     methods["load_action_bar"] = {
       description:
-        "Synthetic panel harness: load, replace, or clear a compact panel action bar. Provide a context-relative TSX path unless clear is true. Publishes the same typed action-bar update event as the browser panel tool, but does not mount a browser renderer.",
+        "Synthetic panel harness: load, replace, or clear a compact panel action bar. Provide exactly one of inline TSX code or a context-relative TSX path unless clear is true. Publishes the same typed action-bar update event as the browser panel tool, but does not mount a browser renderer or own a panel filesystem, so inline code is published as a code source.",
       parameters: z.object({
+        code: z.string().optional(),
         path: z.string().optional(),
         imports: z.record(z.string(), z.string()).optional(),
         props: z.record(z.unknown()).optional(),
@@ -584,7 +585,8 @@ export class HeadlessSession {
         clear: z.boolean().optional(),
       }),
       execute: async (args: unknown, context: MethodExecutionContext) => {
-        const { path, imports, props, maxHeight, clear } = args as {
+        const { code, path, imports, props, maxHeight, clear } = args as {
+          code?: string;
           path?: string;
           imports?: Record<string, string>;
           props?: Record<string, unknown>;
@@ -612,8 +614,12 @@ export class HeadlessSession {
         }
 
         const trimmedPath = path?.trim();
-        if (!trimmedPath)
-          return context.result({ ok: false, error: "Missing path" }, { isError: true });
+        const inlineCode = code?.trim() ? code : undefined;
+        if ((inlineCode === undefined) === !trimmedPath)
+          return context.result(
+            { ok: false, error: "Provide exactly one of code or path" },
+            { isError: true }
+          );
 
         const id = crypto.randomUUID();
         const eventPayload: AgenticEvent<"ui.action_bar.updated">["payload"] = {
@@ -621,7 +627,9 @@ export class HeadlessSession {
           uiType: "action_bar",
           requestedBy: this.callerRef(context),
           id,
-          source: { type: "file", path: trimmedPath },
+          source: trimmedPath
+            ? { type: "file", path: trimmedPath }
+            : { type: "code", code: inlineCode! },
           result: { ok: true },
         };
         if (imports !== undefined) eventPayload.imports = imports;

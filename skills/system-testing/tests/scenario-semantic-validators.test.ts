@@ -1512,7 +1512,7 @@ describe("multi-user semantic validators", () => {
       validator.validate(
         execution("Alice is currently present.", [
           {
-            code: "return await services.gad.inspectChannelRoster();",
+            code: "return await gad.inspectChannelRoster();",
             returnValue: [{ participantId: "user-1", type: "user", name: "Alice" }],
           },
         ])
@@ -1540,7 +1540,7 @@ describe("multi-user semantic validators", () => {
       validator.validate(
         execution("There are 2 participants: one agent and one headless participant.", [
           {
-            code: "return await services.gad.inspectChannelRoster();",
+            code: "return await gad.inspectChannelRoster();",
             returnValue: [
               { participantId: "agent-1", type: "agent" },
               { participantId: "runner-1", type: "headless" },

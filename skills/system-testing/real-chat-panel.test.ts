@@ -19,7 +19,15 @@ function hangingPanel() {
     ),
     close: vi.fn(async () => rejectEvaluation(new Error("page closed"))),
   };
-  return { page, panel: { id: "p1", cdp: { page: async () => page } } as never };
+  const cdpSession = {
+    page,
+    close: vi.fn(async () => page.close()),
+  };
+  return {
+    page,
+    cdpSession,
+    panel: { id: "p1", cdp: { session: async () => cdpSession } } as never,
+  };
 }
 
 /** A real session (no connection) so `waitUntil` and `lifetime` are the product's. */
@@ -70,9 +78,13 @@ describe("real chat panel waits settle on abort and session close", () => {
         throw new Error("close failed");
       }),
     };
+    const cdpSession = {
+      page,
+      close: vi.fn(async () => page.close()),
+    };
     const controller = new AbortController();
     const wait = awaitChatPanelConnected(
-      { cdp: { page: async () => page } } as never,
+      { cdp: { session: async () => cdpSession } } as never,
       controller.signal,
     );
     await vi.waitFor(() => expect(page.evaluate).toHaveBeenCalled());
