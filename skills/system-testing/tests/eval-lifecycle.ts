@@ -590,29 +590,36 @@ async function orchestrateAgentReplay(
       ].join("\n"),
     );
 
-    const liveDeadline = Date.now() + 20_000;
-    let live: { id: string; status: "pending" | "running" } | undefined;
-    while (Date.now() < liveDeadline) {
-      const invocation = session
-        .snapshot()
-        .invocations.find(
+    const readiness = new AbortController();
+    const readinessSignal = AbortSignal.any([context.signal, readiness.signal]);
+    const liveObservation = session.waitUntil(
+      () => {
+        const invocation = session.snapshot().invocations.find(
           (candidate) =>
             candidate.name === "eval" &&
             (candidate.status === "pending" || candidate.status === "running"),
         );
-      if (invocation) {
-        live = {
-          id: invocation.id,
-          status: invocation.status as "pending" | "running",
-        };
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
+        return invocation
+          ? { id: invocation.id, status: invocation.status as "pending" | "running" }
+          : undefined;
+      },
+      { signal: readinessSignal },
+    );
+    const inputSettlement = session
+      .waitForInput(inputMessageId, { signal: readinessSignal })
+      .then(() => {
+        throw new Error("The admitted input settled without an observed live eval invocation");
+      });
+    let live: { id: string; status: "pending" | "running" };
+    try {
+      live = await Promise.race([liveObservation, inputSettlement]);
+    } finally {
+      // Release and join observation only; the admitted input remains owned by
+      // this session and must survive the injected activation loss unchanged.
+      readiness.abort(new Error("Eval replay readiness observation released"));
+      await Promise.allSettled([liveObservation, inputSettlement]);
     }
-    if (!live)
-      throw new Error(
-        "Eval invocation did not become live before the fault deadline",
-      );
+    context.signal.throwIfAborted();
 
     const fault =
       await context.runner.faultAbortAgentVesselForReplayProbe(targetId);
@@ -626,9 +633,7 @@ async function orchestrateAgentReplay(
 
     // The injected activation loss invalidates its live RPCs, not the admitted
     // input. Observe that exact input from the replacement activation.
-    await session.waitForInput(inputMessageId, {
-      timeoutMs: context.remainingTimeMs(),
-    });
+    await session.waitForInput(inputMessageId, { signal: context.signal });
   } catch (cause) {
     failure = systemTestFailure("eval-agent-replay", cause);
     error = failure.error.message;
