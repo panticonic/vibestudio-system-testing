@@ -887,9 +887,7 @@ describe("project lifecycle prompts", () => {
       ({ name }) => name === "panel-todo-debug-polish",
     )!;
 
-    expect(test.expectedToolFailures).toEqual([
-      { name: "verify", failureCode: "build_verification_failed" },
-    ]);
+    expect(test.expectedToolFailures).toBeUndefined();
     expect(test.authorityPolicy).toEqual({
       authority: [
         {
@@ -1179,6 +1177,7 @@ describe("project lifecycle prompts", () => {
             "verify",
             { operation: "build", target: source },
             {
+              status: "failed",
               receipt: {
                 protocol: "unit-verification-receipt.v1",
                 operation: "build",
@@ -1208,12 +1207,20 @@ describe("project lifecycle prompts", () => {
     const failedVerify = structuredVerify.find(
       (call) => call.invocation.id === "broken-build",
     )!;
-    failedVerify.invocation.execution.status = "error";
-    failedVerify.invocation.execution.isError = true;
-    failedVerify.invocation.execution.result.details["failureKind"] =
-      "user-code";
-    failedVerify.invocation.execution.result.details["failureCode"] =
-      "build_verification_failed";
+    expect(failedVerify.invocation.execution).toMatchObject({
+      status: "complete",
+      isError: false,
+      result: {
+        details: {
+          status: "failed",
+          receipt: { status: "failed" },
+          report: { status: "failed" },
+        },
+      },
+    });
+    expect(failedVerify.invocation.execution.result.details).not.toHaveProperty(
+      "failure",
+    );
     expect(test.validate(todoExecution(structuredVerify))).toEqual({
       passed: true,
       reason: undefined,

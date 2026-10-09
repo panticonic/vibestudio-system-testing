@@ -52,9 +52,11 @@ the separately observed interaction after recovery before passing the workflow.
 The harness records tool failures independently from task completion and marks
 every ordinary agent trajectory for review. An undeclared failed invocation
 fails the test even if the agent subsequently delivers the requested outcome.
-Argument corrections, fail-closed domain refusals, and guest-code failures
-remain classified for diagnosis; classification and self-healing never exempt
-them from the verdict. Review failed calls (including
+A completed `verify` call may report a failed source check; validate that
+structured report as evidence and require a later clean receipt when the task
+requires one. Argument corrections, fail-closed domain refusals, runtime and
+infrastructure failures remain failed calls; recovery does not exempt them
+from the verdict. Review failed calls (including
 caught eval failures), retries, unusually long trajectories, cleanup errors,
 and runtime diagnostics even when the agent ultimately succeeds. Also look for
 needless searching, repeated rediscovery, and work abandoned after consuming
@@ -221,7 +223,9 @@ a specific nonempty `errorIncludes` discriminator. Matching consumes that entry
 once; repeated or additional failures remain unexpected. The validator must
 independently prove the intended fault, its observability, and the required
 recovery or unchanged state. Never add expected faults for incidental errors
-merely to restore a pass, or exempt every failure of a tool by name.
+merely to restore a pass, or exempt every failure of a tool by name. A failed
+source-check report returned by a completed verification call is report
+evidence, not an `expectedToolFailures` entry.
 
 Never branch a validator on human-readable error prose when a discriminant or
 terminal outcome exists.

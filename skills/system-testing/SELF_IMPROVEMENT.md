@@ -244,12 +244,13 @@ Full test state lives in `scope.results.results`, with compact per-stage
 summaries in `scope.systemTestingRun.stageSummaries`. Eval return values are
 only progress/control packets; do not use them as the diagnostic record.
 
-Undeclared tool failures fail the test even when the agent recovers and
-satisfies its outcome validator. Keep the completed work and the original
-fault evidence separately: a successful recovery is useful diagnostic progress,
-not proof that the initial product path was healthy. Argument rejections,
-no-effect domain refusals, and guest-code exceptions remain classified so the
-owning layer can be identified; their classification does not erase a failure.
+Undeclared failed tool invocations fail the test even when the agent recovers
+and satisfies its outcome validator. A completed `verify` invocation may return
+a failed source-check report (`failed` or `compilation-failed`); that is the
+result of the requested check, not a tool invocation failure. Preserve its
+diagnostics and receipt, and require the validator to prove the later clean
+check or other requested outcome. Actual request, runtime, and infrastructure
+failures remain failed invocations and retain their original evidence.
 
 Only faults deliberately induced by the scenario may be declared in
 `expectedToolFailures`. Each specific declaration covers one de-duplicated

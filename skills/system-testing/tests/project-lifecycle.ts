@@ -455,7 +455,8 @@ function compilerCheckSummary(
   const canonicalReport =
     call.name === "verify" &&
     isRecord(receipt) &&
-    ["complete", "error"].includes(String(call.execution?.status)) &&
+    call.execution?.status === "complete" &&
+    call.execution.isError !== true &&
     receipt["protocol"] === "unit-verification-receipt.v1" &&
     receipt["operation"] === "build" &&
     receipt["target"] === expectedSource &&
@@ -463,6 +464,7 @@ function compilerCheckSummary(
     unit["repoPath"] === expectedSource &&
     unit["kind"] === "panel" &&
     isRecord(verifiedReport) &&
+    verifiedReport["status"] === receipt["status"] &&
     verifiedReport["repoPath"] === expectedSource &&
     verifiedReport["kind"] === "panel" &&
     verifiedReport["stateHash"] === receipt["stateHash"]
@@ -1511,12 +1513,8 @@ export const projectLifecycleTests: TestCase[] = [
       "Build, debug, polish, and publish a To-Do panel through the live UI",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
-    // The task explicitly induces one compiler fault, and the validator joins
-    // its failed check to the authored defect and subsequent repair. Additional
-    // compiler or interaction failures remain unexpected, even if recovered.
-    expectedToolFailures: [
-      { name: "verify", failureCode: "build_verification_failed" },
-    ],
+    // The task deliberately induces a source diagnostic. Its failed report is
+    // completed verification evidence; the validator requires a later clean check.
     authorityPolicy: panelControlAuthorityPolicy("inspect-created-panel", [
       {
         ruleId: "inspect-screenshot-analysis-dependency",

@@ -20,11 +20,14 @@ authority mechanics belong in product skills.
 ## Recovery must not hide defects
 
 Every unexpected retained failed invocation fails the canonical test verdict,
-even if the final task outcome passes. Diagnostic classification of argument,
-domain, and guest-code failures does not excuse them. The original task outcome
-and fault evidence remain distinct. A declared intentional fault names its tool
-and canonical code (or a precise discriminator for an untyped error), and covers
-one deduplicated invocation. Extra or repeated failures fail the test.
+even if the final task outcome passes. A completed `verify` invocation may
+return a failed source-check report; preserve that report as evidence and let
+the validator require a later clean receipt. Diagnostic classification of
+actual argument, domain, and guest-code failures does not excuse them. The
+original task outcome and fault evidence remain distinct. A declared intentional
+fault names its tool and canonical code (or a precise discriminator for an
+untyped error), and covers one deduplicated invocation. Extra or repeated
+failures fail the test.
 
 Do not add expected faults to regain a pass after encountering an incidental
 error. Explicit negative cases must independently prove both the induced fault
@@ -138,8 +141,9 @@ The lifecycle validators now require a completed agent reply and judge delivery
 through joined native source, build, rendered image, interaction, console, and
 publication evidence. They do not require words such as `UX`, `usability`, or
 `task` in the final report. A real report explaining placeholder contrast and
-mobile layout was incorrectly rejected by that vocabulary gate. Unexpected
-compiler faults still fail the overall verdict, independently of task delivery.
+mobile layout was incorrectly rejected by that vocabulary gate. A failed
+compiler report is source-check evidence; the validator still requires the
+later clean build before accepting delivery.
 
 This is an over-specified task journey. Preserve intended To-Do outcome and live verification, remove staged defects/screenshot choreography; redesign validator around finished behavior.
 
@@ -149,9 +153,16 @@ Owning product guidance: `Base/skills/workspace-dev/SKILL.md`, `Base/skills/work
 
 Source: `skills/system-testing/tests/unit-diagnostics.ts`.
 
-Prompt retains schedule/timezone/end cap/offline/concision/start details, but not implementation method or completion protocol. Validator requires eval action, automation-completion.v1, fresh conversation.
+Prompt retains the requested schedule, timezone, end condition, offline scope,
+concise update, and immediate start. The validator requires one successful
+native launch whose retained active definition matches the requested schedule
+and end cap, plus a final response that identifies its active inspectable pill.
+It accepts either prompt or eval actions and either supported conversation
+mode; it does not require a completion receipt from a future run.
 
-Validator encodes launch internals and a completion receipt. The task’s continuing daily automation also has no natural finite completion condition.
+Do not encode the native launch implementation or future run completion in the
+prompt. Keep the schedule and end condition user-visible and validate the
+retained launch against them.
 
 Owning product guidance: `Base/skills/automations/SKILL.md`. These paths identify the reusable guidance owner, not a place to store evaluator tokens.
 

@@ -177,19 +177,19 @@ function buildReceipt(
 }
 
 function validateBoundedBuildDiagnostics(result: TestExecutionResult) {
-  const base = completedScenarioEvidence(result, ["verify"], {
-    allowFailed: (call) => call.name === "verify",
-  });
+  const base = completedScenarioEvidence(result, ["verify"]);
   if (!base.passed) return base;
   const calls = getToolCalls(result);
   const failedIndex = calls.findIndex((call) => {
-    if (call.name !== "verify" || !isFailed(call)) return false;
+    if (call.name !== "verify" || !isComplete(call)) return false;
     return records(call).some((record) => {
       const receipt = buildReceipt(record, "failed");
       const report = record["report"];
       return (
         receipt !== null &&
         isRecord(report) &&
+        report["status"] === "failed" &&
+        report["stateHash"] === receipt["stateHash"] &&
         Array.isArray(report["diagnostics"]) &&
         report["diagnostics"].length <= 40 &&
         typeof record["truncatedDiagnostics"] === "number" &&
@@ -782,9 +782,6 @@ export const developerErgonomicsTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     prompt:
       "Stress-test the disposable package's build diagnostics by introducing more than 50 separate type errors so the bounded error report is exercised. Then fix the package and confirm it builds cleanly. Leave the temporary breakage unpublished.",
-    expectedToolFailures: [
-      { name: "verify", failureCode: "build_verification_failed" },
-    ],
     validate: validateBoundedBuildDiagnostics,
   },
   {

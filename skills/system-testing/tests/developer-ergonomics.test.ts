@@ -114,7 +114,7 @@ describe("developer ergonomics scenarios", () => {
     ).toBe(true);
     expect(
       scenario("failed-build-bounded-diagnostics").expectedToolFailures,
-    ).toEqual([{ name: "verify", failureCode: "build_verification_failed" }]);
+    ).toBeUndefined();
     expect(
       scenario("recoverable-infrastructure-failure-continues-turn")
         .expectedToolFailures,
@@ -362,11 +362,14 @@ describe("developer ergonomics scenarios", () => {
         operation: "build",
         target,
         status: "failed",
-        report: { diagnostics },
+        report: {
+          status: "failed",
+          diagnostics,
+          stateHash: `state:${"a".repeat(64)}`,
+        },
         receipt: receipt(target, "failed"),
         truncatedDiagnostics: 20,
       },
-      true,
     );
     const clean = call(
       "clean-build",
@@ -387,6 +390,11 @@ describe("developer ergonomics scenarios", () => {
         execution([failed, clean]),
       ),
     ).toEqual({ passed: true, reason: undefined });
+    expect(
+      scenario("failed-build-bounded-diagnostics").validate(
+        execution([failed]),
+      ).passed,
+    ).toBe(false);
   });
 
   it("requires native image evidence from the same extensionless scratch capture", () => {

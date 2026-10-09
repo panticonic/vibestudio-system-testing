@@ -55,9 +55,12 @@ or rollback faults must remain secondary. Honor `summary.truncated`; request a
 larger bounded section or the full trajectory only when necessary.
 
 An undeclared failed invocation makes the test fail even if the final task
-outcome is successful. Inspect both facts: did the requested outcome eventually
-work, and which problem occurred on the way? Recovery must not remove the
-fault from reports or rerun selection.
+outcome is successful. A completed `verify` call whose structured report says
+`failed` or `compilation-failed` is a successful check operation reporting a
+source result; preserve that report and receipt, and separately require a clean
+receipt wherever the task needs one. Inspect both facts: did the requested
+outcome eventually work, and which problem occurred on the way? Recovery must
+not remove actual tool faults from reports or rerun selection.
 
 Classification distinguishes infrastructure failures, guest-code exceptions,
 argument corrections, and typed no-effect guards. It assigns a diagnostic
