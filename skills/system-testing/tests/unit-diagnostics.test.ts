@@ -463,6 +463,136 @@ describe("scheduled automation notification system test validator", () => {
     }
   });
 
+  function scheduledProofFixture() {
+    const channelId = "headless-proof";
+    const messages = execution("", scheduledLaunch, "Running and inspectable.", "launch_automation")
+      .messages;
+    const launchMessage = messages.find((message) => message.contentType === "invocation")!;
+    (launchMessage.invocation as unknown as { result: { details: unknown } }).result.details = {
+      missionId: "mission-proof",
+    };
+    const session = {
+      channelId,
+      messages,
+      snapshot: () => ({ invocations: [] as { id: string; status: string }[] }),
+      waitForInvocation: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const context = {
+      runner: { spawn: async () => session },
+      sendAndWait: async () => undefined,
+      signal: new AbortController().signal,
+      remainingTimeMs: () => 190_000,
+    } as unknown as TestOrchestrationContext;
+    const overview = (state: string, runCount: number) => ({
+      items: [
+        {
+          automation: {
+            name: scheduledLaunch.name,
+            missionId: "mission-proof",
+            state,
+            runCount,
+            ...(state === "completed"
+              ? { completionReason: "response", completionResponse: "Goal finished." }
+              : {}),
+            charter: { execution: { conversation: { mode: "continue", channelId } } },
+          },
+          recentRuns: Array.from({ length: runCount }, (_, i) => ({
+            runId: `run-${i + 1}`,
+            phase: "terminal",
+            outcome: "succeeded",
+          })),
+        },
+      ],
+    });
+    const notifications = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `notification-${i + 1}`,
+        kind: "agent.message",
+        message: "One minute has passed.",
+        data: { channelId },
+      }));
+    notificationRuntime.resolveService.mockResolvedValue({
+      kind: "durable-object",
+      targetId: "missions",
+    });
+    notificationRuntime.overview.mockReset();
+    notificationRuntime.list.mockReset();
+    return { context, session, overview, notifications };
+  }
+
+  it.each(["completed", "retired"])(
+    "retains an early %s mission and joins publication before reporting the unmet goal",
+    async (state) => {
+      const { context, session, overview, notifications } = scheduledProofFixture();
+      notificationRuntime.overview.mockResolvedValue(overview(state, 1));
+      notificationRuntime.list.mockResolvedValue(notifications(1));
+      let pending = true;
+      let publish!: () => void;
+      session.snapshot = () => ({
+        invocations: pending ? [{ id: "invocation:completion", status: "pending" }] : [],
+      });
+      session.waitForInvocation.mockImplementation(async () => {
+        await new Promise<void>((resolve) => {
+          publish = resolve;
+        });
+        pending = false;
+      });
+      const running = scheduledNotificationTest.orchestrate!(context);
+      await vi.waitFor(() =>
+        expect(session.waitForInvocation).toHaveBeenCalledWith("invocation:completion", {
+          signal: context.signal,
+        })
+      );
+      expect(notificationRuntime.overview).toHaveBeenCalledTimes(1);
+      expect(session.close).not.toHaveBeenCalled();
+      publish();
+      const result = await running;
+      expect(result.error).toBeUndefined();
+      expect(result.diagnostics!["scheduledNotification"]).toMatchObject({
+        missionState: state,
+        runCount: 1,
+        runs: [{ runId: "run-1", outcome: "succeeded" }],
+        notifications: [{ id: "notification-1" }],
+        ...(state === "completed"
+          ? { completionReason: "response", completionResponse: "Goal finished." }
+          : {}),
+      });
+      expect(scheduledNotificationTest.validate(result)).toMatchObject({
+        passed: false,
+        reason: expect.stringContaining(`mission state: ${state}, run count: 1`),
+      });
+      expect(session.close).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(["active", "paused"])(
+    "keeps observing a %s mission until both requested runs become terminal",
+    async (state) => {
+      vi.useFakeTimers();
+      try {
+        const { context, session, overview, notifications } = scheduledProofFixture();
+        notificationRuntime.overview
+          .mockResolvedValueOnce(overview(state, 1))
+          .mockResolvedValue(overview("completed", 2));
+        notificationRuntime.list.mockResolvedValue(notifications(2));
+        const running = scheduledNotificationTest.orchestrate!(context);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(notificationRuntime.overview).toHaveBeenCalledTimes(1);
+        expect(notificationRuntime.list).not.toHaveBeenCalled();
+        expect(session.close).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1000);
+        const result = await running;
+        expect(notificationRuntime.overview).toHaveBeenCalledTimes(2);
+        expect(result.error).toBeUndefined();
+        expect(scheduledNotificationTest.validate(result)).toEqual({ passed: true });
+        expect(session.close).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it("rejects launch-only evidence without the promised outcome", () => {
     expect(
       scheduledNotificationTest.validate(

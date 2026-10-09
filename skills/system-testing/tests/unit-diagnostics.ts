@@ -274,7 +274,11 @@ async function scheduledNotificationProof(
       const runs = recentRuns.filter(
         (candidate) => isRecord(candidate) && candidate["phase"] === "terminal"
       );
-      if (automation?.["name"] === proofName && automation["runCount"] === 2 && runs.length >= 2) {
+      const stopped = automation?.["state"] === "completed" || automation?.["state"] === "retired";
+      if (
+        automation?.["name"] === proofName &&
+        ((automation["runCount"] === 2 && runs.length >= 2) || stopped)
+      ) {
         const notifications = await gad.listUserNotificationsForMe({
           includeAcknowledged: true,
           limit: 100,
@@ -295,6 +299,9 @@ async function scheduledNotificationProof(
           missionId: automation["missionId"],
           missionState: automation["state"],
           runCount: automation["runCount"],
+          nextRunAt: automation["nextRunAt"],
+          completionReason: automation["completionReason"],
+          completionResponse: automation["completionResponse"],
           launchChannelId: session.channelId,
           conversation,
           redundantInviteCount: notifications.filter(
@@ -324,9 +331,9 @@ async function scheduledNotificationProof(
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
     if (!observation) throw new Error("Two scheduled runs did not become terminal in time");
-    // The ledger has joined execution. Ordered channel publication can still
-    // be delivering terminal cards, particularly for tool-terminated answers.
-    // Join those exact observed obligations before retaining the final evidence.
+    // A stopped mission cannot produce another scheduled run. Its observed
+    // publications can still be delivering, particularly for tool-terminated
+    // answers. Join those obligations before retaining the final evidence.
     const pending = session
       .snapshot()
       .invocations.filter((invocation) =>
@@ -409,7 +416,10 @@ function scheduledNotificationChecked(
   if (runs.length !== 2 || failedRun) {
     return {
       passed: false,
-      reason: `Both scheduled runs and their requested effects must succeed: ${JSON.stringify(runs)}`,
+      reason:
+        `Both scheduled runs and their requested effects must succeed ` +
+        `(mission state: ${String(observed["missionState"])}, run count: ${String(observed["runCount"])}): ` +
+        JSON.stringify(runs),
     };
   }
   const conversation = observed["conversation"];
