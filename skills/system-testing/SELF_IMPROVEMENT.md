@@ -143,7 +143,9 @@ return summarizeFailures(scope.systemTestingRun.results);
 Then drill into any failure that the summary does not explain:
 
 ```typescript
-for (const r of scope.systemTestingRun.results.results.filter((r) => !r.result.passed)) {
+for (const r of scope.systemTestingRun.results.results.filter(
+  (r) => !r.result.passed,
+)) {
   console.log(`\n${"=".repeat(60)}`);
   console.log(`FAIL: ${r.test.name} (${r.test.category})`);
   console.log(`Prompt: ${r.test.prompt}`);
@@ -462,16 +464,27 @@ eval({
 })
 ```
 
-Create a branch before making changes:
+Work in the test's semantic context. `projects/vibestudio` is a source projection;
+its history and branch isolation belong to VCS. Choose a name for an eventual
+external handoff, then edit and commit through normal VCS:
 
 ```typescript
 const branchName = `fix/system-test-${failedTestName}`;
-import { GitClient } from "@vibestudio/git";
-import { credentials, fs } from "@workspace/runtime";
-const externalGit = new GitClient(fs, { http: credentials.gitHttp() });
-await externalGit.createBranch({ dir: scope.checkoutDir, name: branchName });
-await externalGit.checkout(scope.checkoutDir, branchName);
 ```
+
+When a remote handoff is requested, publish the exact committed event through
+the declared Git remote:
+
+```typescript
+await git.createBranch({
+  repoPath: scope.checkoutDir,
+  branch: branchName,
+  from: committed.eventId,
+});
+```
+
+This refuses an existing remote branch and preserves protected main and upstream
+tracking. It does not publish uncommitted filesystem edits.
 
 ## Phase 6: Edit and Fix
 
@@ -538,10 +551,10 @@ or any change to the request, re-observe the basis and use a new ID. See
 
 ### External projects and restarts
 
-For plain external project repositories, keep using `@vibestudio/git` with
-`credentials.gitHttp()`. External Git commits and pushes do not hot-patch the
-running server; restart from that checkout or hand off the branch or patch
-before retesting server changes.
+Adopted project repositories use semantic VCS, including plain projects. Use
+`git.createBranch` for a requested external handoff of an exact committed event.
+External publication does not hot-patch the running server; restart from the
+reviewed host checkout before retesting host changes.
 
 Restart according to what changed:
 
