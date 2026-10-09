@@ -538,7 +538,7 @@ describe("reduced VCS agentic catalog", () => {
     expect(test.validate(execution(final, [inspect])).passed).toBe(true);
 
     const unrelatedNode = structuredClone(inspect);
-    unrelatedNode.invocation.arguments.target = "@r9-dead";
+    unrelatedNode.invocation.arguments["target"] = "@r9-dead";
     expect(test.validate(execution(final, [search, unrelatedNode])).passed).toBe(false);
 
     const noCause = structuredClone(inspect);
