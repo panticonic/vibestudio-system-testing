@@ -705,6 +705,7 @@ function completeTodoRuntimeVerificationIndex(
       index: number;
       verifiedIndex: number;
       flows: Set<string>;
+      filledInputs: Set<string>;
     }
   >();
   let step = 0;
@@ -730,10 +731,12 @@ function completeTodoRuntimeVerificationIndex(
         index: -1,
         verifiedIndex: -1,
         flows: new Set<string>(),
+        filledInputs: new Set<string>(),
       };
       const receipt = entry["receipt"];
       if (entry["type"] === "reload") {
         state.reload = step;
+        state.filledInputs.clear();
         state.clean = false;
         state.verifiedIndex = -1;
       }
@@ -751,17 +754,43 @@ function completeTodoRuntimeVerificationIndex(
           target["accessibleName"] ?? target["text"] ?? "",
         ).toLowerCase();
         const action = receipt["action"];
-        if (
-          ["fill", "press"].includes(String(action)) &&
+        const taskInput =
           ["textbox", "searchbox"].includes(String(target["role"])) &&
-          !/\b(?:search|filter)\b/u.test(name)
-        )
+          !/\b(?:search|filter)\b/u.test(name);
+        const selector = target["selector"];
+        if (["fill", "press"].includes(String(action)) && taskInput)
           state.flows.add("entry");
         if (
-          (action === "click" || action === "press") &&
-          /\b(?:add|create|save)\b/u.test(name)
+          action === "fill" &&
+          taskInput &&
+          typeof selector === "string" &&
+          selector.length > 0
         )
+          state.filledInputs.add(selector);
+        const effect = receipt["effect"];
+        const observedSubmission =
+          isRecord(effect) &&
+          effect["status"] === "observed" &&
+          effect["state"] === "visible" &&
+          typeof effect["locator"] === "string" &&
+          effect["locator"].length > 0 &&
+          typeof selector === "string" &&
+          selector.length > 0 &&
+          effect["locator"] !== selector;
+        const buttonSubmission =
+          target["role"] === "button" &&
+          (action === "click" || action === "press") &&
+          /\b(?:add|create|save)\b/u.test(name);
+        const keyboardSubmission =
+          action === "press" &&
+          target["role"] === "textbox" &&
+          taskInput &&
+          typeof selector === "string" &&
+          state.filledInputs.has(selector);
+        if (observedSubmission && (buttonSubmission || keyboardSubmission)) {
           state.flows.add("create");
+          state.filledInputs.clear();
+        }
         if (
           action === "check" ||
           ((action === "click" || action === "press") &&

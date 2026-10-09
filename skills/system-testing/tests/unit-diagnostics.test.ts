@@ -203,7 +203,6 @@ describe("canonical automation count presentation", () => {
       "Configured 1 Active 1 Running 0 Failed 0",
       "1 configured automations, 1 active automations, 0 running automations, 0 failed automations in the last 24 hours",
       "Configured automations: 1\nActive automations: 1\nRunning automations: 0\nFailed automations in the last 24 hours: 0",
-      "Configured: 1; Active: 1; Running: 0; Failed in the last 12 hours: 0",
       "| Configured automations | 1 |\n| Active | 1 |\n| Running | 0 |\n| Failed in last 24 hours | 0 |",
     ]) {
       expect(automationTest.validate(execution(code, observed, final))).toEqual({ passed: true });

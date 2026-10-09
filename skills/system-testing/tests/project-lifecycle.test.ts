@@ -62,8 +62,18 @@ function nativeUiEvidence(
           protocol: "cdp-interaction-outcome.v1",
           action,
           delivery: "dispatched",
-          target,
-          effect: { status: "not-asserted" },
+          target: {
+            ...target,
+            selector: `getByRole(${JSON.stringify(target.role)}, { name: ${JSON.stringify(target.accessibleName)}, exact: true })`,
+          },
+          effect:
+            target.accessibleName === "Create task"
+              ? {
+                  status: "observed",
+                  locator: 'getByText("New task", { exact: true })',
+                  state: "visible",
+                }
+              : { status: "not-asserted" },
         },
       })),
       {
@@ -1105,6 +1115,102 @@ describe("project lifecycle prompts", () => {
       passed: true,
       reason: undefined,
     });
+
+    const keyboardCreation = structuredClone(calls);
+    const keyboardJournal = keyboardCreation.find(
+      (entry) => entry.invocation.id === "rebuild-and-verify",
+    )!.invocation.execution.result.details["operationJournal"] as {
+      entries: Array<Record<string, unknown>>;
+    };
+    const inputEntry = keyboardJournal.entries.find((entry) => {
+      const receipt = entry["receipt"] as Record<string, unknown> | undefined;
+      const target = receipt?.["target"] as Record<string, unknown> | undefined;
+      return target?.["accessibleName"] === "Task title";
+    })!;
+    const submitEntry = keyboardJournal.entries.find((entry) => {
+      const receipt = entry["receipt"] as Record<string, unknown> | undefined;
+      const target = receipt?.["target"] as Record<string, unknown> | undefined;
+      return target?.["accessibleName"] === "Create task";
+    })!;
+    const inputReceipt = inputEntry["receipt"] as Record<string, unknown>;
+    const submitReceipt = submitEntry["receipt"] as Record<string, unknown>;
+    submitReceipt["action"] = "press";
+    submitReceipt["target"] = structuredClone(inputReceipt["target"]);
+    expect(test.validate(todoExecution(keyboardCreation))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    for (const variant of [
+      "missing-fill",
+      "wrong-input",
+      "search-input",
+      "search-role",
+      "not-asserted",
+      "not-observed",
+      "hidden",
+      "same-target",
+      "wrong-panel",
+      "stale-fill",
+    ]) {
+      const altered = structuredClone(keyboardCreation);
+      const journal = altered.find(
+        (entry) => entry.invocation.id === "rebuild-and-verify",
+      )!.invocation.execution.result.details["operationJournal"] as {
+        entries: Array<Record<string, unknown>>;
+      };
+      const press = journal.entries.find(
+        (entry) =>
+          (entry["receipt"] as Record<string, unknown> | undefined)?.[
+            "action"
+          ] === "press",
+      )!;
+      const receipt = press["receipt"] as Record<string, unknown>;
+      const target = receipt["target"] as Record<string, unknown>;
+      const effect = receipt["effect"] as Record<string, unknown>;
+      if (variant === "missing-fill")
+        journal.entries = journal.entries.filter(
+          (entry) =>
+            (
+              (entry["receipt"] as Record<string, unknown> | undefined)?.[
+                "target"
+              ] as Record<string, unknown> | undefined
+            )?.["accessibleName"] !== "Task title" ||
+            (entry["receipt"] as Record<string, unknown> | undefined)?.[
+              "action"
+            ] !== "fill",
+        );
+      if (variant === "wrong-input") target["selector"] = "another textbox";
+      if (variant === "search-input") target["accessibleName"] = "Search tasks";
+      if (variant === "search-role") target["role"] = "searchbox";
+      if (variant === "not-asserted")
+        receipt["effect"] = { status: "not-asserted" };
+      if (variant === "not-observed") effect["status"] = "not-observed";
+      if (variant === "hidden") effect["state"] = "hidden";
+      if (variant === "same-target") effect["locator"] = target["selector"];
+      if (variant === "wrong-panel") press["id"] = "panel:unrelated";
+      if (variant === "stale-fill")
+        journal.entries.splice(journal.entries.indexOf(press), 0, {
+          type: "reload",
+          id: "panel:todo",
+        });
+      expect(test.validate(todoExecution(altered)).passed, variant).toBe(false);
+    }
+    const unobservedButton = structuredClone(calls);
+    const buttonJournal = unobservedButton.find(
+      (entry) => entry.invocation.id === "rebuild-and-verify",
+    )!.invocation.execution.result.details["operationJournal"] as {
+      entries: Array<Record<string, unknown>>;
+    };
+    const buttonReceipt = buttonJournal.entries.find((entry) => {
+      const receipt = entry["receipt"] as Record<string, unknown> | undefined;
+      return (
+        (receipt?.["target"] as Record<string, unknown> | undefined)?.[
+          "accessibleName"
+        ] === "Create task"
+      );
+    })!["receipt"] as Record<string, unknown>;
+    buttonReceipt["effect"] = { status: "not-asserted" };
+    expect(test.validate(todoExecution(unobservedButton)).passed).toBe(false);
 
     const naturalReport = todoExecution(calls);
     naturalReport.messages.at(-1)!.content =
