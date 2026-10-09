@@ -743,7 +743,7 @@ describe("reduced VCS agentic catalog", () => {
     });
   });
 
-  it("accepts conclusive move/copy receipts and strictly validates an optional deeper walk", () => {
+  it("accepts conclusive move/copy receipts with or without shallow history inspection", () => {
     const test = vcsAdvancedTests.find(
       ({ name }) => name === "vcs-explicit-move-copy",
     )!;
@@ -789,66 +789,66 @@ describe("reduced VCS agentic catalog", () => {
         applicationId: "application:copy",
         changeId: "change:copy",
       }),
-      invocation(
-        "source-endpoint",
-        "provenance",
-        {},
-        {
-          adjacency: [
-            {
-              kind: "authored-copy-source",
-              from: { kind: "change", changeId: "change:copy" },
-              to: { kind: "file", ...copySource },
-            },
-          ],
-        },
-      ),
-      invocation(
-        "mapped-copy",
-        "provenance",
-        {},
-        {
-          node: {
-            kind: "applied-change",
-            value: {
-              appliedChangeId: "applied:copy",
-              applicationId: "application:copy",
-              changeId: "change:copy",
-            },
-          },
-          adjacency: [
-            {
-              kind: "realizes-change",
-              from: { kind: "applied-change", appliedChangeId: "applied:copy" },
-              to: { kind: "change", changeId: "change:copy" },
-            },
-            {
-              kind: "copies-content",
-              from: { kind: "applied-change", appliedChangeId: "applied:copy" },
-              to: { kind: "applied-change", appliedChangeId: "applied:source" },
-            },
-          ],
-        },
-      ),
     ];
+    const shallowCopyHistory = invocation(
+      "copy-history",
+      "provenance",
+      { target: "projects/fixture/src/copies/source.ts" },
+      {
+        details: {
+          target: "projects/fixture/src/copies/source.ts",
+          ref: "@r8-9feb",
+          subjectKind: "file",
+          limit: 5,
+          adjacencyCount: 1,
+          historyCount: 1,
+          continuations: [],
+        },
+      },
+    );
     const final =
       "The relocated file retained its identity; the duplicate has linked ancestry.";
-    expect(test.validate(execution(final, calls))).toEqual({
-      passed: true,
-      reason: undefined,
-    });
+    // Exact authored-copy-source and copies-content edges are asserted in
+    // semanticWorkspace graph tests; this agentic validator checks operation
+    // receipts and tolerates the bounded one-hop history view.
     expect(test.validate(execution(final, calls.slice(0, 2)))).toEqual({
       passed: true,
       reason: undefined,
     });
-    expect(test.validate(execution(final, calls.slice(1))).passed).toBe(false);
+    expect(
+      test.validate(execution(final, [...calls, shallowCopyHistory])),
+    ).toEqual({ passed: true, reason: undefined });
 
-    const arbitraryEdge = structuredClone(calls);
-    const arbitraryResult = arbitraryEdge[3]!.invocation.execution.result as {
-      adjacency: Array<{ from: { appliedChangeId: string } }>;
+    const malformedReceipt = structuredClone(calls);
+    (malformedReceipt[1]!.invocation.execution.result as Record<string, unknown>)[
+      "destination"
+    ] = { ...copySource };
+    expect(test.validate(execution(final, malformedReceipt)).passed).toBe(false);
+
+    const missingStateIdentity = structuredClone(calls);
+    const moveDetails = missingStateIdentity[0]!.invocation.execution
+      .result as Record<string, unknown>;
+    (moveDetails["destination"] as Record<string, unknown>)["state"] = {
+      kind: "application",
     };
-    arbitraryResult.adjacency[1]!.from.appliedChangeId = "applied:unrelated";
-    expect(test.validate(execution(final, arbitraryEdge)).passed).toBe(false);
+    expect(test.validate(execution(final, missingStateIdentity)).passed).toBe(
+      false,
+    );
+
+    const mismatchedApplication = structuredClone(calls);
+    const copyDetails = mismatchedApplication[1]!.invocation.execution
+      .result as Record<string, unknown>;
+    (copyDetails["destination"] as Record<string, unknown>)["state"] = {
+      kind: "application",
+      applicationId: "application:unrelated",
+    };
+    expect(test.validate(execution(final, mismatchedApplication)).passed).toBe(
+      false,
+    );
+
+    const failedReceipt = structuredClone(calls);
+    failedReceipt[1]!.invocation.execution.status = "failed";
+    expect(test.validate(execution(final, failedReceipt)).passed).toBe(false);
   });
 
   it("requires a harness-owned vcs-stale-basis-recovery protocol probe instead of guest-authored command claims", () => {

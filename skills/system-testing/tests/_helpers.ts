@@ -5,6 +5,7 @@ import {
   nativeInvocationIdentitySchema,
   nativeOriginatingInputSchema,
 } from "@vibestudio/service-schemas/nativeInvocation";
+import { vcsStateNodeRefSchema } from "@vibestudio/service-schemas/vcs";
 import {
   commandIdForTrajectoryInvocation,
   channelTrajectoryFor,
@@ -952,7 +953,7 @@ export function requireIncrementalIntegrationEvidence(
   );
 }
 
-/** Prove focused move/copy identity semantics and the copy's two exact lineage endpoints. */
+/** Prove the focused move/copy receipts expose the exact identity effects. */
 export function requireMoveCopyEvidence(result: TestExecutionResult): {
   passed: boolean;
   reason?: string;
@@ -968,14 +969,27 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
     return fail("Completed move_file and copy_file details were both required");
   const moveSource = recordField(move, "source");
   const moveDestination = recordField(move, "destination");
+  const moveWorkUnitId = stringField(move, "workUnitId");
+  const moveApplicationId = stringField(move, "applicationId");
+  const moveChangeId = stringField(move, "changeId");
   if (
     move["operation"] !== "moved" ||
     !moveSource ||
     !moveDestination ||
+    !moveWorkUnitId ||
+    !moveApplicationId ||
+    !moveChangeId ||
+    !stringField(moveSource, "repositoryId") ||
+    !stringField(moveDestination, "repositoryId") ||
     !stringField(moveSource, "fileId") ||
-    moveSource["fileId"] !== moveDestination["fileId"]
+    !stringField(moveDestination, "fileId") ||
+    moveSource["fileId"] !== moveDestination["fileId"] ||
+    !isVcsStateNodeRef(moveSource["state"]) ||
+    !stateMatchesApplication(moveDestination["state"], moveApplicationId)
   ) {
-    return fail("move_file details did not preserve one exact file identity");
+    return fail(
+      "move_file details did not preserve one exact file identity with its authored change",
+    );
   }
   const copySource = recordField(copy, "source");
   const copyDestination = recordField(copy, "destination");
@@ -985,98 +999,30 @@ export function requireMoveCopyEvidence(result: TestExecutionResult): {
     copy["operation"] !== "copied" ||
     !copySource ||
     !copyDestination ||
-    !stringField(copySource, "fileId") ||
-    !stringField(copyDestination, "fileId") ||
-    copySource["fileId"] === copyDestination["fileId"] ||
     !copyChangeId ||
     !copyApplicationId ||
     !stringField(copy, "workUnitId") ||
-    copy["workUnitId"] === move["workUnitId"]
+    !stringField(copySource, "fileId") ||
+    !stringField(copyDestination, "fileId") ||
+    !stringField(copySource, "repositoryId") ||
+    !stringField(copyDestination, "repositoryId") ||
+    copySource["fileId"] === copyDestination["fileId"] ||
+    !isVcsStateNodeRef(copySource["state"]) ||
+    !stateMatchesApplication(copyDestination["state"], copyApplicationId) ||
+    copy["workUnitId"] === moveWorkUnitId ||
+    copyApplicationId === moveApplicationId ||
+    copyChangeId === moveChangeId
   ) {
     return fail(
       "copy_file details did not mint a new file identity in a distinct work unit",
     );
   }
 
-  const provenanceDetails = calls
-    .map((call) => focusedToolDetails(call, "provenance"))
-    .filter((value): value is Record<string, unknown> => value !== null);
-  // The focused move/copy tools already return the exact source and destination
-  // identities plus the authored change/application. That is sufficient for
-  // the ordinary agent workflow. If the agent chooses to drill into the graph,
-  // validate the deeper evidence strictly rather than requiring ceremonial
-  // traversal after an already-conclusive operation result.
-  if (provenanceDetails.length === 0) {
-    return { passed: true, reason: undefined };
-  }
-  const edges = provenanceDetails.flatMap((details) =>
-    Array.isArray(details["adjacency"])
-      ? details["adjacency"].filter(isRecord)
-      : [],
-  );
-  const sourceEndpoint = edges.some((edge) => {
-    const from = recordField(edge, "from");
-    const to = recordField(edge, "to");
-    return (
-      edge["kind"] === "authored-copy-source" &&
-      from?.["kind"] === "change" &&
-      from["changeId"] === copyChangeId &&
-      to?.["kind"] === "file" &&
-      sameState(to["state"], copySource["state"]) &&
-      to["repositoryId"] === copySource["repositoryId"] &&
-      to["fileId"] === copySource["fileId"]
-    );
-  });
-  if (!sourceEndpoint) {
-    return fail(
-      "Copy provenance did not expose the exact authored change → source file endpoint",
-    );
-  }
-
-  const realization = edges.find((edge) => {
-    const from = recordField(edge, "from");
-    const to = recordField(edge, "to");
-    return (
-      edge["kind"] === "realizes-change" &&
-      from?.["kind"] === "applied-change" &&
-      typeof from["appliedChangeId"] === "string" &&
-      to?.["kind"] === "change" &&
-      to["changeId"] === copyChangeId
-    );
-  });
-  const child = realization ? recordField(realization, "from") : null;
-  const childAppliedChangeId = child
-    ? stringField(child, "appliedChangeId")
-    : null;
-  const mappedCopy = childAppliedChangeId
-    ? edges.find((edge) => {
-        const from = recordField(edge, "from");
-        const to = recordField(edge, "to");
-        return (
-          edge["kind"] === "copies-content" &&
-          from?.["kind"] === "applied-change" &&
-          from["appliedChangeId"] === childAppliedChangeId &&
-          to?.["kind"] === "applied-change" &&
-          typeof to["appliedChangeId"] === "string" &&
-          to["appliedChangeId"] !== childAppliedChangeId
-        );
-      })
-    : null;
-  const inspectedChild = provenanceDetails.some((details) => {
-    const node = recordField(details, "node");
-    const value = node ? recordField(node, "value") : null;
-    return (
-      node?.["kind"] === "applied-change" &&
-      value?.["appliedChangeId"] === childAppliedChangeId &&
-      value["applicationId"] === copyApplicationId &&
-      value["changeId"] === copyChangeId
-    );
-  });
-  if (!mappedCopy || !inspectedChild) {
-    return fail(
-      "Copy provenance did not join its application/change to a mapped copies-content edge between exact applied-change coordinate identities",
-    );
-  }
+  // The receipt establishes source/destination identity and the exact authored
+  // application. A shallow provenance lookup is useful history confirmation,
+  // but its bounded depth must not change whether those effects are valid.
+  // Exact authored-copy-source and copies-content edges are covered at the
+  // semantic graph layer, where their full endpoint identities are available.
   return { passed: true, reason: undefined };
 }
 
@@ -1446,13 +1392,17 @@ function eventRefEquals(value: unknown, eventId: string): boolean {
   );
 }
 
-function sameState(left: unknown, right: unknown): boolean {
-  if (!isRecord(left) || !isRecord(right) || left["kind"] !== right["kind"])
-    return false;
-  return left["kind"] === "event"
-    ? left["eventId"] === right["eventId"]
-    : left["kind"] === "application" &&
-        left["applicationId"] === right["applicationId"];
+function isVcsStateNodeRef(value: unknown): boolean {
+  return vcsStateNodeRefSchema.safeParse(value).success;
+}
+
+function stateMatchesApplication(value: unknown, applicationId: string): boolean {
+  const parsed = vcsStateNodeRefSchema.safeParse(value);
+  return (
+    parsed.success &&
+    parsed.data.kind === "application" &&
+    parsed.data.applicationId === applicationId
+  );
 }
 
 function zeroWorkingCounts(value: unknown): boolean {
