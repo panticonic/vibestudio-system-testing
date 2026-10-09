@@ -731,6 +731,8 @@ function validateUnifiedFileAuthoring(result: TestExecutionResult) {
 
 const SCREENSHOT_PROMPT =
   "Capture a small browser view as an image, save it under a filename with no extension, read that image back, and tell me its visible heading.";
+const INVALID_ICON_PANEL_PROMPT =
+  "Create, publish, and open an isolated panel using the built-in icon `lucide:columns-3x`.";
 const PANEL_REBUILD_PROMPT =
   "Create and publish a small counter panel, open it, and use its browser automation session to verify the counter controls. Keep that session while making a visible improvement to the running panel. Rebuild the panel, refresh the existing automation session, and verify the improved version still works.";
 
@@ -758,13 +760,12 @@ export const developerErgonomicsTests: TestCase[] = [
     ),
     resources: [PANEL_AUTOMATION_RESOURCE],
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
-    prompt:
-      "Create and publish an isolated panel using the built-in icon `lucide:columns-3x`.",
+    prompt: INVALID_ICON_PANEL_PROMPT,
     orchestrate: (context) =>
       orchestratePanelGoal(
         context,
-        "Create and publish an isolated panel using the built-in icon `lucide:columns-3x`.",
-        "discover a valid icon and publish one panel",
+        INVALID_ICON_PANEL_PROMPT,
+        "discover a valid icon and publish and open one panel",
         { expectedCreatedRootCount: 1 },
       ),
     expectedToolFailures: [

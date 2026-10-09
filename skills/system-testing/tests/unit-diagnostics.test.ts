@@ -175,10 +175,49 @@ describe("automation overview system test validator", () => {
 });
 
 describe("canonical automation count presentation", () => {
-  const code = "const service = await workers.resolveService('vibestudio.missions.v1'); return await rpc.call(service.targetId, 'overview', [{}]);";
+  const code = "const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, 'overview', [{}]); return { stats: overview.stats, itemCount: overview.items.length, nextCursor: overview.nextCursor ?? null, generatedAt: overview.generatedAt };";
   const stats = { total: 4, active: 2, running: 1, issueRunsLast24Hours: 1, completed: 1 };
-  it("accepts canonical counts inside a numeric presentation wrapper", () => {
-    expect(automationTest.validate(execution(code, { stats, issueRunsLast24Hours: 1 }))).toEqual({ passed: true });
+  it("accepts canonical counts with the overview's safe summary metadata", () => {
+    expect(automationTest.validate(execution(code, {
+      stats,
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toEqual({ passed: true });
+  });
+  it("accepts the observed empty-cursor overview projection and checks its exact counts", () => {
+    expect(automationTest.validate(execution(code, {
+      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    }, "Configured: 1; Active: 1; Running: 0; Failed/completed with errors in the last 24 hours: 0"))).toEqual({ passed: true });
+  });
+  it("accepts a valid canonical continuation cursor", () => {
+    expect(automationTest.validate(execution(code, {
+      stats,
+      itemCount: 50,
+      nextCursor: { updatedAt: 123, missionId: "mission:next" },
+      generatedAt: 456,
+    }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toEqual({ passed: true });
+  });
+  it("rejects the full overview when it exposes raw automation rows", () => {
+    expect(automationTest.validate(execution(code, {
+      stats,
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 456,
+      items: [{ automation: { missionId: "mission:private" }, recentRuns: [] }],
+      attention: [],
+    }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toMatchObject({ passed: false });
+  });
+  it("rejects malformed stats and noncanonical metadata", () => {
+    for (const value of [
+      { stats: { ...stats, running: -1 }, itemCount: 1, nextCursor: null, generatedAt: 456 },
+      { stats, rawRecords: [] },
+    ]) {
+      expect(automationTest.validate(execution(code, value, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toMatchObject({ passed: false });
+    }
   });
   it("rejects a final report that contradicts the observed counts", () => {
     expect(automationTest.validate(execution(code, stats, "Configured: 7; Active: 2; Running: 1; Failed: 1"))).toMatchObject({ passed: false });

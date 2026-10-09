@@ -8,7 +8,6 @@ import {
   successfulEvalCode,
   successfulEvalReturnValues,
 } from "./_helpers.js";
-import { walkRecords } from "./_scenario-evidence.js";
 
 function semanticUnitInspection(
   result: Parameters<typeof noIncompleteInvocations>[0],
@@ -117,18 +116,16 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
       reason: "Automation inspection probe attempted a mutating operation",
     };
   }
-  const returned = successfulEvalReturnValues(result);
-  const counts = returned.filter(isCountSummary).flatMap((value) => walkRecords([value]))
-    .map((value) => missionOverviewStatsSchema.safeParse(value))
-    .find((parsed) => parsed.success);
-  if (!counts?.success) {
+  const stats = successfulEvalReturnValues(result)
+    .map(missionOverviewStatsObservation)
+    .find((candidate) => candidate !== null);
+  if (!stats) {
     return {
       passed: false,
       reason: "Automation inspection did not return canonical aggregate counts without raw records",
     };
   }
   const final = findLastAgentMessage(result);
-  const stats = counts.data;
   const labeled = (label: string, count: number) =>
     new RegExp(`\\b(?:${label})\\b[^\\d\\n]{0,45}\\b${count}\\b`, "iu").test(final) ||
     new RegExp(`\\b${count}\\b[^\\d\\n]{0,45}\\b(?:${label})\\b`, "iu").test(final);
@@ -140,11 +137,41 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
   return noIncompleteInvocations(result);
 }
 
-/** Counts may be nested for presentation; records, arrays and text are not summaries. */
-function isCountSummary(value: unknown): boolean {
-  if (Number.isSafeInteger(value)) return (value as number) >= 0;
-  return isRecord(value) && Object.keys(value).length > 0 &&
-    Object.values(value).every(isCountSummary);
+/**
+ * Accept the canonical stats projection, optionally with the overview's safe
+ * pagination metadata. The raw overview rows are deliberately not evidence for
+ * aggregate counts, so an envelope containing them is rejected.
+ */
+function missionOverviewStatsObservation(value: unknown) {
+  const direct = missionOverviewStatsSchema.safeParse(value);
+  if (direct.success) return direct.data;
+  if (!isRecord(value)) return null;
+
+  const stats = missionOverviewStatsSchema.safeParse(value["stats"]);
+  if (!stats.success || "items" in value || "attention" in value) return null;
+
+  for (const [key, metadata] of Object.entries(value)) {
+    if (key === "stats") continue;
+    if (key === "itemCount" || key === "generatedAt") {
+      if (!Number.isSafeInteger(metadata) || (metadata as number) < 0) return null;
+      continue;
+    }
+    if (key === "nextCursor") {
+      if (metadata === null) continue;
+      if (
+        !isRecord(metadata) ||
+        Object.keys(metadata).length !== 2 ||
+        !Number.isSafeInteger(metadata["updatedAt"]) ||
+        (metadata["updatedAt"] as number) < 0 ||
+        typeof metadata["missionId"] !== "string"
+      ) {
+        return null;
+      }
+      continue;
+    }
+    return null;
+  }
+  return stats.data;
 }
 
 function automationNativeLaunchChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
