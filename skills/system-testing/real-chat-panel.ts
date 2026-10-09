@@ -281,6 +281,14 @@ export async function observeFeedbackRepair(
   };
 }
 
+/** The caller's abort signal joined with the session's own close. */
+export function sessionBoundSignal(
+  session: Pick<HeadlessSession, "lifetime">,
+  signal?: AbortSignal,
+): AbortSignal {
+  return signal ? AbortSignal.any([signal, session.lifetime]) : session.lifetime;
+}
+
 /**
  * Evaluate an in-page promise; aborting `signal` closes the page session so
  * the evaluation settles with the abort instead of being abandoned.
@@ -292,10 +300,24 @@ async function evaluateInPanel<T>(
 ): Promise<T> {
   signal?.throwIfAborted();
   const page = await panel.cdp.page();
-  const abort = () => void page.close();
+  // Closing the page rejects the in-flight evaluation; the evaluation's own
+  // rejection is what the caller sees, so a close failure is not a second
+  // unhandled one.
+  const abort = () => void page.close().catch(() => undefined);
   signal?.addEventListener("abort", abort, { once: true });
   try {
-    return await page.evaluate<T>(expression);
+    return await Promise.race([
+      page.evaluate<T>(expression),
+      ...(signal
+        ? [
+            new Promise<never>((_, reject) => {
+              const rejectAborted = () => reject(signal.reason);
+              if (signal.aborted) rejectAborted();
+              else signal.addEventListener("abort", rejectAborted, { once: true });
+            }),
+          ]
+        : []),
+    ]);
   } catch (error) {
     signal?.throwIfAborted();
     throw error;
@@ -402,7 +424,7 @@ async function settleChatPanel(
   const settled = await evaluateInPanel<SettledChatPanel>(
     panel,
     `${SETTLE_EXPRESSION}(${JSON.stringify({ messageIds, inlineUiIds })})`,
-    signal,
+    sessionBoundSignal(session, signal),
   );
   const sent = settled.reports.filter((report) => report.delivery === "sent");
   await session.waitUntil(

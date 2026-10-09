@@ -1141,6 +1141,11 @@ export class HeadlessSession {
     return this._channelView;
   }
 
+  /** Aborts (with the close reason) once the session is closed or disposed. */
+  get lifetime(): AbortSignal {
+    return this._observationLifetime.signal;
+  }
+
   get isStreaming(): boolean {
     return this._hasIncomplete;
   }

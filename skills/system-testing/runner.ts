@@ -42,6 +42,7 @@ import { probeSemanticCommand } from "./semantic-command-probe.js";
 import {
   CHAT_PANEL_SOURCE,
   awaitChatPanelConnected,
+  sessionBoundSignal,
   observeChatPanelRendering,
   type ChatPanelRenderEvidence,
 } from "./real-chat-panel.js";
@@ -224,6 +225,17 @@ function fixtureContextAuthority(
       })),
     ],
   };
+}
+
+/** The panel an `openPanel` failure left committed, from its failure record. */
+export function committedPanelId(error: unknown): string | undefined {
+  const data = (error as { errorData?: unknown } | null)?.errorData as
+    | { details?: { slotCommitted?: unknown }; provenance?: { panelId?: unknown } }
+    | undefined;
+  const panelId = data?.provenance?.panelId;
+  return data?.details?.slotCommitted === true && typeof panelId === "string"
+    ? panelId
+    : undefined;
 }
 
 export class HeadlessRunner {
@@ -933,8 +945,14 @@ export class HeadlessRunner {
         ...(signal ? { signal } : {}),
       });
       this.chatPanels.set(channelId, panel);
-      await awaitChatPanelConnected(panel, signal);
+      await awaitChatPanelConnected(panel, sessionBoundSignal(session, signal));
     } catch (error) {
+      // `openPanel` fails after its slot committed (abort, readiness error)
+      // without returning a handle; the failure names the panel it left behind.
+      // Own it so closing the session archives it.
+      const leftBehind = committedPanelId(error);
+      if (leftBehind && channelId && !this.chatPanels.has(channelId))
+        this.chatPanels.set(channelId, panelTree.get(leftBehind));
       try {
         await session.close();
       } catch (cleanupError) {
