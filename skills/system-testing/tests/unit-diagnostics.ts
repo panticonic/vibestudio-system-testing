@@ -127,6 +127,9 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
   }
   const final = findLastAgentMessage(result);
   const reported = automationOverviewCountClaims(final);
+  if (!reported) {
+    return { passed: false, reason: "Final response did not report the observed automation counts" };
+  }
   const matchesObserved = (claims: number[], expected: number) =>
     claims.length > 0 && claims.every((claim) => claim === expected);
   if (
@@ -143,11 +146,11 @@ function automationInspectionChecked(result: Parameters<typeof noIncompleteInvoc
 type AutomationCountName = "total" | "active" | "running" | "issuesLast24Hours";
 
 /**
- * Pair each count with one adjacent metric token in report order. This keeps
+ * Pair each count with adjacent metric tokens in report order. This keeps
  * neighboring values from satisfying a missing count and ignores numeric time
  * windows such as "last 24 hours".
  */
-function automationOverviewCountClaims(final: string): Record<AutomationCountName, number[]> {
+function automationOverviewCountClaims(final: string): Record<AutomationCountName, number[]> | null {
   const claims: Record<AutomationCountName, number[]> = {
     total: [],
     active: [],
@@ -191,32 +194,57 @@ function automationOverviewCountClaims(final: string): Record<AutomationCountNam
         end: (match.index ?? 0) + match[0].length,
       };
     });
-    const hasExplicitTotal = explicitLabels.some(({ name }) => name === "total");
-    const genericLabels = [...field.matchAll(/\bautomations?\b/giu)].map((match) => {
+    const genericMatches = [...field.matchAll(/\bautomations?\b/giu)];
+    const genericLabels = genericMatches.map((match) => {
       const start = match.index ?? 0;
       const preceding = explicitLabels
         .filter((label) => label.start < start)
         .sort((left, right) => right.start - left.start)[0];
-      const hasCountBetween = preceding
-        ? numbers.some((number) => number.start >= preceding.end && number.end <= start)
-        : false;
+      const following = explicitLabels
+        .filter((label) => label.start > start)
+        .sort((left, right) => left.start - right.start)[0];
+      const hasCountBetween = (label: (typeof explicitLabels)[number] | undefined) =>
+        label !== undefined && numbers.some((number) =>
+          label.start < start
+            ? number.start >= label.end && number.end <= start
+            : number.start >= start + match[0].length && number.end <= label.start,
+        );
+      const previousMetric = preceding && !hasCountBetween(preceding) && preceding.name !== "total"
+        ? preceding.name
+        : undefined;
+      const nextMetric = following && !hasCountBetween(following) && following.name !== "total"
+        ? following.name
+        : undefined;
       return {
         kind: "label" as const,
-        name:
-          !hasExplicitTotal && preceding && preceding.name !== "total" && !hasCountBetween
-            ? preceding.name
-            : "total" as AutomationCountName,
+        name: previousMetric && nextMetric && previousMetric !== nextMetric
+          ? null
+          : previousMetric ?? nextMetric ?? "total",
         start,
         end: start + match[0].length,
       };
     });
-    const labels = hasExplicitTotal
-      ? explicitLabels
-      : [...explicitLabels, ...genericLabels];
+    if (genericLabels.some(({ name }) => name === null)) return null;
+    const labels = [...explicitLabels, ...genericLabels] as Array<{
+      kind: "label";
+      name: AutomationCountName;
+      start: number;
+      end: number;
+    }>;
     const tokens = [...numbers, ...labels].sort((left, right) => left.start - right.start);
-    for (let index = 0; index + 1 < tokens.length; ) {
-      const first = tokens[index]!;
-      const second = tokens[index + 1]!;
+    const collapsed: typeof tokens = [];
+    for (const token of tokens) {
+      const previous = collapsed.at(-1);
+      if (token.kind === "label" && previous?.kind === "label" && token.name === previous.name) {
+        previous.end = token.end;
+        continue;
+      }
+      if (token.kind === "label" && previous?.kind === "label") return null;
+      collapsed.push(token);
+    }
+    for (let index = 0; index + 1 < collapsed.length; ) {
+      const first = collapsed[index]!;
+      const second = collapsed[index + 1]!;
       if (first.kind === "count" && second.kind === "label") {
         claims[second.name].push(first.value);
         index += 2;

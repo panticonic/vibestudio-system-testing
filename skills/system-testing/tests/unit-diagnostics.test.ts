@@ -201,6 +201,7 @@ describe("canonical automation count presentation", () => {
       "1 configured, 1 active, 0 running, 0 failures over the last 24 hours",
       "Configured: 1 and Active: 1 and Running: 0 and Failed in last 24 hours: 0",
       "Configured 1 Active 1 Running 0 Failed 0",
+      "1 configured automations, 1 active automations, 0 running automations, 0 failed automations in the last 24 hours",
       "Configured automations: 1\nActive automations: 1\nRunning automations: 0\nFailed automations in the last 24 hours: 0",
       "Configured: 1; Active: 1; Running: 0; Failed in the last 12 hours: 0",
       "| Configured automations | 1 |\n| Active | 1 |\n| Running | 0 |\n| Failed in last 24 hours | 0 |",
@@ -267,6 +268,32 @@ describe("canonical automation count presentation", () => {
   });
   it("rejects deriving whole-ledger statistics from a bounded item page", () => {
     expect(automationTest.validate(execution(code, { total: 4, active: 2, running: 1, failedLast24Hours: 1 }))).toMatchObject({ passed: false });
+  });
+  it("rejects contradictory total claims when a generic noun is independently counted", () => {
+    const observed = {
+      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    };
+    expect(
+      automationTest.validate(
+        execution(code, observed, "Configured automations: 1; automations: 0; Active: 1; Running: 0; Failed: 0"),
+      ),
+    ).toMatchObject({ passed: false });
+  });
+  it("rejects an ambiguous field that joins different metrics without a count boundary", () => {
+    const observed = {
+      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      itemCount: 1,
+      nextCursor: null,
+      generatedAt: 1_791_535_180_253,
+    };
+    expect(
+      automationTest.validate(
+        execution(code, observed, "Configured Active: 1; Running: 0; Failed: 0"),
+      ),
+    ).toMatchObject({ passed: false });
   });
 });
 
