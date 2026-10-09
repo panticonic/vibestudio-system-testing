@@ -51,6 +51,7 @@ import {
   type AgenticEvent,
   type ChannelEnvelope,
   type ChannelViewState,
+  type TurnId,
   type UiFeedbackPayload,
 } from "@workspace/agentic-protocol";
 import { z } from "zod";
@@ -498,6 +499,11 @@ export class HeadlessSession {
     );
   }
 
+  /** The caller's turn that issued this call, stamped on UI it published. */
+  private callerTurn(context: MethodExecutionContext): { turnId?: TurnId } {
+    return context.turnId ? { turnId: context.turnId as TurnId } : {};
+  }
+
   private async publishSyntheticPanelUiEvent(
     event: AgenticEvent<"ui.inline_rendered" | "ui.action_bar.updated">,
     idempotencyKey: string
@@ -557,6 +563,7 @@ export class HeadlessSession {
           {
             kind: "ui.inline_rendered",
             actor: this.localActor(),
+            ...this.callerTurn(context),
             payload: eventPayload,
             createdAt: new Date().toISOString(),
           },
@@ -589,6 +596,7 @@ export class HeadlessSession {
             {
               kind: "ui.action_bar.updated",
               actor: this.localActor(),
+            ...this.callerTurn(context),
               payload: {
                 protocol: AGENTIC_PROTOCOL_VERSION,
                 uiType: "action_bar",
@@ -623,6 +631,7 @@ export class HeadlessSession {
           {
             kind: "ui.action_bar.updated",
             actor: this.localActor(),
+            ...this.callerTurn(context),
             payload: eventPayload,
             createdAt: new Date().toISOString(),
           },
