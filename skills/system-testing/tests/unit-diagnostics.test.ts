@@ -88,6 +88,9 @@ const automationLaunchTest = unitDiagnosticsTests.find(
 const scheduledNotificationTest = unitDiagnosticsTests.find(
   (candidate) => candidate.name === "automation-scheduled-notification"
 )!;
+const watchNotificationTest = unitDiagnosticsTests.find(
+  (candidate) => candidate.name === "automation-watch-notification"
+)!;
 const nativeControlTest = unitDiagnosticsTests.find(
   (candidate) => candidate.name === "automation-native-control"
 )!;
@@ -443,8 +446,8 @@ describe("scheduled automation notification system test validator", () => {
     name: "One-minute talk timer",
     summary: "Notify after one minute.",
     action: {
-      kind: "prompt",
-      text: "Notify the owner with One minute has passed.",
+      kind: "notify",
+      text: "One minute has passed.",
     },
     trigger: { kind: "schedule", everyMs: 60_000, maxRuns: 2 },
     conversation: {
@@ -461,6 +464,7 @@ describe("scheduled automation notification system test validator", () => {
     const result = execution("", scheduledLaunch, "", "launch_automation");
     result.diagnostics = {
       scheduledNotification: {
+        missionId: "mission:fixture",
         launchChannelId: "headless-proof",
         conversation: {
           mode: "continue",
@@ -475,15 +479,19 @@ describe("scheduled automation notification system test validator", () => {
         ],
         notifications: [
           {
-            id: "notification-1",
-            kind: "agent.message",
+            id: "automation.notify:run-1",
+            kind: "automation.notify",
+            missionId: "mission:fixture",
+            runId: "run-1",
             title: "Talk timer",
             message: "One minute has passed.",
             channelId: "headless-proof",
           },
           {
-            id: "notification-2",
-            kind: "agent.message",
+            id: "automation.notify:run-2",
+            kind: "automation.notify",
+            missionId: "mission:fixture",
+            runId: "run-2",
             title: "Talk timer",
             message: "One minute has passed.",
             channelId: "headless-proof",
@@ -493,6 +501,133 @@ describe("scheduled automation notification system test validator", () => {
     };
     expect(scheduledNotificationTest.validate(result)).toEqual({
       passed: true,
+    });
+  });
+
+  it("binds native fixed-text notifications to each run of the launched mission", () => {
+    const result = execution("", scheduledLaunch, "", "launch_automation");
+    result.diagnostics = {
+      scheduledNotification: {
+        missionId: "mission:fixture",
+        launchChannelId: "headless-proof",
+        conversation: { mode: "continue", channelId: "headless-proof" },
+        redundantInviteCount: 0,
+        runs: [
+          { runId: "run-1", phase: "terminal", outcome: "succeeded" },
+          { runId: "run-2", phase: "terminal", outcome: "succeeded" },
+        ],
+        notifications: [
+          {
+            id: "automation.notify:run-1",
+            kind: "automation.notify",
+            missionId: "mission:fixture",
+            runId: "run-1",
+            message: "One minute has passed.",
+            channelId: "headless-proof",
+          },
+          {
+            id: "automation.notify:run-2",
+            kind: "automation.notify",
+            missionId: "mission:fixture",
+            runId: "run-2",
+            message: "One minute has passed.",
+            channelId: "headless-proof",
+          },
+        ],
+      },
+    };
+    expect(scheduledNotificationTest.validate(result)).toEqual({
+      passed: true,
+    });
+
+    const wrongIdentity = structuredClone(result);
+    const observed = wrongIdentity.diagnostics![
+      "scheduledNotification"
+    ] as Record<string, unknown>;
+    const notifications = observed["notifications"] as Array<
+      Record<string, unknown>
+    >;
+    notifications[0] = { ...notifications[0]!, missionId: "another-mission" };
+    expect(scheduledNotificationTest.validate(wrongIdentity)).toMatchObject({
+      passed: false,
+    });
+
+    const wrongMessage = structuredClone(result);
+    const wrongMessageObserved = wrongMessage.diagnostics![
+      "scheduledNotification"
+    ] as Record<string, unknown>;
+    const wrongMessageNotifications = wrongMessageObserved[
+      "notifications"
+    ] as Array<Record<string, unknown>>;
+    wrongMessageNotifications[0] = {
+      ...wrongMessageNotifications[0]!,
+      message: "A different reminder",
+    };
+    expect(scheduledNotificationTest.validate(wrongMessage)).toMatchObject({
+      passed: false,
+    });
+
+    const wrongMission = structuredClone(result);
+    const wrongMissionObserved = wrongMission.diagnostics![
+      "scheduledNotification"
+    ] as Record<string, unknown>;
+    wrongMissionObserved["missionId"] = "another-mission";
+    expect(scheduledNotificationTest.validate(wrongMission)).toMatchObject({
+      passed: false,
+    });
+
+    const launchWithoutIdentity = structuredClone(result);
+    const launchInvocation = launchWithoutIdentity.messages.find(
+      (message) => message.contentType === "invocation",
+    )!.invocation as unknown as {
+      result: { details: Record<string, unknown> };
+    };
+    launchInvocation.result.details["missionId"] = "";
+    expect(
+      scheduledNotificationTest.validate(launchWithoutIdentity),
+    ).toMatchObject({
+      passed: false,
+    });
+  });
+
+  it("keeps conditional watch delivery on the agent-message notification path", () => {
+    const watchLaunch = {
+      ...scheduledLaunch,
+      name: "One-minute talk timer watch",
+      action: {
+        kind: "watch",
+        text: "Notify the owner when an update is found.",
+      },
+    };
+    const result = execution("", watchLaunch, "", "launch_automation");
+    result.diagnostics = {
+      scheduledNotification: {
+        launchChannelId: "headless-proof",
+        conversation: { mode: "continue", channelId: "headless-proof" },
+        redundantInviteCount: 0,
+        runs: [
+          { runId: "watch-run-1", phase: "terminal", outcome: "succeeded" },
+          { runId: "watch-run-2", phase: "terminal", outcome: "succeeded" },
+        ],
+        notifications: [
+          {
+            id: "watch-notification-1",
+            kind: "agent.message",
+            message: "One minute has passed.",
+            channelId: "headless-proof",
+          },
+          {
+            id: "watch-notification-2",
+            kind: "agent.message",
+            message: "One minute has passed.",
+            channelId: "headless-proof",
+          },
+        ],
+      },
+    };
+    expect(watchNotificationTest.validate(result)).toEqual({ passed: true });
+    expect(scheduledNotificationTest.validate(result)).toMatchObject({
+      passed: false,
     });
   });
 
@@ -523,20 +658,33 @@ describe("scheduled automation notification system test validator", () => {
       ],
     });
     const notifications = (channel: string, count: number) =>
-      Array.from({ length: count }, (_, i) => ({
-        id: `${channel}-${i}`,
-        kind: "agent.message",
-        message: "One minute has passed.",
-        data: { channelId: channel },
-      }));
+      Array.from({ length: count }, (_, i) => {
+        const runId = `${channel === channelId ? "" : "other-"}run-${i + 1}`;
+        return {
+          id: `automation.notify:${runId}`,
+          kind: "automation.notify",
+          message: "One minute has passed.",
+          data: {
+            channelId: channel,
+            missionId: "mission-proof",
+            runId,
+          },
+        };
+      });
     let pending = true;
     let deliverTerminal!: () => void;
     const session = {
       channelId,
-      messages: execution("", scheduledLaunch, "Running and inspectable.", "launch_automation")
-        .messages,
+      messages: execution(
+        "",
+        scheduledLaunch,
+        "Running and inspectable.",
+        "launch_automation",
+      ).messages,
       snapshot: () => ({
-        invocations: pending ? [{ id: "invocation:completion", status: "pending" }] : [],
+        invocations: pending
+          ? [{ id: "invocation:completion", status: "pending" }]
+          : [],
       }),
       waitForInvocation: vi.fn(async () => {
         await new Promise<void>((resolve) => {
@@ -546,8 +694,12 @@ describe("scheduled automation notification system test validator", () => {
       }),
       close: vi.fn().mockResolvedValue(undefined),
     };
-    const launchMessage = session.messages.find((message) => message.contentType === "invocation")!;
-    (launchMessage.invocation as unknown as { result: { details: unknown } }).result.details = {
+    const launchMessage = session.messages.find(
+      (message) => message.contentType === "invocation",
+    )!;
+    (
+      launchMessage.invocation as unknown as { result: { details: unknown } }
+    ).result.details = {
       missionId: "mission-proof",
     };
     const context = {
@@ -566,27 +718,60 @@ describe("scheduled automation notification system test validator", () => {
       session.close.mockClear();
       const running = scheduledNotificationTest.orchestrate!(context);
       await vi.waitFor(() =>
-        expect(session.waitForInvocation).toHaveBeenCalledWith("invocation:completion", {
-          signal: context.signal,
-        })
+        expect(session.waitForInvocation).toHaveBeenCalledWith(
+          "invocation:completion",
+          {
+            signal: context.signal,
+          },
+        ),
       );
       expect(session.close).not.toHaveBeenCalled();
       deliverTerminal();
       const result = await running;
       expect(result.snapshot?.invocations).toEqual([]);
-      expect(scheduledNotificationTest.validate(result).passed).toBe(count === 2);
+      expect(scheduledNotificationTest.validate(result).passed).toBe(
+        count === 2,
+      );
       expect(
-        (result.diagnostics!["scheduledNotification"] as Record<string, unknown>)["notifications"]
+        (
+          result.diagnostics!["scheduledNotification"] as Record<
+            string,
+            unknown
+          >
+        )["notifications"],
       ).toHaveLength(count);
     }
   });
 
-  function scheduledProofFixture() {
+  function scheduledProofFixture(actionKind: "notify" | "watch" = "notify") {
     const channelId = "headless-proof";
-    const messages = execution("", scheduledLaunch, "Running and inspectable.", "launch_automation")
-      .messages;
-    const launchMessage = messages.find((message) => message.contentType === "invocation")!;
-    (launchMessage.invocation as unknown as { result: { details: unknown } }).result.details = {
+    const proofName =
+      actionKind === "watch"
+        ? "One-minute talk timer watch"
+        : scheduledLaunch.name;
+    const launch =
+      actionKind === "watch"
+        ? {
+            ...scheduledLaunch,
+            name: proofName,
+            action: {
+              kind: "watch",
+              text: "Notify the owner when an update is found.",
+            },
+          }
+        : scheduledLaunch;
+    const messages = execution(
+      "",
+      launch,
+      "Running and inspectable.",
+      "launch_automation",
+    ).messages;
+    const launchMessage = messages.find(
+      (message) => message.contentType === "invocation",
+    )!;
+    (
+      launchMessage.invocation as unknown as { result: { details: unknown } }
+    ).result.details = {
       missionId: "mission-proof",
     };
     const session = {
@@ -598,7 +783,7 @@ describe("scheduled automation notification system test validator", () => {
     };
     const context = {
       runner: { spawn: async () => session },
-      sendAndWait: async () => undefined,
+      sendAndWait: vi.fn(async () => undefined),
       signal: new AbortController().signal,
       remainingTimeMs: () => 190_000,
     } as unknown as TestOrchestrationContext;
@@ -606,14 +791,19 @@ describe("scheduled automation notification system test validator", () => {
       items: [
         {
           automation: {
-            name: scheduledLaunch.name,
+            name: proofName,
             missionId: "mission-proof",
             state,
             runCount,
             ...(state === "completed"
-              ? { completionReason: "response", completionResponse: "Goal finished." }
+              ? {
+                  completionReason: "response",
+                  completionResponse: "Goal finished.",
+                }
               : {}),
-            charter: { execution: { conversation: { mode: "continue", channelId } } },
+            charter: {
+              execution: { conversation: { mode: "continue", channelId } },
+            },
           },
           recentRuns: Array.from({ length: runCount }, (_, i) => ({
             runId: `run-${i + 1}`,
@@ -624,12 +814,23 @@ describe("scheduled automation notification system test validator", () => {
       ],
     });
     const notifications = (count: number) =>
-      Array.from({ length: count }, (_, i) => ({
-        id: `notification-${i + 1}`,
-        kind: "agent.message",
-        message: "One minute has passed.",
-        data: { channelId },
-      }));
+      Array.from({ length: count }, (_, i) => {
+        const runId = `run-${i + 1}`;
+        return {
+          id:
+            actionKind === "notify"
+              ? `automation.notify:${runId}`
+              : `agent.message:${i + 1}`,
+          kind: actionKind === "notify" ? "automation.notify" : "agent.message",
+          message: "One minute has passed.",
+          data: {
+            channelId,
+            ...(actionKind === "notify"
+              ? { missionId: "mission-proof", runId }
+              : {}),
+          },
+        };
+      });
     notificationRuntime.resolveService.mockResolvedValue({
       kind: "durable-object",
       targetId: "missions",
@@ -639,16 +840,35 @@ describe("scheduled automation notification system test validator", () => {
     return { context, session, overview, notifications };
   }
 
+  it("collects conditional watch notifications from agent messages", async () => {
+    const { context, overview, notifications } = scheduledProofFixture("watch");
+    notificationRuntime.overview.mockResolvedValue(overview("completed", 2));
+    notificationRuntime.list.mockResolvedValue(notifications(2));
+
+    const result = await watchNotificationTest.orchestrate!(context);
+
+    expect(notificationRuntime.list).toHaveBeenCalledTimes(1);
+    expect(watchNotificationTest.validate(result)).toEqual({ passed: true });
+    expect(context.sendAndWait).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("checks for updates every minute"),
+      "scheduled notification launch",
+    );
+  });
+
   it.each(["completed", "retired"])(
     "retains an early %s mission and joins publication before reporting the unmet goal",
     async (state) => {
-      const { context, session, overview, notifications } = scheduledProofFixture();
+      const { context, session, overview, notifications } =
+        scheduledProofFixture();
       notificationRuntime.overview.mockResolvedValue(overview(state, 1));
       notificationRuntime.list.mockResolvedValue(notifications(1));
       let pending = true;
       let publish!: () => void;
       session.snapshot = () => ({
-        invocations: pending ? [{ id: "invocation:completion", status: "pending" }] : [],
+        invocations: pending
+          ? [{ id: "invocation:completion", status: "pending" }]
+          : [],
       });
       session.waitForInvocation.mockImplementation(async () => {
         await new Promise<void>((resolve) => {
@@ -658,9 +878,12 @@ describe("scheduled automation notification system test validator", () => {
       });
       const running = scheduledNotificationTest.orchestrate!(context);
       await vi.waitFor(() =>
-        expect(session.waitForInvocation).toHaveBeenCalledWith("invocation:completion", {
-          signal: context.signal,
-        })
+        expect(session.waitForInvocation).toHaveBeenCalledWith(
+          "invocation:completion",
+          {
+            signal: context.signal,
+          },
+        ),
       );
       expect(notificationRuntime.overview).toHaveBeenCalledTimes(1);
       expect(session.close).not.toHaveBeenCalled();
@@ -671,17 +894,22 @@ describe("scheduled automation notification system test validator", () => {
         missionState: state,
         runCount: 1,
         runs: [{ runId: "run-1", outcome: "succeeded" }],
-        notifications: [{ id: "notification-1" }],
+        notifications: [{ id: "automation.notify:run-1" }],
         ...(state === "completed"
-          ? { completionReason: "response", completionResponse: "Goal finished." }
+          ? {
+              completionReason: "response",
+              completionResponse: "Goal finished.",
+            }
           : {}),
       });
       expect(scheduledNotificationTest.validate(result)).toMatchObject({
         passed: false,
-        reason: expect.stringContaining(`mission state: ${state}, run count: 1`),
+        reason: expect.stringContaining(
+          `mission state: ${state}, run count: 1`,
+        ),
       });
       expect(session.close).toHaveBeenCalledTimes(1);
-    }
+    },
   );
 
   it.each(["active", "paused"])(
@@ -689,7 +917,8 @@ describe("scheduled automation notification system test validator", () => {
     async (state) => {
       vi.useFakeTimers();
       try {
-        const { context, session, overview, notifications } = scheduledProofFixture();
+        const { context, session, overview, notifications } =
+          scheduledProofFixture();
         notificationRuntime.overview
           .mockResolvedValueOnce(overview(state, 1))
           .mockResolvedValue(overview("completed", 2));
@@ -703,19 +932,26 @@ describe("scheduled automation notification system test validator", () => {
         const result = await running;
         expect(notificationRuntime.overview).toHaveBeenCalledTimes(2);
         expect(result.error).toBeUndefined();
-        expect(scheduledNotificationTest.validate(result)).toEqual({ passed: true });
+        expect(scheduledNotificationTest.validate(result)).toEqual({
+          passed: true,
+        });
         expect(session.close).toHaveBeenCalledTimes(1);
       } finally {
         vi.useRealTimers();
       }
-    }
+    },
   );
 
   it("rejects launch-only evidence without the promised outcome", () => {
     expect(
       scheduledNotificationTest.validate(
-        execution("", scheduledLaunch, "Running and inspectable.", "launch_automation")
-      )
+        execution(
+          "",
+          scheduledLaunch,
+          "Running and inspectable.",
+          "launch_automation",
+        ),
+      ),
     ).toMatchObject({
       passed: false,
       reason: "No durable scheduled-run evidence was observed",
@@ -723,7 +959,12 @@ describe("scheduled automation notification system test validator", () => {
   });
 
   it("rejects a completed turn whose requested notification effect failed", () => {
-    const result = execution("", scheduledLaunch, "Running and inspectable.", "launch_automation");
+    const result = execution(
+      "",
+      scheduledLaunch,
+      "Running and inspectable.",
+      "launch_automation",
+    );
     result.diagnostics = {
       scheduledNotification: {
         launchChannelId: "headless-proof",

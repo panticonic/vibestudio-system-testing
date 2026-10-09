@@ -333,10 +333,12 @@ const SCHEDULED_NOTIFICATION_TEXT = "One minute has passed.";
 
 async function scheduledNotificationProof(
   context: TestOrchestrationContext,
-  actionKind: "prompt" | "watch" = "prompt"
+  actionKind: "notify" | "watch" = "notify",
 ): Promise<TestExecutionResult> {
   const proofName =
-    actionKind === "watch" ? `${SCHEDULED_NOTIFICATION_NAME} watch` : SCHEDULED_NOTIFICATION_NAME;
+    actionKind === "watch"
+      ? `${SCHEDULED_NOTIFICATION_NAME} watch`
+      : SCHEDULED_NOTIFICATION_NAME;
   const startedAt = Date.now();
   const session = await context.runner.spawn();
   let error: string | undefined;
@@ -347,8 +349,8 @@ async function scheduledNotificationProof(
       session,
       actionKind === "watch"
         ? `Start an automation called “${proofName}” that checks for updates every minute without invoking AI for the check, and wakes an agent to notify me only when the check finds an update. For this offline demonstration, treat an update as available each time. Send the notification “${SCHEDULED_NOTIFICATION_TEXT}”, stop after two runs, and keep it in this conversation. Tell me where I can inspect or stop it.`
-        : `I'm giving a talk. Start an automation called “${proofName}” that notifies me every minute saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”, and stop it after two notifications. Tell me where I can inspect or stop it.`,
-      "scheduled notification launch"
+        : `I'm giving a talk. Start an automation called “${proofName}” that sends me a notification every minute saying exactly “${SCHEDULED_NOTIFICATION_TEXT}”, and stop it after two notifications. Tell me where I can inspect or stop it.`,
+      "scheduled notification launch",
     );
     const launches = getToolCalls({
       messages: [...session.messages],
@@ -359,7 +361,7 @@ async function scheduledNotificationProof(
         call.name === "launch_automation" &&
         call.execution?.status === "complete" &&
         call.execution?.isError !== true &&
-        call.arguments?.["name"] === proofName
+        call.arguments?.["name"] === proofName,
     );
     const launchResult = launches[0]?.execution?.result;
     const launchDetails =
@@ -368,22 +370,29 @@ async function scheduledNotificationProof(
         : undefined;
     const missionId = launchDetails?.["missionId"];
     if (launches.length !== 1 || typeof missionId !== "string")
-      throw new Error("The proof automation did not return one exact durable mission identity");
+      throw new Error(
+        "The proof automation did not return one exact durable mission identity",
+      );
     const service = await workers.resolveService("vibestudio.missions.v1");
     if (service.kind !== "durable-object" || !service.targetId) {
-      throw new Error("The automation ledger did not resolve to a Durable Object");
+      throw new Error(
+        "The automation ledger did not resolve to a Durable Object",
+      );
     }
-    const deadline = Date.now() + Math.min(190_000, context.remainingTimeMs() ?? 190_000);
+    const deadline =
+      Date.now() + Math.min(190_000, context.remainingTimeMs() ?? 190_000);
     while (Date.now() < deadline) {
-      const overview = await rpc.call<Record<string, unknown>>(service.targetId, "overview", [
-        { missionId, limit: 1 },
-      ]);
+      const overview = await rpc.call<Record<string, unknown>>(
+        service.targetId,
+        "overview",
+        [{ missionId, limit: 1 }],
+      );
       const item = Array.isArray(overview["items"])
         ? overview["items"].find(
             (candidate) =>
               isRecord(candidate) &&
               isRecord(candidate["automation"]) &&
-              candidate["automation"]["missionId"] === missionId
+              candidate["automation"]["missionId"] === missionId,
           )
         : undefined;
       const itemRecord = isRecord(item) ? item : undefined;
@@ -394,23 +403,29 @@ async function scheduledNotificationProof(
         ? itemRecord?.["recentRuns"]
         : [];
       const runs = recentRuns.filter(
-        (candidate) => isRecord(candidate) && candidate["phase"] === "terminal"
+        (candidate) => isRecord(candidate) && candidate["phase"] === "terminal",
       );
-      const stopped = automation?.["state"] === "completed" || automation?.["state"] === "retired";
+      const stopped =
+        automation?.["state"] === "completed" ||
+        automation?.["state"] === "retired";
       if (
         automation?.["name"] === proofName &&
         ((automation["runCount"] === 2 && runs.length >= 2) || stopped)
       ) {
+        const notificationKind =
+          actionKind === "notify" ? "automation.notify" : "agent.message";
         const notifications = await gad.listUserNotificationsForMe({
           includeAcknowledged: true,
           limit: 100,
         });
         const matchingNotifications = notifications.filter(
           (candidate) =>
-            candidate.kind === "agent.message" &&
+            candidate.kind === notificationKind &&
             candidate.message === SCHEDULED_NOTIFICATION_TEXT &&
             isRecord(candidate.data) &&
-            candidate.data["channelId"] === session.channelId
+            candidate.data["channelId"] === session.channelId &&
+            (actionKind !== "notify" ||
+              candidate.data["missionId"] === missionId),
         );
         const conversation = isRecord(automation["charter"])
           ? isRecord(automation["charter"]["execution"])
@@ -430,7 +445,7 @@ async function scheduledNotificationProof(
             (candidate) =>
               candidate.kind === "channel.invite" &&
               isRecord(candidate.data) &&
-              candidate.data["channelId"] === session.channelId
+              candidate.data["channelId"] === session.channelId,
           ).length,
           runs: runs.slice(0, 2).map((run) => ({
             runId: run["runId"],
@@ -443,28 +458,37 @@ async function scheduledNotificationProof(
           notifications: matchingNotifications.map((notification) => ({
             id: notification.id,
             kind: notification.kind,
+            missionId: isRecord(notification.data)
+              ? notification.data["missionId"]
+              : undefined,
+            runId: isRecord(notification.data)
+              ? notification.data["runId"]
+              : undefined,
             title: notification.title,
             message: notification.message,
-            channelId: isRecord(notification.data) ? notification.data["channelId"] : undefined,
+            channelId: isRecord(notification.data)
+              ? notification.data["channelId"]
+              : undefined,
           })),
         };
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
-    if (!observation) throw new Error("Two scheduled runs did not become terminal in time");
+    if (!observation)
+      throw new Error("Two scheduled runs did not become terminal in time");
     // A stopped mission cannot produce another scheduled run. Its observed
     // publications can still be delivering, particularly for tool-terminated
     // answers. Join those obligations before retaining the final evidence.
     const pending = session
       .snapshot()
       .invocations.filter((invocation) =>
-        ["pending", "started", "running"].includes(invocation.status)
+        ["pending", "started", "running"].includes(invocation.status),
       );
     await Promise.all(
       pending.map((invocation) =>
-        session.waitForInvocation(invocation.id, { signal: context.signal })
-      )
+        session.waitForInvocation(invocation.id, { signal: context.signal }),
+      ),
     );
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause);
@@ -479,17 +503,21 @@ async function scheduledNotificationProof(
   try {
     await session.close();
   } catch (cause) {
-    execution.cleanupErrors = [`close: ${cause instanceof Error ? cause.message : String(cause)}`];
+    execution.cleanupErrors = [
+      `close: ${cause instanceof Error ? cause.message : String(cause)}`,
+    ];
   }
   return execution;
 }
 
 function scheduledNotificationChecked(
   result: TestExecutionResult,
-  actionKind: "prompt" | "watch" = "prompt"
+  actionKind: "notify" | "watch" = "notify",
 ) {
   const proofName =
-    actionKind === "watch" ? `${SCHEDULED_NOTIFICATION_NAME} watch` : SCHEDULED_NOTIFICATION_NAME;
+    actionKind === "watch"
+      ? `${SCHEDULED_NOTIFICATION_NAME} watch`
+      : SCHEDULED_NOTIFICATION_NAME;
   if (result.error) return { passed: false, reason: result.error };
   const base = noIncompleteInvocations(result);
   if (!base.passed) return base;
@@ -498,7 +526,7 @@ function scheduledNotificationChecked(
       call.name === "launch_automation" &&
       call.execution?.status === "complete" &&
       call.execution?.isError !== true &&
-      call.arguments?.["name"] === proofName
+      call.arguments?.["name"] === proofName,
   );
   if (launches.length !== 1) {
     return {
@@ -506,7 +534,10 @@ function scheduledNotificationChecked(
       reason: "The proof automation was not launched exactly once",
     };
   }
-  if ((launches[0]?.arguments?.["action"] as { kind?: unknown } | undefined)?.kind !== actionKind) {
+  if (
+    (launches[0]?.arguments?.["action"] as { kind?: unknown } | undefined)
+      ?.kind !== actionKind
+  ) {
     return {
       passed: false,
       reason: "The notification proof launched a different executor",
@@ -521,7 +552,24 @@ function scheduledNotificationChecked(
   ) {
     return {
       passed: false,
-      reason: "The agent did not infer a one-minute automation that stops after two runs",
+      reason:
+        "The agent did not infer a one-minute automation that stops after two runs",
+    };
+  }
+  const launchResult = launches[0]?.execution?.result;
+  const launchDetails =
+    isRecord(launchResult) && isRecord(launchResult["details"])
+      ? launchResult["details"]
+      : undefined;
+  const missionId = launchDetails?.["missionId"];
+  if (
+    actionKind === "notify" &&
+    (typeof missionId !== "string" || missionId.length === 0)
+  ) {
+    return {
+      passed: false,
+      reason:
+        "The native notification launch did not retain its durable mission identity",
     };
   }
   const observed = result.diagnostics?.["scheduledNotification"];
@@ -533,7 +581,7 @@ function scheduledNotificationChecked(
   }
   const runs = observed["runs"].filter(isRecord);
   const failedRun = runs.find(
-    (run) => run["phase"] !== "terminal" || run["outcome"] !== "succeeded"
+    (run) => run["phase"] !== "terminal" || run["outcome"] !== "succeeded",
   );
   if (runs.length !== 2 || failedRun) {
     return {
@@ -542,6 +590,13 @@ function scheduledNotificationChecked(
         `Both scheduled runs and their requested effects must succeed ` +
         `(mission state: ${String(observed["missionState"])}, run count: ${String(observed["runCount"])}): ` +
         JSON.stringify(runs),
+    };
+  }
+  if (actionKind === "notify" && observed["missionId"] !== missionId) {
+    return {
+      passed: false,
+      reason:
+        "The observed native notifications belong to a different durable mission",
     };
   }
   const conversation = observed["conversation"];
@@ -553,34 +608,67 @@ function scheduledNotificationChecked(
     return {
       passed: false,
       reason:
-        "The short-cadence automation did not wake the launching agent in its existing conversation",
+        "The short-cadence automation did not retain the launching conversation",
     };
   }
   const notifications = Array.isArray(observed["notifications"])
     ? observed["notifications"].filter(isRecord)
     : [];
+  const expectedNotificationKind =
+    actionKind === "notify" ? "automation.notify" : "agent.message";
+  const runIds = new Set(
+    runs.flatMap((run) =>
+      typeof run["runId"] === "string" ? [run["runId"]] : [],
+    ),
+  );
+  const notificationRunIds = new Set(
+    notifications.flatMap((notification) =>
+      typeof notification["runId"] === "string" ? [notification["runId"]] : [],
+    ),
+  );
   if (
     notifications.length !== 2 ||
-    new Set(notifications.map((notification) => notification["id"])).size !== 2 ||
-    notifications.some((notification) => notification["message"] !== SCHEDULED_NOTIFICATION_TEXT)
+    new Set(notifications.map((notification) => notification["id"])).size !==
+      2 ||
+    (actionKind === "notify" &&
+      (runIds.size !== 2 ||
+        notificationRunIds.size !== 2 ||
+        [...runIds].some((runId) => !notificationRunIds.has(runId)))) ||
+    notifications.some(
+      (notification) =>
+        notification["message"] !== SCHEDULED_NOTIFICATION_TEXT ||
+        notification["kind"] !== expectedNotificationKind ||
+        (actionKind === "notify" &&
+          (notification["missionId"] !== missionId ||
+            typeof notification["runId"] !== "string" ||
+            !runIds.has(notification["runId"]) ||
+            notification["id"] !==
+              `automation.notify:${notification["runId"]}`)),
+    )
   ) {
     return {
       passed: false,
-      reason: "The two successful runs did not produce two distinct durable user notifications",
+      reason:
+        "The two successful runs did not produce two distinct durable user notifications",
     };
   }
   if (
-    notifications.some((notification) => notification["channelId"] !== observed["launchChannelId"])
+    notifications.some(
+      (notification) =>
+        notification["channelId"] !== observed["launchChannelId"],
+    )
   ) {
     return {
       passed: false,
-      reason: "The notification did not route back to the launching conversation",
+      reason:
+        "The notification did not route back to the launching conversation",
     };
   }
   if (observed["redundantInviteCount"] !== 0) {
     return {
       passed: false,
-      reason: "The direct automation message leaked a redundant channel invitation into the inbox",
+      reason:
+        "The direct automation message leaked a redundant channel invitation into the inbox",
     };
   }
   return { passed: true };
