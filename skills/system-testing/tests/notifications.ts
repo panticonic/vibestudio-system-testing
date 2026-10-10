@@ -6,7 +6,7 @@ function notificationChecked(result: TestExecutionResult, actionLabels: string[]
   const pending = noIncompleteInvocations(result);
   if (!pending.passed) return pending;
   const final = findLastAgentMessage(result);
-  if (!/notification/iu.test(final) || !/(accepted|shown|displayed|created)/iu.test(final) || !/(dismissed|removed|cleaned|closed)/iu.test(final))
+  if (!/notification/iu.test(final) || !/(accepted|shown|displayed|created)/iu.test(final) || !/(dismissed|dismissal|removed|cleaned|closed)/iu.test(final))
     return { passed: false, reason: "Final response did not report notification acceptance and explicit cleanup" };
   const code = successfulEvalCode(result);
   if (/notification\.reportAction|notifications\.reportAction/u.test(code))
