@@ -1099,6 +1099,8 @@ describe("workspace unit diagnostics semantic validators", () => {
   };
   const healthCode =
     "const units = await runtime.supervision.list(); const health = await runtime.supervision.health(units[0].identity, { limit: 20, errorLimit: 10 }); return health;";
+  const defaultHealthCode =
+    "const units = await runtime.supervision.list(); const health = await runtime.supervision.health(units[0].identity); return health;";
 
   it("accepts natural prose backed by list and detail inspection evidence", () => {
     expect(
@@ -1134,6 +1136,85 @@ describe("workspace unit diagnostics semantic validators", () => {
         )
       )
     ).toEqual({ passed: true, reason: undefined });
+  });
+
+  it("accepts default bounded health reads and an empty separate error buffer", () => {
+    const gitBridgeIdentity = {
+      kind: "extension" as const,
+      entityId: "@workspace-extensions/git-bridge",
+    };
+    const observation = {
+      ...nativeHealth,
+      entries: [
+        {
+          ...nativeHealth.entries[0]!,
+          receipt: {
+            ...nativeHealth.entries[0]!.receipt,
+            identity: gitBridgeIdentity,
+            source: "extensions/git-bridge",
+            logCount: 7,
+            errorCount: 0,
+          },
+        },
+      ],
+    };
+    const gitBridgeHealth = {
+      ...health,
+      entity: { ...health.entity, identity: gitBridgeIdentity, source: "extensions/git-bridge" },
+      logs: Array.from({ length: 7 }, (_, index) => ({
+        ...health.logs[0]!,
+        identity: gitBridgeIdentity,
+        timestamp: index + 1,
+      })),
+      errors: [],
+    };
+    expect(
+      logsTest.validate(
+        execution(
+          defaultHealthCode,
+          gitBridgeHealth,
+          "Git Bridge (@workspace-extensions/git-bridge) is running and healthy. Its persisted log buffer contains 7 records. The separate error buffer is empty.",
+          "eval",
+          observation
+        )
+      )
+    ).toEqual({ passed: true, reason: undefined });
+  });
+
+  it("rejects missing, malformed, or overrun native health bounds", () => {
+    const malformed = {
+      ...nativeHealth,
+      entries: [
+        {
+          ...nativeHealth.entries[0]!,
+          receipt: {
+            protocol: "runtime-health-observation.v1",
+            identity,
+            source: "extensions/status",
+            logCount: 2,
+            errorCount: 1,
+            dropped: { entries: 0, errors: 0 },
+            capacity: { entries: 100, errors: 50 },
+          },
+        },
+      ],
+    };
+    const overrun = {
+      ...nativeHealth,
+      entries: [
+        {
+          ...nativeHealth.entries[0]!,
+          receipt: { ...nativeHealth.entries[0]!.receipt, logCount: 21 },
+        },
+      ],
+    };
+    for (const journal of [undefined, malformed, overrun]) {
+      expect(
+        logsTest.validate(
+          execution(defaultHealthCode, health, "extensions/status has 2 logs and 1 error.", "eval", journal)
+        )
+      ).toMatchObject({ passed: false });
+    }
   });
 
   it("accepts a guest summary independently of the native health packet", () => {

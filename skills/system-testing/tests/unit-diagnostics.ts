@@ -37,6 +37,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function labeledCount(final: string, label: "log" | "error", count: number): boolean {
   if (count === 0 && /both buffers (?:are )?empty/iu.test(final)) return true;
+  if (
+    count === 0 &&
+    new RegExp(
+      `\\b(?:empty[^.\\n]{0,24}\\b${label}s?\\b|\\b${label}s?\\b[^.\\n]{0,24}\\b(?:is|are|remains|remain)?\\s+empty\\b)`,
+      "iu"
+    ).test(final)
+  ) {
+    return true;
+  }
   if (count === 0 && new RegExp(`\\b(?:no|zero)\\b[^.\\n]*\\b${label}(?:s| entries)?\\b`, "iu").test(final)) return true;
   if (count === 0 && new RegExp(`\\bno\\s+(?:recent\\s+)?${label}s?\\b`, "iu").test(final)) {
     return true;
@@ -49,12 +58,7 @@ function labeledCount(final: string, label: "log" | "error", count: number): boo
 
 function unitDiagnosticLogInspection(result: Parameters<typeof noIncompleteInvocations>[0]) {
   const code = successfulEvalCode(result);
-  if (
-    !/runtime\.supervision\.list/iu.test(code) ||
-    !/runtime\.supervision\.health/iu.test(code) ||
-    !/\blimit\s*:\s*[1-9]\d*/u.test(code) ||
-    !/\berrorLimit\s*:\s*[1-9]\d*/u.test(code)
-  ) {
+  if (!/runtime\.supervision\.list/iu.test(code) || !/runtime\.supervision\.health/iu.test(code)) {
     return {
       passed: false,
       reason: "The unit-log investigation did not perform one bounded exact-unit health read",
@@ -74,6 +78,12 @@ function unitDiagnosticLogInspection(result: Parameters<typeof noIncompleteInvoc
   });
   const packet = receipts.at(-1);
   if (!packet) return { passed: false, reason: "No native identity-consistent unit health packet with separate log/error buffers was observed" };
+  if (packet.logCount > packet.limit || packet.errorCount > packet.errorLimit) {
+    return {
+      passed: false,
+      reason: "The native unit health packet exceeded its effective log or error read bound",
+    };
+  }
   const final = findLastAgentMessage(result);
   if (
     (!final.includes(packet.source) && !final.includes(packet.identity.entityId)) ||
