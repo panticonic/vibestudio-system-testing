@@ -12,6 +12,8 @@ import type { AgentSubscriptionConfig, AgentLaunchRpc } from "@workspace/agentic
 import { launchAgentIntoChannel, retireAgentEntity } from "@workspace/agentic-core";
 import type { ChannelConfig } from "@workspace/pubsub";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
+import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 
 const CHANNEL_SOURCE = "workers/pubsub-channel";
 const CHANNEL_CLASS = "PubSubChannel";
@@ -25,7 +27,7 @@ export function getRecommendedChannelConfig(): Partial<ChannelConfig> {
 
 export interface SubscribeHeadlessAgentOptions {
   /** RPC call function for reaching the platform */
-  rpcCall: (target: string, method: string, args: unknown[]) => Promise<unknown>;
+  rpcCall: AgentLaunchRpc["call"];
   /** Worker source (e.g., "workers/agent-worker") */
   source: string;
   /** DO class name (e.g., "AiChatWorker") */
@@ -71,7 +73,7 @@ export async function subscribeHeadlessAgent(
   };
 
   const { handle, subscription, contextId } = await launchAgentIntoChannel(
-    { call: opts.rpcCall } as AgentLaunchRpc,
+    { call: opts.rpcCall },
     {
       source: opts.source,
       className: opts.className,
@@ -100,16 +102,13 @@ export async function subscribeHeadlessAgent(
  * not an overloaded meaning of an omitted createEntity field.
  */
 export async function createHeadlessAgentContext(opts: {
-  rpcCall: (target: string, method: string, args: unknown[]) => Promise<unknown>;
+  rpcCall: AgentLaunchRpc["call"];
   testPolicy?: AgentExecutionTestPolicySpec;
 }): Promise<string> {
-  const value = await opts.rpcCall("main", "runtime.createContext", [
+  const value = await opts.rpcCall("main", mainRpcMethods["runtime.createContext"], [
     opts.testPolicy ? { testPolicy: opts.testPolicy } : {},
   ]);
-  const contextId =
-    value && typeof value === "object" && typeof (value as { contextId?: unknown }).contextId === "string"
-      ? (value as { contextId: string }).contextId
-      : "";
+  const contextId = value.contextId;
   if (!contextId) {
     throw new Error("runtime.createContext did not return a contextId for headless isolation");
   }
@@ -124,11 +123,11 @@ export async function createHeadlessAgentContext(opts: {
  * context teardown retire both sides of an isolated conversation.
  */
 export async function createHeadlessChannel(opts: {
-  rpcCall: (target: string, method: string, args: unknown[]) => Promise<unknown>;
+  rpcCall: AgentLaunchRpc["call"];
   channelId: string;
   contextId: string;
 }): Promise<{ id: string; targetId: string; contextId: string }> {
-  const value = await opts.rpcCall("main", "runtime.createEntity", [
+  const value = await opts.rpcCall("main", mainRpcMethods["runtime.createEntity"], [
     {
       kind: "do",
       execution: {
@@ -140,17 +139,8 @@ export async function createHeadlessChannel(opts: {
       contextId: opts.contextId,
     },
   ]);
-  const handle = value as {
-    id?: unknown;
-    targetId?: unknown;
-    contextId?: unknown;
-  } | null;
-  if (
-    !handle ||
-    typeof handle.id !== "string" ||
-    typeof handle.targetId !== "string" ||
-    handle.contextId !== opts.contextId
-  ) {
+  const handle = value;
+  if (handle.contextId !== opts.contextId) {
     throw new Error(
       `Headless channel ${opts.channelId} was not activated in context ${opts.contextId}`
     );
@@ -163,10 +153,10 @@ export async function createHeadlessChannel(opts: {
 }
 
 export async function retireHeadlessAgent(opts: {
-  rpcCall: (target: string, method: string, args: unknown[]) => Promise<unknown>;
+  rpcCall: AgentLaunchRpc["call"];
   entityId: string;
 }): Promise<void> {
-  await retireAgentEntity({ call: opts.rpcCall } as AgentLaunchRpc, opts.entityId);
+  await retireAgentEntity({ call: opts.rpcCall }, opts.entityId);
 }
 
 /**
@@ -178,18 +168,18 @@ export async function retireHeadlessAgent(opts: {
  * Callers that supplied a shared context must use `retireHeadlessAgent` instead.
  */
 export async function destroyHeadlessAgentContext(opts: {
-  rpcCall: (target: string, method: string, args: unknown[]) => Promise<unknown>;
+  rpcCall: AgentLaunchRpc["call"];
   contextId: string;
 }): Promise<void> {
-  await opts.rpcCall("main", "runtime.destroyContext", [
+  await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], [
     { contextId: opts.contextId, recursive: true },
   ]);
 }
 
 export async function unsubscribeHeadlessAgent(opts: {
-  rpcCall: (target: string, method: string, args: unknown[]) => Promise<unknown>;
+  rpcCall: AgentLaunchRpc["call"];
   targetId: string;
   channelId: string;
 }): Promise<void> {
-  await opts.rpcCall(opts.targetId, "unsubscribeChannel", [opts.channelId]);
+  await opts.rpcCall(opts.targetId, agentRpcMethods["unsubscribeChannel"], [opts.channelId]);
 }

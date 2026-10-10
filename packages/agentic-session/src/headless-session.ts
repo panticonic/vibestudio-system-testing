@@ -55,6 +55,7 @@ import {
   type UiFeedbackPayload,
 } from "@workspace/agentic-protocol";
 import { z } from "zod";
+import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 import type { NativeInvocationSource } from "@vibestudio/service-schemas/nativeInvocation";
 import {
   createHeadlessAgentContext,
@@ -156,12 +157,7 @@ export interface HeadlessSessionConfig {
 }
 
 export interface HeadlessWithAgentConfig extends HeadlessSessionConfig {
-  rpcCall: (
-    target: string,
-    method: string,
-    args: unknown[],
-    options?: { timeoutMs?: number; signal?: AbortSignal }
-  ) => Promise<unknown>;
+  rpcCall: import("@vibestudio/rpc").RpcCaller["call"];
   source: string;
   className: string;
   objectKey?: string;
@@ -876,9 +872,9 @@ export class HeadlessSession {
   ): Promise<void> {
     if (this._agentRpcCall && this._channelId) {
       if (options) {
-        await this._agentRpcCall(agentId, "interruptChannel", [this._channelId], options);
+        await this._agentRpcCall(agentId, agentRpcMethods["interruptChannel"], [this._channelId], options);
       } else {
-        await this._agentRpcCall(agentId, "interruptChannel", [this._channelId]);
+        await this._agentRpcCall(agentId, agentRpcMethods["interruptChannel"], [this._channelId]);
       }
       return;
     }
@@ -919,7 +915,7 @@ export class HeadlessSession {
     if (!channelId) throw new Error("No channel is available for model execution evidence");
     try {
       const evidence = this._agentRpcCall
-        ? await this._agentRpcCall(targetId, "getModelExecutionEvidence", [channelId], options)
+        ? await this._agentRpcCall(targetId, agentRpcMethods["getModelExecutionEvidence"], [channelId], options)
         : await this.callMethod(targetId, "getModelExecutionEvidence", {});
       this._modelExecutionEvidence = evidence;
       this._modelExecutionEvidenceError = undefined;
@@ -994,12 +990,14 @@ export class HeadlessSession {
     const ownsContext = this._ownsAgentContext;
     const channelId = this._channelId;
     const rpcCall = this._agentRpcCall;
-    const lifecycleRpcCall = rpcCall
-      ? (target: string, method: string, args: unknown[]) =>
-          rpcCall(target, method, args, {
-            timeoutMs: HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS,
-          })
-      : null;
+    const lifecycleRpcCall: import("@vibestudio/rpc").RpcCaller["call"] | null =
+      rpcCall
+        ? async (target, method, args, options) =>
+            rpcCall(target, method, args, {
+              ...options,
+              timeoutMs: HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS,
+            })
+        : null;
 
     const unsubscribe = async () => {
       if (!targetId || !channelId || !lifecycleRpcCall) return;
@@ -1419,7 +1417,7 @@ export class HeadlessSession {
     const result = nativeRunSettlementSchema.parse(
       await this._agentRpcCall(
         this._agentTargetId,
-        "waitForNativeRun",
+        agentRpcMethods["waitForNativeRun"],
         [{ ...identity, channelId: this._channelId }],
         { signal }
       )

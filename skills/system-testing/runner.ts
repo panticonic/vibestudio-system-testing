@@ -1,3 +1,10 @@
+import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
+import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
+import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
+import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
+import type { RpcCaller } from "@vibestudio/rpc";
+import { createRpcMethodCaller, type RpcMethodArgs, type RpcMethodResult } from "@vibestudio/shared/rpcMethods";
 import {
   HeadlessSession,
   type HeadlessWithAgentConfig,
@@ -157,6 +164,22 @@ export interface ChatTaskRuleEvidence {
   decidedAt: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function sessionIdFromInput(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const sessionId = value["sessionId"];
+  return typeof sessionId === "string" ? sessionId : undefined;
+}
+
+const developmentRpcMethods = createRpcMethods(
+  "vibestudio.development.v1",
+  developmentBuiltinMethods,
+  "",
+);
+
 function fixturePublicationAuthority(
   fixture: (WorkspaceRepoCreationScope & { repoName: string | null }) | null,
 ): AgentExecutionTestPolicySpec["authority"] {
@@ -252,7 +275,7 @@ export class HeadlessRunner {
 
   /** Read the canonical user-facing permission inventory for harness assertions. */
   async listPermissions(): Promise<unknown[]> {
-    const permissions = await rpc.call("main", "permissions.list", []);
+    const permissions = await rpc.call("main", mainRpcMethods["permissions.list"], []);
     if (!Array.isArray(permissions))
       throw new Error("permissions.list returned no inventory");
     return permissions;
@@ -264,8 +287,8 @@ export class HeadlessRunner {
     config: unknown;
   }> {
     const [units, config] = await Promise.all([
-      rpc.call("main", "build.listUnits", []),
-      rpc.call("main", "workspace.getConfig", []),
+      rpc.call("main", mainRpcMethods["build.listUnits"], []),
+      rpc.call("main", mainRpcMethods["workspace.getConfig"], []),
     ]);
     if (!Array.isArray(units))
       throw new Error("build.listUnits returned no unit inventory");
@@ -277,7 +300,7 @@ export class HeadlessRunner {
     contextId: string;
     channelId: string;
   }): Promise<ChatTaskRuleEvidence[]> {
-    return rpc.call("main", "authority.listTaskRules", [input]);
+    return rpc.call("main", mainRpcMethods["authority.listTaskRules"], [input]);
   }
 
   private contextId: string;
@@ -364,14 +387,14 @@ export class HeadlessRunner {
                 testAuthorityPolicy,
                 input?.counteractionRepoPaths ?? [],
               );
-              return rpc.call<{ contextId: string }>(
+              return rpc.call(
                 "main",
-                "runtime.createContext",
+                mainRpcMethods["runtime.createContext"],
                 [contextPolicy ? { testPolicy: contextPolicy } : {}],
               );
             },
             destroyContext: (contextId) =>
-              rpc.call<void>("main", "runtime.destroyContext", [
+              rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
                 { contextId, recursive: true },
               ]),
           },
@@ -609,9 +632,7 @@ export class HeadlessRunner {
         "Runtime observation requires exactly one task-owned worker repository",
       );
     const source = workers[0]!.repoPath;
-    const entities = await rpc.call<
-      Array<{ id: string; source: string; contextId: string; kind: string }>
-    >("main", "runtime.listEntities", []);
+    const entities = await rpc.call("main", mainRpcMethods["runtime.listEntities"], []);
     return {
       source,
       entities: entities.filter((entity) => entity.source === source),
@@ -727,9 +748,9 @@ export class HeadlessRunner {
     let forkContextId: string | null = null;
     if (contextMode === "fork") {
       const ownerEntityId = await this.fixtureForkOwner();
-      const fork = await rpc.call<{ contextId: string }>(
+      const fork = await rpc.call(
         "main",
-        "runtime.createSubagentContext",
+        mainRpcMethods["runtime.createSubagentContext"],
         [
           {
             parentContextId: taskContextId!,
@@ -768,25 +789,26 @@ export class HeadlessRunner {
       : "";
     const rpcFaultEvidence: SystemTestRpcFaultEvidence[] = [];
     const occurrenceByOperation = new Map<string, number>();
-    const callWithFault = async <R = unknown>(
+    const callWithFault: RpcCaller["call"] = async (
       targetId: string,
-      method: string,
-      args: unknown[],
-      options?: { timeoutMs?: number; signal?: AbortSignal },
-    ): Promise<R> => {
-      const key = `call:${method}`;
+      method,
+      args,
+      options,
+    ) => {
+      const methodName = method.name;
+      const key = `call:${methodName}`;
       const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
       occurrenceByOperation.set(key, occurrence);
       const fault = opts?.rpcFaults?.find(
         (candidate) =>
           candidate.transport === "call" &&
-          candidate.method === method &&
+          candidate.method === methodName &&
           (candidate.occurrence ?? 1) === occurrence,
       );
       if (fault) {
         rpcFaultEvidence.push({
           transport: "call",
-          method,
+          method: methodName,
           occurrence,
           injected: true,
           message: fault.message,
@@ -797,25 +819,26 @@ export class HeadlessRunner {
           fault.code ? { code: fault.code } : {},
         );
       }
-      return rpcConfig.call<R>(targetId, method, args, options);
+      return rpcConfig.call(targetId, method, args, options);
     };
     const faultingRpc: NonNullable<ConnectionConfig["rpc"]> = {
       selfId: rpcConfig.selfId,
       call: callWithFault,
       stream: async (targetId, method, args, options) => {
-        const key = `stream:${method}`;
+        const methodName = method.name;
+        const key = `stream:${methodName}`;
         const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
         occurrenceByOperation.set(key, occurrence);
         const fault = opts?.rpcFaults?.find(
           (candidate) =>
             candidate.transport === "stream" &&
-            candidate.method === method &&
+            candidate.method === methodName &&
             (candidate.occurrence ?? 1) === occurrence,
         );
         if (fault) {
           rpcFaultEvidence.push({
             transport: "stream",
-            method,
+            method: methodName,
             occurrence,
             injected: true,
             message: fault.message,
@@ -835,11 +858,7 @@ export class HeadlessRunner {
               const registration = rpcConfig.registerResidentSession!(...args);
               return {
                 transport: {
-                  call: <R = unknown>(
-                    targetId: string,
-                    method: string,
-                    callArgs: unknown[],
-                  ) => callWithFault<R>(targetId, method, callArgs),
+                  call: callWithFault,
                 },
                 close: () => registration.close(),
                 ...(registration.relationshipEnded
@@ -871,8 +890,7 @@ export class HeadlessRunner {
         rpc: faultingRpc,
         ...(recoveryCoordinator ? { recoveryCoordinator } : {}),
       },
-      rpcCall: (t: string, m: string, args: unknown[], options) =>
-        rpcConfig.call(t, m, args, options),
+      rpcCall: rpcConfig.call,
       source: opts?.source ?? "workers/agent-worker",
       className: opts?.className ?? "AiChatWorker",
       ...(agentContextId ? { contextId: agentContextId } : {}),
@@ -1007,9 +1025,9 @@ export class HeadlessRunner {
       );
     }
     this.fixtureForkOwnerPromise ??= rpc
-      .call<{ id?: string; contextId?: string }>(
+      .call(
         "main",
-        "runtime.createEntity",
+        mainRpcMethods["runtime.createEntity"],
         [
           {
             kind: "do",
@@ -1072,7 +1090,7 @@ export class HeadlessRunner {
     try {
       diagnostics["buildProvenance"] = await rpc.call(
         "main",
-        "build.inspectBuildProvenance",
+        mainRpcMethods["build.inspectBuildProvenance"],
         ["@workspace-skills/system-testing"],
       );
     } catch (err) {
@@ -1084,7 +1102,7 @@ export class HeadlessRunner {
     try {
       diagnostics["durableWork"] = await rpc.call(
         "main",
-        "durableWork.inspect",
+        mainRpcMethods["durableWork.inspect"],
         [],
       );
     } catch (err) {
@@ -1095,10 +1113,7 @@ export class HeadlessRunner {
     }
     if (channelId) {
       try {
-        const service = (await rpc.call("main", "workers.resolveService", [
-          "vibestudio.channel.v1",
-          channelId,
-        ])) as {
+        const service = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", channelId)) as {
           kind?: unknown;
           targetId?: unknown;
         };
@@ -1112,7 +1127,7 @@ export class HeadlessRunner {
         }
         diagnostics["channelDelivery"] = await rpc.call(
           service.targetId,
-          "getState",
+          channelRpcMethods["getState"],
           [],
         );
       } catch (err) {
@@ -1150,7 +1165,7 @@ export class HeadlessRunner {
     const subKey = `system-test-cancel-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call<{ runId: string }>("main", "eval.start", [
+      const started = await rpc.call("main", mainRpcMethods["eval.start"], [
         {
           scope: { key: subKey, lifecycle: "finite" },
           runId,
@@ -1163,20 +1178,20 @@ export class HeadlessRunner {
           `eval.start returned ${started.runId}, expected ${runId}`,
         );
       }
-      const cancel = await rpc.call<{ ok: true; forcedReset: boolean }>(
+      const cancel = await rpc.call(
         "main",
-        "eval.cancel",
+        mainRpcMethods["eval.cancel"],
         [{ scopeKey: subKey, runId }],
       );
-      const terminal = await rpc.call<{ status: string; result?: unknown }>(
+      const terminal = await rpc.call(
         "main",
-        "eval.get",
+        mainRpcMethods["eval.get"],
         [{ scopeKey: subKey, runId }],
       );
       return { runId, cancel, terminal };
     } finally {
       if (activated) {
-        await rpc.call("main", "eval.dispose", [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
       }
     }
   }
@@ -1192,7 +1207,7 @@ export class HeadlessRunner {
     const subKey = `system-test-events-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call<{ runId: string }>("main", "eval.start", [
+      const started = await rpc.call("main", mainRpcMethods["eval.start"], [
         {
           scope: { key: subKey, lifecycle: "finite" },
           runId,
@@ -1211,9 +1226,9 @@ export class HeadlessRunner {
       let terminal: { status: string; result?: unknown } | null = null;
       const settleDeadline = Date.now() + 30_000;
       while (Date.now() < settleDeadline) {
-        terminal = await rpc.call<{ status: string; result?: unknown }>(
+        terminal = await rpc.call(
           "main",
-          "eval.get",
+          mainRpcMethods["eval.get"],
           [{ scopeKey: subKey, runId }],
         );
         if (terminal.status === "done" || terminal.status === "cancelled")
@@ -1229,7 +1244,7 @@ export class HeadlessRunner {
         );
       }
       const readPage = () =>
-        rpc.call<EvalEventPagesProbe["firstPage"]>("main", "eval.events", [
+        rpc.call("main", mainRpcMethods["eval.events"], [
           { scopeKey: subKey, runId, after: 0, limit: 1 },
         ]);
       const firstPage = await readPage();
@@ -1237,9 +1252,9 @@ export class HeadlessRunner {
       const pages: EvalEventPagesProbe["pages"] = [];
       let after = 0;
       do {
-        const page = await rpc.call<EvalEventPagesProbe["firstPage"]>(
+        const page = await rpc.call(
           "main",
-          "eval.events",
+          mainRpcMethods["eval.events"],
           [{ scopeKey: subKey, runId, after, limit: 1 }],
         );
         pages.push(page);
@@ -1251,7 +1266,7 @@ export class HeadlessRunner {
       return { runId, firstPage, repeatedFirstPage, pages, terminal };
     } finally {
       if (activated)
-        await rpc.call("main", "eval.dispose", [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
     }
   }
 
@@ -1265,9 +1280,9 @@ export class HeadlessRunner {
   async faultAbortAgentVesselForReplayProbe(
     targetId: string,
   ): Promise<AgentVesselFaultProbe> {
-    const result = await rpc.call<{ aborted: true }>(
+    const result = await rpc.call(
       "main",
-      "runtime.faultAbortAgentVessel",
+      mainRpcMethods["runtime.faultAbortAgentVessel"],
       [{ targetId }],
     );
     return { targetId, aborted: result.aborted };
@@ -1331,28 +1346,10 @@ export class HeadlessRunner {
    * and authority preparation as panels and eval clients, while evidence is
    * captured by the harness rather than copied from an agent response.
    */
-  async callSelfDevelopment<T>(
-    method:
-      | "openSession"
-      | "getSession"
-      | "listRecipes"
-      | "listClientExecutors"
-      | "listNativeTools"
-      | "start"
-      | "faultFailBuildAfterSnapshotRetained"
-      | "get"
-      | "list"
-      | "events"
-      | "stop"
-      | "retry"
-      | "checkpoint"
-      | "inspectNative"
-      | "readNativeTerminal"
-      | "writeNativeTerminal"
-      | "stopNativeTool"
-      | "closeSession",
-    input?: unknown,
-  ): Promise<T> {
+  async callSelfDevelopment<K extends keyof typeof developmentRpcMethods & string>(
+    method: K,
+    ...args: RpcMethodArgs<(typeof developmentRpcMethods)[K]>
+  ): Promise<RpcMethodResult<(typeof developmentRpcMethods)[K]>> {
     const admitsWork = [
       "openSession",
       "start",
@@ -1382,28 +1379,23 @@ export class HeadlessRunner {
     if (admitsWork && this.developmentSessionAdmissionClosed) {
       throw new Error("The test's development resource lifetime has ended");
     }
-    const call = rpc
-      .call<T>(targetId, method, input === undefined ? [] : [input])
+    const call = createRpcMethodCaller(rpc, targetId, developmentRpcMethods)(method, args)
       .then((result) => {
         if (method === "openSession") {
-          const opened = result as {
-            kind?: string;
-            session?: { sessionId?: string };
-          };
-          if (opened.kind === "opened" && opened.session?.sessionId)
-            this.ownedDevelopmentSessions.add(opened.session.sessionId);
+          if (isRecord(result) && result["kind"] === "opened" && isRecord(result["session"]) && typeof result["session"]["sessionId"] === "string")
+            this.ownedDevelopmentSessions.add(result["session"]["sessionId"]);
         } else if (method === "start") {
-          const started = result as { runId: string };
-          const sessionId = (input as { sessionId: string }).sessionId;
+          const startedRunId = isRecord(result) && typeof result["runId"] === "string" ? result["runId"] : undefined;
+          const sessionId = sessionIdFromInput(args[0]);
+          if (!startedRunId || !sessionId) throw new Error("Development start returned an invalid run identity");
           const runs =
             this.ownedDevelopmentRuns.get(sessionId) ?? new Set<string>();
-          runs.add(started.runId);
+          runs.add(startedRunId);
           this.ownedDevelopmentRuns.set(sessionId, runs);
         } else if (method === "closeSession") {
-          const closed = result as { state?: string; sessionId?: string };
-          if (closed.state === "closed" && closed.sessionId) {
-            this.ownedDevelopmentSessions.delete(closed.sessionId);
-            this.ownedDevelopmentRuns.delete(closed.sessionId);
+          if (isRecord(result) && result["state"] === "closed" && typeof result["sessionId"] === "string") {
+            this.ownedDevelopmentSessions.delete(result["sessionId"]);
+            this.ownedDevelopmentRuns.delete(result["sessionId"]);
           }
         }
         return result;
@@ -1444,7 +1436,7 @@ export class HeadlessRunner {
             runId,
             idempotencyKey: `system-test-owner-stop-${runId}`,
           });
-        const session = await this.callSelfDevelopment<{ state: string }>(
+        const session = await this.callSelfDevelopment(
           "closeSession",
           {
             sessionId,
@@ -1474,13 +1466,13 @@ export class HeadlessRunner {
   }
 
   /** Invoke the owner-scoped ordinary attached-host client surface. */
-  async callAttachedDevelopmentHost<T>(
+  async callAttachedDevelopmentHost(
     sessionId: string,
     service: string,
     method: string,
     args: unknown[],
-  ): Promise<T> {
-    return rpc.call<T>("main", "attachedHosts.invokeAttached", [
+  ): Promise<unknown> {
+    return rpc.call("main", mainRpcMethods["attachedHosts.invokeAttached"], [
       { sessionId, service, method, args },
     ]);
   }
@@ -1494,7 +1486,7 @@ export class HeadlessRunner {
     authorityCeilingDigest: string;
     expiresAt: number;
   }> {
-    return rpc.call("main", "attachedHosts.attachClient", [{ sessionId }]);
+    return rpc.call("main", mainRpcMethods["attachedHosts.attachClient"], [{ sessionId }]);
   }
 
   /** Read bounded parent-captured approval evidence without changing child results. */
@@ -1505,7 +1497,7 @@ export class HeadlessRunner {
     events: AttachedHostApprovalAuditEvent[];
     nextCursor: string | null;
   }> {
-    return rpc.call("main", "attachedHosts.listApprovalAudit", [
+    return rpc.call("main", mainRpcMethods["attachedHosts.listApprovalAudit"], [
       { sessionId, ...input },
     ]);
   }

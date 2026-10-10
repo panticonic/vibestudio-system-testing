@@ -1,4 +1,7 @@
+import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
+import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 
 const mocks = vi.hoisted(() => ({
   messageListeners: [] as Array<(message: Record<string, unknown>) => void>,
@@ -91,38 +94,48 @@ describe("HeadlessRunner", () => {
   });
 
   it("joins a pending session admission before retiring resources after a test timeout", async () => {
-    mocks.workers.resolveService.mockResolvedValue({
-      kind: "durable-object",
-      targetId: "do:development",
-    });
+    mocks.workers.resolveService.mockResolvedValue(
+      durableObjectServiceFixture("do:development"),
+    );
     let admit!: (value: unknown) => void;
     const admission = new Promise((resolve) => {
       admit = resolve;
     });
     mocks.rpc.call.mockImplementation(async (_target, method) => {
-      if (method === "openSession") return admission;
-      if (method === "list") return { runs: [{ runId: "run:one" }] };
-      if (method === "closeSession")
+      if (method.name === "openSession") return admission;
+      if (method.name === "list") return { runs: [{ runId: "run:one" }] };
+      if (method.name === "closeSession")
         return { state: "closed", sessionId: "session:one" };
-      if (method === "get" || method === "stop")
+      if (method.name === "get" || method.name === "stop")
         return { state: "stopped", runId: "run:one" };
       throw new Error(`Unexpected method ${String(method)}`);
     });
     const runner = new HeadlessRunner("ctx-test");
-    const opened = runner.callSelfDevelopment("openSession", {});
+    const opened = runner.callSelfDevelopment("openSession", {
+      repositoryId: "repo:one",
+      mode: "semantic",
+      idempotencyKey: "open:one",
+    });
     await vi.waitFor(() =>
       expect(mocks.rpc.call).toHaveBeenCalledWith(
         "do:development",
-        "openSession",
-        [{}],
+        expect.objectContaining({ name: "openSession" }),
+        [{ repositoryId: "repo:one", mode: "semantic", idempotencyKey: "open:one" }],
+        undefined,
       ),
     );
     const closed = runner.closeOwnedDevelopmentSessions();
-    await expect(runner.callSelfDevelopment("start", {})).rejects.toThrow(
+    await expect(runner.callSelfDevelopment("start", {
+      sessionId: "session:one",
+      runId: "run:one",
+      recipeId: "recipe:one",
+      pair: { kind: "host-only", hostRepositoryId: "repo:one", baseRepositoryId: "repo:base", personalRepositoryId: "repo:personal", systemRepositoryId: "repo:system" },
+      target: { kind: "build-only" },
+    })).rejects.toThrow(
       "resource lifetime has ended",
     );
     expect(
-      mocks.rpc.call.mock.calls.some((call) => call[1] === "closeSession"),
+      mocks.rpc.call.mock.calls.some((call) => call[1]?.name === "closeSession"),
     ).toBe(false);
     admit({ kind: "opened", session: { sessionId: "session:one" } });
     await opened;
@@ -137,44 +150,47 @@ describe("HeadlessRunner", () => {
   });
 
   it("retires every owned session even when an evidence read fails", async () => {
-    mocks.workers.resolveService.mockResolvedValue({
-      kind: "durable-object",
-      targetId: "do:development",
-    });
+    mocks.workers.resolveService.mockResolvedValue(
+      durableObjectServiceFixture("do:development"),
+    );
+    let openedSession = 0;
     mocks.rpc.call.mockImplementation(async (_target, method, args) => {
       const input = args[0] as { sessionId?: string };
-      if (method === "openSession")
-        return { kind: "opened", session: { sessionId: input.sessionId } };
-      if (method === "list") throw new Error("evidence read failed");
-      if (method === "closeSession")
+      if (method.name === "openSession")
+        return {
+          kind: "opened",
+          session: { sessionId: `session:${++openedSession}` },
+        };
+      if (method.name === "list") throw new Error("evidence read failed");
+      if (method.name === "closeSession")
         return { state: "closed", sessionId: input.sessionId };
       throw new Error(`Unexpected method ${String(method)}`);
     });
     const runner = new HeadlessRunner("ctx-test");
     await runner.callSelfDevelopment("openSession", {
-      sessionId: "session:one",
+      repositoryId: "repo:one", mode: "semantic", idempotencyKey: "open:one",
     });
     await runner.callSelfDevelopment("openSession", {
-      sessionId: "session:two",
+      repositoryId: "repo:two", mode: "semantic", idempotencyKey: "open:two",
     });
     await expect(runner.closeOwnedDevelopmentSessions()).rejects.toThrow(
       "Owned development session cleanup failed",
     );
     expect(
       mocks.rpc.call.mock.calls
-        .filter((call) => call[1] === "closeSession")
+        .filter((call) => call[1].name === "closeSession")
         .map((call) => call[2]),
     ).toEqual([
       [
         {
-          sessionId: "session:one",
-          idempotencyKey: "system-test-owner-close-session:one",
+          sessionId: "session:1",
+          idempotencyKey: "system-test-owner-close-session:1",
         },
       ],
       [
         {
-          sessionId: "session:two",
-          idempotencyKey: "system-test-owner-close-session:two",
+          sessionId: "session:2",
+          idempotencyKey: "system-test-owner-close-session:2",
         },
       ],
     ]);
@@ -244,12 +260,12 @@ describe("HeadlessRunner", () => {
     let child = 0;
     let imported: Record<string, unknown> | undefined;
     mocks.rpc.call.mockImplementation(async (_target, method) => {
-      if (method === "runtime.createContext")
+      if (method.name === "runtime.createContext")
         return { contextId: "context:fixture" };
-      if (method === "runtime.createEntity") {
+      if (method.name === "runtime.createEntity") {
         return { id: "fork-owner:1", contextId: "context:fixture" };
       }
-      if (method === "runtime.createSubagentContext") {
+      if (method.name === "runtime.createSubagentContext") {
         child += 1;
         return { contextId: `context:child:${child}` };
       }
@@ -316,7 +332,7 @@ describe("HeadlessRunner", () => {
     );
     expect(spawned).toEqual(["context:child:1", "context:child:2"]);
     const forks = mocks.rpc.call.mock.calls.filter(
-      ([, method]) => method === "runtime.createSubagentContext",
+      ([, method]) => method.name === "runtime.createSubagentContext",
     );
     expect(forks).toHaveLength(2);
     expect(forks[0]?.[2]?.[0]).toMatchObject({
@@ -378,12 +394,12 @@ describe("HeadlessRunner", () => {
   it("cancels one harness-owned asynchronous eval and disposes its finite scope", async () => {
     const runner = new HeadlessRunner("ctx-test");
     mocks.rpc.call.mockImplementation(async (_target, method, args) => {
-      if (method === "eval.start") {
+      if (method.name === "eval.start") {
         return { runId: (args[0] as { runId: string }).runId };
       }
-      if (method === "eval.cancel") return { ok: true, forcedReset: false };
-      if (method === "eval.get") return { status: "cancelled" };
-      if (method === "eval.dispose") return { ok: true };
+      if (method.name === "eval.cancel") return { ok: true, forcedReset: false };
+      if (method.name === "eval.get") return { status: "cancelled" };
+      if (method.name === "eval.dispose") return { ok: true };
       throw new Error(`Unexpected method ${method}`);
     });
 
@@ -398,19 +414,19 @@ describe("HeadlessRunner", () => {
       scope: { key: string };
       runId: string;
     };
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(1, "main", "eval.start", [
+    expect(mocks.rpc.call).toHaveBeenNthCalledWith(1, "main", mainRpcMethods["eval.start"], [
       expect.objectContaining({
         scope: { key: startArgs.scope.key, lifecycle: "finite" },
         runId: startArgs.runId,
       }),
     ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(2, "main", "eval.cancel", [
+    expect(mocks.rpc.call).toHaveBeenNthCalledWith(2, "main", mainRpcMethods["eval.cancel"], [
       { scopeKey: startArgs.scope.key, runId: startArgs.runId },
     ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(3, "main", "eval.get", [
+    expect(mocks.rpc.call).toHaveBeenNthCalledWith(3, "main", mainRpcMethods["eval.get"], [
       { scopeKey: startArgs.scope.key, runId: startArgs.runId },
     ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(4, "main", "eval.dispose", [
+    expect(mocks.rpc.call).toHaveBeenNthCalledWith(4, "main", mainRpcMethods["eval.dispose"], [
       { scopeKey: startArgs.scope.key },
     ]);
   });
@@ -420,10 +436,10 @@ describe("HeadlessRunner", () => {
     let eventRead = 0;
     mocks.rpc.call.mockImplementation(async (_target, method, args) => {
       const route = args[0] as { runId?: string };
-      if (method === "eval.start") return { runId: route.runId };
-      if (method === "eval.get")
+      if (method.name === "eval.start") return { runId: route.runId };
+      if (method.name === "eval.get")
         return { status: "done", result: { success: true } };
-      if (method === "eval.events") {
+      if (method.name === "eval.events") {
         eventRead++;
         return eventRead <= 3
           ? { events: [{ sequence: 1, kind: "state" }], next: 1, hasMore: true }
@@ -433,7 +449,7 @@ describe("HeadlessRunner", () => {
               hasMore: false,
             };
       }
-      if (method === "eval.dispose") return { ok: true };
+      if (method.name === "eval.dispose") return { ok: true };
       throw new Error(`Unexpected method ${method}`);
     });
 
@@ -448,7 +464,7 @@ describe("HeadlessRunner", () => {
       result.firstPage,
       { events: [{ sequence: 2, kind: "console" }], next: 2, hasMore: false },
     ]);
-    expect(mocks.rpc.call.mock.calls.map(([, method]) => method)).toEqual([
+    expect(mocks.rpc.call.mock.calls.map(([, method]) => method.name)).toEqual([
       "eval.start",
       "eval.get",
       "eval.events",
@@ -473,7 +489,7 @@ describe("HeadlessRunner", () => {
     });
     expect(mocks.rpc.call).toHaveBeenCalledExactlyOnceWith(
       "main",
-      "runtime.faultAbortAgentVessel",
+      mainRpcMethods["runtime.faultAbortAgentVessel"],
       [{ targetId: "do:workers/agent-worker:AiChatWorker:agent-1" }],
     );
   });
@@ -512,19 +528,27 @@ describe("HeadlessRunner", () => {
       () => undefined,
     );
     await expect(
-      resident.transport.call("channel", "claimMethodCall", []),
+      resident.transport.call("channel", channelRpcMethods.claimMethodCall, [
+        "participant-1",
+        "transport-call-1",
+        "provider-generation-1",
+      ]),
     ).rejects.toMatchObject({
       message: "transient claim failure",
       code: "EAGAIN",
     });
     await expect(
-      resident.transport.call("channel", "claimMethodCall", []),
+      resident.transport.call("channel", channelRpcMethods.claimMethodCall, [
+        "participant-1",
+        "transport-call-1",
+        "provider-generation-1",
+      ]),
     ).resolves.toEqual({
       claimed: true,
     });
-    await config.rpcCall("main", "runtime.listEntities", []);
+    await config.rpcCall("main", mainRpcMethods["runtime.listEntities"], []);
 
-    expect(mocks.rpc.call.mock.calls.map((call) => call[1])).toEqual([
+    expect(mocks.rpc.call.mock.calls.map((call) => call[1].name)).toEqual([
       "claimMethodCall",
       "runtime.listEntities",
     ]);
@@ -797,7 +821,7 @@ describe("HeadlessRunner", () => {
     expect(mocks.rpc.call).toHaveBeenNthCalledWith(
       1,
       "main",
-      "runtime.createContext",
+      mainRpcMethods["runtime.createContext"],
       [
         {
           testPolicy: {
@@ -915,7 +939,7 @@ describe("HeadlessRunner", () => {
     expect(mocks.rpc.call).toHaveBeenNthCalledWith(
       2,
       "main",
-      "runtime.destroyContext",
+      mainRpcMethods["runtime.destroyContext"],
       [{ contextId: "ctx-fixture", recursive: true }],
     );
   });
@@ -975,7 +999,7 @@ describe("HeadlessRunner", () => {
     expect(mocks.rpc.call).toHaveBeenNthCalledWith(
       1,
       "main",
-      "runtime.createContext",
+      mainRpcMethods["runtime.createContext"],
       [
         {
           testPolicy: expect.objectContaining({
@@ -1016,7 +1040,7 @@ describe("HeadlessRunner", () => {
     });
     expect(mocks.rpc.call).toHaveBeenLastCalledWith(
       "main",
-      "runtime.destroyContext",
+      mainRpcMethods["runtime.destroyContext"],
       [{ contextId: "ctx-created", recursive: true }],
     );
   });
@@ -1060,7 +1084,7 @@ describe("HeadlessRunner", () => {
     expect(mocks.rpc.call).toHaveBeenNthCalledWith(
       1,
       "main",
-      "runtime.createContext",
+      mainRpcMethods["runtime.createContext"],
       [
         {
           testPolicy: expect.objectContaining({

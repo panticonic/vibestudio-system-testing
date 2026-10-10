@@ -1,3 +1,5 @@
+import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-utils";
+import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TestExecutionResult, TestOrchestrationContext } from "../types.js";
@@ -10,7 +12,7 @@ const notificationRuntime = vi.hoisted(() => ({
 }));
 vi.mock("@workspace/runtime", () => ({
   gad: { listUserNotificationsForMe: notificationRuntime.list },
-  rpc: { call: notificationRuntime.overview },
+  rpc: { call: schemaRpcMock({ call: notificationRuntime.overview }).call },
   workers: { resolveService: notificationRuntime.resolveService },
 }));
 
@@ -94,6 +96,104 @@ const watchNotificationTest = unitDiagnosticsTests.find(
 const nativeControlTest = unitDiagnosticsTests.find(
   (candidate) => candidate.name === "automation-native-control"
 )!;
+
+function missionRecordFixture(input: {
+  name: string;
+  missionId: string;
+  state: "active" | "paused" | "completed" | "retired";
+  runCount: number;
+  channelId: string;
+}) {
+  return {
+    schemaVersion: 3,
+    missionId: input.missionId,
+    name: input.name,
+    revision: 1,
+    charter: {
+      summary: "One-minute talk timer",
+      execution: {
+        kind: "agent",
+        image: {
+          source: "workers/agent-worker",
+          ref: `state:${"a".repeat(64)}`,
+          effectiveVersion: "a".repeat(64),
+          className: "AgentWorker",
+          objectKey: "test",
+        },
+        action: { kind: "prompt", text: "One minute has passed." },
+        conversation: {
+          mode: "continue",
+          channelId: input.channelId,
+          contextId: "context-proof",
+          executorId: "executor-proof",
+        },
+        operations: [],
+      },
+      trigger: { kind: "schedule", everyMs: 60_000 },
+    },
+    authorityPlan: {
+      schemaVersion: 2,
+      digest: "c".repeat(64),
+      artifactRef: `authority-plan:${"c".repeat(64)}`,
+      compilerVersion: "test",
+      catalogDigest: "b".repeat(64),
+    },
+    owner: { userId: "test-user" },
+    state: input.state,
+    revisionDigest: "d".repeat(64),
+    authority: { requestIds: [], grantIds: [], denialIds: [] },
+    createdAt: 1,
+    updatedAt: 1,
+    activatedAt: 1,
+    runCount: input.runCount,
+    ...(input.state === "completed"
+      ? { completedAt: 2, completionReason: "response", completionResponse: "Goal finished." }
+      : {}),
+  };
+}
+
+function missionRunFixture(runId: string, missionId: string, startedAt: number) {
+  return {
+    runId,
+    missionId,
+    missionSubject: `mission:${"e".repeat(64)}@${"f".repeat(64)}`,
+    revision: 1,
+    trigger: "scheduled",
+    phase: "terminal",
+    outcome: "succeeded",
+    startedAt,
+    runNumber: startedAt,
+    finishedAt: startedAt + 1,
+    channelId: "headless-proof",
+    contextId: "context-proof",
+    executorId: "executor-proof",
+  };
+}
+
+function missionOverviewFixture(input: {
+  name: string;
+  missionId: string;
+  state: "active" | "paused" | "completed" | "retired";
+  runCount: number;
+  channelId: string;
+}) {
+  const recentRuns = Array.from({ length: input.runCount }, (_, index) =>
+    missionRunFixture(`run-${index + 1}`, input.missionId, index + 1),
+  );
+  const automation = missionRecordFixture(input);
+  return {
+    generatedAt: 2,
+    stats: {
+      total: 1,
+      active: input.state === "active" ? 1 : 0,
+      running: 0,
+      issueRunsLast24Hours: 0,
+      completed: input.state === "completed" ? 1 : 0,
+    },
+    items: [{ automation, recentRuns, totalRuns: input.runCount, activeRuns: 0, issueRunsSince: 0 }],
+    attention: [],
+  };
+}
 
 describe("automation overview system test validator", () => {
   const readCode =
@@ -633,36 +733,26 @@ describe("scheduled automation notification system test validator", () => {
 
   it("isolates durable notification evidence by the launching conversation", async () => {
     const channelId = "headless-proof";
-    notificationRuntime.resolveService.mockResolvedValue({
-      kind: "durable-object",
-      targetId: "missions",
-    });
-    notificationRuntime.overview.mockResolvedValue({
-      items: [
-        {
-          automation: {
-            name: "One-minute talk timer",
-            missionId: "mission-proof",
-            runCount: 2,
-            state: "completed",
-            charter: {
-              execution: { conversation: { mode: "continue", channelId } },
-            },
-          },
-          recentRuns: [1, 2].map((id) => ({
-            runId: `run-${id}`,
-            phase: "terminal",
-            outcome: "succeeded",
-          })),
-        },
-      ],
-    });
+    notificationRuntime.resolveService.mockResolvedValue(
+      durableObjectServiceFixture("missions"),
+    );
+    notificationRuntime.overview.mockResolvedValue(
+      missionOverviewFixture({
+        name: "One-minute talk timer",
+        missionId: "mission-proof",
+        runCount: 2,
+        state: "completed",
+        channelId,
+      }),
+    );
     const notifications = (channel: string, count: number) =>
       Array.from({ length: count }, (_, i) => {
         const runId = `${channel === channelId ? "" : "other-"}run-${i + 1}`;
         return {
           id: `automation.notify:${runId}`,
+          userId: "test-user",
           kind: "automation.notify",
+          title: "Scheduled notification",
           message: "One minute has passed.",
           data: {
             channelId: channel,
@@ -787,32 +877,17 @@ describe("scheduled automation notification system test validator", () => {
       signal: new AbortController().signal,
       remainingTimeMs: () => 190_000,
     } as unknown as TestOrchestrationContext;
-    const overview = (state: string, runCount: number) => ({
-      items: [
-        {
-          automation: {
-            name: proofName,
-            missionId: "mission-proof",
-            state,
-            runCount,
-            ...(state === "completed"
-              ? {
-                  completionReason: "response",
-                  completionResponse: "Goal finished.",
-                }
-              : {}),
-            charter: {
-              execution: { conversation: { mode: "continue", channelId } },
-            },
-          },
-          recentRuns: Array.from({ length: runCount }, (_, i) => ({
-            runId: `run-${i + 1}`,
-            phase: "terminal",
-            outcome: "succeeded",
-          })),
-        },
-      ],
-    });
+    const overview = (
+      state: "active" | "paused" | "completed" | "retired",
+      runCount: number,
+    ) =>
+      missionOverviewFixture({
+        name: proofName,
+        missionId: "mission-proof",
+        state,
+        runCount,
+        channelId,
+      });
     const notifications = (count: number) =>
       Array.from({ length: count }, (_, i) => {
         const runId = `run-${i + 1}`;
@@ -829,12 +904,13 @@ describe("scheduled automation notification system test validator", () => {
               ? { missionId: "mission-proof", runId }
               : {}),
           },
+          createdAt: i + 1,
+          revision: 0,
         };
       });
-    notificationRuntime.resolveService.mockResolvedValue({
-      kind: "durable-object",
-      targetId: "missions",
-    });
+    notificationRuntime.resolveService.mockResolvedValue(
+      durableObjectServiceFixture("missions"),
+    );
     notificationRuntime.overview.mockReset();
     notificationRuntime.list.mockReset();
     return { context, session, overview, notifications };
@@ -856,7 +932,7 @@ describe("scheduled automation notification system test validator", () => {
     );
   });
 
-  it.each(["completed", "retired"])(
+  it.each(["completed", "retired"] as const)(
     "retains an early %s mission and joins publication before reporting the unmet goal",
     async (state) => {
       const { context, session, overview, notifications } =
@@ -912,7 +988,7 @@ describe("scheduled automation notification system test validator", () => {
     },
   );
 
-  it.each(["active", "paused"])(
+  it.each(["active", "paused"] as const)(
     "keeps observing a %s mission until both requested runs become terminal",
     async (state) => {
       vi.useFakeTimers();

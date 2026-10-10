@@ -3,6 +3,8 @@ import {
   NativeRuntimeUnitObservationSchema,
 } from "@vibestudio/service-schemas/runtime";
 import { missionOverviewStatsSchema } from "@vibestudio/service-schemas/missions";
+import { missionsMethods } from "@vibestudio/service-schemas/missions";
+import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
 import {
   findLastAgentMessage,
@@ -11,6 +13,12 @@ import {
   successfulEvalCode,
   successfulEvalReturnValues,
 } from "./_helpers.js";
+
+const missionsRpcMethods = createRpcMethods(
+  "vibestudio.missions.v1",
+  missionsMethods,
+  "",
+);
 
 function semanticUnitInspection(
   result: Parameters<typeof noIncompleteInvocations>[0],
@@ -479,9 +487,9 @@ async function scheduledNotificationProof(
     const deadline =
       Date.now() + Math.min(190_000, context.remainingTimeMs() ?? 190_000);
     while (Date.now() < deadline) {
-      const overview = await rpc.call<Record<string, unknown>>(
+      const overview = await rpc.call(
         service.targetId,
-        "overview",
+        missionsRpcMethods.overview,
         [{ missionId, limit: 1 }],
       );
       const item = Array.isArray(overview["items"])
@@ -524,10 +532,10 @@ async function scheduledNotificationProof(
             (actionKind !== "notify" ||
               candidate.data["missionId"] === missionId),
         );
-        const conversation = isRecord(automation["charter"])
-          ? isRecord(automation["charter"]["execution"])
-            ? automation["charter"]["execution"]["conversation"]
-            : undefined
+        const charter = automation["charter"];
+        const charterExecution = isRecord(charter) ? charter["execution"] : undefined;
+        const conversation = isRecord(charterExecution)
+          ? new Map(Object.entries(charterExecution)).get("conversation")
           : undefined;
         observation = {
           missionId: automation["missionId"],
@@ -796,7 +804,7 @@ async function nativeAutomationControlProof(
     if (service.kind !== "durable-object" || !service.targetId) {
       throw new Error("The automation ledger did not resolve to a Durable Object");
     }
-    const overview = await rpc.call<Record<string, unknown>>(service.targetId, "overview", [
+    const overview = await rpc.call(service.targetId, missionsRpcMethods.overview, [
       { query: NATIVE_CONTROL_NAME, limit: 5 },
     ]);
     const item = Array.isArray(overview["items"]) ? overview["items"][0] : undefined;

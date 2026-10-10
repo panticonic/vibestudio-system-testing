@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
+import { wireCallerFor } from "@vibestudio/rpc/internal";
+import { createMainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import { createTestDO } from "@vibestudio/durable/test-utils";
 import {
   failedSystemTestRunRecord,
@@ -11,6 +14,12 @@ import {
   systemTestUtilityKeys,
   SystemTestRunnerDO,
 } from "./index.js";
+
+class TestSystemTestRunnerDO extends SystemTestRunnerDO {
+  wireCallerForTest() {
+    return wireCallerFor(this.rpc);
+  }
+}
 
 function runRecord(
   status: SystemTestRunRecord["status"],
@@ -89,7 +98,7 @@ function runRecord(
 }
 
 async function recordOwner() {
-  const owner = await createTestDO(SystemTestRunnerDO, {
+  const owner = await createTestDO(TestSystemTestRunnerDO, {
     WORKER_SOURCE: "workers/system-test-runner",
     WORKER_CLASS_NAME: "SystemTestRunnerDO",
     __objectKey: "records",
@@ -100,7 +109,7 @@ async function recordOwner() {
       if (method === "eval.dispose") return { ok: true };
       const bytes = blobs.get(args[0] as string);
       if (!bytes) throw new Error("Missing test blob");
-      if (method === "blobstore.stat") return { size: bytes.length };
+      if (method === "blobstore.stat") return { size: bytes.length, mtime: 0 };
       if (method === "blobstore.getRangeBytes") {
         const offset = args[1] as number,
           length = args[2] as number;
@@ -113,10 +122,9 @@ async function recordOwner() {
       throw new Error(`Unexpected RPC: ${method}`);
     },
   );
-  Object.defineProperty(owner.instance, "rpc", {
-    value: { call: rpcCall },
-    configurable: true,
-  });
+  vi.spyOn(owner.instance.wireCallerForTest(), "call").mockImplementation(
+    rpcCall,
+  );
   const store = async (record: SystemTestRunRecord) => {
     const references = [];
     for (const entry of record.suite.results) {
@@ -179,7 +187,7 @@ describe("system-test durable execution ownership", () => {
     let text = "",
       length = Infinity;
     while (text.length < length) {
-      const page = await owner.call<{ length: number; chunk: string }>(
+      const page = await owner.call(
         "readSystemTestTrajectoryPage",
         terminal.runId,
         "large-evidence",
@@ -237,13 +245,13 @@ describe("system-test durable execution ownership", () => {
     await expect(
       owner.call("releaseSystemTestRunExecution", record.runId),
     ).resolves.toEqual({ released: true });
-    const inspected = await owner.call<Record<string, unknown>>(
-      "inspectSystemTestRun",
-      record.runId,
-    );
-    expect(inspected["status"]).toBe("errored");
-    expect(inspected["error"]).toBe(record.error);
-    expect(inspected["passed"]).toBe(1);
+    await expect(
+      owner.call("inspectSystemTestRun", record.runId),
+    ).resolves.toMatchObject({
+      status: "errored",
+      error: record.error,
+      passed: 1,
+    });
   });
 
   it("does not expose a partial checkpoint when a later evidence read fails", async () => {
@@ -305,11 +313,9 @@ describe("system-test durable execution ownership", () => {
     await expect(owner.store(later)).rejects.toThrow(
       "cannot forget completed entries",
     );
-    const inspected = await owner.call<Record<string, unknown>>(
-      "inspectSystemTestRun",
-      record.runId,
-    );
-    expect(inspected["passed"]).toBe(1);
+    await expect(
+      owner.call("inspectSystemTestRun", record.runId),
+    ).resolves.toMatchObject({ passed: 1 });
   });
 
   it("rejects a mismatched record identity without overwriting its existing pages", async () => {
@@ -387,36 +393,45 @@ describe("system-test immutable record transfer", () => {
   it("preserves non-ASCII content across byte page boundaries", async () => {
     const record = { text: "x".repeat(65526) + "🧪" + "é".repeat(40000) };
     const bytes = new TextEncoder().encode(JSON.stringify(record));
-    const call = async <T>(method: string, args: unknown[]): Promise<T> => {
-      if (method === "blobstore.stat") return { size: bytes.length } as T;
-      const offset = args[1] as number;
-      const length = args[2] as number;
-      expect(length).toBeLessThanOrEqual(64 * 1024);
-      return {
-        bytesBase64: btoa(
-          String.fromCharCode(...bytes.slice(offset, offset + length)),
-        ),
-      } as T;
-    };
-    expect(await readSystemTestRecordBlob(call, digest, bytes.length)).toEqual(
-      record,
-    );
+    const rpc = schemaRpcMock({
+      call: async (_target: string, method: string, args: unknown[]) => {
+        if (method === "blobstore.stat")
+          return { size: bytes.length, mtime: 0 };
+        const offset = args[1] as number;
+        const length = args[2] as number;
+        expect(length).toBeLessThanOrEqual(64 * 1024);
+        return {
+          bytesBase64: btoa(
+            String.fromCharCode(...bytes.slice(offset, offset + length)),
+          ),
+        };
+      },
+    });
+    expect(
+      await readSystemTestRecordBlob(
+        createMainRpcCaller(rpc),
+        digest,
+        bytes.length,
+      ),
+    ).toEqual(record);
   });
 
   it("refuses a mismatched byte size before reading a record", async () => {
-    const call = async <T>(): Promise<T> => ({ size: 4 }) as T;
-    await expect(readSystemTestRecordBlob(call, digest, 5)).rejects.toThrow(
-      "size does not match",
-    );
+    const rpc = schemaRpcMock({ call: async () => ({ size: 4, mtime: 0 }) });
+    await expect(
+      readSystemTestRecordBlob(createMainRpcCaller(rpc), digest, 5),
+    ).rejects.toThrow("size does not match");
   });
 
   it("refuses a truncated byte page rather than parsing partial evidence", async () => {
-    const call = async <T>(method: string): Promise<T> =>
-      (method === "blobstore.stat"
-        ? { size: 5 }
-        : { bytesBase64: btoa("{}") }) as T;
-    await expect(readSystemTestRecordBlob(call, digest, 5)).rejects.toThrow(
-      "truncated",
-    );
+    const rpc = schemaRpcMock({
+      call: async (_target: string, method: string) =>
+        method === "blobstore.stat"
+          ? { size: 5, mtime: 0 }
+          : { bytesBase64: btoa("{}") },
+    });
+    await expect(
+      readSystemTestRecordBlob(createMainRpcCaller(rpc), digest, 5),
+    ).rejects.toThrow("truncated");
   });
 });

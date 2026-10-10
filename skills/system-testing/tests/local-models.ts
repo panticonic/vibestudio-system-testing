@@ -1,3 +1,4 @@
+import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 import {
   CONTENT_WORKSPACE_REPO_FIXTURE,
   type TestCase,
@@ -52,8 +53,10 @@ function lifecycleInspectionFailure(
 ): string | null {
   const code = successfulEvalCode(result);
   if (
-    !/extensions\.invoke[\s\S]*["']status["']/u.test(code) ||
-    !/extensions\.invoke[\s\S]*["']listModels["']/u.test(code)
+    !/localModelsExtensionMethods\.status\.method/u.test(code) ||
+    !/localModelsExtensionMethods\.listModels\.method/u.test(code) ||
+    !/localModelsExtensionMethods\.status\.result\.parse/u.test(code) ||
+    !/localModelsExtensionMethods\.listModels\.result\.parse/u.test(code)
   ) {
     return "The trajectory did not inspect the bundled local-model lifecycle";
   }
@@ -169,7 +172,7 @@ async function orchestrateLocalModelTask(
       const events = await readRetainedChannelReplay(rpc, child.taskChannelId);
       const modelExecutionEvidence = await rpc.call(
         child.childEntityId,
-        "getModelExecutionEvidence",
+        agentRpcMethods["getModelExecutionEvidence"],
         [child.taskChannelId],
       );
       evidence.push({

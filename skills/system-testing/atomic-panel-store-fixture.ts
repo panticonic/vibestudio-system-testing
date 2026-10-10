@@ -7,6 +7,31 @@ import { buildProjectManifest } from "@workspace-skills/workspace-dev/project-ma
 const panelPath = "panels/atomic-notes";
 const storePath = "workers/atomic-notes-store";
 const protocol = "system-test.atomic-notes.v1";
+const rpcContractSource = `import { z } from "zod";
+import { defineReceiverServiceMethods } from "@vibestudio/shared/typedServiceClient";
+import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
+
+export const notesStoreMethods = defineReceiverServiceMethods({
+  save: {
+    website: { kind: "closed", reason: "This receiver owns retained workspace data." },
+    args: z.tuple([z.object({ value: z.string() })]),
+    returns: z.void(),
+    authority: { principals: ["user", "code"] },
+    tier: { tier: "open", session: "family", rationale: "Save a note." },
+    access: { sensitivity: "write" },
+  },
+  load: {
+    website: { kind: "closed", reason: "This receiver owns retained workspace data." },
+    args: z.tuple([]),
+    returns: z.object({ value: z.string() }),
+    authority: { principals: ["user", "code"] },
+    tier: { tier: "open", session: "family", rationale: "Load the saved note." },
+    access: { sensitivity: "read" },
+  },
+});
+
+export const notesStoreRpcMethods = createRpcMethods("atomic-notes-store", notesStoreMethods, "");
+`;
 
 const panelManifest = buildProjectManifest({
   projectType: "panel",
@@ -29,17 +54,22 @@ const panelManifest = buildProjectManifest({
     serviceRequests: [{ protocol, availability: "required" }],
   },
   exposeModules: ["react", "react/jsx-runtime", "react/jsx-dev-runtime"],
-  dependencies: { react: "19.2.4", "react-dom": "19.2.4" },
+  dependencies: {
+    react: "19.2.4",
+    "react-dom": "19.2.4",
+    "@workspace-workers/atomic-notes-store": "workspace:*",
+  },
 });
 const panelFiles = {
   "package.json": `${JSON.stringify(panelManifest, null, 2)}\n`,
   "index.tsx": `import { createDurableObjectServiceClient } from "@workspace/runtime";
+import { notesStoreRpcMethods } from "@workspace-workers/atomic-notes-store/contract";
 import { useEffect, useMemo, useState } from "react";
 
 export default function AtomicNotes() {
-  const store = useMemo(() => createDurableObjectServiceClient("${protocol}"), []);
+  const store = useMemo(() => createDurableObjectServiceClient("${protocol}", notesStoreRpcMethods), []);
   const [stored, setStored] = useState("");
-  useEffect(() => { void store.call<{ value: string }>("load").then(({ value }) => setStored(value)); }, [store]);
+  useEffect(() => { void store.call("load").then(({ value }) => setStored(value)); }, [store]);
   return <main><form onSubmit={(event) => { event.preventDefault(); const value = String(new FormData(event.currentTarget).get("note") ?? ""); void store.call("save", { value }).then(() => setStored(value)); }}><input data-testid="note-input" name="note" defaultValue="" /><button data-testid="save-note" type="submit">Save</button></form><output data-testid="stored-note">{stored}</output></main>;
 }
 `,
@@ -55,10 +85,15 @@ const storeFiles = {
         entry: "index.ts",
         authority: { requests: [], provides: [] },
         durableClasses: ["NotesStore"],
-        dependencies: { "@workspace/runtime": "workspace:*" },
+        dependencies: {
+          "@workspace/runtime": "workspace:*",
+          "@vibestudio/shared": "workspace:*",
+          zod: "^3.25.76",
+        },
       });
       const manifestRecord = manifest as Record<string, unknown>;
       const vibestudio = manifestRecord["vibestudio"] as Record<string, unknown>;
+      manifestRecord["exports"] = { "./contract": "./rpc-contract.ts" };
       vibestudio["services"] = [
         {
           name: "atomic-notes-store",
@@ -81,8 +116,10 @@ const storeFiles = {
     2,
   )}\n`,
   "index.ts": `import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
+import { notesStoreMethods } from "./rpc-contract.js";
 export class NotesStore extends DurableObjectBase {
   static override schemaVersion = 1;
+  static override rpcMethods = notesStoreMethods;
   protected override createTables() { this.sql.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, value TEXT NOT NULL)"); }
   protected override requiredTables() { return ["notes"]; }
   @rpc({ website: { kind: "closed", reason: "This receiver owns retained workspace data; websites require a reviewed bounded operation." }, principals: ["user", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "write" })
@@ -92,6 +129,7 @@ export class NotesStore extends DurableObjectBase {
 }
 export default { fetch() { return new Response("Atomic Notes Store"); } };
 `,
+  "rpc-contract.ts": rpcContractSource,
 };
 
 export async function publishAtomicPanelStoreFixture(input: {

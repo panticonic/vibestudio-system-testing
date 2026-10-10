@@ -9,6 +9,7 @@ import {
   type SystemTestFailure,
 } from "../structured-error.js";
 import { walkRecords } from "./_scenario-evidence.js";
+import type { DevelopmentRun } from "@vibestudio/service-schemas/development";
 
 const SHA256 = /^[a-f0-9]{64}$/u;
 const GENERATION = /^[a-f0-9]{32}$/u;
@@ -518,7 +519,7 @@ async function repositoryAndRecipe(
   operation(receipt, "vcs", "resolveRepository", personalRepository);
   operation(receipt, "vcs", "resolveRepository", systemRepository);
   const recipes =
-    await context.runner.callSelfDevelopment<Record<string, unknown>[]>(
+    await context.runner.callSelfDevelopment(
       "listRecipes",
     );
   operation(receipt, "development", "listRecipes", recipes);
@@ -551,9 +552,7 @@ async function openSemantic(
   receipt: SelfDevelopmentReceipt,
   repositoryId: string,
 ) {
-  const opened = await context.runner.callSelfDevelopment<
-    Record<string, unknown>
-  >("openSession", {
+  const opened = await context.runner.callSelfDevelopment("openSession", {
     repositoryId,
     mode: "semantic",
     idempotencyKey: `system-test-open-${crypto.randomUUID()}`,
@@ -583,12 +582,7 @@ async function waitForRun(
   const deadline = Date.now() + Math.min(remaining ?? 10 * 60_000, 10 * 60_000);
   let latest: Record<string, unknown> | null = null;
   while (Date.now() < deadline) {
-    latest = await context.runner.callSelfDevelopment<Record<
-      string,
-      unknown
-    > | null>("get", {
-      runId,
-    });
+    latest = object(await context.runner.callSelfDevelopment("get", { runId }));
     if (!latest)
       throw new Error(`development run ${runId} disappeared during ${phase}`);
     if (TERMINAL_RUN_STATES.has(String(latest["state"]))) {
@@ -606,7 +600,7 @@ async function startRun(
   context: TestOrchestrationContext,
   receipt: SelfDevelopmentReceipt,
   sessionId: string,
-  recipe: Record<string, unknown>,
+  recipe: { recipeId: string },
   pair: {
     kind: "host-only" | "base-only" | "combined";
     hostRepositoryId: string;
@@ -614,12 +608,10 @@ async function startRun(
     personalRepositoryId: string;
     systemRepositoryId: string;
   },
-  target: Record<string, unknown>,
+  target: DevelopmentRun["target"],
 ) {
   const runId = `system-test-development-${crypto.randomUUID()}`;
-  const started = await context.runner.callSelfDevelopment<
-    Record<string, unknown>
-  >("start", {
+  const started = await context.runner.callSelfDevelopment("start", {
     sessionId,
     runId,
     recipeId: recipe["recipeId"],
@@ -638,9 +630,7 @@ async function stopAndClose(
 ): Promise<void> {
   let run = capturedRun;
   if (!run) {
-    const page = await context.runner.callSelfDevelopment<
-      Record<string, unknown>
-    >("list", {
+    const page = await context.runner.callSelfDevelopment("list", {
       sessionId,
       limit: 200,
     });
@@ -754,6 +744,9 @@ async function isolatedHost(
       ? await selectClientExecutor(context, receipt)
       : null;
     if (includeClient && !executor) return;
+    const target: DevelopmentRun["target"] = executor
+      ? { kind: "isolated-host", includeClient: true, executorId: executor.executorId }
+      : { kind: "isolated-host", includeClient: false };
     const session = await openSemantic(
       context,
       receipt,
@@ -774,11 +767,7 @@ async function isolatedHost(
           personalRepositoryId: setup.personalRepository.repositoryId,
           systemRepositoryId: setup.systemRepository.repositoryId,
         },
-        {
-          kind: "isolated-host",
-          includeClient,
-          ...(executor ? { executorId: executor.executorId } : {}),
-        },
+        target,
       );
       const route = object(run["attachedHost"]);
       if (run["state"] !== "ready" || route?.["state"] !== "ready") {
@@ -799,9 +788,7 @@ async function selectClientExecutor(
   context: TestOrchestrationContext,
   receipt: SelfDevelopmentReceipt,
 ): Promise<{ executorId: string } | null> {
-  const executors = await context.runner.callSelfDevelopment<
-    Record<string, unknown>[]
-  >("listClientExecutors");
+  const executors = await context.runner.callSelfDevelopment("listClientExecutors");
   operation(receipt, "development", "listClientExecutors", executors);
   const selected =
     executors.find((candidate) => candidate["current"] === true) ??
@@ -885,7 +872,7 @@ async function nativeCheckpoint(context: TestOrchestrationContext) {
         await context.runner.resolveSelfDevelopmentRepository();
       operation(receipt, "vcs", "resolveRepository", repository);
       const tools =
-        await context.runner.callSelfDevelopment<Record<string, unknown>[]>(
+        await context.runner.callSelfDevelopment(
           "listNativeTools",
         );
       operation(receipt, "development", "listNativeTools", tools);
@@ -901,17 +888,16 @@ async function nativeCheckpoint(context: TestOrchestrationContext) {
         );
         return;
       }
-      const opened = await context.runner.callSelfDevelopment<
-        Record<string, unknown>
-      >("openSession", {
+      const opened = await context.runner.callSelfDevelopment("openSession", {
         repositoryId: repository.repositoryId,
         mode: "native-tool",
         nativeTool: tool["toolId"],
         idempotencyKey: `system-test-native-open-${crypto.randomUUID()}`,
       });
       operation(receipt, "development", "openSession", opened);
+      if (opened["kind"] !== "opened") return;
       const session = object(opened["session"]);
-      if (opened["kind"] !== "opened" || !session) return;
+      if (!session) return;
       const sessionId = String(session["sessionId"]);
       try {
         await context.runner.callSelfDevelopment("writeNativeTerminal", {
@@ -1065,9 +1051,7 @@ async function childEval(context: TestOrchestrationContext) {
     async (receipt, run, attachedSessionId) => {
       const runId = `system-test-child-eval-${crypto.randomUUID()}`;
       const scopeKey = `system-test-child-eval-${crypto.randomUUID()}`;
-      const started = await context.runner.callAttachedDevelopmentHost<{
-        runId: string;
-      }>(attachedSessionId, "eval", "start", [
+      const started = await context.runner.callAttachedDevelopmentHost(attachedSessionId, "eval", "start", [
         {
           scope: { key: scopeKey, lifecycle: "finite" },
           runId,
@@ -1079,12 +1063,12 @@ async function childEval(context: TestOrchestrationContext) {
         Date.now() + Math.min(context.remainingTimeMs() ?? 30_000, 30_000);
       let terminal: Record<string, unknown> | null = null;
       while (Date.now() < deadline) {
-        terminal = await context.runner.callAttachedDevelopmentHost(
+        terminal = object(await context.runner.callAttachedDevelopmentHost(
           attachedSessionId,
           "eval",
           "get",
           [{ scopeKey, runId }],
-        );
+        ));
         if (
           terminal?.["status"] === "done" ||
           terminal?.["status"] === "cancelled"

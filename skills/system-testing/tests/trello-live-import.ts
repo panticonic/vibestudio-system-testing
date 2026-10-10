@@ -1,3 +1,4 @@
+import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 import { browserData, rpc } from "@workspace/runtime";
 import { readRetainedChannelReplay } from "./_subagent-evidence.js";
 import type {
@@ -190,7 +191,7 @@ async function orchestrate(
           events: await readRetainedChannelReplay(rpc, child.taskChannelId),
           modelExecutionEvidence: await rpc.call(
             child.childEntityId,
-            "getModelExecutionEvidence",
+            agentRpcMethods["getModelExecutionEvidence"],
             [child.taskChannelId],
           ),
         });

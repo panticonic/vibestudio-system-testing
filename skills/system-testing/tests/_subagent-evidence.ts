@@ -1,5 +1,6 @@
+import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import type { RpcClient } from "@vibestudio/rpc";
-import type { ChannelReplayEnvelope, ServerLogEvent } from "@workspace/pubsub";
+import type { ServerLogEvent } from "@workspace/pubsub";
 
 /** Read one immutable channel frontier; a growing live transcript cannot make
  * collection chase new events forever or mix observations from two heads. */
@@ -11,9 +12,9 @@ export async function readRetainedChannelReplay(
   let after = 0;
   let throughSeq: number | undefined;
   for (;;) {
-    const page = await rpc.call<ChannelReplayEnvelope>(
+    const page = await rpc.call(
       `do:workers/pubsub-channel:PubSubChannel:${channelId}`,
-      "getReplayAfter",
+      channelRpcMethods["getReplayAfter"],
       [
         {
           after,

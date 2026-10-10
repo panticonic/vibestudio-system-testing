@@ -116,6 +116,11 @@
     "@workspace/runtime": "workspace:*"
   },
   "devDependencies": {
+    "@vibestudio/rpc": "workspace:*",
     "vitest": "^3.2.7"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./contract": "./contract.ts"
   }
 }

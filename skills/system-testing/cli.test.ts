@@ -1,3 +1,5 @@
+import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-utils";
+import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -28,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@workspace/runtime", () => ({
-  rpc: { call: mocks.rpcCall },
+  rpc: { call: schemaRpcMock({ call: mocks.rpcCall }).call },
   workers: { resolveService: mocks.resolveService },
   workspace: { units: { list: mocks.listUnits } },
   vcs: { mainState: mocks.mainState, listDirectory: mocks.listDirectory },
@@ -110,6 +112,38 @@ vi.mock("./stages.js", () => ({
   ],
 }));
 
+function buildUnitFixture(input: {
+  name: string;
+  kind: "worker" | "extension";
+  source: string;
+  status: "available" | "ready" | "approval-required";
+}) {
+  return {
+    ...input,
+    target: null,
+    capabilities: [],
+    displayName: input.name,
+    isAgent: false,
+    effectiveVersion: null,
+    activeBuildKey: null,
+    lastError: null,
+    pendingApproval: null,
+    authorityRows: [],
+  };
+}
+function connectionInfoFixture() {
+  return {
+    serverUrl: "http://localhost:3000",
+    protocol: "http" as const,
+    externalHost: "localhost",
+    gatewayPort: 3000,
+    serverId: "server-test",
+    serverBootId: "boot-test",
+    workspaceId: "workspace-test",
+    callerKind: "server" as const,
+  };
+}
+
 import {
   failedSystemTestNames,
   failedSystemTestPreparationRecord,
@@ -144,24 +178,24 @@ describe("system-testing CLI-neutral API", () => {
   function configureHealthyDoctorModels(
     models: Array<{ ref: string; availability: { state: string } }>,
   ): void {
-    mocks.resolveService.mockResolvedValue({
-      kind: "durable-object",
-      targetId: "do:models",
-    });
+    mocks.resolveService.mockResolvedValue(
+      durableObjectServiceFixture("do:models"),
+    );
     mocks.listUnits.mockResolvedValue([
       { name: "workers/agent-worker", status: "running" },
     ]);
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
       const method = args[1];
+      if (method === "auth.getConnectionInfo") return connectionInfoFixture();
+      if (method === "fs.readFile") return "workspace: {}\n";
+      if (method === "workspace.getConfig")
+        return { id: "test-workspace", systemEpoch: 1, extensions: [] };
+      if (method === "workspace.validateConfig") return { valid: true };
+      if (method === "build.inspectBuildProvenance")
+        return { source: (args[2] as unknown[])[0], found: true, workspaceRoot: "/workspace" };
       if (method === "build.listUnits") {
         return [
-          {
-            name: "workers/agent-worker",
-            kind: "worker",
-            source: "workers/agent-worker",
-            status: "available",
-            lastError: null,
-          },
+          buildUnitFixture({ name: "workers/agent-worker", kind: "worker", source: "workers/agent-worker", status: "available" }),
         ];
       }
       if (method === "inspectModels") return { models };
@@ -338,24 +372,16 @@ describe("system-testing CLI-neutral API", () => {
       }
       if (method === "build.listUnits") {
         return [
-          {
-            name: "workers/agent-worker",
-            kind: "worker",
-            source: "workers/agent-worker",
-            status: "available",
-            lastError: null,
-          },
-          {
-            name: "@workspace-extensions/shell",
-            kind: "extension",
-            source: "extensions/shell",
-            status: "approval-required",
-            lastError: null,
-          },
+          buildUnitFixture({ name: "workers/agent-worker", kind: "worker", source: "workers/agent-worker", status: "available" }),
+          buildUnitFixture({ name: "@workspace-extensions/shell", kind: "extension", source: "extensions/shell", status: "approval-required" }),
         ];
       }
       if (method === "workspace.getConfig") {
-        return { extensions: [{ source: "extensions/shell" }] };
+        return {
+          id: "test-workspace",
+          systemEpoch: 1,
+          extensions: [{ source: "extensions/shell" }],
+        };
       }
       if (method === "workspace.sourceTree") {
         return {
@@ -372,6 +398,11 @@ describe("system-testing CLI-neutral API", () => {
           ],
         };
       }
+      if (method === "fs.readFile") return "workspace: {}\n";
+      if (method === "auth.getConnectionInfo") return connectionInfoFixture();
+      if (method === "workspace.validateConfig") return { valid: true };
+      if (method === "build.inspectBuildProvenance")
+        return { source: (args[2] as unknown[])[0], found: true, workspaceRoot: "/workspace" };
       return {};
     });
 
@@ -400,13 +431,7 @@ describe("system-testing CLI-neutral API", () => {
     mocks.rpcCall.mockImplementation(async (...args: unknown[]) => {
       if (args[1] === "build.listUnits") {
         return [
-          {
-            name: "workers/agent-worker",
-            kind: "worker",
-            source: "workers/agent-worker",
-            status: "available",
-            lastError: null,
-          },
+          buildUnitFixture({ name: "workers/agent-worker", kind: "worker", source: "workers/agent-worker", status: "available" }),
           ...[
             "browser-data",
             "file-tools",
@@ -417,17 +442,20 @@ describe("system-testing CLI-neutral API", () => {
             "shell",
             "test-runner",
             "typecheck-service",
-          ].map((name) => ({
-            name: `@workspace-extensions/${name}`,
-            kind: "extension",
-            source: `extensions/${name}`,
-            status: name === "shell" ? "ready" : "available",
-            lastError: null,
-          })),
+          ].map((name) =>
+            buildUnitFixture({
+              name: `@workspace-extensions/${name}`,
+              kind: "extension",
+              source: `extensions/${name}`,
+              status: name === "shell" ? "ready" : "available",
+            }),
+          ),
         ];
       }
       if (args[1] === "workspace.getConfig") {
         return {
+          id: "test-workspace",
+          systemEpoch: 1,
           extensions: [
             "browser-data",
             "file-tools",
@@ -464,6 +492,11 @@ describe("system-testing CLI-neutral API", () => {
           ],
         };
       }
+      if (args[1] === "fs.readFile") return "workspace: {}\n";
+      if (args[1] === "auth.getConnectionInfo") return connectionInfoFixture();
+      if (args[1] === "workspace.validateConfig") return { valid: true };
+      if (args[1] === "build.inspectBuildProvenance")
+        return { source: (args[2] as unknown[])[0], found: true, workspaceRoot: "/workspace" };
       return priorImplementation?.(...args);
     });
 

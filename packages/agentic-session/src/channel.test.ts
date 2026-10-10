@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
+import type { RpcCaller } from "@vibestudio/rpc";
 import {
   createHeadlessAgentContext,
   destroyHeadlessAgentContext,
@@ -17,16 +19,23 @@ import {
   unsubscribeHeadlessAgent,
 } from "./channel.js";
 
+function publicRpcCall(wire: (target: string, method: string, args: unknown[]) => Promise<unknown>): RpcCaller["call"] {
+  return schemaRpcMock({ call: wire }).call;
+}
+
 function makeRpcCall(captured: {
   config?: Record<string, unknown>;
   createSpec?: Record<string, unknown>;
   subscribeTarget?: string;
-}): (target: string, method: string, args: unknown[]) => Promise<unknown> {
-  return vi.fn(async (target: string, method: string, args: unknown[]) => {
+}): RpcCaller["call"] {
+  return publicRpcCall(vi.fn(async (target: string, method: string, args: unknown[]) => {
     if (target === "main" && method === "runtime.createEntity") {
       captured.createSpec = args[0] as Record<string, unknown>;
       return {
         id: "do:workers/agent-worker:AiChatWorker:obj-1",
+        kind: "do",
+        source: { repoPath: "workers/agent-worker", effectiveVersion: "test-version" },
+        buildKey: "a".repeat(64),
         targetId: "do:workers/agent-worker:AiChatWorker:obj-1",
         contextId: (captured.createSpec?.["contextId"] as string | undefined) ?? "ctx-minted",
       };
@@ -35,7 +44,7 @@ function makeRpcCall(captured: {
     const payload = args[0] as { config?: Record<string, unknown> } | undefined;
     captured.config = payload?.config;
     return { ok: true, participantId: "agent-1" };
-  });
+  }));
 }
 
 describe("subscribeHeadlessAgent — unified contract", () => {
@@ -88,19 +97,22 @@ describe("subscribeHeadlessAgent — unified contract", () => {
   });
 
   it("allocates isolated headless contexts through the explicit context API", async () => {
-    const rpcCall = vi.fn(async () => ({ contextId: "ctx-isolated" }));
+    const rpcCall = publicRpcCall(vi.fn(async () => ({ contextId: "ctx-isolated" })));
 
     await expect(createHeadlessAgentContext({ rpcCall })).resolves.toBe("ctx-isolated");
-    expect(rpcCall).toHaveBeenCalledWith("main", "runtime.createContext", [{}]);
+    expect(vi.mocked(rpcCall)).toHaveBeenCalledWith("main", "runtime.createContext", [{}], undefined);
   });
 
   it("retires the runtime entity if subscription fails after creation", async () => {
     const calls: Array<{ target: string; method: string; args: unknown[] }> = [];
-    const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
+    const rpcCall = publicRpcCall(vi.fn(async (target: string, method: string, args: unknown[]) => {
       calls.push({ target, method, args });
       if (method === "runtime.createEntity") {
-        return {
+          return {
           id: "do:workers/agent-worker:AiChatWorker:obj-1",
+          kind: "do",
+          source: { repoPath: "workers/agent-worker", effectiveVersion: "test-version" },
+          buildKey: "a".repeat(64),
           targetId: "do:workers/agent-worker:AiChatWorker:obj-1",
           contextId: "ctx-1",
         };
@@ -109,7 +121,7 @@ describe("subscribeHeadlessAgent — unified contract", () => {
         throw new Error("subscribe failed");
       }
       return undefined;
-    });
+    }));
 
     await expect(
       subscribeHeadlessAgent({
@@ -130,10 +142,10 @@ describe("subscribeHeadlessAgent — unified contract", () => {
   });
 
   it("rejects malformed explicit context allocation results", async () => {
-    const rpcCall = vi.fn(async () => ({}));
+    const rpcCall = publicRpcCall(vi.fn(async () => ({})));
 
     await expect(createHeadlessAgentContext({ rpcCall })).rejects.toThrow(
-      "runtime.createContext did not return a contextId"
+      'Service "runtime" method "createContext" return value failed schema validation'
     );
   });
 
@@ -244,31 +256,31 @@ describe("getRecommendedChannelConfig", () => {
 
 describe("retireHeadlessAgent", () => {
   it("retires the registered runtime entity", async () => {
-    const rpcCall = vi.fn(async () => undefined);
+    const rpcCall = publicRpcCall(vi.fn(async () => undefined));
 
     await retireHeadlessAgent({ rpcCall, entityId: "do:workers/agent-worker:AiChatWorker:obj-1" });
 
-    expect(rpcCall).toHaveBeenCalledWith("main", "runtime.retireEntity", [
+    expect(vi.mocked(rpcCall)).toHaveBeenCalledWith("main", "runtime.retireEntity", [
       { id: "do:workers/agent-worker:AiChatWorker:obj-1" },
-    ]);
+    ], undefined);
   });
 });
 
 describe("destroyHeadlessAgentContext", () => {
   it("recursively destroys the complete isolated lifecycle tree", async () => {
-    const rpcCall = vi.fn(async () => undefined);
+    const rpcCall = publicRpcCall(vi.fn(async () => undefined));
 
     await destroyHeadlessAgentContext({ rpcCall, contextId: "ctx-headless" });
 
-    expect(rpcCall).toHaveBeenCalledWith("main", "runtime.destroyContext", [
+    expect(vi.mocked(rpcCall)).toHaveBeenCalledWith("main", "runtime.destroyContext", [
       { contextId: "ctx-headless", recursive: true },
-    ]);
+    ], undefined);
   });
 });
 
 describe("unsubscribeHeadlessAgent", () => {
   it("asks the registered agent DO to leave the channel before retirement", async () => {
-    const rpcCall = vi.fn(async () => undefined);
+    const rpcCall = publicRpcCall(vi.fn(async () => undefined));
 
     await unsubscribeHeadlessAgent({
       rpcCall,
@@ -279,7 +291,8 @@ describe("unsubscribeHeadlessAgent", () => {
     expect(rpcCall).toHaveBeenCalledWith(
       "do:workers/agent-worker:AiChatWorker:obj-1",
       "unsubscribeChannel",
-      ["ch-1"]
+      ["ch-1"],
+      undefined,
     );
   });
 });

@@ -1,3 +1,24 @@
+import {
+  createMainRpcCaller,
+  mainRpcMethods,
+} from "@vibestudio/service-schemas/mainRpc";
+import type { MainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
+import {
+  systemTestDescriptorSchema,
+  systemTestDoctorResultSchema,
+  systemTestFailedRunSchema,
+  systemTestRunConfigSchema,
+  systemTestRunCompletionSchema,
+  systemTestRunnerSnapshotSchema,
+  systemTestTrajectoryPageSchema,
+  type SystemTestDescriptor,
+  type SystemTestDoctorResult,
+  type SystemTestRunCompletion,
+  type SystemTestRunConfig,
+  type SystemTestFailedRunConfig,
+  type SystemTestRunnerSnapshot,
+  type SystemTestTrajectoryPage,
+} from "@vibestudio/service-schemas/systemTestRunner";
 /**
  * Sealed authority conduit for the headless system-test harness.
  *
@@ -16,7 +37,9 @@ import {
   createEvalExecutor,
   createEvalRunHandle,
   createEvalRunObserver,
+  evalRunStatusSchema,
 } from "@vibestudio/service-schemas/eval";
+import type { z } from "zod";
 import {
   inspectSystemTestRun,
   systemTestTrajectory,
@@ -24,30 +47,7 @@ import {
 import type { SystemTestRunRecord } from "@workspace-skills/system-testing/cli";
 import { readEvalStatusWithRetry } from "./eval-status-retry.js";
 
-interface SystemTestRunConfig {
-  runId: string;
-  contextId: string;
-  names?: string[];
-  category?: string;
-  all?: boolean;
-  model?: string;
-  thinkingLevel?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-  concurrency?: number;
-  testTimeoutMs?: number;
-}
-
-interface EvalRunStatus {
-  status:
-    | "pending"
-    | "running"
-    | "cancelling"
-    | "done"
-    | "cancelled"
-    | "approval-route-lost"
-    | "unknown";
-  progress?: unknown;
-  result?: { success: boolean; returnValue?: unknown; error?: string };
-}
+type EvalRunStatus = z.infer<typeof evalRunStatusSchema>;
 
 interface EvalCancelResult {
   ok: true;
@@ -60,23 +60,19 @@ interface StoredSystemTestRecord {
   length: number;
 }
 
-export interface SystemTestRunCompletion {
-  summary: SystemTestRunRecord["summary"];
-}
-
-export interface SystemTestRunnerSnapshot {
-  status: EvalRunStatus["status"];
-  progress?: unknown;
-  result?: {
-    success: boolean;
-    error?: string;
-  };
-}
+export type {
+  SystemTestRunCompletion,
+  SystemTestRunnerSnapshot,
+} from "@vibestudio/service-schemas/systemTestRunner";
 
 const SYSTEM_TEST_OPERATOR = anyOf(
   methodCapability("host"),
   relationship("workspace-role", "root"),
 );
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 // JavaScript slices by UTF-16 code unit. A page is therefore at most 64K code
 // units and at most 256KiB once SQLite encodes it as UTF-8.
@@ -122,7 +118,7 @@ export function assembleSystemTestRecord(
 
 /** Read immutable record bytes with bounded RPC pages and one streaming decoder. */
 export async function readSystemTestRecordBlob(
-  call: <T>(method: string, args: unknown[]) => Promise<T>,
+  call: MainRpcCaller,
   digest: string,
   size: number,
 ): Promise<unknown> {
@@ -133,7 +129,7 @@ export async function readSystemTestRecordBlob(
   ) {
     throw new Error("Invalid system-test record blob reference");
   }
-  const stat = await call<{ size: number } | null>("blobstore.stat", [digest]);
+  const stat = await call("blobstore.stat", [digest]);
   if (!stat || stat.size !== size)
     throw new Error(
       "System-test record blob size does not match its reference",
@@ -143,10 +139,11 @@ export async function readSystemTestRecordBlob(
   const pageBytes = 64 * 1024;
   for (let offset = 0; offset < size; offset += pageBytes) {
     const length = Math.min(pageBytes, size - offset);
-    const page = await call<{ bytesBase64: string } | null>(
-      "blobstore.getRangeBytes",
-      [digest, offset, length],
-    );
+    const page = await call("blobstore.getRangeBytes", [
+      digest,
+      offset,
+      length,
+    ]);
     if (!page)
       throw new Error(`System-test record blob ${digest} is unavailable`);
     const bytes = Uint8Array.from(atob(page.bytesBase64), (char) =>
@@ -176,6 +173,7 @@ function systemTestEvalCode(
       SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT,
     } from "@workspace-skills/system-testing/cli";
     const { blobstore, rpc } = await import("@workspace/runtime");
+    const { systemTestRunnerRpcMethods } = await import("@workspace-workers/system-test-runner/contract");
     const recordOwner = ${JSON.stringify(recordOwner)};
     const options = ${JSON.stringify(options)};
     // Which units this workspace carries is a property of the workspace, not
@@ -196,7 +194,7 @@ function systemTestEvalCode(
         retainedEntries.set(entry.test.name, { testName: entry.test.name, digest: stored.digest, size: stored.size });
       }
       const header = { ...record, suite: { ...record.suite, results: [] } };
-      await rpc.call(recordOwner, "storeSystemTestRunCheckpoint", [progressKey, header, entries.map(entry => retainedEntries.get(entry.test.name))]);
+      await rpc.call(recordOwner, systemTestRunnerRpcMethods.storeSystemTestRunCheckpoint, [progressKey, header, entries.map(entry => retainedEntries.get(entry.test.name))]);
     };
     // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
     // room for its event envelope and encoded strings instead of measuring
@@ -413,16 +411,17 @@ export class SystemTestRunnerDO extends DurableObjectBase {
           );
         continue;
       }
-      const entry = (await readSystemTestRecordBlob(
-        <T>(method: string, args: unknown[]) =>
-          this.rpc.call<T>("main", method, args),
+      const entry = await readSystemTestRecordBlob(
+        createMainRpcCaller(this.rpc),
         reference.digest,
         reference.size,
-      )) as SystemTestRunRecord["suite"]["results"][number];
+      );
       if (
-        entry?.test?.name !== reference.testName ||
-        !entry.execution ||
-        !entry.result
+        !isRecord(entry) ||
+        !isRecord(entry["test"]) ||
+        entry["test"]["name"] !== reference.testName ||
+        !isRecord(entry["execution"]) ||
+        !isRecord(entry["result"])
       )
         throw new Error(
           `System-test entry ${runId}/${reference.testName} has an invalid identity`,
@@ -501,9 +500,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       crypto.randomUUID(),
     );
     try {
-      const execute = createEvalExecutor(<T>(method: string, args: unknown[]) =>
-        this.rpc.call<T>("main", method, args),
-      );
+      const execute = createEvalExecutor(createMainRpcCaller(this.rpc));
       const result = await execute({
         runId,
         scope: { key: subKey, lifecycle: "finite" },
@@ -529,12 +526,14 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       try {
         return await this.readStoredSystemTestRecord(subKey, stored);
       } finally {
-        await this.rpc.call("main", "eval.deleteScopeValue", [
+        await this.rpc.call("main", mainRpcMethods["eval.deleteScopeValue"], [
           { scopeKey: subKey, key: stored.scopeKey },
         ]);
       }
     } finally {
-      await this.rpc.call("main", "eval.dispose", [{ scopeKey: subKey }]);
+      await this.rpc.call("main", mainRpcMethods["eval.dispose"], [
+        { scopeKey: subKey },
+      ]);
     }
   }
 
@@ -549,13 +548,15 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     tier: "open",
     sensitivity: "read",
   })
-  async doctor(model?: string): Promise<unknown> {
-    return this.runHarnessUtility(
-      "doctor",
-      `
+  async doctor(model?: string): Promise<SystemTestDoctorResult> {
+    return systemTestDoctorResultSchema.parse(
+      await this.runHarnessUtility(
+        "doctor",
+        `
         import { systemTestDoctor } from "@workspace-skills/system-testing/cli";
         const utilityValue = await systemTestDoctor(${JSON.stringify(model)});
       `,
+      ),
     );
   }
 
@@ -570,10 +571,11 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     tier: "open",
     sensitivity: "read",
   })
-  async listSystemTests(category?: string): Promise<unknown> {
-    return this.runHarnessUtility(
-      "list",
-      `
+  async listSystemTests(category?: string): Promise<SystemTestDescriptor[]> {
+    return systemTestDescriptorSchema.array().parse(
+      await this.runHarnessUtility(
+        "list",
+        `
         import {
           installedWorkspaceUnits,
           listSystemTests,
@@ -584,6 +586,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
           (test) => !category || test.category === category
         );
       `,
+      ),
     );
   }
 
@@ -601,22 +604,19 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async startSystemTestRun(
     options: SystemTestRunConfig,
   ): Promise<{ runId: string }> {
+    const config = systemTestRunConfigSchema.parse(options);
     if (!this.caller?.userId || this.caller.userId === "system") {
       throw new Error("System tests require an authenticated human initiator");
     }
-    const handle = createEvalRunHandle(
-      <T>(method: string, args: unknown[]) =>
-        this.rpc.call<T>("main", method, args),
-      {
-        runId: systemTestEvalRunId(options.runId),
-        scope: { key: options.runId, lifecycle: "finite" },
-        source: {
-          kind: "inline",
-          code: systemTestEvalCode(options, this.rpcSelfId),
-          syntax: "typescript",
-        },
+    const handle = createEvalRunHandle(createMainRpcCaller(this.rpc), {
+      runId: systemTestEvalRunId(config.runId),
+      scope: { key: config.runId, lifecycle: "finite" },
+      source: {
+        kind: "inline",
+        code: systemTestEvalCode(config, this.rpcSelfId),
+        syntax: "typescript",
       },
-    );
+    });
     await handle.start();
     return { runId: options.runId };
   }
@@ -628,18 +628,18 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     const pageSize = 128 * 1024;
     let text = "";
     for (let offset = 0; offset < stored.length; offset += pageSize) {
-      const page = await this.rpc.call<{
-        length: number;
-        encoding: "utf16le-base64";
-        chunk: string;
-      }>("main", "eval.readScopeTextPage", [
-        {
-          scopeKey: runId,
-          key: stored.scopeKey,
-          offset,
-          limit: Math.min(pageSize, stored.length - offset),
-        },
-      ]);
+      const page = await this.rpc.call(
+        "main",
+        mainRpcMethods["eval.readScopeTextPage"],
+        [
+          {
+            scopeKey: runId,
+            key: stored.scopeKey,
+            offset,
+            limit: Math.min(pageSize, stored.length - offset),
+          },
+        ],
+      );
       if (page.length !== stored.length || page.encoding !== "utf16le-base64") {
         throw new Error(
           `system-test record ${runId} changed while it was being read`,
@@ -680,7 +680,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       return { status: "done", result: { success: true } };
     }
     const status = await this.readSystemTestEvalStatus(runId);
-    return {
+    return systemTestRunnerSnapshotSchema.parse({
       status: status.status,
       ...(status.progress !== undefined ? { progress: status.progress } : {}),
       ...(status.result
@@ -691,7 +691,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
             },
           }
         : {}),
-    };
+    });
   }
 
   @rpc({
@@ -710,7 +710,9 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   ): Promise<SystemTestRunCompletion> {
     const persisted = this.persistedHeader(runId)?.record;
     if (persisted && persisted.status !== "running")
-      return { summary: persisted.summary };
+      return systemTestRunCompletionSchema.parse({
+        summary: persisted.summary,
+      });
     const status = await this.readSystemTestEvalStatus(runId);
     if (status.status !== "done") {
       throw new Error(
@@ -746,9 +748,9 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       throw new Error(
         `System-test run ${runId} is still active; execution cannot be released`,
       );
-    const released = await this.rpc.call<{ ok: boolean }>(
+    const released = await this.rpc.call(
       "main",
-      "eval.dispose",
+      mainRpcMethods["eval.dispose"],
       [{ scopeKey: runId }],
     );
     return { released: released.ok };
@@ -788,7 +790,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       throw new Error(
         `System-test run ${runId} cancellation did not persist its terminal record`,
       );
-    return { summary: record.summary };
+    return systemTestRunCompletionSchema.parse({ summary: record.summary });
   }
 
   @rpc({
@@ -829,7 +831,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     full: boolean,
     offset: number,
     limit: number,
-  ): Promise<{ length: number; encoding: "plain-string"; chunk: string }> {
+  ): Promise<SystemTestTrajectoryPage> {
     if (
       !Number.isSafeInteger(offset) ||
       offset < 0 ||
@@ -849,11 +851,11 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       null,
       2,
     );
-    return {
+    return systemTestTrajectoryPageSchema.parse({
       length: text.length,
       encoding: "plain-string",
       chunk: text.slice(offset, offset + Math.min(limit, 128 * 1024)),
-    };
+    });
   }
 
   @rpc({
@@ -868,11 +870,11 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     sensitivity: "read",
   })
   async getFailedSystemTestRun(runId: string): Promise<{
-    config: SystemTestRunRecord["config"];
+    config: SystemTestFailedRunConfig;
     names: string[];
   }> {
     const record = this.requirePersistedHeader(runId).record;
-    return {
+    return systemTestFailedRunSchema.parse({
       config: record.config,
       names: [
         ...new Set([
@@ -880,7 +882,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
           ...record.summary.testsWithUnexpectedToolFailures,
         ]),
       ],
-    };
+    });
   }
 
   private readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
@@ -888,11 +890,10 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   }
 
   private evalRunObserver(runId: string) {
-    return createEvalRunObserver(
-      <T>(method: string, args: unknown[]) =>
-        this.rpc.call<T>("main", method, args),
-      { runId: systemTestEvalRunId(runId), scopeKey: runId },
-    );
+    return createEvalRunObserver(createMainRpcCaller(this.rpc), {
+      runId: systemTestEvalRunId(runId),
+      scopeKey: runId,
+    });
   }
 }
 

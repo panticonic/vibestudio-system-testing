@@ -1,3 +1,5 @@
+import { modelSettingsRpcMethods } from "@workspace/model-catalog/rpc-contract";
+import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { selectExplicitSystemTests } from "./selection.js";
 import { rpc, workers, vcs } from "@workspace/runtime";
 import { headForChannel } from "@vibestudio/trajectory-identity";
@@ -22,6 +24,20 @@ import {
   systemTestModelRoute,
   type SystemTestThinkingLevel,
 } from "./config.js";
+import {
+  systemTestDescriptorSchema,
+  systemTestDoctorResultSchema,
+  systemTestRunSummarySchema,
+  type SystemTestDescriptor,
+  type SystemTestDoctorResult,
+  type SystemTestRunSummary,
+} from "@vibestudio/service-schemas/systemTestRunner";
+
+export type {
+  SystemTestDescriptor,
+  SystemTestDoctorResult,
+  SystemTestRunSummary,
+};
 
 export const SYSTEM_TEST_RUN_SCHEMA_VERSION = 1 as const;
 export const SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT = 48 * 1024;
@@ -57,21 +73,6 @@ export function systemTestProgressCheckpoint(
     durable = withoutInspection;
   }
   return durable;
-}
-
-export interface SystemTestDescriptor {
-  explicitOnly?: true;
-  name: string;
-  category: string;
-  description: string;
-  orchestrated: boolean;
-  /** Workspace units the case needs; empty when it runs in any workspace. */
-  requiresUnits: string[];
-  /**
-   * Whether this workspace carries those units. Absent when the caller did
-   * not say which units are installed, which is the pure-catalog listing.
-   */
-  installed?: boolean;
 }
 
 export interface SystemTestRunOptions {
@@ -123,28 +124,6 @@ export interface SystemTestRunProgress {
     channelId?: string;
   }>;
   error?: string;
-}
-
-export interface SystemTestRunSummary {
-  runId: string;
-  status: "running" | "completed" | "cancelled" | "errored";
-  error?: string;
-  total: number;
-  passed: number;
-  failed: number;
-  errored: number;
-  toolFailureCount: number;
-  testsWithToolFailures: number;
-  skipped: number;
-  /**
-   * Cases excluded because this workspace does not carry the units they name.
-   * They are not failures and not ordinary skips: another workspace covers
-   * them.
-   */
-  notInstalled: Array<{ name: string; missingUnits: string[] }>;
-  durationMs: number;
-  failedTests: string[];
-  testsWithUnexpectedToolFailures: string[];
 }
 
 export interface SystemTestRunRecord {
@@ -259,16 +238,6 @@ export function failedSystemTestRunRecord(
   };
 }
 
-export interface SystemTestDoctorResult {
-  ok: boolean;
-  checks: Array<{
-    name: string;
-    ok: boolean;
-    detail: string;
-    data?: unknown;
-  }>;
-}
-
 const DEFAULT_CONCURRENCY = 1;
 export function listSystemTests(
   options: { installedUnits?: readonly string[] } = {},
@@ -276,21 +245,23 @@ export function listSystemTests(
   const installed = options.installedUnits
     ? new Set(options.installedUnits)
     : null;
-  return allTests().map((test) => ({
-    name: test.name,
-    category: test.category,
-    description: test.description,
-    ...(test.explicitOnly ? { explicitOnly: true as const } : {}),
-    orchestrated: typeof test.orchestrate === "function",
-    requiresUnits: [...(test.requiresUnits ?? [])],
-    ...(installed
-      ? {
-          installed: (test.requiresUnits ?? []).every((unit) =>
-            installed.has(unit),
-          ),
-        }
-      : {}),
-  }));
+  return allTests().map((test) =>
+    systemTestDescriptorSchema.parse({
+      name: test.name,
+      category: test.category,
+      description: test.description,
+      ...(test.explicitOnly ? { explicitOnly: true as const } : {}),
+      orchestrated: typeof test.orchestrate === "function",
+      requiresUnits: [...(test.requiresUnits ?? [])],
+      ...(installed
+        ? {
+            installed: (test.requiresUnits ?? []).every((unit) =>
+              installed.has(unit),
+            ),
+          }
+        : {}),
+    }),
+  );
 }
 
 /**
@@ -402,7 +373,7 @@ export async function runSystemTests(
   try {
     provenance.connection = await rpc.call(
       "main",
-      "auth.getConnectionInfo",
+      mainRpcMethods["auth.getConnectionInfo"],
       [],
     );
   } catch (error) {
@@ -412,7 +383,7 @@ export async function runSystemTests(
   try {
     provenance.systemTestingBuild = await rpc.call(
       "main",
-      "build.inspectBuildProvenance",
+      mainRpcMethods["build.inspectBuildProvenance"],
       ["@workspace-skills/system-testing"],
     );
   } catch (error) {
@@ -680,13 +651,13 @@ export async function systemTestDoctor(
   });
   await capture(
     "server",
-    () => rpc.call("main", "auth.getConnectionInfo", []),
+    () => rpc.call("main", mainRpcMethods["auth.getConnectionInfo"], []),
     "server identity and workspace are reachable",
   );
   await capture(
     "system-testing-build",
     () =>
-      rpc.call("main", "build.inspectBuildProvenance", [
+      rpc.call("main", mainRpcMethods["build.inspectBuildProvenance"], [
         "@workspace-skills/system-testing",
       ]),
     "system-testing package is importable",
@@ -694,16 +665,7 @@ export async function systemTestDoctor(
   await capture(
     "agent-worker",
     async () => {
-      const units = (await rpc.call("main", "build.listUnits", [])) as Array<{
-        name: string;
-        status:
-          | "available"
-          | "building"
-          | "ready"
-          | "approval-required"
-          | "error";
-        lastError?: string | null;
-      }>;
+      const units = await rpc.call("main", mainRpcMethods["build.listUnits"], []);
       const agentUnit = units.find(
         (unit) =>
           unit.name === "workers/agent-worker" ||
@@ -726,23 +688,8 @@ export async function systemTestDoctor(
     "required-extensions",
     async () => {
       const [units, config] = await Promise.all([
-        rpc.call("main", "build.listUnits", []) as Promise<
-          Array<{
-            name: string;
-            kind: string;
-            source: string;
-            status:
-              | "available"
-              | "building"
-              | "ready"
-              | "approval-required"
-              | "error";
-            lastError: string | null;
-          }>
-        >,
-        rpc.call("main", "workspace.getConfig", []) as Promise<{
-          extensions?: Array<{ source: string }>;
-        }>,
+        rpc.call("main", mainRpcMethods["build.listUnits"], []),
+        rpc.call("main", mainRpcMethods["workspace.getConfig"], []),
       ]);
       const declared = (config.extensions ?? []).map(({ source }) => ({
         source,
@@ -777,14 +724,21 @@ export async function systemTestDoctor(
   await capture(
     "workspace-configuration",
     async () => {
-      const source = await rpc.call("main", "fs.readFile", [
-        "meta/vibestudio.yml",
-        "utf8",
+      const fileContent = await rpc.call(
+        "main",
+        mainRpcMethods["fs.readFile"],
+        ["meta/vibestudio.yml", "utf8"],
+      );
+      const source =
+        typeof fileContent === "string"
+          ? fileContent
+          : new TextDecoder("utf-8", { fatal: true }).decode(fileContent);
+      return rpc.call("main", mainRpcMethods["workspace.validateConfig"], [
+        {
+          manifest: source,
+          serviceManifests: {},
+        },
       ]);
-      return rpc.call("main", "workspace.validateConfig", [{
-        manifest: source,
-        serviceManifests: {},
-      }]);
     },
     "the workspace has a valid standalone runtime configuration",
   );
@@ -808,9 +762,11 @@ export async function systemTestDoctor(
         modelRoute.primaryModel,
         ...(modelRoute.fallbackModel ? [modelRoute.fallbackModel] : []),
       ];
-      const inspected = (await rpc.call(service.targetId, "inspectModels", [
-        required,
-      ])) as {
+      const inspected = (await rpc.call(
+        service.targetId,
+        modelSettingsRpcMethods["inspectModels"],
+        [required],
+      )) as {
         models?: Array<{
           ref?: string;
           availability?: { state?: string; detail?: string };
@@ -848,7 +804,10 @@ export async function systemTestDoctor(
     "system-test agent models are configured and credentialed",
   );
 
-  return { ok: checks.every((check) => check.ok), checks };
+  return systemTestDoctorResultSchema.parse({
+    ok: checks.every((check) => check.ok),
+    checks,
+  });
 }
 
 function selectTests(options: SystemTestRunOptions): {
@@ -910,7 +869,7 @@ function summarizeRun(
       (entry.execution.toolFailures ?? []).some(isUnexpectedToolFailure),
     )
     .map((entry) => entry.test.name);
-  return {
+  return systemTestRunSummarySchema.parse({
     runId,
     status,
     total: suite.total,
@@ -924,7 +883,7 @@ function summarizeRun(
     durationMs: suite.duration,
     failedTests,
     testsWithUnexpectedToolFailures,
-  };
+  });
 }
 
 function runConfig(

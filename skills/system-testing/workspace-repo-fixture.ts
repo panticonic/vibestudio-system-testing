@@ -805,7 +805,7 @@ export class WorkspaceRepoFixtureLifecycle {
         repository.repositoryId,
       );
       if (!present) continue;
-      const files: Array<{ fileId: string; authoredChangeId: string }> = [];
+      const files: Array<{ fileId: string; authoredChangeId: string | null }> = [];
       let cursor: string | undefined;
       do {
         const page = await this.port.vcs.listFiles({
@@ -857,13 +857,17 @@ export class WorkspaceRepoFixtureLifecycle {
   private async originalFileFrontier(
     state: FixtureState,
     repositoryId: string,
-    file: { fileId: string; authoredChangeId: string },
+    file: { fileId: string; authoredChangeId: string | null },
     cleanupChangeIds: ReadonlySet<string>,
     counteractedOriginalIds: ReadonlySet<string>,
   ): Promise<string> {
     const available = (changeId: string) =>
       !cleanupChangeIds.has(changeId) && !counteractedOriginalIds.has(changeId);
-    if (available(file.authoredChangeId)) return file.authoredChangeId;
+    // External snapshot versions have no semantic author. Walk file history
+    // to find the original semantic frontier instead of inventing an ID.
+    if (file.authoredChangeId && available(file.authoredChangeId)) {
+      return file.authoredChangeId;
+    }
 
     const root = {
       kind: "file" as const,

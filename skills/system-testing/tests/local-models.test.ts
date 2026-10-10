@@ -48,9 +48,14 @@ function execution(
     messages: [
       invocation("eval", {
         code: `
+          const { localModelsExtensionMethods } = await import("@workspace/model-catalog/localModels");
           const extension = "@workspace-extensions/local-models";
-          const status = await services.extensions.invoke(extension, "status", []);
-          const models = await services.extensions.invoke(extension, "listModels", []);
+          const [statusValue, modelsValue] = await Promise.all([
+            services.extensions.invoke(extension, localModelsExtensionMethods.status.method, []),
+            services.extensions.invoke(extension, localModelsExtensionMethods.listModels.method, []),
+          ]);
+          const status = localModelsExtensionMethods.status.result.parse(statusValue);
+          const models = localModelsExtensionMethods.listModels.result.parse(modelsValue);
           return { status, models };
         `,
       }),

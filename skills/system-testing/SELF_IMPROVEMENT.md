@@ -239,14 +239,15 @@ fresh status. If a failure appears in the build that runs after publication,
 inspect the build event buffer before repairing source:
 
 ```typescript
-// Eval uses the same portable `rpc.call(target, method, args)` shape as panels/workers.
-// Raw server services target "main".
+// Public RPC uses receiver-owned descriptors. Main-process descriptors come
+// from the canonical service schema package.
+import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 return {
-  recent: await rpc.call("main", "build.listRecentBuildEvents", []),
-  forUnit: await rpc.call("main", "build.listRecentBuildEvents", [
+  recent: await rpc.call("main", mainRpcMethods["build.listRecentBuildEvents"], []),
+  forUnit: await rpc.call("main", mainRpcMethods["build.listRecentBuildEvents"], [
     "panels/example",
   ]),
-  unit: await rpc.call("main", "build.inspectBuildProvenance", [
+  unit: await rpc.call("main", mainRpcMethods["build.inspectBuildProvenance"], [
     "panels/example",
   ]),
 };

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
+import type { RpcCaller, RpcCallOptions } from "@vibestudio/rpc";
 import { HeadlessSession } from "./headless-session.js";
 import type { ChatMessage, ConnectionConfig } from "@workspace/agentic-core";
 import {
@@ -9,6 +11,31 @@ import {
 } from "@workspace/agentic-protocol";
 import type { MethodDefinition } from "@workspace/pubsub";
 import { systemTestFailure } from "../../../skills/system-testing/structured-error.js";
+
+function publicRpcCall(
+  wire: (target: string, method: string, args: unknown[], options?: RpcCallOptions) => Promise<unknown>,
+): RpcCaller["call"] {
+  return schemaRpcMock({ call: wire }).call;
+}
+
+function rpcMethodName(method: unknown): string {
+  if (typeof method === "string") return method;
+  if (method !== null && typeof method === "object" && "name" in method && typeof method.name === "string") {
+    return method.name;
+  }
+  return String(method);
+}
+
+function runtimeEntityHandle(source: string, id: string, targetId: string, contextId: string) {
+  return {
+    id,
+    kind: "do" as const,
+    source: { repoPath: source, effectiveVersion: "test-version" },
+    buildKey: "a".repeat(64),
+    contextId,
+    targetId,
+  };
+}
 
 function createConfig(): ConnectionConfig {
   return {
@@ -32,10 +59,10 @@ describe("HeadlessSession", () => {
     const reclaim = new Error("Isolated context reclaim failed");
     const methods: string[] = [];
     const rpcCall = vi.fn(async (_target: string, method: string) => {
-      methods.push(method);
-      if (method === "runtime.createContext") return { contextId: "original-context" };
-      if (method === "runtime.createEntity") throw setup;
-      if (method === "runtime.destroyContext") throw reclaim;
+      methods.push(rpcMethodName(method));
+      if (rpcMethodName(method) === "runtime.createContext") return { contextId: "original-context" };
+      if (rpcMethodName(method) === "runtime.createEntity") throw setup;
+      if (rpcMethodName(method) === "runtime.destroyContext") throw reclaim;
       throw new Error(`Unexpected RPC ${method}`);
     });
     const disconnectSpy = vi
@@ -44,7 +71,7 @@ describe("HeadlessSession", () => {
     try {
       const failure = await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        rpcCall: publicRpcCall(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
       }).catch((error: unknown) => error);
@@ -74,22 +101,22 @@ describe("HeadlessSession", () => {
   it("rethrows the exact original setup failure after successful owned cleanup", async () => {
     const setup = new Error("Original setup failure");
     const rpcCall = vi.fn(async (_target: string, method: string) => {
-      if (method === "runtime.createContext") return { contextId: "original-context" };
-      if (method === "runtime.createEntity") throw setup;
-      if (method === "runtime.destroyContext") return undefined;
+      if (rpcMethodName(method) === "runtime.createContext") return { contextId: "original-context" };
+      if (rpcMethodName(method) === "runtime.createEntity") throw setup;
+      if (rpcMethodName(method) === "runtime.destroyContext") return undefined;
       throw new Error(`Unexpected RPC ${method}`);
     });
     await expect(
       HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        rpcCall: publicRpcCall(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
       })
     ).rejects.toBe(setup);
     expect(rpcCall).toHaveBeenLastCalledWith("main", "runtime.destroyContext", [
       { contextId: "original-context", recursive: true },
-    ]);
+    ], undefined);
   });
 
   it("constructs without connecting", () => {
@@ -389,7 +416,11 @@ describe("HeadlessSession", () => {
 
     await session.interrupt("agent-direct");
 
-    expect(rpcCall).toHaveBeenCalledWith("agent-direct", "interruptChannel", ["ch-direct"]);
+    expect(rpcCall).toHaveBeenCalledWith(
+      "agent-direct",
+      expect.objectContaining({ name: "interruptChannel" }),
+      ["ch-direct"],
+    );
     expect((session as any)._client.callMethod).not.toHaveBeenCalled();
   });
 
@@ -402,7 +433,10 @@ describe("HeadlessSession", () => {
 
     await session.interrupt("agent-direct", { timeoutMs: 2_000, signal });
 
-    expect(rpcCall).toHaveBeenCalledWith("agent-direct", "interruptChannel", ["ch-direct"], {
+    expect(rpcCall).toHaveBeenCalledWith(
+      "agent-direct",
+      expect.objectContaining({ name: "interruptChannel" }),
+      ["ch-direct"], {
       timeoutMs: 2_000,
       signal,
     });
@@ -420,8 +454,8 @@ describe("HeadlessSession", () => {
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(
       async (target: string, method: string, args: unknown[]) => {
-        calls.push({ target, method, args });
-        if (method === "unsubscribeChannel") await unsubscribeFinished;
+        calls.push({ target, method: rpcMethodName(method), args });
+        if (rpcMethodName(method) === "unsubscribeChannel") await unsubscribeFinished;
         return undefined;
       }
     );
@@ -469,7 +503,7 @@ describe("HeadlessSession", () => {
     let release!: () => void;
     const blocked = new Promise<void>((resolve) => (release = resolve));
     const rpcCall = vi.fn(async (_target: string, method: string) => {
-      if (method === "unsubscribeChannel") await blocked;
+      if (rpcMethodName(method) === "unsubscribeChannel") await blocked;
       return undefined;
     });
     (session as any)._agentEntityId = "entity-1";
@@ -483,7 +517,7 @@ describe("HeadlessSession", () => {
     release();
     await Promise.all([first, second]);
 
-    expect(rpcCall.mock.calls.map((call) => call[1])).toEqual([
+    expect(rpcCall.mock.calls.map((call) => rpcMethodName(call[1]))).toEqual([
       "unsubscribeChannel",
       "runtime.retireEntity",
     ]);
@@ -499,7 +533,7 @@ describe("HeadlessSession", () => {
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(
       async (target: string, method: string, args: unknown[]) => {
-        calls.push({ target, method, args });
+        calls.push({ target, method: rpcMethodName(method), args });
         return undefined;
       }
     );
@@ -527,7 +561,7 @@ describe("HeadlessSession", () => {
     (session as any)._agentTargetId = "do:workers/agent-worker:AiChatWorker:obj-1";
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(async (_target: string, method: string) => {
-      order.push(method);
+      order.push(rpcMethodName(method));
       return undefined;
     });
     vi.spyOn(session, "disconnect").mockImplementation(async () => {
@@ -547,8 +581,8 @@ describe("HeadlessSession", () => {
     (session as any)._channelId = "ch-1";
     (session as any)._client = {};
     (session as any)._agentRpcCall = vi.fn(async (_target: string, method: string) => {
-      order.push(method);
-      if (method === "getModelExecutionEvidence") return { totalCalls: 1 };
+      order.push(rpcMethodName(method));
+      if (rpcMethodName(method) === "getModelExecutionEvidence") return { totalCalls: 1 };
       return undefined;
     });
     vi.spyOn(session, "disconnect").mockResolvedValue();
@@ -590,7 +624,7 @@ describe("HeadlessSession", () => {
       _ownsAgentContext: true,
       _channelId: "ch-1",
       _agentRpcCall: vi.fn(async (_target: string, method: string) => {
-        order.push(method);
+        order.push(rpcMethodName(method));
       }),
     });
     vi.spyOn(session, "disconnect").mockImplementation(async () => {
@@ -631,7 +665,7 @@ describe("HeadlessSession", () => {
         _ownsAgentContext: true,
         _channelId: "ch-1",
         _agentRpcCall: vi.fn(async (_target: string, method: string) => {
-          calls.push(method);
+          calls.push(rpcMethodName(method));
         }),
       });
       const error = await session.close().catch((error: unknown) => error);
@@ -657,8 +691,8 @@ describe("HeadlessSession", () => {
     (session as any)._ownsAgentContext = true;
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(async (target: string, method: string) => {
-      calls.push({ target, method });
-      if (method === "runtime.destroyContext") throw new Error("destroy failed");
+      calls.push({ target, method: rpcMethodName(method) });
+      if (rpcMethodName(method) === "runtime.destroyContext") throw new Error("destroy failed");
       return undefined;
     });
 
@@ -688,8 +722,8 @@ describe("HeadlessSession", () => {
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(
       async (target: string, method: string, args: unknown[]) => {
-        calls.push({ target, method, args });
-        if (method === "unsubscribeChannel") {
+        calls.push({ target, method: rpcMethodName(method), args });
+        if (rpcMethodName(method) === "unsubscribeChannel") {
           await new Promise<void>((resolve) => {
             releaseUnsubscribe = resolve;
           });
@@ -740,7 +774,7 @@ describe("HeadlessSession", () => {
     (session as any)._ownsAgentContext = true;
     (session as any)._channelId = "ch-owned";
     const rpcCall = vi.fn(async (_target: string, method: string, _args: unknown[]) => {
-      calls.push(method);
+      calls.push(rpcMethodName(method));
       return undefined;
     });
     (session as any)._agentRpcCall = rpcCall;
@@ -751,14 +785,14 @@ describe("HeadlessSession", () => {
     expect(rpcCall).toHaveBeenNthCalledWith(
       1,
       "do:workers/agent-worker:AiChatWorker:obj-owned",
-      "unsubscribeChannel",
+      expect.objectContaining({ name: "unsubscribeChannel" }),
       ["ch-owned"],
       { timeoutMs: 30_000 }
     );
     expect(rpcCall).toHaveBeenNthCalledWith(
       2,
       "main",
-      "runtime.destroyContext",
+      expect.objectContaining({ name: "runtime.destroyContext" }),
       [{ contextId: "ctx-owned", recursive: true }],
       { timeoutMs: 30_000 }
     );
@@ -774,8 +808,8 @@ describe("HeadlessSession", () => {
     (session as any)._agentTargetId = "agent-target";
     (session as any)._channelId = "ch-1";
     (session as any)._agentRpcCall = vi.fn(async (_target: string, method: string) => {
-      if (method === "unsubscribeChannel") throw new Error("unsubscribe failed");
-      if (method === "runtime.retireEntity") throw new Error("retire failed");
+      if (rpcMethodName(method) === "unsubscribeChannel") throw new Error("unsubscribe failed");
+      if (rpcMethodName(method) === "runtime.retireEntity") throw new Error("retire failed");
       return undefined;
     });
 
@@ -826,25 +860,25 @@ describe("HeadlessSession", () => {
         (this as unknown as { _client: unknown })._client = { close: vi.fn() };
       });
     const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
-      order.push(`rpc:${target}:${method}`);
-      if (target === "main" && method === "runtime.createEntity") {
+      order.push(`rpc:${target}:${rpcMethodName(method)}`);
+      if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
         if (
           (args[0] as { execution?: { source?: string } }).execution?.source ===
           "workers/pubsub-channel"
         ) {
           return {
-            id: "channel-entity",
-            targetId: "channel-target",
-            contextId: "ctx-1",
+            ...runtimeEntityHandle(
+              "workers/pubsub-channel", "channel-entity", "channel-target", "ctx-1"
+            ),
           };
         }
         return {
-          id: "entity-1",
-          targetId: "agent-target",
-          contextId: "ctx-1",
+          ...runtimeEntityHandle(
+            "workers/agent-worker", "entity-1", "agent-target", "ctx-1"
+          ),
         };
       }
-      if (target === "agent-target" && method === "subscribeChannel") {
+      if (target === "agent-target" && rpcMethodName(method) === "subscribeChannel") {
         return { ok: true, participantId: "do:agent" };
       }
       throw new Error(`unexpected RPC ${target}.${method}`);
@@ -854,7 +888,7 @@ describe("HeadlessSession", () => {
     try {
       session = await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        rpcCall: publicRpcCall(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
         objectKey: "agent-1",
@@ -900,10 +934,12 @@ describe("HeadlessSession", () => {
         };
       });
     const rpcCall = vi.fn(async (target: string, method: string) => {
-      if (target === "main" && method === "runtime.createEntity") {
-        return { id: "entity-1", targetId: "agent-target", contextId: "ctx-1" };
+      if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
+        return runtimeEntityHandle(
+          "workers/agent-worker", "entity-1", "agent-target", "ctx-1"
+        );
       }
-      if (target === "agent-target" && method === "subscribeChannel") {
+      if (target === "agent-target" && rpcMethodName(method) === "subscribeChannel") {
         return { ok: true, participantId: "do:agent" };
       }
       throw new Error(`unexpected RPC ${target}.${method}`);
@@ -912,7 +948,7 @@ describe("HeadlessSession", () => {
     try {
       await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        rpcCall: publicRpcCall(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
         objectKey: "agent-1",
@@ -1022,11 +1058,11 @@ describe("HeadlessSession", () => {
         (this as unknown as { _client: unknown })._client = { close: vi.fn() };
       });
     const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
-      order.push(`rpc:${target}:${method}`);
-      if (target === "main" && method === "runtime.createContext") {
+      order.push(`rpc:${target}:${rpcMethodName(method)}`);
+      if (target === "main" && rpcMethodName(method) === "runtime.createContext") {
         return { contextId: "ctx-isolated" };
       }
-      if (target === "main" && method === "runtime.createEntity") {
+      if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
         expect(args[0]).toHaveProperty("contextId", "ctx-isolated");
         if (
           (args[0] as { execution?: { source?: string } }).execution?.source ===
@@ -1042,18 +1078,18 @@ describe("HeadlessSession", () => {
             key: "headless-1",
           });
           return {
-            id: "channel-entity",
-            targetId: "channel-target",
-            contextId: "ctx-isolated",
+            ...runtimeEntityHandle(
+              "workers/pubsub-channel", "channel-entity", "channel-target", "ctx-isolated"
+            ),
           };
         }
         return {
-          id: "entity-1",
-          targetId: "agent-target",
-          contextId: "ctx-isolated",
+          ...runtimeEntityHandle(
+            "workers/agent-worker", "entity-1", "agent-target", "ctx-isolated"
+          ),
         };
       }
-      if (target === "agent-target" && method === "subscribeChannel") {
+      if (target === "agent-target" && rpcMethodName(method) === "subscribeChannel") {
         expect(args[0]).toMatchObject({
           channelId: "headless-1",
           contextId: "ctx-isolated",
@@ -1067,7 +1103,7 @@ describe("HeadlessSession", () => {
     try {
       session = await HeadlessSession.createWithAgent({
         config: createConfig(),
-        rpcCall,
+        rpcCall: publicRpcCall(rpcCall),
         source: "workers/agent-worker",
         className: "AiChatWorker",
         objectKey: "agent-1",
@@ -1245,7 +1281,7 @@ describe("HeadlessSession", () => {
         _args: unknown[],
         options?: { signal?: AbortSignal }
       ) => {
-        if (method !== "waitForNativeRun") {
+        if (rpcMethodName(method) !== "waitForNativeRun") {
           expect(released).toBe(true);
           return undefined;
         }
@@ -1321,7 +1357,7 @@ describe("HeadlessSession", () => {
     await expect(f.session.sendAndWait("hello")).resolves.toBe(f.message);
     expect(f.internal._agentRpcCall).toHaveBeenCalledWith(
       "agent-target",
-      "waitForNativeRun",
+      expect.objectContaining({ name: "waitForNativeRun" }),
       [{ channelId: "ch-1", inputMessageId: "original-input" }],
       { signal: expect.any(AbortSignal) }
     );
@@ -1337,7 +1373,7 @@ describe("HeadlessSession", () => {
     expect(f.session.send).not.toHaveBeenCalled();
     expect(f.internal._agentRpcCall).toHaveBeenCalledWith(
       "agent-target",
-      "waitForNativeRun",
+      expect.objectContaining({ name: "waitForNativeRun" }),
       [{ channelId: "ch-1", inputMessageId: "original-input" }],
       { signal: expect.any(AbortSignal) }
     );

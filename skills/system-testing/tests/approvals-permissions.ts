@@ -1,3 +1,4 @@
+import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 import { NativeServerLogObservationSchema } from "@vibestudio/service-schemas/serverLog";
 import { walkRecords } from "./_scenario-evidence.js";
 import { rpc } from "@workspace/runtime";
@@ -282,7 +283,7 @@ async function orchestrateSubagentTaskGrantReuse(
     );
     childModelExecutionEvidence = await rpc.call(
       child.childEntityId,
-      "getModelExecutionEvidence",
+      agentRpcMethods["getModelExecutionEvidence"],
       [child.taskChannelId],
     );
     afterChildRead = await context.runner.inspectChatTaskRules(coordinates);

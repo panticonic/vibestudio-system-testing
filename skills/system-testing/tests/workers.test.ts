@@ -1,3 +1,4 @@
+import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-utils";
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { workerTests } from "./workers.js";
@@ -655,7 +656,7 @@ describe("worker test validators", () => {
     const split = execution(
       "The context-local probe answered with its value.",
       'scope.service = await workers.resolveService("test.probe.v1"); return scope.service;',
-      { kind: "durable-object", targetId: "do:workers/probe:ProbeDO:task" }
+      durableObjectServiceFixture("do:workers/probe:ProbeDO:task")
     );
     split.messages.splice(1, 0, docs, typedAuthored);
     const invoke = execution(

@@ -60,6 +60,7 @@
     "./tests/*": "./tests/*.ts"
   },
   "dependencies": {
+    "@workspace-workers/pubsub-channel": "workspace:*",
     "@vibestudio/workspace-contracts": "workspace:*",
     "@vibestudio/content-addressing": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
@@ -76,6 +77,10 @@
     "@vibestudio/workspace": "workspace:*",
     "yaml": "^2.8.0",
     "zod": "^3.25.76",
-    "@vibestudio/automation": "workspace:*"
+    "@vibestudio/automation": "workspace:*",
+    "@workspace/model-catalog": "workspace:*"
+  },
+  "devDependencies": {
+    "@vibestudio/rpc": "workspace:*"
   }
 }

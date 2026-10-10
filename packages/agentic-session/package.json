@@ -8,10 +8,15 @@
   },
   "dependencies": {
     "@vibestudio/shared": "workspace:*",
+    "@vibestudio/service-schemas": "workspace:*",
     "@workspace/agentic-core": "workspace:*",
+    "@workspace/agentic-do": "workspace:*",
     "@workspace/agentic-protocol": "workspace:*",
     "@workspace/eval": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@vibestudio/rpc": "workspace:*"
   }
 }
