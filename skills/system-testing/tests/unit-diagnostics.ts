@@ -1,6 +1,6 @@
 import {
   NativeRuntimeHealthObservationSchema,
-  NativeRuntimeInventoryObservationSchema,
+  NativeRuntimeUnitObservationSchema,
 } from "@vibestudio/service-schemas/runtime";
 import { missionOverviewStatsSchema } from "@vibestudio/service-schemas/missions";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
@@ -55,9 +55,9 @@ function unitListInspection(result: Parameters<typeof noIncompleteInvocations>[0
     }
     return journal["entries"];
   });
-  const inventories = entries.flatMap((entry) => {
-    if (!isRecord(entry) || entry["type"] !== "runtime.inventory") return [];
-    const parsed = NativeRuntimeInventoryObservationSchema.safeParse(entry["receipt"]);
+  const unitObservations = entries.flatMap((entry) => {
+    if (!isRecord(entry) || entry["type"] !== "runtime.units") return [];
+    const parsed = NativeRuntimeUnitObservationSchema.safeParse(entry["receipt"]);
     return parsed.success ? [parsed.data] : [];
   });
   const healthObservations = entries.flatMap((entry) => {
@@ -65,28 +65,38 @@ function unitListInspection(result: Parameters<typeof noIncompleteInvocations>[0
     const parsed = NativeRuntimeHealthObservationSchema.safeParse(entry["receipt"]);
     return parsed.success ? [parsed.data] : [];
   });
-  const inventory = inventories.at(-1);
-  if (!inventory) {
+  const roster = unitObservations.filter((observation) => observation.method === "runtime.supervision.list").at(-1);
+  if (!roster) {
     return {
       passed: false,
       reason: "No native workspace unit inventory observation was recorded",
     };
   }
-  const detail = healthObservations.find((health) =>
-    inventory.entities.some(
+  const details = [
+    ...unitObservations
+      .filter((observation) => observation.method === "runtime.supervision.describe")
+      .flatMap((observation) => observation.entities),
+    ...healthObservations.map((health) => ({
+      identity: health.identity,
+      source: health.source,
+      status: undefined,
+    })),
+  ];
+  const detail = details.find((observed) =>
+    roster.entities.some(
       (entity) =>
-        entity.identity.kind === health.identity.kind &&
-        entity.identity.entityId === health.identity.entityId &&
-        entity.source === health.source
+        entity.identity.kind === observed.identity.kind &&
+        entity.identity.entityId === observed.identity.entityId &&
+        entity.source === observed.source
     )
   );
   if (!detail) {
     return {
       passed: false,
-      reason: "No native unit health observation matched an entity in the observed inventory",
+      reason: "No native unit detail observation matched an entity in the observed inventory",
     };
   }
-  const entity = inventory.entities.find(
+  const entity = roster.entities.find(
     (candidate) =>
       candidate.identity.kind === detail.identity.kind &&
       candidate.identity.entityId === detail.identity.entityId &&
@@ -95,12 +105,12 @@ function unitListInspection(result: Parameters<typeof noIncompleteInvocations>[0
   if (!entity) {
     return {
       passed: false,
-      reason: "No native unit health observation matched an entity in the observed inventory",
+      reason: "No native unit detail observation matched an entity in the observed inventory",
     };
   }
   const final = findLastAgentMessage(result);
   const countPattern = new RegExp(
-    `\\b${inventory.entities.length}\\b[^.\\n]{0,40}\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b|\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b[^.\\n]{0,40}\\b${inventory.entities.length}\\b`,
+    `\\b${roster.entities.length}\\b[^.\\n]{0,40}\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b|\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b[^.\\n]{0,40}\\b${roster.entities.length}\\b`,
     "iu"
   );
   if (
