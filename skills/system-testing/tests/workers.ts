@@ -1,3 +1,4 @@
+import { parse } from "@babel/parser";
 import {
   BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
   BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
@@ -14,6 +15,187 @@ import {
   walkArrays,
   walkRecords,
 } from "./_scenario-evidence.js";
+
+type SyntaxNode = { type: string; [key: string]: unknown };
+type ProbeBinding = { tainted: boolean };
+type ProbeScope = { parent: ProbeScope | null; bindings: Map<string, ProbeBinding> };
+const FUNCTION_NODE_TYPES = new Set([
+  "ArrowFunctionExpression",
+  "FunctionDeclaration",
+  "FunctionExpression",
+  "ObjectMethod",
+  "ClassMethod",
+  "ClassPrivateMethod",
+]);
+
+function isSyntaxNode(value: unknown): value is SyntaxNode {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof (value as { type?: unknown }).type === "string"
+  );
+}
+
+function childSyntaxNodes(node: SyntaxNode): SyntaxNode[] {
+  return Object.values(node).flatMap((value) => {
+    if (isSyntaxNode(value)) return [value];
+    if (!Array.isArray(value)) return [];
+    return value.filter(isSyntaxNode);
+  });
+}
+
+function probeSyntax(root: SyntaxNode): {
+  nodes: SyntaxNode[];
+  scopeByNode: WeakMap<SyntaxNode, ProbeScope>;
+  bindingByDeclaration: WeakMap<SyntaxNode, ProbeBinding>;
+} {
+  const nodes: SyntaxNode[] = [];
+  const scopeByNode = new WeakMap<SyntaxNode, ProbeScope>();
+  const bindingByDeclaration = new WeakMap<SyntaxNode, ProbeBinding>();
+  const rootScope: ProbeScope = { parent: null, bindings: new Map() };
+  const visit = (node: SyntaxNode, parentScope: ProbeScope, isRoot = false): void => {
+    const scope =
+      !isRoot &&
+      ["BlockStatement", "CatchClause", "ForStatement", "ForInStatement", "ForOfStatement", "SwitchStatement"].includes(node.type)
+        ? { parent: parentScope, bindings: new Map<string, ProbeBinding>() }
+        : parentScope;
+    nodes.push(node);
+    scopeByNode.set(node, scope);
+    if (!isRoot && FUNCTION_NODE_TYPES.has(node.type)) return;
+    if (node.type === "VariableDeclarator") {
+      const name = isSyntaxNode(node["id"]) ? identifierName(node["id"]) : undefined;
+      if (name) {
+        const binding: ProbeBinding = { tainted: false };
+        scope.bindings.set(name, binding);
+        bindingByDeclaration.set(node, binding);
+      }
+    }
+    for (const child of childSyntaxNodes(node)) visit(child, scope);
+  };
+  visit(root, rootScope, true);
+  nodes.sort((left, right) => {
+    const leftStart = left["start"];
+    const rightStart = right["start"];
+    return (typeof leftStart === "number" ? leftStart : 0) - (typeof rightStart === "number" ? rightStart : 0);
+  });
+  return { nodes, scopeByNode, bindingByDeclaration };
+}
+
+function containsSyntaxNode(
+  root: SyntaxNode,
+  predicate: (node: SyntaxNode) => boolean
+): boolean {
+  return (
+    predicate(root) ||
+    (!FUNCTION_NODE_TYPES.has(root.type) &&
+      childSyntaxNodes(root).some((child) => containsSyntaxNode(child, predicate)))
+  );
+}
+
+function identifierName(node: SyntaxNode | undefined): string | undefined {
+  return node?.type === "Identifier" && typeof node["name"] === "string"
+    ? node["name"]
+    : undefined;
+}
+
+function resolveProbeBinding(scope: ProbeScope | undefined, name: string): ProbeBinding | undefined {
+  for (let current = scope; current; current = current.parent ?? undefined) {
+    const binding = current.bindings.get(name);
+    if (binding) return binding;
+  }
+  return undefined;
+}
+
+function memberName(node: SyntaxNode | undefined): string | undefined {
+  if (node?.type !== "MemberExpression") return undefined;
+  const property = node["property"];
+  if (isSyntaxNode(property) && property.type === "Identifier")
+    return identifierName(property);
+  if (isSyntaxNode(property) && property.type === "StringLiteral")
+    return typeof property["value"] === "string" ? property["value"] : undefined;
+  return undefined;
+}
+
+function workerProbeCall(node: SyntaxNode): boolean {
+  if (node.type !== "CallExpression") return false;
+  const callee = node["callee"];
+  if (!isSyntaxNode(callee)) return false;
+  const args = node["arguments"];
+  const firstArgument = Array.isArray(args) && isSyntaxNode(args[0]) ? args[0] : undefined;
+  if (!firstArgument) return false;
+  const targetsWorker = containsSyntaxNode(firstArgument, (child) => memberName(child) === "targetId");
+  if (!targetsWorker) return false;
+  if (
+    callee.type === "MemberExpression" &&
+    memberName(callee) === "call"
+  ) {
+    const receiver = callee["object"];
+    return (
+      isSyntaxNode(receiver) &&
+      (identifierName(receiver) === "rpc" || memberName(receiver) === "rpc")
+    );
+  }
+  return false;
+}
+
+/** Check syntax-level value flow, then let the eval owner’s recorded return/log prove the value. */
+function observesWorkerProbeResult(code: string): boolean {
+  let root: SyntaxNode;
+  try {
+    const parsedProgram: unknown = parse(code, {
+      sourceType: "unambiguous",
+      plugins: ["typescript"],
+      allowAwaitOutsideFunction: true,
+      allowReturnOutsideFunction: true,
+    }).program;
+    if (!isSyntaxNode(parsedProgram)) return false;
+    root = parsedProgram;
+  } catch {
+    return false;
+  }
+  const { nodes, scopeByNode, bindingByDeclaration } = probeSyntax(root);
+  const probeCalls = new Set(nodes.filter(workerProbeCall));
+  if (probeCalls.size === 0) return false;
+
+  const dependsOnProbe = (node: SyntaxNode): boolean =>
+    containsSyntaxNode(
+      node,
+      (child) => {
+        if (probeCalls.has(child)) return true;
+        const name = identifierName(child);
+        return name !== undefined && resolveProbeBinding(scopeByNode.get(child), name)?.tainted === true;
+      }
+    );
+
+  for (const node of nodes) {
+    if (node.type === "VariableDeclarator") {
+      const binding = bindingByDeclaration.get(node);
+      const init = node["init"];
+      if (binding) binding.tainted = isSyntaxNode(init) && dependsOnProbe(init);
+    } else if (node.type === "AssignmentExpression") {
+      const name = isSyntaxNode(node["left"]) ? identifierName(node["left"]) : undefined;
+      const value = node["right"];
+      const binding = name ? resolveProbeBinding(scopeByNode.get(node), name) : undefined;
+      if (binding && isSyntaxNode(value)) binding.tainted = dependsOnProbe(value);
+    } else if (node.type === "ReturnStatement") {
+      if (isSyntaxNode(node["argument"]) && dependsOnProbe(node["argument"])) return true;
+    } else if (node.type === "CallExpression") {
+      const callee = node["callee"];
+      const args = node["arguments"];
+      if (
+        isSyntaxNode(callee) &&
+        memberName(callee) === "log" &&
+        isSyntaxNode(callee["object"]) &&
+        identifierName(callee["object"]) === "console" &&
+        Array.isArray(args) &&
+        args.some((argument) => isSyntaxNode(argument) && dependsOnProbe(argument))
+      )
+        return true;
+    }
+  }
+  return false;
+}
 
 function lifecycleEvidence(
   result: TestExecutionResult,
@@ -515,50 +697,9 @@ export const workerTests: TestCase[] = [
         ) {
           return false;
         }
-        const code = String(call.arguments?.["code"] ?? "");
-        const probes = [
-          ...code.matchAll(
-            /\b(?:const\s+|let\s+|var\s+)?([A-Za-z_$][\w$]*)\s*=\s*await\s+rpc\.call(?:<[^>]*>)?\s*\(\s*[^,\n]*(?:\.targetId|targetId)\s*,/gu
-          ),
-          ...code.matchAll(
-            /\b(?:const\s+|let\s+|var\s+)?([A-Za-z_$][\w$]*)\s*=\s*await\s+gatewayFetch\s*\(/gu
-          ),
-        ];
-        return probes.some((match) => {
-          const value = match[1]!;
-          const suffix = code.slice((match.index ?? 0) + match[0].length);
-          const observedValues = new Set([value]);
-          const declarations = [
-            ...suffix.matchAll(
-              /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)(?:\s*:\s*[^=;]+)?\s*=\s*([\s\S]*?);/gu
-            ),
-          ];
-          let changed = true;
-          while (changed) {
-            changed = false;
-            for (const declaration of declarations) {
-              const name = declaration[1]!;
-              const expression = declaration[2]!;
-              if (observedValues.has(name)) continue;
-              const dependsOnObservedValue = [...observedValues].some((candidate) =>
-                new RegExp(`\\b${candidate.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\b`, "u").test(
-                  expression
-                )
-              );
-              if (dependsOnObservedValue) {
-                observedValues.add(name);
-                changed = true;
-              }
-            }
-          }
-          return [...observedValues].some((candidate) => {
-            const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-            return (
-              new RegExp(`\\breturn\\b[\\s\\S]*?\\b${escaped}\\b`, "u").test(suffix) ||
-              new RegExp(`\\bconsole\\.log\\s*\\([^)]*\\b${escaped}\\b`, "u").test(suffix)
-            );
-          });
-        });
+        return observesWorkerProbeResult(
+          String(call.arguments?.["code"] ?? "")
+        );
       });
       if (!probeInvocation) {
         return { passed: false, reason: "The worker-side probe result was not observed" };

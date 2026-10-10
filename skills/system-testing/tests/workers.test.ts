@@ -540,6 +540,60 @@ describe("worker test validators", () => {
         execution("The worker observed x and was removed.", `${observed}\nreturn result;`, proof)
       ).passed
     ).toBe(true);
+    const directlyReturned = acceptedOnly.replace(
+      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      'try { return await scope.runtime.rpc.call(handle.targetId, methods.inspectProbe, []); } finally { await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]); }'
+    );
+    expect(
+      test("worker-env").validate(
+        execution("The worker observed x and was removed.", directlyReturned, proof)
+      ).passed
+    ).toBe(true);
+    const fakeRpcText = acceptedOnly.replace(
+      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      'const note = "return await rpc.call(handle.targetId, methods.inspectProbe, [])"; return { observed: "x" };'
+    );
+    expect(
+      test("worker-env").validate(
+        execution("The worker observed x and was removed.", fakeRpcText, proof)
+      ).passed
+    ).toBe(false);
+    const uncalledFunction = acceptedOnly.replace(
+      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      'function inspectLater() { return rpc.call(handle.targetId, methods.inspectProbe, []); } return { observed: "x" };'
+    );
+    expect(
+      test("worker-env").validate(
+        execution("The worker observed x and was removed.", uncalledFunction, proof)
+      ).passed
+    ).toBe(false);
+    const shadowedProbe = acceptedOnly.replace(
+      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      'let result: unknown; { const result = await rpc.call(handle.targetId, methods.inspectProbe, []); } return result;'
+    );
+    expect(
+      test("worker-env").validate(
+        execution("The worker observed x and was removed.", shadowedProbe, proof)
+      ).passed
+    ).toBe(false);
+    const discardedProbe = acceptedOnly.replace(
+      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      'await rpc.call(handle.targetId, methods.inspectProbe, []); try { return { observed: "x" }; } finally { await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]); }'
+    );
+    expect(
+      test("worker-env").validate(
+        execution("The worker observed x and was removed.", discardedProbe, proof)
+      ).passed
+    ).toBe(false);
+    const reassignedProbe = acceptedOnly.replace(
+      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      'let result: unknown; result = await rpc.call(handle.targetId, methods.inspectProbe, []); result = { observed: "x" }; return result;'
+    );
+    expect(
+      test("worker-env").validate(
+        execution("The worker observed x and was removed.", reassignedProbe, proof)
+      ).passed
+    ).toBe(false);
     expect(
       test("worker-env").validate(
         execution(

@@ -60,6 +60,7 @@
     "./tests/*": "./tests/*.ts"
   },
   "dependencies": {
+    "@babel/parser": "^7.29.2",
     "@workspace-workers/pubsub-channel": "workspace:*",
     "@vibestudio/workspace-contracts": "workspace:*",
     "@vibestudio/content-addressing": "workspace:*",
