@@ -25,7 +25,10 @@ function skillChoiceChecked(
     };
   }
   if (!loaded && !options?.allowEmbeddedGuidance) {
-    return { passed: false, reason: `No completed skill load opened ${skillName}` };
+    return {
+      passed: false,
+      reason: `No completed skill load opened ${skillName}`,
+    };
   }
   return noIncompleteInvocations(result);
 }
@@ -109,23 +112,12 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function waitForRunningChild(
-  session: HeadlessSession,
-  timeoutMs: number
-): Promise<{ invocationId: string }> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const spawn = [...session.snapshot().tasks].reverse().find((task) => task.type === "subagent");
-    if (spawn && (spawn.status === "started" || spawn.status === "running")) {
-      return { invocationId: spawn.id };
-    }
-    if (Date.now() >= deadline) {
-      throw new Error(
-        "Headless diagnostic fixture did not expose an in-progress child before the setup deadline"
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
+function latestChildTask(session: HeadlessSession): { invocationId: string } {
+  const task = [...session.snapshot().tasks]
+    .reverse()
+    .find((candidate) => candidate.type === "subagent");
+  if (!task) throw new Error("Headless diagnostic setup did not create a child task");
+  return { invocationId: task.id };
 }
 
 async function orchestrateHeadlessDiagnosis(
@@ -139,20 +131,14 @@ async function orchestrateHeadlessDiagnosis(
   try {
     await context.sendAndWait(
       session,
-      "Start one collaborator on a task that remains in progress without producing a final response, then let me know when it is underway.",
-      "create a real stalled child fixture"
+      "Delegate this self-contained review to one collaborator: A service began returning intermittent 503 responses after a deployment. The deployment changed connection pooling, while request volume and upstream health are unchanged. Identify the most plausible connection-pooling failure and one piece of evidence that would distinguish it from an upstream outage. Then give me your own concise assessment.",
+      "create a child with an independent assignment"
     );
-    const remainingTimeMs = context.remainingTimeMs();
-    fixture = await waitForRunningChild(
-      session,
-      remainingTimeMs === undefined
-        ? 60_000
-        : Math.max(1, Math.min(60_000, Math.floor(remainingTimeMs / 4)))
-    );
+    fixture = latestChildTask(session);
     await context.sendAndWait(
       session,
-      "Diagnose why the child agent has not produced a final response. Keep the investigation bounded and report only evidence you can observe.",
-      "diagnose the stalled child"
+      `Read the transcript for collaborator task ${fixture.invocationId} and summarize what it has communicated. If it has not communicated findings, say that. Do not infer whether it is still running or finished from the transcript alone.`,
+      "inspect the child's bounded transcript"
     );
   } catch (err) {
     error = formatError(err);
@@ -166,7 +152,7 @@ async function orchestrateHeadlessDiagnosis(
     diagnostics: {
       orchestrated: true,
       fixture: {
-        kind: "real-subagent-in-progress",
+        kind: "real-subagent-transcript",
         invocationId: fixture?.invocationId ?? null,
       },
     },
@@ -226,48 +212,74 @@ export const skillTests: TestCase[] = [
   },
   {
     name: "load-headless-sessions",
-    description: "Diagnose an ongoing child from bounded observed evidence",
+    description: "Inspect a child transcript and report bounded evidence",
     category: "skills",
     prompt:
-      "Inspect why a child agent has not finished. Keep the investigation bounded and explain the observed state.",
+      "Inspect the collaborator's transcript and summarize what it has communicated. If the transcript has no findings yet, say so. Do not infer whether the child is still running or has finished from the transcript alone.",
     orchestrate: orchestrateHeadlessDiagnosis,
-    // The fixture leaves a real child in progress. Join the bounded inspection
-    // to that exact child; an ongoing assignment is not evidence of a failure.
-    // Independent tool-failure accounting still rejects unintended errors.
+    // The setup owns a real independent child assignment. Its transcript is
+    // useful whether the task is active or terminal; the fixture does not
+    // infer liveness from transcript contents.
     validate: (result) => {
       const fixture = result.diagnostics?.["fixture"] as Record<string, unknown> | undefined;
       const final = findLastAgentMessage(result);
       const childId = fixture?.["invocationId"];
-      const inspected =
-        typeof childId === "string" &&
-        getToolCalls(result).some((call) => {
-          const requestedRunId = call.arguments?.["runId"];
-          if (
-            call.name !== "read_subagent" ||
-            typeof requestedRunId !== "string" ||
-            call.execution?.status !== "complete" ||
-            call.execution.isError === true
-          )
-            return false;
-          const details = (
-            call.execution.result as { details?: Record<string, unknown> } | undefined
-          )?.details;
-          return (
-            details?.["runId"] === childId &&
-            (requestedRunId === childId || details["runRef"] === requestedRunId) &&
-            Number.isInteger(details["nextSeq"]) &&
-            typeof details["hasMore"] === "boolean" &&
-            Array.isArray(details["messages"])
-          );
-        });
-      return fixture?.["kind"] === "real-subagent-in-progress" &&
-        inspected &&
-        /(?:assignment|instruction|told)/iu.test(final)
+      const inspection =
+        typeof childId === "string"
+          ? getToolCalls(result)
+              .map((call) => {
+                const requestedRunId = call.arguments?.["runId"];
+                if (
+                  call.name !== "read_subagent" ||
+                  typeof requestedRunId !== "string" ||
+                  call.execution?.status !== "complete" ||
+                  call.execution.isError === true
+                )
+                  return undefined;
+                const details = (
+                  call.execution.result as { details?: Record<string, unknown> } | undefined
+                )?.details;
+                const messages = details?.["messages"];
+                return details?.["runId"] === childId &&
+                  (requestedRunId === childId || details["runRef"] === requestedRunId) &&
+                  Number.isSafeInteger(details["nextSeq"]) &&
+                  Number(details["nextSeq"]) >= 0 &&
+                  typeof details["hasMore"] === "boolean" &&
+                  Array.isArray(messages) &&
+                  messages.every(
+                    (message) =>
+                      message !== null &&
+                      typeof message === "object" &&
+                      Number.isSafeInteger((message as Record<string, unknown>)["seq"]) &&
+                      typeof (message as Record<string, unknown>)["text"] === "string"
+                  )
+                  ? details
+                  : undefined;
+              })
+              .find((details) => details !== undefined)
+          : undefined;
+      const transcript = Array.isArray(inspection?.["messages"])
+        ? inspection["messages"]
+            .map((message) =>
+              message &&
+              typeof message === "object" &&
+              typeof (message as Record<string, unknown>)["text"] === "string"
+                ? (message as Record<string, string>)["text"]
+                : ""
+            )
+            .join("\n")
+        : "";
+      const reportsTranscriptEvidence =
+        final.trim().length > 0 &&
+        (transcript.trim().length > 0 || /\b(?:no|without|empty|nothing|none)\b/iu.test(final));
+      return fixture?.["kind"] === "real-subagent-transcript" &&
+        inspection !== undefined &&
+        reportsTranscriptEvidence
         ? { passed: true }
         : {
             passed: false,
             reason:
-              "Diagnosis did not inspect the exact in-progress child or explain the observed child state",
+              "Diagnosis did not inspect the exact child's bounded transcript or report when the page had no findings",
           };
     },
   },

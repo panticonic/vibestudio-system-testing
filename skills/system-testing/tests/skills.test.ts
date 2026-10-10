@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { TestExecutionResult } from "../types.js";
+import type { ChatMessage } from "@workspace/agentic-core";
+import type { HeadlessSession } from "@workspace/agentic-session";
+import type { TestExecutionResult, TestOrchestrationContext } from "../types.js";
 import { skillTests } from "./skills.js";
 
 const code = `
@@ -24,7 +26,13 @@ function execution(
   return {
     duration: 0,
     messages: [
-      { id: "prompt", kind: "message", senderId: "user", complete: true, content: "prompt" },
+      {
+        id: "prompt",
+        kind: "message",
+        senderId: "user",
+        complete: true,
+        content: "prompt",
+      },
       {
         id: "eval",
         kind: "message",
@@ -64,7 +72,13 @@ function choiceExecution(
   return {
     duration: 0,
     messages: [
-      { id: "prompt", kind: "message", senderId: "user", complete: true, content: "prompt" },
+      {
+        id: "prompt",
+        kind: "message",
+        senderId: "user",
+        complete: true,
+        content: "prompt",
+      },
       ...(skill
         ? [
             {
@@ -198,18 +212,20 @@ describe("skill routing system-test validators", () => {
   });
 });
 
-describe("ongoing child diagnosis validator", () => {
+describe("child transcript diagnosis validator", () => {
   const test = skillTests.find((candidate) => candidate.name === "load-headless-sessions")!;
   function diagnosis(
     childInvocationId = "invocation:child:fixture",
     requestedRunId = "@s1o",
     observedInvocationId = childInvocationId,
+    finalMessage = "The child transcript says it started a harmless background reading task; that is the evidence communicated so far."
   ): TestExecutionResult {
-    const result = choiceExecution(
-      "The child has not produced a final response because its assignment explicitly told it to keep working without concluding. Its workspace is clean; I cannot establish what research it has completed."
-    );
+    const result = choiceExecution(finalMessage);
     result.diagnostics = {
-      fixture: { kind: "real-subagent-in-progress", invocationId: childInvocationId },
+      fixture: {
+        kind: "real-subagent-transcript",
+        invocationId: childInvocationId,
+      },
     };
     result.messages.splice(1, 0, {
       id: "child-inspection",
@@ -231,7 +247,12 @@ describe("ongoing child diagnosis validator", () => {
               runRef: requestedRunId,
               nextSeq: 20,
               hasMore: false,
-              messages: [{ seq: 7, text: "Starting a harmless background reading task." }],
+              messages: [
+                {
+                  seq: 7,
+                  text: "Starting a harmless background reading task.",
+                },
+              ],
             },
           },
         },
@@ -239,22 +260,116 @@ describe("ongoing child diagnosis validator", () => {
     } as unknown as TestExecutionResult["messages"][number]);
     return result;
   }
-  it("accepts an alias when the result identifies the fixture's canonical child", () => {
+  it("accepts an alias when the result identifies the exact child's transcript", () => {
+    expect(test.validate(diagnosis("invocation:child:fixture", "@s1o"))).toEqual({ passed: true });
+  });
+  it("accepts the canonical child ID", () => {
     expect(
-      test.validate(diagnosis("invocation:child:fixture", "@s1o")),
+      test.validate(diagnosis("invocation:child:fixture", "invocation:child:fixture"))
     ).toEqual({ passed: true });
   });
-  it("accepts a canonical selector for the exact fixture child", () => {
-    expect(test.validate(diagnosis("invocation:child:fixture", "invocation:child:fixture"))).toEqual({ passed: true });
-  });
-  it("rejects a different child's inspection and unsupported prose-only claims", () => {
+  it("rejects a different child and prose without a receipt", () => {
     expect(
-      test.validate(
-        diagnosis("invocation:child:fixture", "@s1o", "invocation:child:other"),
-      ).passed,
+      test.validate(diagnosis("invocation:child:fixture", "@s1o", "invocation:child:other")).passed
     ).toBe(false);
     const uninspected = diagnosis();
     uninspected.messages.splice(1, 1);
     expect(test.validate(uninspected).passed).toBe(false);
+    expect(test.validate(diagnosis("invocation:child:fixture", "@s1o", undefined, "")).passed).toBe(
+      false
+    );
+  });
+  it("accepts an empty bounded page without claiming the child is idle", () => {
+    const result = diagnosis(
+      "invocation:child:fixture",
+      "@s1o",
+      undefined,
+      "The child transcript has no messages after this cursor, so there are no findings to report."
+    );
+    const invocation = result.messages[1] as {
+      invocation?: {
+        execution?: { result?: { details?: Record<string, unknown> } };
+      };
+    };
+    invocation.invocation!.execution!.result!.details!["messages"] = [];
+    expect(test.validate(result)).toEqual({ passed: true });
+  });
+
+  it("rejects malformed cursors and continuation flags", () => {
+    const malformedCursor = diagnosis();
+    const cursorCall = malformedCursor.messages[1] as {
+      invocation?: {
+        execution?: { result?: { details?: Record<string, unknown> } };
+      };
+    };
+    cursorCall.invocation!.execution!.result!.details!["nextSeq"] = -1;
+    expect(test.validate(malformedCursor).passed).toBe(false);
+
+    const malformedContinuation = diagnosis();
+    const continuationCall = malformedContinuation.messages[1] as {
+      invocation?: {
+        execution?: { result?: { details?: Record<string, unknown> } };
+      };
+    };
+    continuationCall.invocation!.execution!.result!.details!["hasMore"] = "false";
+    expect(test.validate(malformedContinuation).passed).toBe(false);
+  });
+
+  it("creates a diagnosis turn for a child that completed during setup", async () => {
+    const messages = [] as TestExecutionResult["messages"];
+    const session = {
+      messages,
+      snapshot: () => ({
+        tasks: [
+          {
+            id: "child-terminal",
+            type: "subagent",
+            title: "review",
+            status: "complete",
+          },
+        ],
+        cleanupErrors: [],
+      }),
+      close: vi.fn(async () => undefined),
+    } as unknown as HeadlessSession;
+    const sendAndWait = vi.fn(async (_target: HeadlessSession, _prompt: string, phase: string) => {
+      if (phase === "inspect the child's bounded transcript") {
+        messages.push(...diagnosis("child-terminal", "@s1o").messages.slice(1));
+      }
+      return {} as ChatMessage;
+    });
+    const context = {
+      runner: { spawn: vi.fn(async () => session) },
+      signal: new AbortController().signal,
+      remainingTimeMs: () => undefined,
+      sendAndWait,
+    } as unknown as TestOrchestrationContext;
+    const result = await test.orchestrate!(context);
+
+    expect(sendAndWait).toHaveBeenCalledTimes(2);
+    expect(sendAndWait.mock.calls[1]?.[1]).toContain("child-terminal");
+    expect(result.error).toBeUndefined();
+    expect(test.validate(result)).toEqual({ passed: true });
+    expect(session.close).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the missing-child setup error and still closes its session", async () => {
+    const session = {
+      messages: [],
+      snapshot: () => ({ tasks: [], cleanupErrors: [] }),
+      close: vi.fn(async () => undefined),
+    } as unknown as HeadlessSession;
+    const sendAndWait = vi.fn(async () => ({}) as ChatMessage);
+    const context = {
+      runner: { spawn: vi.fn(async () => session) },
+      signal: new AbortController().signal,
+      remainingTimeMs: () => undefined,
+      sendAndWait,
+    } as unknown as TestOrchestrationContext;
+    const result = await test.orchestrate!(context);
+
+    expect(result.error).toContain("did not create a child task");
+    expect(sendAndWait).toHaveBeenCalledOnce();
+    expect(session.close).toHaveBeenCalledOnce();
   });
 });
