@@ -43,10 +43,21 @@ marker hides.
 
 ## Interpreting invocations
 
-An incomplete invocation is a transport or lifecycle defect unless the evidence
-shows explicit cancellation. A failed invocation may be expected negative-test
+An incomplete invocation may still own valid work or await an actionable
+approval. Inspect its owning task, pending approvals, and lifecycle before
+classifying it; elapsed time alone does not establish failure. A failed invocation may be expected negative-test
 evidence, an agent mistake, stale docs, or platform behavior. Check its
 arguments and terminal outcome before classifying it.
+
+Native model evidence records prepared payload attempts before the provider
+transport starts. A persisted call alone does not establish that an HTTP request
+or WebSocket upgrade reached the provider. Correlate it with transport milestones,
+provider events, and `pnpm cli --instance ID approvals list --json`. Check the
+approval's authenticated caller as well as its operation: a credential request
+attributed to a shared executable instead of the originating agent can wait on
+different authority. Repair the attribution and owned cancellation path rather
+than approving that request to make the test pass. Keep captured approval packets
+private because they contain account and credential metadata.
 
 For a single failed call, start with
 `gad.diagnoseInvocation({ trajectoryId, branchId, invocationId })`. Its bounded
