@@ -57,14 +57,6 @@ function labeledCount(final: string, label: "log" | "error", count: number): boo
 }
 
 function unitDiagnosticLogInspection(result: Parameters<typeof noIncompleteInvocations>[0]) {
-  const code = successfulEvalCode(result);
-  if (!/runtime\.supervision\.list/iu.test(code) || !/runtime\.supervision\.health/iu.test(code)) {
-    return {
-      passed: false,
-      reason: "The unit-log investigation did not perform one bounded exact-unit health read",
-    };
-  }
-
   const receipts = getToolCalls(result).filter((call) => call.name === "eval").flatMap((call) => {
     const output = call.execution?.result;
     const details = isRecord(output) && isRecord(output["details"]) ? output["details"] : null;

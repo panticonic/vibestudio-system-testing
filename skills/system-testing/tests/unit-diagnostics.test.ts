@@ -1138,6 +1138,20 @@ describe("workspace unit diagnostics semantic validators", () => {
     ).toEqual({ passed: true, reason: undefined });
   });
 
+  it("accepts an aliased raw service call backed by the native health journal", () => {
+    expect(
+      logsTest.validate(
+        execution(
+          "const inspect = services.runtime['supervision.health']; const detail = await inspect(unit.identity); return detail;",
+          health,
+          "extensions/status has 2 recent logs and 1 error in its separate buffer.",
+          "eval",
+          nativeHealth
+        )
+      )
+    ).toEqual({ passed: true, reason: undefined });
+  });
+
   it("accepts default bounded health reads and an empty separate error buffer", () => {
     const gitBridgeIdentity = {
       kind: "extension" as const,
@@ -1237,6 +1251,21 @@ describe("workspace unit diagnostics semantic validators", () => {
           healthCode,
           { source: "extensions/status", logs: 2, errors: 1 },
           "extensions/status has 2 logs and 1 error."
+        )
+      )
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("health packet"),
+    });
+  });
+
+  it("rejects guest-only log and error claims without a native health journal", () => {
+    expect(
+      logsTest.validate(
+        execution(
+          "return { source: 'extensions/status', logCount: 2, errorCount: 1 };",
+          { source: "extensions/status", logCount: 2, errorCount: 1 },
+          "extensions/status has 2 recent logs and 1 error in its separate buffer."
         )
       )
     ).toMatchObject({
