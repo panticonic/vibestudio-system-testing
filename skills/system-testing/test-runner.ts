@@ -1079,6 +1079,11 @@ function recordCleanupFailure(
   ];
   outcome.execution.error ??= `Headless cleanup failed: ${message}`;
   if (outcome.result.passed) {
+    // When test execution itself succeeded, cleanup is the terminal failure
+    // for this test. Keep its full structured cause graph in the primary
+    // failure field as well as the phase-specific cleanup list; the human
+    // summary above is intentionally only the top-level message.
+    outcome.execution.failure ??= failure;
     outcome.result = {
       passed: false,
       reason: `Headless cleanup failed: ${message}`,

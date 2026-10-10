@@ -1587,6 +1587,20 @@ describe("TestRunner", () => {
       importChangeIds: ["change:import:fixture-test"],
       taskBaseEventId: "event:main",
     };
+    const originalCleanupCause = new Error(
+      "Idempotency key belongs to another participant or payload type",
+    );
+    const unsubscribeFailure = Object.assign(
+      new Error("Agent resource cleanup phase unsubscribe failed"),
+      { cause: originalCleanupCause },
+    );
+    const fixtureCleanupFailure = Object.assign(
+      remoteRpcFailure(
+        "Entity refused terminal lifecycle release: unsubscribe failed",
+        "diagnostic:vcs:fixture-cleanup",
+      ),
+      { cause: unsubscribeFailure },
+    );
     const childRunner = {
       modelRef: TEST_MODEL,
       closeOwnedDevelopmentSessions: vi.fn(async () => []),
@@ -1595,10 +1609,7 @@ describe("TestRunner", () => {
       collectDiagnostics: vi.fn(async () => ({})),
       prepareWorkspaceRepoFixture: vi.fn(async () => fixtureState),
       cleanupWorkspaceRepoFixture: vi.fn(async () => {
-        throw remoteRpcFailure(
-          "delete approval transport failed",
-          "diagnostic:vcs:fixture-cleanup",
-        );
+        throw fixtureCleanupFailure;
       }),
     };
     const runner = {
@@ -1619,31 +1630,60 @@ describe("TestRunner", () => {
     expect(result).toMatchObject({
       passed: false,
       reason:
-        "Headless cleanup failed: workspace-repo-fixture: delete approval transport failed",
+        "Headless cleanup failed: workspace-repo-fixture: Entity refused terminal lifecycle release: unsubscribe failed",
     });
     expect(execution.error).toBe(
-      "Headless cleanup failed: workspace-repo-fixture: delete approval transport failed",
+      "Headless cleanup failed: workspace-repo-fixture: Entity refused terminal lifecycle release: unsubscribe failed",
     );
     expect(execution.cleanupErrors).toEqual([
-      "workspace-repo-fixture: delete approval transport failed",
+      "workspace-repo-fixture: Entity refused terminal lifecycle release: unsubscribe failed",
     ]);
-    expect(execution.cleanupFailures).toEqual([
-      {
-        phase: "workspace-fixture-cleanup",
-        error: {
-          name: "RemoteRpcError",
-          message: "delete approval transport failed",
+    const expectedCleanupFailure = {
+      phase: "workspace-fixture-cleanup",
+      error: {
+        name: "RemoteRpcError",
+        message:
+          "Entity refused terminal lifecycle release: unsubscribe failed",
+        code: "InternalFailure",
+        errorKind: "application",
+        errorData: {
           code: "InternalFailure",
-          errorKind: "application",
-          errorData: {
-            code: "InternalFailure",
-            message: "delete approval transport failed",
-            handle: "diagnostic:vcs:fixture-cleanup",
+          message:
+            "Entity refused terminal lifecycle release: unsubscribe failed",
+          handle: "diagnostic:vcs:fixture-cleanup",
+        },
+        diagnosticHandles: ["diagnostic:vcs:fixture-cleanup"],
+        cause: {
+          name: "Error",
+          message: "Agent resource cleanup phase unsubscribe failed",
+          cause: {
+            name: "Error",
+            message:
+              "Idempotency key belongs to another participant or payload type",
           },
-          diagnosticHandles: ["diagnostic:vcs:fixture-cleanup"],
         },
       },
-    ]);
+    };
+    expect(execution.failure).toEqual(expectedCleanupFailure);
+    expect(execution.cleanupFailures).toEqual([expectedCleanupFailure]);
+
+    const primaryFailure = new Error("primary validation failure");
+    const primary = await new TestRunner(runner).runOne({
+      name: "fixture-test-with-primary-failure",
+      category: "test",
+      description: "preserve the test failure alongside teardown failure",
+      prompt: "create a project",
+      workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+      validation: "harness" as const,
+      validate: () => {
+        throw primaryFailure;
+      },
+    });
+    expect(primary.execution.failure).toMatchObject({
+      phase: "validation",
+      error: { name: "Error", message: "primary validation failure" },
+    });
+    expect(primary.execution.cleanupFailures).toEqual([expectedCleanupFailure]);
     expect(runner.forTest).toHaveBeenCalledWith("fixture-test", {
       workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
     });
