@@ -20,8 +20,44 @@ function execution(
     legacyClosureOnly?: boolean;
     missingChildRead?: boolean;
     changedGrant?: boolean;
+    changedInheritedSetting?: "model" | "thinkingLevel" | "fastMode" | "fallbackModel" | "fallbackThinkingLevel" | "fallbackOn" | "fallbackScope" | "approvalLevel";
+    missingLaunchConfig?: boolean;
   } = {},
 ): TestExecutionResult {
+  const parentSettings = {
+    model: "openai-codex:gpt-6-luna",
+    thinkingLevel: "medium",
+    fastMode: false,
+    fallbackModel: "openai-codex:gpt-6-sol",
+    fallbackThinkingLevel: "low",
+    fallbackOn: ["usage_limit_terminal"],
+    fallbackScope: "unattended",
+    approvalLevel: 1,
+    respondPolicy: "mentioned-strict",
+    respondFrom: [],
+  };
+  const childLaunchConfig: Record<string, unknown> = {
+    model: parentSettings.model,
+    thinkingLevel: parentSettings.thinkingLevel,
+    fastMode: parentSettings.fastMode,
+    fallbackModel: parentSettings.fallbackModel,
+    fallbackThinkingLevel: parentSettings.fallbackThinkingLevel,
+    fallbackOn: parentSettings.fallbackOn,
+    fallbackScope: parentSettings.fallbackScope,
+    approvalLevel: parentSettings.approvalLevel,
+    respondPolicy: "all",
+  };
+  const changedKey = options.changedInheritedSetting;
+  if (changedKey) {
+    const value = childLaunchConfig[changedKey];
+    childLaunchConfig[changedKey] = Array.isArray(value)
+      ? [...value, "changed"]
+      : typeof value === "boolean"
+        ? !value
+        : typeof value === "number"
+          ? value + 1
+          : `${String(value)}-changed`;
+  }
   const grant = {
     id: "parent-task-grant",
     kind: "capability",
@@ -61,7 +97,11 @@ function execution(
         status: "complete" as const,
         isError: false,
         description: "Completed protected operation",
-        result: { details: { returnValue, ...(id === "parent-read" ? { operationJournal: serverLogReadJournal() } : {}) } },
+        result: { details: {
+          returnValue,
+          ...(id === "parent-read" ? { operationJournal: serverLogReadJournal() } : {}),
+          ...(id === "spawn" && !options.missingLaunchConfig ? { launchConfig: childLaunchConfig } : {}),
+        } },
       },
     },
   });
@@ -99,7 +139,9 @@ function execution(
         "spawn_subagent",
         {
           prompt: "Check server logs",
-          ...(options.explicitConfig ? { config: { model: "changed" } } : {}),
+          config: options.explicitConfig
+            ? { model: "openai-codex:gpt-6-sol", respondPolicy: "all" }
+            : { respondPolicy: "all" },
         },
         {},
       ),
@@ -145,6 +187,7 @@ function execution(
     ],
     diagnostics: {
       subagentTaskRuleReuse: { ...taskRuleSnapshots(options.grantCount), ...(options.changedGrant ? { afterChildRead: [{ ...taskRuleSnapshots().afterChildRead[0], id: "replacement-grant" }] } : {}) },
+      subagentSettingsInheritance: { parentSettings, childLaunchConfig: options.missingLaunchConfig ? undefined : childLaunchConfig },
       childReplay: options.legacyClosureOnly
         ? [report, { ...report, id: 5, payload: { kind: "turn.closed" } }]
         : [...(options.missingChildRead ? [] : childLogReadReplay()), report],
@@ -179,6 +222,8 @@ function execution(
   };
 }
 
+type ExecutionOptions = NonNullable<Parameters<typeof execution>[0]>;
+
 describe("canonical child task grant reuse", () => {
   it("accepts a settled native child answer and one parent task grant without a synthetic closure", () => {
     expect(test.validate(execution()).passed).toBe(true);
@@ -196,11 +241,25 @@ describe("canonical child task grant reuse", () => {
     { conversationId: 9 },
     { senderId: "another-child" },
     { grantCount: 2 },
-    { explicitConfig: true },
+    { explicitConfig: true, changedInheritedSetting: "model" },
+    { changedInheritedSetting: "model" },
+    { missingLaunchConfig: true },
     { legacyClosureOnly: true },
     { missingChildRead: true },
     { changedGrant: true },
-  ])("rejects unrelated or incomplete evidence %j", (options) => {
+  ] satisfies ExecutionOptions[])("rejects unrelated or incomplete evidence %j", (options) => {
     expect(test.validate(execution(options)).passed).toBe(false);
+  });
+  it.each([
+    "model",
+    "thinkingLevel",
+    "fastMode",
+    "fallbackModel",
+    "fallbackThinkingLevel",
+    "fallbackOn",
+    "fallbackScope",
+    "approvalLevel",
+  ] satisfies NonNullable<ExecutionOptions["changedInheritedSetting"]>[])("rejects a child that changes inherited %s", (changedInheritedSetting) => {
+    expect(test.validate(execution({ changedInheritedSetting })).passed).toBe(false);
   });
 });

@@ -447,7 +447,44 @@ describe("permission semantic validators", () => {
         },
       ],
     };
-    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots() };
+    const parentSettings = {
+      model: "openai-codex:gpt-6-luna",
+      thinkingLevel: "medium",
+      fastMode: false,
+      fallbackModel: "openai-codex:gpt-6-sol",
+      fallbackThinkingLevel: "low",
+      fallbackOn: ["usage_limit_terminal"],
+      fallbackScope: "unattended",
+      approvalLevel: 1,
+      respondPolicy: "mentioned-strict",
+      respondFrom: [],
+    };
+    const childLaunchConfig = {
+      model: parentSettings.model,
+      thinkingLevel: parentSettings.thinkingLevel,
+      fastMode: parentSettings.fastMode,
+      fallbackModel: parentSettings.fallbackModel,
+      fallbackThinkingLevel: parentSettings.fallbackThinkingLevel,
+      fallbackOn: parentSettings.fallbackOn,
+      fallbackScope: parentSettings.fallbackScope,
+      approvalLevel: parentSettings.approvalLevel,
+      respondPolicy: "all",
+    };
+    const subagentSettingsInheritance = { parentSettings, childLaunchConfig };
+    const spawnInvocation = result.messages.find((message) => message.contentType === "invocation" && message.content?.includes("spawn_subagent"));
+    if (spawnInvocation) {
+      spawnInvocation.content = JSON.stringify({
+        id: "invocation-1",
+        name: "spawn_subagent",
+        arguments: { mode: "fresh", task: "Read server logs", config: { respondPolicy: "all" } },
+        execution: {
+          status: "complete",
+          isError: false,
+          result: { details: { launchConfig: childLaunchConfig } },
+        },
+      });
+    }
+    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots(), subagentSettingsInheritance };
     expect(validator.validate(result)).toEqual({
       passed: true,
       reason: undefined,

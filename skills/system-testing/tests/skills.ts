@@ -241,9 +241,10 @@ export const skillTests: TestCase[] = [
       const inspected =
         typeof childId === "string" &&
         getToolCalls(result).some((call) => {
+          const requestedRunId = call.arguments?.["runId"];
           if (
             call.name !== "read_subagent" ||
-            call.arguments?.["runId"] !== childId ||
+            typeof requestedRunId !== "string" ||
             call.execution?.status !== "complete" ||
             call.execution.isError === true
           )
@@ -253,6 +254,7 @@ export const skillTests: TestCase[] = [
           )?.details;
           return (
             details?.["runId"] === childId &&
+            (requestedRunId === childId || details["runRef"] === requestedRunId) &&
             Number.isInteger(details["nextSeq"]) &&
             typeof details["hasMore"] === "boolean" &&
             Array.isArray(details["messages"])

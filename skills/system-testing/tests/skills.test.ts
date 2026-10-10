@@ -200,11 +200,17 @@ describe("skill routing system-test validators", () => {
 
 describe("ongoing child diagnosis validator", () => {
   const test = skillTests.find((candidate) => candidate.name === "load-headless-sessions")!;
-  function diagnosis(childId = "child:fixture", observedId = childId): TestExecutionResult {
+  function diagnosis(
+    childInvocationId = "invocation:child:fixture",
+    requestedRunId = "@s1o",
+    observedInvocationId = childInvocationId,
+  ): TestExecutionResult {
     const result = choiceExecution(
       "The child has not produced a final response because its assignment explicitly told it to keep working without concluding. Its workspace is clean; I cannot establish what research it has completed."
     );
-    result.diagnostics = { fixture: { kind: "real-subagent-in-progress", invocationId: childId } };
+    result.diagnostics = {
+      fixture: { kind: "real-subagent-in-progress", invocationId: childInvocationId },
+    };
     result.messages.splice(1, 0, {
       id: "child-inspection",
       kind: "message",
@@ -215,13 +221,14 @@ describe("ongoing child diagnosis validator", () => {
       invocation: {
         id: "read-child",
         name: "read_subagent",
-        arguments: { runId: observedId, afterSeq: 0 },
+        arguments: { runId: requestedRunId, afterSeq: 0 },
         execution: {
           status: "complete",
           isError: false,
           result: {
             details: {
-              runId: observedId,
+              runId: observedInvocationId,
+              runRef: requestedRunId,
               nextSeq: 20,
               hasMore: false,
               messages: [{ seq: 7, text: "Starting a harmless background reading task." }],
@@ -232,11 +239,20 @@ describe("ongoing child diagnosis validator", () => {
     } as unknown as TestExecutionResult["messages"][number]);
     return result;
   }
-  it("accepts an observed bounded inspection without requiring arbitrary prose markers", () => {
-    expect(test.validate(diagnosis())).toEqual({ passed: true });
+  it("accepts an alias when the result identifies the fixture's canonical child", () => {
+    expect(
+      test.validate(diagnosis("invocation:child:fixture", "@s1o")),
+    ).toEqual({ passed: true });
+  });
+  it("accepts a canonical selector for the exact fixture child", () => {
+    expect(test.validate(diagnosis("invocation:child:fixture", "invocation:child:fixture"))).toEqual({ passed: true });
   });
   it("rejects a different child's inspection and unsupported prose-only claims", () => {
-    expect(test.validate(diagnosis("child:fixture", "child:other")).passed).toBe(false);
+    expect(
+      test.validate(
+        diagnosis("invocation:child:fixture", "@s1o", "invocation:child:other"),
+      ).passed,
+    ).toBe(false);
     const uninspected = diagnosis();
     uninspected.messages.splice(1, 1);
     expect(test.validate(uninspected).passed).toBe(false);

@@ -88,6 +88,33 @@ function isReadTaskRule(value: unknown, capability: string): value is { id: stri
   );
 }
 
+const INHERITED_SUBAGENT_SETTINGS = [
+  "model",
+  "thinkingLevel",
+  "fastMode",
+  "fallbackModel",
+  "fallbackThinkingLevel",
+  "fallbackOn",
+  "fallbackScope",
+  "approvalLevel",
+] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function inheritedSubagentSettingsMatch(
+  parentSettings: unknown,
+  childLaunchConfig: unknown,
+): boolean {
+  if (!isRecord(parentSettings) || !isRecord(childLaunchConfig)) return false;
+  return INHERITED_SUBAGENT_SETTINGS.every((key) => {
+    const parentHas = Object.prototype.hasOwnProperty.call(parentSettings, key) && parentSettings[key] !== undefined;
+    const childHas = Object.prototype.hasOwnProperty.call(childLaunchConfig, key);
+    return parentHas === childHas && (!parentHas || JSON.stringify(parentSettings[key]) === JSON.stringify(childLaunchConfig[key]));
+  });
+}
+
 function validateChatTaskGrantReuse(result: TestExecutionResult) {
   const calls = successfulEvalCalls(result);
   if (!calls) {
@@ -168,14 +195,19 @@ function validateSubagentTaskGrantReuse(result: TestExecutionResult) {
   }, "eval")).some((value) =>
     value["type"] === "server-log.observation" && NativeServerLogObservationSchema.safeParse(value["receipt"]).success
   );
+  const inheritance = result.diagnostics?.["subagentSettingsInheritance"];
+  const inherited = isRecord(inheritance) && inheritedSubagentSettingsMatch(
+    inheritance["parentSettings"],
+    inheritance["childLaunchConfig"],
+  );
   return parentRead && child && spawn && report && childRead &&
-    !Object.prototype.hasOwnProperty.call(spawn.arguments ?? {}, "config") &&
+    inherited &&
     firstRules.length === 1 && secondRules.length === 1 && firstRules[0]!.id === secondRules[0]!.id
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "The ordinary child did not inherit its parent config and reuse the parent's single server-logs.read task grant",
+          "The child did not preserve its parent's inherited agent settings and reuse the parent's single server-logs.read task grant",
       };
 }
 
@@ -252,6 +284,8 @@ async function orchestrateSubagentTaskGrantReuse(
   let error: string | undefined;
   const childReplay: ServerLogEvent[] = [];
   let childModelExecutionEvidence: unknown;
+  let parentSettings: unknown;
+  let childLaunchConfig: unknown;
   let afterParentRead: Awaited<ReturnType<typeof context.runner.inspectChatTaskRules>> = [];
   let afterChildRead: typeof afterParentRead = [];
   try {
@@ -264,6 +298,12 @@ async function orchestrateSubagentTaskGrantReuse(
     if (!parent.agentContextId || !parent.channelId) throw new Error("Parent task coordinates are unavailable");
     const coordinates = { contextId: parent.agentContextId, channelId: parent.channelId };
     afterParentRead = await context.runner.inspectChatTaskRules(coordinates);
+    if (!parent.agentEntityId) throw new Error("Parent agent entity is unavailable");
+    parentSettings = await rpc.call(
+      parent.agentEntityId,
+      agentRpcMethods["getAgentSettings"],
+      [],
+    );
     await context.sendAndWait(
       session,
       "Ask a fresh collaborator to check whether the recent server logs are readable. Have them reply exactly yes if readable, or no with the error if not. Wait for their reply and summarize it.",
@@ -275,6 +315,10 @@ async function orchestrateSubagentTaskGrantReuse(
     );
     const child = messages.find((message) => message.task?.id === spawn?.id)
       ?.task?.subagent;
+    const spawnResult = spawn?.execution?.result;
+    if (isRecord(spawnResult) && isRecord(spawnResult["details"])) {
+      childLaunchConfig = spawnResult["details"]["launchConfig"];
+    }
     if (!child?.taskChannelId || !child.childEntityId)
       throw new Error(
         "The child launch did not retain its canonical task coordinates",
@@ -295,7 +339,12 @@ async function orchestrateSubagentTaskGrantReuse(
     messages: [...session.messages],
     duration: Date.now() - startedAt,
     snapshot: session.snapshot(),
-    diagnostics: { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: { afterParentRead, afterChildRead } },
+    diagnostics: {
+      childReplay,
+      childModelExecutionEvidence,
+      subagentTaskRuleReuse: { afterParentRead, afterChildRead },
+      subagentSettingsInheritance: { parentSettings, childLaunchConfig },
+    },
     ...(error ? { error } : {}),
   };
   try {
