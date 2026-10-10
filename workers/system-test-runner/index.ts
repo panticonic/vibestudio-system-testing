@@ -731,9 +731,10 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       );
     }
     if (!status.result?.success) {
-      throw new Error(
-        status.result?.error ?? `System-test run ${runId} failed`,
-      );
+      if (status.result?.error) {
+        throw deserializeRpcFailure(status.result.error);
+      }
+      throw new Error(`System-test run ${runId} failed`);
     }
     throw new Error(
       `System-test run ${runId} settled without a durable terminal record`,
