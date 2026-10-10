@@ -81,7 +81,6 @@ export async function subscribeHeadlessAgent(
       channelId: opts.channelId,
       contextId: opts.contextId,
       config: subscriptionConfig,
-      retireEntityOnSubscribeFailure: true,
       missingContextErrorMessage:
         "runtime.createEntity did not return a contextId for headless agent subscription",
     },

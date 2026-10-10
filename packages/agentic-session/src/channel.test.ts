@@ -26,11 +26,15 @@ function publicRpcCall(wire: (target: string, method: string, args: unknown[]) =
 function makeRpcCall(captured: {
   config?: Record<string, unknown>;
   createSpec?: Record<string, unknown>;
-  subscribeTarget?: string;
 }): RpcCaller["call"] {
   return publicRpcCall(vi.fn(async (target: string, method: string, args: unknown[]) => {
     if (target === "main" && method === "runtime.createEntity") {
       captured.createSpec = args[0] as Record<string, unknown>;
+      captured.config = (
+        captured.createSpec["agentInitialization"] as {
+          config?: Record<string, unknown>;
+        }
+      ).config;
       return {
         id: "do:workers/agent-worker:AiChatWorker:obj-1",
         kind: "do",
@@ -38,12 +42,10 @@ function makeRpcCall(captured: {
         buildKey: "a".repeat(64),
         targetId: "do:workers/agent-worker:AiChatWorker:obj-1",
         contextId: (captured.createSpec?.["contextId"] as string | undefined) ?? "ctx-minted",
+        agentInitialization: { ok: true, participantId: "agent-1" },
       };
     }
-    captured.subscribeTarget = target;
-    const payload = args[0] as { config?: Record<string, unknown> } | undefined;
-    captured.config = payload?.config;
-    return { ok: true, participantId: "agent-1" };
+    throw new Error(`Unexpected RPC call ${target}.${method}`);
   }));
 }
 
@@ -63,8 +65,8 @@ describe("subscribeHeadlessAgent — unified contract", () => {
     expect(captured.config!["toolAllowlist"]).toBeUndefined();
   });
 
-  it("registers the headless DO through runtime.createEntity before subscribing", async () => {
-    const captured: { createSpec?: Record<string, unknown>; subscribeTarget?: string } = {};
+  it("creates and initializes the headless DO in one runtime.createEntity call", async () => {
+    const captured: { createSpec?: Record<string, unknown> } = {};
     const rpcCall = makeRpcCall(captured);
 
     const result = await subscribeHeadlessAgent({
@@ -85,12 +87,15 @@ describe("subscribeHeadlessAgent — unified contract", () => {
       className: "AiChatWorker",
       key: "obj-1",
       contextId: "ctx-1",
-      // Per-agent config is seeded from creation stateArgs — here the full
-      // subscriptionConfig (headless full-auto approval, no extraConfig).
+      // Per-agent config is seeded from creation stateArgs.
       stateArgs: { agentConfig: { approvalLevel: 2 } },
-      agentChannelId: "ch-1",
+      agentInitialization: {
+        channelId: "ch-1",
+        config: {},
+        replay: undefined,
+      },
     });
-    expect(captured.subscribeTarget).toBe("do:workers/agent-worker:AiChatWorker:obj-1");
+    expect(vi.mocked(rpcCall)).toHaveBeenCalledTimes(1);
     expect(result.entityId).toBe("do:workers/agent-worker:AiChatWorker:obj-1");
     expect(result.targetId).toBe("do:workers/agent-worker:AiChatWorker:obj-1");
     expect(result.contextId).toBe("ctx-1");
@@ -103,24 +108,14 @@ describe("subscribeHeadlessAgent — unified contract", () => {
     expect(vi.mocked(rpcCall)).toHaveBeenCalledWith("main", "runtime.createContext", [{}], undefined);
   });
 
-  it("retires the runtime entity if subscription fails after creation", async () => {
+  it("propagates initialization failure from runtime.createEntity without a second cleanup path", async () => {
     const calls: Array<{ target: string; method: string; args: unknown[] }> = [];
     const rpcCall = publicRpcCall(vi.fn(async (target: string, method: string, args: unknown[]) => {
       calls.push({ target, method, args });
       if (method === "runtime.createEntity") {
-          return {
-          id: "do:workers/agent-worker:AiChatWorker:obj-1",
-          kind: "do",
-          source: { repoPath: "workers/agent-worker", effectiveVersion: "test-version" },
-          buildKey: "a".repeat(64),
-          targetId: "do:workers/agent-worker:AiChatWorker:obj-1",
-          contextId: "ctx-1",
-        };
+        throw new Error("agent initialization failed");
       }
-      if (method === "subscribeChannel") {
-        throw new Error("subscribe failed");
-      }
-      return undefined;
+      throw new Error(`Unexpected RPC call ${target}.${method}`);
     }));
 
     await expect(
@@ -132,13 +127,11 @@ describe("subscribeHeadlessAgent — unified contract", () => {
         channelId: "ch-1",
         contextId: "ctx-1",
       })
-    ).rejects.toThrow("subscribe failed");
+    ).rejects.toThrow("agent initialization failed");
 
-    expect(calls[calls.length - 1]).toEqual({
-      target: "main",
-      method: "runtime.retireEntity",
-      args: [{ id: "do:workers/agent-worker:AiChatWorker:obj-1" }],
-    });
+    expect(calls).toEqual([
+      expect.objectContaining({ target: "main", method: "runtime.createEntity" }),
+    ]);
   });
 
   it("rejects malformed explicit context allocation results", async () => {

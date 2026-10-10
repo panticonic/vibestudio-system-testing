@@ -26,7 +26,13 @@ function rpcMethodName(method: unknown): string {
   return String(method);
 }
 
-function runtimeEntityHandle(source: string, id: string, targetId: string, contextId: string) {
+function runtimeEntityHandle(
+  source: string,
+  id: string,
+  targetId: string,
+  contextId: string,
+  agentInitialization?: { ok: true; participantId: string },
+) {
   return {
     id,
     kind: "do" as const,
@@ -34,6 +40,7 @@ function runtimeEntityHandle(source: string, id: string, targetId: string, conte
     buildKey: "a".repeat(64),
     contextId,
     targetId,
+    ...(agentInitialization ? { agentInitialization } : {}),
   };
 }
 
@@ -841,7 +848,7 @@ describe("HeadlessSession", () => {
     warn.mockRestore();
   });
 
-  it("connects the headless client methods before subscribing the agent", async () => {
+  it("connects the headless client methods before atomically initializing the agent", async () => {
     const order: string[] = [];
     const originalConnect = HeadlessSession.prototype.connect;
     const connect = vi
@@ -862,24 +869,27 @@ describe("HeadlessSession", () => {
     const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
       order.push(`rpc:${target}:${rpcMethodName(method)}`);
       if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
-        if (
-          (args[0] as { execution?: { source?: string } }).execution?.source ===
-          "workers/pubsub-channel"
-        ) {
+        const spec = args[0] as {
+          execution?: { source?: string };
+          agentInitialization?: { channelId: string; config?: Record<string, unknown> };
+        };
+        if (spec.execution?.source === "workers/pubsub-channel") {
           return {
             ...runtimeEntityHandle(
               "workers/pubsub-channel", "channel-entity", "channel-target", "ctx-1"
             ),
           };
         }
+        expect(spec.agentInitialization).toMatchObject({
+          channelId: "headless-1",
+          config: {},
+        });
         return {
           ...runtimeEntityHandle(
-            "workers/agent-worker", "entity-1", "agent-target", "ctx-1"
+            "workers/agent-worker", "entity-1", "agent-target", "ctx-1",
+            { ok: true, participantId: "do:agent" },
           ),
         };
-      }
-      if (target === "agent-target" && rpcMethodName(method) === "subscribeChannel") {
-        return { ok: true, participantId: "do:agent" };
       }
       throw new Error(`unexpected RPC ${target}.${method}`);
     });
@@ -904,7 +914,6 @@ describe("HeadlessSession", () => {
       "rpc:main:runtime.createEntity",
       "connect:headless-1:",
       "rpc:main:runtime.createEntity",
-      "rpc:agent-target:subscribeChannel",
     ]);
     expect(session?.snapshot()).toMatchObject({
       channelId: "headless-1",
@@ -936,11 +945,9 @@ describe("HeadlessSession", () => {
     const rpcCall = vi.fn(async (target: string, method: string) => {
       if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
         return runtimeEntityHandle(
-          "workers/agent-worker", "entity-1", "agent-target", "ctx-1"
+          "workers/agent-worker", "entity-1", "agent-target", "ctx-1",
+          { ok: true, participantId: "do:agent" },
         );
-      }
-      if (target === "agent-target" && rpcMethodName(method) === "subscribeChannel") {
-        return { ok: true, participantId: "do:agent" };
       }
       throw new Error(`unexpected RPC ${target}.${method}`);
     });
@@ -1083,18 +1090,15 @@ describe("HeadlessSession", () => {
             ),
           };
         }
+        expect(args[0]).toMatchObject({
+          agentInitialization: { channelId: "headless-1", config: {} },
+        });
         return {
           ...runtimeEntityHandle(
-            "workers/agent-worker", "entity-1", "agent-target", "ctx-isolated"
+            "workers/agent-worker", "entity-1", "agent-target", "ctx-isolated",
+            { ok: true, participantId: "do:agent" },
           ),
         };
-      }
-      if (target === "agent-target" && rpcMethodName(method) === "subscribeChannel") {
-        expect(args[0]).toMatchObject({
-          channelId: "headless-1",
-          contextId: "ctx-isolated",
-        });
-        return { ok: true, participantId: "do:agent" };
       }
       throw new Error(`unexpected RPC ${target}.${method}`);
     });
@@ -1119,7 +1123,6 @@ describe("HeadlessSession", () => {
       "rpc:main:runtime.createEntity",
       "connect:headless-1:ctx-isolated",
       "rpc:main:runtime.createEntity",
-      "rpc:agent-target:subscribeChannel",
     ]);
     expect(session?.snapshot()).toMatchObject({
       agentContextId: "ctx-isolated",
