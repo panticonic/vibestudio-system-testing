@@ -1,4 +1,7 @@
-import { NativeRuntimeHealthObservationSchema } from "@vibestudio/service-schemas/runtime";
+import {
+  NativeRuntimeHealthObservationSchema,
+  NativeRuntimeInventoryObservationSchema,
+} from "@vibestudio/service-schemas/runtime";
 import { missionOverviewStatsSchema } from "@vibestudio/service-schemas/missions";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
 import {
@@ -26,6 +29,88 @@ function semanticUnitInspection(
     return {
       passed: false,
       reason: "Final response did not report the observed unit diagnostics semantically",
+    };
+  }
+  return noIncompleteInvocations(result);
+}
+
+function unitListInspection(result: Parameters<typeof noIncompleteInvocations>[0]) {
+  const entries = getToolCalls(result).flatMap((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    ) {
+      return [];
+    }
+    const output = call.execution.result;
+    const details = isRecord(output) && isRecord(output["details"]) ? output["details"] : null;
+    const journal = details && isRecord(details["operationJournal"]) ? details["operationJournal"] : null;
+    if (
+      journal?.["protocol"] !== "workspace-operations.v1" ||
+      journal["truncated"] !== false ||
+      !Array.isArray(journal["entries"])
+    ) {
+      return [];
+    }
+    return journal["entries"];
+  });
+  const inventories = entries.flatMap((entry) => {
+    if (!isRecord(entry) || entry["type"] !== "runtime.inventory") return [];
+    const parsed = NativeRuntimeInventoryObservationSchema.safeParse(entry["receipt"]);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const healthObservations = entries.flatMap((entry) => {
+    if (!isRecord(entry) || entry["type"] !== "runtime.health") return [];
+    const parsed = NativeRuntimeHealthObservationSchema.safeParse(entry["receipt"]);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const inventory = inventories.at(-1);
+  if (!inventory) {
+    return {
+      passed: false,
+      reason: "No native workspace unit inventory observation was recorded",
+    };
+  }
+  const detail = healthObservations.find((health) =>
+    inventory.entities.some(
+      (entity) =>
+        entity.identity.kind === health.identity.kind &&
+        entity.identity.entityId === health.identity.entityId &&
+        entity.source === health.source
+    )
+  );
+  if (!detail) {
+    return {
+      passed: false,
+      reason: "No native unit health observation matched an entity in the observed inventory",
+    };
+  }
+  const entity = inventory.entities.find(
+    (candidate) =>
+      candidate.identity.kind === detail.identity.kind &&
+      candidate.identity.entityId === detail.identity.entityId &&
+      candidate.source === detail.source
+  );
+  if (!entity) {
+    return {
+      passed: false,
+      reason: "No native unit health observation matched an entity in the observed inventory",
+    };
+  }
+  const final = findLastAgentMessage(result);
+  const countPattern = new RegExp(
+    `\\b${inventory.entities.length}\\b[^.\\n]{0,40}\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b|\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b[^.\\n]{0,40}\\b${inventory.entities.length}\\b`,
+    "iu"
+  );
+  if (
+    !countPattern.test(final) ||
+    (!final.includes(entity.source) && !final.includes(entity.identity.entityId)) ||
+    !final.toLocaleLowerCase().includes(entity.status.toLocaleLowerCase())
+  ) {
+    return {
+      passed: false,
+      reason: "Final response did not summarize the observed unit count and one inspected unit",
     };
   }
   return noIncompleteInvocations(result);
@@ -823,12 +908,7 @@ export const unitDiagnosticsTests: TestCase[] = [
     category: "unit-diagnostics",
     prompt:
       "Which workspace units are currently running? Inspect one representative unit in more detail and summarize what you observed.",
-    validate: (result) =>
-      semanticUnitInspection(
-        result,
-        [/runtime\.supervision\.list/iu, /runtime\.supervision\.(?:describe|health)/iu],
-        [/unit/iu, /running|available|status/iu, /\d/u]
-      ),
+    validate: unitListInspection,
   },
   {
     name: "unit-diagnostics-error-buffer",

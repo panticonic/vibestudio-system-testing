@@ -1097,6 +1097,37 @@ describe("workspace unit diagnostics semantic validators", () => {
       dropped: { entries: 0, errors: 0 }, capacity: { entries: 100, errors: 50 },
     } }],
   };
+  const inventoryObservation = {
+    protocol: "workspace-operations.v1",
+    truncated: false,
+    entries: [
+      {
+        type: "runtime.inventory",
+        receipt: {
+          protocol: "runtime-inventory-observation.v1",
+          entityCount: 3,
+          entities: [
+            {
+              identity: { kind: "extension", entityId: "extension:other:1" },
+              source: "extensions/other",
+              status: "running",
+            },
+            {
+              identity,
+              source: "extensions/status",
+              status: "running",
+            },
+            {
+              identity: { kind: "worker", entityId: "worker:one" },
+              source: "workers/one",
+              status: "running",
+            },
+          ],
+        },
+      },
+      ...nativeHealth.entries,
+    ],
+  };
   const healthCode =
     "const units = await runtime.supervision.list(); const health = await runtime.supervision.health(units[0].identity, { limit: 20, errorLimit: 10 }); return health;";
   const defaultHealthCode =
@@ -1106,9 +1137,11 @@ describe("workspace unit diagnostics semantic validators", () => {
     expect(
       listTest.validate(
         execution(
-          "const units = await runtime.supervision.list(); const detail = await runtime.supervision.health(units[0].identity, { limit: 5, errorLimit: 2 }); return { units: units.length, detail };",
+          "const sup = runtime.supervision; const units = await sup.list(); const detail = await sup.health(units[1].identity); return { units, detail };",
           { units: 3, detail: { status: "running" } },
-          "There are 3 workspace units available; the representative unit I inspected is running."
+          "There are 3 workspace units available; extensions/status is running after inspection.",
+          "eval",
+          inventoryObservation
         )
       )
     ).toEqual({ passed: true });
@@ -1124,6 +1157,33 @@ describe("workspace unit diagnostics semantic validators", () => {
         )
       )
     ).toMatchObject({ passed: false });
+  });
+
+  it("rejects a health observation for a unit outside the inventory", () => {
+    const unrelatedHealth = {
+      ...nativeHealth,
+      entries: [
+        {
+          ...nativeHealth.entries[0]!,
+          receipt: {
+            ...nativeHealth.entries[0]!.receipt,
+            identity: { kind: "extension", entityId: "extension:unlisted:1" },
+            source: "extensions/unlisted",
+          },
+        },
+      ],
+    };
+    expect(
+      listTest.validate(
+        execution(
+          "const units = await sup.list(); const detail = await sup.health(units[0].identity); return detail;",
+          { detail: { status: "running" } },
+          "There are 3 workspace units available; extensions/status is running after inspection.",
+          "eval",
+          { ...inventoryObservation, entries: [inventoryObservation.entries[0], ...unrelatedHealth.entries] }
+        )
+      )
+    ).toMatchObject({ passed: false, reason: expect.stringContaining("matched an entity") });
   });
 
   it("joins bounded log and error buffers to one exact supervised unit", () => {
