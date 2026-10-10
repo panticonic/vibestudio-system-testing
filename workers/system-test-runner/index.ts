@@ -28,6 +28,7 @@ import {
  * session, shell, or arbitrary eval can impersonate that execution identity.
  */
 import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
+import { deserializeRpcFailure, formatRpcFailure } from "@vibestudio/rpc";
 import {
   anyOf,
   methodCapability,
@@ -520,7 +521,11 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         },
       });
       if (!result.success) {
-        throw new Error(result.error ?? `system-test ${kind} eval failed`);
+        throw new Error(
+          result.error
+            ? formatRpcFailure(deserializeRpcFailure(result.error))
+            : `system-test ${kind} eval failed`,
+        );
       }
       const stored = parseStoredSystemTestRecord(result.returnValue);
       try {
@@ -687,7 +692,13 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         ? {
             result: {
               success: status.result.success,
-              ...(status.result.error ? { error: status.result.error } : {}),
+              ...(status.result.error
+                ? {
+                    error: formatRpcFailure(
+                      deserializeRpcFailure(status.result.error),
+                    ),
+                  }
+                : {}),
             },
           }
         : {}),
