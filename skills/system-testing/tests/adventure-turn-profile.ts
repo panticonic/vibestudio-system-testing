@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { blobstore } from "@workspace/runtime";
 import { profilePanelInteraction, setViewport } from "@workspace/testkit";
 import { adventureCampaignTests } from "./adventure-campaign-play.js";
@@ -152,7 +153,7 @@ async function orchestrate(
       try {
         await handle.archive();
       } catch (cause) {
-        (result.cleanupErrors ??= []).push(String(cause));
+        appendSystemTestCleanupFailure(result, "archive", cause);
       }
     evidence["cleanupComplete"] = !result.cleanupErrors?.length;
     result.duration = Date.now() - started;

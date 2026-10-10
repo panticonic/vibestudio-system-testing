@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { requiringUnits } from "../types.js";
 import { blobstore, images, vcs } from "@workspace/runtime";
 import { importImagePanelFixture } from "../image-panel-fixture.js";
@@ -229,13 +230,12 @@ async function orchestrate(
       }
     }
   } finally {
-    const cleanupErrors: string[] = [];
     if (handle) {
       try {
         const state = await handle.stateArgs.get<{ jobs?: string[] }>();
         for (const job of state.jobs ?? []) jobs.add(job);
       } catch (cause) {
-        cleanupErrors.push(`read owned jobs: ${String(cause)}`);
+        appendSystemTestCleanupFailure(execution, "read owned jobs", cause);
       }
     }
     for (const id of jobs) {
@@ -253,16 +253,15 @@ async function orchestrate(
           await images.cancel(id);
         await images.forgetJob(id);
       } catch (cause) {
-        cleanupErrors.push(`release job ${id}: ${String(cause)}`);
+        appendSystemTestCleanupFailure(execution, `release job ${id}`, cause);
       }
     }
     try {
       await handle?.archive();
     } catch (cause) {
-      cleanupErrors.push(`archive: ${String(cause)}`);
+      appendSystemTestCleanupFailure(execution, "archive", cause);
     }
-    evidence.cleanupComplete = cleanupErrors.length === 0;
-    if (cleanupErrors.length) execution.cleanupErrors = cleanupErrors;
+    evidence.cleanupComplete = !execution.cleanupErrors?.length;
     execution.duration = Date.now() - startedAt;
   }
   return execution;

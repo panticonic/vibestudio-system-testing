@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendSystemTestCleanupFailure,
   serializeSystemTestError,
   serializeSystemTestStack,
 } from "./structured-error.js";
@@ -146,6 +147,48 @@ describe("structured system-test errors", () => {
     expect(wide.errors![wide.errors!.length - 1]).toEqual({
       name: "TruncatedError",
       message: "[error-tree-truncated]",
+    });
+  });
+});
+
+describe("cleanup failure evidence", () => {
+  it("retains aggregate children and their causes across orchestration cleanup", () => {
+    const execution: {
+      cleanupErrors?: string[];
+      cleanupFailures?: import("./structured-error.js").SystemTestFailure[];
+    } = {};
+    const original = Object.assign(new Error("channel closed"), {
+      code: "ChannelClosed",
+      errorData: { handle: "diagnostic:channel:one" },
+    });
+    appendSystemTestCleanupFailure(
+      execution,
+      "close",
+      new AggregateError(
+        [
+          new Error("child retirement failed", { cause: original }),
+          new Error("publication predecessor missing"),
+        ],
+        "cleanup failed",
+        { cause: original },
+      ),
+    );
+    expect(execution.cleanupErrors).toEqual(["close: cleanup failed"]);
+    expect(execution.cleanupFailures?.[0]).toMatchObject({
+      phase: "close",
+      error: {
+        cause: {
+          code: "ChannelClosed",
+          diagnosticHandles: ["diagnostic:channel:one"],
+        },
+        errors: [
+          {
+            message: "child retirement failed",
+            cause: { code: "ChannelClosed" },
+          },
+          { message: "publication predecessor missing" },
+        ],
+      },
     });
   });
 });

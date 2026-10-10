@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -132,10 +133,7 @@ async function runPrompt(
   try {
     await session.close();
   } catch (error) {
-    execution.cleanupErrors = [
-      ...(execution.cleanupErrors ?? []),
-      `close: ${formatError(error)}`,
-    ];
+    appendSystemTestCleanupFailure(execution, "close", error);
   }
   const cleanupErrors = session
     .snapshot()
@@ -167,17 +165,20 @@ async function runPromptSet(
   const start = Date.now();
   const messages: TestExecutionResult["messages"] = [];
   const cleanupErrors: string[] = [];
+  const cleanupFailures: NonNullable<TestExecutionResult["cleanupFailures"]> = [];
   const responses: RichUiResponseEvidence[] = [];
   for (const prompt of prompts) {
     const { execution, evidence } = await runPrompt(context, prompt);
     messages.push(...execution.messages);
     cleanupErrors.push(...(execution.cleanupErrors ?? []));
+    cleanupFailures.push(...(execution.cleanupFailures ?? []));
     responses.push(evidence);
   }
   return {
     messages,
     duration: Date.now() - start,
     ...(cleanupErrors.length > 0 ? { cleanupErrors } : {}),
+    ...(cleanupFailures.length > 0 ? { cleanupFailures } : {}),
     diagnostics: { [EVIDENCE_KEY]: { responses } },
   };
 }

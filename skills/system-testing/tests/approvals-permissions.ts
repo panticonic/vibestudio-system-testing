@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 import { NativeServerLogObservationSchema } from "@vibestudio/service-schemas/serverLog";
 import { walkRecords } from "./_scenario-evidence.js";
@@ -238,7 +239,7 @@ async function orchestrateChatTaskGrantReuse(
   try {
     await session.close();
   } catch (cause) {
-    execution.cleanupErrors = [`close: ${formatError(cause)}`];
+    appendSystemTestCleanupFailure(execution, "close", cause);
   }
   return execution;
 }
@@ -300,7 +301,7 @@ async function orchestrateSubagentTaskGrantReuse(
   try {
     await session.close();
   } catch (cause) {
-    execution.cleanupErrors = [`close: ${formatError(cause)}`];
+    appendSystemTestCleanupFailure(execution, "close", cause);
   }
   return execution;
 }

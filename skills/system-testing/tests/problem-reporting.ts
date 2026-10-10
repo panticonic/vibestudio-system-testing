@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { rpc } from "@workspace/runtime";
 import { createProblemReportsClient } from "@workspace/runtime/problem-reports";
 import type {
@@ -22,7 +23,7 @@ async function prepareQualityReport(
   const session = await context.runner.spawn();
   let error: string | undefined;
   let draft: unknown;
-  const cleanupErrors: string[] = [];
+  const cleanup: Pick<TestExecutionResult, "cleanupErrors" | "cleanupFailures"> = {};
   try {
     await context.sendAndWait(
       session,
@@ -45,7 +46,7 @@ async function prepareQualityReport(
     try {
       await session.close();
     } catch (cause) {
-      cleanupErrors.push(String(cause));
+      appendSystemTestCleanupFailure(cleanup, "close", cause);
     }
   }
   return {
@@ -53,7 +54,7 @@ async function prepareQualityReport(
     duration: Date.now() - start,
     snapshot: session.snapshot(),
     ...(error ? { error } : {}),
-    cleanupErrors,
+    ...cleanup,
     diagnostics: { draft },
   };
 }

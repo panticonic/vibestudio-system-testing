@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { blobstore, vcs } from "@workspace/runtime";
 import { setViewport, clearViewport } from "@workspace/testkit";
 import {
@@ -272,7 +273,7 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       try {
         await h.archive();
       } catch (error) {
-        (result.cleanupErrors ??= []).push(String(error));
+        appendSystemTestCleanupFailure(result, "archive", error);
       }
     e.cleanupComplete = !result.cleanupErrors?.length;
     result.duration = Date.now() - start;

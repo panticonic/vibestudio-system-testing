@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { z } from "zod";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import type {
@@ -22,7 +23,7 @@ async function closeSession(
   try {
     await session.close();
   } catch (error) {
-    execution.cleanupErrors = [`close: ${formatError(error)}`];
+    appendSystemTestCleanupFailure(execution, "close", error);
   }
 }
 

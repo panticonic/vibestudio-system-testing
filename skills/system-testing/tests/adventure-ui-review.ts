@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { blobstore } from "@workspace/runtime";
 import { setViewport, clearViewport } from "@workspace/testkit";
 import { adventureCampaignTests } from "./adventure-campaign-play.js";
@@ -116,7 +117,7 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       try {
         await page.close();
       } catch (cause) {
-        (result.cleanupErrors ??= []).push(String(cause));
+        appendSystemTestCleanupFailure(result, "close page", cause);
       }
     }
   };
@@ -171,7 +172,7 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
         try {
           await page.close();
         } catch (cause) {
-          (result.cleanupErrors ??= []).push(String(cause));
+          appendSystemTestCleanupFailure(result, "close page", cause);
         }
       }
       await setViewport(handle, { width: 390, height: 844, mobile: true });
@@ -243,7 +244,7 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       try {
         await page.close();
       } catch (cause) {
-        (result.cleanupErrors ??= []).push(String(cause));
+        appendSystemTestCleanupFailure(result, "close page", cause);
       }
     }
   } catch (cause) {
@@ -262,7 +263,7 @@ async function orchestrate(context: TestOrchestrationContext): Promise<TestExecu
       try {
         await handle.archive();
       } catch (cause) {
-        (result.cleanupErrors ??= []).push(String(cause));
+        appendSystemTestCleanupFailure(result, "archive", cause);
       }
     evidence["cleanupComplete"] = !result.cleanupErrors?.length;
     result.duration = Date.now() - started;

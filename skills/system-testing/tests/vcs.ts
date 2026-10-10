@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type { ChatMessage } from "@workspace/agentic-core";
 import type {
   HeadlessSession,
@@ -368,13 +369,11 @@ async function orchestrateIncrementalIntegration(
           ),
       );
     } catch (cause) {
-      cleanupErrors.push(
-        `${role}: ${cause instanceof Error ? cause.message : String(cause)}`,
-      );
+      appendSystemTestCleanupFailure(execution, `${role} close`, cause);
     }
   }
   if (cleanupErrors.length > 0) {
-    execution.cleanupErrors = cleanupErrors;
+    execution.cleanupErrors = [...(execution.cleanupErrors ?? []), ...cleanupErrors];
     execution.error ??= `Headless cleanup failed: ${cleanupErrors.join("; ")}`;
   }
   return execution;

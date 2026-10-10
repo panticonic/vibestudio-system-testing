@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import {
   NativeRuntimeHealthObservationSchema,
   NativeRuntimeUnitObservationSchema,
@@ -608,9 +609,7 @@ async function scheduledNotificationProof(
   try {
     await session.close();
   } catch (cause) {
-    execution.cleanupErrors = [
-      `close: ${cause instanceof Error ? cause.message : String(cause)}`,
-    ];
+    appendSystemTestCleanupFailure(execution, "close", cause);
   }
   return execution;
 }
@@ -832,7 +831,7 @@ async function nativeAutomationControlProof(
   try {
     await session.close();
   } catch (cause) {
-    execution.cleanupErrors = [`close: ${cause instanceof Error ? cause.message : String(cause)}`];
+    appendSystemTestCleanupFailure(execution, "close", cause);
   }
   return execution;
 }

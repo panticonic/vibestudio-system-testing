@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -194,7 +195,7 @@ async function captureOrchestratedSession(
   try {
     await session.close();
   } catch (cause) {
-    execution.cleanupErrors = [`close: ${formatError(cause)}`];
+    appendSystemTestCleanupFailure(execution, "close", cause);
   }
   const cleanupErrors = session
     .snapshot()

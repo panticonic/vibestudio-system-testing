@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -83,10 +84,7 @@ async function runWithSyntheticPanelUi(
   try {
     await session.close();
   } catch (error) {
-    execution.cleanupErrors = [
-      ...(execution.cleanupErrors ?? []),
-      `close: ${formatError(error)}`,
-    ];
+    appendSystemTestCleanupFailure(execution, "close", error);
   }
 
   const cleanupErrors = session
@@ -129,10 +127,7 @@ async function runOnboardingOpening(
   try {
     await session.close();
   } catch (error) {
-    execution.cleanupErrors = [
-      ...(execution.cleanupErrors ?? []),
-      `close: ${formatError(error)}`,
-    ];
+    appendSystemTestCleanupFailure(execution, "close", error);
   }
   return execution;
 }
@@ -180,10 +175,7 @@ async function runOnboardingStableIdRoute(
   try {
     await session.close();
   } catch (error) {
-    execution.cleanupErrors = [
-      ...(execution.cleanupErrors ?? []),
-      `close: ${formatError(error)}`,
-    ];
+    appendSystemTestCleanupFailure(execution, "close", error);
   }
   return execution;
 }

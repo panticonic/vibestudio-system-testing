@@ -154,6 +154,20 @@ export function systemTestFailure(
   return { phase, error: serializeSystemTestError(error) };
 }
 
+/** Retain the original failure graph and derive the human-readable cleanup summary. */
+export function appendSystemTestCleanupFailure(
+  execution: {
+    cleanupErrors?: string[];
+    cleanupFailures?: SystemTestFailure[];
+  },
+  phase: string,
+  error: unknown,
+): void {
+  const failure = systemTestFailure(phase, error);
+  (execution.cleanupFailures ??= []).push(failure);
+  (execution.cleanupErrors ??= []).push(`${phase}: ${failure.error.message}`);
+}
+
 function sanitizeJson(value: unknown): SystemTestJsonValue | undefined {
   return sanitizeJsonValue(value, 0, new WeakSet<object>());
 }

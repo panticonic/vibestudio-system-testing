@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { agentRpcMethods } from "@workspace/agentic-do/rpc-contract";
 import { browserData, rpc } from "@workspace/runtime";
 import { readRetainedChannelReplay } from "./_subagent-evidence.js";
@@ -209,21 +210,21 @@ async function orchestrate(
     const cleanup = await Promise.allSettled(
       handles.reverse().map((h) => h.archive()),
     );
-    result.cleanupErrors = cleanup.flatMap((r) =>
-      r.status === "rejected" ? [String(r.reason)] : [],
-    );
+    for (const [index, outcome] of cleanup.entries())
+      if (outcome.status === "rejected")
+        appendSystemTestCleanupFailure(result, `archive owned panel ${index}`, outcome.reason);
     try {
       const after = await snapshotVisiblePanelTree(tree);
       const { createdIds } = panelTreeDifference(before, after);
       for (const root of createdPanelRoots(createdIds, after))
         await tree.get(root.id, root.kind).archive();
     } catch (error) {
-      result.cleanupErrors.push(String(error));
+      appendSystemTestCleanupFailure(result, "archive leaked panels", error);
     }
     try {
       await session.close();
     } catch (error) {
-      result.cleanupErrors.push("Session close failed: " + String(error));
+      appendSystemTestCleanupFailure(result, "close", error);
     }
     result.duration = Date.now() - started;
   }

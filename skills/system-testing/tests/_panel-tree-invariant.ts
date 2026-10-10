@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type { ChatMessage } from "@workspace/agentic-core";
 import type { HeadlessSession, SessionSnapshot } from "@workspace/agentic-session";
 import type { TestExecutionResult, TestOrchestrationContext } from "../types.js";
@@ -142,6 +143,7 @@ async function runPanelGoalWithSession(
   startedAt: number
 ): Promise<TestExecutionResult> {
   const cleanupErrors: string[] = [];
+  const cleanupFailures: NonNullable<TestExecutionResult["cleanupFailures"]> = [];
   const failures: string[] = [];
 
   try {
@@ -179,7 +181,7 @@ async function runPanelGoalWithSession(
         await tree.get(node.id, node.kind).archive();
         harnessArchivedRootIds.push(node.id);
       } catch (error) {
-        cleanupErrors.push(`archive leaked panel ${node.id}: ${errorMessage(error)}`);
+        appendSystemTestCleanupFailure({ cleanupErrors, cleanupFailures }, `archive leaked panel ${node.id}`, error);
       }
     }
 
@@ -221,6 +223,7 @@ async function runPanelGoalWithSession(
     },
   };
 
+  execution.cleanupFailures = cleanupFailures;
   for (const cleanupError of cleanupErrors) appendCleanupError(execution, cleanupError);
   return execution;
 }
@@ -232,7 +235,8 @@ async function closePanelGoalSession(
   try {
     await session.close();
   } catch (error) {
-    appendCleanupError(execution, `close headless session: ${errorMessage(error)}`);
+    appendSystemTestCleanupFailure(execution, "close headless session", error);
+    appendExecutionError(execution, `Harness cleanup failed: ${execution.cleanupErrors!.at(-1)}`);
   }
 }
 

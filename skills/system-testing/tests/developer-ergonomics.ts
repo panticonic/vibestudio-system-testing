@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { preparedProject, publishedPreparation } from "./_project-evidence.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import {
@@ -546,13 +547,11 @@ async function orchestrateStaleEditRecovery(
           .cleanupErrors.map((entry) => `${entry.phase}: ${entry.message}`),
       );
     } catch (cause) {
-      cleanupErrors.push(
-        cause instanceof Error ? cause.message : String(cause),
-      );
+      appendSystemTestCleanupFailure(execution, "close", cause);
     }
   }
   if (cleanupErrors.length) {
-    execution.cleanupErrors = cleanupErrors;
+    execution.cleanupErrors = [...(execution.cleanupErrors ?? []), ...cleanupErrors];
     execution.error ??= `Headless cleanup failed: ${cleanupErrors.join("; ")}`;
   }
   return execution;

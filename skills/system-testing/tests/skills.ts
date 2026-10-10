@@ -1,3 +1,4 @@
+import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
 import {
@@ -175,7 +176,7 @@ async function orchestrateHeadlessDiagnosis(
     await session.close();
   } catch (err) {
     const message = `close: ${formatError(err)}`;
-    execution.cleanupErrors = [...(execution.cleanupErrors ?? []), message];
+    appendSystemTestCleanupFailure(execution, "close", err);
     execution.error ??= `Headless cleanup failed: ${message}`;
   }
   const cleanupErrors = session
