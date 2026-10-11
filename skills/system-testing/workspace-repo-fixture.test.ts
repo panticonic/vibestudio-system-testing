@@ -1286,9 +1286,12 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(seededText).toContain('"./contract": "./contract.ts"');
     expect(seededText).toContain('from "@vibestudio/shared/rpcMethods"');
     expect(seededText).toContain(
-      'Pick<FixtureWorkerDO, "inspectProbe" | "report">',
+      'Pick<FixtureWorkerDO, "inspectProbe" | "writeRows" | "readRows" | "report">',
     );
     expect(seededText).toContain("static override schemaVersion = 1");
+    expect(seededText).toContain('INSERT INTO probe_state (id, value) VALUES (?, ?)');
+    expect(seededText).toContain('SELECT id, value FROM probe_state ORDER BY id');
+    expect(seededText).toContain('"writeRows", "readRows"');
     expect(seededText).not.toContain("schemaProductionBaseline");
     expect(seededText).toContain('website: { kind: "closed"');
     expect(seededText).toContain(

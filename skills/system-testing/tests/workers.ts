@@ -117,15 +117,90 @@ function memberName(node: SyntaxNode | undefined): string | undefined {
   return undefined;
 }
 
-function workerProbeCall(node: SyntaxNode): boolean {
+function workerTargetExpression(node: SyntaxNode, code: string): string | undefined {
+  if (node.type === "Identifier") return code.slice(Number(node["start"]), Number(node["end"]));
+  return node.type === "MemberExpression" && memberName(node) === "targetId"
+    ? code.slice(Number(node["start"]), Number(node["end"]))
+    : undefined;
+}
+
+function receiverContractBindings(root: SyntaxNode, repoName: string): Set<string> {
+  const expectedModule = `@workspace-workers/${repoName}/contract`;
+  const bindings = new Set<string>();
+  for (const node of probeSyntax(root).nodes) {
+    if (node.type !== "ImportDeclaration") continue;
+    const source = node["source"];
+    const specifiers = node["specifiers"];
+    if (
+      !isSyntaxNode(source) ||
+      source.type !== "StringLiteral" ||
+      source["value"] !== expectedModule ||
+      !Array.isArray(specifiers)
+    ) {
+      continue;
+    }
+    for (const specifier of specifiers) {
+      if (!isSyntaxNode(specifier) || specifier.type !== "ImportSpecifier") continue;
+      const imported = specifier["imported"];
+      const local = specifier["local"];
+      const importedName = isSyntaxNode(imported)
+        ? identifierName(imported) ??
+          (typeof imported["value"] === "string" ? imported["value"] : undefined)
+        : undefined;
+      const localName = isSyntaxNode(local) ? identifierName(local) : undefined;
+      if (importedName === "fixtureWorkerRpcMethods" && localName) bindings.add(localName);
+    }
+  }
+  return bindings;
+}
+
+function ownerMethodDescriptor(
+  method: SyntaxNode,
+  methodName: string,
+  contractBindings: ReadonlySet<string>
+): boolean {
+  if (method.type !== "MemberExpression") return false;
+  const table = method["object"];
+  return (
+    isSyntaxNode(table) &&
+    table.type === "Identifier" &&
+    contractBindings.has(identifierName(table) ?? "") &&
+    memberName(method) === methodName
+  );
+}
+
+function workerProbeCall(
+  node: SyntaxNode,
+  methodName?: string,
+  options?: { code: string; contractBindings: ReadonlySet<string>; targetExpression?: string }
+): boolean {
   if (node.type !== "CallExpression") return false;
   const callee = node["callee"];
   if (!isSyntaxNode(callee)) return false;
   const args = node["arguments"];
   const firstArgument = Array.isArray(args) && isSyntaxNode(args[0]) ? args[0] : undefined;
   if (!firstArgument) return false;
-  const targetsWorker = containsSyntaxNode(firstArgument, (child) => memberName(child) === "targetId");
+  const targetsWorker = options
+    ? workerTargetExpression(firstArgument, options.code) !== undefined
+    : containsSyntaxNode(firstArgument, (child) => memberName(child) === "targetId");
   if (!targetsWorker) return false;
+  if (methodName) {
+    const method = Array.isArray(args) && isSyntaxNode(args[1]) ? args[1] : undefined;
+    if (
+      !method ||
+      !options ||
+      !ownerMethodDescriptor(method, methodName, options.contractBindings)
+    ) {
+      return false;
+    }
+    if (
+      options.targetExpression &&
+      options.code.slice(Number(firstArgument["start"]), Number(firstArgument["end"])) !==
+        options.targetExpression
+    ) {
+      return false;
+    }
+  }
   if (
     callee.type === "MemberExpression" &&
     memberName(callee) === "call"
@@ -140,7 +215,13 @@ function workerProbeCall(node: SyntaxNode): boolean {
 }
 
 /** Check syntax-level value flow, then let the eval owner’s recorded return/log prove the value. */
-function observesWorkerProbeResult(code: string): boolean {
+function observesWorkerProbeResult(
+  code: string,
+  methodName?: string,
+  returnedProperties?: Set<string>,
+  contractBindings?: ReadonlySet<string>,
+  targetExpression?: string
+): boolean {
   let root: SyntaxNode;
   try {
     const parsedProgram: unknown = parse(code, {
@@ -155,7 +236,15 @@ function observesWorkerProbeResult(code: string): boolean {
     return false;
   }
   const { nodes, scopeByNode, bindingByDeclaration } = probeSyntax(root);
-  const probeCalls = new Set(nodes.filter(workerProbeCall));
+  const probeCalls = new Set(nodes.filter((node) =>
+    workerProbeCall(
+      node,
+      methodName,
+      methodName && contractBindings
+        ? { code, contractBindings, targetExpression }
+        : undefined
+    )
+  ));
   if (probeCalls.size === 0) return false;
 
   const dependsOnProbe = (node: SyntaxNode): boolean =>
@@ -179,7 +268,27 @@ function observesWorkerProbeResult(code: string): boolean {
       const binding = name ? resolveProbeBinding(scopeByNode.get(node), name) : undefined;
       if (binding && isSyntaxNode(value)) binding.tainted = dependsOnProbe(value);
     } else if (node.type === "ReturnStatement") {
-      if (isSyntaxNode(node["argument"]) && dependsOnProbe(node["argument"])) return true;
+      const argument = node["argument"];
+      if (!isSyntaxNode(argument)) continue;
+      if (!returnedProperties) {
+        if (dependsOnProbe(argument)) return true;
+        continue;
+      }
+      if (argument.type === "ObjectExpression" && Array.isArray(argument["properties"])) {
+        for (const property of argument["properties"]) {
+          if (!isSyntaxNode(property) || property.type !== "ObjectProperty") continue;
+          const key = property["key"];
+          const value = property["value"];
+          const name = isSyntaxNode(key)
+            ? identifierName(key) ?? (typeof key["value"] === "string" ? key["value"] : undefined)
+            : undefined;
+          if (name && isSyntaxNode(value) && dependsOnProbe(value)) returnedProperties.add(name);
+        }
+        if (returnedProperties.size > 0) return true;
+      } else if (dependsOnProbe(argument)) {
+        returnedProperties.add("*");
+        return true;
+      }
     } else if (node.type === "CallExpression") {
       const callee = node["callee"];
       const args = node["arguments"];
@@ -319,101 +428,138 @@ function requireCleanup(evidence: ScenarioEvidence, result: TestExecutionResult)
   return { passed: true, reason: undefined };
 }
 
+function workerSqlEvidence(code: string, repoName: string): {
+  writePositions: Map<string, number[]>;
+  readPositions: Map<string, number[]>;
+  contractBindings: Set<string>;
+} {
+  let root: SyntaxNode;
+  try {
+    const parsedProgram: unknown = parse(code, {
+      sourceType: "unambiguous",
+      plugins: ["typescript"],
+      allowAwaitOutsideFunction: true,
+      allowReturnOutsideFunction: true,
+    }).program;
+    if (!isSyntaxNode(parsedProgram)) {
+      return {
+        writePositions: new Map(),
+        readPositions: new Map(),
+        contractBindings: new Set(),
+      };
+    }
+    root = parsedProgram;
+  } catch {
+    return {
+      writePositions: new Map(),
+      readPositions: new Map(),
+      contractBindings: new Set(),
+    };
+  }
+  const bindings = receiverContractBindings(root, repoName);
+  const nodes = probeSyntax(root).nodes;
+  const writePositions = new Map<string, number[]>();
+  const readPositions = new Map<string, number[]>();
+  for (const node of nodes) {
+    if (node.type !== "CallExpression") continue;
+    const callee = node["callee"];
+    const args = node["arguments"];
+    if (!isSyntaxNode(callee) || !Array.isArray(args)) continue;
+    const receiver = callee["object"];
+    if (
+      !isSyntaxNode(receiver) ||
+      identifierName(receiver) !== "rpc" ||
+      memberName(callee) !== "call"
+    ) {
+      continue;
+    }
+    const target = isSyntaxNode(args[0]) ? args[0] : undefined;
+    const targetName = target ? workerTargetExpression(target, code) : undefined;
+    const method = isSyntaxNode(args[1]) ? args[1] : undefined;
+    const start = node["start"];
+    if (!targetName || !method || typeof start !== "number") continue;
+    const methods = (methodName: string) => ownerMethodDescriptor(method, methodName, bindings);
+    if (methods("writeRows")) {
+      const positions = writePositions.get(targetName) ?? [];
+      positions.push(start);
+      writePositions.set(targetName, positions);
+    } else if (methods("readRows")) {
+      const positions = readPositions.get(targetName) ?? [];
+      positions.push(start);
+      readPositions.set(targetName, positions);
+    }
+  }
+  return { writePositions, readPositions, contractBindings: bindings };
+}
+
+function isRowCollection(value: unknown): value is Array<{ id: string; value: string }> {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    value.every(
+      (row) =>
+        row !== null &&
+        typeof row === "object" &&
+        !Array.isArray(row) &&
+        typeof (row as Record<string, unknown>)["id"] === "string" &&
+        typeof (row as Record<string, unknown>)["value"] === "string"
+    ) &&
+    new Set(value.map((row) => (row as Record<string, unknown>)["id"])).size === value.length
+  );
+}
+
+function observedRows(
+  values: readonly unknown[],
+  properties: ReadonlySet<string>
+): Array<Array<{ id: string; value: string }>> {
+  const candidates = properties.has("*")
+    ? walkArrays(values)
+    : walkRecords(values).flatMap((record) => [...properties].map((property) => record[property]));
+  return candidates.filter(isRowCollection);
+}
+
 function requireSqlPersistenceEvidence(result: TestExecutionResult) {
   const base = lifecycleEvidence(result, [
-    ["workers.create", "workers.destroy"],
     ["workers.createDurableObject", "workers.destroy"],
     ["runtime.createEntity", "runtime.retireEntity"],
   ]);
   if (!base.passed) return base;
+  const fixture = result.diagnostics?.["workspaceRepoFixture"];
+  const repoName =
+    fixture && typeof fixture === "object" && !Array.isArray(fixture) &&
+    typeof (fixture as Record<string, unknown>)["repoName"] === "string"
+      ? String((fixture as Record<string, unknown>)["repoName"])
+      : undefined;
+  if (!repoName) return { passed: false, reason: "The owner fixture identity was unavailable" };
   const code = base.evidence.evalCode;
-  const objectCalls =
-    code.match(/rpc\.call(?:<[^>]*>)?\s*\(\s*[^,\n]*(?:\.targetId|\btargetId\b)/gu)?.length ?? 0;
-  if (objectCalls < 2) {
-    return { passed: false, reason: "Completed eval did not make two separate object calls" };
-  }
-
-  const authoredImplementation = base.evidence.calls
-    .filter(
-      (call) =>
-        call.execution?.status === "complete" &&
-        call.execution.isError !== true &&
-        ["write", "edit", "apply_patch", "vcs"].includes(call.name) &&
-        /\.[cm]?[jt]sx?\b/u.test(String(call.arguments?.["path"] ?? ""))
-    )
-    .map((call) => JSON.stringify(call.arguments ?? {}))
-    .join("\n");
-  const implementationEvidence = `${code}\n${authoredImplementation}`;
-  if (
-    !/(?:this\.)?sql\.exec/u.test(implementationEvidence) ||
-    !/\bINSERT\b/iu.test(implementationEvidence) ||
-    !/\bSELECT\b/iu.test(implementationEvidence)
-  ) {
-    return { passed: false, reason: "Authored worker code did not persist and retrieve SQL rows" };
-  }
-
-  const structuredRows = walkRecords(base.evidence.evalValues).some((record) => {
-    const rowCollections = Object.values(record).filter(
-      (value): value is unknown[] =>
-        Array.isArray(value) &&
-        value.length >= 2 &&
-        value.every((row) => row !== null && typeof row === "object" && !Array.isArray(row))
+  const sql = workerSqlEvidence(code, repoName);
+  const matchingTargets = [...sql.writePositions].flatMap(([target, writes]) =>
+    sql.readPositions.get(target)?.some((read) => writes.some((write) => write < read)) ? [target] : []
+  );
+  const preservedRows = matchingTargets.some((target) => {
+    const writtenProperties = new Set<string>();
+    const readProperties = new Set<string>();
+    const wroteRows = observesWorkerProbeResult(
+      code, "writeRows", writtenProperties, sql.contractBindings, target
     );
-    // The proof is semantic: the completed scenario made separate object calls,
-    // authored INSERT/SELECT code, and returned a non-empty row collection.
-    // Do not couple that proof to a preferred property spelling such as `rows`,
-    // `afterReopen`, or `persistedRows`. An explicit false persistence result is
-    // contradictory evidence and must still fail closed.
-    return record["persisted"] !== false && rowCollections.length >= 1;
+    const readRows = observesWorkerProbeResult(
+      code, "readRows", readProperties, sql.contractBindings, target
+    );
+    if (!wroteRows || !readRows) return false;
+    const written = observedRows(base.evidence.evalValues, writtenProperties);
+    const read = observedRows(base.evidence.evalValues, readProperties);
+    return written.some((before) =>
+      read.some((after) => JSON.stringify(before) === JSON.stringify(after))
+    );
   });
-  const loggedRows = base.evidence.calls.some((call) => {
-    if (call.name !== "eval" || call.execution?.status !== "complete") return false;
-    const output = invocationConsoleOutput(call) ?? "";
-    return [...output.matchAll(/\[[^\[\]]*\]/gsu)].some((match) => {
-      try {
-        const value: unknown = JSON.parse(match[0]);
-        return Array.isArray(value) && value.length >= 2;
-      } catch {
-        return false;
-      }
-    });
-  });
-  // Returning comparisons and lengths is a bounded observation of the rows,
-  // just as returning the collections is. Require repeated content comparisons
-  // in the completed evaluation and consistent nontrivial counts; a lone
-  // success flag or a single count cannot establish persistence.
-  const comparedRows = base.evidence.calls.some((call) => {
-    if (
-      call.name !== "eval" ||
-      call.execution?.status !== "complete" ||
-      call.execution.isError === true
-    )
-      return false;
-    const code = String(call.arguments?.["code"] ?? "");
-    if (
-      (code.match(/JSON\.stringify\([^)]*\)\s*===\s*JSON\.stringify\(/gu)?.length ?? 0) < 2 ||
-      !code.includes(".length")
-    )
-      return false;
-    const returned = invocationReturnValue(call);
-    if (!returned.present) return false;
-    return walkRecords([returned.value]).some((record) => {
-      const values = Object.values(record);
-      const counts = values.filter(
-        (value): value is number => typeof value === "number" && Number.isSafeInteger(value)
-      );
-      const comparisons = values.filter((value): value is boolean => typeof value === "boolean");
-      return (
-        counts.length >= 3 &&
-        counts[0]! >= 2 &&
-        counts.every((count) => count === counts[0]) &&
-        comparisons.length >= 2 &&
-        comparisons.every((equal) => equal)
-      );
-    });
-  });
-  if (!structuredRows && !loggedRows && !comparedRows) {
-    return { passed: false, reason: "The second object call did not return the persisted rows" };
+  if (
+    !preservedRows ||
+    walkRecords(base.evidence.evalValues).some((record) => record["persisted"] === false)
+  ) {
+    return {
+      passed: false,
+      reason: "The later object call did not return rows matching the write result",
+    };
   }
   return requireCleanup(base.evidence, result);
 }

@@ -71,44 +71,6 @@ const probeMethodsImport =
 const regularWorkerMethodsImport = probeMethodsImport;
 const runtimeRetire =
   'await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]);';
-function authoredProbeFile(path: string, content: string) {
-  return {
-    id: `write-${path}`,
-    kind: "message",
-    senderId: "agent",
-    senderMetadata: { type: "agent" },
-    complete: true,
-    contentType: "invocation",
-    content: "",
-    invocation: {
-      id: `write-${path}`,
-      name: "write",
-      status: "complete",
-      terminalOutcome: "success",
-      isError: false,
-      arguments: { path, content },
-    },
-  } as unknown as TestExecutionResult["messages"][number];
-}
-const probeSqlImplementation = `import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
-export class FixtureWorkerDO extends DurableObjectBase {
-  static override schemaVersion = 1;
-  protected override createTables(): void { this.sql.exec("CREATE TABLE IF NOT EXISTS probe_state (id TEXT PRIMARY KEY, value TEXT NOT NULL)"); }
-  protected override requiredTables(): readonly string[] { return ["probe_state"]; }
-  @rpc({ website: { kind: "closed", reason: "Private probe" }, principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "write" })
-  async writeRows(rows: Array<{ id: string; value: string }>): Promise<void> {
-    for (const row of rows) this.sql.exec("INSERT INTO probe_state (id, value) VALUES (?, ?)", row.id, row.value);
-  }
-  @rpc({ website: { kind: "closed", reason: "Private probe" }, principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "read" })
-  readRows(): Array<{ id: string; value: string }> { return this.sql.exec("SELECT id, value FROM probe_state ORDER BY id").toArray(); }
-}`;
-const probeSqlContract = `import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
-import type { FixtureWorkerDO } from "./index.js";
-export const fixtureWorkerRpcMethods = createReceiverRpcMethods<Pick<FixtureWorkerDO, "writeRows" | "readRows">>(["writeRows", "readRows"]);`;
-const probeSqlEdits = [
-  authoredProbeFile("workers/probe/index.ts", probeSqlImplementation),
-  authoredProbeFile("workers/probe/contract.ts", probeSqlContract),
-];
 function sqlExecution(
   finalMessage: string,
   code: string,
@@ -116,7 +78,10 @@ function sqlExecution(
   consoleOutput?: string
 ) {
   const result = execution(finalMessage, code, returnValue, "complete", consoleOutput);
-  result.messages.splice(1, 0, ...probeSqlEdits);
+  result.diagnostics = {
+    ...result.diagnostics,
+    workspaceRepoFixture: { repoName: "probe" },
+  };
   return result;
 }
 const lifecycleCode = [
@@ -289,76 +254,68 @@ describe("worker test validators", () => {
     ).toBe(false);
   });
 
-  it("accepts natural prose only when SQL, separate object calls, rows, and cleanup agree", () => {
+  it("accepts the seeded owner contract only when separate write/read calls return rows and cleanup agrees", () => {
     const code = [
       probeMethodsImport,
       'const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "sql-probe" });',
-      'await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
+      'const written = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
       "const rows = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []);",
       "await workers.destroy(handle);",
-      "return { rows };",
+      "return { before: written, after: rows };",
     ].join("\n");
-    const verified = sqlExecution(
-      "Both rows were present on the later read, and the disposable object was retired.",
-      code,
-      {
-        rows: [
-          { id: "row-1", value: "alpha" },
-          { id: "row-2", value: "beta" },
-        ],
-        createdId: "worker-1",
-        retiredId: "worker-1",
-      }
+    const rows = [
+      { id: "row-1", value: "alpha" },
+      { id: "row-2", value: "beta" },
+    ];
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Both rows were present on the later read, and the object was retired.", code, {
+          before: rows,
+          after: rows,
+          createdId: "worker-1",
+          retiredId: "worker-1",
+        })
+      ).passed
+    ).toBe(true);
+
+    const fakeResultCode = code.replace(
+      'const rows = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []);',
+      'await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []); const rows = unrelatedRows;'
     );
-    expect(test("worker-do-sql-persistence").validate(verified).passed).toBe(true);
-
     expect(
       test("worker-do-sql-persistence").validate(
-        sqlExecution(
-          "The later resolve returned the same two records and cleanup completed.",
-          code,
-          {
-            afterWrite: [{ id: 1 }, { id: 2 }],
-            afterReopen: [{ id: 1 }, { id: 2 }],
-            persisted: true,
-            createdId: "worker-1",
-            retiredId: "worker-1",
-          }
-        )
-      ).passed
-    ).toBe(true);
-
-    expect(
-      test("worker-do-sql-persistence").validate(
-        sqlExecution("The later call returned both persisted rows and cleanup completed.", code, {
-          persistedRows: [{ id: 1 }, { id: 2 }],
-          sameHandleId: true,
-          createdId: "worker-1",
-          retiredId: "worker-1",
-        })
-      ).passed
-    ).toBe(true);
-
-    expect(
-      test("worker-do-sql-persistence").validate(
-        sqlExecution("The later resolve did not match.", code, {
-          afterReopen: [{ id: 1 }, { id: 2 }],
-          persisted: false,
-          createdId: "worker-1",
-          retiredId: "worker-1",
-        })
+        sqlExecution("Rows persisted.", fakeResultCode, { before: rows, after: rows })
       ).passed
     ).toBe(false);
 
+    const unrelatedContractCode = code.replaceAll(
+      "fixtureWorkerRpcMethods",
+      "otherMethods"
+    );
     expect(
       test("worker-do-sql-persistence").validate(
-        sqlExecution("It persisted two rows and cleaned up.", code, {
-          rows: [{ id: 1 }, { id: 2 }],
-          createdId: "worker-1",
-          retiredId: "worker-2",
-        })
+        sqlExecution("Rows persisted.", unrelatedContractCode, { before: rows, after: rows })
       ).passed
     ).toBe(false);
+
+    const wrongOwnerCode = code.replace("@workspace-workers/probe/contract", "@workspace-workers/another-worker/contract");
+    expect(
+      test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", wrongOwnerCode, { before: rows, after: rows }))
+        .passed
+    ).toBe(false);
+
+    for (const invalid of [
+      { before: rows, after: [{ id: "row-1", value: "alpha" }], createdId: "worker-1", retiredId: "worker-1" },
+      { before: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }], after: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "wrong" }], createdId: "worker-1", retiredId: "worker-1" },
+      { before: rows, after: rows, persisted: false, createdId: "worker-1", retiredId: "worker-1" },
+      { before: rows, after: [{ id: "row-1", value: "wrong" }, { id: "row-2", value: "beta" }], createdId: "worker-1", retiredId: "worker-1" },
+      { before: rows, after: rows, createdId: "worker-1", retiredId: "worker-2" },
+    ]) {
+      expect(
+        test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", code, invalid))
+          .passed
+      ).toBe(false);
+    }
   });
 
   it("accepts the documented disposable Durable Object lifecycle", () => {
@@ -366,15 +323,19 @@ describe("worker test validators", () => {
       probeMethodsImport,
       'const target = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "temporary" });',
       'const expected = [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }];',
-      "await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [expected]);",
+      "const written = await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [expected]);",
       "const rows = await rpc.call(target.targetId, fixtureWorkerRpcMethods.readRows, []);",
       "await workers.destroy(target);",
-      "return { rows };",
+      "return { before: written, after: rows };",
     ].join("\n");
     expect(
       test("worker-do-sql-persistence").validate(
         sqlExecution("The disposable object persisted both rows and was retired.", code, {
-          rows: [
+          before: [
+            { id: "row-1", value: "alpha" },
+            { id: "row-2", value: "beta" },
+          ],
+          after: [
             { id: "row-1", value: "alpha" },
             { id: "row-2", value: "beta" },
           ],
@@ -383,27 +344,54 @@ describe("worker test validators", () => {
     ).toBe(true);
   });
 
-  it("separates authored SQL, runtime persistence, and retirement evidence", () => {
-    const result = sqlExecution(
-      "The disposable object persisted two rows across calls and was retired.",
-      [
-        probeMethodsImport,
-        'const create = () => workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "temporary" });',
-        "const first = await create();",
-        'await rpc.call(first.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
-        "const rows = await rpc.call(first.targetId, fixtureWorkerRpcMethods.readRows, []);",
-        "await workers.destroy(first);",
-        "return { rows };",
-      ].join("\n"),
-      {
-        rows: [
-          { id: "row-1", value: "alpha" },
-          { id: "row-2", value: "beta" },
-        ],
-      },
-      'later rows [\n  { "id": 1 },\n  { "id": 2 }\n]'
-    );
-    expect(test("worker-do-sql-persistence").validate(result).passed).toBe(true);
+  it("accepts property-name-independent write and read observations on a scoped handle", () => {
+    const code = [
+      probeMethodsImport,
+      'const scope = { handle: await workers.createDurableObject("workers/probe", "FixtureWorkerDO") };',
+      'const acceptedRows = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
+      'const rows = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.readRows, []);',
+      'await workers.destroy(scope.handle);',
+      'return { accepted: acceptedRows, observed: rows };',
+    ].join("\n");
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Both rows persisted.", code, {
+          accepted: [
+            { id: "row-1", value: "alpha" },
+            { id: "row-2", value: "beta" },
+          ],
+          observed: [
+            { id: "row-1", value: "alpha" },
+            { id: "row-2", value: "beta" },
+          ],
+        })
+      ).passed
+    ).toBe(true);
+  });
+
+  it("requires the actual read call result, not just two owner calls", () => {
+    const code = [
+      probeMethodsImport,
+      'const target = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "temporary" });',
+      'await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
+      'await rpc.call(target.targetId, fixtureWorkerRpcMethods.readRows, []);',
+      "await workers.destroy(target);",
+      'return { rows: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }] };',
+    ].join("\n");
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Rows persisted.", code, {
+          before: [
+            { id: "row-1", value: "alpha" },
+            { id: "row-2", value: "beta" },
+          ],
+          after: [
+            { id: "row-1", value: "alpha" },
+            { id: "row-2", value: "beta" },
+          ],
+        })
+      ).passed
+    ).toBe(false);
   });
 
   it("requires the exact retired identity or an identical before/after inventory", () => {
@@ -973,28 +961,28 @@ describe("independent runtime retirement observation", () => {
 });
 
 describe("bounded persistence observations", () => {
-  it("accepts matched write/read/later counts with actual repeated row comparisons and rejects contradictory observations", () => {
-    const code = `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO"); const expected = [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]; await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [expected]); const first = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []); const later = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []); await workers.destroy(handle); return { written: expected.length, first: first.length, later: later.length, same: JSON.stringify(first) === JSON.stringify(expected), retained: JSON.stringify(later) === JSON.stringify(expected) };`;
-    const observed = {
-      written: 2,
-      first: 2,
-      later: 2,
-      same: true,
-      retained: true,
-    };
+  it("requires write and read calls on the same object and returned rows derived from the read", () => {
+    const prefix = `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO");`;
+    const writes = 'const written = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);';
+    const read = 'const rows = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []);';
+    const suffix = "await workers.destroy(handle); return { written, rows };";
+    const rows = [
+      { id: "row-1", value: "alpha" },
+      { id: "row-2", value: "beta" },
+    ];
+    const accepted = `${prefix} ${writes} ${read} ${suffix}`;
     expect(
-      test("worker-do-sql-persistence").validate(
-        sqlExecution("Both later calls retained the stored rows.", code, observed)
-      ).passed
+      test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", accepted, { written: rows, rows }))
+        .passed
     ).toBe(true);
-    for (const value of [
-      { ...observed, later: 1 },
-      { ...observed, retained: false },
-      { same: true, retained: true },
-      { written: 2 },
+
+    for (const code of [
+      `${prefix} ${read} ${writes} ${suffix}`,
+      `${prefix} ${writes} const other = await workers.createDurableObject("workers/probe", "FixtureWorkerDO"); const rows = await rpc.call(other.targetId, fixtureWorkerRpcMethods.readRows, []); await workers.destroy(handle); await workers.destroy(other); return { written, rows };`,
+      `${prefix} ${writes} await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []); ${suffix.replace("return { written, rows };", 'return { written: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }], rows: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }] };')}`,
     ]) {
       expect(
-        test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", code, value))
+        test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", code, { written: rows, rows }))
           .passed
       ).toBe(false);
     }
