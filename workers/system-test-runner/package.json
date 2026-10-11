@@ -113,10 +113,10 @@
     "@vibestudio/service-schemas": "workspace:*",
     "@vibestudio/shared": "workspace:*",
     "@workspace-skills/system-testing": "workspace:*",
-    "@workspace/runtime": "workspace:*"
+    "@workspace/runtime": "workspace:*",
+    "@vibestudio/rpc": "workspace:*"
   },
   "devDependencies": {
-    "@vibestudio/rpc": "workspace:*",
     "vitest": "^3.2.7"
   },
   "exports": {
