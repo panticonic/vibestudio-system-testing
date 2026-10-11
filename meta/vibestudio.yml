@@ -1,4 +1,5 @@
 systemEpoch: 0
+minimumAppVersion: 0.1.84
 template:
   name: System testing
   description: The agentic acceptance harness, for workspaces that run it.
