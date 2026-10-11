@@ -57,9 +57,14 @@ class CapturingTestAgentWorker extends TestAgentWorker {
   ) {
     this.sql.exec(
       `INSERT OR REPLACE INTO subscriptions
-         (channel_id, context_id, revision, subscribed_at, config, relationship_json, participant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (channel_id, channel_ref_json, context_id, revision, subscribed_at, config, relationship_json, participant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       channelId,
+      JSON.stringify({
+        source: "workers/pubsub-channel",
+        className: "PubSubChannel",
+        objectKey: channelId,
+      }),
       "ctx-1",
       1,
       Date.now(),
