@@ -2320,6 +2320,7 @@ describe("worker fixture runtime observations", () => {
           kind: "buildable-worker",
           section: "workers",
           contextId: "ctx-worker",
+          repoName: "probe",
           repoPath: "workers/probe",
         })),
         observeFixtureRuntimeEntities: vi.fn(async () => {
@@ -2350,7 +2351,10 @@ describe("worker fixture runtime observations", () => {
           order.push("validate");
           return {
             passed:
-              execution.diagnostics?.["fixtureRuntimeEntities"] !== undefined,
+              execution.diagnostics?.["fixtureRuntimeEntities"] !== undefined &&
+              (execution.diagnostics?.["workspaceRepoFixture"] as
+                | Record<string, unknown>
+                | undefined)?.["repoName"] === "probe",
           };
         },
       });
@@ -2366,6 +2370,9 @@ describe("worker fixture runtime observations", () => {
           : ["observe", "validate", "cleanup"],
       );
       expect(outcome.result.passed).toBe(!failObservation);
+      expect(outcome.execution.diagnostics?.["workspaceRepoFixture"]).toMatchObject({
+        repoName: "probe",
+      });
       if (failObservation)
         expect(outcome.execution.error).toBe(failure.message);
     },

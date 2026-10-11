@@ -499,6 +499,14 @@ export class TestRunner {
       execution.submittedInputs = submittedInputs;
       execution.modelExecutionEvidence ??=
         execution.snapshot?.modelExecutionEvidence;
+      if (workspaceRepoFixtureState) {
+        // Validators run before teardown, but they still need the harness-owned
+        // fixture identity to prove calls target this exact seeded receiver.
+        execution.diagnostics = {
+          ...execution.diagnostics,
+          workspaceRepoFixture: { ...workspaceRepoFixtureState },
+        };
+      }
       if (workspaceRepoFixtureState?.section === "workers") {
         enterPhase("validation");
         execution.diagnostics = {
