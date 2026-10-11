@@ -45,6 +45,16 @@ not require agents to echo journal fields under arbitrary summary keys. Inspect
 the captured trajectory before blaming the agent for missing evidence or
 relaxing the validator.
 
+Eval RPC receipts include an owner ID and generation plus admission and
+settlement order. Those coordinates can establish ordering across cells only
+when both receipts came from the same Eval owner generation; transcript order
+does not establish execution order. Worker lifecycle receipts join their main
+RPC call by call ID within that cell's journal. Create and service-resolution
+projections carry the receiver identity, while receiver calls carry bounded
+result fingerprints. Use those facts to connect a created or resolved object
+to later work, and fail closed when the owner generation or required receipt is
+unavailable.
+
 Session acquisition and automatic rebind write `cdp.session` receipts to the
 journal with `status`, `generation`, and, for replacement or reconnection,
 `previousGeneration`. Use these lifecycle facts even if a later action in the

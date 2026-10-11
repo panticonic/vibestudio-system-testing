@@ -1,5 +1,13 @@
 import { parse } from "@babel/parser";
 import {
+  evalRpcCallObservationSchema,
+  evalWorkerLifecycleObservationSchema,
+  evalOperationJournalSchema,
+  fingerprintEvalRpcValue,
+  type EvalRpcCallObservation,
+  type EvalWorkerLifecycleObservation,
+} from "@vibestudio/service-schemas/eval";
+import {
   BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
   BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
   type TestCase,
@@ -122,36 +130,6 @@ function workerTargetExpression(node: SyntaxNode, code: string): string | undefi
   return node.type === "MemberExpression" && memberName(node) === "targetId"
     ? code.slice(Number(node["start"]), Number(node["end"]))
     : undefined;
-}
-
-function receiverContractBindings(root: SyntaxNode, repoName: string): Set<string> {
-  const expectedModule = `@workspace-workers/${repoName}/contract`;
-  const bindings = new Set<string>();
-  for (const node of probeSyntax(root).nodes) {
-    if (node.type !== "ImportDeclaration") continue;
-    const source = node["source"];
-    const specifiers = node["specifiers"];
-    if (
-      !isSyntaxNode(source) ||
-      source.type !== "StringLiteral" ||
-      source["value"] !== expectedModule ||
-      !Array.isArray(specifiers)
-    ) {
-      continue;
-    }
-    for (const specifier of specifiers) {
-      if (!isSyntaxNode(specifier) || specifier.type !== "ImportSpecifier") continue;
-      const imported = specifier["imported"];
-      const local = specifier["local"];
-      const importedName = isSyntaxNode(imported)
-        ? identifierName(imported) ??
-          (typeof imported["value"] === "string" ? imported["value"] : undefined)
-        : undefined;
-      const localName = isSyntaxNode(local) ? identifierName(local) : undefined;
-      if (importedName === "fixtureWorkerRpcMethods" && localName) bindings.add(localName);
-    }
-  }
-  return bindings;
 }
 
 function ownerMethodDescriptor(
@@ -428,70 +406,6 @@ function requireCleanup(evidence: ScenarioEvidence, result: TestExecutionResult)
   return { passed: true, reason: undefined };
 }
 
-function workerSqlEvidence(code: string, repoName: string): {
-  writePositions: Map<string, number[]>;
-  readPositions: Map<string, number[]>;
-  contractBindings: Set<string>;
-} {
-  let root: SyntaxNode;
-  try {
-    const parsedProgram: unknown = parse(code, {
-      sourceType: "unambiguous",
-      plugins: ["typescript"],
-      allowAwaitOutsideFunction: true,
-      allowReturnOutsideFunction: true,
-    }).program;
-    if (!isSyntaxNode(parsedProgram)) {
-      return {
-        writePositions: new Map(),
-        readPositions: new Map(),
-        contractBindings: new Set(),
-      };
-    }
-    root = parsedProgram;
-  } catch {
-    return {
-      writePositions: new Map(),
-      readPositions: new Map(),
-      contractBindings: new Set(),
-    };
-  }
-  const bindings = receiverContractBindings(root, repoName);
-  const nodes = probeSyntax(root).nodes;
-  const writePositions = new Map<string, number[]>();
-  const readPositions = new Map<string, number[]>();
-  for (const node of nodes) {
-    if (node.type !== "CallExpression") continue;
-    const callee = node["callee"];
-    const args = node["arguments"];
-    if (!isSyntaxNode(callee) || !Array.isArray(args)) continue;
-    const receiver = callee["object"];
-    if (
-      !isSyntaxNode(receiver) ||
-      identifierName(receiver) !== "rpc" ||
-      memberName(callee) !== "call"
-    ) {
-      continue;
-    }
-    const target = isSyntaxNode(args[0]) ? args[0] : undefined;
-    const targetName = target ? workerTargetExpression(target, code) : undefined;
-    const method = isSyntaxNode(args[1]) ? args[1] : undefined;
-    const start = node["start"];
-    if (!targetName || !method || typeof start !== "number") continue;
-    const methods = (methodName: string) => ownerMethodDescriptor(method, methodName, bindings);
-    if (methods("writeRows")) {
-      const positions = writePositions.get(targetName) ?? [];
-      positions.push(start);
-      writePositions.set(targetName, positions);
-    } else if (methods("readRows")) {
-      const positions = readPositions.get(targetName) ?? [];
-      positions.push(start);
-      readPositions.set(targetName, positions);
-    }
-  }
-  return { writePositions, readPositions, contractBindings: bindings };
-}
-
 function isRowCollection(value: unknown): value is Array<{ id: string; value: string }> {
   return (
     Array.isArray(value) &&
@@ -518,6 +432,161 @@ function observedRows(
   return candidates.filter(isRowCollection);
 }
 
+function completedEvalJournalGroups(calls: ScenarioEvidence["calls"]) {
+  return calls.flatMap((call) => {
+    if (
+      call.name !== "eval" ||
+      call.execution?.status !== "complete" ||
+      call.execution.isError === true
+    ) return [];
+    const result = call.execution.result;
+    if (!result || typeof result !== "object" || Array.isArray(result)) return [];
+    const details = (result as Record<string, unknown>)["details"];
+    if (!details || typeof details !== "object" || Array.isArray(details)) return [];
+    const parsed = evalOperationJournalSchema.safeParse(
+      (details as Record<string, unknown>)["operationJournal"]
+    );
+    return parsed.success ? [{ call, entries: parsed.data.entries }] : [];
+  });
+}
+
+type LocatedLifecycleReceipt = {
+  receipt: EvalWorkerLifecycleObservation;
+  call: EvalRpcCallObservation;
+};
+
+function sameRpcOwner(left: EvalRpcCallObservation, right: EvalRpcCallObservation): boolean {
+  return left.ownerId === right.ownerId && left.ownerGeneration === right.ownerGeneration;
+}
+
+function rpcCallReceipts(entries: readonly Record<string, unknown>[]) {
+  return entries.flatMap((entry) => {
+    if (entry["type"] !== "rpc.call") return [];
+    const parsed = evalRpcCallObservationSchema.safeParse(entry["receipt"]);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+function workerLifecycleReceipts(entries: readonly Record<string, unknown>[]) {
+  return entries.flatMap((entry) => {
+    if (entry["type"] !== "worker.lifecycle") return [];
+    const parsed = evalWorkerLifecycleObservationSchema.safeParse(entry["receipt"]);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+function workerLifecycleCallReceipts(
+  groups: ReturnType<typeof completedEvalJournalGroups>
+): Array<{
+  group: (typeof groups)[number];
+  receipt: EvalWorkerLifecycleObservation;
+  call: EvalRpcCallObservation;
+}> {
+  return groups.flatMap((group) => {
+    const calls = rpcCallReceipts(group.entries);
+    return workerLifecycleReceipts(group.entries).flatMap((receipt) => {
+      const method =
+        receipt.operation === "create" ? "runtime.createEntity" :
+        receipt.operation === "resolve" ? "workers.resolveDurableObject" :
+        receipt.operation === "resolve-service" ? "workers.resolveService" :
+        "runtime.retireEntity";
+      const call = calls.find((candidate) =>
+        candidate.callId === receipt.callId && candidate.targetId === "main" &&
+        candidate.method === method && candidate.outcome === "fulfilled"
+      );
+      return call ? [{ group, receipt, call }] : [];
+    });
+  });
+}
+
+function returnedValueContainsFingerprint(value: unknown, fingerprint: string): boolean {
+  const seen = new Set<object>();
+  const visit = (candidate: unknown): boolean => {
+    const observed = fingerprintEvalRpcValue(candidate);
+    if (observed.available && observed.fingerprint === fingerprint) return true;
+    if (!candidate || typeof candidate !== "object" || seen.has(candidate)) return false;
+    seen.add(candidate);
+    return (Array.isArray(candidate) ? candidate : Object.values(candidate))
+      .some(visit);
+  };
+  return visit(value);
+}
+
+function createdWorkerReceiverCallObserved(
+  groups: ReturnType<typeof completedEvalJournalGroups>,
+  source: string,
+  kind: "worker" | "do",
+  methodName: string
+): boolean {
+  const lifecycle = workerLifecycleCallReceipts(groups);
+  const creations = lifecycle.filter(
+    (entry): entry is typeof entry & {
+      receipt: Extract<EvalWorkerLifecycleObservation, { operation: "create" }>;
+    } => {
+      const receipt = entry.receipt;
+      if (receipt.operation !== "create" || receipt.source !== source) return false;
+      return kind === "do"
+        ? receipt.kind === "do" && receipt.className === "FixtureWorkerDO"
+        : receipt.kind === "worker";
+    }
+  );
+  const retirements = lifecycle.filter(
+    (entry): entry is typeof entry & {
+      receipt: Extract<EvalWorkerLifecycleObservation, { operation: "retire" }>;
+    } => entry.receipt.operation === "retire"
+  );
+  return creations.some((creation) => {
+    const receiverCalls = groups.flatMap((group) =>
+      rpcCallReceipts(group.entries)
+        .filter((receipt) => receipt.targetId === creation.receipt.targetId &&
+          receipt.method === methodName && receipt.outcome === "fulfilled")
+        .map((receipt) => ({ group, receipt }))
+    );
+    return receiverCalls.some(({ group, receipt }) => {
+      if (!sameRpcOwner(creation.call, receipt) ||
+        creation.call.settlementOrder >= receipt.admissionOrder ||
+        receipt.result?.available !== true) return false;
+      const retiredAfterCall = retirements.some(({ receipt: retired, call }) =>
+        retired.entityId === creation.receipt.entityId &&
+        sameRpcOwner(receipt, call) && receipt.settlementOrder < call.admissionOrder
+      );
+      if (!retiredAfterCall) return false;
+      const returned = invocationReturnValue(group.call);
+      return returned.present && returnedValueContainsFingerprint(
+        returned.value,
+        receipt.result.fingerprint
+      );
+    });
+  });
+}
+
+function resolvedServiceReceiverCallObserved(
+  groups: ReturnType<typeof completedEvalJournalGroups>,
+  source: string,
+  className: string
+): boolean {
+  const resolutions = workerLifecycleCallReceipts(groups).filter(
+    (entry): entry is typeof entry & {
+      receipt: Extract<EvalWorkerLifecycleObservation, { operation: "resolve-service" }>;
+    } => {
+      const receipt = entry.receipt;
+      return receipt.operation === "resolve-service" && receipt.source === source &&
+        receipt.className === className;
+    }
+  );
+  return resolutions.some((resolution) => groups.some((group) => {
+    const returned = invocationReturnValue(group.call);
+    if (!returned.present) return false;
+    return rpcCallReceipts(group.entries).some((receipt) => {
+      if (receipt.targetId !== resolution.receipt.targetId || receipt.targetId === "main" ||
+        receipt.outcome !== "fulfilled" || receipt.result?.available !== true ||
+        !sameRpcOwner(resolution.call, receipt) ||
+        resolution.call.settlementOrder >= receipt.admissionOrder) return false;
+      return returnedValueContainsFingerprint(returned.value, receipt.result.fingerprint);
+    });
+  }));
+}
+
 function requireSqlPersistenceEvidence(result: TestExecutionResult) {
   const base = lifecycleEvidence(result, [
     ["workers.createDurableObject", "workers.destroy"],
@@ -531,26 +600,60 @@ function requireSqlPersistenceEvidence(result: TestExecutionResult) {
       ? String((fixture as Record<string, unknown>)["repoName"])
       : undefined;
   if (!repoName) return { passed: false, reason: "The owner fixture identity was unavailable" };
-  const code = base.evidence.evalCode;
-  const sql = workerSqlEvidence(code, repoName);
-  const matchingTargets = [...sql.writePositions].flatMap(([target, writes]) =>
-    sql.readPositions.get(target)?.some((read) => writes.some((write) => write < read)) ? [target] : []
+  const groups = completedEvalJournalGroups(base.evidence.calls);
+  const lifecycle: LocatedLifecycleReceipt[] = workerLifecycleCallReceipts(groups);
+  const created = lifecycle.filter(
+    (entry): entry is LocatedLifecycleReceipt & {
+      receipt: Extract<EvalWorkerLifecycleObservation, { operation: "create" }>;
+    } =>
+      entry.receipt.operation === "create" &&
+      entry.receipt.kind === "do" &&
+      entry.receipt.source === `workers/${repoName}` &&
+      entry.receipt.className === "FixtureWorkerDO"
   );
-  const preservedRows = matchingTargets.some((target) => {
-    const writtenProperties = new Set<string>();
-    const readProperties = new Set<string>();
-    const wroteRows = observesWorkerProbeResult(
-      code, "writeRows", writtenProperties, sql.contractBindings, target
-    );
-    const readRows = observesWorkerProbeResult(
-      code, "readRows", readProperties, sql.contractBindings, target
-    );
-    if (!wroteRows || !readRows) return false;
-    const written = observedRows(base.evidence.evalValues, writtenProperties);
-    const read = observedRows(base.evidence.evalValues, readProperties);
-    return written.some((before) =>
-      read.some((after) => JSON.stringify(before) === JSON.stringify(after))
-    );
+  const retired = lifecycle.filter(
+    (entry): entry is LocatedLifecycleReceipt & {
+      receipt: Extract<EvalWorkerLifecycleObservation, { operation: "retire" }>;
+    } => entry.receipt.operation === "retire"
+  );
+  const rpcGroups = groups.map(({ entries, call }) => ({
+    call,
+    receipts: rpcCallReceipts(entries),
+  }));
+  const preservedRows = created.some((creation) => {
+    if (!retired.some(({ receipt, call }) =>
+      receipt.operation === "retire" && receipt.entityId === creation.receipt.entityId &&
+      sameRpcOwner(creation.call, call) && creation.call.settlementOrder < call.admissionOrder
+    )) return false;
+    const writes = rpcGroups.flatMap(({ receipts }) => receipts
+      .filter((receipt) => receipt.targetId === creation.receipt.targetId && receipt.method === "writeRows" && receipt.outcome === "fulfilled")
+      .map((receipt) => ({ receipt })));
+    const reads = rpcGroups.flatMap(({ call, receipts }) => receipts
+      .filter((receipt) => receipt.targetId === creation.receipt.targetId && receipt.method === "readRows" && receipt.outcome === "fulfilled")
+      .map((receipt) => ({ receipt, call })));
+    return writes.some((write) => {
+      const createdBeforeWrite = sameRpcOwner(creation.call, write.receipt) &&
+        creation.call.settlementOrder < write.receipt.admissionOrder;
+      const writeResult = write.receipt.result;
+      if (!createdBeforeWrite || writeResult?.available !== true) return false;
+      return reads.some((read) => {
+        const writeBeforeRead = sameRpcOwner(write.receipt, read.receipt) &&
+          write.receipt.settlementOrder < read.receipt.admissionOrder;
+        const readResult = read.receipt.result;
+        if (!writeBeforeRead || readResult?.available !== true) return false;
+        const retiredAfterRead = retired.some(({ receipt, call }) =>
+          receipt.operation === "retire" && receipt.entityId === creation.receipt.entityId &&
+          sameRpcOwner(read.receipt, call) && read.receipt.settlementOrder < call.admissionOrder
+        );
+        if (!retiredAfterRead || writeResult.fingerprint !== readResult.fingerprint) return false;
+        const returned = invocationReturnValue(read.call);
+        if (!returned.present) return false;
+        return observedRows([returned.value], new Set(["*"])).some((rows) => {
+          const fingerprint = fingerprintEvalRpcValue(rows);
+          return fingerprint.available && fingerprint.fingerprint === readResult.fingerprint;
+        });
+      });
+    });
   });
   if (
     !preservedRows ||
@@ -582,23 +685,22 @@ function requireDynamicWorkspaceServiceEvidence(result: TestExecutionResult) {
     };
   }
 
-  const evalCalls = base.evidence.calls.filter(
-    (call) =>
-      call.name === "eval" &&
-      call.execution?.status === "complete" &&
-      call.execution.isError !== true
-  );
-  const resolvedIndex = evalCalls.findIndex((call) =>
-    /workers\.resolveService\s*\(/u.test(String(call.arguments?.["code"] ?? ""))
-  );
-  const invoked = resolvedIndex < 0 ? undefined : evalCalls.slice(resolvedIndex).find((call) =>
-    /rpc\.call\s*\(/u.test(String(call.arguments?.["code"] ?? ""))
-  );
-  const returned = invoked ? invocationReturnValue(invoked) : { present: false as const };
-  if (!returned.present || !hasNonEmptyStructuredResult([returned.value])) {
+  const repoName = result.diagnostics?.["workspaceRepoFixture"] &&
+    typeof result.diagnostics["workspaceRepoFixture"] === "object" &&
+    !Array.isArray(result.diagnostics["workspaceRepoFixture"])
+    ? (result.diagnostics["workspaceRepoFixture"] as Record<string, unknown>)["repoName"]
+    : undefined;
+  if (
+    typeof repoName !== "string" ||
+    !resolvedServiceReceiverCallObserved(
+      completedEvalJournalGroups(base.evidence.calls),
+      `workers/${repoName}`,
+      "FixtureWorkerDO"
+    )
+  ) {
     return {
       passed: false,
-      reason: "No completed eval dynamically resolved and invoked the authored service",
+      reason: "No native receipt linked the resolved service target to its returned RPC result",
     };
   }
 
@@ -686,6 +788,25 @@ function requireInstalledWorkspaceServiceConsumerEvidence(result: TestExecutionR
     return {
       passed: false,
       reason: "The proof did not execute and call the context-built installed unit",
+    };
+  }
+  const repoName = result.diagnostics?.["workspaceRepoFixture"] &&
+    typeof result.diagnostics["workspaceRepoFixture"] === "object" &&
+    !Array.isArray(result.diagnostics["workspaceRepoFixture"])
+    ? (result.diagnostics["workspaceRepoFixture"] as Record<string, unknown>)["repoName"]
+    : undefined;
+  if (
+    typeof repoName !== "string" ||
+    !createdWorkerReceiverCallObserved(
+      completedEvalJournalGroups(base.evidence.calls),
+      `workers/${repoName}`,
+      "worker",
+      "consumeTestkitService"
+    )
+  ) {
+    return {
+      passed: false,
+      reason: "The installed consumer call was not observed on its created worker target",
     };
   }
   if (!hasNonEmptyStructuredResult(base.evidence.evalValues)) {
@@ -800,6 +921,25 @@ export const workerTests: TestCase[] = [
         ["runtime.createEntity", "rpc.call", "runtime.retireEntity"],
       ]);
       if (!base.passed) return base;
+      const repoName = result.diagnostics?.["workspaceRepoFixture"] &&
+        typeof result.diagnostics["workspaceRepoFixture"] === "object" &&
+        !Array.isArray(result.diagnostics["workspaceRepoFixture"])
+        ? (result.diagnostics["workspaceRepoFixture"] as Record<string, unknown>)["repoName"]
+        : undefined;
+      if (
+        typeof repoName !== "string" ||
+        !createdWorkerReceiverCallObserved(
+          completedEvalJournalGroups(base.evidence.calls),
+          `workers/${repoName}`,
+          "do",
+          "inspectProbe"
+        )
+      ) {
+        return {
+          passed: false,
+          reason: "The probe call was not observed on the created object's receiver target",
+        };
+      }
       if (
         !walkRecords(base.evidence.evalValues).some(
           (value) => value["probe"] !== undefined && value["probe"] !== null
