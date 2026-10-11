@@ -10,7 +10,7 @@ function execution(
   returnValue?: unknown,
   evalStatus: "complete" | "error" = "complete",
   consoleOutput?: string,
-  operationJournal?: unknown
+  operationJournal?: unknown,
 ): TestExecutionResult {
   const messages: TestExecutionResult["messages"] = [
     {
@@ -25,7 +25,8 @@ function execution(
     const details: Record<string, unknown> = {};
     if (returnValue !== undefined) details["returnValue"] = returnValue;
     if (consoleOutput !== undefined) details["console"] = consoleOutput;
-    if (operationJournal !== undefined) details["operationJournal"] = operationJournal;
+    if (operationJournal !== undefined)
+      details["operationJournal"] = operationJournal;
     messages.push({
       id: "call-eval-message",
       kind: "message",
@@ -73,20 +74,25 @@ const sqlOwnerGeneration = "00000000-0000-4000-8000-000000000001";
 
 function attachJournal(
   result: TestExecutionResult,
-  entries: Array<Record<string, unknown>>
+  entries: Array<Record<string, unknown>>,
 ): TestExecutionResult {
   const message = result.messages.find(
-    (candidate) => candidate.contentType === "invocation" && candidate.invocation?.name === "eval"
+    (candidate) =>
+      candidate.contentType === "invocation" &&
+      candidate.invocation?.name === "eval",
   );
-  if (!message?.invocation) throw new Error("Expected an eval invocation to attach evidence");
+  if (!message?.invocation)
+    throw new Error("Expected an eval invocation to attach evidence");
   const invocation = message.invocation as unknown as { result?: unknown };
   const current = invocation.result;
-  const details = current && typeof current === "object" && !Array.isArray(current)
-    ? (current as Record<string, unknown>)["details"]
-    : undefined;
-  const nextDetails = details && typeof details === "object" && !Array.isArray(details)
-    ? details as Record<string, unknown>
-    : {};
+  const details =
+    current && typeof current === "object" && !Array.isArray(current)
+      ? (current as Record<string, unknown>)["details"]
+      : undefined;
+  const nextDetails =
+    details && typeof details === "object" && !Array.isArray(details)
+      ? (details as Record<string, unknown>)
+      : {};
   nextDetails["operationJournal"] = {
     protocol: "workspace-operations.v1",
     truncated: false,
@@ -102,13 +108,18 @@ function attachJournal(
 
 function editJournal(
   result: TestExecutionResult,
-  edit: (entries: Array<Record<string, unknown>>) => void
+  edit: (entries: Array<Record<string, unknown>>) => void,
 ): void {
   const message = result.messages.find(
-    (candidate) => candidate.contentType === "invocation" && candidate.invocation?.name === "eval"
+    (candidate) =>
+      candidate.contentType === "invocation" &&
+      candidate.invocation?.name === "eval",
   );
-  if (!message?.invocation) throw new Error("Expected an eval invocation to edit evidence");
-  const invocation = message.invocation as unknown as { result?: { details?: Record<string, unknown> } };
+  if (!message?.invocation)
+    throw new Error("Expected an eval invocation to edit evidence");
+  const invocation = message.invocation as unknown as {
+    result?: { details?: Record<string, unknown> };
+  };
   const journal = invocation.result?.details?.["operationJournal"] as
     | { entries?: Array<Record<string, unknown>> }
     | undefined;
@@ -125,13 +136,15 @@ function doCallEntries(
     entityId?: string;
     source?: string;
     kind?: "worker" | "do";
-  } = {}
+  } = {},
 ): Array<Record<string, unknown>> {
   const kind = options.kind ?? "do";
   const source = options.source ?? "workers/probe";
-  const targetId = options.targetId ?? (kind === "do"
-    ? "do:workers/probe:FixtureWorkerDO:probe"
-    : "worker:workers/probe:installed-probe");
+  const targetId =
+    options.targetId ??
+    (kind === "do"
+      ? "do:workers/probe:FixtureWorkerDO:probe"
+      : "worker:workers/probe:installed-probe");
   const entityId = options.entityId ?? "worker-entity-probe";
   return [
     {
@@ -158,7 +171,9 @@ function doCallEntries(
         targetId,
         kind,
         source,
-        ...(kind === "do" ? { className: "FixtureWorkerDO", objectKey: "probe" } : {}),
+        ...(kind === "do"
+          ? { className: "FixtureWorkerDO", objectKey: "probe" }
+          : {}),
       },
     },
     {
@@ -205,20 +220,26 @@ function doCallEntries(
 function doCallExecution(
   code: string,
   value: unknown,
-  options: Parameters<typeof doCallEntries>[1] = {}
+  options: Parameters<typeof doCallEntries>[1] = {},
 ): TestExecutionResult {
   return attachJournal(
     execution("The object reported its probe value.", code, value),
-    doCallEntries(value && typeof value === "object" && !Array.isArray(value) && "observed" in value
-      ? (value as Record<string, unknown>)["observed"]
-      : value, options)
+    doCallEntries(
+      value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        "observed" in value
+        ? (value as Record<string, unknown>)["observed"]
+        : value,
+      options,
+    ),
   );
 }
 
 function dynamicServiceExecution(
   result: TestExecutionResult,
   phase: "combined" | "resolve" | "invoke",
-  value: unknown
+  value: unknown,
 ): TestExecutionResult {
   const targetId = "do:workers/probe:FixtureWorkerDO:task";
   const entries: Array<Record<string, unknown>> = [];
@@ -251,7 +272,7 @@ function dynamicServiceExecution(
           className: "FixtureWorkerDO",
           objectKey: "task",
         },
-      }
+      },
     );
   }
   if (phase !== "resolve") {
@@ -276,7 +297,8 @@ function dynamicServiceExecution(
   return attachJournal(result, entries);
 }
 
-const mainMethodsImport = 'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";';
+const mainMethodsImport =
+  'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";';
 const probeMethodsImport =
   'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract";';
 const regularWorkerMethodsImport = probeMethodsImport;
@@ -304,19 +326,32 @@ function sqlExecution(
     omitWrite?: boolean;
     omitRead?: boolean;
     omitResolve?: boolean;
-  } = {}
+    omitCallerReturn?: boolean;
+  } = {},
 ) {
-  const record = returnValue && typeof returnValue === "object" && !Array.isArray(returnValue)
-    ? returnValue as Record<string, unknown>
-    : {};
-  const writeRows = record["before"] ?? record["written"] ?? record["accepted"] ?? record["rows"];
-  const readRows = record["after"] ?? record["persisted"] ?? record["observed"] ?? record["rows"];
+  const record =
+    returnValue &&
+    typeof returnValue === "object" &&
+    !Array.isArray(returnValue)
+      ? (returnValue as Record<string, unknown>)
+      : {};
+  const writeRows =
+    record["before"] ??
+    record["written"] ??
+    record["accepted"] ??
+    record["rows"];
+  const readRows =
+    record["after"] ??
+    record["persisted"] ??
+    record["observed"] ??
+    record["rows"];
   const source = options.source ?? "workers/probe";
   const className = options.className ?? "FixtureWorkerDO";
   const targetId = options.targetId ?? `do:${source}:${className}:sql-probe`;
   const entityId = "worker-entity-sql-probe";
   const ownerId = options.ownerId ?? "eval-owner-sql-probe";
-  const ownerGeneration = options.ownerGeneration ?? "00000000-0000-4000-8000-000000000001";
+  const ownerGeneration =
+    options.ownerGeneration ?? "00000000-0000-4000-8000-000000000001";
   const operationJournal = {
     protocol: "workspace-operations.v1",
     truncated: false,
@@ -349,61 +384,74 @@ function sqlExecution(
           objectKey: "sql-probe",
         },
       },
-      ...(!options.omitWrite ? [{
-        type: "rpc.call",
-        receipt: {
-          protocol: "rpc-call-observation.v1",
-          ownerId,
-          ownerGeneration,
-          callId: 1,
-          admissionOrder: options.writeOrder ?? 2,
-          settlementOrder: options.writeSettlementOrder ?? 3,
-          targetId,
-          method: options.writeMethod ?? "writeRows",
-          outcome: "fulfilled",
-          result: fingerprintEvalRpcValue(writeRows),
-        },
-      }] : []),
-      ...(!options.omitResolve ? [{
-        type: "rpc.call",
-        receipt: {
-          protocol: "rpc-call-observation.v1",
-          ownerId,
-          ownerGeneration,
-          callId: 2,
-          admissionOrder: 4,
-          settlementOrder: 5,
-          targetId: "main",
-          method: "workers.resolveDurableObject",
-          outcome: "fulfilled",
-        },
-      }, {
-        type: "worker.lifecycle",
-        receipt: {
-          protocol: "worker-lifecycle-observation.v1",
-          callId: 2,
-          operation: "resolve",
-          targetId,
-          source,
-          className,
-          objectKey: "sql-probe",
-        },
-      }] : []),
-      ...(!options.omitRead ? [{
-        type: "rpc.call",
-        receipt: {
-          protocol: "rpc-call-observation.v1",
-          ownerId,
-          ownerGeneration,
-          callId: 3,
-          admissionOrder: options.readOrder ?? 6,
-          settlementOrder: options.readSettlementOrder ?? 7,
-          targetId: options.readTargetId ?? targetId,
-          method: options.readMethod ?? "readRows",
-          outcome: "fulfilled",
-          result: fingerprintEvalRpcValue(readRows),
-        },
-      }] : []),
+      ...(!options.omitWrite
+        ? [
+            {
+              type: "rpc.call",
+              receipt: {
+                protocol: "rpc-call-observation.v1",
+                ownerId,
+                ownerGeneration,
+                callId: 1,
+                admissionOrder: options.writeOrder ?? 2,
+                settlementOrder: options.writeSettlementOrder ?? 3,
+                targetId,
+                method: options.writeMethod ?? "writeRows",
+                outcome: "fulfilled",
+                result: fingerprintEvalRpcValue(writeRows),
+              },
+            },
+          ]
+        : []),
+      ...(!options.omitResolve
+        ? [
+            {
+              type: "rpc.call",
+              receipt: {
+                protocol: "rpc-call-observation.v1",
+                ownerId,
+                ownerGeneration,
+                callId: 2,
+                admissionOrder: 4,
+                settlementOrder: 5,
+                targetId: "main",
+                method: "workers.resolveDurableObject",
+                outcome: "fulfilled",
+              },
+            },
+            {
+              type: "worker.lifecycle",
+              receipt: {
+                protocol: "worker-lifecycle-observation.v1",
+                callId: 2,
+                operation: "resolve",
+                targetId,
+                source,
+                className,
+                objectKey: "sql-probe",
+              },
+            },
+          ]
+        : []),
+      ...(!options.omitRead
+        ? [
+            {
+              type: "rpc.call",
+              receipt: {
+                protocol: "rpc-call-observation.v1",
+                ownerId,
+                ownerGeneration,
+                callId: 3,
+                admissionOrder: options.readOrder ?? 6,
+                settlementOrder: options.readSettlementOrder ?? 7,
+                targetId: options.readTargetId ?? targetId,
+                method: options.readMethod ?? "readRows",
+                outcome: "fulfilled",
+                result: fingerprintEvalRpcValue(readRows),
+              },
+            },
+          ]
+        : []),
       {
         type: "rpc.call",
         receipt: {
@@ -429,7 +477,14 @@ function sqlExecution(
       },
     ],
   };
-  const result = execution(finalMessage, code, returnValue, "complete", consoleOutput, operationJournal);
+  const result = execution(
+    finalMessage,
+    code,
+    options.omitCallerReturn ? undefined : returnValue,
+    "complete",
+    consoleOutput,
+    operationJournal,
+  );
   result.diagnostics = {
     ...result.diagnostics,
     workspaceRepoFixture: { repoName: "probe" },
@@ -447,53 +502,85 @@ function sqlExecutionAcrossCells(
   }>,
   options: {
     retiredEntityId?: string;
-    eventOrders?: Partial<Record<number, { admissionOrder: number; settlementOrder: number }>>;
-  } = {}
+    eventOrders?: Partial<
+      Record<number, { admissionOrder: number; settlementOrder: number }>
+    >;
+  } = {},
 ): TestExecutionResult {
   const rows = [
     { id: "row-1", value: "alpha" },
     { id: "row-2", value: "beta" },
   ];
   const fullCode = cells.map((cell) => cell.code).join("\n");
-  const whole = sqlExecution("Rows persisted across eval cells.", fullCode, {
-    before: rows,
-    after: rows,
-  }, undefined, {
-    ...(options.retiredEntityId ? { retiredEntityId: options.retiredEntityId } : {}),
-  });
-  const original = whole.messages.find(
-    (message) => message.contentType === "invocation" && message.invocation?.name === "eval"
+  const whole = sqlExecution(
+    "Rows persisted across eval cells.",
+    fullCode,
+    {
+      before: rows,
+      after: rows,
+    },
+    undefined,
+    {
+      ...(options.retiredEntityId
+        ? { retiredEntityId: options.retiredEntityId }
+        : {}),
+    },
   );
-  if (!original?.invocation) throw new Error("SQL fixture did not create an eval invocation");
-  const originalPayload = original.invocation as unknown as Record<string, unknown>;
+  const original = whole.messages.find(
+    (message) =>
+      message.contentType === "invocation" &&
+      message.invocation?.name === "eval",
+  );
+  if (!original?.invocation)
+    throw new Error("SQL fixture did not create an eval invocation");
+  const originalPayload = original.invocation as unknown as Record<
+    string,
+    unknown
+  >;
   const invocationResult = originalPayload["result"];
-  const details = invocationResult && typeof invocationResult === "object"
-    ? (invocationResult as Record<string, unknown>)["details"]
-    : undefined;
+  const details =
+    invocationResult && typeof invocationResult === "object"
+      ? (invocationResult as Record<string, unknown>)["details"]
+      : undefined;
   if (!details || typeof details !== "object" || Array.isArray(details))
     throw new Error("SQL fixture did not create eval details");
   const journal = (details as Record<string, unknown>)["operationJournal"];
   if (!journal || typeof journal !== "object" || Array.isArray(journal))
     throw new Error("SQL fixture did not create an operation journal");
   const entries = (journal as Record<string, unknown>)["entries"];
-  if (!Array.isArray(entries)) throw new Error("SQL fixture journal entries were unavailable");
+  if (!Array.isArray(entries))
+    throw new Error("SQL fixture journal entries were unavailable");
   const prompt = whole.messages[0]!;
   const final = whole.messages[whole.messages.length - 1]!;
   const calls = cells.map((cell, index) => {
     const selected = entries.filter((entry) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+      if (!entry || typeof entry !== "object" || Array.isArray(entry))
+        return false;
       const receipt = (entry as Record<string, unknown>)["receipt"];
-      return receipt !== null && typeof receipt === "object" && !Array.isArray(receipt) &&
-        cell.callIds.includes(Number((receipt as Record<string, unknown>)["callId"]));
+      return (
+        receipt !== null &&
+        typeof receipt === "object" &&
+        !Array.isArray(receipt) &&
+        cell.callIds.includes(
+          Number((receipt as Record<string, unknown>)["callId"]),
+        )
+      );
     });
-    const localCallIds = [...new Set(selected.flatMap((entry) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-      const receipt = (entry as Record<string, unknown>)["receipt"];
-      return receipt !== null && typeof receipt === "object" && !Array.isArray(receipt) &&
-        typeof (receipt as Record<string, unknown>)["callId"] === "number"
-        ? [(receipt as Record<string, unknown>)["callId"] as number]
-        : [];
-    }))].sort((left, right) => left - right);
+    const localCallIds = [
+      ...new Set(
+        selected.flatMap((entry) => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry))
+            return [];
+          const receipt = (entry as Record<string, unknown>)["receipt"];
+          return receipt !== null &&
+            typeof receipt === "object" &&
+            !Array.isArray(receipt) &&
+            typeof (receipt as Record<string, unknown>)["callId"] === "number"
+            ? [(receipt as Record<string, unknown>)["callId"] as number]
+            : [];
+        }),
+      ),
+    ].sort((left, right) => left - right);
     const localEntries = selected.map((entry) => {
       const record = entry as Record<string, unknown>;
       const receipt = record["receipt"] as Record<string, unknown>;
@@ -504,8 +591,12 @@ function sqlExecutionAcrossCells(
         receipt: {
           ...receipt,
           callId: localCallIds.indexOf(sourceCallId),
-          ...(record["type"] === "rpc.call" && eventOverride ? eventOverride : {}),
-          ...(record["type"] === "rpc.call" && cell.ownerId ? { ownerId: cell.ownerId } : {}),
+          ...(record["type"] === "rpc.call" && eventOverride
+            ? eventOverride
+            : {}),
+          ...(record["type"] === "rpc.call" && cell.ownerId
+            ? { ownerId: cell.ownerId }
+            : {}),
           ...(record["type"] === "rpc.call" && cell.ownerGeneration
             ? { ownerGeneration: cell.ownerGeneration }
             : {}),
@@ -519,7 +610,8 @@ function sqlExecutionAcrossCells(
     };
     const callId = `eval-cell-${index + 1}`;
     const resultDetails: Record<string, unknown> = { operationJournal };
-    if (cell.returnValue !== undefined) resultDetails["returnValue"] = cell.returnValue;
+    if (cell.returnValue !== undefined)
+      resultDetails["returnValue"] = cell.returnValue;
     return {
       ...original,
       id: `${callId}-message`,
@@ -548,7 +640,9 @@ const lifecycleCode = [
 describe("worker test validators", () => {
   it("keeps launchable-worker discovery vague and independent of API names", () => {
     expect(test("list-sources").prompt).toBe("Which workers can I start here?");
-    expect(test("list-sources").prompt).not.toMatch(/listSources|eval|runtime/u);
+    expect(test("list-sources").prompt).not.toMatch(
+      /listSources|eval|runtime/u,
+    );
   });
 
   it("keeps authored worker probes in an isolated buildable fixture", () => {
@@ -572,7 +666,9 @@ describe("worker test validators", () => {
       kind: "buildable-worker",
       section: "workers",
     });
-    expect(test("installed-workspace-service-consumer").workspaceRepoFixture).toEqual({
+    expect(
+      test("installed-workspace-service-consumer").workspaceRepoFixture,
+    ).toEqual({
       kind: "buildable-regular-worker",
       section: "workers",
     });
@@ -581,7 +677,8 @@ describe("worker test validators", () => {
   it("derives service authority from the randomized worker fixture and its dynamic object keys", () => {
     const authorityPolicy = test("dynamic-workspace-service").authorityPolicy;
     expect(authorityPolicy).toBeTypeOf("function");
-    if (typeof authorityPolicy !== "function") throw new Error("expected authority policy factory");
+    if (typeof authorityPolicy !== "function")
+      throw new Error("expected authority policy factory");
     expect(
       authorityPolicy({
         testName: "dynamic-workspace-service",
@@ -590,7 +687,7 @@ describe("worker test validators", () => {
           section: "workers",
           repoName: "system-test-dynamic-workspace-service-abcd1234",
         },
-      })
+      }),
     ).toEqual({
       authority: [
         {
@@ -598,7 +695,8 @@ describe("worker test validators", () => {
           capability: { kind: "prefix", prefix: "workspace-service:" },
           resource: {
             kind: "prefix",
-            prefix: "do:workers/system-test-dynamic-workspace-service-abcd1234:FixtureWorkerDO:",
+            prefix:
+              "do:workers/system-test-dynamic-workspace-service-abcd1234:FixtureWorkerDO:",
           },
           tier: "gated",
           decision: "once",
@@ -608,7 +706,9 @@ describe("worker test validators", () => {
   });
 
   it("pre-approves the exact small installed service used by the consumer fixture", () => {
-    expect(test("installed-workspace-service-consumer").authorityPolicy).toEqual({
+    expect(
+      test("installed-workspace-service-consumer").authorityPolicy,
+    ).toEqual({
       authority: [
         {
           ruleId: "consume-installed-testkit-service",
@@ -630,11 +730,12 @@ describe("worker test validators", () => {
   it("requires returned rows for source and live-instance discovery", () => {
     expect(
       test("list-sources").validate(
-        execution("Two launchable worker sources are available.", "return workers.listSources();", [
-          { source: "workers/a" },
-          { source: "workers/b" },
-        ])
-      ).passed
+        execution(
+          "Two launchable worker sources are available.",
+          "return workers.listSources();",
+          [{ source: "workers/a" }, { source: "workers/b" }],
+        ),
+      ).passed,
     ).toBe(true);
     expect(
       test("list-sources").validate(
@@ -644,30 +745,32 @@ describe("worker test validators", () => {
           [
             { source: "workers/a", kind: "worker", status: "available" },
             { source: "workers/b", kind: "worker", status: "available" },
-          ]
-        )
-      ).passed
+          ],
+        ),
+      ).passed,
     ).toBe(true);
     expect(
       test("list-workers").validate(
-        execution("There is one running worker instance.", "return workers.list();", [
-          { id: "worker-1" },
-        ])
-      ).passed
+        execution(
+          "There is one running worker instance.",
+          "return workers.list();",
+          [{ id: "worker-1" }],
+        ),
+      ).passed,
     ).toBe(true);
     expect(
       test("list-workers").validate(
-        execution("There are no running workers.", "return workers.list();")
-      ).passed
+        execution("There are no running workers.", "return workers.list();"),
+      ).passed,
     ).toBe(false);
     expect(
       test("list-workers").validate(
         execution(
           "No worker unit currently has a running instance.",
           "return runtime.supervision.list();",
-          []
-        )
-      ).passed
+          [],
+        ),
+      ).passed,
     ).toBe(true);
 
     expect(
@@ -677,15 +780,15 @@ describe("worker test validators", () => {
           "const sources = await workers.listSources(); console.log(sources);",
           undefined,
           "complete",
-          'sourcesCount 12\n{"source":"workers/agent-worker"}'
-        )
-      ).passed
+          'sourcesCount 12\n{"source":"workers/agent-worker"}',
+        ),
+      ).passed,
     ).toBe(true);
   });
 
   it("requires an observable Durable Object method result", () => {
     const code = [
-      'const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe" });',
+      'const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } });',
       probeMethodsImport,
       "const observed = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []);",
       "await workers.destroy(handle);",
@@ -696,23 +799,31 @@ describe("worker test validators", () => {
       createdId: "worker-1",
       destroyedId: "worker-1",
     });
-    expect(
-      test("call-do-method").validate(valid).passed
-    ).toBe(true);
+    expect(test("call-do-method").validate(valid).passed).toBe(true);
     const unrelatedReceiver = structuredClone(valid);
     editJournal(unrelatedReceiver, (entries) => {
-      const receiver = entries.find((entry) => entry["type"] === "rpc.call" &&
-        (entry["receipt"] as Record<string, unknown>)?.["method"] === "inspectProbe");
+      const receiver = entries.find(
+        (entry) =>
+          entry["type"] === "rpc.call" &&
+          (entry["receipt"] as Record<string, unknown>)?.["method"] ===
+            "inspectProbe",
+      );
       if (receiver) {
         const receipt = receiver["receipt"] as Record<string, unknown>;
         receipt["targetId"] = "do:workers/probe:FixtureWorkerDO:unrelated";
       }
     });
-    expect(test("call-do-method").validate(unrelatedReceiver).passed).toBe(false);
+    expect(test("call-do-method").validate(unrelatedReceiver)).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("not on the created do's target"),
+    });
     expect(
       test("call-do-method").validate(
-        execution("The call worked.", 'return rpc.call(handle.targetId, "version", []);')
-      ).passed
+        execution(
+          "The call worked.",
+          'return rpc.call(handle.targetId, "version", []);',
+        ),
+      ).passed,
     ).toBe(false);
   });
 
@@ -731,49 +842,154 @@ describe("worker test validators", () => {
     ];
     expect(
       test("worker-do-sql-persistence").validate(
-        sqlExecution("Both rows were present on the later read, and the object was retired.", code, {
-          before: rows,
-          after: rows,
-          createdId: "worker-1",
-          retiredId: "worker-1",
-        })
-      ).passed
+        sqlExecution(
+          "Both rows were present on the later read, and the object was retired.",
+          code,
+          {
+            before: rows,
+            after: rows,
+            createdId: "worker-1",
+            retiredId: "worker-1",
+          },
+        ),
+      ).passed,
     ).toBe(true);
 
-    const wrongOwnerCode = code.replace("@workspace-workers/probe/contract", "@workspace-workers/another-worker/contract");
+    const wrongOwnerCode = code.replace(
+      "@workspace-workers/probe/contract",
+      "@workspace-workers/another-worker/contract",
+    );
     expect(
-      test("worker-do-sql-persistence").validate(sqlExecution(
-        "Rows persisted.", wrongOwnerCode, { before: rows, after: rows }, undefined,
-        { source: "workers/another-worker" }
-      ))
-        .passed
+      test("worker-do-sql-persistence").validate(
+        sqlExecution(
+          "Rows persisted.",
+          wrongOwnerCode,
+          { before: rows, after: rows },
+          undefined,
+          { source: "workers/another-worker" },
+        ),
+      ).passed,
     ).toBe(false);
 
     expect(
-      test("worker-do-sql-persistence").validate(sqlExecution(
-        "Rows persisted.", code, { before: rows, after: rows }, undefined,
-        { readMethod: "report" }
-      )).passed
+      test("worker-do-sql-persistence").validate(
+        sqlExecution(
+          "Rows persisted.",
+          code,
+          { before: rows, after: rows },
+          undefined,
+          { readMethod: "report" },
+        ),
+      ).passed,
     ).toBe(false);
 
     for (const invalid of [
-      { before: rows, after: [{ id: "row-1", value: "alpha" }], createdId: "worker-1", retiredId: "worker-1" },
-      { before: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }], after: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "wrong" }], createdId: "worker-1", retiredId: "worker-1" },
-      { before: rows, after: rows, persisted: false, createdId: "worker-1", retiredId: "worker-1" },
-      { before: rows, after: [{ id: "row-1", value: "wrong" }, { id: "row-2", value: "beta" }], createdId: "worker-1", retiredId: "worker-1" },
+      {
+        before: rows,
+        after: [{ id: "row-1", value: "alpha" }],
+        createdId: "worker-1",
+        retiredId: "worker-1",
+      },
+      {
+        before: [
+          { id: "row-1", value: "alpha" },
+          { id: "row-2", value: "beta" },
+        ],
+        after: [
+          { id: "row-1", value: "alpha" },
+          { id: "row-2", value: "wrong" },
+        ],
+        createdId: "worker-1",
+        retiredId: "worker-1",
+      },
+      {
+        before: rows,
+        after: rows,
+        persisted: false,
+        createdId: "worker-1",
+        retiredId: "worker-1",
+      },
+      {
+        before: rows,
+        after: [
+          { id: "row-1", value: "wrong" },
+          { id: "row-2", value: "beta" },
+        ],
+        createdId: "worker-1",
+        retiredId: "worker-1",
+      },
     ]) {
       expect(
-        test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", code, invalid))
-          .passed
+        test("worker-do-sql-persistence").validate(
+          sqlExecution("Rows persisted.", code, invalid),
+        ).passed,
       ).toBe(false);
     }
 
     expect(
-      test("worker-do-sql-persistence").validate(sqlExecution(
-        "Rows persisted.", code, { before: rows, after: rows }, undefined,
-        { retiredEntityId: "different-entity" }
-      )).passed
+      test("worker-do-sql-persistence").validate(
+        sqlExecution(
+          "Rows persisted.",
+          code,
+          { before: rows, after: rows },
+          undefined,
+          { retiredEntityId: "different-entity" },
+        ),
+      ).passed,
     ).toBe(false);
+
+    const mismatch = test("worker-do-sql-persistence").validate(
+      sqlExecution("Rows persisted.", code, {
+        before: rows,
+        after: [
+          { id: "row-1", value: "alpha" },
+          { id: "row-2", value: "changed" },
+        ],
+      }),
+    );
+    expect(mismatch).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining(
+        "did not match the rows accepted by writeRows",
+      ),
+    });
+
+    const missingReturn = sqlExecution(
+      "Rows persisted.",
+      code,
+      { before: rows, after: rows },
+      undefined,
+      { omitCallerReturn: true },
+    );
+    expect(
+      test("worker-do-sql-persistence").validate(missingReturn),
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("no caller-visible return value"),
+    });
+
+    const missingRetirement = sqlExecution("Rows persisted.", code, {
+      before: rows,
+      after: rows,
+    });
+    editJournal(missingRetirement, (entries) => {
+      for (let index = entries.length - 1; index >= 0; index--) {
+        const entry = entries[index]!;
+        const receipt = entry["receipt"] as Record<string, unknown> | undefined;
+        if (
+          receipt?.["operation"] === "retire" ||
+          (entry["type"] === "rpc.call" &&
+            receipt?.["method"] === "runtime.retireEntity")
+        )
+          entries.splice(index, 1);
+      }
+    });
+    expect(
+      test("worker-do-sql-persistence").validate(missingRetirement),
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("no recorded retirement receipt"),
+    });
   });
 
   it("accepts the documented disposable Durable Object lifecycle", () => {
@@ -788,19 +1004,22 @@ describe("worker test validators", () => {
     ].join("\n");
     expect(
       test("worker-do-sql-persistence").validate(
-        sqlExecution("The disposable object persisted both rows and was retired.", code, {
-          before: [
-            { id: "row-1", value: "alpha" },
-            { id: "row-2", value: "beta" },
-          ],
-          after: [
-            { id: "row-1", value: "alpha" },
-            { id: "row-2", value: "beta" },
-          ],
-        })
-      ).passed
+        sqlExecution(
+          "The disposable object persisted both rows and was retired.",
+          code,
+          {
+            before: [
+              { id: "row-1", value: "alpha" },
+              { id: "row-2", value: "beta" },
+            ],
+            after: [
+              { id: "row-1", value: "alpha" },
+              { id: "row-2", value: "beta" },
+            ],
+          },
+        ),
+      ).passed,
     ).toBe(true);
-
   });
 
   it("accepts property-name-independent write and read observations on a scoped handle", () => {
@@ -808,9 +1027,9 @@ describe("worker test validators", () => {
       probeMethodsImport,
       'const scope = { handle: await workers.createDurableObject("workers/probe", "FixtureWorkerDO") };',
       'const acceptedRows = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
-      'const rows = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.readRows, []);',
-      'await workers.destroy(scope.handle);',
-      'return { accepted: acceptedRows, observed: rows };',
+      "const rows = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.readRows, []);",
+      "await workers.destroy(scope.handle);",
+      "return { accepted: acceptedRows, observed: rows };",
     ].join("\n");
     expect(
       test("worker-do-sql-persistence").validate(
@@ -823,8 +1042,8 @@ describe("worker test validators", () => {
             { id: "row-1", value: "alpha" },
             { id: "row-2", value: "beta" },
           ],
-        })
-      ).passed
+        }),
+      ).passed,
     ).toBe(true);
   });
 
@@ -833,51 +1052,62 @@ describe("worker test validators", () => {
       probeMethodsImport,
       'const target = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "temporary" });',
       'await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
-      'await rpc.call(target.targetId, fixtureWorkerRpcMethods.readRows, []);',
+      "await rpc.call(target.targetId, fixtureWorkerRpcMethods.readRows, []);",
       "await workers.destroy(target);",
       'return { rows: [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }] };',
     ].join("\n");
     expect(
       test("worker-do-sql-persistence").validate(
-        sqlExecution("Rows persisted.", code, {
-          before: [
-            { id: "row-1", value: "alpha" },
-            { id: "row-2", value: "beta" },
-          ],
-          after: [
-            { id: "row-1", value: "alpha" },
-            { id: "row-2", value: "beta" },
-          ],
-        }, undefined, { omitRead: true })
-      ).passed
+        sqlExecution(
+          "Rows persisted.",
+          code,
+          {
+            before: [
+              { id: "row-1", value: "alpha" },
+              { id: "row-2", value: "beta" },
+            ],
+            after: [
+              { id: "row-1", value: "alpha" },
+              { id: "row-2", value: "beta" },
+            ],
+          },
+          undefined,
+          { omitRead: true },
+        ),
+      ).passed,
     ).toBe(false);
   });
 
   it("requires the exact retired identity or an identical before/after inventory", () => {
-    const prose = "The temporary worker started successfully and was fully removed.";
+    const prose =
+      "The temporary worker started successfully and was fully removed.";
     expect(
       test("create-destroy").validate(
         execution(prose, lifecycleCode, {
           createdId: "worker-7",
           retiredId: "worker-7",
-        })
-      ).passed
+        }),
+      ).passed,
     ).toBe(true);
     expect(
       test("create-destroy").validate(
         execution(prose, lifecycleCode, {
           createdId: "worker-7",
           retiredId: "worker-8",
-        })
-      ).passed
+        }),
+      ).passed,
     ).toBe(false);
     expect(
       test("create-destroy").validate(
         execution(prose, lifecycleCode, {
-          before: [{ id: "worker-existing", source: "workers/probe", state: "before" }],
-          after: [{ id: "worker-existing", source: "workers/probe", state: "after" }],
-        })
-      ).passed
+          before: [
+            { id: "worker-existing", source: "workers/probe", state: "before" },
+          ],
+          after: [
+            { id: "worker-existing", source: "workers/probe", state: "after" },
+          ],
+        }),
+      ).passed,
     ).toBe(true);
   });
 
@@ -897,16 +1127,16 @@ describe("worker test validators", () => {
         execution("The temporary worker was observed and removed.", code, {
           existsAfterCreate: true,
           existsAfterDestroy: false,
-        })
-      ).passed
+        }),
+      ).passed,
     ).toBe(true);
     expect(
       test("create-destroy").validate(
         execution("The temporary worker remained live.", code, {
           existsAfterCreate: true,
           existsAfterDestroy: true,
-        })
-      ).passed
+        }),
+      ).passed,
     ).toBe(false);
   });
 
@@ -926,29 +1156,37 @@ describe("worker test validators", () => {
         execution("The temporary worker was observed and removed.", code, {
           foundAfterCreate: true,
           stillExists: false,
-        })
-      ).passed
+        }),
+      ).passed,
     ).toBe(true);
   });
 
   it("accepts a live-instance count returning to its exact baseline", () => {
     expect(
       test("create-destroy").validate(
-        execution("The temporary worker was observed and removed.", lifecycleCode, {
-          beforeCount: 2,
-          afterCreateCount: 3,
-          afterDestroyCount: 2,
-        })
-      ).passed
+        execution(
+          "The temporary worker was observed and removed.",
+          lifecycleCode,
+          {
+            beforeCount: 2,
+            afterCreateCount: 3,
+            afterDestroyCount: 2,
+          },
+        ),
+      ).passed,
     ).toBe(true);
     expect(
       test("create-destroy").validate(
-        execution("The temporary worker was not fully removed.", lifecycleCode, {
-          beforeCount: 2,
-          afterCreateCount: 3,
-          afterDestroyCount: 3,
-        })
-      ).passed
+        execution(
+          "The temporary worker was not fully removed.",
+          lifecycleCode,
+          {
+            beforeCount: 2,
+            afterCreateCount: 3,
+            afterDestroyCount: 3,
+          },
+        ),
+      ).passed,
     ).toBe(false);
   });
 
@@ -962,9 +1200,9 @@ describe("worker test validators", () => {
             "await workers.list();",
             "try { await workers.list(); } finally { await workers.destroy(handle); }",
           ].join("\n"),
-          { ok: true }
-        )
-      ).passed
+          { ok: true },
+        ),
+      ).passed,
     ).toBe(true);
   });
 
@@ -983,9 +1221,9 @@ describe("worker test validators", () => {
             "}",
             "await workers.list();",
           ].join("\n"),
-          { ok: true }
-        )
-      ).passed
+          { ok: true },
+        ),
+      ).passed,
     ).toBe(true);
   });
 
@@ -1011,23 +1249,27 @@ describe("worker test validators", () => {
             afterCreateCount: 1,
             afterRetireCount: 0,
             stillThere: false,
-          }
-        )
-      ).passed
+          },
+        ),
+      ).passed,
     ).toBe(true);
   });
 
   it("rejects fabricated prose, failed calls, and missing lifecycle operations", () => {
-    const prose = "I confirmed that the worker was created and destroyed cleanly.";
-    expect(test("create-destroy").validate(execution(prose)).passed).toBe(false);
+    const prose =
+      "I confirmed that the worker was created and destroyed cleanly.";
+    expect(test("create-destroy").validate(execution(prose)).passed).toBe(
+      false,
+    );
     expect(
       test("create-destroy").validate(
-        execution(prose, lifecycleCode, { before: [], after: [] }, "error")
-      ).passed
+        execution(prose, lifecycleCode, { before: [], after: [] }, "error"),
+      ).passed,
     ).toBe(false);
     expect(
-      test("create-destroy").validate(execution(prose, "return true", { before: [], after: [] }))
-        .passed
+      test("create-destroy").validate(
+        execution(prose, "return true", { before: [], after: [] }),
+      ).passed,
     ).toBe(false);
   });
 
@@ -1045,72 +1287,100 @@ describe("worker test validators", () => {
     };
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", acceptedOnly, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          acceptedOnly,
+          proof,
+        ),
+      ).passed,
     ).toBe(false);
 
     const observed = acceptedOnly.replace(
       'await rpc.call("main", mainRpcMethods["runtime.retireEntity"]',
-      'const result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []);\nawait rpc.call("main", mainRpcMethods["runtime.retireEntity"]'
+      'const result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []);\nawait rpc.call("main", mainRpcMethods["runtime.retireEntity"]',
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", `${observed}\nreturn result;`, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          `${observed}\nreturn result;`,
+          proof,
+        ),
+      ).passed,
     ).toBe(true);
     const directlyReturned = acceptedOnly.replace(
       runtimeRetire,
-      'try { return await scope.runtime.rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } finally { await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]); }'
+      'try { return await scope.runtime.rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } finally { await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]); }',
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", directlyReturned, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          directlyReturned,
+          proof,
+        ),
+      ).passed,
     ).toBe(true);
     const fakeRpcText = acceptedOnly.replace(
       runtimeRetire,
-      'const note = "return await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, [])"; return { observed: "x" };'
+      'const note = "return await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, [])"; return { observed: "x" };',
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", fakeRpcText, proof)
-      ).passed
+        execution("The worker observed x and was removed.", fakeRpcText, proof),
+      ).passed,
     ).toBe(false);
     const uncalledFunction = acceptedOnly.replace(
       runtimeRetire,
-      'function inspectLater() { return rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } return { observed: "x" };'
+      'function inspectLater() { return rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } return { observed: "x" };',
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", uncalledFunction, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          uncalledFunction,
+          proof,
+        ),
+      ).passed,
     ).toBe(false);
     const shadowedProbe = acceptedOnly.replace(
       runtimeRetire,
-      "let result: unknown; { const result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } return result;"
+      "let result: unknown; { const result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } return result;",
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", shadowedProbe, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          shadowedProbe,
+          proof,
+        ),
+      ).passed,
     ).toBe(false);
     const discardedProbe = acceptedOnly.replace(
       runtimeRetire,
-      'await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); try { return { observed: "x" }; } finally { await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]); }'
+      'await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); try { return { observed: "x" }; } finally { await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]); }',
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", discardedProbe, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          discardedProbe,
+          proof,
+        ),
+      ).passed,
     ).toBe(false);
     const reassignedProbe = acceptedOnly.replace(
       runtimeRetire,
-      'let result: unknown; result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); result = { observed: "x" }; return result;'
+      'let result: unknown; result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); result = { observed: "x" }; return result;',
     );
     expect(
       test("worker-env").validate(
-        execution("The worker observed x and was removed.", reassignedProbe, proof)
-      ).passed
+        execution(
+          "The worker observed x and was removed.",
+          reassignedProbe,
+          proof,
+        ),
+      ).passed,
     ).toBe(false);
     expect(
       test("worker-env").validate(
@@ -1118,11 +1388,11 @@ describe("worker test validators", () => {
           "The worker observed x and was removed.",
           `${acceptedOnly.replace(
             'await rpc.call("main", mainRpcMethods["runtime.retireEntity"]',
-            'let result: unknown = null;\nresult = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []);\nawait rpc.call("main", mainRpcMethods["runtime.retireEntity"]'
+            'let result: unknown = null;\nresult = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []);\nawait rpc.call("main", mainRpcMethods["runtime.retireEntity"]',
           )}\nreturn { result };`,
-          proof
-        )
-      ).passed
+          proof,
+        ),
+      ).passed,
     ).toBe(true);
     expect(
       test("worker-env").validate(
@@ -1131,9 +1401,9 @@ describe("worker test validators", () => {
           `${observed}\nconsole.log({ result });`,
           undefined,
           "complete",
-          '{ "result": "x" }'
-        )
-      ).passed
+          '{ "result": "x" }',
+        ),
+      ).passed,
     ).toBe(true);
     expect(
       test("worker-env").validate(
@@ -1142,9 +1412,9 @@ describe("worker test validators", () => {
           `${observed}\nconst summary = { probe: result };\nconsole.log(JSON.stringify(summary));`,
           undefined,
           "complete",
-          '{ "summary": { "probe": "x" } }'
-        )
-      ).passed
+          '{ "summary": { "probe": "x" } }',
+        ),
+      ).passed,
     ).toBe(true);
 
     expect(
@@ -1152,9 +1422,9 @@ describe("worker test validators", () => {
         execution(
           "The worker was called and removed, but its observation was discarded.",
           observed,
-          proof
-        )
-      ).passed
+          proof,
+        ),
+      ).passed,
     ).toBe(false);
   });
 
@@ -1195,28 +1465,44 @@ describe("worker test validators", () => {
         result: { details: { ok: true } },
       },
     } as unknown as TestExecutionResult["messages"][number];
-    const dynamic = dynamicServiceExecution(execution(
-      "The context-local probe answered with its value.",
-      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
-      { answer: "context-local" }
-    ), "combined", { answer: "context-local" });
+    const dynamic = dynamicServiceExecution(
+      execution(
+        "The context-local probe answered with its value.",
+        'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
+        { answer: "context-local" },
+      ),
+      "combined",
+      { answer: "context-local" },
+    );
     dynamic.messages.splice(1, 0, docs, authored);
-    expect(test("dynamic-workspace-service").validate(dynamic).passed).toBe(true);
+    expect(test("dynamic-workspace-service").validate(dynamic).passed).toBe(
+      true,
+    );
     const unrelatedServiceTarget = structuredClone(dynamic);
     editJournal(unrelatedServiceTarget, (entries) => {
-      const receiver = entries.find((entry) => entry["type"] === "rpc.call" &&
-        (entry["receipt"] as Record<string, unknown>)?.["method"] === "report");
+      const receiver = entries.find(
+        (entry) =>
+          entry["type"] === "rpc.call" &&
+          (entry["receipt"] as Record<string, unknown>)?.["method"] ===
+            "report",
+      );
       if (receiver) {
         const receipt = receiver["receipt"] as Record<string, unknown>;
         receipt["targetId"] = "do:workers/probe:FixtureWorkerDO:unrelated";
       }
     });
-    expect(test("dynamic-workspace-service").validate(unrelatedServiceTarget).passed).toBe(false);
+    expect(
+      test("dynamic-workspace-service").validate(unrelatedServiceTarget),
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("different target"),
+    });
 
     const typedAuthored = {
       ...authored,
       invocation: {
-        ...((authored as unknown as { invocation: object }).invocation as object),
+        ...((authored as unknown as { invocation: object })
+          .invocation as object),
         id: "workspace-service-call",
         name: "workspace_service",
         arguments: {
@@ -1227,63 +1513,93 @@ describe("worker test validators", () => {
         },
       },
     } as unknown as TestExecutionResult["messages"][number];
-    const typed = dynamicServiceExecution(execution(
-      "The context-local probe answered with its value.",
-      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
-      { answer: "context-local" }
-    ), "combined", { answer: "context-local" });
+    const typed = dynamicServiceExecution(
+      execution(
+        "The context-local probe answered with its value.",
+        'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
+        { answer: "context-local" },
+      ),
+      "combined",
+      { answer: "context-local" },
+    );
     typed.messages.splice(1, 0, docs, typedAuthored);
     expect(test("dynamic-workspace-service").validate(typed).passed).toBe(true);
 
-    const split = dynamicServiceExecution(execution(
-      "The context-local probe answered with its value.",
-      'scope.service = await workers.resolveService("test.probe.v1"); return scope.service;',
-      durableObjectServiceFixture("do:workers/probe:FixtureWorkerDO:task")
-    ), "resolve", { targetId: "do:workers/probe:FixtureWorkerDO:task" });
+    const split = dynamicServiceExecution(
+      execution(
+        "The context-local probe answered with its value.",
+        'scope.service = await workers.resolveService("test.probe.v1"); return scope.service;',
+        durableObjectServiceFixture("do:workers/probe:FixtureWorkerDO:task"),
+      ),
+      "resolve",
+      { targetId: "do:workers/probe:FixtureWorkerDO:task" },
+    );
     split.messages.splice(1, 0, docs, typedAuthored);
-    const invoke = dynamicServiceExecution(execution(
-      "The context-local probe answered with its value.",
-      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; return rpc.call(scope.service.targetId, fixtureWorkerRpcMethods.report, []);',
-      { answer: "context-local" }
-    ), "invoke", { answer: "context-local" }).messages[1]!;
+    const invoke = dynamicServiceExecution(
+      execution(
+        "The context-local probe answered with its value.",
+        'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; return rpc.call(scope.service.targetId, fixtureWorkerRpcMethods.report, []);',
+        { answer: "context-local" },
+      ),
+      "invoke",
+      { answer: "context-local" },
+    ).messages[1]!;
     invoke.id = "split-invoke-message";
-    (invoke as unknown as { invocation: { id: string } }).invocation.id = "split-invoke";
+    (invoke as unknown as { invocation: { id: string } }).invocation.id =
+      "split-invoke";
     split.messages.splice(-1, 0, invoke);
     expect(test("dynamic-workspace-service").validate(split).passed).toBe(true);
 
     const missingResolution = structuredClone(split);
     missingResolution.messages = missingResolution.messages.filter(
-      (message) => message.id !== "call-eval-message"
+      (message) => message.id !== "call-eval-message",
     );
-    expect(test("dynamic-workspace-service").validate(missingResolution).passed).toBe(false);
+    expect(
+      test("dynamic-workspace-service").validate(missingResolution).passed,
+    ).toBe(false);
     const missingInvocation = structuredClone(split);
     missingInvocation.messages = missingInvocation.messages.filter(
-      (message) => message.id !== "split-invoke-message"
+      (message) => message.id !== "split-invoke-message",
     );
-    expect(test("dynamic-workspace-service").validate(missingInvocation).passed).toBe(false);
+    expect(
+      test("dynamic-workspace-service").validate(missingInvocation).passed,
+    ).toBe(false);
 
-    const noDocs = dynamicServiceExecution(execution(
-      "The context-local probe answered with its value.",
-      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
-      { answer: "context-local" }
-    ), "combined", { answer: "context-local" });
+    const noDocs = dynamicServiceExecution(
+      execution(
+        "The context-local probe answered with its value.",
+        'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
+        { answer: "context-local" },
+      ),
+      "combined",
+      { answer: "context-local" },
+    );
     noDocs.messages.splice(1, 0, authored);
-    expect(test("dynamic-workspace-service").validate(noDocs).passed).toBe(false);
+    expect(test("dynamic-workspace-service").validate(noDocs).passed).toBe(
+      false,
+    );
 
-    const catalog = dynamicServiceExecution(execution(
-      "The context-local probe answered with its value.",
-      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
-      { answer: "context-local" }
-    ), "combined", { answer: "context-local" });
+    const catalog = dynamicServiceExecution(
+      execution(
+        "The context-local probe answered with its value.",
+        'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
+        { answer: "context-local" },
+      ),
+      "combined",
+      { answer: "context-local" },
+    );
     catalog.messages.splice(1, 0, docs, authored, {
       ...authored,
       invocation: {
-        ...((authored as unknown as { invocation: object }).invocation as object),
+        ...((authored as unknown as { invocation: object })
+          .invocation as object),
         id: "catalog-call",
         arguments: { path: "generated/productAuthorityGrantCatalog.ts" },
       },
     } as unknown as TestExecutionResult["messages"][number]);
-    expect(test("dynamic-workspace-service").validate(catalog).passed).toBe(false);
+    expect(test("dynamic-workspace-service").validate(catalog).passed).toBe(
+      false,
+    );
   });
 
   it("requires installed consumers to request an exact dynamic service and execute it", () => {
@@ -1328,7 +1644,7 @@ describe("worker test validators", () => {
           contentType: "invocation",
           content: "",
           invocation,
-        }) as unknown as TestExecutionResult["messages"][number]
+        }) as unknown as TestExecutionResult["messages"][number],
     );
     const result = doCallExecution(
       [
@@ -1342,27 +1658,37 @@ describe("worker test validators", () => {
         createdId: "worker-1",
         retiredId: "worker-1",
       },
-      { kind: "worker", method: "consumeTestkitService", entityId: "worker-1" }
+      { kind: "worker", method: "consumeTestkitService", entityId: "worker-1" },
     );
     result.messages.splice(1, 0, ...calls);
-    expect(test("installed-workspace-service-consumer").validate(result).passed).toBe(true);
+    expect(
+      test("installed-workspace-service-consumer").validate(result).passed,
+    ).toBe(true);
 
     const wrongWorkerTarget = structuredClone(result);
     editJournal(wrongWorkerTarget, (entries) => {
-      const receiver = entries.find((entry) => entry["type"] === "rpc.call" &&
-        (entry["receipt"] as Record<string, unknown>)?.["method"] === "consumeTestkitService");
+      const receiver = entries.find(
+        (entry) =>
+          entry["type"] === "rpc.call" &&
+          (entry["receipt"] as Record<string, unknown>)?.["method"] ===
+            "consumeTestkitService",
+      );
       if (receiver) {
         const receipt = receiver["receipt"] as Record<string, unknown>;
         receipt["targetId"] = "worker:workers/probe:unrelated";
       }
     });
-    expect(test("installed-workspace-service-consumer").validate(wrongWorkerTarget).passed).toBe(
-      false
-    );
+    expect(
+      test("installed-workspace-service-consumer").validate(wrongWorkerTarget),
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("not on the created worker's target"),
+    });
 
     const publicId = structuredClone(result);
     const evalMessage = publicId.messages.find(
-      (message) => message.kind === "message" && message.invocation?.id === "call-eval"
+      (message) =>
+        message.kind === "message" && message.invocation?.id === "call-eval",
     );
     if (evalMessage?.kind === "message" && evalMessage.invocation) {
       evalMessage.invocation.arguments = {
@@ -1374,11 +1700,14 @@ describe("worker test validators", () => {
         ].join("\n"),
       };
     }
-    expect(test("installed-workspace-service-consumer").validate(publicId).passed).toBe(true);
+    expect(
+      test("installed-workspace-service-consumer").validate(publicId).passed,
+    ).toBe(true);
 
     const unrelatedTarget = structuredClone(result);
     const unrelatedEval = unrelatedTarget.messages.find(
-      (message) => message.kind === "message" && message.invocation?.id === "call-eval"
+      (message) =>
+        message.kind === "message" && message.invocation?.id === "call-eval",
     );
     if (unrelatedEval?.kind === "message" && unrelatedEval.invocation) {
       unrelatedEval.invocation.arguments = {
@@ -1390,13 +1719,15 @@ describe("worker test validators", () => {
         ].join("\n"),
       };
     }
-    expect(test("installed-workspace-service-consumer").validate(unrelatedTarget).passed).toBe(
-      false
-    );
+    expect(
+      test("installed-workspace-service-consumer").validate(unrelatedTarget)
+        .passed,
+    ).toBe(false);
 
     const wildcard = structuredClone(result);
     const manifest = wildcard.messages.find(
-      (message) => message.kind === "message" && message.invocation?.id === "manifest"
+      (message) =>
+        message.kind === "message" && message.invocation?.id === "manifest",
     );
     if (manifest?.kind === "message" && manifest.invocation) {
       manifest.invocation.arguments = {
@@ -1404,7 +1735,9 @@ describe("worker test validators", () => {
         patch: '"capability": "workspace-service:*"',
       };
     }
-    expect(test("installed-workspace-service-consumer").validate(wildcard).passed).toBe(false);
+    expect(
+      test("installed-workspace-service-consumer").validate(wildcard).passed,
+    ).toBe(false);
   });
 });
 
@@ -1413,31 +1746,58 @@ describe("independent runtime retirement observation", () => {
     const first = attachJournal(
       execution(
         "Created.",
-        'scope.handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe" }); return { createdId: scope.handle.id };',
-        { createdId: "worker-entity-probe" }
+        'scope.handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } }); return { createdId: scope.handle.id };',
+        { createdId: "worker-entity-probe" },
       ),
-      doCallEntries({ probe: "ready" }).slice(0, 2)
+      doCallEntries({ probe: "ready" }).slice(0, 2),
     );
-    const secondEntries = doCallEntries({ probe: "ready" }).slice(2).map((entry) => {
-      const receipt = entry["receipt"] as Record<string, unknown>;
-      return { ...entry, receipt: { ...receipt, callId: Number(receipt["callId"]) - 1 } };
-    });
+    const secondEntries = doCallEntries({ probe: "ready" })
+      .slice(2)
+      .map((entry) => {
+        const receipt = entry["receipt"] as Record<string, unknown>;
+        return {
+          ...entry,
+          receipt: { ...receipt, callId: Number(receipt["callId"]) - 1 },
+        };
+      });
     const second = attachJournal(
       execution(
         "The probe was ready and its instance was retired.",
         `${probeMethodsImport} const observed = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); await workers.destroy(scope.handle); return { observed, destroyedId: scope.handle.id };`,
-        { observed: { probe: "ready" }, destroyedId: "worker-entity-probe" }
+        { observed: { probe: "ready" }, destroyedId: "worker-entity-probe" },
       ),
-      secondEntries
+      secondEntries,
     );
     const firstCall = first.messages.find(
-      (message) => message.contentType === "invocation" && message.invocation?.name === "eval"
+      (message) =>
+        message.contentType === "invocation" &&
+        message.invocation?.name === "eval",
     );
     if (firstCall?.kind === "message" && firstCall.invocation) {
       firstCall.invocation.id = "create-call";
       second.messages.splice(1, 0, firstCall);
     }
     expect(test("call-do-method").validate(second).passed).toBe(true);
+    const missingStateArgs = structuredClone(second);
+    const diagnosis = missingStateArgs.messages.find(
+      (message) =>
+        message.contentType === "invocation" &&
+        message.invocation?.name === "eval",
+    );
+    if (
+      diagnosis?.kind === "message" &&
+      typeof diagnosis.invocation?.arguments?.["code"] === "string"
+    ) {
+      diagnosis.invocation.arguments["code"] = diagnosis.invocation.arguments[
+        "code"
+      ].replace(', stateArgs: { probe: "ready" }', "");
+    }
+    expect(test("call-do-method").validate(missingStateArgs)).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining(
+        "not created with a non-null probe value in stateArgs",
+      ),
+    });
     second.diagnostics = {
       fixtureRuntimeEntities: {
         source: "workers/probe",
@@ -1449,20 +1809,30 @@ describe("independent runtime retirement observation", () => {
     expect(test("call-do-method").validate(second).passed).toBe(false);
   });
   it("rejects a null probe wrapped in a nonempty result object", () => {
-    const result = execution(
-      "The probe worked.",
-      `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO"); try { return await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); } finally { await workers.destroy(handle); }`,
-      { result: null }
+    const result = doCallExecution(
+      `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } }); const observed = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); await workers.destroy(handle); return { observed, createdId: handle.id, destroyedId: handle.id };`,
+      {
+        observed: { probe: null },
+        createdId: "worker-1",
+        destroyedId: "worker-1",
+      },
     );
-    expect(test("call-do-method").validate(result).passed).toBe(false);
+    expect(test("call-do-method").validate(result)).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining(
+        "returned null for its creation stateArgs value",
+      ),
+    });
   });
 });
 
 describe("bounded persistence observations", () => {
   it("requires ordered write/read receipts on the created object and matching returned rows", () => {
     const prefix = `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO");`;
-    const writes = 'const written = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);';
-    const read = 'const rows = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []);';
+    const writes =
+      'const written = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);';
+    const read =
+      "const rows = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []);";
     const suffix = "await workers.destroy(handle); return { written, rows };";
     const rows = [
       { id: "row-1", value: "alpha" },
@@ -1470,23 +1840,45 @@ describe("bounded persistence observations", () => {
     ];
     const accepted = `${prefix} ${writes} ${read} ${suffix}`;
     expect(
-      test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", accepted, { written: rows, rows }))
-        .passed
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Rows persisted.", accepted, { written: rows, rows }),
+      ).passed,
     ).toBe(true);
-    expect(test("worker-do-sql-persistence").validate(sqlExecution(
-      "Rows persisted.", accepted, { written: rows, rows }, undefined, { omitResolve: true }
-    )).passed).toBe(true);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution(
+          "Rows persisted.",
+          accepted,
+          { written: rows, rows },
+          undefined,
+          { omitResolve: true },
+        ),
+      ).passed,
+    ).toBe(true);
 
     const valid = { written: rows, rows };
-    expect(test("worker-do-sql-persistence").validate(sqlExecution(
-      "Rows persisted.", accepted, valid, undefined, { readOrder: 1, writeOrder: 2 }
-    )).passed).toBe(false);
-    expect(test("worker-do-sql-persistence").validate(sqlExecution(
-      "Rows persisted.", accepted, valid, undefined, { readTargetId: "do:workers/probe:FixtureWorkerDO:other" }
-    )).passed).toBe(false);
-    expect(test("worker-do-sql-persistence").validate(sqlExecution(
-      "Rows persisted.", accepted, valid, undefined, { omitRead: true }
-    )).passed).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Rows persisted.", accepted, valid, undefined, {
+          readOrder: 1,
+          writeOrder: 2,
+        }),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Rows persisted.", accepted, valid, undefined, {
+          readTargetId: "do:workers/probe:FixtureWorkerDO:other",
+        }),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecution("Rows persisted.", accepted, valid, undefined, {
+          omitRead: true,
+        }),
+      ).passed,
+    ).toBe(false);
   });
 
   it("joins trusted lifecycle and RPC receipts across completed eval cells", () => {
@@ -1498,7 +1890,7 @@ describe("bounded persistence observations", () => {
     ].join("\n");
     const resolveAndRead = [
       'const resolved = await workers.resolveDurableObject("workers/probe", "FixtureWorkerDO", "sql-probe");',
-      'const persisted = await rpc.call(resolved.targetId, fixtureWorkerRpcMethods.readRows, []);',
+      "const persisted = await rpc.call(resolved.targetId, fixtureWorkerRpcMethods.readRows, []);",
       "return persisted;",
     ].join("\n");
     const retire = "await workers.destroy(target);";
@@ -1511,59 +1903,89 @@ describe("bounded persistence observations", () => {
       { code: resolveAndRead, callIds: [2, 3], returnValue: rows },
       { code: retire, callIds: [4] },
     ];
-    expect(test("worker-do-sql-persistence").validate(
-      sqlExecutionAcrossCells([...validCells].reverse())
-    ).passed).toBe(true);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecutionAcrossCells([...validCells].reverse()),
+      ).passed,
+    ).toBe(true);
 
     const readBeforeWrite = [
-      { code: createAndWrite.replace(/const written = [^\n]+\nreturn written;/u, ""), callIds: [0] },
+      {
+        code: createAndWrite.replace(
+          /const written = [^\n]+\nreturn written;/u,
+          "",
+        ),
+        callIds: [0],
+      },
       { code: resolveAndRead, callIds: [2, 3], returnValue: rows },
-      { code: 'const written = await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]); return written;', callIds: [1], returnValue: rows },
+      {
+        code: 'const written = await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]); return written;',
+        callIds: [1],
+        returnValue: rows,
+      },
       { code: retire, callIds: [4] },
     ];
-    expect(test("worker-do-sql-persistence").validate(
-      sqlExecutionAcrossCells(readBeforeWrite, {
-        eventOrders: {
-          0: { admissionOrder: 0, settlementOrder: 1 },
-          2: { admissionOrder: 2, settlementOrder: 3 },
-          3: { admissionOrder: 4, settlementOrder: 5 },
-          1: { admissionOrder: 6, settlementOrder: 7 },
-          4: { admissionOrder: 8, settlementOrder: 9 },
-        },
-      })
-    ).passed).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecutionAcrossCells(readBeforeWrite, {
+          eventOrders: {
+            0: { admissionOrder: 0, settlementOrder: 1 },
+            2: { admissionOrder: 2, settlementOrder: 3 },
+            3: { admissionOrder: 4, settlementOrder: 5 },
+            1: { admissionOrder: 6, settlementOrder: 7 },
+            4: { admissionOrder: 8, settlementOrder: 9 },
+          },
+        }),
+      ).passed,
+    ).toBe(false);
 
     const retiredBeforeRead = [
       { code: createAndWrite, callIds: [0, 1], returnValue: rows },
-      { code: 'const resolved = await workers.resolveDurableObject("workers/probe", "FixtureWorkerDO", "sql-probe");', callIds: [2] },
+      {
+        code: 'const resolved = await workers.resolveDurableObject("workers/probe", "FixtureWorkerDO", "sql-probe");',
+        callIds: [2],
+      },
       { code: retire, callIds: [4] },
-      { code: 'const persisted = await rpc.call(resolved.targetId, fixtureWorkerRpcMethods.readRows, []); return persisted;', callIds: [3], returnValue: rows },
+      {
+        code: "const persisted = await rpc.call(resolved.targetId, fixtureWorkerRpcMethods.readRows, []); return persisted;",
+        callIds: [3],
+        returnValue: rows,
+      },
     ];
-    expect(test("worker-do-sql-persistence").validate(
-      sqlExecutionAcrossCells(retiredBeforeRead, {
-        eventOrders: {
-          0: { admissionOrder: 0, settlementOrder: 1 },
-          1: { admissionOrder: 2, settlementOrder: 3 },
-          2: { admissionOrder: 4, settlementOrder: 5 },
-          4: { admissionOrder: 6, settlementOrder: 7 },
-          3: { admissionOrder: 8, settlementOrder: 9 },
-        },
-      })
-    ).passed).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecutionAcrossCells(retiredBeforeRead, {
+          eventOrders: {
+            0: { admissionOrder: 0, settlementOrder: 1 },
+            1: { admissionOrder: 2, settlementOrder: 3 },
+            2: { admissionOrder: 4, settlementOrder: 5 },
+            4: { admissionOrder: 6, settlementOrder: 7 },
+            3: { admissionOrder: 8, settlementOrder: 9 },
+          },
+        }),
+      ).passed,
+    ).toBe(false);
 
-    expect(test("worker-do-sql-persistence").validate(
-      sqlExecutionAcrossCells([
-        validCells[0]!,
-        { ...validCells[1]!, ownerGeneration: "00000000-0000-4000-8000-000000000002" },
-        validCells[2]!,
-      ])
-    ).passed).toBe(false);
-    expect(test("worker-do-sql-persistence").validate(
-      sqlExecutionAcrossCells([
-        validCells[0]!,
-        { ...validCells[1]!, ownerId: "different-eval-owner" },
-        validCells[2]!,
-      ])
-    ).passed).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecutionAcrossCells([
+          validCells[0]!,
+          {
+            ...validCells[1]!,
+            ownerGeneration: "00000000-0000-4000-8000-000000000002",
+          },
+          validCells[2]!,
+        ]),
+      ).passed,
+    ).toBe(false);
+    expect(
+      test("worker-do-sql-persistence").validate(
+        sqlExecutionAcrossCells([
+          validCells[0]!,
+          { ...validCells[1]!, ownerId: "different-eval-owner" },
+          validCells[2]!,
+        ]),
+      ).passed,
+    ).toBe(false);
   });
 });

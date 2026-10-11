@@ -1,3 +1,5 @@
+import { parse } from "@babel/parser";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import {
   SIZABLE_HISTORY_FIXTURE_REVISIONS,
@@ -1289,16 +1291,20 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       'Pick<FixtureWorkerDO, "inspectProbe" | "writeRows" | "readRows" | "report">',
     );
     expect(seededText).toContain("static override schemaVersion = 1");
-    expect(seededText).toContain('INSERT INTO probe_state (id, value) VALUES (?, ?)');
-    expect(seededText).toContain('SELECT id, value FROM probe_state ORDER BY id');
+    expect(seededText).toContain(
+      "INSERT INTO probe_state (id, value) VALUES (?, ?)",
+    );
+    expect(seededText).toContain(
+      "SELECT id, value FROM probe_state ORDER BY id",
+    );
     expect(seededText).toContain('"writeRows", "readRows"');
     expect(seededText).not.toContain("schemaProductionBaseline");
     expect(seededText).toContain('website: { kind: "closed"');
     expect(seededText).toContain(
       "Direct resolveDurableObject methods are runtime-intrinsic",
     );
-    expect(seededText).toContain('this.env["STATE_ARGS"]');
-    expect(seededText).not.toContain('this.env["SYSTEM_TEST_PROBE"]');
+    expect(seededText).toContain("this.ctx.props.stateArgs");
+    expect(seededText).not.toContain('this.env["STATE_ARGS"]');
     expect(fake.importSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         repositories: [
@@ -1661,5 +1667,74 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     await expect(fixture.prepare()).rejects.toThrow("status unavailable");
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
     expect(fixture.taskContextId).toBeNull();
+  });
+
+  it("runs the generated Durable Object probe against creation props", async () => {
+    const fake = createPort();
+    const fixture = new WorkspaceRepoFixtureLifecycle(
+      fake.port,
+      "state-args-probe-test",
+      "probe",
+      BUILDABLE_WORKER,
+    );
+    await fixture.prepare();
+
+    const source = fake.putText.mock.calls
+      .map(([text]) => text)
+      .find((text) => text.includes("export class FixtureWorkerDO"));
+    if (!source) throw new Error("Generated worker source was not stored");
+    const program = parse(source, {
+      sourceType: "module",
+      plugins: ["decorators-legacy", "typescript"],
+    }).program;
+    const exported = program.body.find(
+      (item) =>
+        item.type === "ExportNamedDeclaration" &&
+        item.declaration?.type === "ClassDeclaration" &&
+        item.declaration.id?.name === "FixtureWorkerDO",
+    );
+    if (
+      exported?.type !== "ExportNamedDeclaration" ||
+      exported.declaration?.type !== "ClassDeclaration"
+    ) {
+      throw new Error("Generated Durable Object class could not be located");
+    }
+    const method = exported.declaration.body.body.find(
+      (item) =>
+        item.type === "ClassMethod" &&
+        item.key.type === "Identifier" &&
+        item.key.name === "inspectProbe",
+    );
+    if (
+      method?.type !== "ClassMethod" ||
+      !method.body.start ||
+      !method.body.end
+    ) {
+      throw new Error(
+        "Generated Durable Object probe method could not be located",
+      );
+    }
+
+    const body = source.slice(method.body.start + 1, method.body.end - 1);
+    const generatedMethod = runInNewContext(`(function () { ${body} })`);
+    if (typeof generatedMethod !== "function") {
+      throw new Error(
+        "Generated Durable Object probe method was not executable",
+      );
+    }
+    const receiver = {
+      ctx: { props: { stateArgs: { probe: "from-creation" } } },
+      env: { STATE_ARGS: { probe: "from-environment" } },
+    };
+    expect(Reflect.apply(generatedMethod, receiver, [])).toEqual({
+      probe: "from-creation",
+    });
+    expect(
+      Reflect.apply(
+        generatedMethod,
+        { ctx: { props: {} }, env: receiver.env },
+        [],
+      ),
+    ).toEqual({ probe: null });
   });
 });

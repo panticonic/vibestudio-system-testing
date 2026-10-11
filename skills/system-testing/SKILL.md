@@ -156,11 +156,25 @@ suite exports from `stages.ts`. Keep full results in eval scope and return only
 bounded summaries. The public types document callbacks, concurrency,
 cancellation, and retained results.
 
+`TestRunner.runSuite` accepts a concurrency limit, but the scheduler only runs
+cases whose declared resources do not overlap. Repository fixtures share the
+protected-main publication resource, and worker-category cases currently share
+a worker resource, so those cases remain serialized even when the suite limit
+is higher. Raise concurrency to overlap independent cases in one managed run;
+do not remove a resource claim or weaken publication authority just to increase
+parallelism. Use separate instances only for experiments that need independent
+workspace state.
+
 Headless runs have no panel-only tools. Identity, model route, approval mode,
 fallback, and test authority come from the sealed runner policy; userland test
 subjects must not inject or widen it. In unattended tests, waiting for
 credential setup is an infrastructure failure; fix it through the standard
 connection flow.
+
+Worker startup state follows the runtime kind: a regular worker receives
+`STATE_ARGS` in its environment, while a Durable Object reads its initial state
+from `ctx.props.stateArgs`. Keep fixtures and authored DOs on that props path;
+the worker environment is not the DO state-argument channel.
 
 Use separate instances for parallel workspace experiments and separate agent
 sessions for concurrent eval work. Before blaming a slow model for a closed
