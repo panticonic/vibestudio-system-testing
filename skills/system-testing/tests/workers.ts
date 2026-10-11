@@ -1484,7 +1484,7 @@ export const workerTests: TestCase[] = [
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Check that a harmless temporary worker can be started successfully.",
+      "Check that a harmless temporary worker can be started successfully, then leave no worker instance behind.",
     validate: (result) => {
       const base = lifecycleEvidence(result, [
         ["workers.create", "workers.list", "workers.destroy"],
@@ -1575,7 +1575,7 @@ export const workerTests: TestCase[] = [
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Check whether a tiny disposable Durable Object preserves a couple of stored rows into a later call.",
+      "Check whether a tiny disposable Durable Object preserves a couple of stored rows into a later call, then leave no Durable Object instance behind.",
     validate: requireSqlPersistenceEvidence,
   },
   {
@@ -1584,7 +1584,7 @@ export const workerTests: TestCase[] = [
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
     prompt:
-      "Run a disposable worker with a non-secret probe setting and tell me what the worker itself observes.",
+      "Run a disposable worker with a non-secret probe setting, tell me what the worker itself observes, and leave no worker instance behind.",
     validate: (result) => {
       const base = lifecycleEvidence(result, [
         ["workers.create", "env", "workers.destroy"],
@@ -1651,7 +1651,7 @@ export const workerTests: TestCase[] = [
       };
     },
     prompt:
-      "Give the disposable worker in this task a small private context-local RPC service that reports a value, discover it the same way another workspace unit would, call it, and tell me what answered. Do not publish anything.",
+      "Give the disposable worker in this task a small private context-local RPC service that reports a value, discover it the same way another workspace unit would, call it, and tell me what answered. Leave no worker instance behind, and do not publish anything.",
     validate: requireDynamicWorkspaceServiceEvidence,
   },
   {
@@ -1678,7 +1678,7 @@ export const workerTests: TestCase[] = [
       ],
     },
     prompt:
-      "Have the disposable worker in this task consume the testkit workspace service already visible in its context through the normal installed-unit path, prove the result, and keep everything local.",
+      "Have the disposable worker in this task consume the testkit workspace service already visible in its context through the normal installed-unit path, prove the result, leave no worker instance behind, and keep everything local.",
     validate: requireInstalledWorkspaceServiceConsumerEvidence,
   },
 ];
