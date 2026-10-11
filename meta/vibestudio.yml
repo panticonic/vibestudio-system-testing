@@ -1,7 +1,7 @@
-systemEpoch: 0
 minimumAppVersion: 0.1.84
+systemEpoch: 0
 template:
-  name: System testing
-  description: The agentic acceptance harness, for workspaces that run it.
   dependencies:
     - url: git+https://github.com/panticonic/vibestudio-base.git
+  description: The agentic acceptance harness, for workspaces that run it.
+  name: System testing
