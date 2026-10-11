@@ -117,7 +117,8 @@
     "@vibestudio/rpc": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "zod": "^3.25.76"
   },
   "exports": {
     ".": "./index.ts",

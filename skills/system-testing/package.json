@@ -79,9 +79,11 @@
     "yaml": "^2.8.0",
     "zod": "^3.25.76",
     "@vibestudio/automation": "workspace:*",
-    "@workspace/model-catalog": "workspace:*"
+    "@workspace/model-catalog": "workspace:*",
+    "@workspace/agentic-do": "workspace:*"
   },
   "devDependencies": {
-    "@vibestudio/rpc": "workspace:*"
+    "@vibestudio/rpc": "workspace:*",
+    "@workspace/pubsub": "workspace:*"
   }
 }
