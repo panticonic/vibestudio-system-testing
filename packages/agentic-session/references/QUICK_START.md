@@ -10,8 +10,8 @@ import { contextId, rpc } from "@workspace/runtime";
 
 const session = await HeadlessSession.createWithAgent({
   config: { clientId: rpc.selfId, rpc },
-  rpcCall: (targetId, method, args, options) =>
-    rpc.call(targetId, method, args, options),
+  rpcCall: (targetId, methodDescriptor, args, options) =>
+    rpc.call(targetId, methodDescriptor, args, options),
   source: "workers/agent-worker",
   className: "AiChatWorker",
   contextId,
@@ -60,8 +60,8 @@ const session = HeadlessSession.create({
 
 // Subscribe agent separately
 const sub = await subscribeHeadlessAgent({
-  rpcCall: (targetId, method, args, options) =>
-    rpc.call(targetId, method, args, options),
+  rpcCall: (targetId, methodDescriptor, args, options) =>
+    rpc.call(targetId, methodDescriptor, args, options),
   source: "workers/agent-worker",
   className: "AiChatWorker",
   objectKey: "my-specific-do",
@@ -105,7 +105,7 @@ When you only need to drive the conversation:
 ```typescript
 const session = await HeadlessSession.createWithAgent({
   config: { clientId: rpc.selfId, rpc },
-  rpcCall: (targetId, method, args) => rpc.call(targetId, method, args),
+  rpcCall: (targetId, methodDescriptor, args) => rpc.call(targetId, methodDescriptor, args),
   source: "workers/agent-worker",
   className: "AiChatWorker",
   contextId,
@@ -124,7 +124,7 @@ From inside a Durable Object or worker:
 ```typescript
 const session = await HeadlessSession.createWithAgent({
   config: { clientId: rpc.selfId, rpc },
-  rpcCall: (targetId, method, args) => rpc.call(targetId, method, args),
+  rpcCall: (targetId, methodDescriptor, args) => rpc.call(targetId, methodDescriptor, args),
   source: "workers/agent-worker",
   className: "AiChatWorker",
   contextId,
