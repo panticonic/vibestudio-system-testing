@@ -2212,7 +2212,7 @@ describe("system-test implementation boundary", () => {
             id: "report",
             name: "eval",
             arguments: {
-              code: "await rpc.call('main','problemReports.create',[{description:'skills/system-testing/tests/trello-live-import.ts:158: implicit any'}])",
+              code: 'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc"; await rpc.call("main", mainRpcMethods["problemReports.create"], [{ description: "skills/system-testing/tests/trello-live-import.ts:158: implicit any" }]);',
             },
             execution: {
               result: {

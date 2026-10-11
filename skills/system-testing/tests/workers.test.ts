@@ -53,7 +53,9 @@ function execution(
   return {
     messages,
     duration: 0,
-    diagnostics: { fixtureRuntimeEntities: { source: "workers/probe", entities: [] } },
+    diagnostics: {
+      fixtureRuntimeEntities: { source: "workers/probe", entities: [] },
+    },
   };
 }
 
@@ -63,12 +65,67 @@ function test(name: string) {
   return found;
 }
 
+const mainMethodsImport = 'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";';
+const probeMethodsImport =
+  'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract";';
+const regularWorkerMethodsImport = probeMethodsImport;
+const runtimeRetire =
+  'await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]);';
+function authoredProbeFile(path: string, content: string) {
+  return {
+    id: `write-${path}`,
+    kind: "message",
+    senderId: "agent",
+    senderMetadata: { type: "agent" },
+    complete: true,
+    contentType: "invocation",
+    content: "",
+    invocation: {
+      id: `write-${path}`,
+      name: "write",
+      status: "complete",
+      terminalOutcome: "success",
+      isError: false,
+      arguments: { path, content },
+    },
+  } as unknown as TestExecutionResult["messages"][number];
+}
+const probeSqlImplementation = `import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
+export class FixtureWorkerDO extends DurableObjectBase {
+  static override schemaVersion = 1;
+  protected override createTables(): void { this.sql.exec("CREATE TABLE IF NOT EXISTS probe_state (id TEXT PRIMARY KEY, value TEXT NOT NULL)"); }
+  protected override requiredTables(): readonly string[] { return ["probe_state"]; }
+  @rpc({ website: { kind: "closed", reason: "Private probe" }, principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "write" })
+  async writeRows(rows: Array<{ id: string; value: string }>): Promise<void> {
+    for (const row of rows) this.sql.exec("INSERT INTO probe_state (id, value) VALUES (?, ?)", row.id, row.value);
+  }
+  @rpc({ website: { kind: "closed", reason: "Private probe" }, principals: ["host", "code"], effect: { kind: "open" }, tier: "open", sensitivity: "read" })
+  readRows(): Array<{ id: string; value: string }> { return this.sql.exec("SELECT id, value FROM probe_state ORDER BY id").toArray(); }
+}`;
+const probeSqlContract = `import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
+import type { FixtureWorkerDO } from "./index.js";
+export const fixtureWorkerRpcMethods = createReceiverRpcMethods<Pick<FixtureWorkerDO, "writeRows" | "readRows">>(["writeRows", "readRows"]);`;
+const probeSqlEdits = [
+  authoredProbeFile("workers/probe/index.ts", probeSqlImplementation),
+  authoredProbeFile("workers/probe/contract.ts", probeSqlContract),
+];
+function sqlExecution(
+  finalMessage: string,
+  code: string,
+  returnValue?: unknown,
+  consoleOutput?: string
+) {
+  const result = execution(finalMessage, code, returnValue, "complete", consoleOutput);
+  result.messages.splice(1, 0, ...probeSqlEdits);
+  return result;
+}
 const lifecycleCode = [
-  'const before = await rpc.call("main", "runtime.listEntities", [{ kind: "worker" }]);',
-  'const handle = await rpc.call("main", "runtime.createEntity", [{}]);',
-  'const afterCreate = await rpc.call("main", "runtime.listEntities", [{ kind: "worker" }]);',
-  'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-  'const after = await rpc.call("main", "runtime.listEntities", [{ kind: "worker" }]);',
+  mainMethodsImport,
+  'const before = await rpc.call("main", mainRpcMethods["runtime.listEntities"], [{ kind: "worker" }]);',
+  'const handle = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{}]);',
+  'const afterCreate = await rpc.call("main", mainRpcMethods["runtime.listEntities"], [{ kind: "worker" }]);',
+  runtimeRetire,
+  'const after = await rpc.call("main", mainRpcMethods["runtime.listEntities"], [{ kind: "worker" }]);',
 ].join("\n");
 
 describe("worker test validators", () => {
@@ -138,7 +195,10 @@ describe("worker test validators", () => {
       authority: [
         {
           ruleId: "consume-installed-testkit-service",
-          capability: { kind: "exact", key: "workspace-service:testkit-driver" },
+          capability: {
+            kind: "exact",
+            key: "workspace-service:testkit-driver",
+          },
           resource: {
             kind: "exact",
             key: "do:workers/testkit-driver:TestkitDriverDO:workspace-testkit-driver",
@@ -213,7 +273,8 @@ describe("worker test validators", () => {
           "The object reported its current version.",
           [
             "const handle = await workers.createDurableObject(source, className, key, { PROBE: 'ready' });",
-            'const observed = await rpc.call(handle.targetId, "inspectProbe", []);',
+            probeMethodsImport,
+            "const observed = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []);",
             "await workers.destroy(handle);",
             "return { observed, createdId: handle.id, destroyedId: handle.id };",
           ].join("\n"),
@@ -230,34 +291,46 @@ describe("worker test validators", () => {
 
   it("accepts natural prose only when SQL, separate object calls, rows, and cleanup agree", () => {
     const code = [
-      "const source = `class Probe { write() { this.sql.exec('INSERT INTO rows VALUES (?)', 1); } read() { return this.sql.exec('SELECT * FROM rows').toArray(); } }`;",
-      'const handle = await rpc.call("main", "runtime.createEntity", [{}]);',
-      'await rpc.call(handle.targetId, "write", []);',
-      'await rpc.call(handle.targetId, "read", []);',
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      probeMethodsImport,
+      'const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "sql-probe" });',
+      'await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
+      "const rows = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []);",
+      "await workers.destroy(handle);",
+      "return { rows };",
     ].join("\n");
-    const verified = execution(
+    const verified = sqlExecution(
       "Both rows were present on the later read, and the disposable object was retired.",
       code,
-      { rows: [{ id: 1 }, { id: 2 }], createdId: "worker-1", retiredId: "worker-1" }
+      {
+        rows: [
+          { id: "row-1", value: "alpha" },
+          { id: "row-2", value: "beta" },
+        ],
+        createdId: "worker-1",
+        retiredId: "worker-1",
+      }
     );
     expect(test("worker-do-sql-persistence").validate(verified).passed).toBe(true);
 
     expect(
       test("worker-do-sql-persistence").validate(
-        execution("The later resolve returned the same two records and cleanup completed.", code, {
-          afterWrite: [{ id: 1 }, { id: 2 }],
-          afterReopen: [{ id: 1 }, { id: 2 }],
-          persisted: true,
-          createdId: "worker-1",
-          retiredId: "worker-1",
-        })
+        sqlExecution(
+          "The later resolve returned the same two records and cleanup completed.",
+          code,
+          {
+            afterWrite: [{ id: 1 }, { id: 2 }],
+            afterReopen: [{ id: 1 }, { id: 2 }],
+            persisted: true,
+            createdId: "worker-1",
+            retiredId: "worker-1",
+          }
+        )
       ).passed
     ).toBe(true);
 
     expect(
       test("worker-do-sql-persistence").validate(
-        execution("The later call returned both persisted rows and cleanup completed.", code, {
+        sqlExecution("The later call returned both persisted rows and cleanup completed.", code, {
           persistedRows: [{ id: 1 }, { id: 2 }],
           sameHandleId: true,
           createdId: "worker-1",
@@ -268,7 +341,7 @@ describe("worker test validators", () => {
 
     expect(
       test("worker-do-sql-persistence").validate(
-        execution("The later resolve did not match.", code, {
+        sqlExecution("The later resolve did not match.", code, {
           afterReopen: [{ id: 1 }, { id: 2 }],
           persisted: false,
           createdId: "worker-1",
@@ -279,7 +352,7 @@ describe("worker test validators", () => {
 
     expect(
       test("worker-do-sql-persistence").validate(
-        execution("It persisted two rows and cleaned up.", code, {
+        sqlExecution("It persisted two rows and cleaned up.", code, {
           rows: [{ id: 1 }, { id: 2 }],
           createdId: "worker-1",
           retiredId: "worker-2",
@@ -290,58 +363,46 @@ describe("worker test validators", () => {
 
   it("accepts the documented disposable Durable Object lifecycle", () => {
     const code = [
-      "const target = await workers.createDurableObject('workers/probe', 'ProbeDO', { key: 'temporary' });",
-      "await rpc.call(target.targetId, 'write', []);",
-      "const rows = await rpc.call(target.targetId, 'read', []);",
+      probeMethodsImport,
+      'const target = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "temporary" });',
+      'const expected = [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }];',
+      "await rpc.call(target.targetId, fixtureWorkerRpcMethods.writeRows, [expected]);",
+      "const rows = await rpc.call(target.targetId, fixtureWorkerRpcMethods.readRows, []);",
       "await workers.destroy(target);",
       "return { rows };",
     ].join("\n");
     expect(
       test("worker-do-sql-persistence").validate(
-        execution(
-          "The disposable object persisted both rows and was retired.",
-          `// this.sql.exec('INSERT INTO rows VALUES (1), (2)'); this.sql.exec('SELECT * FROM rows');\n${code}`,
-          { rows: [{ id: 1 }, { id: 2 }] }
-        )
+        sqlExecution("The disposable object persisted both rows and was retired.", code, {
+          rows: [
+            { id: "row-1", value: "alpha" },
+            { id: "row-2", value: "beta" },
+          ],
+        })
       ).passed
     ).toBe(true);
   });
 
   it("separates authored SQL, runtime persistence, and retirement evidence", () => {
-    const result = execution(
+    const result = sqlExecution(
       "The disposable object persisted two rows across calls and was retired.",
       [
-        "const create = () => workers.createDurableObject('workers/probe', 'ProbeDO', { key: 'temporary' });",
+        probeMethodsImport,
+        'const create = () => workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "temporary" });',
         "const first = await create();",
-        "await rpc.call(first.targetId, 'seed', []);",
-        "await rpc.call(first.targetId, 'read', []);",
+        'await rpc.call(first.targetId, fixtureWorkerRpcMethods.writeRows, [[{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]]);',
+        "const rows = await rpc.call(first.targetId, fixtureWorkerRpcMethods.readRows, []);",
         "await workers.destroy(first);",
+        "return { rows };",
       ].join("\n"),
-      undefined,
-      "complete",
+      {
+        rows: [
+          { id: "row-1", value: "alpha" },
+          { id: "row-2", value: "beta" },
+        ],
+      },
       'later rows [\n  { "id": 1 },\n  { "id": 2 }\n]'
     );
-    result.messages.splice(1, 0, {
-      id: "write-worker",
-      kind: "message",
-      senderId: "agent",
-      senderMetadata: { type: "agent" },
-      complete: true,
-      contentType: "invocation",
-      content: "",
-      invocation: {
-        id: "write-worker",
-        name: "write",
-        status: "complete",
-        terminalOutcome: "success",
-        isError: false,
-        arguments: {
-          path: "workers/probe/index.ts",
-          content:
-            "class ProbeDO { seed() { this.sql.exec('INSERT INTO rows VALUES (1), (2)'); } read() { return this.sql.exec('SELECT * FROM rows').toArray(); } }",
-        },
-      },
-    } as unknown as TestExecutionResult["messages"][number]);
     expect(test("worker-do-sql-persistence").validate(result).passed).toBe(true);
   });
 
@@ -349,12 +410,18 @@ describe("worker test validators", () => {
     const prose = "The temporary worker started successfully and was fully removed.";
     expect(
       test("create-destroy").validate(
-        execution(prose, lifecycleCode, { createdId: "worker-7", retiredId: "worker-7" })
+        execution(prose, lifecycleCode, {
+          createdId: "worker-7",
+          retiredId: "worker-7",
+        })
       ).passed
     ).toBe(true);
     expect(
       test("create-destroy").validate(
-        execution(prose, lifecycleCode, { createdId: "worker-7", retiredId: "worker-8" })
+        execution(prose, lifecycleCode, {
+          createdId: "worker-7",
+          retiredId: "worker-8",
+        })
       ).passed
     ).toBe(false);
     expect(
@@ -446,8 +513,7 @@ describe("worker test validators", () => {
           [
             'const handle = await workers.create("workers/probe", { key: "probe" });',
             "await workers.list();",
-            'const result = await rpc.call(handle.targetId, "ping", []);',
-            "try { return result; } finally { await workers.destroy(handle); }",
+            "try { await workers.list(); } finally { await workers.destroy(handle); }",
           ].join("\n"),
           { ok: true }
         )
@@ -465,7 +531,6 @@ describe("worker test validators", () => {
             "let handle = null;",
             "try {",
             '  handle = await workers.create("workers/probe", { key: "probe" });',
-            '  await rpc.call(handle.targetId, "ping", []);',
             "} finally {",
             "  if (handle) await workers.destroy(handle);",
             "}",
@@ -521,10 +586,16 @@ describe("worker test validators", () => {
 
   it("requires worker-side observation and matching cleanup identity for environment probes", () => {
     const acceptedOnly = [
-      'const handle = await rpc.call("main", "runtime.createEntity", [{ env: { PROBE: "x" } }]);',
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
+      mainMethodsImport,
+      regularWorkerMethodsImport,
+      'const handle = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{ env: { PROBE: "x" } }]);',
+      runtimeRetire,
     ].join("\n");
-    const proof = { observed: "x", createdId: "worker-1", retiredId: "worker-1" };
+    const proof = {
+      observed: "x",
+      createdId: "worker-1",
+      retiredId: "worker-1",
+    };
     expect(
       test("worker-env").validate(
         execution("The worker observed x and was removed.", acceptedOnly, proof)
@@ -532,8 +603,8 @@ describe("worker test validators", () => {
     ).toBe(false);
 
     const observed = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity"',
-      'const result = await rpc.call(handle.targetId, "observeConfiguredValue", []);\nawait rpc.call("main", "runtime.retireEntity"'
+      'await rpc.call("main", mainRpcMethods["runtime.retireEntity"]',
+      'const result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []);\nawait rpc.call("main", mainRpcMethods["runtime.retireEntity"]'
     );
     expect(
       test("worker-env").validate(
@@ -541,8 +612,8 @@ describe("worker test validators", () => {
       ).passed
     ).toBe(true);
     const directlyReturned = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-      'try { return await scope.runtime.rpc.call(handle.targetId, methods.inspectProbe, []); } finally { await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]); }'
+      runtimeRetire,
+      'try { return await scope.runtime.rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } finally { await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]); }'
     );
     expect(
       test("worker-env").validate(
@@ -550,8 +621,8 @@ describe("worker test validators", () => {
       ).passed
     ).toBe(true);
     const fakeRpcText = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-      'const note = "return await rpc.call(handle.targetId, methods.inspectProbe, [])"; return { observed: "x" };'
+      runtimeRetire,
+      'const note = "return await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, [])"; return { observed: "x" };'
     );
     expect(
       test("worker-env").validate(
@@ -559,8 +630,8 @@ describe("worker test validators", () => {
       ).passed
     ).toBe(false);
     const uncalledFunction = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-      'function inspectLater() { return rpc.call(handle.targetId, methods.inspectProbe, []); } return { observed: "x" };'
+      runtimeRetire,
+      'function inspectLater() { return rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } return { observed: "x" };'
     );
     expect(
       test("worker-env").validate(
@@ -568,8 +639,8 @@ describe("worker test validators", () => {
       ).passed
     ).toBe(false);
     const shadowedProbe = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-      'let result: unknown; { const result = await rpc.call(handle.targetId, methods.inspectProbe, []); } return result;'
+      runtimeRetire,
+      "let result: unknown; { const result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); } return result;"
     );
     expect(
       test("worker-env").validate(
@@ -577,8 +648,8 @@ describe("worker test validators", () => {
       ).passed
     ).toBe(false);
     const discardedProbe = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-      'await rpc.call(handle.targetId, methods.inspectProbe, []); try { return { observed: "x" }; } finally { await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]); }'
+      runtimeRetire,
+      'await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); try { return { observed: "x" }; } finally { await rpc.call("main", mainRpcMethods["runtime.retireEntity"], [{ id: handle.id }]); }'
     );
     expect(
       test("worker-env").validate(
@@ -586,8 +657,8 @@ describe("worker test validators", () => {
       ).passed
     ).toBe(false);
     const reassignedProbe = acceptedOnly.replace(
-      'await rpc.call("main", "runtime.retireEntity", [{ id: handle.id }]);',
-      'let result: unknown; result = await rpc.call(handle.targetId, methods.inspectProbe, []); result = { observed: "x" }; return result;'
+      runtimeRetire,
+      'let result: unknown; result = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []); result = { observed: "x" }; return result;'
     );
     expect(
       test("worker-env").validate(
@@ -599,8 +670,8 @@ describe("worker test validators", () => {
         execution(
           "The worker observed x and was removed.",
           `${acceptedOnly.replace(
-            'await rpc.call("main", "runtime.retireEntity"',
-            'let result: unknown = null;\nresult = await rpc.call(handle.targetId, "observeConfiguredValue", []);\nawait rpc.call("main", "runtime.retireEntity"'
+            'await rpc.call("main", mainRpcMethods["runtime.retireEntity"]',
+            'let result: unknown = null;\nresult = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.observeConfiguredValue, []);\nawait rpc.call("main", mainRpcMethods["runtime.retireEntity"]'
           )}\nreturn { result };`,
           proof
         )
@@ -679,7 +750,7 @@ describe("worker test validators", () => {
     } as unknown as TestExecutionResult["messages"][number];
     const dynamic = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
       { answer: "context-local" }
     );
     dynamic.messages.splice(1, 0, docs, authored);
@@ -701,7 +772,7 @@ describe("worker test validators", () => {
     } as unknown as TestExecutionResult["messages"][number];
     const typed = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
       { answer: "context-local" }
     );
     typed.messages.splice(1, 0, docs, typedAuthored);
@@ -715,7 +786,7 @@ describe("worker test validators", () => {
     split.messages.splice(1, 0, docs, typedAuthored);
     const invoke = execution(
       "The context-local probe answered with its value.",
-      'return rpc.call(scope.service.targetId, "report", []);',
+      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; return rpc.call(scope.service.targetId, fixtureWorkerRpcMethods.report, []);',
       { answer: "context-local" }
     ).messages[1]!;
     invoke.id = "split-invoke-message";
@@ -736,7 +807,7 @@ describe("worker test validators", () => {
 
     const noDocs = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
       { answer: "context-local" }
     );
     noDocs.messages.splice(1, 0, authored);
@@ -744,7 +815,7 @@ describe("worker test validators", () => {
 
     const catalog = execution(
       "The context-local probe answered with its value.",
-      'const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, "report", []);',
+      'import { fixtureWorkerRpcMethods } from "@workspace-workers/probe/contract"; const service = await workers.resolveService("test.probe.v1"); return rpc.call(service.targetId, fixtureWorkerRpcMethods.report, []);',
       { answer: "context-local" }
     );
     catalog.messages.splice(1, 0, docs, authored, {
@@ -773,7 +844,8 @@ describe("worker test validators", () => {
         status: "complete",
         arguments: {
           path: "workers/probe/package.json",
-          patch: '"capability": "workspace-service:probe.local"',
+          patch:
+            '"authority": { "requests": [{ "capability": "workspace-service:testkit-driver", "resource": { "kind": "exact", "key": "do:workers/testkit-driver:TestkitDriverDO:workspace-testkit-driver" }, "tier": "gated" }], "serviceRequests": [{ "protocol": "vibestudio.testkit-driver.v1", "availability": "required" }] }',
         },
         result: { details: { ok: true } },
       },
@@ -783,7 +855,8 @@ describe("worker test validators", () => {
         status: "complete",
         arguments: {
           path: "workers/probe/index.ts",
-          patch: 'const service = await runtime.workers.resolveService("vibestudio.models.v1");',
+          patch:
+            'async consumeTestkitService() { const service = await this.runtime.workers.resolveService("vibestudio.testkit-driver.v1"); return this.runtime.rpc.call(service.targetId, driverRpcMethods.ping, []); }',
         },
         result: { details: { ok: true } },
       },
@@ -803,11 +876,16 @@ describe("worker test validators", () => {
     const result = execution(
       "The installed consumer observed the local service and was retired.",
       [
+        probeMethodsImport,
         'const handle = await workers.create("workers/probe", { key: "installed-probe" });',
-        'const observed = await rpc.call(handle.targetId, "consumeLocalService", []);',
+        "const observed = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.consumeTestkitService, []);",
         "await workers.destroy(handle);",
       ].join("\n"),
-      { observed: { answer: "local" }, createdId: "worker-1", retiredId: "worker-1" }
+      {
+        observed: { ok: true, sessions: 0 },
+        createdId: "worker-1",
+        retiredId: "worker-1",
+      }
     );
     result.messages.splice(1, 0, ...calls);
     expect(test("installed-workspace-service-consumer").validate(result).passed).toBe(true);
@@ -819,8 +897,9 @@ describe("worker test validators", () => {
     if (evalMessage?.kind === "message" && evalMessage.invocation) {
       evalMessage.invocation.arguments = {
         code: [
+          probeMethodsImport,
           'const worker = await workers.create("workers/probe", { key: "installed-probe" });',
-          'const observed = await rpc.call(worker.id, "consumeTestkitService", []);',
+          "const observed = await rpc.call(worker.id, fixtureWorkerRpcMethods.consumeTestkitService, []);",
           "await workers.destroy(worker);",
         ].join("\n"),
       };
@@ -834,8 +913,9 @@ describe("worker test validators", () => {
     if (unrelatedEval?.kind === "message" && unrelatedEval.invocation) {
       unrelatedEval.invocation.arguments = {
         code: [
+          probeMethodsImport,
           'const handle = await workers.create("workers/probe", { key: "installed-probe" });',
-          'const observed = await rpc.call(other.id, "consumeLocalService", []);',
+          "const observed = await rpc.call(other.id, fixtureWorkerRpcMethods.consumeTestkitService, []);",
           "await workers.destroy(handle);",
         ].join("\n"),
       };
@@ -867,13 +947,16 @@ describe("independent runtime retirement observation", () => {
     );
     const second = execution(
       "The probe was ready and its instance was retired.",
-      'try { return await rpc.call(scope.handle.targetId, "inspectProbe", []); } finally { await workers.destroy(scope.handle); }',
+      `${probeMethodsImport} try { return await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); } finally { await workers.destroy(scope.handle); }`,
       { probe: "ready" }
     );
     second.messages.splice(1, 0, first.messages[1]!);
     expect(test("call-do-method").validate(second).passed).toBe(true);
     second.diagnostics = {
-      fixtureRuntimeEntities: { source: "workers/probe", entities: [{ id: "do:probe" }] },
+      fixtureRuntimeEntities: {
+        source: "workers/probe",
+        entities: [{ id: "do:probe" }],
+      },
     };
     expect(test("call-do-method").validate(second).passed).toBe(false);
     delete second.diagnostics;
@@ -882,7 +965,7 @@ describe("independent runtime retirement observation", () => {
   it("rejects a null probe wrapped in a nonempty result object", () => {
     const result = execution(
       "The probe worked.",
-      'const handle = await workers.createDurableObject("workers/probe", "ProbeDO"); try { return await rpc.call(handle.targetId, "inspectProbe", []); } finally { await workers.destroy(handle); }',
+      `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO"); try { return await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); } finally { await workers.destroy(handle); }`,
       { result: null }
     );
     expect(test("call-do-method").validate(result).passed).toBe(false);
@@ -891,12 +974,17 @@ describe("independent runtime retirement observation", () => {
 
 describe("bounded persistence observations", () => {
   it("accepts matched write/read/later counts with actual repeated row comparisons and rejects contradictory observations", () => {
-    const code =
-      'const sqlSource = `this.sql.exec("INSERT INTO rows VALUES (?)"); this.sql.exec("SELECT * FROM rows");`; const handle = await workers.createDurableObject("workers/probe", "ProbeDO"); const expected = [{id:1},{id:2}]; await rpc.call(handle.targetId, "write", [expected]); const first = await rpc.call(handle.targetId, "read", []); const later = await rpc.call(handle.targetId, "read", []); await workers.destroy(handle); return { written: expected.length, first: first.length, later: later.length, same: JSON.stringify(first) === JSON.stringify(expected), retained: JSON.stringify(later) === JSON.stringify(expected) };';
-    const observed = { written: 2, first: 2, later: 2, same: true, retained: true };
+    const code = `${probeMethodsImport} const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO"); const expected = [{ id: "row-1", value: "alpha" }, { id: "row-2", value: "beta" }]; await rpc.call(handle.targetId, fixtureWorkerRpcMethods.writeRows, [expected]); const first = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []); const later = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.readRows, []); await workers.destroy(handle); return { written: expected.length, first: first.length, later: later.length, same: JSON.stringify(first) === JSON.stringify(expected), retained: JSON.stringify(later) === JSON.stringify(expected) };`;
+    const observed = {
+      written: 2,
+      first: 2,
+      later: 2,
+      same: true,
+      retained: true,
+    };
     expect(
       test("worker-do-sql-persistence").validate(
-        execution("Both later calls retained the stored rows.", code, observed)
+        sqlExecution("Both later calls retained the stored rows.", code, observed)
       ).passed
     ).toBe(true);
     for (const value of [
@@ -906,7 +994,8 @@ describe("bounded persistence observations", () => {
       { written: 2 },
     ]) {
       expect(
-        test("worker-do-sql-persistence").validate(execution("Rows persisted.", code, value)).passed
+        test("worker-do-sql-persistence").validate(sqlExecution("Rows persisted.", code, value))
+          .passed
       ).toBe(false);
     }
   });

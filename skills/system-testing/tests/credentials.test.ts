@@ -52,6 +52,8 @@ function test() {
 }
 
 describe("credential store system test validator", () => {
+  const mainRpcMethodsImport =
+    'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";';
   it("pregrants only the bounded managed-credential summary read", () => {
     expect(test().authorityPolicy).toEqual({
       authority: [
@@ -156,11 +158,12 @@ describe("credential store system test validator", () => {
     ).toEqual({ passed: true });
   });
 
-  it("accepts a bounded aggregate computed through the documented raw RPC spelling", () => {
+  it("accepts a bounded aggregate computed through the public RPC descriptor", () => {
     expect(
       test().validate(
         execution(
-          `const records = await rpc.call("main", "credentials.listStoredCredentials", []);
+          `${mainRpcMethodsImport}
+           const records = await rpc.call("main", mainRpcMethods["credentials.listStoredCredentials"], []);
            return {
              total: records.length,
              lifecycleStates: [...new Set(records.map((record) => record.lifecycle.state))],
@@ -176,14 +179,17 @@ describe("credential store system test validator", () => {
     ).toEqual({ passed: true });
   });
 
-  it("accepts the dedicated summary through the documented raw RPC spelling", () => {
+  it("accepts the dedicated summary through the public RPC descriptor", () => {
     expect(
       test().validate(
-        execution(`return rpc.call("main", "credentials.summarizeStoredCredentials", []);`, {
-          credentialCount: 2,
-          lifecycleStates: ["active"],
-          stateCounts: { active: 2 },
-        })
+        execution(
+          `${mainRpcMethodsImport}\nreturn rpc.call("main", mainRpcMethods["credentials.summarizeStoredCredentials"], []);`,
+          {
+            credentialCount: 2,
+            lifecycleStates: ["active"],
+            stateCounts: { active: 2 },
+          }
+        )
       )
     ).toEqual({ passed: true });
   });

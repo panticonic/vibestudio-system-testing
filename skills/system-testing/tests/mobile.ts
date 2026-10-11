@@ -1,4 +1,7 @@
-import { PhoneProvisioningResultSchema, PhoneWorkspaceReadinessSchema } from "@vibestudio/service-schemas/phoneProvisioning";
+import {
+  PhoneProvisioningResultSchema,
+  PhoneWorkspaceReadinessSchema,
+} from "@vibestudio/service-schemas/phoneProvisioning";
 import { requiringUnits } from "../types.js";
 import type { TestCase } from "../types.js";
 import {
@@ -44,8 +47,7 @@ export const mobileTests: TestCase[] = requiringUnits(
             ruleId: "onboarding-desktop-mobile-discovery",
             capability: {
               kind: "prefix",
-              prefix:
-                "userland:workers/phone-provisioning/mobile.devices.read#",
+              prefix: "userland:workers/phone-provisioning/mobile.devices.read#",
             },
             resource: {
               kind: "exact",
@@ -85,10 +87,10 @@ export const mobileTests: TestCase[] = requiringUnits(
           [
             "vibestudio.phone-provisioning.v1",
             "resolveService",
-            '"providers"',
-            '"devices"',
-            '"provision"',
-            '"readiness"',
+            "phoneProvisioningMethods.providers",
+            "phoneProvisioningMethods.devices",
+            "phoneProvisioningMethods.provision",
+            "phoneProvisioningMethods.readiness",
           ],
           [
             "@workspace-skills/phone-setup",
@@ -165,15 +167,14 @@ export const mobileTests: TestCase[] = requiringUnits(
 
         const records = walkRecords(base.evidence.evalValues);
         const installedPackage = records.some(
-          (record) =>
-            record["packageName"] === "app.vibestudio.mobile.internal",
+          (record) => record["packageName"] === "app.vibestudio.mobile.internal"
         );
         const verified = records.some(
           (record) =>
             record["installed"] === true &&
             record["rendering"] === true &&
             Array.isArray(record["issues"]) &&
-            record["issues"].length === 0,
+            record["issues"].length === 0
         );
         if (!installedPackage || !verified) {
           return {
@@ -190,10 +191,9 @@ export const mobileTests: TestCase[] = requiringUnits(
           ? { passed: true }
           : {
               passed: false,
-              reason:
-                "Final response omitted the device, install, or rendering outcome",
+              reason: "Final response omitted the device, install, or rendering outcome",
             };
       },
     },
-  ],
+  ]
 );

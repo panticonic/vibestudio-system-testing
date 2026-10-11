@@ -703,7 +703,10 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       fake.port,
       "create-worker",
       null,
-      { kind: "created-repository", section: "workers" },
+      {
+        kind: "created-repository",
+        section: "workers",
+      },
     );
     const state = await fixture.prepare();
     await expect(fixture.observeRepositories(state)).rejects.toThrow("found 0");
@@ -1268,7 +1271,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       contextId: "context:1",
       repositoryId: "repository:fixture",
       repoPath: "workers/system-test-worker",
-      seedFilePaths: ["index.ts", "package.json"],
+      seedFilePaths: ["contract.ts", "index.ts", "package.json"],
     });
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
     expect(seededText).toContain('"kind": "worker"');
@@ -1280,6 +1283,13 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(seededText).toContain('"requests": []');
     expect(seededText).toContain('"className": "FixtureWorkerDO"');
     expect(seededText).toContain('from "@workspace/runtime/worker/kernel"');
+    expect(seededText).toContain('"./contract": "./contract.ts"');
+    expect(seededText).toContain('from "@vibestudio/shared/rpcMethods"');
+    expect(seededText).toContain(
+      'Pick<FixtureWorkerDO, "inspectProbe" | "report">',
+    );
+    expect(seededText).toContain("static override schemaVersion = 1");
+    expect(seededText).not.toContain("schemaProductionBaseline");
     expect(seededText).toContain('website: { kind: "closed"');
     expect(seededText).toContain(
       "Direct resolveDurableObject methods are runtime-intrinsic",
@@ -1292,6 +1302,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
           expect.objectContaining({
             repoPath: "workers/system-test-worker",
             files: [
+              expect.objectContaining({ path: "contract.ts" }),
               expect.objectContaining({ path: "index.ts" }),
               expect.objectContaining({ path: "package.json" }),
             ],
@@ -1315,7 +1326,16 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
 
     const state = await fixture.prepare();
     const seededText = fake.putText.mock.calls.map(([text]) => text).join("\n");
-    expect(seededText).toContain('runtime.rpc.expose("inspectProbe"');
+    expect(seededText).toContain('runtime.rpc.expose("observeConfiguredValue"');
+    expect(seededText).toContain('"./contract": "./contract.ts"');
+    expect(seededText).toContain(
+      'Pick<ProbeReceiver, "observeConfiguredValue" | "consumeTestkitService">',
+    );
+    expect(seededText).toContain('runtime.rpc.expose("consumeTestkitService"');
+    expect(seededText).toContain("driverRpcMethods.ping");
+    expect(seededText).toContain('"@workspace/testkit": "workspace:*"');
+    expect(seededText).toContain('from "@vibestudio/shared/rpcMethods"');
+    expect(state.seedFilePaths).toContain("contract.ts");
     expect(seededText).toContain(
       '"name": "@workspace-workers/system-test-regular-worker"',
     );

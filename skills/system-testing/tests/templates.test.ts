@@ -6,7 +6,7 @@ import { AUTHORED_PART, templateTests } from "./templates.js";
 function execution(
   returnValue: unknown,
   final: string,
-  options: { code?: string; console?: string } = {},
+  options: { code?: string; console?: string } = {}
 ): TestExecutionResult {
   return {
     duration: 0,
@@ -58,7 +58,7 @@ describe("template agentic validator", () => {
     const workspaceRoot = process.env["VIBESTUDIO_USERLAND_ROOT"];
     if (!workspaceRoot) throw new Error("This check needs the composed workspace root");
     const manifest = JSON.parse(
-      readFileSync(`${workspaceRoot}/${AUTHORED_PART}/package.json`, "utf8"),
+      readFileSync(`${workspaceRoot}/${AUTHORED_PART}/package.json`, "utf8")
     ) as { name?: string };
     expect(manifest.name).toBeTruthy();
   });
@@ -72,17 +72,37 @@ describe("template agentic validator", () => {
   it("recognizes canonical portable template calls with the same exact receipt requirements", () => {
     const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
     const fingerprint = `v1-sha256:${"c".repeat(64)}`;
-    const plan = { fingerprint, manifest: "systemEpoch: 0\n", requestedParts: [AUTHORED_PART] };
-    const code = "const available = await templates.authoringParts(); return await templates.inspectAuthoring(input);";
-    expect(test.validate(execution(plan, `Prepared ${fingerprint}`, { code }))).toEqual({ passed: true, reason: undefined });
-    expect(test.validate(execution({ ...plan, requestedParts: ["extensions/templates"] }, `Prepared ${fingerprint}`, { code })).passed).toBe(false);
-    expect(test.validate(execution(plan, `Prepared ${fingerprint}`, { code: code + " await templates.publishAuthoring(input);" })).passed).toBe(false);
+    const plan = {
+      fingerprint,
+      manifest: "systemEpoch: 0\n",
+      requestedParts: [AUTHORED_PART],
+    };
+    const code =
+      "const available = await templates.authoringParts(); return await templates.inspectAuthoring(input);";
+    expect(test.validate(execution(plan, `Prepared ${fingerprint}`, { code }))).toEqual({
+      passed: true,
+      reason: undefined,
+    });
+    expect(
+      test.validate(
+        execution(
+          { ...plan, requestedParts: ["extensions/templates"] },
+          `Prepared ${fingerprint}`,
+          { code }
+        )
+      ).passed
+    ).toBe(false);
+    expect(
+      test.validate(
+        execution(plan, `Prepared ${fingerprint}`, {
+          code: code + " await templates.publishAuthoring(input);",
+        })
+      ).passed
+    ).toBe(false);
   });
 
   it("accepts an exact preparation-only authoring plan", () => {
-    const test = templateTests.find(
-      ({ name }) => name === "templates-authoring-prepare",
-    )!;
+    const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
     const fingerprint = `v1-sha256:${"a".repeat(64)}`;
     expect(
       test.validate(
@@ -105,16 +125,14 @@ describe("template agentic validator", () => {
               `const plan = await extensions.invoke('@workspace-extensions/templates', 'inspectAuthoring', [{ name: 'Registry', description: 'Template registry', parts: ['${AUTHORED_PART}'] }]);`,
               "return { available, plan };",
             ].join("\n"),
-          },
-        ),
-      ),
+          }
+        )
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 
   it("accepts a structured console receipt when the templates is held in a variable", () => {
-    const test = templateTests.find(
-      ({ name }) => name === "templates-authoring-prepare",
-    )!;
+    const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
     const fingerprint = `v1-sha256:${"b".repeat(64)}`;
     const plan = {
       fingerprint,
@@ -125,27 +143,21 @@ describe("template agentic validator", () => {
     };
     expect(
       test.validate(
-        execution(
-          undefined,
-          `The exact fingerprint is ${fingerprint}. Nothing was published.`,
-          {
-            code: [
-              "const templates = '@workspace-extensions/templates';",
-              "const available = await rpc.call('main', 'extensions.invoke', [templates, 'authoringParts', []]);",
-              `const plan = await rpc.call('main', 'extensions.invoke', [templates, 'inspectAuthoring', [{ name: 'Registry', description: 'Template registry', parts: ['${AUTHORED_PART}'] }]]);`,
-              "console.log(JSON.stringify(plan));",
-            ].join("\n"),
-            console: JSON.stringify(plan),
-          },
-        ),
-      ),
+        execution(undefined, `The exact fingerprint is ${fingerprint}. Nothing was published.`, {
+          code: [
+            "const templates = '@workspace-extensions/templates';",
+            'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc"; const available = await rpc.call("main", mainRpcMethods["extensions.invoke"], [templates, "authoringParts", []]);',
+            `import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc"; const plan = await rpc.call("main", mainRpcMethods["extensions.invoke"], [templates, "inspectAuthoring", [{ name: "Registry", description: "Template registry", parts: ["${AUTHORED_PART}"] }]]);`,
+            "console.log(JSON.stringify(plan));",
+          ].join("\n"),
+          console: JSON.stringify(plan),
+        })
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 
   it("rejects an authoring trajectory that published in the preparation-only scenario", () => {
-    const test = templateTests.find(
-      ({ name }) => name === "templates-authoring-prepare",
-    )!;
+    const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
     expect(
       test.validate(
         execution(
@@ -164,16 +176,14 @@ describe("template agentic validator", () => {
               "await extensions.invoke('@workspace-extensions/templates', 'publishAuthoring', [{ plan }]);",
               "return plan;",
             ].join("\n"),
-          },
-        ),
-      ),
+          }
+        )
+      )
     ).toMatchObject({ passed: false });
   });
 
   it("accepts the reported exact receipt after an earlier draft inspection", () => {
-    const test = templateTests.find(
-      ({ name }) => name === "templates-authoring-prepare",
-    )!;
+    const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
     const firstFingerprint = `v1-sha256:${"c".repeat(64)}`;
     const finalFingerprint = `v1-sha256:${"d".repeat(64)}`;
     const exactPlan = (fingerprint: string) => ({
@@ -198,16 +208,14 @@ describe("template agentic validator", () => {
               `await extensions.invoke(templates, 'inspectAuthoring', [{ name: 'Draft', description: 'First draft', parts: ['${AUTHORED_PART}'] }]);`,
               `return await extensions.invoke(templates, 'inspectAuthoring', [{ name: 'Final', description: 'Final draft', parts: ['${AUTHORED_PART}'] }]);`,
             ].join("\n"),
-          },
-        ),
-      ),
+          }
+        )
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 
   it("reconstructs one receipt when shared plan values are serialized separately", () => {
-    const test = templateTests.find(
-      ({ name }) => name === "templates-authoring-prepare",
-    )!;
+    const test = templateTests.find(({ name }) => name === "templates-authoring-prepare")!;
     const fingerprint = `v1-sha256:${"e".repeat(64)}`;
     expect(
       test.validate(
@@ -233,9 +241,9 @@ describe("template agentic validator", () => {
               "await extensions.invoke(templates, 'authoringParts', []);",
               `return await extensions.invoke(templates, 'inspectAuthoring', [{ name: 'Registry', description: 'Template registry', parts: ['${AUTHORED_PART}'] }]);`,
             ].join("\n"),
-          },
-        ),
-      ),
+          }
+        )
+      )
     ).toEqual({ passed: true, reason: undefined });
   });
 });

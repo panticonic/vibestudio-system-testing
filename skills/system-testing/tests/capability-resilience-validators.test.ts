@@ -1,4 +1,8 @@
-import { childLogReadReplay, taskRuleSnapshots, serverLogReadJournal } from "./_authority-evidence-fixtures.js";
+import {
+  childLogReadReplay,
+  taskRuleSnapshots,
+  serverLogReadJournal,
+} from "./_authority-evidence-fixtures.js";
 import { preparation, publicationMessages } from "./_project-evidence-fixtures.js";
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +15,9 @@ import { approvalPermissionTests } from "./approvals-permissions.js";
 import { edgeCaseTests } from "./edge-cases.js";
 import { harnessResilienceTests } from "./harness-resilience.js";
 import { projectLifecycleTests } from "./project-lifecycle.js";
+
+const mainRpcMethodsImport =
+  'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";';
 
 type Invocation = {
   name: string;
@@ -283,15 +290,32 @@ describe("permission semantic validators", () => {
   };
 
   const inventory = (total: number, returnValue: unknown = { summarized: true }): Invocation => ({
-    name: "eval", arguments: { code: "return await summarizePermissions();" },
-    result: { details: { returnValue, operationJournal: {
-      protocol: "workspace-operations.v1", truncated: false, entries: [{
-        type: "permissions.inventory", receipt: {
-          protocol: "permission-inventory-observation.v1", method: "permissions.list", total,
-          counts: { capability: total, "credential-use": 0, "browser-site": 0 },
+    name: "eval",
+    arguments: { code: "return await summarizePermissions();" },
+    result: {
+      details: {
+        returnValue,
+        operationJournal: {
+          protocol: "workspace-operations.v1",
+          truncated: false,
+          entries: [
+            {
+              type: "permissions.inventory",
+              receipt: {
+                protocol: "permission-inventory-observation.v1",
+                method: "permissions.list",
+                total,
+                counts: {
+                  capability: total,
+                  "credential-use": 0,
+                  "browser-site": 0,
+                },
+              },
+            },
+          ],
         },
-      }],
-    } } },
+      },
+    },
   });
 
   it("accepts native inventory completion independently of guest summary or transport truncation", () => {
@@ -302,21 +326,39 @@ describe("permission semantic validators", () => {
 
   it("rejects guest-fabricated inventory claims and inconsistent native counts", () => {
     const validator = scenario(approvalPermissionTests, "permissions-list");
-    expect(validator.validate(execution([
-      evalCall('return rpc.call("main", "permissions.list", []);', [grant]),
-    ])).passed).toBe(false);
+    expect(
+      validator.validate(
+        execution([
+          evalCall(
+            `${mainRpcMethodsImport}\nreturn rpc.call("main", mainRpcMethods["permissions.list"], []);`,
+            [grant]
+          ),
+        ])
+      ).passed
+    ).toBe(false);
     const forged = inventory(1);
-    const result = forged.result as { details: { operationJournal: { entries: { receipt: { total: number } }[] } } };
+    const result = forged.result as {
+      details: {
+        operationJournal: { entries: { receipt: { total: number } }[] };
+      };
+    };
     result.details.operationJournal.entries[0]!.receipt.total = 2;
     expect(validator.validate(execution([forged])).passed).toBe(false);
   });
 
   it("rejects a permission mutation even when a later native inventory succeeds", () => {
     const validator = scenario(approvalPermissionTests, "permissions-list");
-    expect(validator.validate(execution([
-      evalCall('await rpc.call("main", "permissions.revoke", [{ kind: "capability", id: "x" }]);', undefined),
-      inventory(0),
-    ])).passed).toBe(false);
+    expect(
+      validator.validate(
+        execution([
+          evalCall(
+            `${mainRpcMethodsImport}\nawait rpc.call("main", mainRpcMethods["permissions.revoke"], [{ kind: "capability", id: "x" }]);`,
+            undefined
+          ),
+          inventory(0),
+        ])
+      ).passed
+    ).toBe(false);
   });
 
   it("requires two permission reads backed by one final chat-task rule", () => {
@@ -332,7 +374,10 @@ describe("permission semantic validators", () => {
       validator.validate(
         execution(
           [
-            evalCall('return await rpc.call("main", "permissions.listAgentProfiles", []);', []),
+            evalCall(
+              `${mainRpcMethodsImport}\nreturn await rpc.call("main", mainRpcMethods["permissions.listAgentProfiles"], []);`,
+              []
+            ),
             evalCall("return await services.permissions.list();", [taskGrant]),
           ],
           "The requested behavior was observed.",
@@ -382,9 +427,16 @@ describe("permission semantic validators", () => {
       },
     };
     const result = execution([
-      { name: "eval", arguments: { code: "return await services.serverLog.stats();" }, result: {
-        details: { returnValue: { totalCaptured: 10 }, operationJournal: serverLogReadJournal() },
-      } },
+      {
+        name: "eval",
+        arguments: { code: "return await services.serverLog.stats();" },
+        result: {
+          details: {
+            returnValue: { totalCaptured: 10 },
+            operationJournal: serverLogReadJournal(),
+          },
+        },
+      },
       {
         name: "spawn_subagent",
         arguments: { mode: "fresh", task: "Read server logs" },
@@ -471,12 +523,19 @@ describe("permission semantic validators", () => {
       respondPolicy: "all",
     };
     const subagentSettingsInheritance = { parentSettings, childLaunchConfig };
-    const spawnInvocation = result.messages.find((message) => message.contentType === "invocation" && message.content?.includes("spawn_subagent"));
+    const spawnInvocation = result.messages.find(
+      (message) =>
+        message.contentType === "invocation" && message.content?.includes("spawn_subagent")
+    );
     if (spawnInvocation) {
       spawnInvocation.content = JSON.stringify({
         id: "invocation-1",
         name: "spawn_subagent",
-        arguments: { mode: "fresh", task: "Read server logs", config: { respondPolicy: "all" } },
+        arguments: {
+          mode: "fresh",
+          task: "Read server logs",
+          config: { respondPolicy: "all" },
+        },
         execution: {
           status: "complete",
           isError: false,
@@ -484,7 +543,12 @@ describe("permission semantic validators", () => {
         },
       });
     }
-    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots(), subagentSettingsInheritance };
+    result.diagnostics = {
+      childReplay,
+      childModelExecutionEvidence,
+      subagentTaskRuleReuse: taskRuleSnapshots(),
+      subagentSettingsInheritance,
+    };
     expect(validator.validate(result)).toEqual({
       passed: true,
       reason: undefined,
@@ -499,8 +563,16 @@ describe("permission semantic validators", () => {
       })),
     };
     expect(validator.validate(result).passed).toBe(false);
-    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots() };
-    result.diagnostics = { childReplay, childModelExecutionEvidence, subagentTaskRuleReuse: taskRuleSnapshots(2) };
+    result.diagnostics = {
+      childReplay,
+      childModelExecutionEvidence,
+      subagentTaskRuleReuse: taskRuleSnapshots(),
+    };
+    result.diagnostics = {
+      childReplay,
+      childModelExecutionEvidence,
+      subagentTaskRuleReuse: taskRuleSnapshots(2),
+    };
     expect(validator.validate(result).passed).toBe(false);
   });
 });
@@ -952,7 +1024,11 @@ describe("terminal command delivery evidence", () => {
     expect(
       test.validate!(
         execution([
-          evalCall(code, { exitCode: 0, stdout: "agentic-terminal-roundtrip", stderr: "" }),
+          evalCall(code, {
+            exitCode: 0,
+            stdout: "agentic-terminal-roundtrip",
+            stderr: "",
+          }),
         ])
       ).passed
     ).toBe(true);

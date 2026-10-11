@@ -1254,7 +1254,7 @@ describe("semantic system-test validators", () => {
     const call = {
       name: "eval",
       arguments: {
-        code: 'const svc = await workers.resolveService("vibestudio.workspace-source.v1"); return await rpc.call(svc.targetId, "getStatus", []);',
+        code: 'import { gadRpcMethods } from "@vibestudio/service-schemas/clients/gadServiceClient"; const svc = await workers.resolveService("vibestudio.workspace-source.v1"); return await rpc.call(svc.targetId, gadRpcMethods.getStatus, []);',
       },
       execution: {
         status: "complete",
@@ -1279,7 +1279,10 @@ describe("semantic system-test validators", () => {
           {
             ...call,
             arguments: {
-              code: call.arguments.code.replace('"getStatus"', '"getConfig"'),
+              code: call.arguments.code.replace(
+                "gadRpcMethods.getStatus",
+                "gadRpcMethods.getConfig",
+              ),
             },
           },
         ]),
@@ -1503,9 +1506,8 @@ describe("semantic system-test validators", () => {
       test.validate(execution("Opening GitHub setup.", [ownerRead])).passed,
     ).toBe(true);
     expect(
-      test.validate(
-        execution("Opening GitHub setup.", [rerouted, ownerRead]),
-      ).passed,
+      test.validate(execution("Opening GitHub setup.", [rerouted, ownerRead]))
+        .passed,
     ).toBe(false);
     expect(
       test.validate(
@@ -1860,7 +1862,7 @@ describe("bounded live service catalog", () => {
 
   it.each([
     "const xs = await services.docs.listServices(); return {observedServiceEntries:xs.length, representatives:xs.slice(0,4).map(x=>({name:x.name,description:x.description}))};",
-    "const xs = await rpc.call('main', 'docs.listServices', []); return {observedServiceEntries:xs.length, representatives:xs.slice(0,4).map(x=>({name:x.name,description:x.description}))};",
+    'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc"; const xs = await rpc.call("main", mainRpcMethods["docs.listServices"], []); return {observedServiceEntries:xs.length, representatives:xs.slice(0,4).map(x=>({name:x.name,description:x.description}))};',
   ])(
     "accepts an enumeration summarized with its observed total: %s",
     (code) => {

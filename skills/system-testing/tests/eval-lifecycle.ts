@@ -309,7 +309,7 @@ function permissionsListResult(
 ): boolean {
   const code = String(call.arguments?.["code"] ?? "");
   if (
-    !/\bservices\.permissions\.list\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.list["']/u.test(
+    !/\bservices\.permissions\.list\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']permissions\.list["']|mainRpcMethods\[\s*["']permissions\.list["']\s*\])/u.test(
       code,
     )
   )
@@ -594,13 +594,19 @@ async function orchestrateAgentReplay(
     const readinessSignal = AbortSignal.any([context.signal, readiness.signal]);
     const liveObservation = session.waitUntil(
       () => {
-        const invocation = session.snapshot().invocations.find(
-          (candidate) =>
-            candidate.name === "eval" &&
-            (candidate.status === "pending" || candidate.status === "running"),
-        );
+        const invocation = session
+          .snapshot()
+          .invocations.find(
+            (candidate) =>
+              candidate.name === "eval" &&
+              (candidate.status === "pending" ||
+                candidate.status === "running"),
+          );
         return invocation
-          ? { id: invocation.id, status: invocation.status as "pending" | "running" }
+          ? {
+              id: invocation.id,
+              status: invocation.status as "pending" | "running",
+            }
           : undefined;
       },
       { signal: readinessSignal },
@@ -608,7 +614,9 @@ async function orchestrateAgentReplay(
     const inputSettlement = session
       .waitForInput(inputMessageId, { signal: readinessSignal })
       .then(() => {
-        throw new Error("The admitted input settled without an observed live eval invocation");
+        throw new Error(
+          "The admitted input settled without an observed live eval invocation",
+        );
       });
     let live: { id: string; status: "pending" | "running" };
     try {

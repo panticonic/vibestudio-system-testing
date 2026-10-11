@@ -21,11 +21,11 @@ import {
 import { getToolCalls } from "./_helpers.js";
 import { NativePermissionInventoryObservationSchema } from "@vibestudio/service-schemas/permissions";
 const PERMISSION_LIST_CALL =
-  /\bservices\.permissions\.list\s*\(\s*\)|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.list["']\s*,\s*\[\s*\]\s*\)/u;
+  /\bservices\.permissions\.list\s*\(\s*\)|\brpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']permissions\.list["']|mainRpcMethods\[\s*["']permissions\.list["']\s*\])\s*,\s*\[\s*\]\s*\)/u;
 const PERMISSION_PROFILE_CALL =
-  /\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.listAgentProfiles["']\s*,\s*\[\s*\]\s*\)/u;
+  /\brpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']permissions\.listAgentProfiles["']|mainRpcMethods\[\s*["']permissions\.listAgentProfiles["']\s*\])\s*,\s*\[\s*\]\s*\)/u;
 const PERMISSION_MUTATION_CALL =
-  /\bservices\.permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*["']permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)["']/u;
+  /\bservices\.permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)["']|mainRpcMethods\[\s*["']permissions\.(?:revoke|updateAgentProfile|setWorkspaceAuthorityLock)["']\s*\])/u;
 
 
 function validatePermissionList(result: TestExecutionResult) {

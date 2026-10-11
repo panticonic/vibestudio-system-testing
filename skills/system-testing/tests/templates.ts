@@ -28,7 +28,7 @@ function invokedTemplateOperation(code: string, operation: string): boolean {
     "u",
   ).test(code);
   const portableCall =
-    /rpc\.call\s*\(\s*(["'])main\1\s*,\s*(["'])extensions\.invoke\2\s*,/u.test(
+    /rpc\.call\s*\(\s*(["'])main\1\s*,\s*(?:(["'])extensions\.invoke\2|mainRpcMethods\[\s*(["'])extensions\.invoke\3\s*\])\s*,/u.test(
       code,
     ) && new RegExp(quoted, "u").test(code);
   const indirectCall =

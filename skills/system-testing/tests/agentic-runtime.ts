@@ -75,7 +75,10 @@ function statusMetricsReported(
       (/workers\.resolveService\([\s\S]*["']vibestudio\.workspace-source\.v1["']/u.test(
         code,
       ) &&
-        /rpc\.call\([\s\S]*["']getStatus["']/u.test(code));
+        /import\s*\{\s*gadRpcMethods\s*\}\s*from\s*["']@vibestudio\/service-schemas\/clients\/gadServiceClient["']/u.test(
+          code,
+        ) &&
+        /rpc\.call\([\s\S]*gadRpcMethods\.getStatus\b/u.test(code));
     if (!statusCall) return false;
     const returned = invocationReturnValue(call);
     if (!returned.present) return false;

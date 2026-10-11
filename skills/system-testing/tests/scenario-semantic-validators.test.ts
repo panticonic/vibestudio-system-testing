@@ -16,7 +16,11 @@ interface EvalStep {
   code: string;
   imports?: Record<string, string>;
   returnValue?: unknown;
-  operationJournal?: { protocol: string; entries: unknown[]; truncated: boolean };
+  operationJournal?: {
+    protocol: string;
+    entries: unknown[];
+    truncated: boolean;
+  };
   kernelIncarnationId?: string;
   reset?: boolean;
   status?: "complete" | "error" | "cancelled";
@@ -30,10 +34,7 @@ interface ToolStep {
   result?: unknown;
 }
 
-function extensionJournal(
-  transport: "invoke" | "invokeProvider",
-  result: Record<string, unknown>,
-) {
+function extensionJournal(transport: "invoke" | "invokeProvider", result: Record<string, unknown>) {
   return {
     protocol: "workspace-operations.v1",
     truncated: false,
@@ -56,7 +57,7 @@ function extensionJournal(
 
 function typecheckJournal(
   extensionKey = "@workspace-extensions/typecheck-service",
-  method = "checkPanel",
+  method = "checkPanel"
 ) {
   return {
     protocol: "workspace-operations.v1",
@@ -116,7 +117,9 @@ function execution(finalMessage: string, steps: EvalStep[]): TestExecutionResult
             : {
                 details: {
                   ...(step.returnValue === undefined ? {} : { returnValue: step.returnValue }),
-                  ...(step.operationJournal === undefined ? {} : { operationJournal: step.operationJournal }),
+                  ...(step.operationJournal === undefined
+                    ? {}
+                    : { operationJournal: step.operationJournal }),
                   ...(step.kernelIncarnationId
                     ? { kernel: { incarnationId: step.kernelIncarnationId } }
                     : {}),
@@ -225,11 +228,12 @@ describe("mobile onboarding validator", () => {
   it("requires a canonical provisioning receipt and validates facts independently of prose", () => {
     const validator = scenario(mobileTests, "onboarding-desktop-mobile-install-android");
     const fullWorkflow = [
+      'import { phoneProvisioningMethods } from "@vibestudio/service-schemas/phoneProvisioning";',
       'const service = await workers.resolveService("vibestudio.phone-provisioning.v1");',
-      'const providers = await rpc.call(service.targetId, "providers", []);',
-      'const devices = await rpc.call(service.targetId, "devices", []);',
-      'const provisioned = await rpc.call(service.targetId, "provision", []);',
-      'const workspace = await rpc.call(service.targetId, "readiness", [{ deviceId: provisioned.pairedDevice.deviceId }]);',
+      "const providers = await rpc.call(service.targetId, phoneProvisioningMethods.providers, []);",
+      "const devices = await rpc.call(service.targetId, phoneProvisioningMethods.devices, []);",
+      "const provisioned = await rpc.call(service.targetId, phoneProvisioningMethods.provision, []);",
+      "const workspace = await rpc.call(service.targetId, phoneProvisioningMethods.readiness, [{ deviceId: provisioned.pairedDevice.deviceId }]);",
       "return { provisioned, workspace };",
     ].join("\n");
 
@@ -280,10 +284,11 @@ describe("mobile onboarding validator", () => {
   it("rejects a provider-less run even when failed attempts contain the full workflow", () => {
     const validator = scenario(mobileTests, "onboarding-desktop-mobile-install-android");
     const fullWorkflow = [
+      'import { phoneProvisioningMethods } from "@vibestudio/service-schemas/phoneProvisioning";',
       'const service = await workers.resolveService("vibestudio.phone-provisioning.v1");',
-      'const providers = await rpc.call(service.targetId, "providers", []);',
-      'const devices = await rpc.call(service.targetId, "devices", []);',
-      'const provisioned = await rpc.call(service.targetId, "provision", []);',
+      "const providers = await rpc.call(service.targetId, phoneProvisioningMethods.providers, []);",
+      "const devices = await rpc.call(service.targetId, phoneProvisioningMethods.devices, []);",
+      "const provisioned = await rpc.call(service.targetId, phoneProvisioningMethods.provision, []);",
       'const ready = await extensions.invoke("mobile-debug", "verifyWorkspaceReady", []);',
       "return { devices, provisioned, ready };",
     ].join("\n");
@@ -298,8 +303,9 @@ describe("mobile onboarding validator", () => {
           },
           {
             code: [
+              'import { phoneProvisioningMethods } from "@vibestudio/service-schemas/phoneProvisioning";',
               'const service = await workers.resolveService("vibestudio.phone-provisioning.v1");',
-              'const providers = await rpc.call(service.targetId, "providers", []);',
+              "const providers = await rpc.call(service.targetId, phoneProvisioningMethods.providers, []);",
               "return { providersCount: providers.length, providers };",
             ].join("\n"),
             returnValue: { providersCount: 0, providers: [] },
@@ -518,7 +524,7 @@ describe("eval authority lifecycle validators", () => {
     const validator = scenario(evalLifecycleTests, "eval-preauthorization");
     const result = execution("Read the actual inventory.", [
       {
-        code: 'return await rpc.call("main", "permissions.list", []);',
+        code: 'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc"; return await rpc.call("main", mainRpcMethods["permissions.list"], []);',
         authority: {
           preauthorize: [{ service: "permissions", method: "list", args: [] }],
         },
@@ -749,8 +755,14 @@ describe("filesystem semantic validators", () => {
     expect(
       validator.validate(
         execution("It worked.", [
-          { code: "await help('fs');", returnValue: "First observation.Second observation." },
-          { code: "fs.appendFile(); fs.readFile();", returnValue: { ok: true } },
+          {
+            code: "await help('fs');",
+            returnValue: "First observation.Second observation.",
+          },
+          {
+            code: "fs.appendFile(); fs.readFile();",
+            returnValue: { ok: true },
+          },
         ])
       ).passed
     ).toBe(false);
@@ -809,10 +821,18 @@ describe("filesystem semantic validators", () => {
     const first = "First observation.\n";
     const both = first + "Second observation.\n";
     const applied = {
-      details: { protocol: "file-mutation.v1", storage: "scratch", status: "applied" },
+      details: {
+        protocol: "file-mutation.v1",
+        storage: "scratch",
+        status: "applied",
+      },
     };
     const steps: ToolStep[] = [
-      { name: "write", arguments: { path: ".tmp/log.txt", content: first }, result: applied },
+      {
+        name: "write",
+        arguments: { path: ".tmp/log.txt", content: first },
+        result: applied,
+      },
       {
         name: "edit",
         arguments: { path: ".tmp/log.txt", oldText: first, newText: both },
@@ -828,13 +848,19 @@ describe("filesystem semantic validators", () => {
     for (const invalid of [
       [
         steps[0]!,
-        { ...steps[1]!, arguments: { ...steps[1]!.arguments, newText: "Second observation." } },
+        {
+          ...steps[1]!,
+          arguments: { ...steps[1]!.arguments, newText: "Second observation." },
+        },
         steps[2]!,
       ],
       [steps[0]!, steps[1]!, { ...steps[2]!, arguments: { path: ".tmp/other.txt" } }],
       [
         steps[0]!,
-        { ...steps[1]!, result: { details: { ...applied.details, status: "conflict" } } },
+        {
+          ...steps[1]!,
+          result: { details: { ...applied.details, status: "conflict" } },
+        },
         steps[2]!,
       ],
       [steps[0]!, steps[1]!],
@@ -1026,7 +1052,10 @@ describe("filesystem semantic validators", () => {
           },
           {
             name: "write",
-            arguments: { path: ".tmp/example/nested/two.txt", content: "two" },
+            arguments: {
+              path: ".tmp/example/nested/two.txt",
+              content: "two",
+            },
             result: { details: { bytesWritten: 3, storage: "scratch" } },
           },
           {
@@ -1222,19 +1251,16 @@ describe("filesystem semantic validators", () => {
 
   it("accepts a natural gone result from a completed removal probe", () => {
     const validator = scenario(filesystemTests, "remove");
-    const code = "await fs.mkdir(path); await fs.rm(path); return { gone: !(await fs.exists(path)) };";
+    const code =
+      "await fs.mkdir(path); await fs.rm(path); return { gone: !(await fs.exists(path)) };";
     expect(
       validator.validate(
-        execution("The temporary directory is gone.", [
-          { code, returnValue: { gone: true } },
-        ])
+        execution("The temporary directory is gone.", [{ code, returnValue: { gone: true } }])
       ).passed
     ).toBe(true);
     expect(
       validator.validate(
-        execution("The temporary directory is gone.", [
-          { code, returnValue: { gone: false } },
-        ])
+        execution("The temporary directory is gone.", [{ code, returnValue: { gone: false } }])
       ).passed
     ).toBe(false);
     expect(
@@ -1367,16 +1393,34 @@ describe("build semantic validators", () => {
 
 describe("workspace semantic validators", () => {
   it("accepts settings obtained directly from the resolved configuration", () => {
-    expect(scenario(workspaceTests, "get-config").validate(execution(
-      "The default repository is projects/default and the startup panel is about/new.",
-      [{ code: "return workspace.getConfig();", returnValue: { defaultRepo: "projects/default", initPanels: [{ source: "about/new" }] } }]
-    )).passed).toBe(true);
+    expect(
+      scenario(workspaceTests, "get-config").validate(
+        execution(
+          "The default repository is projects/default and the startup panel is about/new.",
+          [
+            {
+              code: "return workspace.getConfig();",
+              returnValue: {
+                defaultRepo: "projects/default",
+                initPanels: [{ source: "about/new" }],
+              },
+            },
+          ]
+        )
+      ).passed
+    ).toBe(true);
   });
   it("rejects arbitrary metadata masquerading as configuration", () => {
-    expect(scenario(workspaceTests, "get-config").validate(execution(
-      "It uses a local origin and main context.",
-      [{ code: "return workspace.getInfo();", returnValue: { origin: "local", context: "main" } }]
-    )).passed).toBe(false);
+    expect(
+      scenario(workspaceTests, "get-config").validate(
+        execution("It uses a local origin and main context.", [
+          {
+            code: "return workspace.getInfo();",
+            returnValue: { origin: "local", context: "main" },
+          },
+        ])
+      ).passed
+    ).toBe(false);
   });
 
   it("derives catalog, active identity, and configuration facts from completed results", () => {
@@ -1399,12 +1443,20 @@ describe("workspace semantic validators", () => {
     ).toBe(true);
     expect(
       scenario(workspaceTests, "get-config").validate(
-        execution("The default repository is projects/default and the panel restore policy is focused.", [
-          {
-            code: "return workspace.getInfo();",
-            returnValue: { config: { defaultRepo: "projects/default", panelRestorePolicy: "focused" } },
-          },
-        ])
+        execution(
+          "The default repository is projects/default and the panel restore policy is focused.",
+          [
+            {
+              code: "return workspace.getInfo();",
+              returnValue: {
+                config: {
+                  defaultRepo: "projects/default",
+                  panelRestorePolicy: "focused",
+                },
+              },
+            },
+          ]
+        )
       ).passed
     ).toBe(true);
   });
@@ -1445,7 +1497,13 @@ describe("multi-user semantic validators", () => {
                 lastSeen: 11,
                 endpoints: 2,
               },
-              { userId: "u3", handle: "carol", displayName: "Carol", online: false, lastSeen: 9 },
+              {
+                userId: "u3",
+                handle: "carol",
+                displayName: "Carol",
+                online: false,
+                lastSeen: 9,
+              },
             ],
           },
         ])
@@ -1458,7 +1516,15 @@ describe("multi-user semantic validators", () => {
     const cases = [
       { rows: [], answer: "Nobody is here." },
       {
-        rows: [{ userId: "u1", handle: "alice", displayName: "Alice", online: false, lastSeen: 9 }],
+        rows: [
+          {
+            userId: "u1",
+            handle: "alice",
+            displayName: "Alice",
+            online: false,
+            lastSeen: 9,
+          },
+        ],
         answer: "No users online.",
       },
       { rows: [], answer: "0 users are currently present." },
@@ -1468,7 +1534,10 @@ describe("multi-user semantic validators", () => {
       expect(
         validator.validate(
           execution(answer, [
-            { code: "return await services.workspacePresence.list();", returnValue: rows },
+            {
+              code: "return await services.workspacePresence.list();",
+              returnValue: rows,
+            },
           ])
         ).passed
       ).toBe(true);
@@ -1483,8 +1552,20 @@ describe("multi-user semantic validators", () => {
           {
             code: "return await services.workspacePresence.list();",
             returnValue: [
-              { userId: "u1", handle: "alice", displayName: "Alice", online: true, lastSeen: 10 },
-              { userId: "u2", handle: "bob", displayName: "Bob", online: true, lastSeen: 11 },
+              {
+                userId: "u1",
+                handle: "alice",
+                displayName: "Alice",
+                online: true,
+                lastSeen: 10,
+              },
+              {
+                userId: "u2",
+                handle: "bob",
+                displayName: "Bob",
+                online: true,
+                lastSeen: 11,
+              },
             ],
           },
         ])
@@ -1499,7 +1580,14 @@ describe("multi-user semantic validators", () => {
         execution("Alice is currently online.", [
           {
             code: "return await services.workspacePresence.list();",
-            returnValue: [{ userId: "u1", handle: "alice", displayName: "Alice", lastSeen: 10 }],
+            returnValue: [
+              {
+                userId: "u1",
+                handle: "alice",
+                displayName: "Alice",
+                lastSeen: 10,
+              },
+            ],
           },
         ])
       ).passed
@@ -1801,25 +1889,52 @@ describe("eval lifecycle semantic validators", () => {
 
 describe("extension semantic validators", () => {
   it("accepts canonical extension identities and readiness in a projected catalog", () => {
-    expect(scenario(extensionSurfaceTests, "extension-list").validate(execution(
-      "Typecheck Service is registered and ready.", [{
-        code: "return (await build.listUnits()).filter(x => x.kind === 'extension').map(({name,status}) => ({name,status}));",
-        returnValue: [{ name: "@workspace-extensions/typecheck-service", status: "ready" }]
-      }]
-    )).passed).toBe(true);
+    expect(
+      scenario(extensionSurfaceTests, "extension-list").validate(
+        execution("Typecheck Service is registered and ready.", [
+          {
+            code: "return (await build.listUnits()).filter(x => x.kind === 'extension').map(({name,status}) => ({name,status}));",
+            returnValue: [
+              {
+                name: "@workspace-extensions/typecheck-service",
+                status: "ready",
+              },
+            ],
+          },
+        ])
+      ).passed
+    ).toBe(true);
   });
 
   it("rejects source names without registered readiness", () => {
-    expect(scenario(extensionSurfaceTests, "extension-list").validate(execution(
-      "Two extensions are ready.", [{ code: "return build.listUnits();", returnValue: [{ name: "typecheck" }] }]
-    )).passed).toBe(false);
+    expect(
+      scenario(extensionSurfaceTests, "extension-list").validate(
+        execution("Two extensions are ready.", [
+          {
+            code: "return build.listUnits();",
+            returnValue: [{ name: "typecheck" }],
+          },
+        ])
+      ).passed
+    ).toBe(false);
   });
 
   it("requires registry rows for extension discovery", () => {
     const result = execution("Two workspace extensions are currently available.", [
       {
         code: "return (await build.listUnits()).filter((unit) => unit.kind === 'extension');",
-        returnValue: [{ name: "@workspace-extensions/typecheck-service", kind: "extension", status: "ready" }, { name: "@workspace-extensions/test-runner", kind: "extension", status: "ready" }],
+        returnValue: [
+          {
+            name: "@workspace-extensions/typecheck-service",
+            kind: "extension",
+            status: "ready",
+          },
+          {
+            name: "@workspace-extensions/test-runner",
+            kind: "extension",
+            status: "ready",
+          },
+        ],
       },
     ]);
     expect(scenario(extensionSurfaceTests, "extension-list").validate(result).passed).toBe(true);
@@ -1846,7 +1961,9 @@ describe("extension semantic validators", () => {
         returnValue: { errorCount: 26, warningCount: 0 },
       },
     ]);
-    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(true);
+    expect(
+      scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+    ).toBe(true);
   });
 
   it("accepts an aliased invocation when its native receipt proves the exact typecheck call", () => {
@@ -1857,7 +1974,9 @@ describe("extension semantic validators", () => {
         returnValue: { errorCount: 26, warningCount: 0 },
       },
     ]);
-    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(true);
+    expect(
+      scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+    ).toBe(true);
   });
 
   it("rejects negative and fractional diagnostic counts", () => {
@@ -1872,7 +1991,9 @@ describe("extension semantic validators", () => {
           returnValue,
         },
       ]);
-      expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(false);
+      expect(
+        scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+      ).toBe(false);
     }
   });
 
@@ -1893,41 +2014,56 @@ describe("extension semantic validators", () => {
         },
       },
     ]);
-    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(true);
+    expect(
+      scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+    ).toBe(true);
   });
 
   it("rejects summaries and truncation without exact native typecheck evidence", () => {
-    const code = 'return services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["panels/app"]);';
+    const code =
+      'return services.extensions.invoke("@workspace-extensions/typecheck-service", "checkPanel", ["panels/app"]);';
     const value = { errorCount: 26, warningCount: 0 };
     for (const [journal, returnValue] of [
       [undefined, value],
       [typecheckJournal("@workspace-extensions/other-service"), value],
       [typecheckJournal("@workspace-extensions/typecheck-service", "listUnits"), value],
-      [typecheckJournal(), {
-        truncated: true,
-        reason: "eval return value exceeded result transport/storage limit",
-        scopeKey: "$lastLargeReturn",
-        scopeValueType: "string",
-        originalChars: 20592,
-        limitChars: 0,
-        measuredAs: "json-indent-2",
-        preview: "partial output",
-      }],
-      [typecheckJournal(), {
-        truncated: true,
-        reason: "eval return value exceeded result transport/storage limit",
-        scopeKey: "$lastLargeReturn",
-        scopeValueType: "string",
-        originalChars: 12000,
-        limitChars: 12000,
-        measuredAs: "json-indent-2",
-        preview: "partial output",
-      }],
+      [
+        typecheckJournal(),
+        {
+          truncated: true,
+          reason: "eval return value exceeded result transport/storage limit",
+          scopeKey: "$lastLargeReturn",
+          scopeValueType: "string",
+          originalChars: 20592,
+          limitChars: 0,
+          measuredAs: "json-indent-2",
+          preview: "partial output",
+        },
+      ],
+      [
+        typecheckJournal(),
+        {
+          truncated: true,
+          reason: "eval return value exceeded result transport/storage limit",
+          scopeKey: "$lastLargeReturn",
+          scopeValueType: "string",
+          originalChars: 12000,
+          limitChars: 12000,
+          measuredAs: "json-indent-2",
+          preview: "partial output",
+        },
+      ],
     ] as const) {
       const result = execution("The typecheck reported 26 errors and no warnings.", [
-        { code, ...(journal ? { operationJournal: journal } : {}), returnValue },
+        {
+          code,
+          ...(journal ? { operationJournal: journal } : {}),
+          returnValue,
+        },
       ]);
-      expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(false);
+      expect(
+        scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+      ).toBe(false);
     }
   });
 
@@ -1940,14 +2076,19 @@ describe("extension semantic validators", () => {
         status: "error",
       },
     ]);
-    expect(scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed).toBe(false);
+    expect(
+      scenario(extensionSurfaceTests, "extension-typecheck-unit").validate(result).passed
+    ).toBe(false);
   });
 
   it("rejects a candidate build receipt as evidence of an installed typecheck-service invocation", () => {
     const result = directExecution("The extension builds with no diagnostics.", [
       {
         name: "verify",
-        arguments: { operation: "build", target: "extensions/typecheck-service" },
+        arguments: {
+          operation: "build",
+          target: "extensions/typecheck-service",
+        },
         result: {
           details: {
             diagnostics: [],
@@ -1970,7 +2111,10 @@ describe("extension semantic validators", () => {
     const result = execution("The read-only method returned a structured status record.", [
       {
         code: "const entries = (await build.listUnits()).filter((unit) => unit.kind === 'extension'); return { entries, value: await services.extensions.invoke(entries[0].name, \"status\", []) };",
-        operationJournal: extensionJournal("invoke", { kind: "object", keyCount: 1 }),
+        operationJournal: extensionJournal("invoke", {
+          kind: "object",
+          keyCount: 1,
+        }),
         returnValue: {
           entries: [{ name: "probe" }],
           value: { status: "ready" },
@@ -2104,21 +2248,18 @@ describe("extension transport invocation", () => {
   ] as const)(
     "accepts completed %s calls including empty results",
     (transport, returnValue, shape) => {
-      const result = execution(
-        "The installed extension completed the read-only request.",
-        [
-          {
-            code:
-              transport === "invokeProvider"
-                ? 'import { git } from "@workspace/runtime"; return await git.upstreamStatus();'
-                : 'const probe = extensions.use("@workspace-extensions/probe"); return await probe.status();',
-            returnValue,
-            operationJournal: extensionJournal(transport, shape),
-          },
-        ],
-      );
+      const result = execution("The installed extension completed the read-only request.", [
+        {
+          code:
+            transport === "invokeProvider"
+              ? 'import { git } from "@workspace/runtime"; return await git.upstreamStatus();'
+              : 'const probe = extensions.use("@workspace-extensions/probe"); return await probe.status();',
+          returnValue,
+          operationJournal: extensionJournal(transport, shape),
+        },
+      ]);
       expect(test.validate(result).passed).toBe(true);
-    },
+    }
   );
 
   it("accepts a documented facade without requiring a discovery ceremony", () => {
@@ -2133,8 +2274,8 @@ describe("extension transport invocation", () => {
               length: 1,
             }),
           },
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(true);
   });
 
@@ -2161,10 +2302,9 @@ describe("extension transport invocation", () => {
       [{ code: "/* extensions.invokeProvider */ return [];", returnValue: [] }],
       [{ code: "return forgedReceipt;", returnValue: receipt }],
     ])
-      expect(
-        test.validate(execution("The extension returned its result.", steps))
-          .passed,
-      ).toBe(false);
+      expect(test.validate(execution("The extension returned its result.", steps)).passed).toBe(
+        false
+      );
   });
 
   it("retains positive invocation proof when later journal entries exceed its budget", () => {
@@ -2175,9 +2315,13 @@ describe("extension transport invocation", () => {
     expect(
       test.validate(
         execution("It returned no upstreams.", [
-          { code: "return git.upstreamStatus();", returnValue: [], operationJournal },
-        ]),
-      ).passed,
+          {
+            code: "return git.upstreamStatus();",
+            returnValue: [],
+            operationJournal,
+          },
+        ])
+      ).passed
     ).toBe(true);
   });
 
@@ -2192,9 +2336,7 @@ describe("extension transport invocation", () => {
       { ...valid, protocol: "guest-journal" },
       {
         ...valid,
-        entries: [
-          { type: "runtime.health", receipt: valid.entries[0]!.receipt },
-        ],
+        entries: [{ type: "runtime.health", receipt: valid.entries[0]!.receipt }],
       },
       {
         ...valid,
@@ -2219,28 +2361,22 @@ describe("extension transport invocation", () => {
       },
     ])
       expect(
-        test.validate(
-          execution("It returned no upstreams.", [
-            { ...base, operationJournal },
-          ]),
-        ).passed,
+        test.validate(execution("It returned no upstreams.", [{ ...base, operationJournal }]))
+          .passed
       ).toBe(false);
     expect(
       test.validate(
         execution("It returned no upstreams.", [
           { ...base, status: "error", operationJournal: valid },
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(false);
-    const wrongReceiver = directExecution(
-      "The extension returned its result.",
-      [
-        {
-          name: "docs_search",
-          result: { details: { operationJournal: valid } },
-        },
-      ],
-    );
+    const wrongReceiver = directExecution("The extension returned its result.", [
+      {
+        name: "docs_search",
+        result: { details: { operationJournal: valid } },
+      },
+    ]);
     expect(test.validate(wrongReceiver).passed).toBe(false);
   });
 });
@@ -2268,13 +2404,8 @@ describe("notebook and scratch lifetime regressions", () => {
     },
   ];
   it("requires captured import lifetime, explicit retention, and the same native kernel", () => {
-    const test = scenario(
-      evalLifecycleTests,
-      "eval-cell-local-imports-retained-handle",
-    );
-    expect(
-      test.validate(execution("Observed the three cells.", importSteps)).passed,
-    ).toBe(true);
+    const test = scenario(evalLifecycleTests, "eval-cell-local-imports-retained-handle");
+    expect(test.validate(execution("Observed the three cells.", importSteps)).passed).toBe(true);
     expect(test.validate(execution("It worked.", [])).passed).toBe(false);
     for (const changed of [
       { ...importSteps[1]!, kernelIncarnationId: "replacement-kernel" },
@@ -2293,13 +2424,8 @@ describe("notebook and scratch lifetime regressions", () => {
       },
     ])
       expect(
-        test.validate(
-          execution("Claimed success.", [
-            importSteps[0]!,
-            changed,
-            importSteps[2]!,
-          ]),
-        ).passed,
+        test.validate(execution("Claimed success.", [importSteps[0]!, changed, importSteps[2]!]))
+          .passed
       ).toBe(false);
   });
   const rejectedSteps: EvalStep[] = [
@@ -2327,15 +2453,10 @@ describe("notebook and scratch lifetime regressions", () => {
     },
   ];
   it("requires original state after exactly one deliberate failed cell", () => {
-    const test = scenario(
-      evalLifecycleTests,
-      "eval-rejected-cell-preserves-live-scope",
+    const test = scenario(evalLifecycleTests, "eval-rejected-cell-preserves-live-scope");
+    expect(test.validate(execution("Recovered the original callable.", rejectedSteps)).passed).toBe(
+      true
     );
-    expect(
-      test.validate(
-        execution("Recovered the original callable.", rejectedSteps),
-      ).passed,
-    ).toBe(true);
     for (const changed of [
       { ...rejectedSteps[2]!, kernelIncarnationId: "replacement-kernel" },
       {
@@ -2349,12 +2470,8 @@ describe("notebook and scratch lifetime regressions", () => {
     ])
       expect(
         test.validate(
-          execution("Claimed recovery.", [
-            rejectedSteps[0]!,
-            rejectedSteps[1]!,
-            changed,
-          ]),
-        ).passed,
+          execution("Claimed recovery.", [rejectedSteps[0]!, rejectedSteps[1]!, changed])
+        ).passed
       ).toBe(false);
     expect(
       test.validate(
@@ -2362,15 +2479,12 @@ describe("notebook and scratch lifetime regressions", () => {
           rejectedSteps[0]!,
           { ...rejectedSteps[1]!, result: { error: "unrelated fault" } },
           rejectedSteps[2]!,
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(false);
   });
   it("requires the updated content through both the retained descriptor and renamed path", () => {
-    const test = scenario(
-      filesystemTests,
-      "scratch-file-handle-survives-rename",
-    );
+    const test = scenario(filesystemTests, "scratch-file-handle-survives-rename");
     const step = {
       code: "const handle = await fs.open('.tmp/old', 'r'); try { await fs.rename('.tmp/old', '.tmp/new'); await fs.writeFile('.tmp/new', 'AFTER!'); const data = await handle.read(new Uint8Array(6), 0, 6, 0); const path = await fs.readFile('.tmp/new', 'utf8'); } finally { await handle.close(); }",
       returnValue: {
@@ -2380,9 +2494,7 @@ describe("notebook and scratch lifetime regressions", () => {
         closed: true,
       },
     };
-    expect(test.validate(execution("Read both paths.", [step])).passed).toBe(
-      true,
-    );
+    expect(test.validate(execution("Read both paths.", [step])).passed).toBe(true);
     expect(
       test.validate(
         execution("Claimed success.", [
@@ -2390,8 +2502,8 @@ describe("notebook and scratch lifetime regressions", () => {
             ...step,
             code: "return { throughHandle: 'AFTER!', throughPath: 'AFTER!', oldPathExists: false, closed: true };",
           },
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(false);
     expect(
       test.validate(
@@ -2400,8 +2512,8 @@ describe("notebook and scratch lifetime regressions", () => {
             ...step,
             returnValue: { ...step.returnValue, throughHandle: "BEFORE" },
           },
-        ]),
-      ).passed,
+        ])
+      ).passed
     ).toBe(false);
   });
 });

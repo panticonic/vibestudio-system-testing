@@ -163,22 +163,22 @@ describe("storage and discovery semantic validators", () => {
       test.validate(
         execution(
           "Stored the document. The full read matched the original; read an 8-byte slice and found the marker using the stored search operation.",
-          [call],
-        ),
-      ),
+          [call]
+        )
+      )
     ).toEqual({ passed: true });
     expect(
-      test.validate(
-        execution("The document round-tripped and marker search succeeded.", [
-          call,
-        ]),
-      ),
+      test.validate(execution("The document round-tripped and marker search succeeded.", [call]))
     ).toMatchObject({ passed: false });
     const guestOnly = structuredClone(call);
-    delete (guestOnly.invocation.execution.result as { details: Record<string, unknown> }).details[
-      "operationJournal"
-    ];
-    expect(test.validate(execution(final, [guestOnly]))).toMatchObject({ passed: false });
+    delete (
+      guestOnly.invocation.execution.result as {
+        details: Record<string, unknown>;
+      }
+    ).details["operationJournal"];
+    expect(test.validate(execution(final, [guestOnly]))).toMatchObject({
+      passed: false,
+    });
     expect(test.validate(execution(final))).toMatchObject({ passed: false });
   });
 
@@ -298,10 +298,14 @@ describe("storage and discovery semantic validators", () => {
       "The bounded host-log sample contained 1 warning entry; overall server log statistics report 4 entries.";
     expect(test.validate(execution(final, [call]))).toEqual({ passed: true });
     const guestOnly = structuredClone(call);
-    delete (guestOnly.invocation.execution.result as { details: Record<string, unknown> }).details[
-      "operationJournal"
-    ];
-    expect(test.validate(execution(final, [guestOnly]))).toMatchObject({ passed: false });
+    delete (
+      guestOnly.invocation.execution.result as {
+        details: Record<string, unknown>;
+      }
+    ).details["operationJournal"];
+    expect(test.validate(execution(final, [guestOnly]))).toMatchObject({
+      passed: false,
+    });
     expect(test.validate(execution(final))).toMatchObject({ passed: false });
   });
 
@@ -313,8 +317,9 @@ describe("storage and discovery semantic validators", () => {
       "eval",
       {
         code: `
-          const earlier = await rpc.call("main", "serverLog.tail", [10]);
-          const current = await rpc.call("main", "serverLog.query", [{ limit: 30 }]);
+          import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+          const earlier = await rpc.call("main", mainRpcMethods["serverLog.tail"], [10]);
+          const current = await rpc.call("main", mainRpcMethods["serverLog.query"], [{ limit: 30 }]);
           return { earlier, current };
         `,
       },
@@ -401,7 +406,8 @@ describe("storage and discovery semantic validators", () => {
       "eval",
       {
         code: `
-          const tail = await rpc.call("main", "serverLog.tail", [30]);
+          import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+          const tail = await rpc.call("main", mainRpcMethods["serverLog.tail"], [30]);
           return {
             tailMeta: { serverBootId: tail.serverBootId, latestSeq: tail.latestSeq },
             tail: tail.records.map(({ seq, level, message }) => ({ seq, level, message })),
@@ -444,13 +450,21 @@ describe("storage and discovery semantic validators", () => {
           success: true,
           operationJournal: journal(
             [
-              { method: "createSubscription", subscriptionId: "temporary", hasSecret: true },
+              {
+                method: "createSubscription",
+                subscriptionId: "temporary",
+                hasSecret: true,
+              },
               {
                 method: "listSubscriptions",
                 includeRevoked: false,
                 subscriptions: [{ subscriptionId: "temporary", revoked: false }],
               },
-              { method: "rotateSecret", subscriptionId: "temporary", secretPresent: true },
+              {
+                method: "rotateSecret",
+                subscriptionId: "temporary",
+                secretPresent: true,
+              },
               { method: "revokeSubscription", subscriptionId: "temporary" },
             ].map((receipt) => ({
               type: "webhook.observation",
@@ -470,10 +484,14 @@ describe("storage and discovery semantic validators", () => {
       "The temporary webhook subscription was created and listed, its secret was rotated, and it was revoked and removed during cleanup.";
     expect(test.validate(execution(final, [call]))).toEqual({ passed: true });
     const guestOnly = structuredClone(call);
-    delete (guestOnly.invocation.execution.result as { details: Record<string, unknown> }).details[
-      "operationJournal"
-    ];
-    expect(test.validate(execution(final, [guestOnly]))).toMatchObject({ passed: false });
+    delete (
+      guestOnly.invocation.execution.result as {
+        details: Record<string, unknown>;
+      }
+    ).details["operationJournal"];
+    expect(test.validate(execution(final, [guestOnly]))).toMatchObject({
+      passed: false,
+    });
     expect(test.validate(execution(final))).toMatchObject({ passed: false });
   });
 });

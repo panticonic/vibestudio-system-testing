@@ -147,7 +147,11 @@ function missionRecordFixture(input: {
     activatedAt: 1,
     runCount: input.runCount,
     ...(input.state === "completed"
-      ? { completedAt: 2, completionReason: "response", completionResponse: "Goal finished." }
+      ? {
+          completedAt: 2,
+          completionReason: "response",
+          completionResponse: "Goal finished.",
+        }
       : {}),
   };
 }
@@ -178,7 +182,7 @@ function missionOverviewFixture(input: {
   channelId: string;
 }) {
   const recentRuns = Array.from({ length: input.runCount }, (_, index) =>
-    missionRunFixture(`run-${index + 1}`, input.missionId, index + 1),
+    missionRunFixture(`run-${index + 1}`, input.missionId, index + 1)
   );
   const automation = missionRecordFixture(input);
   return {
@@ -190,14 +194,22 @@ function missionOverviewFixture(input: {
       issueRunsLast24Hours: 0,
       completed: input.state === "completed" ? 1 : 0,
     },
-    items: [{ automation, recentRuns, totalRuns: input.runCount, activeRuns: 0, issueRunsSince: 0 }],
+    items: [
+      {
+        automation,
+        recentRuns,
+        totalRuns: input.runCount,
+        activeRuns: 0,
+        issueRunsSince: 0,
+      },
+    ],
     attention: [],
   };
 }
 
 describe("automation overview system test validator", () => {
   const readCode =
-    "const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, 'overview', [{}]); return overview.stats;";
+    "import { missionsRpcMethods } from '@vibestudio/service-schemas/missions'; const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, missionsRpcMethods.overview, [{}]); return overview.stats;";
 
   it("requires the canonical read-only surface and exact bounded counts", () => {
     expect(
@@ -218,7 +230,13 @@ describe("automation overview system test validator", () => {
       automationTest.validate(
         execution(
           "import { missions } from '@workspace/runtime'; const overview = await missions.overview(); return overview.stats;",
-          { total: 4, active: 2, running: 1, issueRunsLast24Hours: 1, completed: 1 }
+          {
+            total: 4,
+            active: 2,
+            running: 1,
+            issueRunsLast24Hours: 1,
+            completed: 1,
+          }
         )
       )
     ).toEqual({ passed: true });
@@ -255,13 +273,16 @@ describe("automation overview system test validator", () => {
   it("rejects automation mutation attempts", () => {
     expect(
       automationTest.validate(
-        execution(`${readCode}\nawait rpc.call(service.targetId, 'runNow', ['id']);`, {
-          total: 4,
-          active: 2,
-          running: 1,
-          issueRunsLast24Hours: 1,
-          completed: 1,
-        })
+        execution(
+          `${readCode}\nawait rpc.call(service.targetId, missionsRpcMethods.runNow, ['id']);`,
+          {
+            total: 4,
+            active: 2,
+            running: 1,
+            issueRunsLast24Hours: 1,
+            completed: 1,
+          }
+        )
       )
     ).toMatchObject({
       passed: false,
@@ -272,7 +293,15 @@ describe("automation overview system test validator", () => {
   it("requires canonical stats in the successful overview result", () => {
     for (const value of [
       { total: 4, active: 2, running: 1, issueRunsLast24Hours: 1 },
-      { stats: { total: 4, active: 2, running: -1, issueRunsLast24Hours: 1, completed: 1 } },
+      {
+        stats: {
+          total: 4,
+          active: 2,
+          running: -1,
+          issueRunsLast24Hours: 1,
+          completed: 1,
+        },
+      },
     ]) {
       expect(
         automationTest.validate(
@@ -284,28 +313,64 @@ describe("automation overview system test validator", () => {
 });
 
 describe("canonical automation count presentation", () => {
-  const code = "const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, 'overview', [{}]); return { stats: overview.stats, itemCount: overview.items.length, nextCursor: overview.nextCursor ?? null, generatedAt: overview.generatedAt };";
-  const fullOverviewCode = "const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, 'overview', [{}]); return overview;";
-  const stats = { total: 4, active: 2, running: 1, issueRunsLast24Hours: 1, completed: 1 };
+  const code =
+    "import { missionsRpcMethods } from '@vibestudio/service-schemas/missions'; const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, missionsRpcMethods.overview, [{}]); return { stats: overview.stats, itemCount: overview.items.length, nextCursor: overview.nextCursor ?? null, generatedAt: overview.generatedAt };";
+  const fullOverviewCode =
+    "import { missionsRpcMethods } from '@vibestudio/service-schemas/missions'; const service = await workers.resolveService('vibestudio.missions.v1'); const overview = await rpc.call(service.targetId, missionsRpcMethods.overview, [{}]); return overview;";
+  const stats = {
+    total: 4,
+    active: 2,
+    running: 1,
+    issueRunsLast24Hours: 1,
+    completed: 1,
+  };
   it("accepts canonical counts with the overview's safe summary metadata", () => {
-    expect(automationTest.validate(execution(code, {
-      stats,
-      itemCount: 1,
-      nextCursor: null,
-      generatedAt: 1_791_535_180_253,
-    }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toEqual({ passed: true });
+    expect(
+      automationTest.validate(
+        execution(
+          code,
+          {
+            stats,
+            itemCount: 1,
+            nextCursor: null,
+            generatedAt: 1_791_535_180_253,
+          },
+          "Configured: 4; Active: 2; Running: 1; Failed: 1"
+        )
+      )
+    ).toEqual({ passed: true });
   });
   it("accepts the observed overview counts in separate rows", () => {
-    expect(automationTest.validate(execution(code, {
-      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
-      itemCount: 1,
-      nextCursor: null,
-      generatedAt: 1_791_535_180_253,
-    }, "Configured: 1\nActive: 1\nRunning: 0\nFailed/completed with errors in the last 24 hours: 0"))).toEqual({ passed: true });
+    expect(
+      automationTest.validate(
+        execution(
+          code,
+          {
+            stats: {
+              total: 1,
+              active: 1,
+              running: 0,
+              issueRunsLast24Hours: 0,
+              completed: 0,
+            },
+            itemCount: 1,
+            nextCursor: null,
+            generatedAt: 1_791_535_180_253,
+          },
+          "Configured: 1\nActive: 1\nRunning: 0\nFailed/completed with errors in the last 24 hours: 0"
+        )
+      )
+    ).toEqual({ passed: true });
   });
   it("binds inline counts to their own labels and ignores duration quantities", () => {
     const observed = {
-      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      stats: {
+        total: 1,
+        active: 1,
+        running: 0,
+        issueRunsLast24Hours: 0,
+        completed: 0,
+      },
       itemCount: 1,
       nextCursor: null,
       generatedAt: 1_791_535_180_253,
@@ -324,7 +389,13 @@ describe("canonical automation count presentation", () => {
   });
   it("does not borrow a neighboring count or treat a duration as the failed count", () => {
     const observed = {
-      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      stats: {
+        total: 1,
+        active: 1,
+        running: 0,
+        issueRunsLast24Hours: 0,
+        completed: 0,
+      },
       itemCount: 1,
       nextCursor: null,
       generatedAt: 1_791_535_180_253,
@@ -336,76 +407,138 @@ describe("canonical automation count presentation", () => {
       "Configured: 1; Active: 1; Running: 0; Failed in the last 12 hours",
       "Configured: 1 Active: 1 Running: 0 Failed in the last 24 hours",
     ]) {
-      expect(automationTest.validate(execution(code, observed, final))).toMatchObject({ passed: false });
+      expect(automationTest.validate(execution(code, observed, final))).toMatchObject({
+        passed: false,
+      });
     }
   });
   it("rejects contradictory repeated claims across separate fields", () => {
     const observed = {
-      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      stats: {
+        total: 1,
+        active: 1,
+        running: 0,
+        issueRunsLast24Hours: 0,
+        completed: 0,
+      },
       itemCount: 1,
       nextCursor: null,
       generatedAt: 1_791_535_180_253,
     };
     expect(
       automationTest.validate(
-        execution(code, observed, "Configured: 1; Active: 1; Running: 0; Running: 1; Failed: 0"),
-      ),
+        execution(code, observed, "Configured: 1; Active: 1; Running: 0; Running: 1; Failed: 0")
+      )
     ).toMatchObject({ passed: false });
   });
   it("accepts a valid canonical continuation cursor", () => {
-    expect(automationTest.validate(execution(code, {
-      stats,
-      itemCount: 50,
-      nextCursor: { updatedAt: 123, missionId: "mission:next" },
-      generatedAt: 456,
-    }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toEqual({ passed: true });
+    expect(
+      automationTest.validate(
+        execution(
+          code,
+          {
+            stats,
+            itemCount: 50,
+            nextCursor: { updatedAt: 123, missionId: "mission:next" },
+            generatedAt: 456,
+          },
+          "Configured: 4; Active: 2; Running: 1; Failed: 1"
+        )
+      )
+    ).toEqual({ passed: true });
   });
   it("accepts the complete canonical overview result", () => {
-    expect(automationTest.validate(execution(fullOverviewCode, {
-      generatedAt: 456,
-      stats,
-      items: [{ automation: { missionId: "mission:private" }, recentRuns: [] }],
-      attention: [{ missionId: "mission:private" }],
-    }, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toEqual({ passed: true });
+    expect(
+      automationTest.validate(
+        execution(
+          fullOverviewCode,
+          {
+            generatedAt: 456,
+            stats,
+            items: [{ automation: { missionId: "mission:private" }, recentRuns: [] }],
+            attention: [{ missionId: "mission:private" }],
+          },
+          "Configured: 4; Active: 2; Running: 1; Failed: 1"
+        )
+      )
+    ).toEqual({ passed: true });
   });
   it("rejects malformed or missing overview stats", () => {
     for (const value of [
-      { stats: { ...stats, running: -1 }, itemCount: 1, nextCursor: null, generatedAt: 456 },
+      {
+        stats: { ...stats, running: -1 },
+        itemCount: 1,
+        nextCursor: null,
+        generatedAt: 456,
+      },
       { itemCount: 1, nextCursor: null, generatedAt: 456 },
     ]) {
-      expect(automationTest.validate(execution(code, value, "Configured: 4; Active: 2; Running: 1; Failed: 1"))).toMatchObject({ passed: false });
+      expect(
+        automationTest.validate(
+          execution(code, value, "Configured: 4; Active: 2; Running: 1; Failed: 1")
+        )
+      ).toMatchObject({ passed: false });
     }
   });
   it("rejects a final report that contradicts the observed counts", () => {
-    expect(automationTest.validate(execution(code, stats, "Configured: 7; Active: 2; Running: 1; Failed: 1"))).toMatchObject({ passed: false });
+    expect(
+      automationTest.validate(
+        execution(code, stats, "Configured: 7; Active: 2; Running: 1; Failed: 1")
+      )
+    ).toMatchObject({ passed: false });
   });
   it("rejects deriving whole-ledger statistics from a bounded item page", () => {
-    expect(automationTest.validate(execution(code, { total: 4, active: 2, running: 1, failedLast24Hours: 1 }))).toMatchObject({ passed: false });
+    expect(
+      automationTest.validate(
+        execution(code, {
+          total: 4,
+          active: 2,
+          running: 1,
+          failedLast24Hours: 1,
+        })
+      )
+    ).toMatchObject({ passed: false });
   });
   it("rejects contradictory total claims when a generic noun is independently counted", () => {
     const observed = {
-      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      stats: {
+        total: 1,
+        active: 1,
+        running: 0,
+        issueRunsLast24Hours: 0,
+        completed: 0,
+      },
       itemCount: 1,
       nextCursor: null,
       generatedAt: 1_791_535_180_253,
     };
     expect(
       automationTest.validate(
-        execution(code, observed, "Configured automations: 1; automations: 0; Active: 1; Running: 0; Failed: 0"),
-      ),
+        execution(
+          code,
+          observed,
+          "Configured automations: 1; automations: 0; Active: 1; Running: 0; Failed: 0"
+        )
+      )
     ).toMatchObject({ passed: false });
   });
   it("rejects an ambiguous field that joins different metrics without a count boundary", () => {
     const observed = {
-      stats: { total: 1, active: 1, running: 0, issueRunsLast24Hours: 0, completed: 0 },
+      stats: {
+        total: 1,
+        active: 1,
+        running: 0,
+        issueRunsLast24Hours: 0,
+        completed: 0,
+      },
       itemCount: 1,
       nextCursor: null,
       generatedAt: 1_791_535_180_253,
     };
     expect(
       automationTest.validate(
-        execution(code, observed, "Configured Active: 1; Running: 0; Failed: 0"),
-      ),
+        execution(code, observed, "Configured Active: 1; Running: 0; Failed: 0")
+      )
     ).toMatchObject({ passed: false });
   });
 });
@@ -489,7 +622,10 @@ describe("automation native launch system test validator", () => {
       "",
       {
         ...launch,
-        action: { kind: "prompt", text: "Check project status and post a concise update." },
+        action: {
+          kind: "prompt",
+          text: "Check project status and post a concise update.",
+        },
         conversation: { mode: "continue" },
         operations: [],
       },
@@ -529,7 +665,7 @@ describe("automation native launch system test validator", () => {
     expect(
       automationLaunchTest.validate(
         execution(
-          "return rpc.call(missions.targetId, 'launch', [input]);",
+          "import { missionsRpcMethods } from '@vibestudio/service-schemas/missions'; return rpc.call(missions.targetId, missionsRpcMethods.launch, [input]);",
           launch,
           "Daily project pulse is running and inspectable."
         )
@@ -641,24 +777,21 @@ describe("scheduled automation notification system test validator", () => {
     });
 
     const wrongIdentity = structuredClone(result);
-    const observed = wrongIdentity.diagnostics![
-      "scheduledNotification"
-    ] as Record<string, unknown>;
-    const notifications = observed["notifications"] as Array<
-      Record<string, unknown>
-    >;
+    const observed = wrongIdentity.diagnostics!["scheduledNotification"] as Record<string, unknown>;
+    const notifications = observed["notifications"] as Array<Record<string, unknown>>;
     notifications[0] = { ...notifications[0]!, missionId: "another-mission" };
     expect(scheduledNotificationTest.validate(wrongIdentity)).toMatchObject({
       passed: false,
     });
 
     const wrongMessage = structuredClone(result);
-    const wrongMessageObserved = wrongMessage.diagnostics![
-      "scheduledNotification"
-    ] as Record<string, unknown>;
-    const wrongMessageNotifications = wrongMessageObserved[
-      "notifications"
-    ] as Array<Record<string, unknown>>;
+    const wrongMessageObserved = wrongMessage.diagnostics!["scheduledNotification"] as Record<
+      string,
+      unknown
+    >;
+    const wrongMessageNotifications = wrongMessageObserved["notifications"] as Array<
+      Record<string, unknown>
+    >;
     wrongMessageNotifications[0] = {
       ...wrongMessageNotifications[0]!,
       message: "A different reminder",
@@ -668,9 +801,10 @@ describe("scheduled automation notification system test validator", () => {
     });
 
     const wrongMission = structuredClone(result);
-    const wrongMissionObserved = wrongMission.diagnostics![
-      "scheduledNotification"
-    ] as Record<string, unknown>;
+    const wrongMissionObserved = wrongMission.diagnostics!["scheduledNotification"] as Record<
+      string,
+      unknown
+    >;
     wrongMissionObserved["missionId"] = "another-mission";
     expect(scheduledNotificationTest.validate(wrongMission)).toMatchObject({
       passed: false,
@@ -678,14 +812,12 @@ describe("scheduled automation notification system test validator", () => {
 
     const launchWithoutIdentity = structuredClone(result);
     const launchInvocation = launchWithoutIdentity.messages.find(
-      (message) => message.contentType === "invocation",
+      (message) => message.contentType === "invocation"
     )!.invocation as unknown as {
       result: { details: Record<string, unknown> };
     };
     launchInvocation.result.details["missionId"] = "";
-    expect(
-      scheduledNotificationTest.validate(launchWithoutIdentity),
-    ).toMatchObject({
+    expect(scheduledNotificationTest.validate(launchWithoutIdentity)).toMatchObject({
       passed: false,
     });
   });
@@ -733,9 +865,7 @@ describe("scheduled automation notification system test validator", () => {
 
   it("isolates durable notification evidence by the launching conversation", async () => {
     const channelId = "headless-proof";
-    notificationRuntime.resolveService.mockResolvedValue(
-      durableObjectServiceFixture("missions"),
-    );
+    notificationRuntime.resolveService.mockResolvedValue(durableObjectServiceFixture("missions"));
     notificationRuntime.overview.mockResolvedValue(
       missionOverviewFixture({
         name: "One-minute talk timer",
@@ -743,7 +873,7 @@ describe("scheduled automation notification system test validator", () => {
         runCount: 2,
         state: "completed",
         channelId,
-      }),
+      })
     );
     const notifications = (channel: string, count: number) =>
       Array.from({ length: count }, (_, i) => {
@@ -765,16 +895,10 @@ describe("scheduled automation notification system test validator", () => {
     let deliverTerminal!: () => void;
     const session = {
       channelId,
-      messages: execution(
-        "",
-        scheduledLaunch,
-        "Running and inspectable.",
-        "launch_automation",
-      ).messages,
+      messages: execution("", scheduledLaunch, "Running and inspectable.", "launch_automation")
+        .messages,
       snapshot: () => ({
-        invocations: pending
-          ? [{ id: "invocation:completion", status: "pending" }]
-          : [],
+        invocations: pending ? [{ id: "invocation:completion", status: "pending" }] : [],
       }),
       waitForInvocation: vi.fn(async () => {
         await new Promise<void>((resolve) => {
@@ -784,12 +908,8 @@ describe("scheduled automation notification system test validator", () => {
       }),
       close: vi.fn().mockResolvedValue(undefined),
     };
-    const launchMessage = session.messages.find(
-      (message) => message.contentType === "invocation",
-    )!;
-    (
-      launchMessage.invocation as unknown as { result: { details: unknown } }
-    ).result.details = {
+    const launchMessage = session.messages.find((message) => message.contentType === "invocation")!;
+    (launchMessage.invocation as unknown as { result: { details: unknown } }).result.details = {
       missionId: "mission-proof",
     };
     const context = {
@@ -808,37 +928,24 @@ describe("scheduled automation notification system test validator", () => {
       session.close.mockClear();
       const running = scheduledNotificationTest.orchestrate!(context);
       await vi.waitFor(() =>
-        expect(session.waitForInvocation).toHaveBeenCalledWith(
-          "invocation:completion",
-          {
-            signal: context.signal,
-          },
-        ),
+        expect(session.waitForInvocation).toHaveBeenCalledWith("invocation:completion", {
+          signal: context.signal,
+        })
       );
       expect(session.close).not.toHaveBeenCalled();
       deliverTerminal();
       const result = await running;
       expect(result.snapshot?.invocations).toEqual([]);
-      expect(scheduledNotificationTest.validate(result).passed).toBe(
-        count === 2,
-      );
+      expect(scheduledNotificationTest.validate(result).passed).toBe(count === 2);
       expect(
-        (
-          result.diagnostics!["scheduledNotification"] as Record<
-            string,
-            unknown
-          >
-        )["notifications"],
+        (result.diagnostics!["scheduledNotification"] as Record<string, unknown>)["notifications"]
       ).toHaveLength(count);
     }
   });
 
   function scheduledProofFixture(actionKind: "notify" | "watch" = "notify") {
     const channelId = "headless-proof";
-    const proofName =
-      actionKind === "watch"
-        ? "One-minute talk timer watch"
-        : scheduledLaunch.name;
+    const proofName = actionKind === "watch" ? "One-minute talk timer watch" : scheduledLaunch.name;
     const launch =
       actionKind === "watch"
         ? {
@@ -854,14 +961,10 @@ describe("scheduled automation notification system test validator", () => {
       "",
       launch,
       "Running and inspectable.",
-      "launch_automation",
+      "launch_automation"
     ).messages;
-    const launchMessage = messages.find(
-      (message) => message.contentType === "invocation",
-    )!;
-    (
-      launchMessage.invocation as unknown as { result: { details: unknown } }
-    ).result.details = {
+    const launchMessage = messages.find((message) => message.contentType === "invocation")!;
+    (launchMessage.invocation as unknown as { result: { details: unknown } }).result.details = {
       missionId: "mission-proof",
     };
     const session = {
@@ -877,10 +980,7 @@ describe("scheduled automation notification system test validator", () => {
       signal: new AbortController().signal,
       remainingTimeMs: () => 190_000,
     } as unknown as TestOrchestrationContext;
-    const overview = (
-      state: "active" | "paused" | "completed" | "retired",
-      runCount: number,
-    ) =>
+    const overview = (state: "active" | "paused" | "completed" | "retired", runCount: number) =>
       missionOverviewFixture({
         name: proofName,
         missionId: "mission-proof",
@@ -892,25 +992,18 @@ describe("scheduled automation notification system test validator", () => {
       Array.from({ length: count }, (_, i) => {
         const runId = `run-${i + 1}`;
         return {
-          id:
-            actionKind === "notify"
-              ? `automation.notify:${runId}`
-              : `agent.message:${i + 1}`,
+          id: actionKind === "notify" ? `automation.notify:${runId}` : `agent.message:${i + 1}`,
           kind: actionKind === "notify" ? "automation.notify" : "agent.message",
           message: "One minute has passed.",
           data: {
             channelId,
-            ...(actionKind === "notify"
-              ? { missionId: "mission-proof", runId }
-              : {}),
+            ...(actionKind === "notify" ? { missionId: "mission-proof", runId } : {}),
           },
           createdAt: i + 1,
           revision: 0,
         };
       });
-    notificationRuntime.resolveService.mockResolvedValue(
-      durableObjectServiceFixture("missions"),
-    );
+    notificationRuntime.resolveService.mockResolvedValue(durableObjectServiceFixture("missions"));
     notificationRuntime.overview.mockReset();
     notificationRuntime.list.mockReset();
     return { context, session, overview, notifications };
@@ -928,23 +1021,20 @@ describe("scheduled automation notification system test validator", () => {
     expect(context.sendAndWait).toHaveBeenCalledWith(
       expect.anything(),
       expect.stringContaining("checks for updates every minute"),
-      "scheduled notification launch",
+      "scheduled notification launch"
     );
   });
 
   it.each(["completed", "retired"] as const)(
     "retains an early %s mission and joins publication before reporting the unmet goal",
     async (state) => {
-      const { context, session, overview, notifications } =
-        scheduledProofFixture();
+      const { context, session, overview, notifications } = scheduledProofFixture();
       notificationRuntime.overview.mockResolvedValue(overview(state, 1));
       notificationRuntime.list.mockResolvedValue(notifications(1));
       let pending = true;
       let publish!: () => void;
       session.snapshot = () => ({
-        invocations: pending
-          ? [{ id: "invocation:completion", status: "pending" }]
-          : [],
+        invocations: pending ? [{ id: "invocation:completion", status: "pending" }] : [],
       });
       session.waitForInvocation.mockImplementation(async () => {
         await new Promise<void>((resolve) => {
@@ -954,12 +1044,9 @@ describe("scheduled automation notification system test validator", () => {
       });
       const running = scheduledNotificationTest.orchestrate!(context);
       await vi.waitFor(() =>
-        expect(session.waitForInvocation).toHaveBeenCalledWith(
-          "invocation:completion",
-          {
-            signal: context.signal,
-          },
-        ),
+        expect(session.waitForInvocation).toHaveBeenCalledWith("invocation:completion", {
+          signal: context.signal,
+        })
       );
       expect(notificationRuntime.overview).toHaveBeenCalledTimes(1);
       expect(session.close).not.toHaveBeenCalled();
@@ -980,12 +1067,10 @@ describe("scheduled automation notification system test validator", () => {
       });
       expect(scheduledNotificationTest.validate(result)).toMatchObject({
         passed: false,
-        reason: expect.stringContaining(
-          `mission state: ${state}, run count: 1`,
-        ),
+        reason: expect.stringContaining(`mission state: ${state}, run count: 1`),
       });
       expect(session.close).toHaveBeenCalledTimes(1);
-    },
+    }
   );
 
   it.each(["active", "paused"] as const)(
@@ -993,8 +1078,7 @@ describe("scheduled automation notification system test validator", () => {
     async (state) => {
       vi.useFakeTimers();
       try {
-        const { context, session, overview, notifications } =
-          scheduledProofFixture();
+        const { context, session, overview, notifications } = scheduledProofFixture();
         notificationRuntime.overview
           .mockResolvedValueOnce(overview(state, 1))
           .mockResolvedValue(overview("completed", 2));
@@ -1015,19 +1099,14 @@ describe("scheduled automation notification system test validator", () => {
       } finally {
         vi.useRealTimers();
       }
-    },
+    }
   );
 
   it("rejects launch-only evidence without the promised outcome", () => {
     expect(
       scheduledNotificationTest.validate(
-        execution(
-          "",
-          scheduledLaunch,
-          "Running and inspectable.",
-          "launch_automation",
-        ),
-      ),
+        execution("", scheduledLaunch, "Running and inspectable.", "launch_automation")
+      )
     ).toMatchObject({
       passed: false,
       reason: "No durable scheduled-run evidence was observed",
@@ -1035,12 +1114,7 @@ describe("scheduled automation notification system test validator", () => {
   });
 
   it("rejects a completed turn whose requested notification effect failed", () => {
-    const result = execution(
-      "",
-      scheduledLaunch,
-      "Running and inspectable.",
-      "launch_automation",
-    );
+    const result = execution("", scheduledLaunch, "Running and inspectable.", "launch_automation");
     result.diagnostics = {
       scheduledNotification: {
         launchChannelId: "headless-proof",
@@ -1109,7 +1183,7 @@ describe("native automation control system test validator", () => {
           toolName === "control_automation"
             ? { action: "pause", name: "Sloth facts stop proof" }
             : {
-                code: "return await rpc.call(service.targetId, 'pause', [id])",
+                code: "import { missionsRpcMethods } from '@vibestudio/service-schemas/missions'; return await rpc.call(service.targetId, missionsRpcMethods.pause, [id])",
               },
         result: { details: { state: "paused" } },
       },
@@ -1166,12 +1240,24 @@ describe("workspace unit diagnostics semantic validators", () => {
     capacity: { entries: 100, errors: 50 },
   };
   const nativeHealth = {
-    protocol: "workspace-operations.v1", truncated: false,
-    entries: [{ type: "runtime.health", receipt: {
-      protocol: "runtime-health-observation.v1", identity, source: "extensions/status",
-      logCount: 2, errorCount: 1, limit: 20, errorLimit: 10,
-      dropped: { entries: 0, errors: 0 }, capacity: { entries: 100, errors: 50 },
-    } }],
+    protocol: "workspace-operations.v1",
+    truncated: false,
+    entries: [
+      {
+        type: "runtime.health",
+        receipt: {
+          protocol: "runtime-health-observation.v1",
+          identity,
+          source: "extensions/status",
+          logCount: 2,
+          errorCount: 1,
+          limit: 20,
+          errorLimit: 10,
+          dropped: { entries: 0, errors: 0 },
+          capacity: { entries: 100, errors: 50 },
+        },
+      },
+    ],
   };
   const unitObservationJournal = {
     protocol: "workspace-operations.v1",
@@ -1293,7 +1379,10 @@ describe("workspace unit diagnostics semantic validators", () => {
           }
         )
       )
-    ).toMatchObject({ passed: false, reason: expect.stringContaining("matched an entity") });
+    ).toMatchObject({
+      passed: false,
+      reason: expect.stringContaining("matched an entity"),
+    });
   });
 
   it("joins bounded log and error buffers to one exact supervised unit", () => {
@@ -1302,7 +1391,9 @@ describe("workspace unit diagnostics semantic validators", () => {
         execution(
           healthCode,
           health,
-          "extensions/status has 2 recent logs and 1 entry in its separate error buffer.", "eval", nativeHealth
+          "extensions/status has 2 recent logs and 1 entry in its separate error buffer.",
+          "eval",
+          nativeHealth
         )
       )
     ).toEqual({ passed: true, reason: undefined });
@@ -1344,7 +1435,11 @@ describe("workspace unit diagnostics semantic validators", () => {
     };
     const gitBridgeHealth = {
       ...health,
-      entity: { ...health.entity, identity: gitBridgeIdentity, source: "extensions/git-bridge" },
+      entity: {
+        ...health.entity,
+        identity: gitBridgeIdentity,
+        source: "extensions/git-bridge",
+      },
       logs: Array.from({ length: 7 }, (_, index) => ({
         ...health.logs[0]!,
         identity: gitBridgeIdentity,
@@ -1395,23 +1490,57 @@ describe("workspace unit diagnostics semantic validators", () => {
     for (const journal of [undefined, malformed, overrun]) {
       expect(
         logsTest.validate(
-          execution(defaultHealthCode, health, "extensions/status has 2 logs and 1 error.", "eval", journal)
+          execution(
+            defaultHealthCode,
+            health,
+            "extensions/status has 2 logs and 1 error.",
+            "eval",
+            journal
+          )
         )
       ).toMatchObject({ passed: false });
     }
   });
 
   it("accepts a guest summary independently of the native health packet", () => {
-    expect(logsTest.validate(execution(healthCode, { compact: true },
-      "extensions/status has 2 recent logs and 1 error in its separate buffer.", "eval", nativeHealth))).toEqual({ passed: true });
+    expect(
+      logsTest.validate(
+        execution(
+          healthCode,
+          { compact: true },
+          "extensions/status has 2 recent logs and 1 error in its separate buffer.",
+          "eval",
+          nativeHealth
+        )
+      )
+    ).toEqual({ passed: true });
   });
 
   it("accepts a shared zero quantifier across both empty native buffers", () => {
-    const empty = { ...nativeHealth, entries: [{ ...nativeHealth.entries[0]!, receipt: {
-      ...nativeHealth.entries[0]!.receipt, logCount: 0, errorCount: 0,
-    } }] };
-    expect(logsTest.validate(execution(healthCode, { compact: true },
-      "extensions/status is running. There were no persisted log entries or separate-buffer errors; nothing was dropped.", "eval", empty))).toEqual({ passed: true });
+    const empty = {
+      ...nativeHealth,
+      entries: [
+        {
+          ...nativeHealth.entries[0]!,
+          receipt: {
+            ...nativeHealth.entries[0]!.receipt,
+            logCount: 0,
+            errorCount: 0,
+          },
+        },
+      ],
+    };
+    expect(
+      logsTest.validate(
+        execution(
+          healthCode,
+          { compact: true },
+          "extensions/status is running. There were no persisted log entries or separate-buffer errors; nothing was dropped.",
+          "eval",
+          empty
+        )
+      )
+    ).toEqual({ passed: true });
   });
 
   it("rejects prose that is not backed by a unit health packet", () => {
@@ -1472,7 +1601,13 @@ describe("workspace unit diagnostics semantic validators", () => {
   it("rejects a report that omits one observed buffer count", () => {
     expect(
       logsTest.validate(
-        execution(healthCode, health, "extensions/status has 2 recent logs and looks healthy.", "eval", nativeHealth)
+        execution(
+          healthCode,
+          health,
+          "extensions/status has 2 recent logs and looks healthy.",
+          "eval",
+          nativeHealth
+        )
       )
     ).toMatchObject({
       passed: false,

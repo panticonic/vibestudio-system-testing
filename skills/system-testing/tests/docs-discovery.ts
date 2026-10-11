@@ -96,15 +96,16 @@ function docsDescribeChecked(result: Parameters<typeof noIncompleteInvocations>[
     const label = concreteLabel(entry);
     if (!label) return [];
     const parent = entry["parent"];
-    const service = typeof parent === "string" && parent.startsWith("service:")
-      ? parent.slice("service:".length)
-      : label;
+    const service =
+      typeof parent === "string" && parent.startsWith("service:")
+        ? parent.slice("service:".length)
+        : label;
     const members = Array.isArray(entry["members"]) ? entry["members"] : [label];
     const prefix = `${service}.`;
     return members.flatMap((member) =>
       typeof member === "string" && member.startsWith(prefix)
         ? [{ service, member, method: member.slice(prefix.length) }]
-        : [],
+        : []
     );
   });
   if (observations.length === 0) {
@@ -114,10 +115,13 @@ function docsDescribeChecked(result: Parameters<typeof noIncompleteInvocations>[
     };
   }
   const final = findLastAgentMessage(result);
-  if (!observations.some(({ service, member, method }) =>
-    mentionsIdentifier(final, service, true) &&
-    (mentionsIdentifier(final, member) || mentionsIdentifier(final, method)),
-  )) {
+  if (
+    !observations.some(
+      ({ service, member, method }) =>
+        mentionsIdentifier(final, service, true) &&
+        (mentionsIdentifier(final, member) || mentionsIdentifier(final, method))
+    )
+  ) {
     return {
       passed: false,
       reason: "Final response did not describe the opened service and an observed method",
@@ -143,7 +147,7 @@ function docsServicesChecked(result: Parameters<typeof noIncompleteInvocations>[
   for (const call of completed(result, "eval")) {
     const code = String(call.arguments?.["code"] ?? "");
     if (
-      /(?:docs\.listSurfaces\s*\(|rpc\.call\s*\(\s*["']main["']\s*,\s*["']docs\.listSurfaces["']\s*,)/u.test(
+      /(?:docs\.listSurfaces\s*\(|rpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']docs\.listSurfaces["']|mainRpcMethods\[\s*["']docs\.listSurfaces["']\s*\])\s*,)/u.test(
         code
       )
     ) {
@@ -165,7 +169,7 @@ function docsServicesChecked(result: Parameters<typeof noIncompleteInvocations>[
       }
     }
     const enumeration =
-      /(?:const|let)\s+(\w+)\s*=\s*await\s+(?:(?:services\.)?docs\.listServices\s*\(|rpc\.call\s*\(\s*["']main["']\s*,\s*["']docs\.listServices["']\s*,)/u.exec(
+      /(?:const|let)\s+(\w+)\s*=\s*await\s+(?:(?:services\.)?docs\.listServices\s*\(|rpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']docs\.listServices["']|mainRpcMethods\[\s*["']docs\.listServices["']\s*\])\s*,)/u.exec(
         code
       );
     if (!enumeration) continue;
@@ -198,7 +202,10 @@ function docsServicesChecked(result: Parameters<typeof noIncompleteInvocations>[
     }
   }
   if (observations.length === 0)
-    return { passed: false, reason: "No bounded live service-catalog observation was captured" };
+    return {
+      passed: false,
+      reason: "No bounded live service-catalog observation was captured",
+    };
   const final = findLastAgentMessage(result);
   const reported = observations.some(
     ({ count, labels }) =>
