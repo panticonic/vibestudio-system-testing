@@ -6,18 +6,22 @@
 @workspace/agentic-core          ← shared business logic, no React
   - typed agentic event → ChannelViewState reducer
   - ChannelViewState → ChatMessage / InvocationCard / ApprovalCard / InlineUiCard selectors
-  - connection primitives and the panel import-loader factory
+  - /chat-store: the headless chat core every client shares
+    ChatSession = connection (stream or resident delivery) + ChannelViewFeed
+      (durable events, message.delta streaming, replay paging) + roster +
+      composer/outbox + first-agent flow + fork lineage + method-provider port
+    ChatHostController = host side (model settings, agents, bootstrap, recovery)
   - types: ChatMessage, ChatParticipantMetadata, ConnectionConfig, etc.
 
-@workspace/agentic-chat          ← thin React adapter
-  useChatCore() owns the PubSubClient lifecycle
-  - useChannelMessages() subscribes with replay and live events
-  - adds React-only concerns: input state, pending images,
-    document.title, inline UI/action-bar compilation, tool approval UI
-  useAgenticChat() composes useChatCore + feature hooks
+@workspace/agentic-chat          ← thin React binding
+  useAgenticChat() / useChatCore() hold a ChatSession and read its snapshot
+  - adds React-only concerns: pending images, document.title port,
+    inline UI/action-bar compilation, feedback renderers, tool approval UI;
+    browser-only channel methods register through the session's
+    method-provider port
 
 @workspace/agentic-session       ← thin headless convenience
-  HeadlessSession = PubSub connection (via ConnectionManager) + the same typed reducer/selector path
+  HeadlessSession = a resident ChatSession + agent lifecycle + test helpers
   - finite, owner-routed delivery into the resident operation; no channel response stream
   - full-auto channel config (approval level 2)
   - durable channel-title observation for reports
@@ -33,8 +37,9 @@
 **agentic-core** (no React, no tool-ui, no browser APIs):
 
 - `ConnectionManager` — PubSub connection lifecycle
-- `useChannelMessages` / `HeadlessSession` — reduce typed PubSub channel events
-  into the same channel view model
+- `ChatSession` / `ChannelViewFeed` (`@workspace/agentic-core/chat-store`) —
+  reduce typed PubSub channel events into the one channel view model the panel,
+  `HeadlessSession` and the terminal chat all render
 - `TypedEmitter` — lightweight typed event emitter
 - `chatMessagesFromChannelView` — single selector that projects messages,
   invocation cards, inline UI, and related transcript models
@@ -43,14 +48,14 @@
 
 **agentic-session** (no React, no browser APIs):
 
-- `HeadlessSession` — headless PubSub client + typed channel reducer
+- `HeadlessSession` — a resident `ChatSession` plus agent lifecycle and test helpers
 - `getRecommendedChannelConfig()` — full-auto approval channel config
 - `subscribeHeadlessAgent()` — subscribe a DO agent to a channel with full-auto approval
 
 **agentic-chat** (React adapter):
 
-- `useChatCore()` — owns the PubSub client, subscribes to the typed channel log, returns React state
-- `useAgenticChat()` — composes useChatCore + feedback/tools/debug/inlineUi hooks
+- `useChatCore()` — holds a `ChatSession` and exposes its snapshot as React state
+- `useAgenticChat()` — composes the session with the feedback/tools/debug/inlineUi hooks
 - UI-only types: `ChatContextValue`, `ChatInputContextValue`, `InlineUiComponentEntry`
 - UI-only hooks: `useChatFeedback`, `useChatTools`, `useChatDebug`, `useInlineUi`
 
@@ -85,8 +90,9 @@ client evaluation needs build-backed dynamic package loading.
 `renderInvocation` can replace, wrap, or return `null` for each invocation; its
 second argument is the complete default renderer. `renderMessage` and
 `renderInlineGroup` remain the wider escape hatches. For a wholly different
-conversation model, consume `useChatCore()` directly. Headless game flows can
-instead use `HeadlessSession` and expose no conversation UI at all.
+conversation model, consume `useChatCore()` (or a `ChatSession` with
+`useChatStore(session, selector)`) directly. Headless game flows can instead use
+`HeadlessSession` and expose no conversation UI at all.
 
 ## Transcript Event Flow
 
@@ -97,13 +103,11 @@ PubSub channel log
   ↓ durable recipient mailbox + finite delivery to the owning DO
 ConnectionManager
   ↓ owner-registered event callback (replay arrives in the finite join ACK)
-Typed Agentic Event Reducer
+ChatSession → ChannelViewFeed (typed agentic event reducer)
   ↓ ChannelViewState
 chatMessagesFromChannelView / actionBarPayloadFromChannelView
-  ↓
-React adapter (useChatCore/useAgenticChat)
-  ↓
-React components re-render
+  ↓ snapshot (one notify per input)
+React binding (useChatStore/useAgenticChat), HeadlessSession, or an Ink UI
 ```
 
 For a headless session, the owning Durable Object supplies the resident receiver

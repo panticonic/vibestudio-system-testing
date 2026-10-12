@@ -28,9 +28,9 @@ keep a sandbox alive for the agent to run code.
 
 | Package                      | Purpose                                                                                               | React? |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------- | ------ |
-| `@workspace/agentic-core`    | ConnectionManager, types, pure functions, channel-view reducer/selectors, panel import-loader factory | No     |
-| `@workspace/agentic-session` | HeadlessSession and channel helpers                                                                   | No     |
-| `@workspace/agentic-chat`    | React adapter (useChatCore, useAgenticChat)                                                           | Yes    |
+| `@workspace/agentic-core`    | ConnectionManager, types, pure functions, channel-view reducer/selectors, the headless chat core (`/chat-store`: ChatSession, ChatHostController), panel import-loader factory | No     |
+| `@workspace/agentic-session` | HeadlessSession (a resident ChatSession + agent lifecycle) and channel helpers                       | No     |
+| `@workspace/agentic-chat`    | React binding over the chat core (useAgenticChat, useChatCore, useChatStore)                          | Yes    |
 
 ## Which package to use
 
@@ -38,6 +38,9 @@ keep a sandbox alive for the agent to run code.
   same channel-view reducer.
 - **Driving an agent from a worker/DO, test, or pipeline:**
   `@workspace/agentic-session`, via `HeadlessSession.createWithAgent()`.
+- **A non-React chat UI (terminal, Durable Object):** `ChatSession` and
+  `ChatHostController` from `@workspace/agentic-core/chat-store` (see its
+  README).
 - **Connecting to a channel without the headless helpers:** `ConnectionManager`
   from `@workspace/agentic-core`.
 - **Only types or pure functions:** `@workspace/agentic-core`.

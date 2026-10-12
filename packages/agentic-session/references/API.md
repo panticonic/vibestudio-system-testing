@@ -2,9 +2,11 @@
 
 ## HeadlessSession (from `@workspace/agentic-session`)
 
-The headless session wrapper. No React, no browser APIs. Internally it drives a
-`ConnectionManager` (from `@workspace/agentic-core`) and projects the channel log
-through the same typed reducer/selectors the panel UI uses.
+The headless session wrapper. No React, no browser APIs. Internally it holds a
+`ChatSession` (from `@workspace/agentic-core/chat-store`) in resident delivery
+mode, so the transcript (including `message.delta` streaming), roster, debug
+events and title come from the same chat core the panel UI uses; `session.chat`
+exposes it.
 
 The session is a channel client only. The agent's own tools — including `eval`
 (server-side in the agent's per-channel `EvalDO`), file tools, and web tools —
@@ -148,7 +150,8 @@ completed result back to its durable channel and agent trajectory.
 
 ## ConnectionManager (from `@workspace/agentic-core`)
 
-The lower-level PubSub connection primitive that `HeadlessSession` is built on.
+The lower-level PubSub connection primitive that `ChatSession` (and therefore
+`HeadlessSession`) is built on.
 Use it directly only when you need to connect to a channel without the headless
 conveniences (auto agent subscription, channel-title observation, the wait helpers, the
 transcript projection). Constructed with `{ config, metadata, callbacks }`; its
