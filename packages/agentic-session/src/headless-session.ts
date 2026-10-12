@@ -1,11 +1,12 @@
 /**
- * HeadlessSession — Channel-message-driven headless agentic session wrapper.
+ * HeadlessSession — headless agentic session for skill code and system tests.
  *
- * Provides a programmatic interface for spawning agent chats from skill
- * code, system tests, etc. Pi runs in-process inside the worker DO; this
- * wrapper subscribes a PubSubClient to the channel and reads persisted
- * channel messages (text, thinking, action, image, inline_ui) to expose
- * chat state.
+ * A thin wrapper over the shared `ChatSession` (resident delivery): the
+ * connection, transcript projection (durable events, streaming deltas, replay
+ * batching), roster, debug events and title all come from the same chat core
+ * the chat panel uses. On top it owns the agent lifecycle (context, entity,
+ * subscription, ordered teardown) and the test helpers (waits, snapshots,
+ * synthetic UI methods, `ui.feedback` observation).
  * Panel-local UI tools are not exposed by default because there is no browser
  * panel. Tests can opt into synthetic panel UI methods that publish the same
  * typed transcript events without doing browser rendering.
@@ -21,8 +22,6 @@
  */
 
 import {
-  ConnectionManager,
-  chatMessagesFromChannelView,
   type ConnectionConfig,
   type AgentSubscriptionConfig,
   type ChatParticipantMetadata,
@@ -31,6 +30,7 @@ import {
   unwrapChatMethodResult,
   type ChatMethodResult,
 } from "@workspace/agentic-core";
+import { ChatSession } from "@workspace/agentic-core/chat-store";
 import type {
   PubSubClient,
   Participant,
@@ -44,12 +44,8 @@ import type {
 import {
   AGENTIC_EVENT_PAYLOAD_KIND,
   AGENTIC_PROTOCOL_VERSION,
-  createInitialChannelViewState,
-  reduceChannelView,
   participantRefFromMetadata,
-  pubsubAgenticEventToEnvelope,
   type AgenticEvent,
-  type ChannelEnvelope,
   type ChannelViewState,
   type TurnId,
   type UiFeedbackPayload,
@@ -282,7 +278,7 @@ export interface ObservedUiFeedback {
 }
 
 export class HeadlessSession {
-  private _connection: ConnectionManager;
+  private readonly _chat: ChatSession;
   private _client: PubSubClient<ChatParticipantMetadata> | null = null;
   private _channelId: string | null = null;
   private _clientId: string;
@@ -294,13 +290,6 @@ export class HeadlessSession {
   private _ownsAgentContext = false;
   private _agentRpcCall: HeadlessWithAgentConfig["rpcCall"] | null = null;
 
-  // Channel message state (derived from persisted + live channel messages)
-  private _chatMessages = new Map<string, ChatMessage>();
-  private _chatMessageOrder: string[] = [];
-  private _channelView: ChannelViewState = createInitialChannelViewState();
-  private _hasIncomplete = false;
-  private _participants: Record<string, Participant<ChatParticipantMetadata>> = {};
-  private _debugEvents: Array<AgentDebugPayload & { ts: number }> = [];
   private _uiFeedback: ObservedUiFeedback[] = [];
   private _cleanupErrors: SessionCleanupError[] = [];
   private _cleanupFailureCauses: unknown[] = [];
@@ -309,14 +298,12 @@ export class HeadlessSession {
     phaseStartedAt: Date.now(),
   };
   private _closePromise: Promise<void> | null = null;
-  private _dirtyRepoWarnings = new Map<string, DirtyRepoDetails>();
   private _registeredMethodNames: string[] = [];
   private _modelExecutionEvidence: unknown;
   private _modelExecutionEvidenceError: string | undefined;
   private readonly _hotPathTrace: SessionHotPathTrace[] = [];
   private _disposed = false;
-  /** Local projection of the durable channel title, surfaced in reports. */
-  private _title: string | null = null;
+  private _notifiedMessages: readonly ChatMessage[] = [];
 
   // Listeners
   private _messageListeners = new Set<MessageListener>();
@@ -336,25 +323,25 @@ export class HeadlessSession {
     });
     this._clientId = config.config.clientId;
 
-    this._connection = new ConnectionManager({
+    this._chat = new ChatSession({
       config: { ...config.config, deliveryMode: "resident" },
       metadata: config.metadata ?? DEFAULT_METADATA,
-      callbacks: {
-        onEvent: (event) => this.handleEvent(event),
+      ports: {
+        observeEvent: (event) => {
+          this.recordUiFeedback(event);
+          this.notifyStateListeners();
+        },
       },
+    });
+    this._chat.subscribe(() => {
+      this.notifyListeners();
+      this.notifyStateListeners();
     });
   }
 
-  private pubsubAgenticEventToEnvelope(wire: {
-    pubsubId?: number;
-    senderId?: string;
-    senderMetadata?: { name?: string; type?: string; handle?: string };
-    ts?: number;
-    contentClass: "internal" | "external";
-    externalKeys: string[];
-    payload: AgenticEvent;
-  }): ChannelEnvelope<AgenticEvent> {
-    return pubsubAgenticEventToEnvelope(this._channelId ?? "headless", wire);
+  /** The shared chat core behind this session. */
+  get chat(): ChatSession {
+    return this._chat;
   }
 
   /** Create a HeadlessSession with the given config (no agent yet). */
@@ -676,50 +663,18 @@ export class HeadlessSession {
   // Event tracking (debug events)
   // ===========================================================================
 
-  private handleEvent(event: IncomingEvent): void {
-    if (event.type === AGENTIC_EVENT_PAYLOAD_KIND) {
-      const agentic = (event as IncomingEvent & { payload?: AgenticEvent }).payload;
-      if (agentic?.kind === "ui.feedback") {
-        const wire = event as IncomingEvent & { pubsubId?: number; senderId?: string; ts?: number };
-        this._uiFeedback.push({
-          ...(wire.pubsubId !== undefined ? { pubsubId: wire.pubsubId } : {}),
-          ...(wire.senderId !== undefined ? { senderId: wire.senderId } : {}),
-          ...(wire.ts !== undefined ? { ts: wire.ts } : {}),
-          payload: agentic.payload as UiFeedbackPayload,
-        });
-      }
-      this._channelView = reduceChannelView(
-        this._channelView,
-        this.pubsubAgenticEventToEnvelope(event)
-      );
-      this._chatMessages.clear();
-      this._chatMessageOrder = [];
-      for (const msg of chatMessagesFromChannelView(this._channelView)) {
-        this._chatMessages.set(msg.id, msg);
-        this._chatMessageOrder.push(msg.id);
-      }
-      this.recomputeHasIncomplete();
-      this.notifyListeners();
-      this.notifyStateListeners();
-    }
-
-    if (event.type === "agent-debug") {
-      const payload = (event as IncomingEvent & { payload: AgentDebugPayload }).payload;
-      const ts = (event as IncomingEvent & { ts: number }).ts ?? Date.now();
-      this._debugEvents.push({ ...payload, ts });
-
-      // Dirty repo warnings
-      if (
-        payload.debugType === "lifecycle" &&
-        payload.event === "warning" &&
-        payload.reason === "dirty-repo"
-      ) {
-        const details = payload.details as DirtyRepoDetails | undefined;
-        if (details) {
-          this._dirtyRepoWarnings.set(payload.handle, details);
-        }
-      }
-    }
+  /** `ui.feedback` targets an agent's harness and is not projected; tests observe it here. */
+  private recordUiFeedback(event: IncomingEvent): void {
+    if (event.type !== AGENTIC_EVENT_PAYLOAD_KIND) return;
+    const agentic = (event as IncomingEvent & { payload?: AgenticEvent }).payload;
+    if (agentic?.kind !== "ui.feedback") return;
+    const wire = event as IncomingEvent & { pubsubId?: number; senderId?: string; ts?: number };
+    this._uiFeedback.push({
+      ...(wire.pubsubId !== undefined ? { pubsubId: wire.pubsubId } : {}),
+      ...(wire.senderId !== undefined ? { senderId: wire.senderId } : {}),
+      ...(wire.ts !== undefined ? { ts: wire.ts } : {}),
+      payload: agentic.payload as UiFeedbackPayload,
+    });
   }
 
   // ===========================================================================
@@ -739,7 +694,7 @@ export class HeadlessSession {
     const methods = options?.methods ?? this.buildDefaultMethods();
     this._registeredMethodNames = Object.keys(methods).sort();
 
-    this._client = await this._connection.connect({
+    this._client = await this._chat.connect({
       channelId,
       ...(options?.channelTargetId ? { channelTargetId: options.channelTargetId } : {}),
       methods,
@@ -748,19 +703,6 @@ export class HeadlessSession {
     });
     this._channelId = channelId;
 
-    const applyChannelTitle = (channelConfig: ChannelConfig): void => {
-      const title = channelConfig.title?.trim();
-      this._title = title || null;
-    };
-    if (this._client.channelConfig) applyChannelTitle(this._client.channelConfig);
-    this._client.onConfigChange(applyChannelTitle);
-
-    // Roster subscription
-    this._client.onRoster?.((update) => {
-      this._participants = { ...update.participants };
-      this.notifyStateListeners();
-    });
-
     this._hotPathTrace.push({
       phase: "channel.connected",
       startedAt,
@@ -768,19 +710,10 @@ export class HeadlessSession {
     });
   }
 
-  /** Scan all messages to determine if any are still incomplete (streaming). */
-  private recomputeHasIncomplete(): void {
-    for (const msg of this._chatMessages.values()) {
-      if (!msg.complete) {
-        this._hasIncomplete = true;
-        return;
-      }
-    }
-    this._hasIncomplete = false;
-  }
-
   private notifyListeners(): void {
     const msgs = this.messages;
+    if (msgs === this._notifiedMessages) return;
+    this._notifiedMessages = msgs;
     if (msgs.length === 0) return;
     const latest = msgs[msgs.length - 1]!;
     for (const listener of this._messageListeners) {
@@ -933,7 +866,7 @@ export class HeadlessSession {
   async disconnect(): Promise<void> {
     await this.cancelNativeObservations(new Error("Headless session disconnected"));
     try {
-      await this._connection.disconnect();
+      await this._chat.disconnect();
     } catch (err) {
       this.recordCleanupError("disconnect", err);
     }
@@ -953,6 +886,7 @@ export class HeadlessSession {
     this._disposed = true;
     this._observationLifetime.abort(new Error("Headless session disposed"));
     await this.disconnect();
+    this._chat.dispose();
     this._messageListeners.clear();
   }
 
@@ -1086,23 +1020,23 @@ export class HeadlessSession {
   // ===========================================================================
 
   get messages(): readonly ChatMessage[] {
-    return this._chatMessageOrder.map((id) => this._chatMessages.get(id)!);
+    return this._chat.getSnapshot().messages;
   }
 
   get participants(): Readonly<Record<string, Participant<ChatParticipantMetadata>>> {
-    return this._participants;
+    return this._chat.getSnapshot().participants;
   }
 
   get allParticipants(): Readonly<Record<string, Participant<ChatParticipantMetadata>>> {
-    return this._participants;
+    return this._chat.getSnapshot().allParticipants;
   }
 
   get connected(): boolean {
-    return this._connection.connected;
+    return this._chat.getSnapshot().connected;
   }
 
   get status(): string {
-    return this._connection.status;
+    return this._chat.getSnapshot().status;
   }
 
   get channelId(): string | null {
@@ -1127,11 +1061,15 @@ export class HeadlessSession {
 
   /** The durable channel title projected into this report. */
   get title(): string | null {
-    return this._title;
+    return this._chat.getSnapshot().channelTitle?.trim() || null;
   }
 
   get debugEvents(): readonly (AgentDebugPayload & { ts: number })[] {
-    return this._debugEvents;
+    return this._chat.getSnapshot().debugEvents;
+  }
+
+  get dirtyRepoWarnings(): ReadonlyMap<string, DirtyRepoDetails> {
+    return this._chat.getSnapshot().dirtyRepoWarnings;
   }
 
   /** `ui.feedback` events observed on the channel, in arrival order. */
@@ -1144,7 +1082,7 @@ export class HeadlessSession {
    * the last observed event; `waitUntil` re-evaluates on every change.
    */
   get channelView(): Readonly<ChannelViewState> {
-    return this._channelView;
+    return this._chat.feed.view;
   }
 
   /** Aborts (with the close reason) once the session is closed or disposed. */
@@ -1153,7 +1091,7 @@ export class HeadlessSession {
   }
 
   get isStreaming(): boolean {
-    return this._hasIncomplete;
+    return this.messages.some((message) => !message.complete);
   }
 
   get client(): PubSubClient<ChatParticipantMetadata> | null {
@@ -1167,7 +1105,7 @@ export class HeadlessSession {
   snapshot(): SessionSnapshot {
     const now = Date.now();
     const participants: SessionSnapshot["participants"] = {};
-    for (const [id, p] of Object.entries(this._participants)) {
+    for (const [id, p] of Object.entries(this.participants)) {
       participants[id] = {
         name: p.metadata.name,
         type: p.metadata.type,
@@ -1211,14 +1149,14 @@ export class HeadlessSession {
       messages: this.messages,
       invocations,
       tasks,
-      debugEvents: this._debugEvents,
+      debugEvents: this.debugEvents,
       cleanup: { ...this._cleanupState },
       cleanupErrors: [...this._cleanupErrors],
       participants,
       localMethodNames: this._registeredMethodNames,
-      connected: this._connection.connected,
+      connected: this.connected,
       duration: now - this._createdAt,
-      title: this._title,
+      title: this.title,
       hotPathTrace: [...this._hotPathTrace],
       ...(this._modelExecutionEvidence !== undefined
         ? { modelExecutionEvidence: this._modelExecutionEvidence }
@@ -1287,7 +1225,7 @@ export class HeadlessSession {
   /** Join the actual original input settlement and its exact canonical answer publication. */
   waitForIdle(opts?: HeadlessWaitOptions): Promise<ChatMessage> {
     const completed = new Set(
-      Object.values(this._channelView.invocations)
+      Object.values(this.channelView.invocations)
         .filter((invocation) =>
           ["completed", "failed", "cancelled", "abandoned"].includes(invocation.status)
         )
@@ -1305,7 +1243,7 @@ export class HeadlessSession {
   private latestNativeModelTask(completed: ReadonlySet<string>): number | undefined {
     if (!this._agentEntityId)
       throw new Error("Native settlement requires an authenticated agent binding");
-    const candidates = Object.values(this._channelView.invocations).flatMap((invocation) => {
+    const candidates = Object.values(this.channelView.invocations).flatMap((invocation) => {
       if (completed.has(invocation.invocationId)) return [];
       const source = invocation.nativeSource;
       if (!source) return [];

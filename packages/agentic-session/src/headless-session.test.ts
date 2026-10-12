@@ -152,7 +152,8 @@ describe("HeadlessSession", () => {
 
   it("projects agentic events delivered by the recovery-aware connection callback", () => {
     const session = HeadlessSession.create({ config: createConfig() });
-    (session as any)._channelId = "headless-1";
+    // Bind the transcript to its channel, as a join would.
+    session.chat.feed.reset("headless-1");
     const actor = { kind: "agent", id: "agent-1" };
     const turnId = brandId<TurnId>("turn-1");
     const base = {
@@ -163,7 +164,7 @@ describe("HeadlessSession", () => {
       externalKeys: [],
     };
 
-    (session as any).handleEvent({
+    (session.chat as any).ingest({
       ...base,
       pubsubId: 1,
       payload: {
@@ -179,7 +180,7 @@ describe("HeadlessSession", () => {
         createdAt: "2026-08-09T00:00:00.000Z",
       },
     });
-    (session as any).handleEvent({
+    (session.chat as any).ingest({
       ...base,
       pubsubId: 2,
       payload: {
@@ -208,13 +209,14 @@ describe("HeadlessSession", () => {
 
   it("records channel ui.feedback events and resolves waitUntil on their arrival", async () => {
     const session = HeadlessSession.create({ config: createConfig() });
-    (session as any)._channelId = "headless-1";
+    // Bind the transcript to its channel, as a join would.
+    session.chat.feed.reset("headless-1");
     const abort = new AbortController();
     const arrived = session.waitUntil(
       () => session.uiFeedback.find((event) => event.payload.occurrenceKey === "k1"),
       { signal: abort.signal }
     );
-    (session as any).handleEvent({
+    (session.chat as any).ingest({
       type: AGENTIC_EVENT_PAYLOAD_KIND,
       senderId: "panel-1",
       senderMetadata: { name: "Chat", type: "panel" },
@@ -271,19 +273,14 @@ describe("HeadlessSession", () => {
         },
       },
     };
-    const internals = session as unknown as {
-      _chatMessages: Map<string, ChatMessage>;
-      _chatMessageOrder: string[];
-    };
-    internals._chatMessages = new Map([[invocationMessage.id, invocationMessage]]);
-    internals._chatMessageOrder = [invocationMessage.id];
-    (session as any)._participants = {
+    vi.spyOn(session, "messages", "get").mockReturnValue([invocationMessage]);
+    vi.spyOn(session, "participants", "get").mockReturnValue({
       "agent-1": {
         id: "agent-1",
         metadata: { name: "Agent", type: "agent", handle: "agent" },
       },
-    };
-    (session as any)._debugEvents = [
+    } as never);
+    vi.spyOn(session, "debugEvents", "get").mockReturnValue([
       {
         debugType: "log",
         agentId: "agent-1",
@@ -292,7 +289,7 @@ describe("HeadlessSession", () => {
         message: "started",
         ts: 1,
       },
-    ];
+    ] as never);
 
     const snap = session.snapshot();
     expect(snap.messages).toEqual([invocationMessage]);
@@ -351,12 +348,7 @@ describe("HeadlessSession", () => {
         },
       },
     };
-    const internals = session as unknown as {
-      _chatMessages: Map<string, ChatMessage>;
-      _chatMessageOrder: string[];
-    };
-    internals._chatMessages = new Map([[invocationMessage.id, invocationMessage]]);
-    internals._chatMessageOrder = [invocationMessage.id];
+    vi.spyOn(session, "messages", "get").mockReturnValue([invocationMessage]);
 
     expect(session.snapshot().invocations[0]?.error).toBe("boom");
   });
@@ -1183,9 +1175,16 @@ describe("HeadlessSession", () => {
         },
       ],
     };
+    // The fixture drives the session's projection directly: shown messages
+    // and the channel view stand in for what the chat core would derive.
+    const shown: ChatMessage[] = [];
+    const view = { invocations: {} } as { invocations: any };
+    vi.spyOn(session, "messages", "get").mockImplementation(() => [...shown]);
+    vi.spyOn(session, "channelView", "get").mockImplementation(() => view as never);
     const show = (value: ChatMessage) => {
-      internal._chatMessages.set(value.id, value);
-      if (!internal._chatMessageOrder.includes(value.id)) internal._chatMessageOrder.push(value.id);
+      const index = shown.findIndex((item) => item.id === value.id);
+      if (index >= 0) shown[index] = value;
+      else shown.push(value);
       internal.notifyListeners();
     };
     const source = (runtimeId = "agent-1", taskId = 7) => ({
@@ -1217,7 +1216,7 @@ describe("HeadlessSession", () => {
         },
       },
     });
-    return { session, internal, message, result, show, source };
+    return { session, internal, message, result, show, source, view };
   }
 
   function invocationMessage(
@@ -1313,7 +1312,7 @@ describe("HeadlessSession", () => {
   it("retains canonical card attribution after the channel view is retired", () => {
     const f = nativeFixture();
     const source = f.source();
-    f.internal._channelView.invocations[source.invocationId] = source;
+    f.view.invocations[source.invocationId] = source;
     f.show({
       id: source.invocationId,
       senderId: "agent-1",
@@ -1335,7 +1334,7 @@ describe("HeadlessSession", () => {
       },
     });
     const capturedMessages = [...f.session.messages];
-    delete f.internal._channelView.invocations[source.invocationId];
+    delete f.view.invocations[source.invocationId];
     expect(capturedMessages[0]?.invocation?.nativeSource).toEqual(source.nativeSource);
     expect(f.session.snapshot().invocations[0]?.nativeSource).toEqual(source.nativeSource);
   });
@@ -1343,7 +1342,7 @@ describe("HeadlessSession", () => {
   it("does not recover native attribution from a legacy nested request", () => {
     const f = nativeFixture();
     const { nativeSource, ...view } = f.source();
-    f.internal._channelView.invocations.legacy = {
+    f.view.invocations.legacy = {
       ...view,
       request: { nativeSource },
     };
@@ -1384,7 +1383,7 @@ describe("HeadlessSession", () => {
   it("waitForIdle joins real original input settlement despite provider task completion and visible text", async () => {
     const f = nativeFixture();
     let settle!: (value: typeof f.result) => void;
-    f.internal._channelView.invocations.parent = f.source();
+    f.view.invocations.parent = f.source();
     f.internal._agentRpcCall = vi.fn(
       () =>
         new Promise((resolve) => {
@@ -1405,8 +1404,8 @@ describe("HeadlessSession", () => {
   });
   it("filters background child source coordinates even when native task IDs collide", async () => {
     const f = nativeFixture();
-    f.internal._channelView.invocations.parent = f.source();
-    f.internal._channelView.invocations.child = {
+    f.view.invocations.parent = f.source();
+    f.view.invocations.child = {
       ...f.source("child-agent", 7),
       startedAt: "2099-01-01T00:00:00Z",
     };
