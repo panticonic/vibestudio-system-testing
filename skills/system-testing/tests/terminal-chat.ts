@@ -56,7 +56,10 @@ export const TERMINAL_CHAT_APPROVAL_RULES: readonly TerminalApprovalRule[] = [
     ruleId: "launch-terminal-chat",
     actor: "launcher",
     capability: "terminal-apps.run",
-    resourceValue: `terminal-app:${TERMINAL_CHAT_SOURCE}`,
+    // A code caller's run request is the generic gated one, resolved to the
+    // capability itself; the terminal app is named by the launch the harness
+    // makes, not by the approval.
+    resourceValue: "terminal-apps.run",
     decision: "once",
   },
   {
