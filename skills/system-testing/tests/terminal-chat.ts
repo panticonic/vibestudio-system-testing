@@ -16,11 +16,7 @@ import {
   type TestOrchestrationContext,
   type TestResult,
 } from "../types.js";
-import {
-  TerminalApprovalResponder,
-  type AnsweredApproval,
-  type TerminalApprovalRule,
-} from "./_terminal-approvals.js";
+import { TerminalApprovalGuard } from "./_terminal-approvals.js";
 import {
   attachTerminalScreen,
   type AttachedTerminalScreen,
@@ -32,8 +28,12 @@ import {
  * The terminal chat, driven end to end the way a person uses it from a
  * terminal client: launched through the terminal launch service, read from its
  * PTY through the shell extension's framed attach stream into a headless
- * terminal, typed into, its approvals answered from the person's approval
- * queue, and finally killed and resumed from the session's kept state.
+ * terminal, typed into, and finally killed and resumed from the session's kept
+ * state. The session runs under the harness's test authority policy (the launch
+ * gives the app's context the policy of the call that launched it), so its
+ * model credential and the agent's gated eval request are decided exactly as
+ * they are for every other system test; the person's approval queue is watched
+ * only to end the run when something the policy did not decide reaches it.
  */
 
 export const TERMINAL_CHAT_SOURCE = "terminal-apps/chat";
@@ -41,41 +41,6 @@ export const TERMINAL_CHAT_TEST = "terminal-chat-approval-fork-resume";
 const SHELL_EXTENSION = "@workspace-extensions/shell";
 const SCREEN_SIZE: TerminalSize = { cols: 160, rows: 100 };
 const MAX_RETAINED_SCREEN = 12_000;
-
-/** The approval the scenario requires: the agent's own eval reading permissions. */
-export const AGENT_EVAL_APPROVAL_RULE = "agent-eval-permissions-read";
-
-/**
- * Every request this session may raise. The launch is the harness's own
- * (normally pre-cleared by the runner's reviewed manifest); the agent the chat
- * starts uses the person's model account and, for the scenario's question,
- * reads the permission inventory from its eval.
- */
-export const TERMINAL_CHAT_APPROVAL_RULES: readonly TerminalApprovalRule[] = [
-  {
-    ruleId: "launch-terminal-chat",
-    actor: "launcher",
-    capability: "terminal-apps.run",
-    // A code caller's run request is the generic gated one, resolved to the
-    // capability itself; the terminal app is named by the launch the harness
-    // makes, not by the approval.
-    resourceValue: "terminal-apps.run",
-    decision: "once",
-  },
-  {
-    ruleId: "agent-model-credential",
-    actor: "agent",
-    capability: "credential.use",
-    decision: "once",
-  },
-  {
-    ruleId: AGENT_EVAL_APPROVAL_RULE,
-    actor: "agent",
-    capability: "permissions.read",
-    requesterCategories: ["eval"],
-    decision: "once",
-  },
-];
 
 /** A collapsed eval tool card whose result summary line follows its header. */
 export const EVAL_CARD_SUMMARY = /^.*\bEval\b.*\bComplete\b.*\n(.*→ \S.*)$/mu;
@@ -89,7 +54,8 @@ export interface TerminalChatEvidence {
   model: string;
   launch?: TerminalSessionEntry;
   appContextId?: string;
-  approvals: AnsweredApproval[];
+  /** In-scope requests that reached the person's approval queue. */
+  escalatedApprovals: string[];
   evalSummary?: string;
   afterTurnScreen?: string;
   forked: boolean;
@@ -182,7 +148,7 @@ async function orchestrateTerminalChat(
     completedPhases: [],
     nonce,
     model: context.runner.modelRef,
-    approvals: [],
+    escalatedApprovals: [],
     forked: false,
     closed: false,
   };
@@ -205,11 +171,8 @@ async function orchestrateTerminalChat(
   else context.signal.addEventListener("abort", onHarnessAbort, { once: true });
   const signal = scenario.signal;
   const shell: ShellPty = extensions.use(SHELL_EXTENSION);
-  const responder = new TerminalApprovalResponder(
-    TERMINAL_CHAT_APPROVAL_RULES,
+  const guard = new TerminalApprovalGuard(
     { launcherId: rpc.selfId, appPrincipalId: null, appContextId: null },
-    (approvalId, decision) =>
-      rpc.call("main", mainRpcMethods["shellApproval.resolve"], [approvalId, decision]),
     abortScenario,
   );
   const watchController = new AbortController();
@@ -238,7 +201,7 @@ async function orchestrateTerminalChat(
 
   try {
     watch = await watchPendingApprovals(
-      (pending) => responder.observe(pending),
+      (pending) => guard.observe(pending),
       watchController.signal,
     );
     void watch.done.catch(abortScenario);
@@ -256,7 +219,7 @@ async function orchestrateTerminalChat(
         `terminalApps.launch returned a session that is not running with a PTY and principal: ${JSON.stringify(session)}`,
       );
     evidence.appContextId = await appContextOf(session.principalId);
-    responder.setScope({
+    guard.setScope({
       appPrincipalId: session.principalId,
       appContextId: evidence.appContextId,
     });
@@ -294,13 +257,10 @@ async function orchestrateTerminalChat(
       (text) => text.includes(nonce),
       "the question",
     );
-    const [, afterTurn] = await Promise.all([
-      responder.waitForRule(AGENT_EVAL_APPROVAL_RULE, signal),
-      waitFor(
-        (text) => EVAL_CARD_SUMMARY.test(text) && IDLE.test(text),
-        "a completed eval tool card with its result summary and the agent idle",
-      ),
-    ]);
+    const afterTurn = await waitFor(
+      (text) => EVAL_CARD_SUMMARY.test(text) && IDLE.test(text),
+      "a completed eval tool card with its result summary and the agent idle",
+    );
     evidence.afterTurnScreen = retainScreen(afterTurn);
     evidence.evalSummary = EVAL_CARD_SUMMARY.exec(afterTurn)?.[1]?.trim();
 
@@ -335,7 +295,7 @@ async function orchestrateTerminalChat(
       );
     session = resumed;
     const resumedContextId = await appContextOf(resumed.principalId);
-    responder.setScope({ appPrincipalId: resumed.principalId, appContextId: resumedContextId });
+    guard.setScope({ appPrincipalId: resumed.principalId, appContextId: resumedContextId });
 
     enter("restore");
     attached = await attachTerminalScreen(shell, resumed.shellSessionId, SCREEN_SIZE);
@@ -371,11 +331,6 @@ async function orchestrateTerminalChat(
         appendSystemTestCleanupFailure(execution, "close terminal session", cause);
       }
     }
-    try {
-      await responder.settled();
-    } catch (cause) {
-      appendSystemTestCleanupFailure(execution, "settle approval answers", cause);
-    }
     watchController.abort(new Error("The terminal chat scenario finished"));
     if (watch) {
       try {
@@ -384,7 +339,7 @@ async function orchestrateTerminalChat(
         appendSystemTestCleanupFailure(execution, "stop approval watch", cause);
       }
     }
-    evidence.approvals = [...responder.answered];
+    evidence.escalatedApprovals = [...guard.escalated];
     execution.duration = Date.now() - startedAt;
   }
   return execution;
@@ -406,7 +361,7 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     return { passed: false, reason: "The terminal chat scenario retained no evidence" };
   const details = {
     phase: evidence.phase,
-    approvals: evidence.approvals,
+    escalatedApprovals: evidence.escalatedApprovals,
     ...(evidence.lastScreen ? { lastScreen: evidence.lastScreen } : {}),
   };
   if (result.error)
@@ -415,41 +370,10 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
       reason: `The terminal chat scenario failed during ${evidence.phase}: ${result.error}`,
       details,
     };
-  const unanswerable = evidence.approvals.filter((entry) => entry.outcome === "failed");
-  if (unanswerable.length > 0)
+  if (evidence.escalatedApprovals.length > 0)
     return {
       passed: false,
-      reason: `Approvals the session raised could not be answered: ${unanswerable
-        .map((entry) => `${entry.capability ?? entry.kind} (${entry.error ?? "unknown error"})`)
-        .join("; ")}`,
-      details,
-    };
-  const unexpected = evidence.approvals.filter((entry) => entry.ruleId === null);
-  if (unexpected.length > 0)
-    return {
-      passed: false,
-      reason: `The session raised approvals the test does not expect: ${unexpected
-        .map((entry) => `${entry.capability ?? entry.kind} from the ${entry.actor}`)
-        .join("; ")}`,
-      details,
-    };
-  const evalApproval = evidence.approvals.find(
-    (entry) => entry.ruleId === AGENT_EVAL_APPROVAL_RULE && entry.outcome === "resolved",
-  );
-  if (!evalApproval)
-    return {
-      passed: false,
-      reason:
-        "The agent's eval never raised the permissions.read approval, so the approval path through the person's queue was not exercised",
-      details,
-    };
-  if (
-    evalApproval.requesterCategory !== "eval" ||
-    evalApproval.callerId === evidence.launch?.principalId
-  )
-    return {
-      passed: false,
-      reason: `The permissions.read approval was attributed to ${evalApproval.callerId} (${evalApproval.requesterCategory ?? "no requester"}), not to the agent's own eval`,
+      reason: `The session raised approvals the test authority policy did not decide: ${evidence.escalatedApprovals.join("; ")}`,
       details,
     };
   if (!evidence.evalSummary)
@@ -494,12 +418,6 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     details: {
       evalSummary: evidence.evalSummary,
       exit: evidence.exit,
-      approvals: evidence.approvals.map((entry) => ({
-        ruleId: entry.ruleId,
-        actor: entry.actor,
-        capability: entry.capability,
-        decision: entry.decision,
-      })),
     },
   };
 }
@@ -510,7 +428,7 @@ export const terminalChatTests: TestCase[] = requiringUnits(
     {
       name: TERMINAL_CHAT_TEST,
       description:
-        "Drive the terminal chat in a workspace PTY: answer its agent's eval approval from the approval queue, fork, then kill the program and resume it with the conversation restored",
+        "Drive the terminal chat in a workspace PTY: its agent answers a question through a gated eval under the test authority policy, then fork, kill the program and resume it with the conversation restored",
       category: "terminal-apps",
       timeoutMs: 900_000,
       prompt:
