@@ -45,6 +45,9 @@ const MAX_RETAINED_SCREEN = 12_000;
 
 /** A collapsed eval tool card whose result summary line follows its header. */
 export const EVAL_CARD_SUMMARY = /^.*\bEval\b.*\bComplete\b.*\n(.*→ \S.*)$/mu;
+export function completedInvocationTitles(text: string): string[] {
+  return [...text.matchAll(/^[ ▌]*[▸▾] (.*?) {2,}Complete$/gmu)].map((match) => match[1]!.trim());
+}
 const ONLINE = /● online/u;
 const IDLE = /◇ idle/u;
 
@@ -62,6 +65,7 @@ export interface TerminalChatEvidence {
   /** In-scope requests that reached the person's approval queue. */
   escalatedApprovals: string[];
   evalSummary?: string;
+  firstInvocationTitle?: string;
   afterTurnScreen?: string;
   forked: boolean;
   forkReplyNonce?: string;
@@ -73,6 +77,7 @@ export interface TerminalChatEvidence {
   resume?: TerminalSessionEntry;
   restoredScreen?: string;
   restoredSummaryScreen?: string;
+  restoredInvocationScreen?: string;
   lastScreen?: string;
   closed: boolean;
 }
@@ -308,6 +313,8 @@ async function orchestrateTerminalChat(
     );
     evidence.afterTurnScreen = retainScreen(afterTurn);
     evidence.evalSummary = EVAL_CARD_SUMMARY.exec(afterTurn)?.[1]?.trim();
+    evidence.firstInvocationTitle = completedInvocationTitles(afterTurn)[0];
+    if (!evidence.firstInvocationTitle) throw new Error("The original transcript showed no completed invocation title");
 
     enter("fork");
     await submit("/fork", (text) => /^.*\/fork\s*$/mu.test(text), "/fork");
@@ -392,6 +399,11 @@ async function orchestrateTerminalChat(
     ));
     evidence.restoredScreen = retainScreen(await revealTerminalHistory(
       screen(), (keys) => shell.write(resumed.shellSessionId!, keys), (text) => text.includes(nonce), "The restored original question", signal,
+    ));
+    evidence.restoredInvocationScreen = retainScreen(await revealTerminalHistory(
+      screen(), (keys) => shell.write(resumed.shellSessionId!, keys),
+      (text) => completedInvocationTitles(text).includes(evidence.firstInvocationTitle!),
+      "The original completed invocation title", signal,
     ));
     enter("done");
   } catch (cause) {
@@ -499,12 +511,15 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     };
   if (
     !evidence.restoredScreen?.includes(evidence.nonce) ||
-    !evidence.restoredSummaryScreen?.includes(evidence.evalSummary)
+    !evidence.restoredSummaryScreen?.includes(evidence.evalSummary) ||
+    !evidence.firstInvocationTitle ||
+    !completedInvocationTitles(evidence.restoredInvocationScreen ?? "").includes(evidence.firstInvocationTitle) ||
+    evidence.restoredInvocationScreen?.includes(evidence.forkReplyNonce)
   )
     return {
       passed: false,
       reason:
-        "The relaunched chat did not show the earlier question and eval result: its conversation was not restored from the session's state",
+        "The relaunched chat did not preserve the earlier question, eval result and invocation title: its conversation was not restored from the session's state",
       details,
     };
   if (result.cleanupErrors?.length || !evidence.closed)

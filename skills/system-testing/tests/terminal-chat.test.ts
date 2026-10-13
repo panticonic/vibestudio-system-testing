@@ -10,6 +10,7 @@ import {
   terminalChatTests,
   validateTerminalChat,
   consumeApprovalRecords,
+  completedInvocationTitles,
   type TerminalChatEvidence,
 } from "./terminal-chat.js";
 
@@ -106,6 +107,9 @@ describe("terminal session approvals", () => {
 });
 
 describe("eval tool card summary", () => {
+  it("records the actual completed tool title in ordinary and selected rows", () => {
+    expect(completedInvocationTitles("  ▸ Get Agent Settings                Complete\n▌ ▸ Eval code: 1+1                   Complete\n  ▸ Invocation                       Running")).toEqual(["Get Agent Settings", "Eval code: 1+1"]);
+  });
   it("finds the summary line under a completed eval card", () => {
     const screen = [
       "you  Quick check tc-1234abcd: how many workspace permissions are granted here right now?",
@@ -148,6 +152,7 @@ function passingEvidence(): TerminalChatEvidence {
     appContextId: "ctx-app",
     escalatedApprovals: [],
     evalSummary: "→ 7",
+    firstInvocationTitle: "Get Agent Settings",
     forked: true,
     forkReplyNonce: "fork-abcd1234",
     forkReplyScreen: "you  Reply with exactly fork-abcd1234 and nothing else.\nagent  fork-abcd1234\n◇ idle",
@@ -157,6 +162,7 @@ function passingEvidence(): TerminalChatEvidence {
     resume: { ...entry, principalId: "panel:nav-term-2", shellSessionId: "pty-2" },
     restoredScreen: "Quick check tc-1234abcd ...\n▸ Eval ... Complete\n  → 7",
     restoredSummaryScreen: "▸ Eval ... Complete\n  → 7",
+    restoredInvocationScreen: "▌ ▸ Get Agent Settings       Complete",
     closed: true,
   };
 }
@@ -169,6 +175,7 @@ describe("terminal chat validator", () => {
   it("retains the question and eval result even when they occupy separate viewports", () => {
     expect(validateTerminalChat(execution({ ...passingEvidence(), restoredScreen: "Quick check tc-1234abcd" })).passed).toBe(true);
     expect(validateTerminalChat(execution({ ...passingEvidence(), restoredSummaryScreen: "● online" })).passed).toBe(false);
+    expect(validateTerminalChat(execution({ ...passingEvidence(), restoredInvocationScreen: "▸ Invocation       Complete" })).passed).toBe(false);
   });
   it("passes the complete lifecycle", () => {
     expect(validateTerminalChat(execution(passingEvidence()))).toMatchObject({ passed: true });
