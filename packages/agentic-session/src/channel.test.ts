@@ -11,6 +11,10 @@ import { describe, it, expect, vi } from "vitest";
 import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import type { RpcCaller } from "@vibestudio/rpc";
 import {
+  MODEL_SETTINGS_TARGET,
+  workspaceAgentConfigRpcFixture,
+} from "./agent-launch-rpc.test-fixture.js";
+import {
   createHeadlessAgentContext,
   destroyHeadlessAgentContext,
   getRecommendedChannelConfig,
@@ -28,6 +32,8 @@ function makeRpcCall(captured: {
   createSpec?: Record<string, unknown>;
 }): RpcCaller["call"] {
   return publicRpcCall(vi.fn(async (target: string, method: string, args: unknown[]) => {
+    const settings = workspaceAgentConfigRpcFixture(target, method, args);
+    if (settings.handled) return settings.value;
     if (target === "main" && method === "runtime.createEntity") {
       captured.createSpec = args[0] as Record<string, unknown>;
       captured.config = (
@@ -65,7 +71,7 @@ describe("subscribeHeadlessAgent — unified contract", () => {
     expect(captured.config!["toolAllowlist"]).toBeUndefined();
   });
 
-  it("creates and initializes the headless DO in one runtime.createEntity call", async () => {
+  it("resolves workspace settings before creating and initializing the headless DO", async () => {
     const captured: { createSpec?: Record<string, unknown> } = {};
     const rpcCall = makeRpcCall(captured);
 
@@ -95,7 +101,11 @@ describe("subscribeHeadlessAgent — unified contract", () => {
         replay: undefined,
       },
     });
-    expect(vi.mocked(rpcCall)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(rpcCall).mock.calls.map(([target, method]) => [target, method])).toEqual([
+      ["main", "workers.resolveService"],
+      [MODEL_SETTINGS_TARGET, "getSettings"],
+      ["main", "runtime.createEntity"],
+    ]);
     expect(result.entityId).toBe("do:workers/agent-worker:AiChatWorker:obj-1");
     expect(result.targetId).toBe("do:workers/agent-worker:AiChatWorker:obj-1");
     expect(result.contextId).toBe("ctx-1");
@@ -112,6 +122,8 @@ describe("subscribeHeadlessAgent — unified contract", () => {
     const calls: Array<{ target: string; method: string; args: unknown[] }> = [];
     const rpcCall = publicRpcCall(vi.fn(async (target: string, method: string, args: unknown[]) => {
       calls.push({ target, method, args });
+      const settings = workspaceAgentConfigRpcFixture(target, method, args);
+      if (settings.handled) return settings.value;
       if (method === "runtime.createEntity") {
         throw new Error("agent initialization failed");
       }
@@ -129,8 +141,10 @@ describe("subscribeHeadlessAgent — unified contract", () => {
       })
     ).rejects.toThrow("agent initialization failed");
 
-    expect(calls).toEqual([
-      expect.objectContaining({ target: "main", method: "runtime.createEntity" }),
+    expect(calls.map(({ target, method }) => [target, method])).toEqual([
+      ["main", "workers.resolveService"],
+      [MODEL_SETTINGS_TARGET, "getSettings"],
+      ["main", "runtime.createEntity"],
     ]);
   });
 
