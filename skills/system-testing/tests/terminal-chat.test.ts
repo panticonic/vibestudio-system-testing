@@ -138,6 +138,9 @@ function passingEvidence(): TerminalChatEvidence {
     escalatedApprovals: [],
     evalSummary: "→ 7",
     forked: true,
+    forkReplyNonce: "fork-abcd1234",
+    forkReplyScreen: "you  Reply with exactly fork-abcd1234 and nothing else.\nagent  fork-abcd1234\n◇ idle",
+    switchedBackScreen: "Quick check tc-1234abcd ...\n◇ idle",
     exit: { code: null, signal: "SIGHUP" },
     resume: { ...entry, principalId: "panel:nav-term-2", shellSessionId: "pty-2" },
     restoredScreen: "Quick check tc-1234abcd ...\n▸ Eval ... Complete\n  → 7",
@@ -178,6 +181,18 @@ describe("terminal chat validator", () => {
     expect(
       validateTerminalChat(execution({ ...passingEvidence(), evalSummary: undefined })).reason,
     ).toBe("No completed eval tool card showed a result summary");
+  });
+
+  it("fails when the fork never gets its own agent reply", () => {
+    expect(
+      validateTerminalChat(execution({ ...passingEvidence(), forkReplyScreen: undefined })).reason,
+    ).toBe("The fork's agent never answered inside the fork");
+  });
+
+  it("fails when the terminal does not switch back to the parent conversation", () => {
+    expect(
+      validateTerminalChat(execution({ ...passingEvidence(), switchedBackScreen: undefined })).reason,
+    ).toBe("The chat did not switch back from the fork to the original conversation");
   });
 
   it("fails when resume reused the exited PTY or the transcript was not restored", () => {

@@ -59,6 +59,10 @@ export interface TerminalChatEvidence {
   evalSummary?: string;
   afterTurnScreen?: string;
   forked: boolean;
+  forkReplyNonce?: string;
+  forkComposeScreen?: string;
+  forkReplyScreen?: string;
+  switchedBackScreen?: string;
   exit?: { code: number | null; signal?: string };
   resume?: TerminalSessionEntry;
   restoredScreen?: string;
@@ -269,6 +273,39 @@ async function orchestrateTerminalChat(
     await waitFor(/Forked/u, "the fork confirmation", /Couldn't fork the conversation/u);
     evidence.forked = true;
 
+    enter("fork-agent-compose");
+    const forkReplyNonce = `fork-${crypto.randomUUID().slice(0, 8)}`;
+    evidence.forkReplyNonce = forkReplyNonce;
+    const forkPrompt = `Reply with exactly ${forkReplyNonce} and nothing else.`;
+    await shell.write(
+      session.shellSessionId,
+      `\x1b[200~${forkPrompt}\x1b[201~`,
+    );
+    evidence.forkComposeScreen = retainScreen(await waitFor(
+      (text) => text.includes(forkReplyNonce),
+      "the fork-only question",
+    ));
+    enter("fork-agent-submit");
+    await shell.write(session.shellSessionId, "\r");
+    enter("fork-agent-reply");
+    const forkReply = await waitFor(
+      (text) => occurrences(text, forkReplyNonce) >= 2 && IDLE.test(text),
+      "the fork's agent reply and idle state",
+    );
+    evidence.forkReplyScreen = retainScreen(forkReply);
+
+    enter("switch-to-parent");
+    await submit("/forks", (text) => text.includes("/forks"), "/forks");
+    await waitFor(/^Forks$/mu, "the fork tree picker", /Couldn't load the fork tree/u);
+    await shell.write(session.shellSessionId, "\r");
+    evidence.switchedBackScreen = retainScreen(
+      await waitFor(
+        (text) => text.includes(nonce) && !text.includes(forkReplyNonce) && IDLE.test(text),
+        "the original conversation after switching back from the fork",
+        /Could not switch conversations/u,
+      ),
+    );
+
     enter("kill");
     const firstShellSessionId = session.shellSessionId;
     const exited = screen().exited(signal);
@@ -384,6 +421,17 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     };
   if (!evidence.forked)
     return { passed: false, reason: "The chat never confirmed the fork", details };
+  if (!evidence.forkReplyNonce || occurrences(evidence.forkReplyScreen ?? "", evidence.forkReplyNonce) < 2)
+    return { passed: false, reason: "The fork's agent never answered inside the fork", details };
+  if (
+    !evidence.switchedBackScreen?.includes(evidence.nonce) ||
+    evidence.switchedBackScreen.includes(evidence.forkReplyNonce)
+  )
+    return {
+      passed: false,
+      reason: "The chat did not switch back from the fork to the original conversation",
+      details,
+    };
   if (!evidence.exit)
     return { passed: false, reason: "The killed program's exit was never observed", details };
   if (
