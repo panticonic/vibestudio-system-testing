@@ -1,32 +1,24 @@
-import type { ApprovalDecisionId } from "@vibestudio/shared/approvalContract";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 
 /**
- * The person's side of a terminal session's approvals.
+ * Watching a terminal session's share of the person's approval queue.
  *
- * A terminal app runs as its own principal outside any test-policy context, so
- * what it and the agents it starts ask for reaches the person's approval queue
- * like any other request. The scenario answers that queue through the same
- * presenter API a terminal client uses (`shellApproval.resolve`), from a
- * declared table of expected requests: each rule names who may ask
- * (the launching harness, the app's own principal, or an agent working in the
- * app's context), the exact capability, and the decision. Any other request in
- * the session's scope is denied, so the requester settles, and fails the test.
- * Requests outside the session's scope are not this test's to answer.
+ * The session runs under the harness's test authority policy, like every other
+ * system-test context: the launch service gives the app's context the policy of
+ * the call that launched it, so the model credential the agent uses and the
+ * gated requests its eval makes are decided by that policy and never queue. A
+ * request that does reach the person's queue is therefore one the policy did
+ * not decide (critical or irreversible work), and nobody in a headless run can
+ * answer it: the guard names it and ends the scenario, rather than letting the
+ * session wait for a decision that will never come.
+ *
+ * A terminal app runs as its own principal, so what is "the session's" is
+ * attributed by who raised it: the launching harness, the app's own principal,
+ * or an agent working in the app's context. Requests outside the session's
+ * scope are not this test's to judge.
  */
 
 export type ApprovalActor = "launcher" | "app" | "agent";
-
-export interface TerminalApprovalRule {
-  ruleId: string;
-  actor: ApprovalActor;
-  capability: string;
-  /** Exact host-resolved resource (`resource.value` or `grantResourceKey`). */
-  resourceValue?: string;
-  /** Requester categories admitted for this rule (for example only `eval`). */
-  requesterCategories?: readonly string[];
-  decision: ApprovalDecisionId;
-}
 
 /** What identifies the session's requesters; filled in as the session starts. */
 export interface TerminalApprovalScope {
@@ -36,21 +28,6 @@ export interface TerminalApprovalScope {
   appPrincipalId: string | null;
   /** The app's workspace context, where the agents it starts also run. */
   appContextId: string | null;
-}
-
-export interface AnsweredApproval {
-  approvalId: string;
-  actor: ApprovalActor;
-  ruleId: string | null;
-  kind: PendingApproval["kind"];
-  capability: string | null;
-  resource: string | null;
-  callerId: string;
-  requesterCategory: string | null;
-  requesterId: string | null;
-  decision: ApprovalDecisionId;
-  outcome: "resolved" | "failed";
-  error?: string;
 }
 
 /** Who in the session raised `approval`, or null when it is not the session's. */
@@ -79,27 +56,6 @@ function resourceOf(approval: PendingApproval): string | null {
   return approval.resource?.value ?? approval.grantResourceKey ?? null;
 }
 
-export function matchApprovalRule(
-  approval: PendingApproval,
-  actor: ApprovalActor,
-  rules: readonly TerminalApprovalRule[],
-): TerminalApprovalRule | null {
-  if (approval.kind !== "capability") return null;
-  return (
-    rules.find(
-      (rule) =>
-        rule.actor === actor &&
-        rule.capability === approval.capability &&
-        (rule.resourceValue === undefined ||
-          rule.resourceValue === approval.resource?.value ||
-          rule.resourceValue === approval.grantResourceKey) &&
-        (rule.requesterCategories === undefined ||
-          (approval.requester !== undefined &&
-            rule.requesterCategories.includes(approval.requester.category))),
-    ) ?? null
-  );
-}
-
 export function describeApproval(approval: PendingApproval, actor: ApprovalActor): string {
   const capability = capabilityOf(approval);
   const resource = resourceOf(approval);
@@ -115,125 +71,42 @@ export function describeApproval(approval: PendingApproval, actor: ApprovalActor
     .join(", ");
 }
 
-export class TerminalApprovalResponder {
-  readonly answered: AnsweredApproval[] = [];
+export class TerminalApprovalGuard {
+  /** Every in-scope request that reached the queue, described. */
+  readonly escalated: string[] = [];
   #scope: TerminalApprovalScope;
   #latest: readonly PendingApproval[] = [];
-  readonly #handled = new Set<string>();
-  #processing: Promise<void> = Promise.resolve();
-  readonly #listeners = new Set<() => void>();
+  readonly #seen = new Set<string>();
 
   constructor(
-    private readonly rules: readonly TerminalApprovalRule[],
     scope: TerminalApprovalScope,
-    private readonly resolve: (approvalId: string, decision: ApprovalDecisionId) => Promise<void>,
-    /** An approval the session raised that the test did not expect, or could not answer. */
-    private readonly onUnexpected: (error: Error) => void,
+    /** Called once per in-scope request that reached the person's queue. */
+    private readonly onEscalated: (error: Error) => void,
   ) {
     this.#scope = scope;
-  }
-
-  get scope(): Readonly<TerminalApprovalScope> {
-    return this.#scope;
   }
 
   /** Learn more of the session's identity; pending requests are reconsidered. */
   setScope(scope: Partial<TerminalApprovalScope>): void {
     this.#scope = { ...this.#scope, ...scope };
-    this.#schedule();
+    this.observe(this.#latest);
   }
 
   /** The approval queue's current pending set (each queue change delivers it whole). */
   observe(pending: readonly PendingApproval[]): void {
     this.#latest = pending;
-    this.#schedule();
-  }
-
-  /** Settles once every answer started so far has been delivered or has failed. */
-  settled(): Promise<void> {
-    return this.#processing;
-  }
-
-  /** Resolve with the first approval answered under `ruleId`. */
-  waitForRule(ruleId: string, signal?: AbortSignal): Promise<AnsweredApproval> {
-    return new Promise((resolve, reject) => {
-      const found = () =>
-        this.answered.find((entry) => entry.ruleId === ruleId && entry.outcome === "resolved");
-      const settle = () => {
-        this.#listeners.delete(listener);
-        signal?.removeEventListener("abort", onAbort);
-      };
-      const listener = () => {
-        const entry = found();
-        if (entry) {
-          settle();
-          resolve(entry);
-        }
-      };
-      const onAbort = () => {
-        settle();
-        reject(signal!.reason);
-      };
-      if (signal?.aborted) {
-        reject(signal.reason);
-        return;
-      }
-      signal?.addEventListener("abort", onAbort, { once: true });
-      this.#listeners.add(listener);
-      listener();
-    });
-  }
-
-  #schedule(): void {
-    this.#processing = this.#processing.then(() => this.#process());
-  }
-
-  async #process(): Promise<void> {
-    for (const approval of this.#latest) {
-      if (this.#handled.has(approval.approvalId)) continue;
+    for (const approval of pending) {
+      if (this.#seen.has(approval.approvalId)) continue;
       const actor = approvalActor(approval, this.#scope);
       if (!actor) continue;
-      this.#handled.add(approval.approvalId);
-      const rule = matchApprovalRule(approval, actor, this.rules);
-      const decision: ApprovalDecisionId = rule?.decision ?? "deny";
-      const entry: AnsweredApproval = {
-        approvalId: approval.approvalId,
-        actor,
-        ruleId: rule?.ruleId ?? null,
-        kind: approval.kind,
-        capability: capabilityOf(approval),
-        resource: resourceOf(approval),
-        callerId: approval.callerId,
-        requesterCategory: approval.requester?.category ?? null,
-        requesterId: approval.requester?.id ?? null,
-        decision,
-        outcome: "resolved",
-      };
-      const offered = approval.kind === "capability" ? approval.allowedDecisions : undefined;
-      try {
-        if (offered && !offered.includes(decision)) {
-          throw new Error(`it offers ${offered.join(", ")}, not ${decision}`);
-        }
-        await this.resolve(approval.approvalId, decision);
-      } catch (error) {
-        entry.outcome = "failed";
-        entry.error = error instanceof Error ? error.message : String(error);
-      }
-      this.answered.push(entry);
-      for (const listener of [...this.#listeners]) listener();
-      if (entry.outcome === "failed") {
-        this.onUnexpected(
-          new Error(
-            `Answering ${describeApproval(approval, actor)} with ${decision} failed: ${entry.error}`,
-          ),
-        );
-      } else if (!rule) {
-        this.onUnexpected(
-          new Error(
-            `The terminal session raised an approval the test does not expect (denied): ${describeApproval(approval, actor)}`,
-          ),
-        );
-      }
+      this.#seen.add(approval.approvalId);
+      const description = describeApproval(approval, actor);
+      this.escalated.push(description);
+      this.onEscalated(
+        new Error(
+          `The terminal session raised an approval the test authority policy did not decide, which nobody can answer in a headless run: ${description}`,
+        ),
+      );
     }
   }
 }
