@@ -5,6 +5,7 @@ import { assertSystemTestDeclaration } from "../prompt-contract.js";
 import { TerminalApprovalGuard, approvalActor } from "./_terminal-approvals.js";
 import {
   EVAL_CARD_SUMMARY,
+  FORK_READY,
   TERMINAL_CHAT_TEST,
   terminalChatTests,
   validateTerminalChat,
@@ -115,6 +116,15 @@ describe("eval tool card summary", () => {
     expect(
       EVAL_CARD_SUMMARY.test("▸ Eval services.permissions.list()      Running\n  → 7"),
     ).toBe(false);
+  });
+});
+
+describe("fork navigation readiness", () => {
+  it("waits for completed navigation instead of the parent's fork annotation", () => {
+    const parent = '  ⑂ Forked "New direction" from here. /forks lists forks and switches to them.';
+    const confirmation = "✓ Forked — You are in the new fork. /forks switches back.";
+    expect(FORK_READY.test(parent)).toBe(false);
+    expect(FORK_READY.test(`${parent}\n${confirmation}`)).toBe(true);
   });
 });
 

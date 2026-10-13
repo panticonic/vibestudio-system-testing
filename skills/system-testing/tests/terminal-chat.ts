@@ -47,6 +47,10 @@ export const EVAL_CARD_SUMMARY = /^.*\bEval\b.*\bComplete\b.*\n(.*→ \S.*)$/mu;
 const ONLINE = /● online/u;
 const IDLE = /◇ idle/u;
 
+/** The action confirms only after navigation settles; the parent transcript
+ * also contains an inline "Forked" annotation before that boundary. */
+export const FORK_READY = /^✓ Forked — You are in the new fork\. \/forks switches back\.$/mu;
+
 export interface TerminalChatEvidence {
   phase: string;
   completedPhases: string[];
@@ -270,7 +274,11 @@ async function orchestrateTerminalChat(
 
     enter("fork");
     await submit("/fork", (text) => /^.*\/fork\s*$/mu.test(text), "/fork");
-    await waitFor(/Forked/u, "the fork confirmation", /Couldn't fork the conversation/u);
+    await waitFor(
+      (text) => FORK_READY.test(text) && ONLINE.test(text),
+      "the completed fork navigation and the fork session online",
+      /Couldn't fork the conversation/u,
+    );
     evidence.forked = true;
 
     enter("fork-agent-compose");
@@ -295,9 +303,17 @@ async function orchestrateTerminalChat(
     evidence.forkReplyScreen = retainScreen(forkReply);
 
     enter("switch-to-parent");
-    await submit("/forks", (text) => text.includes("/forks"), "/forks");
+    await submit("/forks", /^› \/forks\s*$/mu, "/forks");
     await waitFor(/^Forks$/mu, "the fork tree picker", /Couldn't load the fork tree/u);
     await shell.write(session.shellSessionId, "\r");
+    const parent = await waitFor(
+      (text) => text.includes(evidence.evalSummary!) && !text.includes(forkReplyNonce) && ONLINE.test(text) && IDLE.test(text),
+      "the parent conversation's eval result after switching back",
+      /Could not switch conversations/u,
+    );
+    // A session initially replays 50 envelopes. Tool events can put the
+    // original question on the previous page; use the normal history control.
+    if (!parent.includes(nonce)) await shell.write(session.shellSessionId, "\x1b[5~");
     evidence.switchedBackScreen = retainScreen(
       await waitFor(
         (text) => text.includes(nonce) && !text.includes(forkReplyNonce) && IDLE.test(text),
@@ -338,6 +354,11 @@ async function orchestrateTerminalChat(
     attached = await attachTerminalScreen(shell, resumed.shellSessionId, SCREEN_SIZE);
     await waitFor(ONLINE, "the relaunched chat's status line to show it online");
     const summary = evidence.evalSummary;
+    const replayed = await waitFor(
+      (text) => !!summary && text.includes(summary),
+      "the relaunched chat replaying the completed eval result",
+    );
+    if (!replayed.includes(nonce)) await shell.write(resumed.shellSessionId, "\x1b[5~");
     const restored = await waitFor(
       (text) => text.includes(nonce) && (!summary || text.includes(summary)),
       "the relaunched chat restoring the earlier transcript (question and eval result)",
