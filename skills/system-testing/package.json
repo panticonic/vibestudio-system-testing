@@ -81,8 +81,7 @@
     "@vibestudio/automation": "workspace:*",
     "@workspace/model-catalog": "workspace:*",
     "@workspace/agentic-do": "workspace:*",
-    "@workspace/pty-stream": "workspace:*",
-    "@xterm/headless": "^5.5.0"
+    "@workspace/pty-stream": "workspace:*"
   },
   "devDependencies": {
     "@vibestudio/rpc": "workspace:*",

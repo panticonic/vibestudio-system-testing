@@ -203,7 +203,7 @@ describe("terminal screen over the pty attach stream", () => {
   });
 
   it("rejects a second stream on one screen", async () => {
-    const screen = await TerminalScreen.create(SIZE);
+    const screen = new TerminalScreen(SIZE);
     const stream = framedStream();
     stream.close();
     const { readPtyStream } = await import("@workspace/pty-stream");
