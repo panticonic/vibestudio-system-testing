@@ -258,6 +258,12 @@ export interface TestOrchestrationContext {
   signal: AbortSignal;
   /** Milliseconds left in this test's shared orchestration/turn budget. */
   remainingTimeMs(): number | undefined;
+  /**
+   * Live evidence the orchestration keeps current as it goes. The harness
+   * reports it even when the orchestration never returns a result (a deadline
+   * or cancellation), so a stalled scenario still says how far it got.
+   */
+  diagnostics: Record<string, unknown>;
   /** Run one bounded turn and return the exact completed response that ended
    * that phase. Orchestrated validators use this identity instead of guessing
    * turn boundaries from transcript rows that intentionally omit local user

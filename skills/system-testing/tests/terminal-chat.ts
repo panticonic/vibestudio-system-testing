@@ -191,6 +191,8 @@ async function orchestrateTerminalChat(
     duration: 0,
     diagnostics: { terminalChat: evidence },
   };
+  // Reported even if the scenario never returns (a deadline or cancellation).
+  context.diagnostics["terminalChat"] = evidence;
   // One cancellation boundary for the whole scenario: the harness deadline or
   // cancellation, an unexpected approval, or a lost approval watch ends every
   // wait with that cause.
@@ -242,9 +244,12 @@ async function orchestrateTerminalChat(
     void watch.done.catch(abortScenario);
 
     enter("launch");
-    session = await rpc.call("main", mainRpcMethods["terminalApps.launch"], [
-      { source: TERMINAL_CHAT_SOURCE, ...SCREEN_SIZE },
-    ]);
+    session = await rpc.call(
+      "main",
+      mainRpcMethods["terminalApps.launch"],
+      [{ source: TERMINAL_CHAT_SOURCE, ...SCREEN_SIZE }],
+      { signal },
+    );
     evidence.launch = session;
     if (!session.running || !session.shellSessionId || !session.principalId)
       throw new Error(
