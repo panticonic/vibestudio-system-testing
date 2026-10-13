@@ -1,4 +1,4 @@
-import { Terminal } from "@xterm/headless";
+import type { Terminal } from "@xterm/headless";
 import {
   PtyStreamAcknowledger,
   readPtyStream,
@@ -88,8 +88,22 @@ export class TerminalScreen {
   #end: TerminalStreamEnd | null = null;
   #attachId: string | null = null;
 
-  constructor(size: TerminalSize) {
-    this.#term = new Terminal({
+  /**
+   * Open a screen. The emulator is loaded here rather than at module load:
+   * the eval sandbox these tests run in has neither `process` nor `navigator`,
+   * and `@xterm/headless` reads one of them when it loads to learn its
+   * platform. Loading it on first use keeps every other test (and the runner
+   * itself) independent of it, and declares the headless platform it expects.
+   */
+  static async create(size: TerminalSize): Promise<TerminalScreen> {
+    const global = globalThis as { navigator?: { userAgent: string; platform: string } };
+    global.navigator ??= { userAgent: "headless-terminal-screen", platform: "headless" };
+    const { Terminal: Emulator } = await import("@xterm/headless");
+    return new TerminalScreen(size, Emulator);
+  }
+
+  private constructor(size: TerminalSize, Emulator: typeof Terminal) {
+    this.#term = new Emulator({
       cols: size.cols,
       rows: size.rows,
       allowProposedApi: true,
@@ -325,7 +339,7 @@ export async function attachTerminalScreen(
   size: TerminalSize,
 ): Promise<AttachedTerminalScreen> {
   const controller = new AbortController();
-  const screen = new TerminalScreen(size);
+  const screen = await TerminalScreen.create(size);
   const response = await client.attach(shellSessionId, { size });
   if (!response.body) {
     screen.dispose();
