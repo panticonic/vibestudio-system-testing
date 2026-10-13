@@ -1,7 +1,7 @@
 import { extensions, rpc } from "@workspace/runtime";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { EventsClient } from "@vibestudio/service-schemas/clients/eventsClient";
-import { readEventWatchRecords } from "@vibestudio/service-schemas/events";
+import { readEventWatchRecords, type EventWatchRecord } from "@vibestudio/service-schemas/events";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TerminalSessionEntry } from "@vibestudio/shared/terminalSessions";
 import type { PtyAttachOptions } from "@workspace/pty-stream";
@@ -22,6 +22,7 @@ import {
   type AttachedTerminalScreen,
   type ScreenCondition,
   type TerminalSize,
+  type TerminalScreen,
 } from "./_terminal-screen.js";
 
 /**
@@ -67,9 +68,11 @@ export interface TerminalChatEvidence {
   forkComposeScreen?: string;
   forkReplyScreen?: string;
   switchedBackScreen?: string;
+  switchedBackSummaryScreen?: string;
   exit?: { code: number | null; signal?: string };
   resume?: TerminalSessionEntry;
   restoredScreen?: string;
+  restoredSummaryScreen?: string;
   lastScreen?: string;
   closed: boolean;
 }
@@ -119,21 +122,55 @@ async function watchPendingApprovals(
   const first = await records.next();
   if (first.done || first.value.kind !== "watching")
     throw new Error("The approval queue watch did not acknowledge its subscription");
-  const done = (async () => {
-    try {
-      for await (const record of records) {
-        if (record.kind === "watching") continue;
-        if (record.event !== "shell-approval:pending-changed") continue;
-        const payload = record.payload as { pending?: PendingApproval[] } | null;
-        onPending(payload?.pending ?? []);
-      }
-    } catch (error) {
-      if (signal.aborted) return;
-      throw error;
+  return { done: consumeApprovalRecords(records, onPending, signal) };
+}
+
+export async function consumeApprovalRecords(
+  records: AsyncIterable<EventWatchRecord>,
+  onPending: (pending: readonly PendingApproval[]) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  try {
+    for await (const record of records) {
+      if (record.kind === "watching") continue;
+      if (record.event !== "shell-approval:pending-changed") continue;
+      const payload = record.payload as { pending?: PendingApproval[] } | null;
+      onPending(payload?.pending ?? []);
     }
-    if (!signal.aborted) throw new Error("The approval queue watch closed while the session was running");
-  })();
-  return { done };
+  } catch (error) {
+    if (signal.aborted && error === signal.reason) return;
+    throw error;
+  }
+  if (!signal.aborted) throw new Error("The approval queue watch closed while the session was running");
+}
+
+/** Inspect finite history through ordinary selected-message navigation.
+ * Reaching the oldest loaded row requests preceding history while preserving
+ * the selection anchor; the next Up moves into that prepended history. */
+export async function revealTerminalHistory(
+  terminal: TerminalScreen,
+  write: (keys: string) => Promise<void>,
+  matches: (text: string) => boolean,
+  description: string,
+  signal: AbortSignal,
+): Promise<string> {
+  await terminal.waitFor((text) => !text.includes("Loading the conversation…"), { signal, description: "the initial conversation replay" });
+  if (terminal.screen().includes("New conversation")) throw new Error(`${description} is absent: the session opened an empty conversation`);
+  if (matches(terminal.screen())) return terminal.screen();
+  const action = async (keys: string, condition: ScreenCondition, description: string) => {
+    const afterRevision = terminal.revision;
+    await write(keys);
+    return terminal.waitFor(condition, { afterRevision, signal, description, failOn: /Older messages didn't load:/u });
+  };
+  let shown = await action("\x1b[1;5A", /↑↓ move · y copy · Esc back/u, "selecting the transcript");
+  while (!matches(shown)) {
+    if (shown.includes("↑ start of conversation"))
+      throw new Error(`${description} is absent from the completed conversation history`);
+    shown = await action("\x1b[A", (text) => !text.includes("loading older messages"), "selecting the preceding message and settling its history page");
+  }
+  const found = shown;
+  await action("i", (text) => !text.includes("↑↓ move · y copy · Esc back"), "returning to the composer");
+  return found;
 }
 
 async function appContextOf(principalId: string): Promise<string> {
@@ -210,7 +247,7 @@ async function orchestrateTerminalChat(
   try {
     watch = await watchPendingApprovals(
       (pending) => guard.observe(pending),
-      watchController.signal,
+      AbortSignal.any([context.signal, watchController.signal]),
     );
     void watch.done.catch(abortScenario);
 
@@ -306,21 +343,17 @@ async function orchestrateTerminalChat(
     await submit("/forks", /^› \/forks\s*$/mu, "/forks");
     await waitFor(/^Forks$/mu, "the fork tree picker", /Couldn't load the fork tree/u);
     await shell.write(session.shellSessionId, "\r");
-    const parent = await waitFor(
-      (text) => text.includes(evidence.evalSummary!) && !text.includes(forkReplyNonce) && ONLINE.test(text) && IDLE.test(text),
-      "the parent conversation's eval result after switching back",
+    await waitFor(
+      (text) => !text.includes(forkReplyNonce) && ONLINE.test(text) && IDLE.test(text) && !/^Forks$/mu.test(text),
+      "the parent conversation after switching back",
       /Could not switch conversations/u,
     );
-    // A session initially replays 50 envelopes. Tool events can put the
-    // original question on the previous page; use the normal history control.
-    if (!parent.includes(nonce)) await shell.write(session.shellSessionId, "\x1b[5~");
-    evidence.switchedBackScreen = retainScreen(
-      await waitFor(
-        (text) => text.includes(nonce) && !text.includes(forkReplyNonce) && IDLE.test(text),
-        "the original conversation after switching back from the fork",
-        /Could not switch conversations/u,
-      ),
-    );
+    evidence.switchedBackSummaryScreen = retainScreen(await revealTerminalHistory(
+      screen(), (keys) => shell.write(session!.shellSessionId!, keys), (text) => text.includes(evidence.evalSummary!), "The parent's completed eval result", signal,
+    ));
+    evidence.switchedBackScreen = retainScreen(await revealTerminalHistory(
+      screen(), (keys) => shell.write(session!.shellSessionId!, keys), (text) => text.includes(nonce), "The original question", signal,
+    ));
 
     enter("kill");
     const firstShellSessionId = session.shellSessionId;
@@ -354,16 +387,12 @@ async function orchestrateTerminalChat(
     attached = await attachTerminalScreen(shell, resumed.shellSessionId, SCREEN_SIZE);
     await waitFor(ONLINE, "the relaunched chat's status line to show it online");
     const summary = evidence.evalSummary;
-    const replayed = await waitFor(
-      (text) => !!summary && text.includes(summary),
-      "the relaunched chat replaying the completed eval result",
-    );
-    if (!replayed.includes(nonce)) await shell.write(resumed.shellSessionId, "\x1b[5~");
-    const restored = await waitFor(
-      (text) => text.includes(nonce) && (!summary || text.includes(summary)),
-      "the relaunched chat restoring the earlier transcript (question and eval result)",
-    );
-    evidence.restoredScreen = retainScreen(restored);
+    evidence.restoredSummaryScreen = retainScreen(await revealTerminalHistory(
+      screen(), (keys) => shell.write(resumed.shellSessionId!, keys), (text) => !!summary && text.includes(summary), "The restored completed eval result", signal,
+    ));
+    evidence.restoredScreen = retainScreen(await revealTerminalHistory(
+      screen(), (keys) => shell.write(resumed.shellSessionId!, keys), (text) => text.includes(nonce), "The restored original question", signal,
+    ));
     enter("done");
   } catch (cause) {
     const failure = signal.aborted && signal.reason !== cause ? signal.reason : cause;
@@ -446,7 +475,9 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     return { passed: false, reason: "The fork's agent never answered inside the fork", details };
   if (
     !evidence.switchedBackScreen?.includes(evidence.nonce) ||
-    evidence.switchedBackScreen.includes(evidence.forkReplyNonce)
+    evidence.switchedBackScreen.includes(evidence.forkReplyNonce) ||
+    !evidence.switchedBackSummaryScreen?.includes(evidence.evalSummary) ||
+    evidence.switchedBackSummaryScreen.includes(evidence.forkReplyNonce)
   )
     return {
       passed: false,
@@ -468,7 +499,7 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     };
   if (
     !evidence.restoredScreen?.includes(evidence.nonce) ||
-    !evidence.restoredScreen.includes(evidence.evalSummary)
+    !evidence.restoredSummaryScreen?.includes(evidence.evalSummary)
   )
     return {
       passed: false,

@@ -9,6 +9,7 @@ import {
   TERMINAL_CHAT_TEST,
   terminalChatTests,
   validateTerminalChat,
+  consumeApprovalRecords,
   type TerminalChatEvidence,
 } from "./terminal-chat.js";
 
@@ -151,9 +152,11 @@ function passingEvidence(): TerminalChatEvidence {
     forkReplyNonce: "fork-abcd1234",
     forkReplyScreen: "you  Reply with exactly fork-abcd1234 and nothing else.\nagent  fork-abcd1234\n◇ idle",
     switchedBackScreen: "Quick check tc-1234abcd ...\n◇ idle",
+    switchedBackSummaryScreen: "▸ Eval ... Complete\n  → 7\n◇ idle",
     exit: { code: null, signal: "SIGHUP" },
     resume: { ...entry, principalId: "panel:nav-term-2", shellSessionId: "pty-2" },
     restoredScreen: "Quick check tc-1234abcd ...\n▸ Eval ... Complete\n  → 7",
+    restoredSummaryScreen: "▸ Eval ... Complete\n  → 7",
     closed: true,
   };
 }
@@ -163,6 +166,10 @@ function execution(evidence: TerminalChatEvidence, extra: Partial<TestExecutionR
 }
 
 describe("terminal chat validator", () => {
+  it("retains the question and eval result even when they occupy separate viewports", () => {
+    expect(validateTerminalChat(execution({ ...passingEvidence(), restoredScreen: "Quick check tc-1234abcd" })).passed).toBe(true);
+    expect(validateTerminalChat(execution({ ...passingEvidence(), restoredSummaryScreen: "● online" })).passed).toBe(false);
+  });
   it("passes the complete lifecycle", () => {
     expect(validateTerminalChat(execution(passingEvidence()))).toMatchObject({ passed: true });
   });
@@ -221,6 +228,41 @@ describe("terminal chat validator", () => {
         execution(passingEvidence(), { cleanupErrors: ["close terminal session: ENOENT"] }),
       ).reason,
     ).toBe("The terminal session was not cleaned up: close terminal session: ENOENT");
+  });
+});
+
+describe("approval watch lifecycle", () => {
+  it("joins harness cancellation through the watch's owned signal", async () => {
+    const harness = new AbortController();
+    const local = new AbortController();
+    const signal = AbortSignal.any([harness.signal, local.signal]);
+    const done = consumeApprovalRecords((async function* () {
+      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+      throw signal.reason;
+    })(), () => {}, signal);
+    harness.abort(new Error("Run cancelled"));
+    await expect(done).resolves.toBeUndefined();
+    expect(local.signal.aborted).toBe(false);
+  });
+
+  it("retains unrelated failures even when cancellation happens concurrently", async () => {
+    const owner = new AbortController();
+    const failure = new Error("Watch transport disconnected");
+    const done = consumeApprovalRecords((async function* () {
+      owner.abort(new Error("Scenario finished"));
+      throw failure;
+    })(), () => {}, owner.signal);
+    await expect(done).rejects.toBe(failure);
+  });
+
+  it("does not mistake an unrelated AbortError for owned cancellation", async () => {
+    const owner = new AbortController();
+    const failure = new DOMException("An independent request aborted", "AbortError");
+    const done = consumeApprovalRecords((async function* () {
+      owner.abort(new Error("Scenario finished"));
+      throw failure;
+    })(), () => {}, owner.signal);
+    await expect(done).rejects.toBe(failure);
   });
 });
 

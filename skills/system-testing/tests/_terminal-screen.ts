@@ -40,6 +40,8 @@ export interface ScreenWaitOptions {
   /** Fail as soon as the screen shows this instead (an error notice, for example). */
   failOn?: RegExp;
   signal?: AbortSignal;
+  /** Require output committed after the action's captured screen revision. */
+  afterRevision?: number;
 }
 
 /** The screen could no longer reach the awaited condition. */
@@ -87,6 +89,7 @@ export class TerminalScreen {
   readonly #waiters = new Set<Waiter>();
   #end: TerminalStreamEnd | null = null;
   #attachId: string | null = null;
+  #revision = 0;
 
   constructor(size: TerminalSize) {
     this.#term = new VtScreen({
@@ -94,6 +97,7 @@ export class TerminalScreen {
       rows: size.rows,
       // Programs written for a TTY rely on the line discipline's ONLCR.
       convertEol: true,
+      onFrame: () => { this.#revision++; this.#notify(); },
     });
   }
 
@@ -106,6 +110,8 @@ export class TerminalScreen {
   get ended(): TerminalStreamEnd | null {
     return this.#end;
   }
+
+  get revision(): number { return this.#revision; }
 
   /** The visible rows, right-trimmed, without trailing blank rows. */
   screen(): string {
@@ -145,10 +151,14 @@ export class TerminalScreen {
             );
             break;
           }
-          case "data":
+          case "data": {
+            const revision = this.#revision;
+            const previous = this.screen();
             await this.#write(event.bytes);
+            if (!this.#term.synchronized && revision === this.#revision && previous !== this.screen()) this.#revision++;
             acknowledger?.consumed(event.bytes.byteLength);
             break;
+          }
           case "reset":
             this.#term.reset();
             break;
@@ -193,6 +203,7 @@ export class TerminalScreen {
       };
       const waiter: Waiter = {
         check: () => {
+          if (this.#term.synchronized || (options.afterRevision !== undefined && this.#revision <= options.afterRevision)) return;
           const screen = this.screen();
           if (options.failOn?.test(screen)) {
             settle();

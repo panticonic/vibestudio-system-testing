@@ -7,6 +7,18 @@ function screen(cols = 20, rows = 5) {
 const text = (s: VtScreen) => s.lines().join("\n").replace(/\n+$/u, "");
 
 describe("VtScreen", () => {
+  it("presents synchronized output only on DEC 2026 frame completion across chunks", () => {
+    let frames = 0;
+    const s = new VtScreen({ cols: 20, rows: 2, onFrame: () => frames++ });
+    s.write("old");
+    s.write("\x1b[?202");
+    s.write("6h\rnew");
+    expect(text(s)).toBe("old");
+    expect(frames).toBe(0);
+    s.write("\x1b[?2026l");
+    expect(text(s)).toBe("new");
+    expect(frames).toBe(1);
+  });
   it("writes text, wraps at the right edge and scrolls at the bottom", () => {
     const s = screen(5, 2);
     s.write("abcdefgh\nij");

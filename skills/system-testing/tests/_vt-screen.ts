@@ -16,6 +16,8 @@ export interface VtScreenOptions {
   rows: number;
   /** Treat LF as CR LF (the line discipline's ONLCR). */
   convertEol?: boolean;
+  /** DEC synchronized-output frame completion, independent of transport chunks. */
+  onFrame?: () => void;
 }
 
 interface Buffer {
@@ -64,11 +66,15 @@ export class VtScreen {
   #csi = "";
   #oscEscape = false;
   readonly #decoder = new TextDecoder("utf-8");
+  readonly #onFrame?: () => void;
+  #synchronized = false;
+  #presented: string[] | null = null;
 
   constructor(options: VtScreenOptions) {
     this.#cols = options.cols;
     this.#rows = options.rows;
     this.#convertEol = options.convertEol ?? false;
+    this.#onFrame = options.onFrame;
     this.#bottom = this.#rows - 1;
     this.#main = this.#blank();
     this.#alt = this.#blank();
@@ -81,8 +87,11 @@ export class VtScreen {
 
   /** The visible rows, right-trimmed. */
   lines(): string[] {
+    if (this.#presented) return [...this.#presented];
     return this.#buffer.cells.map((row) => row.join("").replace(/\s+$/u, ""));
   }
+
+  get synchronized(): boolean { return this.#synchronized; }
 
   reset(): void {
     this.#main = this.#blank();
@@ -93,6 +102,8 @@ export class VtScreen {
     this.#top = 0;
     this.#bottom = this.#rows - 1;
     this.#state = "ground";
+    this.#synchronized = false;
+    this.#presented = null;
   }
 
   write(data: Uint8Array | string): void {
@@ -288,6 +299,16 @@ export class VtScreen {
     this.#wrapPending = false;
     if (marker === "?" && (final === "h" || final === "l")) {
       for (const mode of numbers) {
+        if (mode === 2026) {
+          if (final === "h") {
+            if (!this.#synchronized) this.#presented = this.lines();
+            this.#synchronized = true;
+          } else {
+            this.#synchronized = false;
+            this.#presented = null;
+            this.#onFrame?.();
+          }
+        }
         if (mode === 1049 || mode === 1047 || mode === 47) {
           const enter = final === "h";
           if (enter) {

@@ -10,6 +10,7 @@ import {
   attachTerminalScreen,
   type PtyAttachClient,
 } from "./_terminal-screen.js";
+import { revealTerminalHistory } from "./terminal-chat.js";
 
 const encoder = new TextEncoder();
 const SIZE = { cols: 40, rows: 6 };
@@ -71,6 +72,66 @@ function fakeClient(stream: ReturnType<typeof framedStream>) {
 }
 
 describe("terminal screen over the pty attach stream", () => {
+  it("does not match mixed frames and acknowledges only committed action output", async () => {
+    const stream = framedStream();
+    const { client } = fakeClient(stream);
+    const attached = await attachTerminalScreen(client, "pty-1", SIZE);
+    stream.push(hello);
+    stream.text("old\r\nready");
+    await attached.screen.waitFor(/ready/u);
+    const afterRevision = attached.screen.revision;
+    const next = attached.screen.waitFor(/ready/u, { afterRevision });
+    let settled = false;
+    void next.then(() => { settled = true; });
+    stream.text("\x1b[?2026h\x1b[Hnew");
+    await Promise.resolve();
+    expect(attached.screen.screen()).toContain("old");
+    expect(settled).toBe(false);
+    stream.text("\x1b[?2026l");
+    await expect(next).resolves.toContain("new");
+    await attached.detach();
+  });
+
+  it("traverses settled history pages without assuming a loading frame or moving the old anchor", async () => {
+    const stream = framedStream();
+    const { client } = fakeClient(stream);
+    const attached = await attachTerminalScreen(client, "pty-1", { cols: 160, rows: 8 });
+    const frame = (text: string) => stream.text(`\x1b[?2026h\x1b[2J\x1b[H${text}\x1b[?2026l`);
+    stream.push(hello);
+    frame("↑ older messages\r\nlatest result\r\ncomposer");
+    await attached.screen.waitFor(/composer/u);
+    const actions: string[] = [];
+    const screens = [
+      "↑ older messages\r\nlatest result\r\n↑↓ move · y copy · Esc back",
+      "↑ older messages\r\n▌ old first\r\n↑↓ move · y copy · Esc back",
+      "▌ earlier first\r\n↑↓ move · y copy · Esc back",
+      "▌ original tc-1234abcd\r\n↑↓ move · y copy · Esc back",
+      "latest result\r\ncomposer",
+    ];
+    const found = await revealTerminalHistory(attached.screen, async (keys) => {
+      actions.push(keys);
+      frame(screens.shift()!);
+    }, (text) => text.includes("tc-1234abcd"), "The original question", new AbortController().signal);
+    expect(found).toContain("original tc-1234abcd");
+    expect(actions).toEqual(["\x1b[1;5A", "\x1b[A", "\x1b[A", "\x1b[A", "i"]);
+    await attached.detach();
+  });
+
+  it("fails at the actual conversation start without sending a no-op navigation key", async () => {
+    const stream = framedStream();
+    const { client } = fakeClient(stream);
+    const attached = await attachTerminalScreen(client, "pty-1", { cols: 160, rows: 8 });
+    stream.push(hello);
+    stream.text("composer");
+    await attached.screen.waitFor(/composer/u);
+    const keys: string[] = [];
+    await expect(revealTerminalHistory(attached.screen, async (key) => {
+      keys.push(key);
+      stream.text("\x1b[?2026h\x1b[2J\x1b[H↑ start of conversation\r\n▌ only message\r\n↑↓ move · y copy · Esc back\x1b[?2026l");
+    }, (text) => text.includes("missing"), "The question", new AbortController().signal)).rejects.toThrow("absent from the completed conversation history");
+    expect(keys).toEqual(["\x1b[1;5A"]);
+    await attached.detach();
+  });
   it("renders output and resolves a wait when a later event shows the text", async () => {
     const stream = framedStream();
     const { client, attach } = fakeClient(stream);
