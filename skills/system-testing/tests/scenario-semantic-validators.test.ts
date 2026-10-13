@@ -2148,6 +2148,7 @@ describe("scenario prompts", () => {
       } as never,
       signal: new AbortController().signal,
       remainingTimeMs: () => 10_000,
+      diagnostics: {},
       sendAndWait: async () => {
         throw new Error("Agent turn must not be used");
       },

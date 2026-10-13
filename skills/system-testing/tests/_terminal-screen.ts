@@ -1,4 +1,4 @@
-import { Terminal } from "@xterm/headless";
+import { VtScreen } from "./_vt-screen.js";
 import {
   PtyStreamAcknowledger,
   readPtyStream,
@@ -9,7 +9,7 @@ import {
 /**
  * A headless terminal screen fed by one shell-extension attach stream.
  *
- * Output bytes go into an `@xterm/headless` emulator in stream order; each
+ * Output bytes go into an VT screen model (`_vt-screen.ts`) in stream order; each
  * data frame is acknowledged (through the shell extension's byte-counted flow
  * control) only after the emulator consumed it. Waiting is driven by the
  * stream itself: a condition is re-evaluated after every consumed event and a
@@ -83,17 +83,15 @@ export function describeStreamEnd(end: TerminalStreamEnd): string {
 }
 
 export class TerminalScreen {
-  readonly #term: Terminal;
+  readonly #term: VtScreen;
   readonly #waiters = new Set<Waiter>();
   #end: TerminalStreamEnd | null = null;
   #attachId: string | null = null;
 
   constructor(size: TerminalSize) {
-    this.#term = new Terminal({
+    this.#term = new VtScreen({
       cols: size.cols,
       rows: size.rows,
-      allowProposedApi: true,
-      scrollback: 1000,
       // Programs written for a TTY rely on the line discipline's ONLCR.
       convertEol: true,
     });
@@ -111,11 +109,7 @@ export class TerminalScreen {
 
   /** The visible rows, right-trimmed, without trailing blank rows. */
   screen(): string {
-    const buffer = this.#term.buffer.active;
-    const lines: string[] = [];
-    for (let row = 0; row < this.#term.rows; row++) {
-      lines.push(buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "");
-    }
+    const lines = this.#term.lines();
     while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
     return lines.join("\n");
   }
@@ -280,11 +274,11 @@ export class TerminalScreen {
 
   dispose(): void {
     this.#finish({ kind: "detached" });
-    this.#term.dispose();
   }
 
   #write(data: string | Uint8Array): Promise<void> {
-    return new Promise((resolve) => this.#term.write(data, resolve));
+    this.#term.write(data);
+    return Promise.resolve();
   }
 
   #notify(): void {

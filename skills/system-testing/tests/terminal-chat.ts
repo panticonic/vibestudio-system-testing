@@ -56,7 +56,10 @@ export const TERMINAL_CHAT_APPROVAL_RULES: readonly TerminalApprovalRule[] = [
     ruleId: "launch-terminal-chat",
     actor: "launcher",
     capability: "terminal-apps.run",
-    resourceValue: `terminal-app:${TERMINAL_CHAT_SOURCE}`,
+    // A code caller's run request is the generic gated one, resolved to the
+    // capability itself; the terminal app is named by the launch the harness
+    // makes, not by the approval.
+    resourceValue: "terminal-apps.run",
     decision: "once",
   },
   {
@@ -188,6 +191,8 @@ async function orchestrateTerminalChat(
     duration: 0,
     diagnostics: { terminalChat: evidence },
   };
+  // Reported even if the scenario never returns (a deadline or cancellation).
+  context.diagnostics["terminalChat"] = evidence;
   // One cancellation boundary for the whole scenario: the harness deadline or
   // cancellation, an unexpected approval, or a lost approval watch ends every
   // wait with that cause.
@@ -239,9 +244,12 @@ async function orchestrateTerminalChat(
     void watch.done.catch(abortScenario);
 
     enter("launch");
-    session = await rpc.call("main", mainRpcMethods["terminalApps.launch"], [
-      { source: TERMINAL_CHAT_SOURCE, ...SCREEN_SIZE },
-    ]);
+    session = await rpc.call(
+      "main",
+      mainRpcMethods["terminalApps.launch"],
+      [{ source: TERMINAL_CHAT_SOURCE, ...SCREEN_SIZE }],
+      { signal },
+    );
     evidence.launch = session;
     if (!session.running || !session.shellSessionId || !session.principalId)
       throw new Error(

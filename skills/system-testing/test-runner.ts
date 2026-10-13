@@ -306,6 +306,7 @@ export class TestRunner {
     const submittedInputs: NonNullable<TestExecutionResult["submittedInputs"]> =
       [];
     const orchestrationController = new AbortController();
+    const orchestrationDiagnostics: Record<string, unknown> = {};
     this.activeWaits.add(orchestrationController);
     if (this.cancellationError)
       orchestrationController.abort(this.cancellationError);
@@ -463,6 +464,7 @@ export class TestRunner {
               runner: testRunner,
               signal: orchestrationController.signal,
               remainingTimeMs,
+              diagnostics: orchestrationDiagnostics,
               sendAndWait: async (targetSession, prompt, phase) => {
                 const completed = await sendAndCapture(
                   targetSession,
@@ -631,6 +633,9 @@ export class TestRunner {
         error: errorMessage,
         failure,
         snapshot,
+        ...(Object.keys(orchestrationDiagnostics).length > 0
+          ? { diagnostics: { ...orchestrationDiagnostics } }
+          : {}),
         ...(modelExecutionEvidence !== undefined
           ? { modelExecutionEvidence }
           : {}),

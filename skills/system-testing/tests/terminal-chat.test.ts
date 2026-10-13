@@ -145,13 +145,13 @@ describe("terminal session approvals", () => {
         approvalId: "launch-chat",
         capability: "terminal-apps.run",
         callerId: scope.launcherId,
-        resource: { type: "terminal-app", label: "Chat", value: "terminal-app:terminal-apps/chat" },
+        resource: { type: "terminalApps.launch", label: "Target", value: "terminal-apps.run" },
       }),
       capabilityApproval({
         approvalId: "launch-shell",
-        capability: "terminal-apps.run",
+        capability: "native.shell.execute",
         callerId: scope.launcherId,
-        resource: { type: "terminal-app", label: "Shell", value: "terminal-app:shell" },
+        resource: { type: "extension", label: "Shell", value: "native.shell:extension:shell" },
       }),
     ]);
     await responder.settled();
