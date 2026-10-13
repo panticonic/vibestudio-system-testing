@@ -56,6 +56,11 @@ prompts or keep them as constants in prose.
   extension invocation, scaffolding, fork/lifecycle work, and real unit launch.
 - `approvals-permissions`, `credentials`, `oauth`, `webhooks`: authority and
   external-integration lifecycles, using synthetic or revoked fixtures.
+- `terminal-apps`: a terminal app driven through its PTY the way a terminal
+  client does: launched by the terminal launch service, read through the shell
+  extension's framed attach stream into a headless terminal, its agents'
+  approvals answered from the person's approval queue, then killed and
+  resumed from the session's kept state.
 - `workspace`, `multi-user`, `notifications`: workspace state, identity,
   participants, presence, and notifications.
 - `messaging`: addressing another participant, listing who is addressable, and

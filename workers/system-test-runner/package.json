@@ -105,6 +105,24 @@
           "packages": [
             "@workspace-skills/system-testing"
           ]
+        },
+        {
+          "capability": "approvals.decide",
+          "resource": {
+            "kind": "exact",
+            "key": "approvals.decide"
+          },
+          "tier": "gated",
+          "evidence": "exact"
+        },
+        {
+          "capability": "terminal-apps.run",
+          "resource": {
+            "kind": "exact",
+            "key": "terminal-app:terminal-apps/chat"
+          },
+          "tier": "gated",
+          "evidence": "exact"
         }
       ]
     }
