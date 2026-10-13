@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
-import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-utils";
 import type { RpcCaller, RpcCallOptions } from "@vibestudio/rpc";
 import { HeadlessSession } from "./headless-session.js";
 import type { ChatMessage, ConnectionConfig } from "@workspace/agentic-core";
@@ -12,6 +11,10 @@ import {
 } from "@workspace/agentic-protocol";
 import type { MethodDefinition } from "@workspace/pubsub";
 import { systemTestFailure } from "../../../skills/system-testing/structured-error.js";
+import {
+  MODEL_SETTINGS_TARGET,
+  workspaceAgentConfigRpcFixture,
+} from "./agent-launch-rpc.test-fixture.js";
 
 function publicRpcCall(
   wire: (target: string, method: string, args: unknown[], options?: RpcCallOptions) => Promise<unknown>,
@@ -25,31 +28,6 @@ function rpcMethodName(method: unknown): string {
     return method.name;
   }
   return String(method);
-}
-
-const MODEL_SETTINGS_TARGET = "do:workers/model-settings:ModelSettingsDO:workspace";
-
-function modelSettingsRpcResponse(
-  target: string,
-  method: unknown,
-  args: unknown[],
-): unknown | undefined {
-  const name = rpcMethodName(method);
-  if (target === "main" && name === "workers.resolveService") {
-    expect(args).toEqual(["vibestudio.models.v1", null]);
-    return durableObjectServiceFixture(MODEL_SETTINGS_TARGET, {
-      source: "workers/model-settings",
-      name: "model settings",
-      protocols: ["vibestudio.models.v1"],
-      className: "ModelSettingsDO",
-      objectKey: "workspace",
-    });
-  }
-  if (target === MODEL_SETTINGS_TARGET && name === "getSettings") {
-    expect(args).toEqual([]);
-    return { defaultAgentConfig: {} };
-  }
-  return undefined;
 }
 
 function runtimeEntityHandle(
@@ -886,8 +864,8 @@ describe("HeadlessSession", () => {
       });
     const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
       order.push(`rpc:${target}:${rpcMethodName(method)}`);
-      const settingsResponse = modelSettingsRpcResponse(target, method, args);
-      if (settingsResponse !== undefined) return settingsResponse;
+      const settings = workspaceAgentConfigRpcFixture(target, method, args);
+      if (settings.handled) return settings.value;
       if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
         const spec = args[0] as {
           execution?: { source?: string };
@@ -965,8 +943,8 @@ describe("HeadlessSession", () => {
         };
       });
     const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
-      const settingsResponse = modelSettingsRpcResponse(target, method, args);
-      if (settingsResponse !== undefined) return settingsResponse;
+      const settings = workspaceAgentConfigRpcFixture(target, method, args);
+      if (settings.handled) return settings.value;
       if (target === "main" && rpcMethodName(method) === "runtime.createEntity") {
         return runtimeEntityHandle(
           "workers/agent-worker", "entity-1", "agent-target", "ctx-1",
@@ -1090,8 +1068,8 @@ describe("HeadlessSession", () => {
       });
     const rpcCall = vi.fn(async (target: string, method: string, args: unknown[]) => {
       order.push(`rpc:${target}:${rpcMethodName(method)}`);
-      const settingsResponse = modelSettingsRpcResponse(target, method, args);
-      if (settingsResponse !== undefined) return settingsResponse;
+      const settings = workspaceAgentConfigRpcFixture(target, method, args);
+      if (settings.handled) return settings.value;
       if (target === "main" && rpcMethodName(method) === "runtime.createContext") {
         return { contextId: "ctx-isolated" };
       }
