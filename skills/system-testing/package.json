@@ -86,7 +86,6 @@
   },
   "devDependencies": {
     "@vibestudio/rpc": "workspace:*",
-    "@workspace/pubsub": "workspace:*",
-    "@workspace-extensions/shell": "workspace:*"
+    "@workspace/pubsub": "workspace:*"
   }
 }
