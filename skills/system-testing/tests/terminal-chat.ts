@@ -4,7 +4,7 @@ import { EventsClient } from "@vibestudio/service-schemas/clients/eventsClient";
 import { readEventWatchRecords } from "@vibestudio/service-schemas/events";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TerminalSessionEntry } from "@vibestudio/shared/terminalSessions";
-import type { Api as ShellApi } from "@workspace-extensions/shell";
+import type { PtyAttachOptions } from "@workspace/pty-stream";
 import {
   appendSystemTestCleanupFailure,
   systemTestFailure,
@@ -110,7 +110,18 @@ function occurrences(text: string, needle: string): number {
   return count;
 }
 
-type ShellPty = Pick<ShellApi, "attach" | "acknowledge" | "write" | "kill">;
+/**
+ * The shell extension calls this scenario makes on a PTY session. Declared
+ * here from the public attach protocol (`@workspace/pty-stream`) rather than
+ * imported from the extension's source, which is not part of this unit's
+ * dependency closure.
+ */
+interface ShellPty {
+  attach(sessionId: string, options?: PtyAttachOptions): Promise<Response>;
+  acknowledge(sessionId: string, attachId: string, bytes: number): Promise<void>;
+  write(sessionId: string, data: string): Promise<void>;
+  kill(sessionId: string, signal?: "SIGINT" | "SIGTERM" | "SIGKILL" | "SIGHUP"): Promise<void>;
+}
 
 /**
  * Follow the person's approval queue. Each change delivers the whole pending
