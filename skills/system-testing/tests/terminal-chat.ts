@@ -5,10 +5,7 @@ import { readEventWatchRecords, type EventWatchRecord } from "@vibestudio/servic
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TerminalSessionEntry } from "@vibestudio/shared/terminalSessions";
 import type { PtyAttachOptions } from "@workspace/pty-stream";
-import {
-  appendSystemTestCleanupFailure,
-  systemTestFailure,
-} from "../structured-error.js";
+import { appendSystemTestCleanupFailure, systemTestFailure } from "../structured-error.js";
 import {
   requiringUnits,
   type TestCase,
@@ -68,9 +65,18 @@ export interface TerminalChatEvidence {
   firstInvocationTitle?: string;
   afterTurnScreen?: string;
   forked: boolean;
-  forkReplyNonce?: string;
+  parentDraft?: string;
+  forkDraft?: string;
   forkComposeScreen?: string;
-  forkReplyScreen?: string;
+  parentDraftScreen?: string;
+  restoredDraftScreen?: string;
+  restoredForkDraftScreen?: string;
+  exportPath?: string;
+  exportScreen?: string;
+  attachmentScreen?: string;
+  attachmentRemovedScreen?: string;
+  searchScreen?: string;
+  searchDetailScreen?: string;
   switchedBackScreen?: string;
   switchedBackSummaryScreen?: string;
   exit?: { code: number | null; signal?: string };
@@ -95,6 +101,16 @@ function occurrences(text: string, needle: string): number {
   return count;
 }
 
+/** A portable path advertised only after the ordinary export has completed. */
+export function exportedWorkspacePath(screen: string): string | undefined {
+  if (!screen.includes("Exported") || !screen.includes("Download file action")) return undefined;
+  return /(?:^|\s)(chat-exports\/[^\s]+\.(?:md|json)) —/u.exec(screen)?.[1];
+}
+
+export function hasComposerDraft(screen: string, draft: string): boolean {
+  return screen.split("\n").some((line) => line.trimEnd() === `› ${draft}`);
+}
+
 /**
  * The shell extension calls this scenario makes on a PTY session. Declared
  * here from the public attach protocol (`@workspace/pty-stream`) rather than
@@ -115,13 +131,13 @@ interface ShellPty {
  */
 async function watchPendingApprovals(
   onPending: (pending: readonly PendingApproval[]) => void,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<{ done: Promise<void> }> {
   const response = await EventsClient.openWatch(
     rpc,
     ["shell-approval:pending-changed"],
     `system-test-${TERMINAL_CHAT_TEST}-${crypto.randomUUID()}`,
-    { signal, bodyIdleTimeoutMs: null },
+    { signal, bodyIdleTimeoutMs: null }
   );
   const records = readEventWatchRecords(response);
   const first = await records.next();
@@ -133,7 +149,7 @@ async function watchPendingApprovals(
 export async function consumeApprovalRecords(
   records: AsyncIterable<EventWatchRecord>,
   onPending: (pending: readonly PendingApproval[]) => void,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<void> {
   try {
     for await (const record of records) {
@@ -146,7 +162,8 @@ export async function consumeApprovalRecords(
     if (signal.aborted && error === signal.reason) return;
     throw error;
   }
-  if (!signal.aborted) throw new Error("The approval queue watch closed while the session was running");
+  if (!signal.aborted)
+    throw new Error("The approval queue watch closed while the session was running");
 }
 
 /** Inspect finite history through ordinary selected-message navigation.
@@ -157,24 +174,41 @@ export async function revealTerminalHistory(
   write: (keys: string) => Promise<void>,
   matches: (text: string) => boolean,
   description: string,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<string> {
-  await terminal.waitFor((text) => !text.includes("Loading the conversation…"), { signal, description: "the initial conversation replay" });
-  if (terminal.screen().includes("New conversation")) throw new Error(`${description} is absent: the session opened an empty conversation`);
+  await terminal.waitFor((text) => !text.includes("Loading the conversation…"), {
+    signal,
+    description: "the initial conversation replay",
+  });
+  if (terminal.screen().includes("New conversation"))
+    throw new Error(`${description} is absent: the session opened an empty conversation`);
   if (matches(terminal.screen())) return terminal.screen();
   const action = async (keys: string, condition: ScreenCondition, description: string) => {
     const afterRevision = terminal.revision;
     await write(keys);
-    return terminal.waitFor(condition, { afterRevision, signal, description, failOn: /Older messages didn't load:/u });
+    return terminal.waitFor(condition, {
+      afterRevision,
+      signal,
+      description,
+      failOn: /Older messages didn't load:/u,
+    });
   };
   let shown = await action("\x1b[1;5A", /↑↓ move · y copy · Esc back/u, "selecting the transcript");
   while (!matches(shown)) {
     if (shown.includes("↑ start of conversation"))
       throw new Error(`${description} is absent from the completed conversation history`);
-    shown = await action("\x1b[A", (text) => !text.includes("loading older messages"), "selecting the preceding message and settling its history page");
+    shown = await action(
+      "\x1b[A",
+      (text) => !text.includes("loading older messages"),
+      "selecting the preceding message and settling its history page"
+    );
   }
   const found = shown;
-  await action("i", (text) => !text.includes("↑↓ move · y copy · Esc back"), "returning to the composer");
+  await action(
+    "i",
+    (text) => !text.includes("↑↓ move · y copy · Esc back"),
+    "returning to the composer"
+  );
   return found;
 }
 
@@ -183,13 +217,13 @@ async function appContextOf(principalId: string): Promise<string> {
   const app = entities.find((entity) => entity.id === principalId);
   if (!app?.contextId)
     throw new Error(
-      `The terminal app's principal ${principalId} is not a live runtime entity with a context`,
+      `The terminal app's principal ${principalId} is not a live runtime entity with a context`
     );
   return app.contextId;
 }
 
 async function orchestrateTerminalChat(
-  context: TestOrchestrationContext,
+  context: TestOrchestrationContext
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const nonce = `tc-${crypto.randomUUID().slice(0, 8)}`;
@@ -223,7 +257,7 @@ async function orchestrateTerminalChat(
   const shell: ShellPty = extensions.use(SHELL_EXTENSION);
   const guard = new TerminalApprovalGuard(
     { launcherId: rpc.selfId, appPrincipalId: null, appContextId: null },
-    abortScenario,
+    abortScenario
   );
   const watchController = new AbortController();
   let watch: { done: Promise<void> } | null = null;
@@ -248,11 +282,51 @@ async function orchestrateTerminalChat(
     await waitFor(shown, `${description} (typed into the composer)`);
     await shell.write(shellSessionId, "\r");
   };
+  const write = (keys: string) => shell.write(session!.shellSessionId!, keys);
+  const action = async (
+    keys: string,
+    shown: ScreenCondition,
+    description: string,
+    failOn?: RegExp
+  ) => {
+    const afterRevision = screen().revision;
+    await write(keys);
+    return screen().waitFor(shown, {
+      afterRevision,
+      description,
+      signal,
+      ...(failOn ? { failOn } : {}),
+    });
+  };
+  // Palette actions do not replace an unsent composer draft with a command.
+  const command = async (name: string) => {
+    await action("\x0b", /^Command palette$/mu, "opening the command palette");
+    await action(
+      `\x1b[200~/${name}\x1b[201~`,
+      (text) =>
+        text
+          .split("\n")
+          .some((line) => line.includes(`❯ /${name}`) && !line.includes(`❯ /${name}s`)),
+      `selecting /${name} in the palette`
+    );
+    await write("\r");
+  };
+  const switchConversation = async (fork: boolean, draft: string) => {
+    await command("forks");
+    await waitFor(/^Forks$/mu, "the fork tree picker", /Couldn't load the fork tree/u);
+    if (fork) await action("\x1b[B", /^❯ {3}\S/mu, "selecting the child fork");
+    return action(
+      "\r",
+      (text) => !/^Forks$/mu.test(text) && ONLINE.test(text) && hasComposerDraft(text, draft),
+      `restoring the ${fork ? "fork" : "parent"} draft`,
+      /Could not switch conversations/u
+    );
+  };
 
   try {
     watch = await watchPendingApprovals(
       (pending) => guard.observe(pending),
-      AbortSignal.any([context.signal, watchController.signal]),
+      AbortSignal.any([context.signal, watchController.signal])
     );
     void watch.done.catch(abortScenario);
 
@@ -261,12 +335,12 @@ async function orchestrateTerminalChat(
       "main",
       mainRpcMethods["terminalApps.launch"],
       [{ source: TERMINAL_CHAT_SOURCE, ...SCREEN_SIZE }],
-      { signal },
+      { signal }
     );
     evidence.launch = session;
     if (!session.running || !session.shellSessionId || !session.principalId)
       throw new Error(
-        `terminalApps.launch returned a session that is not running with a PTY and principal: ${JSON.stringify(session)}`,
+        `terminalApps.launch returned a session that is not running with a PTY and principal: ${JSON.stringify(session)}`
       );
     evidence.appContextId = await appContextOf(session.principalId);
     guard.setScope({
@@ -285,12 +359,12 @@ async function orchestrateTerminalChat(
     await submit(
       `/model ${model}`,
       (text) => occurrences(text, model) >= 2,
-      `choosing ${model} from the loaded model catalog`,
+      `choosing ${model} from the loaded model catalog`
     );
     await waitFor(
       /Model set to/u,
       `the chat confirming model ${model}`,
-      /No model called|Models are still loading|isn't ready|Can't choose a model yet/u,
+      /No model called|Models are still loading|isn't ready|Can't choose a model yet/u
     );
 
     enter("approval-ask");
@@ -298,69 +372,159 @@ async function orchestrateTerminalChat(
     await waitFor(
       /Approvals: Ask for everything/u,
       "the chat confirming the ask approval level",
-      /Can't change approvals yet|Couldn't change the approval level/u,
+      /Can't change approvals yet|Couldn't change the approval level/u
     );
 
     enter("agent-eval");
     await submit(
       `Quick check ${nonce}: how many workspace permissions are granted here right now? Count them without changing anything.`,
       (text) => text.includes(nonce),
-      "the question",
+      "the question"
     );
     const afterTurn = await waitFor(
       (text) => EVAL_CARD_SUMMARY.test(text) && IDLE.test(text),
-      "a completed eval tool card with its result summary and the agent idle",
+      "a completed eval tool card with its result summary and the agent idle"
     );
     evidence.afterTurnScreen = retainScreen(afterTurn);
     evidence.evalSummary = EVAL_CARD_SUMMARY.exec(afterTurn)?.[1]?.trim();
     evidence.firstInvocationTitle = completedInvocationTitles(afterTurn)[0];
-    if (!evidence.firstInvocationTitle) throw new Error("The original transcript showed no completed invocation title");
+    if (!evidence.firstInvocationTitle)
+      throw new Error("The original transcript showed no completed invocation title");
 
+    enter("export");
+    await command("export");
+    const exported = await waitFor(
+      (text) => !!exportedWorkspacePath(text),
+      "the completed export's download-ready workspace path",
+      /Couldn't export/u
+    );
+    evidence.exportScreen = retainScreen(exported);
+    evidence.exportPath = exportedWorkspacePath(exported)!;
+
+    enter("attachments");
+    await command("attach");
+    await waitFor(/^Attach a file$/mu, "the workspace attachment prompt");
+    await action(
+      `\x1b[200~${evidence.exportPath}\x1b[201~`,
+      (text) => text.split("\n").some((line) => line.trimEnd() === `│ ${evidence.exportPath}`),
+      "entering the exported workspace file"
+    );
+    await action(
+      "\r",
+      (text) => text.includes("attached:") && !/^Attach a file$/mu.test(text),
+      "staging the exported file",
+      /Couldn't attach/u
+    );
+    await command("attachments");
+    evidence.attachmentScreen = retainScreen(
+      await waitFor(
+        (text) =>
+          /^Pending attachments$/mu.test(text) &&
+          text.includes(evidence.exportPath!.split("/").at(-1)!) &&
+          text.includes("Workspace files are not deleted."),
+        "inspecting the pending attachment"
+      )
+    );
+    await action(
+      "\r",
+      (text) => !/^Pending attachments$/mu.test(text) && !text.includes("attached:"),
+      "removing the attachment reference"
+    );
+    await command("attachments");
+    evidence.attachmentRemovedScreen = retainScreen(
+      await waitFor(/No pending attachments\./u, "the empty attachment tray")
+    );
+    await action(
+      "\x1b",
+      (text) => !/^Pending attachments$/mu.test(text),
+      "closing the attachment tray"
+    );
+
+    enter("search");
+    await command("search");
+    await waitFor(/^Search this conversation$/mu, "the complete-history search prompt");
+    await action(
+      `\x1b[200~${nonce}\x1b[201~`,
+      (text) => text.split("\n").some((line) => line.trimEnd() === `│ ${nonce}`),
+      "entering the original question's search term"
+    );
+    await write("\r");
+    evidence.searchScreen = retainScreen(
+      await waitFor(
+        (text) => text.includes(`Search: ${nonce}`) && text.includes("Quick check"),
+        "finding the original question in complete history",
+        /Couldn't search/u
+      )
+    );
+    await action("\r", /↑↓ move · y copy · Esc back/u, "selecting the search result");
+    evidence.searchDetailScreen = retainScreen(
+      await action(
+        "v",
+        (text) => /^Message details$/mu.test(text) && text.includes(`Quick check ${nonce}`),
+        "opening the complete search result"
+      )
+    );
+    await action(
+      "\x1b",
+      (text) => !/^Message details$/mu.test(text) && text.includes("↑↓ move · y copy · Esc back"),
+      "closing the message detail"
+    );
+    await action(
+      "i",
+      (text) => !text.includes("↑↓ move · y copy · Esc back"),
+      "returning to the composer"
+    );
+
+    enter("parent-draft");
+    evidence.parentDraft = `parent-draft-${nonce}`;
+    evidence.forkDraft = `fork-draft-${nonce}`;
+    await action(
+      `\x1b[200~${evidence.parentDraft}\x1b[201~`,
+      (text) => hasComposerDraft(text, evidence.parentDraft!),
+      "typing the unsent parent draft"
+    );
     enter("fork");
-    await submit("/fork", (text) => /^.*\/fork\s*$/mu.test(text), "/fork");
+    await command("fork");
     await waitFor(
       (text) => FORK_READY.test(text) && ONLINE.test(text),
       "the completed fork navigation and the fork session online",
-      /Couldn't fork the conversation/u,
+      /Couldn't fork the conversation/u
     );
     evidence.forked = true;
 
-    enter("fork-agent-compose");
-    const forkReplyNonce = `fork-${crypto.randomUUID().slice(0, 8)}`;
-    evidence.forkReplyNonce = forkReplyNonce;
-    const forkPrompt = `Reply with exactly ${forkReplyNonce} and nothing else.`;
-    await shell.write(
-      session.shellSessionId,
-      `\x1b[200~${forkPrompt}\x1b[201~`,
+    if (hasComposerDraft(screen().screen(), evidence.parentDraft))
+      throw new Error("The new fork inherited the parent's unsent draft");
+    enter("fork-draft");
+    evidence.forkComposeScreen = retainScreen(
+      await action(
+        `\x1b[200~${evidence.forkDraft}\x1b[201~`,
+        (text) => hasComposerDraft(text, evidence.forkDraft!),
+        "typing the independent unsent fork draft"
+      )
     );
-    evidence.forkComposeScreen = retainScreen(await waitFor(
-      (text) => text.includes(forkReplyNonce),
-      "the fork-only question",
-    ));
-    enter("fork-agent-submit");
-    await shell.write(session.shellSessionId, "\r");
-    enter("fork-agent-reply");
-    const forkReply = await waitFor(
-      (text) => occurrences(text, forkReplyNonce) >= 2 && IDLE.test(text),
-      "the fork's agent reply and idle state",
-    );
-    evidence.forkReplyScreen = retainScreen(forkReply);
 
     enter("switch-to-parent");
-    await submit("/forks", /^› \/forks\s*$/mu, "/forks");
-    await waitFor(/^Forks$/mu, "the fork tree picker", /Couldn't load the fork tree/u);
-    await shell.write(session.shellSessionId, "\r");
-    await waitFor(
-      (text) => !text.includes(forkReplyNonce) && ONLINE.test(text) && IDLE.test(text) && !/^Forks$/mu.test(text),
-      "the parent conversation after switching back",
-      /Could not switch conversations/u,
+    evidence.parentDraftScreen = retainScreen(
+      await switchConversation(false, evidence.parentDraft)
     );
-    evidence.switchedBackSummaryScreen = retainScreen(await revealTerminalHistory(
-      screen(), (keys) => shell.write(session!.shellSessionId!, keys), (text) => text.includes(evidence.evalSummary!), "The parent's completed eval result", signal,
-    ));
-    evidence.switchedBackScreen = retainScreen(await revealTerminalHistory(
-      screen(), (keys) => shell.write(session!.shellSessionId!, keys), (text) => text.includes(nonce), "The original question", signal,
-    ));
+    evidence.switchedBackSummaryScreen = retainScreen(
+      await revealTerminalHistory(
+        screen(),
+        (keys) => shell.write(session!.shellSessionId!, keys),
+        (text) => text.includes(evidence.evalSummary!),
+        "The parent's completed eval result",
+        signal
+      )
+    );
+    evidence.switchedBackScreen = retainScreen(
+      await revealTerminalHistory(
+        screen(),
+        (keys) => shell.write(session!.shellSessionId!, keys),
+        (text) => text.includes(nonce),
+        "The original question",
+        signal
+      )
+    );
 
     enter("kill");
     const firstShellSessionId = session.shellSessionId;
@@ -375,16 +539,16 @@ async function orchestrateTerminalChat(
     const resumed: TerminalSessionEntry = await rpc.call(
       "main",
       mainRpcMethods["terminalApps.resume"],
-      [{ sessionId: session.sessionId, ...SCREEN_SIZE }],
+      [{ sessionId: session.sessionId, ...SCREEN_SIZE }]
     );
     evidence.resume = resumed;
     if (!resumed.running || !resumed.shellSessionId || !resumed.principalId)
       throw new Error(
-        `terminalApps.resume returned a session that is not running with a PTY and principal: ${JSON.stringify(resumed)}`,
+        `terminalApps.resume returned a session that is not running with a PTY and principal: ${JSON.stringify(resumed)}`
       );
     if (resumed.shellSessionId === firstShellSessionId)
       throw new Error(
-        `terminalApps.resume returned the PTY ${firstShellSessionId} whose program already exited (${JSON.stringify(evidence.exit)}): the session registry had not recorded the exit when resume was admitted, so it did not relaunch`,
+        `terminalApps.resume returned the PTY ${firstShellSessionId} whose program already exited (${JSON.stringify(evidence.exit)}): the session registry had not recorded the exit when resume was admitted, so it did not relaunch`
       );
     session = resumed;
     const resumedContextId = await appContextOf(resumed.principalId);
@@ -393,18 +557,44 @@ async function orchestrateTerminalChat(
     enter("restore");
     attached = await attachTerminalScreen(shell, resumed.shellSessionId, SCREEN_SIZE);
     await waitFor(ONLINE, "the relaunched chat's status line to show it online");
+    evidence.restoredDraftScreen = retainScreen(
+      await waitFor(
+        (text) => hasComposerDraft(text, evidence.parentDraft!),
+        "the durable parent draft after process resume"
+      )
+    );
+    evidence.restoredForkDraftScreen = retainScreen(
+      await switchConversation(true, evidence.forkDraft)
+    );
+    await switchConversation(false, evidence.parentDraft);
     const summary = evidence.evalSummary;
-    evidence.restoredSummaryScreen = retainScreen(await revealTerminalHistory(
-      screen(), (keys) => shell.write(resumed.shellSessionId!, keys), (text) => !!summary && text.includes(summary), "The restored completed eval result", signal,
-    ));
-    evidence.restoredScreen = retainScreen(await revealTerminalHistory(
-      screen(), (keys) => shell.write(resumed.shellSessionId!, keys), (text) => text.includes(nonce), "The restored original question", signal,
-    ));
-    evidence.restoredInvocationScreen = retainScreen(await revealTerminalHistory(
-      screen(), (keys) => shell.write(resumed.shellSessionId!, keys),
-      (text) => completedInvocationTitles(text).includes(evidence.firstInvocationTitle!),
-      "The original completed invocation title", signal,
-    ));
+    evidence.restoredSummaryScreen = retainScreen(
+      await revealTerminalHistory(
+        screen(),
+        (keys) => shell.write(resumed.shellSessionId!, keys),
+        (text) => !!summary && text.includes(summary),
+        "The restored completed eval result",
+        signal
+      )
+    );
+    evidence.restoredScreen = retainScreen(
+      await revealTerminalHistory(
+        screen(),
+        (keys) => shell.write(resumed.shellSessionId!, keys),
+        (text) => text.includes(nonce),
+        "The restored original question",
+        signal
+      )
+    );
+    evidence.restoredInvocationScreen = retainScreen(
+      await revealTerminalHistory(
+        screen(),
+        (keys) => shell.write(resumed.shellSessionId!, keys),
+        (text) => completedInvocationTitles(text).includes(evidence.firstInvocationTitle!),
+        "The original completed invocation title",
+        signal
+      )
+    );
     enter("done");
   } catch (cause) {
     const failure = signal.aborted && signal.reason !== cause ? signal.reason : cause;
@@ -483,13 +673,51 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
     };
   if (!evidence.forked)
     return { passed: false, reason: "The chat never confirmed the fork", details };
-  if (!evidence.forkReplyNonce || occurrences(evidence.forkReplyScreen ?? "", evidence.forkReplyNonce) < 2)
-    return { passed: false, reason: "The fork's agent never answered inside the fork", details };
+  if (
+    !evidence.parentDraft ||
+    !evidence.forkDraft ||
+    evidence.parentDraft === evidence.forkDraft ||
+    !hasComposerDraft(evidence.forkComposeScreen ?? "", evidence.forkDraft) ||
+    !hasComposerDraft(evidence.parentDraftScreen ?? "", evidence.parentDraft)
+  )
+    return {
+      passed: false,
+      reason: "The fork and parent did not retain independent unsent drafts",
+      details,
+    };
+  if (
+    !evidence.exportPath ||
+    exportedWorkspacePath(evidence.exportScreen ?? "") !== evidence.exportPath
+  )
+    return {
+      passed: false,
+      reason: "The export did not advertise a download-ready workspace path",
+      details,
+    };
+  if (
+    !evidence.attachmentScreen?.includes(evidence.exportPath.split("/").at(-1)!) ||
+    !evidence.attachmentScreen.includes("Pending attachments") ||
+    !evidence.attachmentRemovedScreen?.includes("No pending attachments.")
+  )
+    return {
+      passed: false,
+      reason: "The exported attachment was not inspected and removed from the draft",
+      details,
+    };
+  if (
+    !evidence.searchScreen?.includes(`Search: ${evidence.nonce}`) ||
+    !evidence.searchDetailScreen?.includes("Message details") ||
+    !evidence.searchDetailScreen.includes(`Quick check ${evidence.nonce}`)
+  )
+    return {
+      passed: false,
+      reason: "Complete-history search did not open the original question's full details",
+      details,
+    };
   if (
     !evidence.switchedBackScreen?.includes(evidence.nonce) ||
-    evidence.switchedBackScreen.includes(evidence.forkReplyNonce) ||
     !evidence.switchedBackSummaryScreen?.includes(evidence.evalSummary) ||
-    evidence.switchedBackSummaryScreen.includes(evidence.forkReplyNonce)
+    hasComposerDraft(evidence.switchedBackScreen, evidence.forkDraft)
   )
     return {
       passed: false,
@@ -510,11 +738,21 @@ export function validateTerminalChat(result: TestExecutionResult): TestResult {
       details,
     };
   if (
+    !hasComposerDraft(evidence.restoredDraftScreen ?? "", evidence.parentDraft) ||
+    !hasComposerDraft(evidence.restoredForkDraftScreen ?? "", evidence.forkDraft)
+  )
+    return {
+      passed: false,
+      reason: "Process resume did not restore both conversations' durable unsent drafts",
+      details,
+    };
+  if (
     !evidence.restoredScreen?.includes(evidence.nonce) ||
     !evidence.restoredSummaryScreen?.includes(evidence.evalSummary) ||
     !evidence.firstInvocationTitle ||
-    !completedInvocationTitles(evidence.restoredInvocationScreen ?? "").includes(evidence.firstInvocationTitle) ||
-    evidence.restoredInvocationScreen?.includes(evidence.forkReplyNonce)
+    !completedInvocationTitles(evidence.restoredInvocationScreen ?? "").includes(
+      evidence.firstInvocationTitle
+    )
   )
     return {
       passed: false,
@@ -552,5 +790,5 @@ export const terminalChatTests: TestCase[] = requiringUnits(
       orchestrate: orchestrateTerminalChat,
       validate: validateTerminalChat,
     },
-  ],
+  ]
 );
