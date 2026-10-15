@@ -57,7 +57,7 @@ import {
 // This runner is eval'd server-side (in the orchestrating agent's EvalDO), so it
 // uses the portable client surface — NOT panel-only `getStateArgs`/`slotId`.
 // `rpc.selfId` is the stable runtime id, used as the channel-membership clientId.
-const rpcConfig = rpc as unknown as NonNullable<ConnectionConfig["rpc"]>;
+const rpcConfig: NonNullable<ConnectionConfig["rpc"]> = rpc;
 
 export const SYSTEM_TEST_AGENT_PROMPT = `You are running inside an automated Vibestudio system test.
 
@@ -789,25 +789,22 @@ export class HeadlessRunner {
       : "";
     const rpcFaultEvidence: SystemTestRpcFaultEvidence[] = [];
     const occurrenceByOperation = new Map<string, number>();
-    const callWithFault: RpcCaller["call"] = async (
-      targetId: string,
-      method,
-      args,
-      options,
+    const checkFault = (
+      transport: SystemTestRpcFault["transport"],
+      methodName: string,
     ) => {
-      const methodName = method.name;
-      const key = `call:${methodName}`;
+      const key = `${transport}:${methodName}`;
       const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
       occurrenceByOperation.set(key, occurrence);
       const fault = opts?.rpcFaults?.find(
         (candidate) =>
-          candidate.transport === "call" &&
+          candidate.transport === transport &&
           candidate.method === methodName &&
           (candidate.occurrence ?? 1) === occurrence,
       );
       if (fault) {
         rpcFaultEvidence.push({
-          transport: "call",
+          transport,
           method: methodName,
           occurrence,
           injected: true,
@@ -819,37 +816,26 @@ export class HeadlessRunner {
           fault.code ? { code: fault.code } : {},
         );
       }
+    };
+    const callWithFault: RpcCaller["call"] = async (
+      targetId,
+      method,
+      args,
+      options,
+    ) => {
+      checkFault("call", method.name);
       return rpcConfig.call(targetId, method, args, options);
     };
     const faultingRpc: NonNullable<ConnectionConfig["rpc"]> = {
       selfId: rpcConfig.selfId,
       call: callWithFault,
       stream: async (targetId, method, args, options) => {
-        const methodName = method.name;
-        const key = `stream:${methodName}`;
-        const occurrence = (occurrenceByOperation.get(key) ?? 0) + 1;
-        occurrenceByOperation.set(key, occurrence);
-        const fault = opts?.rpcFaults?.find(
-          (candidate) =>
-            candidate.transport === "stream" &&
-            candidate.method === methodName &&
-            (candidate.occurrence ?? 1) === occurrence,
-        );
-        if (fault) {
-          rpcFaultEvidence.push({
-            transport: "stream",
-            method: methodName,
-            occurrence,
-            injected: true,
-            message: fault.message,
-            ...(fault.code ? { code: fault.code } : {}),
-          });
-          throw Object.assign(
-            new Error(fault.message),
-            fault.code ? { code: fault.code } : {},
-          );
-        }
+        checkFault("stream", method.name);
         return rpcConfig.stream(targetId, method, args, options);
+      },
+      streamReadable: async (targetId, method, args, options) => {
+        checkFault("stream", method.name);
+        return rpcConfig.streamReadable(targetId, method, args, options);
       },
       on: (event, listener, website) => rpcConfig.on(event, listener, website),
       ...(rpcConfig.registerResidentSession

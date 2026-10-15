@@ -53,8 +53,7 @@ function createConfig(): ConnectionConfig {
     clientId: "headless-test",
     rpc: {
       selfId: "headless-test",
-      call: vi.fn(),
-      stream: vi.fn(async () => new Response()),
+      ...schemaRpcMock({ call: vi.fn() }),
       on: vi.fn(() => vi.fn()),
     },
   };

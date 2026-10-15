@@ -2,17 +2,18 @@ import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-ut
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+import type { HeadlessWithAgentConfig } from "@workspace/agentic-session";
+import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 
 const mocks = vi.hoisted(() => ({
   messageListeners: [] as Array<(message: Record<string, unknown>) => void>,
-  createWithAgent: vi.fn(async (config: unknown) => {
-    const input = config as { contextId?: string };
+  createWithAgent: vi.fn(async (config: HeadlessWithAgentConfig) => {
     const sequence = mocks.createWithAgent.mock.calls.length;
     const session = {
       config,
       entityId: `agent:${sequence}`,
       agentEntityId: `agent:${sequence}`,
-      contextId: input.contextId ?? `context:isolated:${sequence}`,
+      contextId: config.contextId ?? `context:isolated:${sequence}`,
       onMessage(listener: (message: Record<string, unknown>) => void) {
         mocks.messageListeners.push(listener);
         return () => undefined;
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     selfId: "do:vibestudio/internal:EvalDO:test-eval",
     call: vi.fn(),
     stream: vi.fn(),
+    streamReadable: vi.fn(),
     on: vi.fn(() => () => undefined),
     registerResidentSession: vi.fn(() => ({
       transport: { call: (...args: unknown[]) => mocks.rpc.call(...args) },
@@ -82,6 +84,7 @@ describe("HeadlessRunner", () => {
     mocks.createWithAgent.mockClear();
     mocks.rpc.call.mockReset();
     mocks.rpc.stream.mockReset();
+    mocks.rpc.streamReadable.mockReset();
     mocks.rpc.on.mockClear();
     mocks.rpc.registerResidentSession.mockClear();
     for (const method of Object.values(mocks.vcs)) method.mockReset();
@@ -510,22 +513,14 @@ describe("HeadlessRunner", () => {
         },
       ],
     });
-    const config = mocks.createWithAgent.mock.calls[0]![0] as {
-      config: {
-        rpc: {
-          call: typeof mocks.rpc.call;
-          registerResidentSession: (
-            channelId: string,
-            receiver: (payload: unknown) => void,
-          ) => { transport: { call: typeof mocks.rpc.call } };
-        };
-      };
-      rpcCall: typeof mocks.rpc.call;
-    };
-
-    const resident = config.config.rpc.registerResidentSession(
+    const config = mocks.createWithAgent.mock.calls[0]![0];
+    const scopedRpc = config.config.rpc;
+    if (!scopedRpc?.registerResidentSession)
+      throw new Error("Runner did not provide its resident-session owner");
+    const resident = scopedRpc.registerResidentSession(
       "channel",
       () => undefined,
+      { targetId: "channel" },
     );
     await expect(
       resident.transport.call("channel", channelRpcMethods.claimMethodCall, [
@@ -552,7 +547,7 @@ describe("HeadlessRunner", () => {
       "claimMethodCall",
       "runtime.listEntities",
     ]);
-    expect(runner.rpcFaultEvidence(session as never)).toEqual([
+    expect(runner.rpcFaultEvidence(session)).toEqual([
       expect.objectContaining({
         transport: "call",
         method: "claimMethodCall",
@@ -561,6 +556,68 @@ describe("HeadlessRunner", () => {
         code: "EAGAIN",
       }),
     ]);
+  });
+
+  it("injects stream faults on the readable owner without replacing its body or cancellation scope", async () => {
+    const runner = new HeadlessRunner("ctx-test");
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ cancel });
+    const response = {
+      status: 200,
+      statusText: "OK",
+      headers: [],
+      finalUrl: "",
+      body,
+    };
+    mocks.rpc.streamReadable.mockResolvedValue(response);
+    await runner.spawn({
+      rpcFaults: [
+        {
+          transport: "stream",
+          method: "subscribeLineage",
+          message: "readable admission failed",
+          code: "EAGAIN",
+        },
+      ],
+    });
+    const scopedRpc = mocks.createWithAgent.mock.calls[0]![0].config.rpc;
+    if (!scopedRpc) throw new Error("Runner did not provide its RPC owner");
+    const controller = new AbortController();
+    const options = { signal: controller.signal, bodyIdleTimeoutMs: null };
+    try {
+      await expect(
+        scopedRpc.streamReadable(
+          "channel",
+          channelClientRpcMethods.subscribeLineage,
+          ["participant"],
+          options,
+        ),
+      ).rejects.toMatchObject({
+        message: "readable admission failed",
+        code: "EAGAIN",
+      });
+      expect(mocks.rpc.streamReadable).not.toHaveBeenCalled();
+      await expect(
+        scopedRpc.streamReadable(
+          "channel",
+          channelClientRpcMethods.subscribeLineage,
+          ["participant"],
+          options,
+        ),
+      ).resolves.toBe(response);
+      expect(mocks.rpc.streamReadable).toHaveBeenCalledExactlyOnceWith(
+        "channel",
+        channelClientRpcMethods.subscribeLineage,
+        ["participant"],
+        options,
+      );
+      expect(mocks.rpc.stream).not.toHaveBeenCalled();
+    } finally {
+      const reason = new Error("Owned stream released");
+      controller.abort(reason);
+      await body.cancel(reason);
+      expect(cancel).toHaveBeenCalledExactlyOnceWith(reason);
+    }
   });
 
   it("does not attach a fallback route to an explicit model override", async () => {
