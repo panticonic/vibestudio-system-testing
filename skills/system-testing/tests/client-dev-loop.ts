@@ -184,7 +184,7 @@ async function orchestrate(
       // linked before the client runs (an open client holds the endpoint).
       const bin = await device.call("binDirectory", {});
       const linked = await device.call("shell", { commandLine: `PATH="${bin}:$PATH" vibestudio clients link ${id} --name ${id}` });
-      if (linked.exitCode !== 0) throw new Error(`vibestudio clients link failed: ${linked.output}`);
+      if (linked.exitCode !== 0) throw new Error(`vibestudio clients link failed: ${linked.stderr || linked.output}`);
     }
     const launched = await device.launch({ id, develop: true });
     evidence.launch = {

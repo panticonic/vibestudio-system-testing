@@ -83,7 +83,7 @@ export function validateClientLaunch(result: TestExecutionResult, runtime: "term
   if (runtime === "terminal") {
     if (!e.rendered.includes(ONLINE)) return fail("The chat did not show itself online", e);
     const piped = e.piped;
-    if (!piped || piped.exitCode !== 0) return fail(`echo hi | vibestudio chat ask failed: ${piped?.output}`, e);
+    if (!piped || piped.exitCode !== 0) return fail(`echo hi | vibestudio chat ask failed: ${piped?.stderr || piped?.output}`, e);
     const text = piped.output.trim();
     if (!text || ANSI_OR_JSON.test(text)) return fail(`chat ask must print the answer as plain text, got: ${piped.output.slice(0, 200)}`, e);
   } else {
@@ -103,13 +103,16 @@ async function orchestrateLaunch(
   runtime: "terminal" | "desktop"
 ): Promise<TestExecutionResult> {
   const evidence: LaunchEvidence = { runtime, phase: "record", completedPhases: [] };
-  return runScenario(context, { name: `client-launch-${runtime}`, kind: runtime, evidence, diagnosticsKey: "clientLaunch", agent: false }, async ({ device }) => {
+  return runScenario(context, { name: `client-launch-${runtime}`, kind: runtime, evidence, diagnosticsKey: "clientLaunch", agent: false, consent: { modelUse: runtime === "terminal" } }, async ({ device }) => {
     evidence.before = await device.identities();
     evidence.phase = "list";
     evidence.listing = (await device.list()).find((l) => l.id === CHAT_ID);
     evidence.phase = "launch";
     const opened = await device.launch({ id: CHAT_ID });
     if (opened.state !== "ready") throw new Error(`${CHAT_ID} did not launch: ${JSON.stringify(opened)}`);
+    // The build a client runs is made by launching it, so the active build the
+    // instance is checked against is the one the index names once it has.
+    evidence.listing = (await device.list()).find((l) => l.id === CHAT_ID);
     const info = await opened.surface.info();
     evidence.launched = {
       buildKey: opened.instance.buildKey,
@@ -186,7 +189,7 @@ async function orchestrateBackgroundIntent(
   context: Parameters<NonNullable<TestCase["orchestrate"]>>[0]
 ): Promise<TestExecutionResult> {
   const evidence: BackgroundIntentEvidence = { phase: "record", completedPhases: [] };
-  return runScenario(context, { name: "client-intent-background", kind: "terminal", evidence, diagnosticsKey: "clientIntentBackground", agent: false }, async ({ device }) => {
+  return runScenario(context, { name: "client-intent-background", kind: "terminal", evidence, diagnosticsKey: "clientIntentBackground", agent: false, consent: { modelUse: true } }, async ({ device }) => {
     evidence.before = await device.identities();
     evidence.listing = (await device.list()).find((l) => l.id === CHAT_ID);
     evidence.phase = "rejections";

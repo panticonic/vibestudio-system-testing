@@ -99,6 +99,16 @@ describe("approval decisions", () => {
     expect(trust).toMatchObject({ decision: "once", critical: true, trust: [{ gained: ["approval-surface"] }] });
     expect(decideApproval({ ...base, kind: "capability", capability: "x", title: "t" } as unknown as PendingApproval).decision).toBe("deny");
   });
+
+  it("allows model use once, and only when the scenario asked an agent a question", () => {
+    const credential = { ...base, kind: "credential" } as unknown as PendingApproval;
+    expect(decideApproval(credential).decision).toBe("deny");
+    expect(decideApproval(credential, { modelUse: true }).decision).toBe("once");
+    expect(decideApproval({ ...credential, callerKind: "panel" } as unknown as PendingApproval, { modelUse: true }).decision).toBe("deny");
+    expect(
+      decideApproval({ ...base, kind: "capability", capability: "x", title: "t" } as unknown as PendingApproval, { modelUse: true }).decision
+    ).toBe("deny");
+  });
 });
 
 function devLoop(runtime: "terminal" | "desktop"): DevLoopEvidence {
@@ -201,7 +211,7 @@ describe("validateClientLaunch", () => {
     launched: { buildKey: "b1", instanceId: "i1", granted: ["device-session"], denied: [] },
     rendered: "Chat ● online",
     closedCleanly: true,
-    ...(runtime === "terminal" ? { piped: { exitCode: 0, output: "Hi there\n" } } : { relaunchInstanceId: "i1", otherInstanceId: "i2" }),
+    ...(runtime === "terminal" ? { piped: { exitCode: 0, output: "Hi there\n", stderr: "[IrohPipe:ab] Shutdown started: 1 sessions\n" } } : { relaunchInstanceId: "i1", otherInstanceId: "i2" }),
   });
   it("passes both runtimes", () => {
     expect(validateClientLaunch(run("clientLaunch", launch("terminal")), "terminal").passed).toBe(true);
@@ -212,7 +222,7 @@ describe("validateClientLaunch", () => {
     stale.launched!.buildKey = "b0";
     expect(validateClientLaunch(run("clientLaunch", stale), "terminal").reason).toMatch(/active build/);
     const json = launch("terminal");
-    json.piped = { exitCode: 0, output: '{"text":"x"}' };
+    json.piped = { exitCode: 0, output: '{"text":"x"}', stderr: "" };
     expect(validateClientLaunch(run("clientLaunch", json), "terminal").reason).toMatch(/plain text/);
     const dup = launch("desktop");
     dup.relaunchInstanceId = "i9";

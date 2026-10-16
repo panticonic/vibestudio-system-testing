@@ -160,12 +160,23 @@ export interface ApprovalRecord {
   critical?: boolean;
 }
 
+/** What the person has agreed to in advance, because the scenario itself asks for it. */
+export interface ApprovalConsent {
+  /**
+   * The scenario puts a question to an agent the workspace starts for the
+   * client (the `ask` intent), and that agent uses the connected model account.
+   * The person allows that use once; nothing else about the account is allowed.
+   */
+  modelUse?: boolean;
+}
+
 /**
  * Decide, as the person, what the device's approval surface shows: accept the
- * unit install review, confirm a trust-change card once, and deny (and record)
- * anything else so the agent can proceed and the validator can fail the run.
+ * unit install review, confirm a trust-change card once, allow the model use a
+ * scenario asked for, and deny (and record) anything else so the agent can
+ * proceed and the validator can fail the run.
  */
-export function decideApproval(approval: PendingApproval): ApprovalRecord {
+export function decideApproval(approval: PendingApproval, consent: ApprovalConsent = {}): ApprovalRecord {
   const base = { approvalId: approval.approvalId, kind: approval.kind };
   if (approval.kind === "unit-install-review")
     return { ...base, decision: "accept-review", title: "unit install review" };
@@ -183,6 +194,8 @@ export function decideApproval(approval: PendingApproval): ApprovalRecord {
         lost: change.lost.map((l) => l.capability),
       })),
     };
+  if (consent.modelUse && approval.kind === "credential" && approval.callerKind === "do")
+    return { ...base, decision: "once", title: `model use by ${approval.callerId}` };
   return {
     ...base,
     decision: "deny",
@@ -194,7 +207,10 @@ export class ApprovalSurface {
   readonly answered: ApprovalRecord[] = [];
   readonly #done: Promise<void>;
 
-  constructor(private readonly device: ClientDevice) {
+  constructor(
+    private readonly device: ClientDevice,
+    private readonly consent: ApprovalConsent = {}
+  ) {
     this.#done = this.#run();
   }
 
@@ -204,7 +220,7 @@ export class ApprovalSurface {
     for (;;) {
       const approval = await this.device.call("nextApproval", {});
       if (!approval) return;
-      const record = decideApproval(approval);
+      const record = decideApproval(approval, this.consent);
       this.answered.push(record);
       await this.device.call("resolveApproval", { approvalId: approval.approvalId, decision: record.decision });
     }
@@ -251,7 +267,14 @@ export interface ScenarioFrame<E> {
  */
 export async function runScenario<E extends { phase: string; completedPhases: string[] }>(
   context: TestOrchestrationContext,
-  options: { name: string; kind: ClientDeviceKind; evidence: E; diagnosticsKey: string; agent: boolean },
+  options: {
+    name: string;
+    kind: ClientDeviceKind;
+    evidence: E;
+    diagnosticsKey: string;
+    agent: boolean;
+    consent?: ApprovalConsent;
+  },
   body: (frame: ScenarioFrame<E>) => Promise<void>
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
@@ -267,7 +290,7 @@ export async function runScenario<E extends { phase: string; completedPhases: st
   try {
     const device = await openClientDevice(options.kind, context.signal);
     if (options.agent) session = await context.runner.spawn({ context: "isolated" });
-    approvals = new ApprovalSurface(device);
+    approvals = new ApprovalSurface(device, options.consent);
     await body({
       context,
       device,
