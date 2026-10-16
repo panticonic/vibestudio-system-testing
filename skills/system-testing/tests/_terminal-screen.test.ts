@@ -102,10 +102,10 @@ describe("terminal screen over the pty attach stream", () => {
     await attached.screen.waitFor(/composer/u);
     const actions: string[] = [];
     const screens = [
-      "↑ older messages\r\nlatest result\r\n↑↓ move · y copy · Esc back",
-      "↑ older messages\r\n▌ old first\r\n↑↓ move · y copy · Esc back",
-      "▌ earlier first\r\n↑↓ move · y copy · Esc back",
-      "▌ original tc-1234abcd\r\n↑↓ move · y copy · Esc back",
+      "↑ older messages\r\nlatest result\r\n↑↓ move  y copy   Esc back",
+      "↑ older messages\r\n▌ old first\r\n↑↓ move  y copy   Esc back",
+      "▌ earlier first\r\n↑↓ move  y copy   Esc back",
+      "▌ original tc-1234abcd\r\n↑↓ move  y copy   Esc back",
       "latest result\r\ncomposer",
     ];
     const found = await revealTerminalHistory(attached.screen, async (keys) => {
@@ -127,7 +127,7 @@ describe("terminal screen over the pty attach stream", () => {
     const keys: string[] = [];
     await expect(revealTerminalHistory(attached.screen, async (key) => {
       keys.push(key);
-      stream.text("\x1b[?2026h\x1b[2J\x1b[H↑ start of conversation\r\n▌ only message\r\n↑↓ move · y copy · Esc back\x1b[?2026l");
+      stream.text("\x1b[?2026h\x1b[2J\x1b[H↑ start of conversation\r\n▌ only message\r\n↑↓ move  y copy   Esc back\x1b[?2026l");
     }, (text) => text.includes("missing"), "The question", new AbortController().signal)).rejects.toThrow("absent from the completed conversation history");
     expect(keys).toEqual(["\x1b[1;5A"]);
     await attached.detach();

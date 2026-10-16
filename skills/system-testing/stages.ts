@@ -62,6 +62,7 @@ import { adventureTurnProfileTests } from "./tests/adventure-turn-profile.js";
 import { adventureCampaignTests } from "./tests/adventure-campaign-play.js";
 import { richUiPropensityTests } from "./tests/rich-ui-propensity.js";
 import { terminalChatTests } from "./tests/terminal-chat.js";
+import { terminalChatCardsTests } from "./tests/terminal-chat-cards.js";
 
 export {
   agentCapabilityTests,
@@ -109,6 +110,7 @@ export {
   smokeTests,
   templateTests,
   terminalChatTests,
+  terminalChatCardsTests,
   trustedUnitAuthoringTests,
   unitDiagnosticsTests,
   vcsAdvancedTests,
@@ -203,6 +205,7 @@ export function allTests(): TestCase[] {
     ...interactionSurfaceTests,
     ...richUiPropensityTests,
     ...terminalChatTests,
+    ...terminalChatCardsTests,
     ...projectLifecycleTests,
     ...scaffoldMatrixTests,
     ...developerErgonomicsTests,

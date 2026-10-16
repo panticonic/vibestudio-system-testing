@@ -36,7 +36,7 @@ import {
 
 export const TERMINAL_CHAT_SOURCE = "terminal-apps/chat";
 export const TERMINAL_CHAT_TEST = "terminal-chat-approval-fork-resume";
-const SHELL_EXTENSION = "@workspace-extensions/shell";
+export const SHELL_EXTENSION = "@workspace-extensions/shell";
 const SCREEN_SIZE: TerminalSize = { cols: 160, rows: 100 };
 const MAX_RETAINED_SCREEN = 12_000;
 
@@ -45,6 +45,8 @@ export const EVAL_CARD_SUMMARY = /^.*\bEval\b.*\bComplete\b.*\n(.*→ \S.*)$/mu;
 export function completedInvocationTitles(text: string): string[] {
   return [...text.matchAll(/^[ ▌]*[▸▾] (.*?) {2,}Complete$/gmu)].map((match) => match[1]!.trim());
 }
+/** The hint line of message selection, whose keys are drawn as buttons. */
+export const SELECT_HINT = /↑↓ move\s+y copy\s+Esc back/u;
 const ONLINE = /● online/u;
 const IDLE = /◇ idle/u;
 
@@ -117,7 +119,7 @@ export function hasComposerDraft(screen: string, draft: string): boolean {
  * imported from the extension's source, which is not part of this unit's
  * dependency closure.
  */
-interface ShellPty {
+export interface ShellPty {
   attach(sessionId: string, options?: PtyAttachOptions): Promise<Response>;
   acknowledge(sessionId: string, attachId: string, bytes: number): Promise<void>;
   write(sessionId: string, data: string): Promise<void>;
@@ -129,7 +131,7 @@ interface ShellPty {
  * set; the returned `done` settles when the watch ends (rejecting when it
  * ended for any reason other than `signal`).
  */
-async function watchPendingApprovals(
+export async function watchPendingApprovals(
   onPending: (pending: readonly PendingApproval[]) => void,
   signal: AbortSignal
 ): Promise<{ done: Promise<void> }> {
@@ -193,7 +195,7 @@ export async function revealTerminalHistory(
       failOn: /Older messages didn't load:/u,
     });
   };
-  let shown = await action("\x1b[1;5A", /↑↓ move · y copy · Esc back/u, "selecting the transcript");
+  let shown = await action("\x1b[1;5A", SELECT_HINT, "selecting the transcript");
   while (!matches(shown)) {
     if (shown.includes("↑ start of conversation"))
       throw new Error(`${description} is absent from the completed conversation history`);
@@ -204,15 +206,11 @@ export async function revealTerminalHistory(
     );
   }
   const found = shown;
-  await action(
-    "i",
-    (text) => !text.includes("↑↓ move · y copy · Esc back"),
-    "returning to the composer"
-  );
+  await action("i", (text) => !SELECT_HINT.test(text), "returning to the composer");
   return found;
 }
 
-async function appContextOf(principalId: string): Promise<string> {
+export async function appContextOf(principalId: string): Promise<string> {
   const entities = await rpc.call("main", mainRpcMethods["runtime.listEntities"], []);
   const app = entities.find((entity) => entity.id === principalId);
   if (!app?.contextId)
@@ -456,7 +454,7 @@ async function orchestrateTerminalChat(
         /Couldn't search/u
       )
     );
-    await action("\r", /↑↓ move · y copy · Esc back/u, "selecting the search result");
+    await action("\r", SELECT_HINT, "selecting the search result");
     evidence.searchDetailScreen = retainScreen(
       await action(
         "v",
@@ -466,14 +464,10 @@ async function orchestrateTerminalChat(
     );
     await action(
       "\x1b",
-      (text) => !/^Message details$/mu.test(text) && text.includes("↑↓ move · y copy · Esc back"),
+      (text) => !/^Message details$/mu.test(text) && SELECT_HINT.test(text),
       "closing the message detail"
     );
-    await action(
-      "i",
-      (text) => !text.includes("↑↓ move · y copy · Esc back"),
-      "returning to the composer"
-    );
+    await action("i", (text) => !SELECT_HINT.test(text), "returning to the composer");
 
     enter("parent-draft");
     evidence.parentDraft = `parent-draft-${nonce}`;
