@@ -67,6 +67,13 @@ Use one stable, unique instance ID for the whole investigation.
    model is what you are testing; the default route and quota fallback are in
    `config.ts`.
 
+   The client tests (`client-*`) drive a person's device through the server's
+   `deviceDriver` service, so the run needs that device attached: pass
+   `--device terminal` and/or `--device desktop` to the launcher
+   (`pnpm system-test --instance <id> --device terminal run client-launch-terminal`).
+   The launcher starts the driver, waits for it to register, and stops it when
+   the command ends; attach it to a foreground run, not a `--detach` one.
+
 4. On a non-zero exit, inspect the retained run. When a failed run completes,
    its inspection packet and the full trajectory of every failed test are
    saved locally, so `inspect` and `trajectory --full` still work after its

@@ -391,10 +391,18 @@ async function orchestrateTerminalChat(
 
     enter("export");
     await command("export");
+    await waitFor(/^Export this conversation as Markdown$/mu, "the export destination prompt");
+    // Accept the suggested workspace destination.
+    await action(
+      "\r",
+      (text) => !/^Export this conversation as Markdown$/mu.test(text),
+      "confirming the suggested export destination",
+      /Couldn't write the export/u
+    );
     const exported = await waitFor(
       (text) => !!exportedWorkspacePath(text),
       "the completed export's download-ready workspace path",
-      /Couldn't export/u
+      /Couldn't write the export/u
     );
     evidence.exportScreen = retainScreen(exported);
     evidence.exportPath = exportedWorkspacePath(exported)!;
@@ -419,7 +427,7 @@ async function orchestrateTerminalChat(
         (text) =>
           /^Pending attachments$/mu.test(text) &&
           text.includes(evidence.exportPath!.split("/").at(-1)!) &&
-          text.includes("Workspace files are not deleted."),
+          text.includes("The files themselves are not deleted."),
         "inspecting the pending attachment"
       )
     );

@@ -203,7 +203,7 @@ function passingEvidence(): TerminalChatEvidence {
     exportScreen:
       "✓ Exported — chat-exports/conversation.md — use the terminal browser's Download file action to save it on your computer.",
     attachmentScreen:
-      "Pending attachments\n❯ conversation.md  200 bytes\nWorkspace files are not deleted.",
+      "Pending attachments\n❯ conversation.md  200 bytes\nThe files themselves are not deleted.",
     attachmentRemovedScreen:
       "Pending attachments\nNo pending attachments. /attach adds a workspace file.",
     searchScreen: "Search: tc-1234abcd\n❯ Quick check tc-1234abcd",
