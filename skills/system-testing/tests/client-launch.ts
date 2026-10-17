@@ -4,6 +4,8 @@ import {
   CLIENT_AUTHORING_POLICY,
   HELLO_ID,
   greeting,
+  listingAfterTurn,
+  newBuildAfterTurn,
   prompts,
   restartFailure,
   runScenario,
@@ -137,8 +139,8 @@ async function orchestrateLaunch(
     await opened.surface.close();
     evidence.closedCleanly = (await opened.surface.waitForClosed()).reason.length > 0;
     if (runtime === "terminal") {
-      // A CLI profile admits one process per Iroh endpoint, so the piped
-      // command runs once the open client has released it.
+      // The piped command is a second CLI process of the same device, run once
+      // the open client has closed.
       evidence.phase = "pipe";
       evidence.piped = await device.call("shell", { commandLine: "echo hi | vibestudio chat ask" });
     }
@@ -250,7 +252,7 @@ async function orchestrateUpdateSwap(
     evidence.before = await device.identities();
     await frame.turn(prompts.create(runtime, nonce, { updateAware: true }), "create-declare-publish");
     evidence.phase = "launch";
-    await device.call("waitForListing", { id, present: true });
+    await listingAfterTurn(device, id, true);
     const opened = await device.launch({ id });
     if (opened.state !== "ready") throw new Error(`${id} did not launch: ${JSON.stringify(opened)}`);
     const surface = opened.surface;
@@ -259,6 +261,7 @@ async function orchestrateUpdateSwap(
 
     await frame.turn(prompts.edit(runtime, nonce), "edit-publish");
     evidence.phase = "offered";
+    await newBuildAfterTurn(device, id, opened.instance.buildKey);
     const text = await surface.waitForText("Update ready");
     const info = await surface.info();
     evidence.offered = { pendingBuildKey: info.pendingBuildKey, runningBuildKey: info.instance.buildKey, text };
@@ -272,6 +275,7 @@ async function orchestrateUpdateSwap(
 
     evidence.phase = "retire";
     await frame.turn(prompts.retire(runtime, false), "retire");
+    await listingAfterTurn(device, id, false);
     await surface.waitForClosed();
     evidence.after = await device.identities();
   });

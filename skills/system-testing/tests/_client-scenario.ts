@@ -11,6 +11,7 @@ import {
   type ClientDevice,
   type ClientDeviceKind,
   type ClientInstanceIdentity,
+  type ClientListingLite,
   type DeviceIdentities,
 } from "./_client-device.js";
 
@@ -209,14 +210,19 @@ export class ApprovalSurface {
 
   constructor(
     private readonly device: ClientDevice,
-    private readonly consent: ApprovalConsent = {}
+    private readonly consent: ApprovalConsent = {},
+    /** The test's: cancelling it cancels the outstanding `nextApproval`. */
+    private readonly signal?: AbortSignal
   ) {
     this.#done = this.#run();
+    // `stop` joins and reports this loop; a failure before then is not unhandled.
+    this.#done.catch(() => {});
   }
 
   async #run(): Promise<void> {
     // `nextApproval` is answered by the device from its approval queue's
-    // events; it settles with null when the surface is released.
+    // events; it settles with null when the surface is released, and with the
+    // test's cancellation when the test is cancelled.
     for (;;) {
       const approval = await this.device.call("nextApproval", {});
       if (!approval) return;
@@ -235,16 +241,64 @@ export class ApprovalSurface {
     return this.answered.filter((record) => record.decision === "deny");
   }
 
-  /** Release the approval surface and join the loop; its failure, if any, is returned. */
+  /**
+   * Release the approval surface and join the loop; its failure, if any, is
+   * returned. A cancelled test has nothing to release: its cancellation already
+   * ended the pending `nextApproval`, and the loop's own cancellation is the
+   * expected way for it to end.
+   */
   async stop(): Promise<unknown> {
+    const cancelled = this.signal?.aborted === true;
     try {
-      await this.device.call("releaseApprovals", {});
+      if (!cancelled) await this.device.call("releaseApprovals", {});
+    } catch (cause) {
+      await this.#done.catch(() => {});
+      return cause;
+    }
+    try {
       await this.#done;
       return undefined;
     } catch (cause) {
-      return cause;
+      // The loop's rejection is the call's cancellation, wrapped by the transport.
+      return cancelled ? undefined : cause;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// What an agent's turn produced
+
+/**
+ * The state an agent's turn was asked to produce, read once the turn has
+ * completed. The device's waits end on a host event; none of them can end when
+ * the agent never did the work, so a scenario awaits the turn first and then
+ * checks, failing with what is missing rather than waiting for an event that
+ * nothing will cause.
+ */
+export async function listingAfterTurn(
+  device: ClientDevice,
+  id: string,
+  present: boolean
+): Promise<ClientListingLite | undefined> {
+  const listing = (await device.list()).find((candidate) => candidate.id === id);
+  if (present && !listing)
+    throw new Error(`The agent's turn ended without ${id} in the device's client index`);
+  if (!present && listing)
+    throw new Error(`The agent's turn ended with ${id} still in the device's client index`);
+  return listing;
+}
+
+/** The client's active build after an edit turn; fails when the turn published none. */
+export async function newBuildAfterTurn(
+  device: ClientDevice,
+  id: string,
+  fromBuildKey: string
+): Promise<string> {
+  const listing = await listingAfterTurn(device, id, true);
+  const active = listing?.activeBuildKey;
+  if (!active || active === fromBuildKey)
+    throw new Error(`The agent's turn ended without publishing a new build of ${id}`);
+  return active;
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +344,7 @@ export async function runScenario<E extends { phase: string; completedPhases: st
   try {
     const device = await openClientDevice(options.kind, context.signal);
     if (options.agent) session = await context.runner.spawn({ context: "isolated" });
-    approvals = new ApprovalSurface(device, options.consent);
+    approvals = new ApprovalSurface(device, options.consent, context.signal);
     await body({
       context,
       device,

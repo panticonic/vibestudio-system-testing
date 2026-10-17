@@ -11,6 +11,8 @@ import {
   UNSUPPORTED_CAPABILITY,
   echoed,
   greeting,
+  listingAfterTurn,
+  newBuildAfterTurn,
   prompts,
   restartFailure,
   runScenario,
@@ -178,10 +180,10 @@ async function orchestrate(
     // 2-3. Author, declare, publish, review; the index gains the client.
     await frame.turn(prompts.create(runtime, nonce), "create-declare-publish");
     evidence.phase = "index";
-    evidence.listing = (await device.call("waitForListing", { id, present: true })) ?? undefined;
+    evidence.listing = await listingAfterTurn(device, id, true);
     if (runtime === "terminal") {
-      // A CLI profile admits one process per Iroh endpoint, so the launcher is
-      // linked before the client runs (an open client holds the endpoint).
+      // Linking the launcher before the client runs keeps the order the person
+      // would follow: the shim exists before the first `vibestudio open`.
       const bin = await device.call("binDirectory", {});
       const linked = await device.call("shell", { commandLine: `PATH="${bin}:$PATH" vibestudio clients link ${id} --name ${id}` });
       if (linked.exitCode !== 0) throw new Error(`vibestudio clients link failed: ${linked.stderr || linked.output}`);
@@ -207,6 +209,7 @@ async function orchestrate(
     const fromBuildKey = launched.instance.buildKey;
     await frame.turn(prompts.edit(runtime, nonce), "edit-publish");
     evidence.phase = "adopt";
+    await newBuildAfterTurn(device, id, fromBuildKey);
     const adopted = await device.call("waitForBuildChange", { surfaceId: surface.surfaceId, fromBuildKey });
     const shownText = await surface.waitForText(updatedGreeting(nonce));
     const mid = await device.identities();
@@ -225,6 +228,7 @@ async function orchestrate(
       await frame.turn(prompts.trust(runtime), "trust-add");
       evidence.trust.cards = approvals.trustCards().map((card) => ({ ...card.trust![0]!, critical: card.critical }));
       const addCard = evidence.trust.cards[0];
+      if (!addCard) throw new Error(`The agent's turn ended without a trust confirmation reaching the device for ${id}`);
       const granted = [] as string[];
       for (const capability of addCard?.gained ?? []) {
         const info = await device.call("waitForGranted", { surfaceId: surface.surfaceId, capability });
@@ -233,6 +237,8 @@ async function orchestrate(
       evidence.trust.grantedLive = granted;
       await frame.turn(prompts.untrust(runtime), "trust-remove");
       evidence.trust.cards = approvals.trustCards().map((card) => ({ ...card.trust![0]!, critical: card.critical }));
+      if (!evidence.trust.cards.some((card) => card.lost.length))
+        throw new Error(`The agent's turn ended without a trust confirmation naming what ${id} loses`);
       evidence.trust.revoked = await device.call("waitForSessionClosed", { clientId: id });
     }
 
@@ -247,7 +253,7 @@ async function orchestrate(
     evidence.phase = "negative";
     const negId = unsupportedId(runtime);
     await frame.turn(prompts.unsupported(runtime), "unsupported-client");
-    await device.call("waitForListing", { id: negId, present: true });
+    await listingAfterTurn(device, negId, true);
     const unavailable = await device.launch({ id: negId });
     const listed = (await device.list()).find((l) => l.id === negId);
     evidence.negative = {
@@ -262,10 +268,11 @@ async function orchestrate(
 
     evidence.phase = "retire";
     await frame.turn(prompts.retire(runtime), "retire");
+    await listingAfterTurn(device, id, false);
     integration.closedReason = (await surface.waitForClosed()).reason;
     await device.call("waitForArtifactsRemoved", { clientId: id });
     integration.removedAfterRetire = !(await device.call("integrationArtifacts", {})).some((a) => a.clientId === id);
-    integration.listingGoneAfterRetire = (await device.call("waitForListing", { id, present: false })) === null;
+    integration.listingGoneAfterRetire = true;
 
     // 7. Nothing restarted.
     evidence.after = await device.identities();

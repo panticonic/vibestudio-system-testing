@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TestExecutionResult } from "../types.js";
 import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "../prompt-contract.js";
-import type { DeviceIdentities } from "./_client-device.js";
+import { ClientDevice, type ClientListingLite, type DeviceIdentities } from "./_client-device.js";
 import {
+  ApprovalSurface,
   HELLO_ID,
   UNSUPPORTED_CAPABILITY,
   decideApproval,
   echoed,
   greeting,
+  listingAfterTurn,
+  newBuildAfterTurn,
   prompts,
   restartFailure,
   sameBystanders,
@@ -283,5 +286,55 @@ describe("validateClientUpdateSwap", () => {
     const dev = good();
     dev.launched!.develop = true;
     expect(validateClientUpdateSwap(run("clientUpdateSwap", dev)).reason).toMatch(/development mode/);
+  });
+});
+
+describe("a cancelled test", () => {
+  /** A device whose waits end only when the test's signal aborts, as the server relay does. */
+  function deviceFor(signal: AbortSignal, answers: Record<string, unknown> = {}) {
+    const calls: string[] = [];
+    const device = new ClientDevice("terminal", (op) => {
+      calls.push(op);
+      if (op in answers) return Promise.resolve(answers[op]);
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true })
+      );
+    });
+    return { device, calls };
+  }
+
+  it("retires the approval surface without a release the cancelled call cannot make", async () => {
+    const abort = new AbortController();
+    const { device, calls } = deviceFor(abort.signal);
+    const surface = new ApprovalSurface(device, {}, abort.signal);
+    abort.abort(new Error("run cancelled"));
+    expect(await surface.stop()).toBeUndefined();
+    expect(calls).toEqual(["nextApproval"]);
+  });
+
+  it("still releases the surface of a test that ran to its end", async () => {
+    const abort = new AbortController();
+    const { device, calls } = deviceFor(abort.signal, { nextApproval: null, releaseApprovals: null });
+    const surface = new ApprovalSurface(device, {}, abort.signal);
+    expect(await surface.stop()).toBeUndefined();
+    expect(calls).toContain("releaseApprovals");
+  });
+});
+
+describe("what an agent turn produced", () => {
+  const lite = (id: string, activeBuildKey: string | null): ClientListingLite => ({
+    id, source: "s", runtime: "terminal", status: "available", trusted: false, isDefault: false, intents: [], activeBuildKey,
+  });
+  const deviceWith = (listings: ClientListingLite[]) => new ClientDevice("terminal", async () => listings);
+
+  it("fails with what is missing instead of waiting for the device to gain it", async () => {
+    await expect(listingAfterTurn(deviceWith([]), "hello", true)).rejects.toThrow(/without hello in the device's client index/);
+    await expect(listingAfterTurn(deviceWith([lite("hello", "b1")]), "hello", false)).rejects.toThrow(/still in the device's client index/);
+    expect((await listingAfterTurn(deviceWith([lite("hello", "b1")]), "hello", true))?.id).toBe("hello");
+  });
+
+  it("requires the edit turn to have moved the client to a new build", async () => {
+    await expect(newBuildAfterTurn(deviceWith([lite("hello", "b1")]), "hello", "b1")).rejects.toThrow(/without publishing a new build/);
+    expect(await newBuildAfterTurn(deviceWith([lite("hello", "b2")]), "hello", "b1")).toBe("b2");
   });
 });
