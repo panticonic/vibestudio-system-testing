@@ -220,5 +220,5 @@ the evidence needed to explain the mismatch.
 
 The orchestrator can run from eval, workers, Durable Objects, or panels. Use the
 authorized runtime participant identity; never invent a synthetic participant.
-For trusted app failures, read the `skills/appdev/SKILL.md` skill in the System
-workspace. For host source repair, use [SELF_IMPROVEMENT.md](SELF_IMPROVEMENT.md).
+For trusted client failures, read the `skills/clientdev/SKILL.md` skill in the
+System workspace. For host source repair, use [SELF_IMPROVEMENT.md](SELF_IMPROVEMENT.md).

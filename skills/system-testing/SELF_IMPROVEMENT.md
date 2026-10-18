@@ -381,9 +381,10 @@ merge current main through bounded coordinate pages when needed, commit the
 complete local chain, and publish that committed event. These trees are live
 build inputs.
 
-For `apps/` bugs, read `skills/appdev/SKILL.md` before editing. App fixes may
-need target-specific validation: Electron host chrome, mobile native bootstrap
-and principal grants, or terminal process supervision.
+For `clients/` bugs, read `skills/clientdev/SKILL.md` before editing. Client
+fixes may need runtime-specific validation: the desktop (`web-host-1`), mobile
+(`rn-host-6`) or terminal (`terminal-host-1`) host, and the client principal's
+grants.
 
 ### Vibestudio Application Source
 
