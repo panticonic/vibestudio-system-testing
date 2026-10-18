@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TestExecutionResult } from "../types.js";
 import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "../prompt-contract.js";
+import { capabilitiesForRuntime } from "@vibestudio/workspace-contracts/clients";
 import { ClientDevice, type DeviceIdentities } from "./_client-device.js";
 import {
   ApprovalSurface,
-  HELLO_ID,
+  helloId,
   UNSUPPORTED_CAPABILITY,
   decideApproval,
   echoed,
@@ -63,11 +64,11 @@ describe("declarations", () => {
         prompts.create(runtime, "n1"),
         prompts.create(runtime, "n1", { updateAware: true }),
         prompts.edit(runtime, "n1"),
-        prompts.trust(runtime),
-        prompts.untrust(runtime),
-        prompts.unsupported(runtime),
-        prompts.retire(runtime),
-        prompts.retire(runtime, false),
+        prompts.trust(runtime, "n1"),
+        prompts.untrust(runtime, "n1"),
+        prompts.unsupported(runtime, "n1"),
+        prompts.retire(runtime, "n1"),
+        prompts.retire(runtime, "n1", false),
       ])
         assertAgentGoalPrompt(prompt, "client prompt");
     }
@@ -114,8 +115,8 @@ describe("approval decisions", () => {
 });
 
 function devLoop(runtime: "terminal" | "desktop"): DevLoopEvidence {
-  const id = HELLO_ID[runtime];
   const nonce = "n1";
+  const id = helloId(runtime, nonce);
   const cap = UNSUPPORTED_CAPABILITY[runtime];
   return {
     runtime,
@@ -146,7 +147,7 @@ function devLoop(runtime: "terminal" | "desktop"): DevLoopEvidence {
       listingGoneAfterRetire: true,
       closedReason: "retired",
     },
-    negative: { id: unsupportedId(runtime), capability: cap, state: "unavailable", reason: `needs ${cap}`, missing: [cap] },
+    negative: { id: unsupportedId(runtime, nonce), capability: cap, state: "unavailable", reason: `needs ${cap}`, missing: [cap] },
     ...(runtime === "desktop"
       ? {
           trust: {
@@ -336,6 +337,13 @@ describe("an approval loop that fails", () => {
   });
 });
 
+describe("the unsupported-capability case", () => {
+  it("names a capability the runtime's manifests may require, or the build refuses it before any host is asked", () => {
+    expect(capabilitiesForRuntime("terminal")).toContain(UNSUPPORTED_CAPABILITY.terminal);
+    expect(capabilitiesForRuntime("web")).toContain(UNSUPPORTED_CAPABILITY.desktop);
+  });
+});
+
 describe("what an agent turn produced", () => {
   const push = (outcome: "success" | "failure", operation = "push") =>
     ({
@@ -348,5 +356,23 @@ describe("what an agent turn produced", () => {
     expect(pushedSince([push("failure")], 0)).toBe(false);
     expect(pushedSince([push("success", "commit")], 0)).toBe(false);
     expect(pushedSince([], 0)).toBe(false);
+  });
+
+  const evalJournal = (method: string, outcome: string) =>
+    ({
+      invocation: {
+        name: "eval",
+        execution: {
+          status: "complete",
+          terminalOutcome: "success",
+          result: { details: { operationJournal: { entries: [{ receipt: { method, outcome } }] } } },
+        },
+      },
+    }) as never;
+
+  it("counts runtime code that pushed (vcs.publish in an eval) as publishing", () => {
+    expect(pushedSince([evalJournal("vcs.push", "fulfilled")], 0)).toBe(true);
+    expect(pushedSince([evalJournal("vcs.push", "rejected")], 0)).toBe(false);
+    expect(pushedSince([evalJournal("vcs.commit", "fulfilled")], 0)).toBe(false);
   });
 });

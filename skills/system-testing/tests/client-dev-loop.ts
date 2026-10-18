@@ -7,7 +7,7 @@ import type {
 } from "./_client-device.js";
 import {
   CLIENT_AUTHORING_POLICY,
-  HELLO_ID,
+  helloId,
   UNSUPPORTED_CAPABILITY,
   echoed,
   greeting,
@@ -84,8 +84,8 @@ export function validateClientDevLoop(result: TestExecutionResult, runtime: Clie
   if (!evidence) return { passed: false, reason: "The client dev loop retained no evidence" };
   if (result.error) return fail(`The scenario failed during ${evidence.phase}: ${result.error}`, evidence);
   if (evidence.runtime !== runtime) return fail(`Evidence is for ${evidence.runtime}, not ${runtime}`, evidence);
-  const id = HELLO_ID[runtime];
   const nonce = evidence.nonce;
+  const id = helloId(runtime, nonce);
 
   const unexpected = (evidence.approvals ?? []).filter((record) => record.decision === "deny");
   if (unexpected.length)
@@ -150,7 +150,7 @@ export function validateClientDevLoop(result: TestExecutionResult, runtime: Clie
   // Step 7.
   const restarted = restartFailure(evidence);
   if (restarted) return fail(restarted, evidence);
-  if (!sameBystanders(evidence.before!, evidence.after!, [id, unsupportedId(runtime)]))
+  if (!sameBystanders(evidence.before!, evidence.after!, [id, unsupportedId(runtime, nonce)]))
     return fail("A client instance other than the new one changed identity", evidence);
   if (result.cleanupErrors?.length) return fail(`Cleanup failed: ${result.cleanupErrors.join("; ")}`, evidence);
   return { passed: true, details: { runtime, buildKey: update.toBuildKey } };
@@ -160,8 +160,8 @@ async function orchestrate(
   context: Parameters<NonNullable<TestCase["orchestrate"]>>[0],
   runtime: ClientRuntimeKind
 ): Promise<TestExecutionResult> {
-  const id = HELLO_ID[runtime];
   const nonce = `cdl-${crypto.randomUUID().slice(0, 8)}`;
+  const id = helloId(runtime, nonce);
   const evidence: DevLoopEvidence = { runtime, phase: "record", completedPhases: [], nonce };
   return runScenario(context, { name: `client-dev-loop-${runtime}`, kind: runtime, evidence, diagnosticsKey: "clientDevLoop", agent: true }, async (frame) => {
     const { device, approvals } = frame;
@@ -222,7 +222,7 @@ async function orchestrate(
     if (runtime === "desktop") {
       evidence.phase = "trust";
       evidence.trust = { cards: [] };
-      await frame.turn(prompts.trust(runtime), "trust-add");
+      await frame.turn(prompts.trust(runtime, nonce), "trust-add");
       evidence.trust.cards = approvals.trustCards().map((card) => ({ ...card.trust![0]!, critical: card.critical }));
       const addCard = evidence.trust.cards[0];
       if (!addCard) throw new Error(`The agent's turn ended without a trust confirmation reaching the device for ${id}`);
@@ -232,7 +232,7 @@ async function orchestrate(
         if (info.grantedCapabilities.includes(capability)) granted.push(capability);
       }
       evidence.trust.grantedLive = granted;
-      await frame.turn(prompts.untrust(runtime), "trust-remove");
+      await frame.turn(prompts.untrust(runtime, nonce), "trust-remove");
       evidence.trust.cards = approvals.trustCards().map((card) => ({ ...card.trust![0]!, critical: card.critical }));
       if (!evidence.trust.cards.some((card) => card.lost.length))
         throw new Error(`The agent's turn ended without a trust confirmation naming what ${id} loses`);
@@ -248,8 +248,8 @@ async function orchestrate(
     );
     // The negative case needs its own client; retire both together afterwards.
     evidence.phase = "negative";
-    const negId = unsupportedId(runtime);
-    await frame.turn(prompts.unsupported(runtime), "unsupported-client");
+    const negId = unsupportedId(runtime, nonce);
+    await frame.turn(prompts.unsupported(runtime, nonce), "unsupported-client");
     await device.call("waitForListing", { id: negId, present: true });
     const unavailable = await device.launch({ id: negId });
     const listed = (await device.list()).find((l) => l.id === negId);
@@ -264,7 +264,7 @@ async function orchestrate(
     };
 
     evidence.phase = "retire";
-    await frame.turn(prompts.retire(runtime), "retire");
+    await frame.turn(prompts.retire(runtime, nonce), "retire");
     await device.call("waitForListing", { id, present: false });
     integration.closedReason = (await surface.waitForClosed()).reason;
     await device.call("waitForArtifactsRemoved", { clientId: id });

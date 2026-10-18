@@ -23,19 +23,34 @@ import {
 
 export type ClientRuntimeKind = ClientDeviceKind;
 
-export const HELLO_ID: Record<ClientRuntimeKind, string> = {
+const HELLO_BASE: Record<ClientRuntimeKind, string> = {
   terminal: "hello-terminal",
   desktop: "hello-desktop",
 };
 
-/** A required capability this runtime's host does not implement. */
+/**
+ * The client id of one run. Publications persist on protected main and a
+ * retired project's repository keeps its path, so a fixed id would collide
+ * with the previous run's leftovers in the same workspace.
+ */
+export function helloId(runtime: ClientRuntimeKind, nonce: string): string {
+  return `${HELLO_BASE[runtime]}-${nonce}`;
+}
+
+/**
+ * A required capability this runtime's host does not implement. It must be in
+ * the runtime's manifest vocabulary (a capability some host of that runtime
+ * could implement), or the build refuses the manifest before any host is asked;
+ * and it must be absent from the host's implemented set (`TERMINAL_HOST_CAPABILITIES`,
+ * `DESKTOP_IMPLEMENTED_CAPABILITIES`).
+ */
 export const UNSUPPORTED_CAPABILITY: Record<ClientRuntimeKind, string> = {
-  terminal: "camera",
-  desktop: "terminal-app-hosting",
+  terminal: "integration.install",
+  desktop: "camera",
 };
 
-export function unsupportedId(runtime: ClientRuntimeKind): string {
-  return `${HELLO_ID[runtime]}-unsupported`;
+export function unsupportedId(runtime: ClientRuntimeKind, nonce: string): string {
+  return `${helloId(runtime, nonce)}-unsupported`;
 }
 
 export function greeting(nonce: string): string {
@@ -55,7 +70,7 @@ const SURFACE: Record<ClientRuntimeKind, string> = {
 
 export const prompts = {
   create(runtime: ClientRuntimeKind, nonce: string, options: { updateAware?: boolean } = {}): string {
-    const id = HELLO_ID[runtime];
+    const id = helloId(runtime, nonce);
     const update = options.updateAware
       ? " When the host tells it that a newer build of itself is ready, it shows the line `Update ready` and, when I press u, restarts into the new build at that point."
       : "";
@@ -76,32 +91,44 @@ export const prompts = {
       .join(" ");
   },
   edit(runtime: ClientRuntimeKind, nonce: string): string {
-    return `Change the greeting of ${HELLO_ID[runtime]} to \`${updatedGreeting(nonce)}\` and publish it.`;
+    return `Change the greeting of ${helloId(runtime, nonce)} to \`${updatedGreeting(nonce)}\` and publish it.`;
   },
-  trust(runtime: ClientRuntimeKind): string {
-    return `Make ${HELLO_ID[runtime]} a trusted client so it can use the device approval surface, and publish. The workspace owner will confirm the change.`;
+  trust(runtime: ClientRuntimeKind, nonce: string): string {
+    return `Make ${helloId(runtime, nonce)} a trusted client so it can use the device approval surface, and publish. The workspace owner will confirm the change.`;
   },
-  untrust(runtime: ClientRuntimeKind): string {
-    return `Remove ${HELLO_ID[runtime]} from the trusted clients and publish.`;
+  untrust(runtime: ClientRuntimeKind, nonce: string): string {
+    return `Remove ${helloId(runtime, nonce)} from the trusted clients and publish.`;
   },
-  unsupported(runtime: ClientRuntimeKind): string {
-    return `Create one more minimal ${runtime} client with id ${unsupportedId(runtime)} that cannot run without the \`${UNSUPPORTED_CAPABILITY[runtime]}\` capability, declare it and publish it.`;
+  unsupported(runtime: ClientRuntimeKind, nonce: string): string {
+    return `Create one more minimal ${runtime} client with id ${unsupportedId(runtime, nonce)} that cannot run without the \`${UNSUPPORTED_CAPABILITY[runtime]}\` capability, declare it and publish it.`;
   },
-  retire(runtime: ClientRuntimeKind, withUnsupported = true): string {
-    const names = withUnsupported ? `${HELLO_ID[runtime]} and ${unsupportedId(runtime)}` : HELLO_ID[runtime];
+  retire(runtime: ClientRuntimeKind, nonce: string, withUnsupported = true): string {
+    const id = helloId(runtime, nonce);
+    const names = withUnsupported ? `${id} and ${unsupportedId(runtime, nonce)}` : id;
     return `Retire ${names}: remove ${withUnsupported ? "them" : "it"} and the echo service you added from the workspace, and publish.`;
   },
 };
 
 /** The decisions the harness's test authority policy makes for the agent. */
 export const CLIENT_AUTHORING_POLICY: TestAuthorityPolicy = {
-  authority: ["workspace.publish", "git.publish"].map((key) => ({
-    ruleId: `client-authoring-${key}`,
-    capability: { kind: "exact" as const, key },
-    resource: { kind: "prefix" as const, prefix: "workspace-source-change:publication:" },
-    tier: "gated" as const,
-    decision: "once" as const,
-  })),
+  authority: [
+    ...["workspace.publish", "git.publish"].map((key) => ({
+      ruleId: `client-authoring-${key}`,
+      capability: { kind: "exact" as const, key },
+      resource: { kind: "prefix" as const, prefix: "workspace-source-change:publication:" },
+      tier: "gated" as const,
+      decision: "once" as const,
+    })),
+    // A trust change is confirmed by the person (the device's approval surface),
+    // never by the harness: it continues through the real queue.
+    {
+      ruleId: "client-trust-change-person",
+      capability: { kind: "exact" as const, key: "workspace.publish" },
+      resource: { kind: "prefix" as const, prefix: "workspace-trust-change:publication:" },
+      tier: "critical" as const,
+      decision: "queue" as const,
+    },
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -292,13 +319,30 @@ export class ApprovalSurface {
 export function pushedSince(messages: readonly ChatMessage[], since: number): boolean {
   return messages.slice(since).some((message) => {
     const invocation = message.invocation;
-    return (
-      invocation?.name === "vcs" &&
-      (invocation.arguments as { operation?: unknown } | undefined)?.operation === "push" &&
-      invocation.execution?.status === "complete" &&
-      invocation.execution?.terminalOutcome === "success"
-    );
+    if (invocation?.execution?.status !== "complete" || invocation.execution.terminalOutcome !== "success")
+      return false;
+    // The `vcs` tool's push.
+    if (
+      invocation.name === "vcs" &&
+      (invocation.arguments as { operation?: unknown } | undefined)?.operation === "push"
+    )
+      return true;
+    // Runtime code (`vcs.publish`, `vcs.push` in an eval) reaches the same
+    // push; the eval's operation journal records it as a fulfilled `vcs.push`.
+    return evalJournaledPush(invocation.execution.result);
   });
+}
+
+function evalJournaledPush(result: unknown): boolean {
+  const details = (result as { details?: { operationJournal?: { entries?: unknown } } } | null)?.details;
+  const entries = details?.operationJournal?.entries;
+  return (
+    Array.isArray(entries) &&
+    entries.some((entry) => {
+      const receipt = (entry as { receipt?: { method?: unknown; outcome?: unknown } } | null)?.receipt;
+      return receipt?.method === "vcs.push" && receipt.outcome === "fulfilled";
+    })
+  );
 }
 
 // ---------------------------------------------------------------------------

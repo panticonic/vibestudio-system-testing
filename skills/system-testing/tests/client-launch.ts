@@ -2,7 +2,7 @@ import { requiringUnits, type TestCase, type TestExecutionResult, type TestResul
 import type { ClientListingLite, DeviceIdentities, IntentOutcome, ShellResult } from "./_client-device.js";
 import {
   CLIENT_AUTHORING_POLICY,
-  HELLO_ID,
+  helloId,
   greeting,
   prompts,
   restartFailure,
@@ -242,8 +242,8 @@ async function orchestrateUpdateSwap(
   context: Parameters<NonNullable<TestCase["orchestrate"]>>[0]
 ): Promise<TestExecutionResult> {
   const runtime = "terminal" as const;
-  const id = HELLO_ID[runtime];
   const nonce = `cus-${crypto.randomUUID().slice(0, 8)}`;
+  const id = helloId(runtime, nonce);
   const evidence: UpdateSwapEvidence = { phase: "record", completedPhases: [], nonce };
   return runScenario(context, { name: "client-update-swap", kind: runtime, evidence, diagnosticsKey: "clientUpdateSwap", agent: true }, async (frame) => {
     const { device } = frame;
@@ -271,7 +271,7 @@ async function orchestrateUpdateSwap(
     evidence.swapped = { buildKey: adopted.buildKey, text: after, bystandersUnchanged: sameBystanders(evidence.before, mid, [id]) };
 
     evidence.phase = "retire";
-    await frame.turn(prompts.retire(runtime, false), "retire");
+    await frame.turn(prompts.retire(runtime, nonce, false), "retire");
     await device.call("waitForListing", { id, present: false });
     await surface.waitForClosed();
     evidence.after = await device.identities();
