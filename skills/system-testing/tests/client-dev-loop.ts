@@ -11,8 +11,6 @@ import {
   UNSUPPORTED_CAPABILITY,
   echoed,
   greeting,
-  listingAfterTurn,
-  newBuildAfterTurn,
   prompts,
   restartFailure,
   runScenario,
@@ -180,7 +178,7 @@ async function orchestrate(
     // 2-3. Author, declare, publish, review; the index gains the client.
     await frame.turn(prompts.create(runtime, nonce), "create-declare-publish");
     evidence.phase = "index";
-    evidence.listing = await listingAfterTurn(device, id, true);
+    evidence.listing = (await device.call("waitForListing", { id, present: true })) ?? undefined;
     if (runtime === "terminal") {
       // Linking the launcher before the client runs keeps the order the person
       // would follow: the shim exists before the first `vibestudio open`.
@@ -209,7 +207,6 @@ async function orchestrate(
     const fromBuildKey = launched.instance.buildKey;
     await frame.turn(prompts.edit(runtime, nonce), "edit-publish");
     evidence.phase = "adopt";
-    await newBuildAfterTurn(device, id, fromBuildKey);
     const adopted = await device.call("waitForBuildChange", { surfaceId: surface.surfaceId, fromBuildKey });
     const shownText = await surface.waitForText(updatedGreeting(nonce));
     const mid = await device.identities();
@@ -253,7 +250,7 @@ async function orchestrate(
     evidence.phase = "negative";
     const negId = unsupportedId(runtime);
     await frame.turn(prompts.unsupported(runtime), "unsupported-client");
-    await listingAfterTurn(device, negId, true);
+    await device.call("waitForListing", { id: negId, present: true });
     const unavailable = await device.launch({ id: negId });
     const listed = (await device.list()).find((l) => l.id === negId);
     evidence.negative = {
@@ -268,7 +265,7 @@ async function orchestrate(
 
     evidence.phase = "retire";
     await frame.turn(prompts.retire(runtime), "retire");
-    await listingAfterTurn(device, id, false);
+    await device.call("waitForListing", { id, present: false });
     integration.closedReason = (await surface.waitForClosed()).reason;
     await device.call("waitForArtifactsRemoved", { clientId: id });
     integration.removedAfterRetire = !(await device.call("integrationArtifacts", {})).some((a) => a.clientId === id);

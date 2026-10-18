@@ -68,6 +68,7 @@
     "@vibestudio/shared": "workspace:*",
     "@vibestudio/shell-core": "workspace:*",
     "@vibestudio/trajectory-identity": "workspace:*",
+    "@workspace-extensions/shell": "workspace:*",
     "@workspace/agentic-session": "workspace:*",
     "@workspace/agentic-core": "workspace:*",
     "@workspace/agentic-protocol": "workspace:*",

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TestExecutionResult } from "../types.js";
 import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "../prompt-contract.js";
-import { ClientDevice, type ClientListingLite, type DeviceIdentities } from "./_client-device.js";
+import { ClientDevice, type DeviceIdentities } from "./_client-device.js";
 import {
   ApprovalSurface,
   HELLO_ID,
@@ -10,8 +10,7 @@ import {
   decideApproval,
   echoed,
   greeting,
-  listingAfterTurn,
-  newBuildAfterTurn,
+  pushedSince,
   prompts,
   restartFailure,
   sameBystanders,
@@ -321,20 +320,33 @@ describe("a cancelled test", () => {
   });
 });
 
+describe("an approval loop that fails", () => {
+  it("reports its failure at once, so the waits that needed its answers end with it", async () => {
+    const failure = new Error("Install review is preparing and cannot be resolved");
+    const device = new ClientDevice("terminal", async (op) => {
+      if (op === "nextApproval") return { approvalId: "a1", kind: "capability" };
+      throw failure;
+    });
+    let reported: unknown;
+    const surface = new ApprovalSurface(device, {}, undefined, (cause) => {
+      reported = cause;
+    });
+    expect(await surface.stop()).toBe(failure);
+    expect(reported).toBe(failure);
+  });
+});
+
 describe("what an agent turn produced", () => {
-  const lite = (id: string, activeBuildKey: string | null): ClientListingLite => ({
-    id, source: "s", runtime: "terminal", status: "available", trusted: false, isDefault: false, intents: [], activeBuildKey,
-  });
-  const deviceWith = (listings: ClientListingLite[]) => new ClientDevice("terminal", async () => listings);
+  const push = (outcome: "success" | "failure", operation = "push") =>
+    ({
+      invocation: { name: "vcs", arguments: { operation }, execution: { status: "complete", terminalOutcome: outcome } },
+    }) as never;
 
-  it("fails with what is missing instead of waiting for the device to gain it", async () => {
-    await expect(listingAfterTurn(deviceWith([]), "hello", true)).rejects.toThrow(/without hello in the device's client index/);
-    await expect(listingAfterTurn(deviceWith([lite("hello", "b1")]), "hello", false)).rejects.toThrow(/still in the device's client index/);
-    expect((await listingAfterTurn(deviceWith([lite("hello", "b1")]), "hello", true))?.id).toBe("hello");
-  });
-
-  it("requires the edit turn to have moved the client to a new build", async () => {
-    await expect(newBuildAfterTurn(deviceWith([lite("hello", "b1")]), "hello", "b1")).rejects.toThrow(/without publishing a new build/);
-    expect(await newBuildAfterTurn(deviceWith([lite("hello", "b2")]), "hello", "b1")).toBe("b2");
+  it("counts only a successful push made during the turn as publishing", () => {
+    expect(pushedSince([push("success")], 0)).toBe(true);
+    expect(pushedSince([push("success")], 1)).toBe(false);
+    expect(pushedSince([push("failure")], 0)).toBe(false);
+    expect(pushedSince([push("success", "commit")], 0)).toBe(false);
+    expect(pushedSince([], 0)).toBe(false);
   });
 });

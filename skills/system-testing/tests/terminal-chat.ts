@@ -1,4 +1,8 @@
 import { extensions, rpc } from "@workspace/runtime";
+// Brings the shell extension's typed API into this unit's program, which
+// `extensions.use` resolves its argument against; every unit that calls the
+// extension imports it itself (see panels/terminal/useShellExtension.ts).
+import type {} from "@workspace-extensions/shell";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { EventsClient } from "@vibestudio/service-schemas/clients/eventsClient";
 import { readEventWatchRecords, type EventWatchRecord } from "@vibestudio/service-schemas/events";

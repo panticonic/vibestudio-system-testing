@@ -4,8 +4,6 @@ import {
   CLIENT_AUTHORING_POLICY,
   HELLO_ID,
   greeting,
-  listingAfterTurn,
-  newBuildAfterTurn,
   prompts,
   restartFailure,
   runScenario,
@@ -252,7 +250,7 @@ async function orchestrateUpdateSwap(
     evidence.before = await device.identities();
     await frame.turn(prompts.create(runtime, nonce, { updateAware: true }), "create-declare-publish");
     evidence.phase = "launch";
-    await listingAfterTurn(device, id, true);
+    await device.call("waitForListing", { id, present: true });
     const opened = await device.launch({ id });
     if (opened.state !== "ready") throw new Error(`${id} did not launch: ${JSON.stringify(opened)}`);
     const surface = opened.surface;
@@ -261,7 +259,6 @@ async function orchestrateUpdateSwap(
 
     await frame.turn(prompts.edit(runtime, nonce), "edit-publish");
     evidence.phase = "offered";
-    await newBuildAfterTurn(device, id, opened.instance.buildKey);
     const text = await surface.waitForText("Update ready");
     const info = await surface.info();
     evidence.offered = { pendingBuildKey: info.pendingBuildKey, runningBuildKey: info.instance.buildKey, text };
@@ -275,7 +272,7 @@ async function orchestrateUpdateSwap(
 
     evidence.phase = "retire";
     await frame.turn(prompts.retire(runtime, false), "retire");
-    await listingAfterTurn(device, id, false);
+    await device.call("waitForListing", { id, present: false });
     await surface.waitForClosed();
     evidence.after = await device.identities();
   });

@@ -6,12 +6,12 @@ import type {
   TestAuthorityPolicy,
 } from "../types.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
+import type { ChatMessage } from "@workspace/agentic-core";
 import {
   openClientDevice,
   type ClientDevice,
   type ClientDeviceKind,
   type ClientInstanceIdentity,
-  type ClientListingLite,
   type DeviceIdentities,
 } from "./_client-device.js";
 
@@ -212,7 +212,13 @@ export class ApprovalSurface {
     private readonly device: ClientDevice,
     private readonly consent: ApprovalConsent = {},
     /** The test's: cancelling it cancels the outstanding `nextApproval`. */
-    private readonly signal?: AbortSignal
+    private readonly signal?: AbortSignal,
+    /**
+     * Told the moment the loop fails. With the loop gone no approval is answered
+     * again, so every device wait that needs one would stay pending forever; the
+     * owner ends them with this failure instead of waiting for `stop`.
+     */
+    private readonly onFailure?: (cause: unknown) => void
   ) {
     this.#done = this.#run();
     // `stop` joins and reports this loop; a failure before then is not unhandled.
@@ -223,12 +229,17 @@ export class ApprovalSurface {
     // `nextApproval` is answered by the device from its approval queue's
     // events; it settles with null when the surface is released, and with the
     // test's cancellation when the test is cancelled.
-    for (;;) {
-      const approval = await this.device.call("nextApproval", {});
-      if (!approval) return;
-      const record = decideApproval(approval, this.consent);
-      this.answered.push(record);
-      await this.device.call("resolveApproval", { approvalId: approval.approvalId, decision: record.decision });
+    try {
+      for (;;) {
+        const approval = await this.device.call("nextApproval", {});
+        if (!approval) return;
+        const record = decideApproval(approval, this.consent);
+        this.answered.push(record);
+        await this.device.call("resolveApproval", { approvalId: approval.approvalId, decision: record.decision });
+      }
+    } catch (cause) {
+      if (this.signal?.aborted !== true) this.onFailure?.(cause);
+      throw cause;
     }
   }
 
@@ -269,36 +280,25 @@ export class ApprovalSurface {
 // What an agent's turn produced
 
 /**
- * The state an agent's turn was asked to produce, read once the turn has
- * completed. The device's waits end on a host event; none of them can end when
- * the agent never did the work, so a scenario awaits the turn first and then
- * checks, failing with what is missing rather than waiting for an event that
- * nothing will cause.
+ * Whether a message list holds a protected-main push that succeeded, among the
+ * messages from index `since` on.
+ *
+ * What a published change does to the device (the index gaining or losing a
+ * client, a new build adopted) happens after the push returns, on the server's
+ * own schedule, and the device's waits end on the host event that announces it.
+ * None of them can end when the agent never published, so a turn is checked for
+ * its publication first and the device is then awaited.
  */
-export async function listingAfterTurn(
-  device: ClientDevice,
-  id: string,
-  present: boolean
-): Promise<ClientListingLite | undefined> {
-  const listing = (await device.list()).find((candidate) => candidate.id === id);
-  if (present && !listing)
-    throw new Error(`The agent's turn ended without ${id} in the device's client index`);
-  if (!present && listing)
-    throw new Error(`The agent's turn ended with ${id} still in the device's client index`);
-  return listing;
-}
-
-/** The client's active build after an edit turn; fails when the turn published none. */
-export async function newBuildAfterTurn(
-  device: ClientDevice,
-  id: string,
-  fromBuildKey: string
-): Promise<string> {
-  const listing = await listingAfterTurn(device, id, true);
-  const active = listing?.activeBuildKey;
-  if (!active || active === fromBuildKey)
-    throw new Error(`The agent's turn ended without publishing a new build of ${id}`);
-  return active;
+export function pushedSince(messages: readonly ChatMessage[], since: number): boolean {
+  return messages.slice(since).some((message) => {
+    const invocation = message.invocation;
+    return (
+      invocation?.name === "vcs" &&
+      (invocation.arguments as { operation?: unknown } | undefined)?.operation === "push" &&
+      invocation.execution?.status === "complete" &&
+      invocation.execution?.terminalOutcome === "success"
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -311,7 +311,7 @@ export interface ScenarioFrame<E> {
   session: HeadlessSession | null;
   approvals: ApprovalSurface;
   evidence: E;
-  /** One agent turn. */
+  /** One agent turn, which must publish to protected main. */
   turn(prompt: string, phase: string): Promise<void>;
 }
 
@@ -341,10 +341,18 @@ export async function runScenario<E extends { phase: string; completedPhases: st
   };
   let session: HeadlessSession | null = null;
   let approvals: ApprovalSurface | null = null;
+  // The test's cancellation, and the scenario's own: a failed approval loop ends
+  // every outstanding device operation with its cause.
+  const scenario = new AbortController();
+  const endScenario = (reason: unknown) => {
+    if (!scenario.signal.aborted) scenario.abort(reason);
+  };
+  if (context.signal.aborted) endScenario(context.signal.reason);
+  else context.signal.addEventListener("abort", () => endScenario(context.signal.reason), { once: true });
   try {
-    const device = await openClientDevice(options.kind, context.signal);
+    const device = await openClientDevice(options.kind, scenario.signal);
     if (options.agent) session = await context.runner.spawn({ context: "isolated" });
-    approvals = new ApprovalSurface(device, options.consent, context.signal);
+    approvals = new ApprovalSurface(device, options.consent, context.signal, endScenario);
     await body({
       context,
       device,
@@ -355,7 +363,10 @@ export async function runScenario<E extends { phase: string; completedPhases: st
         evidence.completedPhases.push(evidence.phase);
         evidence.phase = phase;
         if (!session) throw new Error(`The ${options.name} scenario has no agent for phase ${phase}`);
+        const before = session.messages.length;
         await context.sendAndWait(session, prompt, phase);
+        if (!pushedSince(session.messages, before))
+          throw new Error("The agent's turn ended without publishing to protected main");
       },
     });
     evidence.completedPhases.push(evidence.phase);
