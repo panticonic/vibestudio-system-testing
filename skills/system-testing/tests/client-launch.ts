@@ -1,5 +1,12 @@
 import { requiringUnits, type TestCase, type TestExecutionResult, type TestResult } from "../types.js";
-import type { ClientListingLite, DeviceIdentities, IntentOutcome, ShellResult } from "./_client-device.js";
+import type {
+  ClientDevice,
+  ClientListingLite,
+  ClientSessionOutcome,
+  DeviceIdentities,
+  IntentOutcome,
+  ShellResult,
+} from "./_client-device.js";
 import {
   CLIENT_AUTHORING_POLICY,
   helloId,
@@ -9,6 +16,7 @@ import {
   runScenario,
   sameBystanders,
   updatedGreeting,
+  type ApprovalConsent,
   type ApprovalRecord,
 } from "./_client-scenario.js";
 
@@ -20,6 +28,11 @@ import {
  */
 
 const CHAT_ID = "chat";
+/**
+ * The desktop shell client: the one that hosts panels (the chat window does
+ * not) and whose manifest requests the workspace runtime-state authority.
+ */
+const BROWSER_ID = "browser";
 const ONLINE = "● online";
 
 interface Common {
@@ -141,6 +154,219 @@ async function orchestrateLaunch(
       // the open client has closed.
       evidence.phase = "pipe";
       evidence.piped = await device.call("shell", { commandLine: "echo hi | vibestudio chat ask" });
+    }
+    evidence.after = await device.identities();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// client-panel-creation-desktop
+
+type PanelCreated = Awaited<ReturnType<ClientDevice["createPanelAsClient"]>>;
+
+/** One private workspace of the account and a panel source that ships in it. */
+const PANEL_TARGETS = [
+  { workspace: "system", source: "about/about" },
+  { workspace: "personal", source: "panels/tour" },
+] as const;
+
+export interface PanelCreationEvidence extends Common {
+  launched?: { instanceId: string };
+  created: Partial<Record<(typeof PANEL_TARGETS)[number]["workspace"], PanelCreated>>;
+  closedCleanly?: boolean;
+}
+
+export function validateClientPanelCreation(result: TestExecutionResult): TestResult {
+  const e = evidenceOf<PanelCreationEvidence>(result, "clientPanelCreation");
+  if (!e) return { passed: false, reason: "The client panel creation retained no evidence" };
+  const base = baseFailure(result, e);
+  if (base) return base;
+  if (!e.launched) return fail("The client never launched", e);
+  const workspaceIds = new Set<string>();
+  for (const { workspace } of PANEL_TARGETS) {
+    const created = e.created[workspace];
+    if (!created?.panelId) return fail(`The client window created no panel in the ${workspace} workspace`, e);
+    if (!created.registered) return fail(`The ${workspace} workspace's panel registry does not hold ${created.panelId}`, e);
+    workspaceIds.add(created.workspaceId);
+  }
+  if (workspaceIds.size !== PANEL_TARGETS.length) return fail("The System and Personal panels were created in the same workspace", e);
+  const restarted = restartFailure(e);
+  if (restarted) return fail(restarted, e);
+  if (!e.closedCleanly) return fail("The launched client did not close when the test closed it", e);
+  return { passed: true };
+}
+
+async function orchestratePanelCreation(
+  context: Parameters<NonNullable<TestCase["orchestrate"]>>[0]
+): Promise<TestExecutionResult> {
+  const evidence: PanelCreationEvidence = { phase: "record", completedPhases: [], created: {} };
+  return runScenario(context, { name: "client-panel-creation-desktop", kind: "desktop", evidence, diagnosticsKey: "clientPanelCreation", agent: false, consent: { modelUse: false } }, async ({ device }) => {
+    evidence.before = await device.identities();
+    evidence.phase = "launch";
+    const opened = await device.launch({ id: BROWSER_ID });
+    if (opened.state !== "ready") throw new Error(`${BROWSER_ID} did not launch: ${JSON.stringify(opened)}`);
+    evidence.launched = { instanceId: opened.instance.instanceId };
+    // The window creates panels as its client principal in each private
+    // workspace: the scoped session, build default ref and entity reservation
+    // of the second workspace connection are all on this path.
+    for (const { workspace, source } of PANEL_TARGETS) {
+      evidence.phase = `create-${workspace}`;
+      evidence.created[workspace] = await device.createPanelAsClient({ surfaceId: opened.surface.surfaceId, workspace, source });
+    }
+    evidence.phase = "close";
+    await opened.surface.close();
+    evidence.closedCleanly = (await opened.surface.waitForClosed()).reason.length > 0;
+    evidence.after = await device.identities();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// client-approval-desktop
+
+/**
+ * A call that is gated for a client principal and harmless: it rebuilds the
+ * workspace's panel-search index from its active panels. The person sees its
+ * card as "Manage running apps and tasks".
+ */
+const GATED_CALL = {
+  service: "workspace-state",
+  method: "panel.rebuildIndex",
+  capability: "workspace.runtime-state.manage",
+} as const;
+
+type ClientCalled = Awaited<ReturnType<ClientDevice["callAsClient"]>>;
+
+export interface ClientApprovalEvidence extends Common {
+  launched?: { instanceId: string };
+  /** The gated call's outcome in each private workspace; the call returns only once its approval was accepted. */
+  called: Partial<Record<(typeof PANEL_TARGETS)[number]["workspace"], ClientCalled>>;
+  closedCleanly?: boolean;
+}
+
+export function validateClientApproval(result: TestExecutionResult): TestResult {
+  const e = evidenceOf<ClientApprovalEvidence>(result, "clientApproval");
+  if (!e) return { passed: false, reason: "The client approval test retained no evidence" };
+  const base = baseFailure(result, e);
+  if (base) return base;
+  if (!e.launched) return fail("The client never launched", e);
+  const principals = new Set<string>();
+  const workspaceIds = new Set<string>();
+  for (const { workspace } of PANEL_TARGETS) {
+    const called = e.called[workspace];
+    if (!called) return fail(`The client's gated call did not complete in the ${workspace} workspace`, e);
+    principals.add(called.principalId);
+    workspaceIds.add(called.workspaceId);
+  }
+  if (principals.size !== 1) return fail(`The calls were made as different principals: ${[...principals].join(", ")}`, e);
+  if (workspaceIds.size !== PANEL_TARGETS.length) return fail("The System and Personal calls ran in the same workspace", e);
+  const [principalId] = principals;
+  const answered = (e.approvals ?? []).filter(
+    (a) => a.capability === GATED_CALL.capability && a.callerId === principalId && a.decision === "once"
+  );
+  if (answered.length < PANEL_TARGETS.length)
+    return fail(
+      `${GATED_CALL.capability} was asked of ${principalId} ${answered.length} time(s) on the approval surface, once per workspace was expected`,
+      e
+    );
+  const restarted = restartFailure(e);
+  if (restarted) return fail(restarted, e);
+  if (!e.closedCleanly) return fail("The launched client did not close when the test closed it", e);
+  return { passed: true };
+}
+
+async function orchestrateClientApproval(
+  context: Parameters<NonNullable<TestCase["orchestrate"]>>[0]
+): Promise<TestExecutionResult> {
+  const evidence: ClientApprovalEvidence = { phase: "record", completedPhases: [], called: {} };
+  // The person agrees in advance to the one request the scenario provokes, of the client it launches.
+  const consent: ApprovalConsent = {
+    clientCapabilities: [{ capability: GATED_CALL.capability, callerIdPrefix: `client:${BROWSER_ID}:` }],
+  };
+  return runScenario(context, { name: "client-approval-desktop", kind: "desktop", evidence, diagnosticsKey: "clientApproval", agent: false, consent }, async ({ device }) => {
+    evidence.before = await device.identities();
+    evidence.phase = "launch";
+    const opened = await device.launch({ id: BROWSER_ID });
+    if (opened.state !== "ready") throw new Error(`${BROWSER_ID} did not launch: ${JSON.stringify(opened)}`);
+    evidence.launched = { instanceId: opened.instance.instanceId };
+    // The call is made over the window's own principal session and waits for the
+    // decision as that principal: it returns only after the approval surface
+    // accepted the card, and fails with the server's original error if the
+    // acquisition were owned by anyone else.
+    for (const { workspace } of PANEL_TARGETS) {
+      evidence.phase = `call-${workspace}`;
+      evidence.called[workspace] = await device.callAsClient({
+        surfaceId: opened.surface.surfaceId,
+        workspace,
+        service: GATED_CALL.service,
+        method: GATED_CALL.method,
+      });
+    }
+    evidence.phase = "close";
+    await opened.surface.close();
+    evidence.closedCleanly = (await opened.surface.waitForClosed()).reason.length > 0;
+    evidence.after = await device.identities();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// client-revoke-desktop
+
+/** The reasons the server states when it ends a client's principal for good. */
+const REVOKED_REASONS = ["trust-revoked", "retired"];
+
+export interface ClientRevokeEvidence extends Common {
+  launched?: { instanceId: string; principalOpen: ClientSessionOutcome };
+  closedReason?: string;
+  /** A new session of the revoked principal, per workspace. */
+  afterRevoke: Partial<Record<(typeof PANEL_TARGETS)[number]["workspace"], ClientSessionOutcome>>;
+}
+
+export function validateClientRevoke(result: TestExecutionResult): TestResult {
+  const e = evidenceOf<ClientRevokeEvidence>(result, "clientRevoke");
+  if (!e) return { passed: false, reason: "The client revoke test retained no evidence" };
+  const base = baseFailure(result, e);
+  if (base) return base;
+  if (!e.launched) return fail("The client never launched", e);
+  if (!e.launched.principalOpen.ok)
+    return fail(`The running client's principal was not admitted before the revoke, so a refusal afterwards proves nothing: ${JSON.stringify(e.launched.principalOpen)}`, e);
+  if (!e.closedReason || !REVOKED_REASONS.includes(e.closedReason))
+    return fail(`The host closed the window with ${JSON.stringify(e.closedReason)}, not ${REVOKED_REASONS.join(" or ")}`, e);
+  for (const { workspace } of PANEL_TARGETS) {
+    const outcome = e.afterRevoke[workspace];
+    if (!outcome) return fail(`The revoked principal was not tried in the ${workspace} workspace`, e);
+    if (outcome.ok) return fail(`The ${workspace} workspace admitted a new session with the revoked principal's credential`, e);
+    // The host must have presented the old credential and the server refused it.
+    if (/No client launched/u.test(outcome.message))
+      return fail(`The host no longer held the credential, so the server was never asked in ${workspace}: ${outcome.message}`, e);
+  }
+  const restarted = restartFailure(e);
+  if (restarted) return fail(restarted, e);
+  return { passed: true };
+}
+
+async function orchestrateClientRevoke(
+  context: Parameters<NonNullable<TestCase["orchestrate"]>>[0]
+): Promise<TestExecutionResult> {
+  const evidence: ClientRevokeEvidence = { phase: "record", completedPhases: [], afterRevoke: {} };
+  return runScenario(context, { name: "client-revoke-desktop", kind: "desktop", evidence, diagnosticsKey: "clientRevoke", agent: false, consent: { modelUse: false } }, async ({ device }) => {
+    evidence.before = await device.identities();
+    evidence.phase = "launch";
+    const opened = await device.launch({ id: CHAT_ID });
+    if (opened.state !== "ready") throw new Error(`${CHAT_ID} did not launch: ${JSON.stringify(opened)}`);
+    const surfaceId = opened.surface.surfaceId;
+    evidence.launched = {
+      instanceId: opened.instance.instanceId,
+      principalOpen: await device.call("openClientSession", { surfaceId, workspace: "system" }),
+    };
+    // The workspace retires the client; the hub revokes its principals and
+    // closes their sessions, and the host closes the window on that signal.
+    // The client is not removed: a later launch runs it again.
+    evidence.phase = "revoke";
+    await device.call("retireClient", { id: CHAT_ID });
+    evidence.closedReason = (await opened.surface.waitForClosed()).reason;
+    for (const { workspace } of PANEL_TARGETS) {
+      evidence.phase = `refused-${workspace}`;
+      evidence.afterRevoke[workspace] = await device.call("openClientSession", { surfaceId, workspace });
     }
     evidence.after = await device.identities();
   });
@@ -318,6 +544,36 @@ export const clientLaunchTests: TestCase[] = [
       prompt: "Harness-orchestrated desktop client launch through a paired device host.",
       orchestrate: (context) => orchestrateLaunch(context, "desktop"),
       validate: (result) => validateClientLaunch(result, "desktop"),
+    },
+    {
+      ...harness,
+      name: "client-panel-creation-desktop",
+      description: "A desktop client window creates a panel in the System and in the Personal workspace through its principal's scoped session, and each workspace's registry holds the panel",
+      timeoutMs: 20 * 60_000,
+      resources: ["client-device:desktop"],
+      prompt: "Harness-orchestrated panel creation as a desktop client window through a paired device host.",
+      orchestrate: orchestratePanelCreation,
+      validate: validateClientPanelCreation,
+    },
+    {
+      ...harness,
+      name: "client-approval-desktop",
+      description: "A desktop client window's gated call over its own principal session raises an approval owned by that principal in the System and in the Personal workspace; accepting it on the approval surface completes the original call",
+      timeoutMs: 20 * 60_000,
+      resources: ["client-device:desktop"],
+      prompt: "Harness-orchestrated gated call as a desktop client window through a paired device host.",
+      orchestrate: orchestrateClientApproval,
+      validate: validateClientApproval,
+    },
+    {
+      ...harness,
+      name: "client-revoke-desktop",
+      description: "Retiring a running desktop client revokes its principal at the hub: the host closes the window with the server's stated reason and a new session with the old credential is refused in both private workspaces",
+      timeoutMs: 20 * 60_000,
+      resources: ["client-device:desktop"],
+      prompt: "Harness-orchestrated client revocation through a paired device host.",
+      orchestrate: orchestrateClientRevoke,
+      validate: validateClientRevoke,
     },
   ]),
   ...requiringUnits(["skills/clientdev"], [

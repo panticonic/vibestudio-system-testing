@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PendingApproval } from "@vibestudio/shared/approvals";
 import type { TestExecutionResult } from "../types.js";
 import { assertAgentGoalPrompt, assertSystemTestDeclaration } from "../prompt-contract.js";
@@ -21,11 +21,17 @@ import {
 import { clientDevLoopTests, validateClientDevLoop, type DevLoopEvidence } from "./client-dev-loop.js";
 import {
   clientLaunchTests,
+  validateClientApproval,
   validateClientIntentBackground,
   validateClientLaunch,
+  validateClientPanelCreation,
+  validateClientRevoke,
   validateClientUpdateSwap,
   type BackgroundIntentEvidence,
+  type ClientApprovalEvidence,
+  type ClientRevokeEvidence,
   type LaunchEvidence,
+  type PanelCreationEvidence,
   type UpdateSwapEvidence,
 } from "./client-launch.js";
 
@@ -48,11 +54,14 @@ describe("declarations", () => {
     for (const test of all) assertSystemTestDeclaration(test);
     expect(all.map((t) => t.name).sort()).toEqual(
       [
+        "client-approval-desktop",
         "client-dev-loop-desktop",
         "client-dev-loop-terminal",
         "client-intent-background",
         "client-launch-desktop",
         "client-launch-terminal",
+        "client-panel-creation-desktop",
+        "client-revoke-desktop",
         "client-update-swap",
       ].sort()
     );
@@ -101,6 +110,20 @@ describe("approval decisions", () => {
     } as unknown as PendingApproval);
     expect(trust).toMatchObject({ decision: "once", critical: true, trust: [{ gained: ["approval-surface"] }] });
     expect(decideApproval({ ...base, kind: "capability", capability: "x", title: "t" } as unknown as PendingApproval).decision).toBe("deny");
+  });
+
+  it("allows a consented capability once, and only of the principal the scenario launched", () => {
+    const card = { ...base, kind: "capability", callerKind: "client", callerId: "client:browser:web:dev", capability: "workspace.runtime-state.manage", title: "Manage running apps and tasks" };
+    const consent = { clientCapabilities: [{ capability: "workspace.runtime-state.manage", callerIdPrefix: "client:browser:" }] };
+    expect(decideApproval(card as unknown as PendingApproval).decision).toBe("deny");
+    expect(decideApproval(card as unknown as PendingApproval, consent)).toMatchObject({
+      decision: "once",
+      capability: "workspace.runtime-state.manage",
+      callerId: "client:browser:web:dev",
+    });
+    expect(decideApproval({ ...card, callerId: "client:other:web:dev" } as unknown as PendingApproval, consent).decision).toBe("deny");
+    expect(decideApproval({ ...card, capability: "workspace.publish" } as unknown as PendingApproval, consent).decision).toBe("deny");
+    expect(decideApproval({ ...card, callerKind: "worker" } as unknown as PendingApproval, consent).decision).toBe("deny");
   });
 
   it("allows model use once, and only when the scenario asked an agent a question", () => {
@@ -199,6 +222,113 @@ describe("validateClientDevLoop", () => {
   it("reports a scenario failure first", () => {
     expect(validateClientDevLoop(run("clientDevLoop", devLoop("terminal"), { error: "boom" }), "terminal").reason).toMatch(/boom/);
     expect(validateClientDevLoop({ messages: [], duration: 0 }, "terminal").reason).toMatch(/no evidence/);
+  });
+});
+
+describe("validateClientPanelCreation", () => {
+  const created = (workspaceId: string, registered = true) => ({ workspaceId, panelId: `p-${workspaceId}`, title: "T", registered });
+  const evidence = (): PanelCreationEvidence => ({
+    phase: "close",
+    completedPhases: [],
+    before: ids(),
+    after: ids(),
+    approvals: [],
+    launched: { instanceId: "i1" },
+    created: { system: created("ws-system"), personal: created("ws-personal") },
+    closedCleanly: true,
+  });
+  it("passes when both private workspaces hold the created panel", () => {
+    expect(validateClientPanelCreation(run("clientPanelCreation", evidence())).passed).toBe(true);
+  });
+  it("fails when a workspace is skipped, does not hold the panel, or is the same workspace", () => {
+    const missing = evidence();
+    delete missing.created.personal;
+    expect(validateClientPanelCreation(run("clientPanelCreation", missing)).reason).toMatch(/personal workspace/);
+    const unregistered = evidence();
+    unregistered.created.system = created("ws-system", false);
+    expect(validateClientPanelCreation(run("clientPanelCreation", unregistered)).reason).toMatch(/registry/);
+    const same = evidence();
+    same.created.personal = created("ws-system");
+    expect(validateClientPanelCreation(run("clientPanelCreation", same)).reason).toMatch(/same workspace/);
+    expect(validateClientPanelCreation(run("clientPanelCreation", evidence(), { error: "boom" })).reason).toMatch(/boom/);
+  });
+});
+
+describe("validateClientApproval", () => {
+  const principal = "client:browser:web:dev";
+  const called = (workspaceId: string, principalId = principal) => ({ workspaceId, principalId, value: null });
+  const answered = (callerId = principal) => ({
+    approvalId: "a",
+    kind: "capability",
+    decision: "once" as const,
+    capability: "workspace.runtime-state.manage",
+    callerId,
+  });
+  const evidence = (): ClientApprovalEvidence => ({
+    phase: "close",
+    completedPhases: [],
+    before: ids(),
+    after: ids(),
+    approvals: [answered(), answered()],
+    launched: { instanceId: "i1" },
+    called: { system: called("ws-system"), personal: called("ws-personal") },
+    closedCleanly: true,
+  });
+  it("passes when each workspace asked the client principal and the call completed", () => {
+    expect(validateClientApproval(run("clientApproval", evidence())).passed).toBe(true);
+  });
+  it("fails on a missing call, a mixed principal, a shared workspace or too few accepted cards", () => {
+    const missing = evidence();
+    delete missing.called.personal;
+    expect(validateClientApproval(run("clientApproval", missing)).reason).toMatch(/personal workspace/);
+    const mixed = evidence();
+    mixed.called.personal = called("ws-personal", "client:other:web:dev");
+    expect(validateClientApproval(run("clientApproval", mixed)).reason).toMatch(/different principals/);
+    const same = evidence();
+    same.called.personal = called("ws-system");
+    expect(validateClientApproval(run("clientApproval", same)).reason).toMatch(/same workspace/);
+    const few = evidence();
+    few.approvals = [answered()];
+    expect(validateClientApproval(run("clientApproval", few)).reason).toMatch(/once per workspace/);
+    const other = evidence();
+    other.approvals = [answered(), answered("client:other:web:dev")];
+    expect(validateClientApproval(run("clientApproval", other)).reason).toMatch(/once per workspace/);
+    const denied = evidence();
+    denied.approvals = [...denied.approvals!, { approvalId: "d", kind: "capability", decision: "deny" as const, title: "x" }];
+    expect(validateClientApproval(run("clientApproval", denied)).reason).toMatch(/nobody was meant to decide/);
+    expect(validateClientApproval(run("clientApproval", evidence(), { error: "Acquisition is not owned by this task" })).reason).toMatch(/not owned/);
+  });
+});
+
+describe("validateClientRevoke", () => {
+  const refused = { ok: false as const, code: "EAUTH", message: "credential revoked" };
+  const evidence = (): ClientRevokeEvidence => ({
+    phase: "refused-personal",
+    completedPhases: [],
+    before: ids(),
+    after: ids(),
+    launched: { instanceId: "i1", principalOpen: { ok: true } },
+    closedReason: "retired",
+    afterRevoke: { system: refused, personal: refused },
+  });
+  it("passes when the window closed with the stated reason and the old credential is refused everywhere", () => {
+    expect(validateClientRevoke(run("clientRevoke", evidence())).passed).toBe(true);
+    expect(validateClientRevoke(run("clientRevoke", { ...evidence(), closedReason: "trust-revoked" })).passed).toBe(true);
+  });
+  it("fails when the principal was never admitted, the close reason is unstated, or a session is admitted", () => {
+    const never = evidence();
+    never.launched!.principalOpen = refused;
+    expect(validateClientRevoke(run("clientRevoke", never)).reason).toMatch(/proves nothing/);
+    expect(validateClientRevoke(run("clientRevoke", { ...evidence(), closedReason: "closed-by-test" })).reason).toMatch(/closed the window/);
+    const admitted = evidence();
+    admitted.afterRevoke.personal = { ok: true };
+    expect(validateClientRevoke(run("clientRevoke", admitted)).reason).toMatch(/personal workspace admitted/);
+    const forgotten = evidence();
+    forgotten.afterRevoke.system = { ok: false, code: "EUNKNOWN", message: "No client launched for principal x" };
+    expect(validateClientRevoke(run("clientRevoke", forgotten)).reason).toMatch(/never asked/);
+    const skipped = evidence();
+    delete skipped.afterRevoke.system;
+    expect(validateClientRevoke(run("clientRevoke", skipped)).reason).toMatch(/system workspace/);
   });
 });
 
@@ -309,15 +439,51 @@ describe("a cancelled test", () => {
     const surface = new ApprovalSurface(device, {}, abort.signal);
     abort.abort(new Error("run cancelled"));
     expect(await surface.stop()).toBeUndefined();
-    expect(calls).toEqual(["nextApproval"]);
+    expect(calls).toEqual(["openApprovals"]);
   });
 
   it("still releases the surface of a test that ran to its end", async () => {
     const abort = new AbortController();
-    const { device, calls } = deviceFor(abort.signal, { nextApproval: null, releaseApprovals: null });
+    const { device, calls } = deviceFor(abort.signal, {
+      openApprovals: { surfaceToken: "s1" },
+      nextApproval: null,
+      releaseApprovals: null,
+    });
     const surface = new ApprovalSurface(device, {}, abort.signal);
     expect(await surface.stop()).toBeUndefined();
     expect(calls).toContain("releaseApprovals");
+  });
+});
+
+describe("consecutive approval surfaces on one device", () => {
+  it("gives each its own token, so releasing the first does not end the second", async () => {
+    const released = new Set<string>();
+    const waiting = new Map<string, () => void>();
+    let opened = 0;
+    const delivered: string[] = [];
+    const device = new ClientDevice("terminal", async (op, args) => {
+      const { surfaceToken } = ((args as unknown[])[0] ?? {}) as { surfaceToken?: string };
+      if (op === "openApprovals") return { surfaceToken: `s${++opened}` };
+      if (op === "releaseApprovals") {
+        released.add(surfaceToken!);
+        waiting.get(surfaceToken!)?.();
+        return null;
+      }
+      if (op === "nextApproval") {
+        if (released.has(surfaceToken!)) return null;
+        if (surfaceToken === "s2" && !delivered.includes("s2")) {
+          delivered.push("s2");
+          return { approvalId: "a2", kind: "capability" };
+        }
+        return new Promise<null>((resolve) => waiting.set(surfaceToken!, () => resolve(null)));
+      }
+      return null;
+    });
+    const first = new ApprovalSurface(device);
+    expect(await first.stop()).toBeUndefined();
+    const second = new ApprovalSurface(device);
+    await vi.waitFor(() => expect(second.answered).toHaveLength(1));
+    expect(await second.stop()).toBeUndefined();
   });
 });
 
@@ -325,6 +491,7 @@ describe("an approval loop that fails", () => {
   it("reports its failure at once, so the waits that needed its answers end with it", async () => {
     const failure = new Error("Install review is preparing and cannot be resolved");
     const device = new ClientDevice("terminal", async (op) => {
+      if (op === "openApprovals") return { surfaceToken: "s1" };
       if (op === "nextApproval") return { approvalId: "a1", kind: "capability" };
       throw failure;
     });

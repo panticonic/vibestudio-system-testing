@@ -42,8 +42,10 @@ Use one stable, unique instance ID for the whole investigation.
    pnpm system-test --instance <id> doctor
    ```
 
-   Doctor creates an isolated ephemeral instance, waits for it to become ready,
-   and pairs it, so a missing or unpaired server is not a blocker. If doctor
+   Doctor creates an isolated ephemeral instance that lives until `stop`, waits
+   for it to become ready, and pairs it, so a missing or unpaired server is not
+   a blocker. A `run` against a missing instance creates one leased to that
+   command, retired when the command ends, unless it passes `--keep`. If doctor
    reports failed infrastructure, read the printed supervisor log and fix it
    before interpreting scenario behavior. Never borrow or stop an unrelated
    instance.

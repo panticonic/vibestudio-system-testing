@@ -97,7 +97,7 @@ export const prompts = {
     return `Make ${helloId(runtime, nonce)} a trusted client so it can use the device approval surface, and publish. The workspace owner will confirm the change.`;
   },
   untrust(runtime: ClientRuntimeKind, nonce: string): string {
-    return `Remove ${helloId(runtime, nonce)} from the trusted clients and publish.`;
+    return `Remove ${helloId(runtime, nonce)} from the trusted clients and publish. It must keep running without the device approval surface, so make that capability optional for it in the same publish instead of required.`;
   },
   unsupported(runtime: ClientRuntimeKind, nonce: string): string {
     return `Create one more minimal ${runtime} client with id ${unsupportedId(runtime, nonce)} that cannot run without the \`${UNSUPPORTED_CAPABILITY[runtime]}\` capability, declare it and publish it.`;
@@ -105,7 +105,7 @@ export const prompts = {
   retire(runtime: ClientRuntimeKind, nonce: string, withUnsupported = true): string {
     const id = helloId(runtime, nonce);
     const names = withUnsupported ? `${id} and ${unsupportedId(runtime, nonce)}` : id;
-    return `Retire ${names}: remove ${withUnsupported ? "them" : "it"} and the echo service you added from the workspace, and publish.`;
+    return `Retire ${names}: remove ${withUnsupported ? "them" : "it"} and ${withUnsupported ? "their" : "its"} own echo service (the worker named after the client id) from the workspace, and publish.`;
   },
 };
 
@@ -186,6 +186,9 @@ export interface ApprovalRecord {
   trust?: Array<{ source: string; gained: string[]; lost: string[] }>;
   /** True for a critical (fresh, per-operation) confirmation. */
   critical?: boolean;
+  /** For a capability card the scenario consented to: what was asked, and of whom. */
+  capability?: string;
+  callerId?: string;
 }
 
 /** What the person has agreed to in advance, because the scenario itself asks for it. */
@@ -196,6 +199,12 @@ export interface ApprovalConsent {
    * The person allows that use once; nothing else about the account is allowed.
    */
   modelUse?: boolean;
+  /**
+   * Capability requests the scenario itself provokes from a client principal
+   * (the call it made through the client's own session), allowed once. A
+   * request of any other capability, or by any other principal, is not.
+   */
+  clientCapabilities?: Array<{ capability: string; callerIdPrefix: string }>;
 }
 
 /**
@@ -222,6 +231,14 @@ export function decideApproval(approval: PendingApproval, consent: ApprovalConse
         lost: change.lost.map((l) => l.capability),
       })),
     };
+  if (
+    approval.kind === "capability" &&
+    approval.callerKind === "client" &&
+    consent.clientCapabilities?.some(
+      (grant) => grant.capability === approval.capability && approval.callerId.startsWith(grant.callerIdPrefix)
+    )
+  )
+    return { ...base, decision: "once", title: approval.title, capability: approval.capability, callerId: approval.callerId };
   if (consent.modelUse && approval.kind === "credential" && approval.callerKind === "do")
     return { ...base, decision: "once", title: `model use by ${approval.callerId}` };
   return {
@@ -234,6 +251,8 @@ export function decideApproval(approval: PendingApproval, consent: ApprovalConse
 export class ApprovalSurface {
   readonly answered: ApprovalRecord[] = [];
   readonly #done: Promise<void>;
+  /** This surface's own lifetime on the device; releasing it never ends another test's. */
+  readonly #token: Promise<string>;
 
   constructor(
     private readonly device: ClientDevice,
@@ -247,6 +266,9 @@ export class ApprovalSurface {
      */
     private readonly onFailure?: (cause: unknown) => void
   ) {
+    this.#token = this.device.call("openApprovals", {}).then((opened) => opened.surfaceToken);
+    // `stop` and the loop observe a failed open; it is not unhandled here.
+    this.#token.catch(() => {});
     this.#done = this.#run();
     // `stop` joins and reports this loop; a failure before then is not unhandled.
     this.#done.catch(() => {});
@@ -257,8 +279,9 @@ export class ApprovalSurface {
     // events; it settles with null when the surface is released, and with the
     // test's cancellation when the test is cancelled.
     try {
+      const surfaceToken = await this.#token;
       for (;;) {
-        const approval = await this.device.call("nextApproval", {});
+        const approval = await this.device.call("nextApproval", { surfaceToken });
         if (!approval) return;
         const record = decideApproval(approval, this.consent);
         this.answered.push(record);
@@ -288,7 +311,10 @@ export class ApprovalSurface {
   async stop(): Promise<unknown> {
     const cancelled = this.signal?.aborted === true;
     try {
-      if (!cancelled) await this.device.call("releaseApprovals", {});
+      if (!cancelled) {
+        const surfaceToken = await this.#token;
+        await this.device.call("releaseApprovals", { surfaceToken });
+      }
     } catch (cause) {
       await this.#done.catch(() => {});
       return cause;

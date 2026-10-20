@@ -12,6 +12,7 @@ export type {
   ClientInstanceIdentity,
   ClientIntentDeclLite,
   ClientListingLite,
+  ClientSessionOutcome,
   DeviceIdentities,
   IntegrationArtifact,
   IntentOutcome,
@@ -88,6 +89,12 @@ export class ClientDevice {
   }
   list() {
     return this.call("list", {});
+  }
+  createPanelAsClient(args: Parameters<ClientDeviceWire["createPanelAsClient"]>[0]) {
+    return this.call("createPanelAsClient", args);
+  }
+  callAsClient(args: Parameters<ClientDeviceWire["callAsClient"]>[0]) {
+    return this.call("callAsClient", args);
   }
   async launch(args: Parameters<ClientDeviceWire["launch"]>[0]) {
     const outcome = await this.call("launch", args);
