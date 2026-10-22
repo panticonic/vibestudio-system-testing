@@ -120,7 +120,7 @@ function buildUnitFixture(input: {
 }) {
   return {
     ...input,
-    target: null,
+    runtime: null,
     capabilities: [],
     displayName: input.name,
     isAgent: false,
