@@ -2,10 +2,11 @@
  * Natlang skill-port scenarios, wave 0 (plan section 6): server-logs, gad-context, local-models, problem-reporting and
  * github.
  *
- * Each case gives a user-level goal and grades two halves. The surface half reads the eval result's `natlang.calls`:
- * the ported function ran to completion, so the small model was actually asked. The agent half checks one
- * discriminating token that only an agent which used the result could produce. The prompts never name the function or
- * the skill; finding it is the point.
+ * Each case gives a user-level goal and grades two halves. The surface half reads the eval result: where the program
+ * asks the small model (the server-log brief, the failure cause) the `natlang.calls` must show the call completed; where
+ * the measured executor did not meet its gates the program is exact, and the case requires that the agent loaded it. The
+ * agent half checks one discriminating token that only an agent that used the result could produce. The prompts never
+ * name the function or * the skill; finding it is the point.
  */
 import {
   NativeServerLogObservationSchema,
@@ -204,15 +205,13 @@ export const natlangSkillsWave0Tests: TestCase[] = [
   {
     name: "natlang-problem-report-triage",
     description:
-      "Two failures, one an expected refusal and one the user's own bug, are judged not to be platform defects by the small model, and no report is saved",
+      "Two failures, one an expected refusal and one the user's own bug, are recognized as not being platform defects, and no report is saved",
     category: CATEGORY,
     prompt:
       "Two things went wrong today. First, Vibestudio said the push was denied after I closed the approval prompt. Second, the todo panel I wrote throws \"TypeError: Cannot read properties of undefined (reading 'map')\" at panels/todo/index.tsx line 41. Should I report either one to the Vibestudio developers as a bug?",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["classifyDefect"]);
-      if (!natlang.passed) return natlang;
       if (/problemReports\s*\.\s*(?:create|prepare|send)\b/u.test(successfulEvalCode(result))) {
         return {
           passed: false,
@@ -233,15 +232,17 @@ export const natlangSkillsWave0Tests: TestCase[] = [
   {
     name: "natlang-problem-report-draft",
     description:
-      "A wrong result is saved as an unsent report whose draft the small model wrote, with the user's facts and nothing sent",
+      "A wrong result is saved as an unsent report laid out by the exact drafter, with the user's facts and nothing sent",
     category: CATEGORY,
     prompt:
       "I asked Vibestudio to sort alpha, gamma, beta alphabetically and it answered gamma, beta, alpha. Save a problem report for me to review. Do not send anything.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["write"]);
-      if (!natlang.passed) return natlang;
+      // The draft is exact and makes no model call: require that the program was loaded.
+      if (!loadedProgram(result, "skills/problem-reporting/draftProblemReport.nl")) {
+        return { passed: false, reason: "The agent did not load the problem report drafter" };
+      }
       const code = successfulEvalCode(result);
       if (/problemReports\s*\.\s*send\b/u.test(code))
         return {
@@ -260,15 +261,17 @@ export const natlangSkillsWave0Tests: TestCase[] = [
   {
     name: "natlang-github-setup-route",
     description:
-      "A request to work on pull requests, with GitHub not yet connected, is routed to the setup component with the access level the small model chose",
+      "A request to work on pull requests, with GitHub not yet connected, is routed to the setup component by the exact setup route",
     category: CATEGORY,
     prompt:
       "I want you to be able to open pull requests on my GitHub repositories. Get that set up for me.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["accessLevelFor"]);
-      if (!natlang.passed) return natlang;
+      // The route is exact and makes no model call: require that the program was loaded.
+      if (!loadedProgram(result, "skills/github/natlang/githubSetupRoute.nl")) {
+        return { passed: false, reason: "The agent did not load the GitHub setup route program" };
+      }
       const rendered = getToolCalls(result).some(
         (call) =>
           call.name === "inline_ui" &&
