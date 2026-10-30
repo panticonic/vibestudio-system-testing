@@ -111,6 +111,17 @@ Use one stable, unique instance ID for the whole investigation.
    validator, and fix it in that layer. Do not over-specify the test prompt to
    work around a platform or documentation defect.
 
+   A failed test's packet can be classified by the typed triage, which reads the
+   record's fields and quotes the ones that decide the layer:
+
+   ```ts
+   const triage = await natlang.load("skills/system-testing/triage/triageFailure.nl");
+   const verdict = await triage.triage(failure); // one test's packet: { class, evidence: [{ source, text }] }
+   const every = await triage.run(runnerTargetId, runId); // every failed test of a run
+   ```
+
+   The class is a first reading to confirm against the trajectory, not a repair.
+
 6. Run focused conventional checks. Host-code-only changes can be tested on the
    source server you own. Changes under `workspace/` need a freshly provisioned
    workspace copy: stop the managed instance, then rerun doctor.
