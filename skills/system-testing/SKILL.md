@@ -91,6 +91,22 @@ Use one stable, unique instance ID for the whole investigation.
    pnpm system-test --instance <id> trajectory <run-id> <test-name> --full --json
    ```
 
+   The packet `inspect` prints is also readable from eval, as data, for code that
+   triages failures (read-only, and the runner decides who may read a record):
+
+   ```ts
+   import { systemTestRunnerRpcMethods } from "@vibestudio/service-schemas/systemTestRunner";
+   // runnerTargetId is the `runnerTargetId` in the run's local run.json
+   // (<profile>/system-test-runs/<run-id>/run.json).
+   const packet = await rpc.call(runnerTargetId, systemTestRunnerRpcMethods.inspectSystemTestRun, [
+     runId,
+     testName, // optional: one test's packet
+   ]);
+   ```
+
+   A natlang program receives the same read as `systemTests.inspect(runnerTargetId, runId, testName?)`
+   from `@workspace/natlang-services`.
+
 5. Classify the root cause as infrastructure, documentation, harness, or
    validator, and fix it in that layer. Do not over-specify the test prompt to
    work around a platform or documentation defect.
