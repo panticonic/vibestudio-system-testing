@@ -20,6 +20,9 @@ import { oauthTests } from "./tests/oauth.js";
 import { workspaceTests } from "./tests/workspace.js";
 import { notificationTests } from "./tests/notifications.js";
 import { messagingTests } from "./tests/messaging.js";
+import { natlangSkillsWave0Tests } from "./tests/natlang-skills-wave0.js";
+import { natlangSkillsWave1Tests } from "./tests/natlang-skills-wave1.js";
+import { natlangSkillsWave2Tests } from "./tests/natlang-skills-wave2.js";
 import { skillTests } from "./tests/skills.js";
 import { agentCapabilityTests } from "./tests/agent-capabilities.js";
 import { rpcTests } from "./tests/rpc-communication.js";
@@ -95,6 +98,9 @@ export {
   adventureProgrammedInteractionTests,
   intentDiscoveryTests,
   messagingTests,
+  natlangSkillsWave0Tests,
+  natlangSkillsWave1Tests,
+  natlangSkillsWave2Tests,
   interactionSurfaceTests,
   localModelTests,
   mobileTests,
@@ -169,6 +175,9 @@ export function allTests(): TestCase[] {
     ...approvalPermissionTests,
     ...notificationTests,
     ...messagingTests,
+    ...natlangSkillsWave0Tests,
+    ...natlangSkillsWave1Tests,
+    ...natlangSkillsWave2Tests,
     ...skillTests,
     ...agentCapabilityTests,
     ...rpcTests,

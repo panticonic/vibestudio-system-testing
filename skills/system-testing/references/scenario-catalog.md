@@ -69,6 +69,13 @@ prompts or keep them as constants in prose.
   Escalation to a person is deliberately not covered here. A headless test
   channel has no human participant for `owner` to resolve to, so a scenario
   could only assert the attempt; focused conventional tests cover it instead.
+- `natlang-skills`: skill sub-procedures that a small model executes through
+  `natlang.load` (executor and schedule choice, alert rung, component choice,
+  provenance mechanism, interaction surface, icon choice, template remedy,
+  remote layer, typed VCS recovery). Each case grades two halves: the eval
+  result's `natlang.calls` must show the ported function completed, and the
+  agent's answer must carry the one token only an agent that used the result
+  could produce.
 - `unit-diagnostics`, `server-logs`, `harness-tools`: bounded operational and
   provenance inspection.
 - `local-models`: persistent model installation, readiness, and real delegated
