@@ -125,24 +125,16 @@ export const natlangSkillsWave0Tests: TestCase[] = [
   {
     name: "natlang-channel-health",
     description:
-      "A worry that the chat is stuck is answered from one health snapshot whose findings were judged by the small model",
+      "A worry that the chat is stuck is answered from one health snapshot whose findings carry the documented attention policy",
     category: CATEGORY,
     prompt:
       "Is this conversation in a healthy state? I want to know whether anything in it is stuck or broken, not a deep investigation.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      // A quiet channel has no findings to judge, so the program may make no model call: require that it was loaded and
-      // that every call it did make completed.
+      // The health report is exact and makes no model call: require that the program was loaded.
       if (!loadedProgram(result, "skills/gad-context/inspectAgentHealth.nl")) {
         return { passed: false, reason: "The agent did not load the channel health program" };
-      }
-      const failed = natlangCalls(result).filter((call) => call.outcome !== "done");
-      if (failed.length > 0) {
-        return {
-          passed: false,
-          reason: `A natlang call did not complete: ${failed.map((call) => `${call.name}:${call.outcome}`).join(", ")}`,
-        };
       }
       return /\b(?:healthy|idle|intact|no problems|nothing (?:is )?(?:stuck|broken|wrong)|busy|in[- ]flight)\b/iu.test(
         findLastAgentMessage(result)
@@ -158,15 +150,17 @@ export const natlangSkillsWave0Tests: TestCase[] = [
   {
     name: "natlang-channel-summary",
     description:
-      "A request to recap the conversation and say whether the agent is waiting on the user is answered from a channel summary",
+      "A request to recap the conversation and say whether the agent is waiting on the user is answered from the exact channel summary",
     category: CATEGORY,
     prompt:
       "Give me a two-line recap of what this conversation has been about so far, and tell me whether you are waiting on anything from me.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["topic"]);
-      if (!natlang.passed) return natlang;
+      // The summary is exact (counts, the opening and the latest message): require that the program was loaded.
+      if (!loadedProgram(result, "skills/gad-context/summarizeChannel.nl")) {
+        return { passed: false, reason: "The agent did not load the channel summary program" };
+      }
       return /\b(?:waiting|not waiting|nothing (?:is )?needed|need nothing|need anything|no(?:thing)? (?:from you|else))\b/iu.test(
         findLastAgentMessage(result)
       )
