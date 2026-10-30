@@ -72,7 +72,7 @@ prompts or keep them as constants in prose.
 - `natlang-skills`: skill sub-procedures that a small model executes through
   `natlang.load` (executor and schedule choice, alert rung, component choice,
   provenance mechanism, interaction surface, icon choice, template remedy,
-  remote layer, typed VCS recovery). Each case grades two halves: the eval
+  remote layer, typed VCS recovery, commit message and change summary, cited web brief, memory recall summary, addressee resolution, failure triage). Each case grades two halves: the eval
   result's `natlang.calls` must show the ported function completed, and the
   agent's answer must carry the one token only an agent that used the result
   could produce.
