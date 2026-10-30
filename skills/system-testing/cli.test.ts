@@ -116,10 +116,10 @@ function buildUnitFixture(input: {
   name: string;
   kind: "worker" | "extension";
   source: string;
-  status: "available" | "ready" | "approval-required";
+  status: "available" | "ready" | "approval-required" | "error";
+  lastError?: string;
 }) {
   return {
-    ...input,
     runtime: null,
     capabilities: [],
     displayName: input.name,
@@ -127,6 +127,7 @@ function buildUnitFixture(input: {
     effectiveVersion: null,
     activeBuildKey: null,
     lastError: null,
+    ...input,
     pendingApproval: null,
     authorityRows: [],
   };
@@ -227,6 +228,41 @@ describe("system-testing CLI-neutral API", () => {
       return {};
     });
   }
+
+  it("checks the agent worker by its exact source, not a similarly named unit", async () => {
+    configureHealthyDoctorModels([
+      { ref: "anthropic:test-model", availability: { state: "ready" } },
+    ]);
+    const healthy = mocks.rpcCall.getMockImplementation()!;
+    mocks.rpcCall.mockImplementation(async (...args: unknown[]) =>
+      args[1] === "build.listUnits"
+        ? [
+            buildUnitFixture({
+              name: "@workspace-workers/agent-worker-legacy",
+              kind: "worker",
+              source: "workers/agent-worker-legacy",
+              status: "error",
+              lastError: "legacy worker failed",
+            }),
+            buildUnitFixture({
+              name: "@workspace-workers/agent-worker",
+              kind: "worker",
+              source: "workers/agent-worker",
+              status: "available",
+            }),
+          ]
+        : healthy(...args),
+    );
+
+    const result = await systemTestDoctor("anthropic:test-model");
+
+    expect(
+      result.checks.find((check) => check.name === "agent-worker"),
+    ).toMatchObject({
+      ok: true,
+      data: { name: "@workspace-workers/agent-worker", source: "workers/agent-worker" },
+    });
+  });
 
   it("doctors only an explicitly selected model when the run has no fallback", async () => {
     configureHealthyDoctorModels([

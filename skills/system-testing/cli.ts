@@ -666,10 +666,10 @@ export async function systemTestDoctor(
     "agent-worker",
     async () => {
       const units = await rpc.call("main", mainRpcMethods["build.listUnits"], []);
+      // A catalog entry's source is its exact workspace path; its name is the
+      // package name, which a similarly named unit can resemble.
       const agentUnit = units.find(
-        (unit) =>
-          unit.name === "workers/agent-worker" ||
-          unit.name.includes("agent-worker"),
+        (unit) => unit.source === "workers/agent-worker",
       );
       if (!agentUnit) throw new Error("workers/agent-worker is not declared");
       if (agentUnit.status === "approval-required") {

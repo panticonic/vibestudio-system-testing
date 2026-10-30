@@ -28,7 +28,7 @@ export type WorkspaceRepoSection =
   | "workers"
   | "panels"
   | "extensions"
-  | "apps";
+  | "terminal-apps";
 
 export const SIZABLE_HISTORY_FIXTURE_REVISIONS = 36;
 
@@ -47,7 +47,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "provenance-record"; section: "projects" }
   | { kind: "buildable-package"; section: "packages" }
   | { kind: "buildable-extension"; section: "extensions" }
-  | { kind: "buildable-app"; section: "apps" }
+  | { kind: "buildable-app"; section: "terminal-apps" }
   | { kind: "buildable-worker"; section: "workers" }
   | { kind: "buildable-regular-worker"; section: "workers" }
   | { kind: "buildable-panel"; section: "panels" }
@@ -1632,14 +1632,16 @@ function buildableAppFiles(
       path: "package.json",
       content: `${JSON.stringify(
         {
-          name: `@workspace-apps/${repoName}`,
+          name: expectedBuildUnitName(`terminal-apps/${repoName}`),
           version: "0.0.0",
           private: true,
           type: "module",
+          // Its terminal-apps/ location is what makes this panel unit
+          // terminal-hosted; the manifest never selects a host.
           vibestudio: {
-            displayName: `System Test ${repoName}`,
+            title: `System Test ${repoName}`,
             icon: "./assets/icon.svg",
-            app: { target: "terminal", entry: "index.ts" },
+            entry: "index.ts",
             // The scenario that repairs this unit is asked to keep its focused
             // unit test aligned, and is granted native test execution to do it.
             // Without a declared suite the build refuses to run the test file
@@ -1696,7 +1698,7 @@ function trustedUnitSkillFile(
   kind: "app" | "extension",
 ): { path: string; content: string } {
   const noun = kind === "app" ? "terminal app" : "status extension";
-  const skill = kind === "app" ? "appdev" : "extensiondev";
+  const skill = kind === "app" ? "terminal-apps" : "extensiondev";
   return {
     path: "SKILL.md",
     content: [

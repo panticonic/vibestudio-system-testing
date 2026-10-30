@@ -160,7 +160,7 @@ describe("trusted unit authoring evidence", () => {
       passed: true,
       reason: undefined,
     });
-    expect(app!.validate(execution(repairOperations("apps/example")))).toEqual({
+    expect(app!.validate(execution(repairOperations("terminal-apps/example")))).toEqual({
       passed: true,
       reason: undefined,
     });
