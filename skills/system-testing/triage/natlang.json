@@ -1,0 +1,5 @@
+{
+  "schema": "natlang.package/v2",
+  "name": "triage-failure",
+  "version": "0.1.0"
+}
