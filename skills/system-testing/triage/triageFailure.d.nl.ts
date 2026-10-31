@@ -82,5 +82,5 @@ type Triage = {
   /** The signals that support the class, most decisive first, quoted from the record. */
   evidence: Signal[];
 };
-declare const fn: NatlangFunction<[failure: Failure], Triage> & { readonly classifyFailure: NatlangFunction<[signals: Signal[]], FailureClass>; readonly evidence: ((failureClass: FailureClass, signals: readonly Signal[]) => Signal[]) & {  }; readonly run: ((runnerTargetId: string, runId: string) => Promise<{ test: string; triage: Triage }[]>) & {  }; readonly signals: ((failure: Failure) => Signal[]) & {  }; readonly triage: ((failure: Failure) => Promise<Triage>) & {  } };
+declare const fn: NatlangFunction<[failure: Failure], Triage> & { readonly classify: ((failure: Failure) => FailureClass | null) & {  }; readonly deliveredOutcome: NatlangFunction<[message: string, complaint: string], boolean>; readonly evidence: ((failureClass: FailureClass, signals: readonly Signal[]) => Signal[]) & {  }; readonly run: ((runnerTargetId: string, runId: string) => Promise<{ test: string; triage: Triage }[]>) & {  }; readonly signals: ((failure: Failure) => Signal[]) & {  }; readonly triage: ((failure: Failure) => Promise<Triage>) & {  } };
 export default fn;

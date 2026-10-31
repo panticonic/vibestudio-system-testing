@@ -72,41 +72,28 @@ function requireNatlang(result: TestExecutionResult, names: readonly string[]) {
       };
 }
 
-/** A pasted failure record, as a user would copy it from `inspect` output. */
+/** A pasted failure record, as a user would copy it from `inspect` output: the agent did the work and the check was narrow. */
 const PASTED_FAILURE = JSON.stringify(
   {
-    name: "automation-schedule",
-    category: "automations",
-    validationReason: "The reply did not include the automation id",
+    name: "diagnose-default-timeout",
+    category: "diagnostics",
+    validationReason: 'Expected the default 30s but found "thirty seconds"',
     finalAgentMessage:
-      "I could not create the automation: the runtime reported an internal error.",
+      "The default request timeout is thirty seconds, as documented.",
     sessionError: null,
     failure: null,
     validationFailure: null,
     invocations: [
-      {
-        name: "eval",
-        status: "failed",
-        terminalOutcome: "failed",
-        terminalReasonCode: "internal-error",
-        isError: true,
-      },
+      { name: "read", status: "complete" },
+      { name: "eval", status: "complete" },
     ],
-    toolFailures: [
-      {
-        name: "eval",
-        failureKind: "infrastructure",
-        terminalReasonCode: "internal-error",
-        error:
-          "Durable Object runtime binding unavailable for workers/missions:MissionsDO: stub destroyed",
-      },
-    ],
+    toolFailures: [],
     cleanupErrors: [],
     cleanupFailures: [],
     channelDeliveryLatency: null,
     workspaceRepoFixture: null,
     orchestration: null,
-    likelyIssue: "tool-error:eval",
+    likelyIssue: "validation-mismatch",
   },
   null,
   2,
@@ -235,7 +222,7 @@ export const natlangSkillsWave2Tests: TestCase[] = [
   {
     name: "natlang-triage-pasted-failure",
     description:
-      "A pasted failed-test record is traced to the layer that owns the defect, with the record's own words as evidence",
+      "A pasted failed-test record in which the agent did the work is traced to the validator that was too narrow, with the record's own words as evidence",
     category: CATEGORY,
     prompt:
       "A system test failed and this is what the run record says for it:\n\n" +
@@ -244,18 +231,15 @@ export const natlangSkillsWave2Tests: TestCase[] = [
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["classifyFailure"]);
+      const natlang = requireNatlang(result, ["deliveredOutcome"]);
       if (!natlang.passed) return natlang;
       const final = findLastAgentMessage(result);
-      return /\binfrastructure\b/iu.test(final) &&
-        /\b(?:internal-error|binding unavailable|stub destroyed|MissionsDO)\b/iu.test(
-          final,
-        )
+      return /\bvalidator\b/iu.test(final) && /thirty seconds|30s/iu.test(final)
         ? { passed: true }
         : {
             passed: false,
             reason:
-              "The final response does not name the infrastructure layer with the record's evidence",
+              "The final response does not name the validator layer with the record's evidence",
           };
     },
   },
