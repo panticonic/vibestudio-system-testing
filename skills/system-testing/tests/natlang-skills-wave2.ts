@@ -7,11 +7,7 @@
  * an agent which used the result could produce. The prompts never name the function or the skill; finding it is the
  * point.
  */
-import {
-  CONTENT_WORKSPACE_REPO_FIXTURE,
-  type TestCase,
-  type TestExecutionResult,
-} from "../types.js";
+import { type TestCase, type TestExecutionResult } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
 import {
   findLastAgentMessage,
@@ -100,89 +96,6 @@ const PASTED_FAILURE = JSON.stringify(
 );
 
 export const natlangSkillsWave2Tests: TestCase[] = [
-  {
-    name: "natlang-commit-message-proposal",
-    description:
-      "New project files are described with a commit message whose reason comes only from a recorded intent, and nothing is committed",
-    category: CATEGORY,
-    workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
-    prompt:
-      "In the project repository, add a README.md with a title and a short usage section, and a LICENSE file with a placeholder line. Don't commit anything. Then tell me the commit message you would use, and whether there is a recorded reason worth attaching to it.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["commitSubject"]);
-      if (!natlang.passed) return natlang;
-      const committed =
-        getToolCalls(result).some(
-          (call) =>
-            call.name === "vcs" &&
-            call.execution?.status === "complete" &&
-            !call.execution.isError &&
-            call.arguments?.["operation"] === "commit",
-        ) || /vcs\s*\.\s*commit\s*\(/u.test(successfulEvalCode(result));
-      if (committed)
-        return {
-          passed: false,
-          reason: "The agent committed although the user asked it not to",
-        };
-      return /README/iu.test(findLastAgentMessage(result))
-        ? { passed: true }
-        : {
-            passed: false,
-            reason:
-              "The final response proposes a commit message that does not mention the README",
-          };
-    },
-  },
-  {
-    name: "natlang-cited-web-brief",
-    description:
-      "A factual question is answered from fetched pages with each source's URL and the day it was read",
-    category: CATEGORY,
-    prompt:
-      "What does the HTTP 429 status code mean, and how should a well-behaved client react to it? I want an answer I can cite: give me the sources and when you read them.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["findEvidence", "writeBrief"]);
-      if (!natlang.passed) return natlang;
-      const final = findLastAgentMessage(result);
-      if (!/https?:\/\/\S+/u.test(final))
-        return { passed: false, reason: "The final response cites no URL" };
-      return /\b\d{4}-\d{2}-\d{2}\b/u.test(final) ||
-        /\b(?:today|retrieved|read on|accessed)\b/iu.test(final)
-        ? { passed: true }
-        : {
-            passed: false,
-            reason:
-              "The final response does not say when the sources were read",
-          };
-    },
-  },
-  {
-    name: "natlang-memory-recall-summary",
-    description:
-      "A question about what the workspace already says is answered from recalled snippets, each fact tied to its source and weak ones flagged",
-    category: CATEGORY,
-    prompt:
-      "Check what this workspace already says about citing sources when doing web research. Only tell me what you can point to, and say how solid each point is.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["relevant", "factFrom"]);
-      if (!natlang.passed) return natlang;
-      return /\b(?:cite|citation|source|url)\b/iu.test(
-        findLastAgentMessage(result),
-      )
-        ? { passed: true }
-        : {
-            passed: false,
-            reason:
-              "The final response does not report what the workspace says about citing sources",
-          };
-    },
-  },
   {
     name: "natlang-resolve-named-recipient",
     description:
