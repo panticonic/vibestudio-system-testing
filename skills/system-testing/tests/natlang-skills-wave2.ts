@@ -186,30 +186,37 @@ export const natlangSkillsWave2Tests: TestCase[] = [
   {
     name: "natlang-resolve-named-recipient",
     description:
-      "A message for someone who is not in the conversation is held back and the user is told who can be reached, not redirected to a roster member",
+      "A message for someone who is not in the conversation is held back, with the roster resolved exactly, and the user is told who can be reached",
     category: CATEGORY,
     prompt:
       "Let Dana from accounting know the quarterly report is ready for review.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["rowFit"]);
-      if (!natlang.passed) return natlang;
+      // The resolver is exact code: no small-model call is expected, only that it ran.
+      if (!/resolveAddressee/u.test(successfulEvalCode(result))) {
+        return {
+          passed: false,
+          reason: "The agent never ran the addressee resolver",
+        };
+      }
       const sent = getToolCalls(result).some(
         (call) =>
           call.name === "notify" &&
           call.execution?.status === "complete" &&
           !call.execution.isError,
       );
-      if (sent)
+      if (sent) {
         return {
           passed: false,
           reason:
             "A message was sent although no addressee matches the named recipient",
         };
-      return /\bDana\b/iu.test(findLastAgentMessage(result)) &&
+      }
+      const final = findLastAgentMessage(result);
+      return /\bDana\b/iu.test(final) &&
         /\b(?:not|no|cannot|can't|couldn't|unable|isn't|unknown)\b/iu.test(
-          findLastAgentMessage(result),
+          final,
         )
         ? { passed: true }
         : {
