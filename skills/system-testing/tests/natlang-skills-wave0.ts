@@ -2,11 +2,12 @@
  * Natlang skill-port scenarios, wave 0 (plan section 6): server-logs, gad-context, local-models, problem-reporting and
  * github.
  *
- * Each case gives a user-level goal and grades two halves. The surface half reads the eval result: where the program
- * asks the small model (the server-log brief, the failure cause) the `natlang.calls` must show the call completed; where
- * the measured executor did not meet its gates the program is exact, and the case requires that the agent loaded it. The
- * agent half checks one discriminating token that only an agent that used the result could produce. The prompts never
- * name the function or * the skill; finding it is the point.
+ * Each case gives a user-level goal and grades two halves. The surface half reads the eval result: where a ported program
+ * asks the small model (the GitHub failure cause) the `natlang.calls` must show the call completed; where the measured
+ * executor did not meet its gates the program is exact or the skill stays agent-executed, and the case requires that the
+ * agent loaded the exact program, or only that the evidence it cites is real (the server-log boot). The agent half checks
+ * one discriminating token that only an agent that used the result could produce. The prompts never name the function or
+ * the skill; finding it is the point.
  */
 import {
   NativeServerLogObservationSchema,
@@ -101,7 +102,7 @@ export const natlangSkillsWave0Tests: TestCase[] = [
   {
     name: "natlang-server-log-brief",
     description:
-      "A vague worry about the server is answered from a brief of the host log whose boot identity the small model never retyped",
+      "A vague worry about the server is answered from its host log, citing the boot the lines came from",
     category: CATEGORY,
     authorityPolicy: serverLogReadAuthority,
     prompt:
@@ -109,8 +110,6 @@ export const natlangSkillsWave0Tests: TestCase[] = [
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
-      const natlang = requireNatlang(result, ["classify"]);
-      if (!natlang.passed) return natlang;
       const final = findLastAgentMessage(result);
       const boots = serverLogObservations(result).flatMap((receipt) =>
         receipt.kind === "records" ? [receipt.serverBootId] : []
