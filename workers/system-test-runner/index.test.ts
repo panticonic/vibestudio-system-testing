@@ -3,6 +3,7 @@ import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import { wireCallerFor } from "@vibestudio/rpc/internal";
 import { createMainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import { createTestDO } from "@vibestudio/durable/test-utils";
+import { rpcMethodAuthority } from "@vibestudio/rpc";
 import {
   failedSystemTestRunRecord,
   type SystemTestRunRecord,
@@ -433,5 +434,20 @@ describe("system-test immutable record transfer", () => {
     await expect(
       readSystemTestRecordBlob(createMainRpcCaller(rpc), digest, 5),
     ).rejects.toThrow("truncated");
+  });
+});
+
+describe("system-test inspection authority", () => {
+  // The Base natlang panel's authority test relies on this: a natlang program's `systemTests.inspect` calls this method
+  // from a panel eval, and the panel's manifest requests no capability for it because the method has none. It is open
+  // and admits only the host or a workspace root, which no manifest request can supply. If it gains a gated capability,
+  // that panel must request it.
+  it("keeps inspectSystemTestRun open, with no capability of its own", async () => {
+    const { instance } = await createTestDO(TestSystemTestRunnerDO, {} as never);
+    expect(rpcMethodAuthority(instance, "inspectSystemTestRun")).toMatchObject({
+      effect: { kind: "open" },
+      tier: "open",
+      sensitivity: "read",
+    });
   });
 });
