@@ -141,6 +141,7 @@ function connectionInfoFixture() {
     serverBootId: "boot-test",
     workspaceId: "workspace-test",
     callerKind: "server" as const,
+    deviceId: null,
   };
 }
 
