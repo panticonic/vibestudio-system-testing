@@ -1,13 +1,13 @@
 /**
- * Natlang skill-port scenarios, wave 0 (plan section 6): server-logs, gad-context, local-models, problem-reporting and
- * github.
+ * Natlang skill-port scenarios, wave 0 (plan section 6): server-logs, local-models, problem-reporting and github.
  *
  * Each case gives a user-level goal and grades two halves. The surface half reads the eval result: where a ported program
  * asks the small model (the GitHub failure cause) the `natlang.calls` must show the call completed; where the measured
  * executor did not meet its gates the program is exact or the skill stays agent-executed, and the case requires that the
  * agent loaded the exact program, or only that the evidence it cites is real (the server-log boot). The agent half checks
  * one discriminating token that only an agent that used the result could produce. The prompts never name the function or
- * the skill; finding it is the point.
+ * the skill; finding it is the point. Skill helpers that make no model call are plain code, and their scenarios live with
+ * their skills (`messaging.ts`, `problem-reporting.ts`, `skills.ts`).
  */
 import {
   NativeServerLogObservationSchema,
@@ -123,55 +123,6 @@ export const natlangSkillsWave0Tests: TestCase[] = [
     },
   },
   {
-    name: "natlang-channel-health",
-    description:
-      "A worry that the chat is stuck is answered from one health snapshot whose findings carry the documented attention policy",
-    category: CATEGORY,
-    prompt:
-      "Is this conversation in a healthy state? I want to know whether anything in it is stuck or broken, not a deep investigation.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      // The health report is exact and makes no model call: require that the program was loaded.
-      if (!loadedProgram(result, "skills/gad-context/inspectAgentHealth.nl")) {
-        return { passed: false, reason: "The agent did not load the channel health program" };
-      }
-      return /\b(?:healthy|idle|intact|no problems|nothing (?:is )?(?:stuck|broken|wrong)|busy|in[- ]flight)\b/iu.test(
-        findLastAgentMessage(result)
-      )
-        ? { passed: true }
-        : {
-            passed: false,
-            reason:
-              "The final response does not say whether the conversation is healthy, busy or has findings",
-          };
-    },
-  },
-  {
-    name: "natlang-channel-summary",
-    description:
-      "A request to recap the conversation and say whether the agent is waiting on the user is answered from the exact channel summary",
-    category: CATEGORY,
-    prompt:
-      "Give me a two-line recap of what this conversation has been about so far, and tell me whether you are waiting on anything from me.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      // The summary is exact (counts, the opening and the latest message): require that the program was loaded.
-      if (!loadedProgram(result, "skills/gad-context/summarizeChannel.nl")) {
-        return { passed: false, reason: "The agent did not load the channel summary program" };
-      }
-      return /\b(?:waiting|not waiting|nothing (?:is )?needed|need nothing|need anything|no(?:thing)? (?:from you|else))\b/iu.test(
-        findLastAgentMessage(result)
-      )
-        ? { passed: true }
-        : {
-            passed: false,
-            reason: "The final response does not say whether the agent is waiting on the user",
-          };
-    },
-  },
-  {
     name: "natlang-local-model-readiness",
     description:
       "A question about running a model on this machine is answered from the local-model readiness report, without installing anything",
@@ -225,64 +176,6 @@ export const natlangSkillsWave0Tests: TestCase[] = [
             passed: false,
             reason:
               "The final response does not explain that the denial is expected and the TypeError is the user's own code",
-          };
-    },
-  },
-  {
-    name: "natlang-problem-report-draft",
-    description:
-      "A wrong result is saved as an unsent report laid out by the exact drafter, with the user's facts and nothing sent",
-    category: CATEGORY,
-    prompt:
-      "I asked Vibestudio to sort alpha, gamma, beta alphabetically and it answered gamma, beta, alpha. Save a problem report for me to review. Do not send anything.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      // The draft is exact and makes no model call: require that the program was loaded.
-      if (!loadedProgram(result, "skills/problem-reporting/draftProblemReport.nl")) {
-        return { passed: false, reason: "The agent did not load the problem report drafter" };
-      }
-      const code = successfulEvalCode(result);
-      if (/problemReports\s*\.\s*send\b/u.test(code))
-        return {
-          passed: false,
-          reason: "The report was sent although the user asked only to save it",
-        };
-      return /problemReports\s*\.\s*create\b/u.test(code) &&
-        /gamma/iu.test(findLastAgentMessage(result))
-        ? { passed: true }
-        : {
-            passed: false,
-            reason: "No report was saved, or the final response lost the user's facts",
-          };
-    },
-  },
-  {
-    name: "natlang-github-setup-route",
-    description:
-      "A request to work on pull requests, with GitHub not yet connected, is routed to the setup component by the exact setup route",
-    category: CATEGORY,
-    prompt:
-      "I want you to be able to open pull requests on my GitHub repositories. Get that set up for me.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      // The route is exact and makes no model call: require that the program was loaded.
-      if (!loadedProgram(result, "skills/github/natlang/githubSetupRoute.nl")) {
-        return { passed: false, reason: "The agent did not load the GitHub setup route program" };
-      }
-      const rendered = getToolCalls(result).some(
-        (call) =>
-          call.name === "inline_ui" &&
-          call.execution?.status === "complete" &&
-          String(call.arguments?.["path"] ?? "").includes("GitHubSetup")
-      );
-      return rendered || /\b(?:connect|set ?up|token|panel)\b/iu.test(findLastAgentMessage(result))
-        ? { passed: true }
-        : {
-            passed: false,
-            reason:
-              "The agent neither rendered the GitHub setup component nor explained how setup continues",
           };
     },
   },

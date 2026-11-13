@@ -1,6 +1,7 @@
 import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
+import { validateAgentCompletionReport } from "../test-runner.js";
 import {
   findLastAgentMessage,
   getToolCalls,
@@ -280,6 +281,87 @@ export const skillTests: TestCase[] = [
             passed: false,
             reason:
               "Diagnosis did not inspect the exact child's bounded transcript or report when the page had no findings",
+          };
+    },
+  },
+  {
+    name: "gad-channel-health",
+    description:
+      "A worry that the chat is stuck is answered from one health snapshot whose findings carry the documented attention policy",
+    category: "skills",
+    prompt:
+      "Is this conversation in a healthy state? I want to know whether anything in it is stuck or broken, not a deep investigation.",
+    validate: (result) => {
+      const base = validateAgentCompletionReport(result);
+      if (!base.passed) return base;
+      // The health report is exact code (`@workspace-skills/gad-context`): require that the agent used it.
+      const code = successfulEvalCode(result);
+      if (!/@workspace-skills\/gad-context/u.test(code) || !/\binspectAgentHealth\b/u.test(code)) {
+        return { passed: false, reason: "The agent did not use the channel health report" };
+      }
+      return /\b(?:healthy|idle|intact|no problems|nothing (?:is )?(?:stuck|broken|wrong)|busy|in[- ]flight)\b/iu.test(
+        findLastAgentMessage(result)
+      )
+        ? { passed: true }
+        : {
+            passed: false,
+            reason:
+              "The final response does not say whether the conversation is healthy, busy or has findings",
+          };
+    },
+  },
+  {
+    name: "gad-channel-summary",
+    description:
+      "A request to recap the conversation and say whether the agent is waiting on the user is answered from the exact channel summary",
+    category: "skills",
+    prompt:
+      "Give me a two-line recap of what this conversation has been about so far, and tell me whether you are waiting on anything from me.",
+    validate: (result) => {
+      const base = validateAgentCompletionReport(result);
+      if (!base.passed) return base;
+      // The summary is exact code (counts, the opening and the latest message): require that the agent used it.
+      const code = successfulEvalCode(result);
+      if (!/@workspace-skills\/gad-context/u.test(code) || !/\bsummarizeChannel\b/u.test(code)) {
+        return { passed: false, reason: "The agent did not use the channel summary" };
+      }
+      return /\b(?:waiting|not waiting|nothing (?:is )?needed|need nothing|need anything|no(?:thing)? (?:from you|else))\b/iu.test(
+        findLastAgentMessage(result)
+      )
+        ? { passed: true }
+        : {
+            passed: false,
+            reason: "The final response does not say whether the agent is waiting on the user",
+          };
+    },
+  },
+  {
+    name: "github-setup-route",
+    description:
+      "A request to work on pull requests, with GitHub not yet connected, is routed to the setup component by the exact setup route",
+    category: "skills",
+    prompt:
+      "I want you to be able to open pull requests on my GitHub repositories. Get that set up for me.",
+    validate: (result) => {
+      const base = validateAgentCompletionReport(result);
+      if (!base.passed) return base;
+      // The route is exact code (`@workspace-skills/github`): require that the agent used it.
+      const code = successfulEvalCode(result);
+      if (!/@workspace-skills\/github/u.test(code) || !/\brouteGitHubSetup\b/u.test(code)) {
+        return { passed: false, reason: "The agent did not use the GitHub setup route" };
+      }
+      const rendered = getToolCalls(result).some(
+        (call) =>
+          call.name === "inline_ui" &&
+          call.execution?.status === "complete" &&
+          String(call.arguments?.["path"] ?? "").includes("GitHubSetup")
+      );
+      return rendered || /\b(?:connect|set ?up|token|panel)\b/iu.test(findLastAgentMessage(result))
+        ? { passed: true }
+        : {
+            passed: false,
+            reason:
+              "The agent neither rendered the GitHub setup component nor explained how setup continues",
           };
     },
   },

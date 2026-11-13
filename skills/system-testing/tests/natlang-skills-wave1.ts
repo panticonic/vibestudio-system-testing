@@ -9,14 +9,13 @@
  */
 import type { TestCase, TestExecutionResult } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
-import { findLastAgentMessage, getToolCalls, successfulEvalCode } from "./_helpers.js";
+import { findLastAgentMessage, getToolCalls } from "./_helpers.js";
 
 const CATEGORY = "natlang-skills";
 
 // The small-model cases are explicitOnly until each function meets its suite gates on the executor
 // (see the skill's DECOMPOSITION.md): a skill whose function is not ported does not direct the agent to it,
-// so a default run would fail for a reason the suite already records. The VCS case grades a crisp table
-// that needs no executor and runs by default.
+// so a default run would fail for a reason the suite already records.
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -150,25 +149,6 @@ export const natlangSkillsWave1Tests: TestCase[] = [
       return sentTool(result, "provenance").length > 0
         ? { passed: true }
         : { passed: false, reason: "The agent never called the provenance tool after choosing a mechanism" };
-    },
-  },
-  {
-    name: "natlang-vcs-destination-occupied",
-    description:
-      "A move onto an existing file fails with a typed error and is recovered by the typed recovery table, not by parsing the message",
-    category: CATEGORY,
-    expectedToolFailures: [{ name: "move_file", errorIncludes: "DestinationOccupied" }],
-    prompt:
-      "In the disposable project, create docs/a.md and docs/b.md with one line each, then rename docs/a.md to docs/b.md. Tell me how that went and what is in docs/ afterwards.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      if (!/typedRecovery/u.test(successfulEvalCode(result))) {
-        return { passed: false, reason: "The agent never asked typedRecovery for the next step after the typed move failure" };
-      }
-      return /occupied|already exists|exists/iu.test(findLastAgentMessage(result))
-        ? { passed: true }
-        : { passed: false, reason: "The final response did not say the destination was occupied" };
     },
   },
   {

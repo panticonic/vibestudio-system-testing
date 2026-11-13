@@ -10,7 +10,9 @@ import {
   findLastAgentMessage,
   hasLoadedSkill,
   noIncompleteInvocations,
+  successfulEvalCode,
 } from "./_helpers";
+import { validateAgentCompletionReport } from "../test-runner.js";
 const prompt =
   "I asked Vibestudio to sort alpha, gamma, beta alphabetically. It answered gamma, beta, alpha. Save a problem report for me, preserving what I asked and the wrong result. Explain what we know and what still needs checking. Do not collect logs or send anything.";
 async function prepareQualityReport(
@@ -135,5 +137,37 @@ export const problemReportingTests: TestCase[] = [
         "Vibestudio marked the alphabetized list alpha, gamma, beta as correct even though beta belongs before gamma. Please give me the correct ordering and explain the mistake.",
       ),
     validate: validateQualityReport,
+  },
+  {
+    name: "draft-problem-report-saved-unsent",
+    category: "problem-reporting",
+    description:
+      "A wrong result is saved as an unsent report laid out by the exact drafter, with the user's facts and nothing sent.",
+    prompt:
+      "I asked Vibestudio to sort alpha, gamma, beta alphabetically and it answered gamma, beta, alpha. Save a problem report for me to review. Do not send anything.",
+    validate: (result) => {
+      const base = validateAgentCompletionReport(result);
+      if (!base.passed) return base;
+      // The draft is exact code (`@workspace-skills/problem-reporting`): require that the agent used it.
+      const code = successfulEvalCode(result);
+      if (
+        !/@workspace-skills\/problem-reporting/u.test(code) ||
+        !/\bdraftProblemReport\b/u.test(code)
+      ) {
+        return { passed: false, reason: "The agent did not use the problem report drafter" };
+      }
+      if (/problemReports\s*\.\s*send\b/u.test(code))
+        return {
+          passed: false,
+          reason: "The report was sent although the user asked only to save it",
+        };
+      return /problemReports\s*\.\s*create\b/u.test(code) &&
+        /gamma/iu.test(findLastAgentMessage(result))
+        ? { passed: true }
+        : {
+            passed: false,
+            reason: "No report was saved, or the final response lost the user's facts",
+          };
+    },
   },
 ];

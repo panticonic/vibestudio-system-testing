@@ -20,7 +20,9 @@ import {
   requireVcsEvidence,
   requireWholeChainCommitEvidence,
   reportedEventReferencesAgree,
+  successfulEvalCode,
 } from "./_helpers.js";
+import { validateAgentCompletionReport } from "../test-runner.js";
 
 function checked(result: TestExecutionResult, evidence: string[]) {
   if (!hasAgentResponse(result))
@@ -476,6 +478,25 @@ export const vcsTests: TestCase[] = [
       return integration.passed
         ? requireMergeArrivalMemory(result)
         : integration;
+    },
+  },
+  {
+    name: "vcs-destination-occupied-recovery",
+    description:
+      "A move onto an existing file fails with a typed error and is recovered by the typed recovery table, not by parsing the message",
+    category: "vcs",
+    expectedToolFailures: [{ name: "move_file", errorIncludes: "DestinationOccupied" }],
+    prompt:
+      "In the disposable project, create docs/a.md and docs/b.md with one line each, then rename docs/a.md to docs/b.md. Tell me how that went and what is in docs/ afterwards.",
+    validate: (result) => {
+      const base = validateAgentCompletionReport(result);
+      if (!base.passed) return base;
+      if (!/typedRecovery/u.test(successfulEvalCode(result))) {
+        return { passed: false, reason: "The agent never asked typedRecovery for the next step after the typed move failure" };
+      }
+      return /occupied|already exists|exists/iu.test(findLastAgentMessage(result))
+        ? { passed: true }
+        : { passed: false, reason: "The final response did not say the destination was occupied" };
     },
   },
 ];

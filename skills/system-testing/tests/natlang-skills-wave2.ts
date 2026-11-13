@@ -1,6 +1,6 @@
 /**
  * Natlang skill-port scenarios, wave 2 (plan section 6): vibestudio-vcs changes, web-research brief, memory recall
- * summary, messaging addressee resolution and system-test triage.
+ * summary and system-test triage.
  *
  * Each case gives a user-level goal and grades two halves. The surface half reads the eval result's `natlang.calls`:
  * the ported function's small-model calls ran to completion. The agent half checks one discriminating token that only
@@ -9,11 +9,7 @@
  */
 import { type TestCase, type TestExecutionResult } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
-import {
-  findLastAgentMessage,
-  getToolCalls,
-  successfulEvalCode,
-} from "./_helpers.js";
+import { findLastAgentMessage, getToolCalls } from "./_helpers.js";
 
 const CATEGORY = "natlang-skills";
 
@@ -96,49 +92,6 @@ const PASTED_FAILURE = JSON.stringify(
 );
 
 export const natlangSkillsWave2Tests: TestCase[] = [
-  {
-    name: "natlang-resolve-named-recipient",
-    description:
-      "A message for someone who is not in the conversation is held back, with the roster resolved exactly, and the user is told who can be reached",
-    category: CATEGORY,
-    prompt:
-      "Let Dana from accounting know the quarterly report is ready for review.",
-    validate: (result) => {
-      const base = validateAgentCompletionReport(result);
-      if (!base.passed) return base;
-      // The resolver is exact code: no small-model call is expected, only that it ran.
-      if (!/resolveAddressee/u.test(successfulEvalCode(result))) {
-        return {
-          passed: false,
-          reason: "The agent never ran the addressee resolver",
-        };
-      }
-      const sent = getToolCalls(result).some(
-        (call) =>
-          call.name === "notify" &&
-          call.execution?.status === "complete" &&
-          !call.execution.isError,
-      );
-      if (sent) {
-        return {
-          passed: false,
-          reason:
-            "A message was sent although no addressee matches the named recipient",
-        };
-      }
-      const final = findLastAgentMessage(result);
-      return /\bDana\b/iu.test(final) &&
-        /\b(?:not|no|cannot|can't|couldn't|unable|isn't|unknown)\b/iu.test(
-          final,
-        )
-        ? { passed: true }
-        : {
-            passed: false,
-            reason:
-              "The final response does not tell the user that Dana could not be found among the addressees",
-          };
-    },
-  },
   {
     name: "natlang-triage-pasted-failure",
     description:

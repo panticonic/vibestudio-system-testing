@@ -20,7 +20,7 @@ prompts or keep them as constants in prose.
   incremental integration, single-event publication, move/copy identity,
   counteractions, causal and blame walks, honest import boundaries (including
   mixed spans of natively edited and untouched imported content), freshness,
-  and idempotency.
+  idempotency, and recovery from a typed move failure with `typedRecovery`.
 - `provenance-questions`: question-shaped features. Cases cover recovering an
   originating request, the cohort of one request, checking for negative
   evidence before repeating a request, entry by recorded prose, set-shaped
@@ -69,10 +69,13 @@ prompts or keep them as constants in prose.
   Escalation to a person is deliberately not covered here. A headless test
   channel has no human participant for `owner` to resolve to, so a scenario
   could only assert the attempt; focused conventional tests cover it instead.
+  `messaging-resolve-named-recipient` checks that a recipient the user named
+  who is not present is resolved exactly (with `@workspace-skills/messaging`)
+  and the message is held back.
 - `natlang-skills`: skill sub-procedures that a small model executes through
   `natlang.load` (executor and schedule choice, alert rung, component choice,
   provenance mechanism, interaction surface, icon choice, template remedy,
-  remote layer, typed VCS recovery, addressee resolution, failure triage, the server-log brief, channel health and summary, local model readiness, problem report drafting, GitHub setup route and troubleshooting). Each case grades two halves: the eval
+  remote layer, failure triage, the server-log brief, local model readiness and GitHub troubleshooting). Each case grades two halves: the eval
   result's `natlang.calls` must show the ported function completed (where the measured executor did not meet its gates the program is exact and the case requires that the agent loaded it), and the
   agent's answer must carry the one token only an agent that used the result
   could produce.
@@ -86,7 +89,10 @@ prompts or keep them as constants in prose.
   launches, native checkpoints, attached child eval/approval, recovery, and
   cleanup of the resources the test created.
 - `skills`, `docs-discovery`, `docs-probes`: skill discovery and realistic,
-  goal-driven use of documentation.
+  goal-driven use of documentation, and the plain helpers skills export for
+  agent eval (`gad-channel-health` and `gad-channel-summary` use
+  `@workspace-skills/gad-context`; `github-setup-route` uses
+  `@workspace-skills/github`).
 - `blobstore`: immutable blobs, ranges, search, and file-tree behavior.
 - `deterministic`: `@workspace/testkit` suites wrapped into staged runs.
 

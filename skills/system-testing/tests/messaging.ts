@@ -10,7 +10,7 @@
  */
 import type { TestCase, TestExecutionResult } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
-import { findLastAgentMessage, getToolCalls } from "./_helpers.js";
+import { findLastAgentMessage, getToolCalls, successfulEvalCode } from "./_helpers.js";
 
 type ToolCall = ReturnType<typeof getToolCalls>[number];
 
@@ -237,6 +237,37 @@ export const messagingTests: TestCase[] = [
         };
       }
       return { passed: true };
+    },
+  },
+  {
+    name: "messaging-resolve-named-recipient",
+    description:
+      "A message for someone who is not in the conversation is held back, with the roster resolved exactly, and the user is told who can be reached",
+    category: "messaging",
+    prompt: "Let Dana from accounting know the quarterly report is ready for review.",
+    validate: (result) => {
+      const base = validateAgentCompletionReport(result);
+      if (!base.passed) return base;
+      // The resolver is exact code (`@workspace-skills/messaging`): require that the agent used it.
+      const code = successfulEvalCode(result);
+      if (!/@workspace-skills\/messaging/u.test(code) || !/\bresolveAddressee\b/u.test(code)) {
+        return { passed: false, reason: "The agent never ran the addressee resolver" };
+      }
+      if (messagesSent(result).some(succeeded)) {
+        return {
+          passed: false,
+          reason: "A message was sent although no addressee matches the named recipient",
+        };
+      }
+      const final = findLastAgentMessage(result);
+      return /\bDana\b/iu.test(final) &&
+        /\b(?:not|no|cannot|can't|couldn't|unable|isn't|unknown)\b/iu.test(final)
+        ? { passed: true }
+        : {
+            passed: false,
+            reason:
+              "The final response does not tell the user that Dana could not be found among the addressees",
+          };
     },
   },
 ];
