@@ -27,6 +27,9 @@ export {
   CONTENT_WORKSPACE_REPO_FIXTURE,
 } from "./types.js";
 export type {
+  ReportClaim,
+  ReportClaimJudge,
+  ReportClaimVerdict,
   TestCase,
   TestResult,
   TestSuiteResult,

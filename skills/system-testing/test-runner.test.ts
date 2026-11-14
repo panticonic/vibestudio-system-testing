@@ -2378,3 +2378,70 @@ describe("worker fixture runtime observations", () => {
     },
   );
 });
+
+describe("report claims", () => {
+  function agentRunner(answer: string) {
+    const messages = [
+      { id: "prompt-1", senderId: "headless", kind: "message", complete: true, content: "prompt" },
+      { id: "answer-1", senderId: "agent", senderMetadata: { type: "agent" }, kind: "message", complete: true, content: answer },
+    ] satisfies ChatMessage[];
+    const session = {
+      channelId: "chat-claims",
+      messages,
+      sendAndWait: vi.fn(async () => undefined),
+      captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
+      snapshot: vi.fn(() => ({
+        messages,
+        invocations: [],
+        debugEvents: [],
+        cleanupErrors: [],
+        participants: {},
+        connected: true,
+        duration: 10,
+      })),
+      close: vi.fn(async () => undefined),
+    };
+    return {
+      modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      spawn: vi.fn(async () => session),
+      collectDiagnostics: vi.fn(async () => ({})),
+    } as unknown as HeadlessRunner;
+  }
+  const test: TestCase = {
+    name: "claims",
+    category: "test",
+    description: "report claims",
+    prompt: "Store a small binary value and tell me whether it came back unchanged.",
+    validate: () => ({ passed: true, details: { evidence: "exact" } }),
+    reportClaims: [{ id: "same", claim: "The bytes read back are the bytes stored.", match: /round.trip/iu }],
+  };
+
+  it("judges the final report after validate passes and records the verdicts", async () => {
+    const claimJudge = vi.fn(async () => ({
+      satisfied: false,
+      verdicts: [{ id: "same", verdict: "contradicts" as const, quote: "Two bytes differ.", by: "model" as const }],
+    }));
+    const { result } = await new TestRunner(agentRunner("Stored it. Two bytes differ."), { claimJudge }).runOne(test);
+    expect(claimJudge).toHaveBeenCalledWith("Stored it. Two bytes differ.", [
+      { id: "same", claim: "The bytes read back are the bytes stored.", match: "round.trip" },
+    ]);
+    expect(result).toMatchObject({
+      passed: false,
+      reason: 'The final report contradicts: The bytes read back are the bytes stored. ("Two bytes differ.")',
+      details: { evidence: "exact", reportClaims: [{ id: "same", verdict: "contradicts" }] },
+    });
+  });
+
+  it("does not judge claims when validate already failed, and fails as a validator error without a judge", async () => {
+    const claimJudge = vi.fn();
+    const failing = { ...test, validate: () => ({ passed: false, reason: "no blob was stored" }) };
+    const first = await new TestRunner(agentRunner("Done."), { claimJudge }).runOne(failing);
+    expect(first.result).toEqual({ passed: false, reason: "no blob was stored" });
+    expect(claimJudge).not.toHaveBeenCalled();
+    const second = await new TestRunner(agentRunner("Done.")).runOne(test);
+    expect(second.result.passed).toBe(false);
+    expect(second.execution.error).toMatch(/no claim judge/);
+    expect(second.execution.validationFailure?.phase).toBe("validation");
+  });
+});

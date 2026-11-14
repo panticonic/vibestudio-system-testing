@@ -13,10 +13,10 @@ import {
   responseContains,
 } from "./_helpers.js";
 
+/** The eval exercised the capability and returned its observation; what the report says is the test's report claims. */
 function semanticEval(
   result: Parameters<typeof noIncompleteInvocations>[0],
   codePatterns: RegExp[],
-  finalPatterns: RegExp[],
   evidencePatterns: RegExp[] = [],
 ) {
   const calls = getToolCalls(result).filter(
@@ -45,14 +45,6 @@ function semanticEval(
     return {
       passed: false,
       reason: "Canonical eval results omitted the required runtime observation",
-    };
-  }
-  const final = findLastAgentMessage(result);
-  if (!finalPatterns.every((pattern) => pattern.test(final))) {
-    return {
-      passed: false,
-      reason:
-        "Final response did not semantically report the observed runtime outcome",
     };
   }
   return noIncompleteInvocations(result);
@@ -161,22 +153,7 @@ function runtimeVcsIsUsable(
       call.execution.isError !== true,
   );
   if (!directVcsCall) {
-    return semanticEval(
-      result,
-      [/\bvcs\b/iu],
-      [/version.control|\bvcs\b/iu, /available|usable|present|exposed/iu],
-    );
-  }
-  const final = findLastAgentMessage(result);
-  if (
-    !/version.control|\bvcs\b/iu.test(final) ||
-    !/available|usable|present|exposed/iu.test(final)
-  ) {
-    return {
-      passed: false,
-      reason:
-        "Final response did not semantically report the observed VCS capability",
-    };
+    return semanticEval(result, [/\bvcs\b/iu]);
   }
   return noIncompleteInvocations(result);
 }
@@ -336,8 +313,11 @@ export const agenticRuntimeTests: TestCase[] = [
       semanticEval(
         result,
         [/stateArgs/iu, /(?:patch|update|change)/iu],
-        [/state/iu, /immediate|visible|observed/iu],
       ),
+    reportClaims: [
+      { id: "state", claim: "The answer reports the panel's launch state.", match: /state/iu },
+      { id: "visible", claim: "The changed state was visible to the panel immediately.", match: /immediate|visible|observed/iu },
+    ],
   },
   {
     name: "runtime-vcs-client-helper",
@@ -346,6 +326,10 @@ export const agenticRuntimeTests: TestCase[] = [
     prompt:
       "Is the workspace version-control client available in this runtime context? Check and report what you observe.",
     validate: runtimeVcsIsUsable,
+    reportClaims: [
+      { id: "vcs", claim: "The answer is about the workspace version-control client.", match: /version.control|\bvcs\b/iu },
+      { id: "available", claim: "The version-control client is available and usable here.", match: /available|usable|present|exposed/iu },
+    ],
   },
   {
     name: "gad-status-summary",
@@ -375,8 +359,11 @@ export const agenticRuntimeTests: TestCase[] = [
       semanticEval(
         result,
         [/2000|2_000/u],
-        [/(?:2000|2[,\s]000|two thousand)/iu, /summar|items?|entries|values/iu],
       ),
+    reportClaims: [
+      { id: "count", claim: "The value holds two thousand items.", match: /(?:2000|2[,\s]000|two thousand)/iu },
+      { id: "summary", claim: "The answer summarizes the items instead of listing them.", match: /summar|items?|entries|values/iu },
+    ],
   },
   {
     name: "agent-debug-state-method",
@@ -388,8 +375,15 @@ export const agenticRuntimeTests: TestCase[] = [
       semanticEval(
         result,
         [/(?:debugState|getDebugState|debug state|agent\.describe)/iu],
-        [/debug/iu, /available|unavailable|exposed|not exposed/iu],
       ),
+    reportClaims: [
+      { id: "debug", claim: "The answer is about the agent's debug-state interface.", match: /debug/iu },
+      {
+        id: "availability",
+        claim: "The answer says whether that interface is available.",
+        match: /available|unavailable|exposed|not exposed/iu,
+      },
+    ],
   },
   {
     name: "turn-no-silent-stall-after-tool",

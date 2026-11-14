@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TestExecutionResult } from "../types.js";
+import { claimsLeftToJudge, reportClaimsOf } from "../report-claims.js";
 import { blobstoreTests } from "./blobstore.js";
 import { docsDiscoveryTests } from "./docs-discovery.js";
 import { docsProbeTests } from "./docs-probes.js";
@@ -167,9 +168,12 @@ describe("storage and discovery semantic validators", () => {
         )
       )
     ).toEqual({ passed: true });
-    expect(
-      test.validate(execution("The document round-tripped and marker search succeeded.", [call]))
-    ).toMatchObject({ passed: false });
+    // A report without the range is left to the claim judge: no pattern settles that claim.
+    const silentOnRange = "The document round-tripped and marker search succeeded.";
+    expect(test.validate(execution(silentOnRange, [call]))).toEqual({ passed: true });
+    expect(claimsLeftToJudge(reportClaimsOf(test, execution(silentOnRange, [call])), silentOnRange).map((claim) => claim.id)).toEqual([
+      "range",
+    ]);
     const guestOnly = structuredClone(call);
     delete (
       guestOnly.invocation.execution.result as {

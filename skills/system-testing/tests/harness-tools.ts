@@ -85,17 +85,6 @@ function requireMemoryRecall(
   ) {
     return { passed: false, reason: "Workspace memory recall was not bounded" };
   }
-  const final = findLastAgentMessage(result);
-  if (
-    !/(build|failure)/iu.test(final) ||
-    !/(found|result|nothing|no prior|memory)/iu.test(final)
-  ) {
-    return {
-      passed: false,
-      reason:
-        "Final response did not semantically report the memory-search outcome",
-    };
-  }
   return noIncompleteInvocations(result);
 }
 
@@ -149,5 +138,13 @@ export const harnessToolTests: TestCase[] = [
     prompt:
       "Has this workspace dealt with build failures before? Check its memory of prior conversations and committed knowledge, and tell me what you find with provenance. Finding nothing is a valid outcome.",
     validate: requireMemoryRecall,
+    reportClaims: [
+      { id: "topic", claim: "The answer is about earlier build failures.", match: /(build|failure)/iu },
+      {
+        id: "outcome",
+        claim: "The answer says what the memory search found, or that it found nothing.",
+        match: /(found|result|nothing|no prior|memory)/iu,
+      },
+    ],
   },
 ];

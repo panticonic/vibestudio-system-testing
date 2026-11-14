@@ -7,6 +7,7 @@ import { HeadlessRunner } from "./runner.js";
 import { allTests } from "./stages.js";
 import { TestRunner } from "./test-runner.js";
 import type {
+  ReportClaimJudge,
   TestCase,
   TestSuiteResult,
   TestSuiteResultEntry,
@@ -99,6 +100,11 @@ export interface SystemTestRunOptions {
   ) => void;
   /** Periodic, non-blocking record used by the CLI to inspect a running case. */
   onInspectionUpdate?: (record: SystemTestRunRecord) => void | Promise<void>;
+  /**
+   * Judges the report claims tests declare: the Base `claimCheck` program, which the runner's eval loads with its
+   * natlang provider. A selected test that declares claims fails validation without it.
+   */
+  claimJudge?: ReportClaimJudge;
 }
 
 export interface SystemTestRunProgress {
@@ -398,6 +404,7 @@ export async function runSystemTests(
   });
   const tester = new TestRunner(runner, {
     testTimeoutMs,
+    ...(options.claimJudge ? { claimJudge: options.claimJudge } : {}),
     onTestStart: (test) => {
       const now = new Date().toISOString();
       queued.delete(test.name);

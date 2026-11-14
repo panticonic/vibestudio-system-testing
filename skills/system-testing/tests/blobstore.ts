@@ -6,7 +6,6 @@ import {
 } from "@vibestudio/service-schemas/blobstore";
 import type { TestCase } from "../types.js";
 import {
-  findLastAgentMessage,
   getToolCalls,
   noIncompleteInvocations,
   successfulEvalCode,
@@ -36,7 +35,6 @@ function hasDigest(values: unknown[]): boolean {
 function checked(
   result: Parameters<typeof noIncompleteInvocations>[0],
   methods: RegExp[],
-  finalClaims: RegExp[],
   resultProof: (values: unknown[]) => boolean
 ) {
   const code = successfulEvalCode(result);
@@ -53,15 +51,7 @@ function checked(
       reason: "Canonical eval results omitted the blobstore verification proof",
     };
   }
-  const final = findLastAgentMessage(result);
-  if (!finalClaims.every((claim) => claim.test(final))) {
-    return {
-      passed: false,
-      reason: "Final response did not semantically report the blobstore round trip",
-    };
-  }
-  const pending = noIncompleteInvocations(result);
-  return pending;
+  return noIncompleteInvocations(result);
 }
 
 function nativeBlobEntries(result: Parameters<typeof noIncompleteInvocations>[0]) {
@@ -138,16 +128,6 @@ function textRoundTripChecked(result: Parameters<typeof noIncompleteInvocations>
       reason:
         "Native blob observations did not join a stored multi-line document to its exact full read, smaller range and successful search",
     };
-  const final = findLastAgentMessage(result);
-  if (
-    ![/text|document/iu, /\b(?:range|slice|bytes?)\b/iu, /search|grep|marker|match/iu].every((claim) =>
-      claim.test(final)
-    )
-  )
-    return {
-      passed: false,
-      reason: "Final response did not report the document, range and search results",
-    };
   return noIncompleteInvocations(result);
 }
 
@@ -213,16 +193,6 @@ function treeLifecycleChecked(result: Parameters<typeof noIncompleteInvocations>
       reason:
         "Native blob facts did not join created tree versions, a complete listing and exact file read, a changed-file diff and completed materialization",
     };
-  const final = findLastAgentMessage(result);
-  if (
-    ![/tree/iu, /difference|changed|diff/iu, /materializ/iu, /files?/iu].every((claim) =>
-      claim.test(final)
-    )
-  )
-    return {
-      passed: false,
-      reason: "Final response did not report the tree difference and materialized files",
-    };
   return noIncompleteInvocations(result);
 }
 
@@ -234,6 +204,11 @@ export const blobstoreTests: TestCase[] = [
     prompt:
       "Put a short multi-line document with a distinctive marker line into the workspace's content-addressable storage. Verify the full text, read back a smaller byte range, and search the stored content for that marker without scanning the whole value yourself.",
     validate: textRoundTripChecked,
+    reportClaims: [
+      { id: "document", claim: "A multi-line text document was stored and read back in full.", match: /text|document/iu },
+      { id: "range", claim: "A smaller byte range of it was read back.", match: /\b(?:range|slice|bytes?)\b/iu },
+      { id: "search", claim: "A search of the stored content found the marker line.", match: /search|grep|marker|match/iu },
+    ],
   },
   {
     name: "blob-binary-roundtrip",
@@ -248,7 +223,6 @@ export const blobstoreTests: TestCase[] = [
           /blobstore\.putBytes|blobstore\.putBase64/iu,
           /blobstore\.getBytes|blobstore\.getBase64/iu,
         ],
-        [/binary|bytes/iu, /\d/u, /match|same|exact|round.trip/iu],
         (values) =>
           hasDigest(values) &&
           hasNamedTrue(values, /equal|same|exact|match|round.?trip/iu) &&
@@ -261,6 +235,11 @@ export const blobstoreTests: TestCase[] = [
             )
           )
       ),
+    reportClaims: [
+      { id: "binary", claim: "A binary value was stored.", match: /binary|bytes/iu },
+      { id: "size", claim: "The size that was checked is reported.", match: /\d/u },
+      { id: "same", claim: "The bytes read back are exactly the bytes that were stored.", match: /match|same|exact|round.trip/iu },
+    ],
   },
   {
     name: "blob-tree-lifecycle",
@@ -269,5 +248,11 @@ export const blobstoreTests: TestCase[] = [
     prompt:
       "Build a small immutable file tree from a few files, inspect and read it, create a second version with one changed file, and explain the resulting tree difference. Materialize one version into the sandbox and confirm the expected files arrived.",
     validate: treeLifecycleChecked,
+    reportClaims: [
+      { id: "tree", claim: "An immutable file tree was built.", match: /tree/iu },
+      { id: "difference", claim: "The difference between the two tree versions is reported.", match: /difference|changed|diff/iu },
+      { id: "materialized", claim: "One version was materialized into the sandbox.", match: /materializ/iu },
+      { id: "files", claim: "The expected files arrived.", match: /files?/iu },
+    ],
   },
 ];

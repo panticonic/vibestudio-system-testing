@@ -249,7 +249,45 @@ export interface TestCase {
   validation?: "harness";
   /** Every supplied validator gates success on its observed outcome facts. */
   validate: (result: TestExecutionResult) => TestResult;
+  /**
+   * Facts the agent's final report must state, judged after `validate` passes. `validate` keeps the exact checks
+   * (tool evidence, identities, counts); these are the ones whose wording an agent chooses. The runner judges them
+   * with the Base `claimCheck` natlang program and records every verdict in the result's `details.reportClaims`.
+   */
+  reportClaims?:
+    | readonly ReportClaim[]
+    | ((result: TestExecutionResult) => readonly ReportClaim[]);
 }
+
+/** One fact the agent's final report must state. */
+export interface ReportClaim {
+  /** Stable name of the claim, echoed in its verdict. */
+  id: string;
+  /** The fact as one plain sentence. */
+  claim: string;
+  /**
+   * The wording that already recognises the fact (flags `i` and `u` only). A match settles the claim as stated with no
+   * model call; no match leaves the claim to the model.
+   */
+  match?: RegExp;
+}
+
+/** A claim's verdict as `claimCheck` reports it: `quote` is the exact sentence of the report that bears on it. */
+export interface ReportClaimVerdict {
+  id: string;
+  verdict: "states" | "contradicts" | "absent";
+  quote?: string;
+  by: "match" | "model";
+}
+
+/**
+ * Judges report claims: the Base `claimCheck` program's `check(text, claims)`, with each match pattern as its source
+ * text. The runner's eval supplies it from its natlang provider.
+ */
+export type ReportClaimJudge = (
+  text: string,
+  claims: Array<{ id: string; claim: string; match?: string }>,
+) => Promise<{ satisfied: boolean; verdicts: ReportClaimVerdict[] }>;
 
 export interface TestOrchestrationContext {
   runner: HeadlessRunner;

@@ -1,5 +1,6 @@
 import { agentToolFailureSchema } from "@workspace/agentic-protocol";
 import type {
+  ReportClaimJudge,
   TestCase,
   TestSuiteResult,
   TestExecutionResult,
@@ -26,6 +27,7 @@ import {
   validationFailureProvenance,
 } from "./validation-failure.js";
 import { channelDeliveryLatencyViolations } from "./delivery-latency.js";
+import { judgeReportClaims, reportClaimsOf } from "./report-claims.js";
 import type { SystemTestJsonValue } from "./structured-error.js";
 import {
   assertAgentGoalPrompt,
@@ -75,6 +77,8 @@ export class TestRunner {
       ) => MaybePromise<void>;
       concurrency?: number;
       testTimeoutMs?: number;
+      /** Judges the report claims tests declare (`TestCase.reportClaims`). */
+      claimJudge?: ReportClaimJudge;
     },
   ) {
     if (!runner) {
@@ -554,6 +558,23 @@ export class TestRunner {
                 },
               }
             : evidence;
+        }
+        const claims = result.passed
+          ? reportClaimsOf(test, validationExecution)
+          : [];
+        if (claims.length > 0) {
+          const report =
+            findFinalAgentCompletionMessage(validationExecution.messages)
+              ?.content ?? "";
+          const judged = await judgeReportClaims(
+            claims,
+            report,
+            this.opts?.claimJudge,
+          );
+          result = {
+            ...judged,
+            details: { ...(result.details ?? {}), ...(judged.details ?? {}) },
+          };
         }
       }
       if (test.validation !== "harness") {

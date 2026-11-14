@@ -2,7 +2,6 @@ import type { TestCase } from "../types.js";
 import { NativeCredentialResolutionObservationSchema } from "@vibestudio/service-schemas/credentials";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
-  findLastAgentMessage,
   getToolCalls,
   noIncompleteInvocations,
   successfulEvalCode,
@@ -12,23 +11,6 @@ import {
 const MISSING_CREDENTIAL_AUDIENCE = "https://system-test-missing.invalid/resource";
 
 function credentialMissChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
-  const final = findLastAgentMessage(result);
-  if (
-    !/(credential|authorization|oauth)/iu.test(final) ||
-    !/(not (?:found|available|configured|bound)|no [^.\n]*(?:credential|binding)|missing|unavailable)/iu.test(
-      final
-    ) ||
-    !/(quiet|read.?only|non.?interactive|(without|did not|didn['’]t|no)\b[^.\n]*(prompt|window|browser|secret|authoriz))/iu.test(
-      final
-    )
-  ) {
-    return {
-      passed: false,
-      reason:
-        "Final response did not semantically report the non-interactive credential miss and secret-safe handling",
-    };
-  }
-
   const evalCalls = getToolCalls(result).filter((call) => call.name === "eval");
   const code = successfulEvalCode(result);
   if (
@@ -98,5 +80,18 @@ export const oauthTests: TestCase[] = [
     category: "oauth",
     prompt: `Check whether this workspace already has a credential for ${MISSING_CREDENTIAL_AUDIENCE}. It should be a quiet lookup only: do not connect an account, open authorization UI, request input, or expose secrets.`,
     validate: credentialMissChecked,
+    reportClaims: [
+      { id: "credential", claim: "The answer is about a credential or authorization for the URL.", match: /(credential|authorization|oauth)/iu },
+      {
+        id: "missing",
+        claim: "No credential is available for the URL.",
+        match: /(not (?:found|available|configured|bound)|no [^.\n]*(?:credential|binding)|missing|unavailable)/iu,
+      },
+      {
+        id: "quiet",
+        claim: "The check did not prompt the user, open an authorization window, or reveal a secret.",
+        match: /(quiet|read.?only|non.?interactive|(without|did not|didn['’]t|no)\b[^.\n]*(prompt|window|browser|secret|authoriz))/iu,
+      },
+    ],
   },
 ];

@@ -207,11 +207,19 @@ function systemTestEvalCode(
       lastProgress = durable;
       ctx.reportProgress(durable);
     };
+    // Report claims are judged by Base's claimCheck program through this eval's natlang provider: the same
+    // executor role, model gateway and call records as every eval's natlang calls. Loaded on first use.
+    let claimProgram = null;
+    const claimJudge = async (text, claims) => {
+      claimProgram ??= natlang.load("skills/sandbox/claims/claimCheck.nl");
+      return (await claimProgram).check(text, claims);
+    };
     try {
       const installedUnits = await installedWorkspaceUnits();
       const record = await runSystemTests({
         ...options,
         installedUnits,
+        claimJudge,
         contextId: ctx.contextId,
         onProgress: publishProgress,
         onInspectionUpdate: async (liveRecord) => {

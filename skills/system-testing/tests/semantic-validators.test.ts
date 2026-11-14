@@ -6,7 +6,8 @@ vi.mock("@workspace/runtime", () => ({
   },
 }));
 
-import type { TestExecutionResult } from "../types.js";
+import type { TestCase, TestExecutionResult } from "../types.js";
+import { claimsLeftToJudge, reportClaimsOf } from "../report-claims.js";
 import { agenticRuntimeTests } from "./agentic-runtime.js";
 import { agentCapabilityTests } from "./agent-capabilities.js";
 import { blobstoreTests } from "./blobstore.js";
@@ -53,6 +54,15 @@ function execution(
       },
     ],
   } as TestExecutionResult;
+}
+
+/**
+ * The verdict a test reaches without a model: its exact validator passes and every report claim is settled by its own
+ * pattern. A claim left over goes to the claim judge (the executor), so a report that leaves one is not passed here.
+ */
+function passesWithoutModel(test: TestCase, result: TestExecutionResult): boolean {
+  const final = String(result.messages.at(-1)?.content ?? "");
+  return test.validate(result).passed && claimsLeftToJudge(reportClaimsOf(test, result), final).length === 0;
 }
 
 describe("semantic system-test validators", () => {
@@ -678,20 +688,20 @@ describe("semantic system-test validators", () => {
     };
 
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "The source edit is not the live contract. Publish or activate the exact provider build, or use a declared method from the live service docs. Do not bypass this with raw addressing.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution("Call the raw Durable Object target directly.", [docsRead]),
-      ).passed,
+      ),
     ).toBe(false);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "Adding source does not update the active RPC contract. Check the receiver declaration, commit and publish, then resolve the service again.",
           [
@@ -706,62 +716,62 @@ describe("semantic system-test validators", () => {
             },
           ],
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "WORKSPACE_RPC_METHOD_UNDECLARED means the live Durable Object receiver has no declared RPC entry for this method. Workspace source alone does not change its live contract. Verify the candidate, commit and publish the provider, wait for publication, then resolve the service again and retry.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "The declared RPC catalog belongs to the live receiver contract, while workspace source is its candidate view. Verification followed by publication activates that provider revision; resolve the service again before using it.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "The active provider's declared RPC contract is published. Resolve the service again before calling it.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(false);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "The source change alone does not update the live receiver contract; retry the method after checking the candidate.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(false);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "Workspace source alone does not change the active provider contract. Verify the candidate, commit and publish, wait for publication, then resolve the service again.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(false);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "The source change alone does not update the live service's declared RPC catalog. Verify the candidate, commit and publish, then retry.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "Adding source does not update the active RPC contract. Check the receiver declaration, commit and publish, then resolve the service again.",
         ),
-      ).passed,
+      ),
     ).toBe(false);
   });
 
@@ -780,10 +790,10 @@ describe("semantic system-test validators", () => {
     };
     const final =
       "I triaged the Electron report. What steps reproduce it, and does the same flow work in the browser?";
-    expect(test.validate(execution(final, [docsRead])).passed).toBe(true);
-    expect(test.validate(execution(final)).passed).toBe(false);
+    expect(passesWithoutModel(test, execution(final, [docsRead]))).toBe(true);
+    expect(passesWithoutModel(test, execution(final))).toBe(false);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(final, [
           docsRead,
           {
@@ -794,7 +804,7 @@ describe("semantic system-test validators", () => {
             },
           },
         ]),
-      ).passed,
+      ),
     ).toBe(false);
   });
 
@@ -812,20 +822,20 @@ describe("semantic system-test validators", () => {
       },
     };
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "Request only the network destinations and credential audience needed. Review the schema migration and publish only when authorized.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      test.validate(
+      passesWithoutModel(test, 
         execution(
           "Fetch the network data, store credentials and change the schema.",
           [docsRead],
         ),
-      ).passed,
+      ),
     ).toBe(false);
   });
 
@@ -834,33 +844,33 @@ describe("semantic system-test validators", () => {
       (candidate) => candidate.name === "docs-interaction-surface-choice",
     )!;
     expect(
-      ui.validate(
+      passesWithoutModel(ui, 
         execution(
           "Use inline_ui for persistent links and controls, with visible operation errors and a retry path.",
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      ui.validate(
+      passesWithoutModel(ui, 
         execution(
           "Use a static Markdown message for links and interactive error handling.",
         ),
-      ).passed,
+      ),
     ).toBe(false);
     const headless = docsProbeTests.find(
       (candidate) => candidate.name === "docs-headless-gad-diagnostics",
     )!;
     expect(
-      headless.validate(
+      passesWithoutModel(headless, 
         execution(
           "Identify the session, inspect recent tool invocation state, and distinguish pending work from a terminal failure. Wait for completion.",
         ),
-      ).passed,
+      ),
     ).toBe(true);
     expect(
-      headless.validate(
+      passesWithoutModel(headless, 
         execution("No final response means failure. Retry immediately."),
-      ).passed,
+      ),
     ).toBe(false);
   });
 
