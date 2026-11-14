@@ -1854,6 +1854,39 @@ describe("eval lifecycle semantic validators", () => {
     ).toBe(false);
   });
 
+  it("accepts a deadline-settled spin followed by an answered run, and nothing less", () => {
+    const answered = (override: Record<string, unknown> = {}): TestExecutionResult => ({
+      duration: 0,
+      messages: [],
+      diagnostics: {
+        evalDeadlineRecovery: {
+          spun: {
+            runId: "run-1",
+            terminal: { status: "done", result: { failureCode: "eval_deadline_exceeded" } },
+          },
+          next: {
+            runId: "run-2",
+            terminal: { status: "done", result: { success: true, returnValue: 42 } },
+          },
+          ...override,
+        },
+      },
+    });
+    const validator = scenario(evalLifecycleTests, "eval-deadline-recovery");
+    expect(validator.validate(answered()).passed).toBe(true);
+    expect(
+      validator.validate(
+        answered({ spun: { runId: "run-1", terminal: { status: "running" } } }),
+      ).passed,
+    ).toBe(false);
+    expect(
+      validator.validate(
+        answered({ next: { runId: "run-2", terminal: { status: "running" } } }),
+      ).passed,
+    ).toBe(false);
+    expect(validator.validate(execution("It recovered.", [])).passed).toBe(false);
+  });
+
   it("requires one original eval result after an observed live vessel abort", () => {
     const validator = scenario(evalLifecycleTests, "eval-agent-replay");
     const recovered = execution("The durable eval returned once.", [

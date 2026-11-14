@@ -394,17 +394,45 @@ describe("HeadlessRunner", () => {
     });
   });
 
+  /** The host's admission and the hosting entity's own calls, as the harness sees them. */
+  const HOST_ID = "do:workers/session:SessionDO:probe";
+  function hostAnswers(
+    answer: (method: string, args: unknown[]) => unknown,
+  ): (_target: string, method: { name: string }, args: unknown[]) => Promise<unknown> {
+    return async (_target, method, args) => {
+      switch (method.name) {
+        case "dynamicCode.admit": {
+          const runId = (args[0] as { runId: string }).runId;
+          return {
+            runId,
+            runDigest: "a".repeat(64),
+            authorityManifestDigest: "b".repeat(64),
+            host: { source: "workers/session", className: "SessionDO", objectKey: "probe" },
+            hostId: HOST_ID,
+            nonce: "nonce",
+            start: { runId },
+          };
+        }
+        case "dynamicCode.release":
+          return { released: true };
+        case "dynamicCode.dispose":
+          return { ok: true };
+        default:
+          return answer(method.name, args);
+      }
+    };
+  }
+
   it("cancels one harness-owned asynchronous eval and disposes its finite scope", async () => {
     const runner = new HeadlessRunner("ctx-test");
-    mocks.rpc.call.mockImplementation(async (_target, method, args) => {
-      if (method.name === "eval.start") {
-        return { runId: (args[0] as { runId: string }).runId };
-      }
-      if (method.name === "eval.cancel") return { ok: true, forcedReset: false };
-      if (method.name === "eval.get") return { status: "cancelled" };
-      if (method.name === "eval.dispose") return { ok: true };
-      throw new Error(`Unexpected method ${method}`);
-    });
+    mocks.rpc.call.mockImplementation(
+      hostAnswers((method) => {
+        if (method === "start") return { runId: "x", status: "pending" };
+        if (method === "cancel") return { ok: true, forcedReset: false };
+        if (method === "get") return { status: "cancelled" };
+        throw new Error(`Unexpected method ${method}`);
+      }),
+    );
 
     const result = await runner.probeEvalCancellation();
 
@@ -417,44 +445,88 @@ describe("HeadlessRunner", () => {
       scope: { key: string };
       runId: string;
     };
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(1, "main", mainRpcMethods["eval.start"], [
-      expect.objectContaining({
-        scope: { key: startArgs.scope.key, lifecycle: "finite" },
-        runId: startArgs.runId,
+    expect(mocks.rpc.call.mock.calls[0]!.slice(0, 3)).toEqual([
+      "main",
+      mainRpcMethods["dynamicCode.admit"],
+      [
+        expect.objectContaining({
+          scope: { key: startArgs.scope.key, lifecycle: "finite" },
+          runId: startArgs.runId,
+        }),
+      ],
+    ]);
+    // The run is started, cancelled and read on the entity that hosts it, then released and disposed.
+    expect(
+      mocks.rpc.call.mock.calls.map(([target, method]) => `${target} ${method.name}`),
+    ).toEqual([
+      "main dynamicCode.admit",
+      `${HOST_ID} start`,
+      `${HOST_ID} cancel`,
+      `${HOST_ID} get`,
+      "main dynamicCode.release",
+      "main dynamicCode.dispose",
+    ]);
+    expect(mocks.rpc.call.mock.calls.at(-1)!.slice(0, 3)).toEqual([
+      "main",
+      mainRpcMethods["dynamicCode.dispose"],
+      [{ scopeKey: startArgs.scope.key }],
+    ]);
+  });
+
+  it("proves a run whose cell never yields is settled by its deadline and the next run is answered", async () => {
+    const runner = new HeadlessRunner("ctx-test");
+    mocks.rpc.call.mockImplementation(
+      hostAnswers((method, args) => {
+        if (method === "start") return { runId: "x", status: "pending" };
+        if (method === "await") {
+          const runId = args[0] as string;
+          return runId.startsWith("system-test-deadline-next-")
+            ? { status: "done", result: { success: true, console: "", returnValue: 42 } }
+            : {
+                status: "done",
+                result: { success: false, console: "", failureCode: "eval_deadline_exceeded" },
+              };
+        }
+        throw new Error(`Unexpected method ${method}`);
       }),
-    ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(2, "main", mainRpcMethods["eval.cancel"], [
-      { scopeKey: startArgs.scope.key, runId: startArgs.runId },
-    ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(3, "main", mainRpcMethods["eval.get"], [
-      { scopeKey: startArgs.scope.key, runId: startArgs.runId },
-    ]);
-    expect(mocks.rpc.call).toHaveBeenNthCalledWith(4, "main", mainRpcMethods["eval.dispose"], [
-      { scopeKey: startArgs.scope.key },
-    ]);
+    );
+
+    const result = await runner.probeEvalDeadlineRecovery();
+
+    expect(result.spun.terminal).toMatchObject({
+      status: "done",
+      result: { failureCode: "eval_deadline_exceeded" },
+    });
+    expect(result.next.terminal).toMatchObject({ result: { returnValue: 42 } });
+    const admitted = mocks.rpc.call.mock.calls
+      .filter(([, method]) => method.name === "dynamicCode.admit")
+      .map(([, , args]) => args[0] as { timeoutMs?: number });
+    expect(admitted[0]!.timeoutMs).toBe(3_000);
+    expect(admitted[1]!.timeoutMs).toBeUndefined();
+    expect(mocks.rpc.call.mock.calls.at(-1)![1].name).toBe("dynamicCode.dispose");
   });
 
   it("reads one stable bounded durable event cursor twice before advancing pages", async () => {
     const runner = new HeadlessRunner("ctx-test");
     let eventRead = 0;
-    mocks.rpc.call.mockImplementation(async (_target, method, args) => {
-      const route = args[0] as { runId?: string };
-      if (method.name === "eval.start") return { runId: route.runId };
-      if (method.name === "eval.get")
-        return { status: "done", result: { success: true } };
-      if (method.name === "eval.events") {
-        eventRead++;
-        return eventRead <= 3
-          ? { events: [{ sequence: 1, kind: "state" }], next: 1, hasMore: true }
-          : {
-              events: [{ sequence: 2, kind: "console" }],
-              next: 2,
-              hasMore: false,
-            };
-      }
-      if (method.name === "eval.dispose") return { ok: true };
-      throw new Error(`Unexpected method ${method}`);
-    });
+    mocks.rpc.call.mockImplementation(
+      hostAnswers((method) => {
+        if (method === "start") return { runId: "x", status: "pending" };
+        if (method === "get")
+          return { status: "done", result: { success: true } };
+        if (method === "events") {
+          eventRead++;
+          return eventRead <= 3
+            ? { events: [{ sequence: 1, kind: "state" }], next: 1, hasMore: true }
+            : {
+                events: [{ sequence: 2, kind: "console" }],
+                next: 2,
+                hasMore: false,
+              };
+        }
+        throw new Error(`Unexpected method ${method}`);
+      }),
+    );
 
     const result = await runner.probeEvalEventPages();
 
@@ -468,13 +540,15 @@ describe("HeadlessRunner", () => {
       { events: [{ sequence: 2, kind: "console" }], next: 2, hasMore: false },
     ]);
     expect(mocks.rpc.call.mock.calls.map(([, method]) => method.name)).toEqual([
-      "eval.start",
-      "eval.get",
-      "eval.events",
-      "eval.events",
-      "eval.events",
-      "eval.events",
-      "eval.dispose",
+      "dynamicCode.admit",
+      "start",
+      "get",
+      "dynamicCode.release",
+      "events",
+      "events",
+      "events",
+      "events",
+      "dynamicCode.dispose",
     ]);
   });
 

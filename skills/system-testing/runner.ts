@@ -1,6 +1,7 @@
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+import { startDynamicCodeRun } from "@vibestudio/service-schemas/dynamicCode";
 import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
 import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { RpcCaller } from "@vibestudio/rpc";
@@ -103,6 +104,13 @@ export interface EvalCancellationProbe {
   runId: string;
   cancel: { ok: true; forcedReset: boolean };
   terminal: { status: string; result?: unknown };
+}
+
+export interface EvalDeadlineRecoveryProbe {
+  /** A run whose cell never yields, with a deadline, ended by the node's CPU limit on its start call. */
+  spun: { runId: string; terminal: { status: string; result?: unknown } };
+  /** The next run of the same scope: admitted, executed and answered. */
+  next: { runId: string; terminal: { status: string; result?: unknown } };
 }
 
 export interface EvalEventPagesProbe {
@@ -1151,33 +1159,78 @@ export class HeadlessRunner {
     const subKey = `system-test-cancel-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call("main", mainRpcMethods["eval.start"], [
-        {
-          scope: { key: subKey, lifecycle: "finite" },
-          runId,
-          source: { kind: "inline", code: "await new Promise(() => {});" },
-        },
-      ]);
+      const { admission, observer } = await startDynamicCodeRun(rpc, {
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: { kind: "inline", code: "await new Promise(() => {});" },
+      });
       activated = true;
-      if (started.runId !== runId) {
+      if (admission.runId !== runId) {
         throw new Error(
-          `eval.start returned ${started.runId}, expected ${runId}`,
+          `dynamicCode.admit returned ${admission.runId}, expected ${runId}`,
         );
       }
-      const cancel = await rpc.call(
-        "main",
-        mainRpcMethods["eval.cancel"],
-        [{ scopeKey: subKey, runId }],
-      );
-      const terminal = await rpc.call(
-        "main",
-        mainRpcMethods["eval.get"],
-        [{ scopeKey: subKey, runId }],
-      );
+      const cancel = await observer.cancel();
+      const terminal = await observer.get();
+      await observer.release();
       return { runId, cancel, terminal };
     } finally {
       if (activated) {
-        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
+      }
+    }
+  }
+
+  /**
+   * Prove that a run whose cell never yields and whose deadline passes is settled by that
+   * deadline, and that the next run of the same scope is admitted and answered. The node ends
+   * the spinning start call at the run's CPU limit; the kernel settles the run from its own
+   * deadline timer (docs/dolt-redesign.md §7.8). Pulled, never pushed: nothing but the run's
+   * committed row says how it ended.
+   */
+  async probeEvalDeadlineRecovery(): Promise<EvalDeadlineRecoveryProbe> {
+    const subKey = `system-test-deadline-${crypto.randomUUID()}`;
+    let activated = false;
+    const settle = async (
+      runId: string,
+      source: string,
+      timeoutMs?: number,
+    ): Promise<{ runId: string; terminal: { status: string; result?: unknown } }> => {
+      const { observer } = await startDynamicCodeRun(rpc, {
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: { kind: "inline", code: source },
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      });
+      activated = true;
+      const deadline = Date.now() + 90_000;
+      let terminal: { status: string; result?: unknown } = { status: "pending" };
+      while (Date.now() < deadline) {
+        terminal = await observer.await(2_000);
+        if (
+          terminal.status === "done" ||
+          terminal.status === "cancelled" ||
+          terminal.status === "approval-route-lost"
+        )
+          break;
+      }
+      await observer.release();
+      return { runId, terminal };
+    };
+    try {
+      const spun = await settle(
+        `system-test-deadline-${crypto.randomUUID()}`,
+        "while (true) {}",
+        3_000,
+      );
+      const next = await settle(
+        `system-test-deadline-next-${crypto.randomUUID()}`,
+        "return 40 + 2;",
+      );
+      return { spun, next };
+    } finally {
+      if (activated) {
+        await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
       }
     }
   }
@@ -1193,30 +1246,24 @@ export class HeadlessRunner {
     const subKey = `system-test-events-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call("main", mainRpcMethods["eval.start"], [
-        {
-          scope: { key: subKey, lifecycle: "finite" },
-          runId,
-          source: {
-            kind: "inline",
-            code: 'console.log("SYSTEM_TEST_EVAL_EVENT"); return { eventProbe: true };',
-          },
+      const { admission, observer } = await startDynamicCodeRun(rpc, {
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: {
+          kind: "inline",
+          code: 'console.log("SYSTEM_TEST_EVAL_EVENT"); return { eventProbe: true };',
         },
-      ]);
+      });
       activated = true;
-      if (started.runId !== runId) {
+      if (admission.runId !== runId) {
         throw new Error(
-          `eval.start returned ${started.runId}, expected ${runId}`,
+          `dynamicCode.admit returned ${admission.runId}, expected ${runId}`,
         );
       }
       let terminal: { status: string; result?: unknown } | null = null;
       const settleDeadline = Date.now() + 30_000;
       while (Date.now() < settleDeadline) {
-        terminal = await rpc.call(
-          "main",
-          mainRpcMethods["eval.get"],
-          [{ scopeKey: subKey, runId }],
-        );
+        terminal = await observer.get();
         if (terminal.status === "done" || terminal.status === "cancelled")
           break;
         await new Promise((resolve) => setTimeout(resolve, 25));
@@ -1229,20 +1276,14 @@ export class HeadlessRunner {
           `eval run ${runId} did not settle before event pagination`,
         );
       }
-      const readPage = () =>
-        rpc.call("main", mainRpcMethods["eval.events"], [
-          { scopeKey: subKey, runId, after: 0, limit: 1 },
-        ]);
+      await observer.release();
+      const readPage = () => observer.events(0, 1);
       const firstPage = await readPage();
       const repeatedFirstPage = await readPage();
       const pages: EvalEventPagesProbe["pages"] = [];
       let after = 0;
       do {
-        const page = await rpc.call(
-          "main",
-          mainRpcMethods["eval.events"],
-          [{ scopeKey: subKey, runId, after, limit: 1 }],
-        );
+        const page = await observer.events(after, 1);
         pages.push(page);
         after = page.next;
         if (!page.hasMore) break;
@@ -1252,7 +1293,7 @@ export class HeadlessRunner {
       return { runId, firstPage, repeatedFirstPage, pages, terminal };
     } finally {
       if (activated)
-        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
     }
   }
 

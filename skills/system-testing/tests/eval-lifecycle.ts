@@ -567,6 +567,72 @@ async function orchestrateCancellation(
   }
 }
 
+async function orchestrateDeadlineRecovery(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  try {
+    const probe = await context.runner.probeEvalDeadlineRecovery();
+    return {
+      messages: [],
+      duration: Date.now() - startedAt,
+      diagnostics: { evalDeadlineRecovery: probe },
+    };
+  } catch (cause) {
+    const failure = systemTestFailure("eval-deadline-recovery", cause);
+    return {
+      messages: [],
+      duration: Date.now() - startedAt,
+      error: failure.error.message,
+      failure,
+    };
+  }
+}
+
+function validateDeadlineRecovery(result: TestExecutionResult) {
+  if (result.error) return { passed: false, reason: result.error };
+  const probe = result.diagnostics?.["evalDeadlineRecovery"];
+  if (!probe || typeof probe !== "object" || Array.isArray(probe)) {
+    return {
+      passed: false,
+      reason: "The harness did not record deadline-recovery evidence",
+    };
+  }
+  const record = probe as {
+    spun?: { terminal?: { status?: unknown; result?: { failureCode?: unknown } } };
+    next?: {
+      terminal?: {
+        status?: unknown;
+        result?: { success?: unknown; returnValue?: unknown };
+      };
+    };
+  };
+  if (
+    record.spun?.terminal?.status !== "done" ||
+    record.spun.terminal.result?.failureCode !== "eval_deadline_exceeded"
+  ) {
+    return {
+      passed: false,
+      reason: `Expected the spinning run to settle at its deadline; observed ${JSON.stringify(
+        record.spun,
+      )}`,
+    };
+  }
+  if (
+    record.next?.terminal?.status !== "done" ||
+    record.next.terminal.result?.success !== true ||
+    record.next.terminal.result.returnValue !== 42
+  ) {
+    return {
+      passed: false,
+      reason: `Expected the next run of the scope to answer 42; observed ${JSON.stringify(
+        record.next,
+      )}`,
+    };
+  }
+  return { passed: true, reason: undefined };
+}
+
 async function orchestrateAgentReplay(
   context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
@@ -1117,5 +1183,15 @@ export const evalLifecycleTests: TestCase[] = [
     orchestrate: orchestrateCancellation,
     validation: "harness",
     validate: validateCancellation,
+  },
+  {
+    name: "eval-deadline-recovery",
+    description:
+      "A run whose cell never yields is settled by its own deadline, and the next run of the same scope is answered",
+    category: "eval-lifecycle",
+    prompt: "Harness-orchestrated eval deadline recovery check.",
+    orchestrate: orchestrateDeadlineRecovery,
+    validation: "harness",
+    validate: validateDeadlineRecovery,
   },
 ];

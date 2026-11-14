@@ -107,7 +107,7 @@ async function recordOwner() {
   const blobs = new Map<string, Uint8Array>();
   const rpcCall = vi.fn(
     async (_target: string, method: string, args: unknown[]) => {
-      if (method === "eval.dispose") return { ok: true };
+      if (method === "dynamicCode.dispose") return { ok: true };
       const bytes = blobs.get(args[0] as string);
       if (!bytes) throw new Error("Missing test blob");
       if (method === "blobstore.stat") return { size: bytes.length, mtime: 0 };
@@ -164,7 +164,7 @@ describe("system-test durable execution ownership", () => {
       owner.call("releaseSystemTestRunExecution", running.runId),
     ).rejects.toThrow("still active");
     expect(
-      owner.rpcCall.mock.calls.some(([, method]) => method === "eval.dispose"),
+      owner.rpcCall.mock.calls.some(([, method]) => method === "dynamicCode.dispose"),
     ).toBe(false);
     const terminal = runRecord("completed", "2026-09-28T00:00:02.000Z");
     await owner.store(terminal);

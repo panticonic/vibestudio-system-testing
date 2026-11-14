@@ -22,9 +22,10 @@ import {
 /**
  * Sealed authority conduit for the headless system-test harness.
  *
- * System-test source is intentionally evaluated in the normal EvalDO runtime,
- * where its portable APIs actually live. EvalDO recognizes this exact sealed
- * runner build and issues the explicit test policy for its nested runs. No
+ * System-test source is intentionally evaluated in the normal eval kernel, hosted by a
+ * session entity this runner owns, where its portable APIs actually live. The host recognizes
+ * this exact sealed runner build and issues the explicit test policy for its nested runs. The
+ * runner admits a run with the host, starts it on that entity and pulls its status from there. No
  * session, shell, or arbitrary eval can impersonate that execution identity.
  */
 import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
@@ -35,11 +36,12 @@ import {
   relationship,
 } from "@vibestudio/shared/authorization";
 import {
-  createEvalExecutor,
-  createEvalRunHandle,
-  createEvalRunObserver,
-  evalRunStatusSchema,
-} from "@vibestudio/service-schemas/eval";
+  createDynamicCodeExecutor,
+  createDynamicCodeRunObserver,
+  createDynamicCodeScope,
+  startDynamicCodeRun,
+} from "@vibestudio/service-schemas/dynamicCode";
+import type { evalRunStatusSchema } from "@vibestudio/service-schemas/eval";
 import type { z } from "zod";
 import {
   inspectSystemTestRun,
@@ -508,8 +510,13 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       kind,
       crypto.randomUUID(),
     );
+    let hostId = "";
     try {
-      const execute = createEvalExecutor(createMainRpcCaller(this.rpc));
+      const execute = createDynamicCodeExecutor(this.rpc, {
+        onAdmitted: (admission) => {
+          hostId = admission.hostId;
+        },
+      });
       const result = await execute({
         runId,
         scope: { key: subKey, lifecycle: "finite" },
@@ -537,14 +544,14 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       }
       const stored = parseStoredSystemTestRecord(result.returnValue);
       try {
-        return await this.readStoredSystemTestRecord(subKey, stored);
+        return await this.readStoredSystemTestRecord(hostId, stored);
       } finally {
-        await this.rpc.call("main", mainRpcMethods["eval.deleteScopeValue"], [
-          { scopeKey: subKey, key: stored.scopeKey },
-        ]);
+        await createDynamicCodeScope(this.rpc, hostId).deleteScopeValue(
+          stored.scopeKey,
+        );
       }
     } finally {
-      await this.rpc.call("main", mainRpcMethods["eval.dispose"], [
+      await this.rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [
         { scopeKey: subKey },
       ]);
     }
@@ -621,7 +628,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     if (!this.caller?.userId || this.caller.userId === "system") {
       throw new Error("System tests require an authenticated human initiator");
     }
-    const handle = createEvalRunHandle(createMainRpcCaller(this.rpc), {
+    const { admission } = await startDynamicCodeRun(this.rpc, {
       runId: systemTestEvalRunId(config.runId),
       scope: { key: config.runId, lifecycle: "finite" },
       source: {
@@ -630,46 +637,41 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         syntax: "typescript",
       },
     });
-    await handle.start();
+    // The run outlives this call: a later activation pulls it by the entity that hosts it.
+    this.setStateValue(this.hostStateKey(config.runId), admission.hostId);
     return { runId: options.runId };
   }
 
   private async readStoredSystemTestRecord(
-    runId: string,
+    hostId: string,
     stored: StoredSystemTestRecord,
   ): Promise<unknown> {
     const pageSize = 128 * 1024;
+    const scope = createDynamicCodeScope(this.rpc, hostId);
     let text = "";
     for (let offset = 0; offset < stored.length; offset += pageSize) {
-      const page = await this.rpc.call(
-        "main",
-        mainRpcMethods["eval.readScopeTextPage"],
-        [
-          {
-            scopeKey: runId,
-            key: stored.scopeKey,
-            offset,
-            limit: Math.min(pageSize, stored.length - offset),
-          },
-        ],
+      const page = await scope.readScopeTextPage(
+        stored.scopeKey,
+        offset,
+        Math.min(pageSize, stored.length - offset),
       );
       if (page.length !== stored.length || page.encoding !== "utf16le-base64") {
         throw new Error(
-          `system-test record ${runId} changed while it was being read`,
+          `system-test record ${stored.scopeKey} changed while it was being read`,
         );
       }
       text += decodeUtf16LeBase64(page.chunk);
     }
     if (text.length !== stored.length) {
       throw new Error(
-        `system-test record ${runId} was truncated (${text.length}/${stored.length} UTF-16 units)`,
+        `system-test record ${stored.scopeKey} was truncated (${text.length}/${stored.length} UTF-16 units)`,
       );
     }
     try {
       return JSON.parse(text);
     } catch (error) {
       throw new Error(
-        `system-test record ${runId} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        `system-test record ${stored.scopeKey} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -770,7 +772,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       );
     const released = await this.rpc.call(
       "main",
-      mainRpcMethods["eval.dispose"],
+      mainRpcMethods["dynamicCode.dispose"],
       [{ scopeKey: runId }],
     );
     return { released: released.ok };
@@ -790,7 +792,9 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async cancelSystemTestRun(runId: string): Promise<SystemTestRunCompletion> {
     let cancellation: EvalCancelResult;
     try {
-      cancellation = await this.evalRunObserver(runId).cancel();
+      const observer = this.evalRunObserver(runId);
+      cancellation = await observer.cancel();
+      await observer.release().catch(() => undefined);
     } catch (error) {
       throw new Error(
         `System-test run ${runId} could not settle its inner eval cancellation: ${
@@ -801,7 +805,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     }
     if (cancellation.forcedReset) {
       throw new Error(
-        `System-test run ${runId} required a forced EvalDO scope reset after non-cooperative cancellation; ` +
+        `System-test run ${runId} required a forced eval scope reset after non-cooperative cancellation; ` +
           "its terminal cleanup record is unavailable. Restart from a fresh exact run.",
       );
     }
@@ -905,14 +909,35 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     });
   }
 
-  private readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
-    return readEvalStatusWithRetry(() => this.evalRunObserver(runId).get());
+  private async readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
+    const observer = this.evalRunObserver(runId);
+    const status = (await readEvalStatusWithRetry(() =>
+      observer.get(),
+    )) as EvalRunStatus;
+    if (
+      status.status === "done" ||
+      status.status === "cancelled" ||
+      status.status === "approval-route-lost"
+    ) {
+      // The run ended: the host's admission is no longer needed (releasing twice is harmless).
+      await observer.release().catch(() => undefined);
+    }
+    return status;
   }
 
+  private hostStateKey(runId: string): string {
+    return `system-test-host:${runId}`;
+  }
+
+  /** The entity that hosts a run's kernel, recorded when the run was admitted. */
   private evalRunObserver(runId: string) {
-    return createEvalRunObserver(createMainRpcCaller(this.rpc), {
+    const hostId = this.getStateValue(this.hostStateKey(runId));
+    if (!hostId) {
+      throw new Error(`System-test run ${runId} was not started by this runner`);
+    }
+    return createDynamicCodeRunObserver(this.rpc, {
+      hostId,
       runId: systemTestEvalRunId(runId),
-      scopeKey: runId,
     });
   }
 }
