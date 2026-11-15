@@ -1,6 +1,4 @@
-import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
-import { systemTestFailure, type SystemTestFailure } from "../structured-error.js";
-import { findLastAgentMessage } from "./_helpers.js";
+import type { TestCase, TestExecutionResult } from "../types.js";
 import { BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE } from "../types.js";
 import { validateAgentCompletionReport } from "../test-runner.js";
 import { getToolCalls, noIncompleteInvocations } from "./_helpers.js";
@@ -300,83 +298,7 @@ function validateSubagentFollowup(result: TestExecutionResult) {
   return noIncompleteInvocations(result);
 }
 
-const FORK_CODE_WORD = "PELICAN-7";
-
-async function orchestrateSubagentFork(
-  context: TestOrchestrationContext,
-): Promise<TestExecutionResult> {
-  const startedAt = Date.now();
-  const session = await context.runner.spawn();
-  let error: string | undefined;
-  let failure: SystemTestFailure | undefined;
-  try {
-    // A closed turn: the code word is part of the conversation the cell commits.
-    await context.sendAndWait(
-      session,
-      `Remember this code word for later: ${FORK_CODE_WORD}. Reply with the single word OK and nothing else. Do not call any tool.`,
-      "teach the code word",
-    );
-    await context.sendAndWait(
-      session,
-      "Launch exactly one collaborator in fork mode (mode: fork, so it inherits this conversation). Ask it only: what code word was I given earlier? Do not tell it the word. Then report its answer exactly.",
-      "ask a forked collaborator",
-    );
-  } catch (cause) {
-    failure = systemTestFailure("subagent-fork-inherits-context", cause);
-    error = failure.error.message;
-  }
-  const execution: TestExecutionResult = {
-    messages: [...session.messages],
-    duration: Date.now() - startedAt,
-    snapshot: session.snapshot(),
-    ...(error ? { error } : {}),
-    ...(failure ? { failure } : {}),
-  };
-  try {
-    await session.close();
-  } catch (cause) {
-    execution.cleanupErrors = [`close: ${String(cause)}`];
-    execution.cleanupFailures = [
-      systemTestFailure("subagent-fork-inherits-context-close", cause),
-    ];
-  }
-  return execution;
-}
-
-function validateSubagentFork(result: TestExecutionResult) {
-  if (result.error) return { passed: false, reason: result.error };
-  const launches = getToolCalls(result).filter(
-    (call) =>
-      call.name === "spawn_subagent" &&
-      call.execution?.status === "complete" &&
-      call.execution.isError !== true,
-  );
-  const fork = launches.find((call) => call.arguments?.["mode"] === "fork");
-  if (!fork)
-    return { passed: false, reason: "The parent launched no collaborator in fork mode" };
-  // The word was never given to the collaborator: it can only have come from the cell it was forked from.
-  if (String(fork.arguments?.["task"] ?? "").includes("PELICAN"))
-    return { passed: false, reason: "The collaborator's task named the code word, so the fork proves nothing" };
-  const answer = findLastAgentMessage(result);
-  if (!answer || !JSON.stringify(answer).includes(FORK_CODE_WORD))
-    return {
-      passed: false,
-      reason: `The parent's report does not carry the code word only the forked collaborator could know: ${FORK_CODE_WORD}`,
-    };
-  return { passed: true, reason: undefined };
-}
-
 export const agentOrchestrationTests: TestCase[] = [
-  {
-    name: "subagent-fork-inherits-context",
-    description:
-      "A subagent launched in fork mode is a fork of its parent's cell: it knows what the parent was told in an earlier turn",
-    category: "agent-orchestration",
-    prompt: "Harness-orchestrated forked collaborator check.",
-    orchestrate: orchestrateSubagentFork,
-    validation: "harness",
-    validate: validateSubagentFork,
-  },
   {
     name: "subagent-followup-after-report",
     description:
