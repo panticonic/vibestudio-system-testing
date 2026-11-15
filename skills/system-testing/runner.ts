@@ -3,7 +3,7 @@ import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { startDynamicCodeRun } from "@vibestudio/service-schemas/dynamicCode";
 import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
-import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
+import { createReceiverRpcMethods, createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { RpcCaller } from "@vibestudio/rpc";
 import { createRpcMethodCaller, type RpcMethodArgs, type RpcMethodResult } from "@vibestudio/shared/rpcMethods";
 import {
@@ -111,6 +111,22 @@ export interface EvalDeadlineRecoveryProbe {
   spun: { runId: string; terminal: { status: string; result?: unknown } };
   /** The next run of the same scope: admitted, executed and answered. */
   next: { runId: string; terminal: { status: string; result?: unknown } };
+}
+
+/** The agent RPC methods the conversation fork probe reads. */
+interface ForkProbeAgentRpc {
+  getAgentSettings(): Promise<{ model?: unknown }>;
+  canFork(channelId: string): Promise<{ ok: boolean; reason?: string }>;
+}
+const forkProbeAgentMethods = createReceiverRpcMethods<ForkProbeAgentRpc>(["getAgentSettings", "canFork"]);
+
+export interface ConversationForkProbe {
+  /** The fork the channel made of the conversation as it stood, through the channel's own `fork` RPC. */
+  fork: { forkedChannelId: string; clonedAgentCount: number };
+  /** The cloned agent after its adoption: subscribed to the fork channel, with the settings its source had. */
+  adopted: { canFork: unknown; modelMatches: boolean };
+  /** The text the fork channel's replay holds: the answer given before the fork is part of it. */
+  forkReplayText: string;
 }
 
 export interface EvalEventPagesProbe {
@@ -1233,6 +1249,49 @@ export class HeadlessRunner {
         await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
       }
     }
+  }
+
+  /**
+   * Prove that the product's conversation fork forks the agent's cell, not only the channel: a session answers once,
+   * the channel is forked at its head through its own `fork` RPC, and the cloned agent (its cell forked at the last
+   * closed turn, then adopted) is subscribed to the fork channel with its source's settings while the fork channel
+   * holds the answer given before the fork.
+   */
+  async probeConversationFork(session: HeadlessSession): Promise<ConversationForkProbe> {
+    const channelId = session.channelId;
+    const agentTargetId = session.agentTargetId;
+    if (!channelId || !agentTargetId) throw new Error("Conversation fork probe needs a spawned agent and its channel");
+    const channel = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", channelId)) as {
+      kind?: unknown;
+      targetId?: unknown;
+    };
+    if (channel.kind !== "durable-object" || typeof channel.targetId !== "string")
+      throw new Error("channel service did not resolve to a Durable Object");
+    const forked = await rpc.call(channel.targetId, channelRpcMethods["fork"], [
+      {
+        operationId: `system-test-fork-${crypto.randomUUID()}`,
+        locus: { kind: "head" },
+        reason: "system test: the fork forks the agent's cell",
+        label: "fork probe",
+      },
+    ]);
+    const cloned = forked.clonedAgents[0];
+    if (!cloned) throw new Error("The fork cloned no agent");
+    const clonedTarget = `do:${cloned.source}:${cloned.className}:${cloned.objectKey}`;
+    const [sourceSettings, clonedSettings, canFork] = await Promise.all([
+      rpc.call(agentTargetId, forkProbeAgentMethods["getAgentSettings"], []),
+      rpc.call(clonedTarget, forkProbeAgentMethods["getAgentSettings"], []),
+      rpc.call(clonedTarget, forkProbeAgentMethods["canFork"], [forked.forkedChannelId]),
+    ]);
+    const forkService = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", forked.forkedChannelId)) as {
+      targetId?: unknown;
+    };
+    const replay = await rpc.call(String(forkService.targetId), channelRpcMethods["getReplayAfter"], [{ after: 0 }]);
+    return {
+      fork: { forkedChannelId: forked.forkedChannelId, clonedAgentCount: forked.clonedAgents.length },
+      adopted: { canFork, modelMatches: JSON.stringify(sourceSettings.model) === JSON.stringify(clonedSettings.model) },
+      forkReplayText: JSON.stringify(replay),
+    };
   }
 
   /**

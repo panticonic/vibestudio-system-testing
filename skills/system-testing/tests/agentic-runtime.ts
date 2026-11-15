@@ -1,7 +1,11 @@
 import {
   BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
   type TestCase,
+  type TestExecutionResult,
+  type TestOrchestrationContext,
 } from "../types.js";
+import type { ConversationForkProbe } from "../runner.js";
+import { systemTestFailure, type SystemTestFailure } from "../structured-error.js";
 import { invocationReturnValue, walkRecords } from "./_scenario-evidence.js";
 import { PANEL_AUTOMATION_RESOURCE } from "../panel-authority.js";
 import { orchestratePanelGoal } from "./_panel-tree-invariant.js";
@@ -285,7 +289,69 @@ function atomicPatchBuildVerification(
   return noIncompleteInvocations(result);
 }
 
+async function orchestrateConversationFork(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await context.runner.spawn();
+  let error: string | undefined;
+  let failure: SystemTestFailure | undefined;
+  let probe: ConversationForkProbe | undefined;
+  try {
+    await context.sendAndWait(
+      session,
+      "Reply with exactly the single word MARIGOLD and nothing else. Do not call any tool.",
+      "answer before the fork",
+    );
+    probe = await context.runner.probeConversationFork(session);
+  } catch (cause) {
+    failure = systemTestFailure("conversation-fork", cause);
+    error = failure.error.message;
+  }
+  const execution: TestExecutionResult = {
+    messages: [...session.messages],
+    duration: Date.now() - startedAt,
+    snapshot: session.snapshot(),
+    diagnostics: { ...(probe ? { conversationFork: probe } : {}) },
+    ...(error ? { error } : {}),
+    ...(failure ? { failure } : {}),
+  };
+  try {
+    await session.close();
+  } catch (cause) {
+    execution.cleanupErrors = [`close: ${String(cause)}`];
+    execution.cleanupFailures = [systemTestFailure("conversation-fork-close", cause)];
+  }
+  return execution;
+}
+
+function validateConversationFork(result: TestExecutionResult) {
+  if (result.error) return { passed: false, reason: result.error };
+  const probe = result.diagnostics?.["conversationFork"] as ConversationForkProbe | undefined;
+  if (!probe) return { passed: false, reason: "The harness recorded no conversation fork evidence" };
+  if (probe.fork.clonedAgentCount !== 1)
+    return { passed: false, reason: `Expected the fork to clone one agent; it cloned ${probe.fork.clonedAgentCount}` };
+  const canFork = probe.adopted.canFork as { ok?: unknown } | undefined;
+  if (canFork?.ok !== true)
+    return { passed: false, reason: `The cloned agent did not adopt the fork channel: ${JSON.stringify(probe.adopted.canFork)}` };
+  if (!probe.adopted.modelMatches)
+    return { passed: false, reason: "The cloned agent did not keep its source's settings" };
+  if (!probe.forkReplayText.includes("MARIGOLD"))
+    return { passed: false, reason: "The fork channel does not hold the answer given before the fork" };
+  return { passed: true, reason: undefined };
+}
+
 export const agenticRuntimeTests: TestCase[] = [
+  {
+    name: "conversation-fork-adopts-agent-cell",
+    description:
+      "The product's conversation fork forks the agent's cell: the cloned agent adopts the fork channel with its source's settings",
+    category: "agentic-runtime",
+    prompt: "Harness-orchestrated conversation fork check.",
+    orchestrate: orchestrateConversationFork,
+    validation: "harness",
+    validate: validateConversationFork,
+  },
   {
     name: "state-args-immediate-snapshot",
     description: "Panel state changes are immediately observable",
