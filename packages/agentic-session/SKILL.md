@@ -12,7 +12,7 @@ A session is only a channel client. It connects to a PubSub channel, subscribes
 an agent DO, sends user messages, and reads the persisted transcript. The
 agent's own capabilities (eval, file tools, web tools) live in the agent
 worker, not in the session. In particular, the agent's `eval` runs
-**server-side in the agent's per-channel EvalDO**, so it works with no panel or
+**server-side in the agent's per-channel eval kernel**, so it works with no panel or
 session UI connected. The session does not need to register an eval method or
 keep a sandbox alive for the agent to run code.
 
@@ -59,8 +59,8 @@ rejects arbitrary labels when the session subscribes.
 
 | Capability                      | Panel | Headless                                                              |
 | ------------------------------- | ----- | --------------------------------------------------------------------- |
-| eval                            | Yes   | Yes — runs server-side in the agent's EvalDO; no panel/sandbox needed |
-| scope / db persistence          | Yes   | Yes — held in the agent's EvalDO, not the session                     |
+| eval                            | Yes   | Yes — runs server-side in the agent's eval kernel; no panel/sandbox needed |
+| scope / db persistence          | Yes   | Yes — held in the agent's eval kernel, not the session                     |
 | set_title                       | Yes   | Yes                                                                   |
 | inline_ui                       | Yes   | No — no panel to render the component                                 |
 | load_action_bar                 | Yes   | No — no panel-local top bar to render                                 |

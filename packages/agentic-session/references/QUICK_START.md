@@ -41,7 +41,7 @@ Do not use an arbitrary harness label such as `"my-harness"`; PubSub rejects a
 connectionless caller that tries to subscribe as a different participant.
 
 The agent's `eval` (with its persistent `scope`/`db`) needs no setup here: it
-runs server-side in the agent's own per-channel `EvalDO`, so it works even though
+runs server-side in the agent's own per-channel eval kernel, so it works even though
 no panel is connected. You do not register an eval method or wire a sandbox for
 the agent to evaluate code.
 
@@ -132,5 +132,5 @@ const session = await HeadlessSession.createWithAgent({
 ```
 
 Headless sessions require no browser sandbox or import loader. The agent's
-`eval` runs server-side in its `EvalDO`; build-backed panel import loading is a
+`eval` runs server-side in its eval kernel; build-backed panel import loading is a
 separate browser capability owned by `@workspace/agentic-chat` hosts.

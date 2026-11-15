@@ -45,7 +45,7 @@ export const SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT = 48 * 1024;
 
 /** Phase progress and live inspection are independent observations of one run.
  * A phase update must not erase the last inspection while its next refresh is
- * pending. Keep the combined checkpoint within EvalDO's durable wire budget. */
+ * pending. Keep the combined checkpoint within eval kernel's durable wire budget. */
 export function systemTestProgressCheckpoint(
   previous: Record<string, unknown> | null,
   progress: Record<string, unknown>,
@@ -94,7 +94,7 @@ export interface SystemTestRunOptions {
   testTimeoutMs?: number;
   /** Durable orchestration heartbeat supplied by CLI/UI hosts. */
   onProgress?: (progress: SystemTestRunProgress) => void | Promise<void>;
-  /** EvalDO cancellation hook; lets a cancelled orchestration retire children before RPC abort. */
+  /** eval kernel cancellation hook; lets a cancelled orchestration retire children before RPC abort. */
   registerCancellationCleanup?: (
     cleanup: () => Promise<SystemTestRunRecord | void>,
   ) => void;

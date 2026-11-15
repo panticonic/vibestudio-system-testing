@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
     return session;
   }),
   rpc: {
-    selfId: "do:vibestudio/internal:EvalDO:test-eval",
+    selfId: "do:workers/session:SessionDO:test-eval",
     call: vi.fn(),
     stream: vi.fn(),
     streamReadable: vi.fn(),

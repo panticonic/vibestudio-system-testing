@@ -55,7 +55,7 @@ import {
   type ChatPanelRenderEvidence,
 } from "./real-chat-panel.js";
 
-// This runner is eval'd server-side (in the orchestrating agent's EvalDO), so it
+// This runner is eval'd server-side (in the orchestrating agent's eval kernel), so it
 // uses the portable client surface — NOT panel-only `getStateArgs`/`slotId`.
 // `rpc.selfId` is the stable runtime id, used as the channel-membership clientId.
 const rpcConfig: NonNullable<ConnectionConfig["rpc"]> = rpc;
@@ -688,7 +688,7 @@ export class HeadlessRunner {
   /**
    * Spawn a headless session bound to this panel.
    *
-   * The test agent's eval executes server-side in the agent's own EvalDO. The
+   * The test agent's eval executes server-side in the agent's own eval kernel. The
    * agent uses the standard Vibestudio chat prompt and tool surface; panel/UI
    * tools like inline_ui and feedback_form are simply absent because no panel
    * is connected to this headless session. Tests that specifically exercise

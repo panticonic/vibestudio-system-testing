@@ -199,7 +199,7 @@ function systemTestEvalCode(
       const header = { ...record, suite: { ...record.suite, results: [] } };
       await rpc.call(recordOwner, systemTestRunnerRpcMethods.storeSystemTestRunCheckpoint, [progressKey, header, entries.map(entry => retainedEntries.get(entry.test.name))]);
     };
-    // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
+    // eval kernel durably stores each progress payload with a 64 KiB ceiling. Leave
     // room for its event envelope and encoded strings instead of measuring
     // against the larger transient RPC transport limit.
     const durableHeartbeatLimit = SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT;
@@ -502,7 +502,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     code: string,
   ): Promise<unknown> {
     const runId = `system-test-runner:${kind}:${crypto.randomUUID()}`;
-    // A utility call owns a finite EvalDO for exactly one invocation. Startup
+    // A utility call owns a finite eval kernel for exactly one invocation. Startup
     // approval can call doctor while the CLI issues its next doctor/list
     // request, so a kind-only scope would let one invocation dispose or
     // overwrite another invocation's result before it was read.
