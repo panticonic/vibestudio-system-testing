@@ -127,6 +127,11 @@ export interface ConversationForkProbe {
   adopted: { canFork: unknown; modelMatches: boolean };
   /** The text the fork channel's replay holds: the answer given before the fork is part of it. */
   forkReplayText: string;
+  /**
+   * Edit-and-fork: the conversation forked before its first message, which the fork replaces. The source agent had
+   * answered it, so no turn of the cell is held by the fork: the cloned agent joins as a new agent.
+   */
+  edit: { forkedChannelId: string; clonedAgentCount: number; canFork: unknown; replayText: string };
 }
 
 export interface EvalEventPagesProbe {
@@ -1257,7 +1262,7 @@ export class HeadlessRunner {
    * closed turn, then adopted) is subscribed to the fork channel with its source's settings while the fork channel
    * holds the answer given before the fork.
    */
-  async probeConversationFork(session: HeadlessSession): Promise<ConversationForkProbe> {
+  async probeConversationFork(session: HeadlessSession, firstMessageId: string): Promise<ConversationForkProbe> {
     const channelId = session.channelId;
     const agentTargetId = session.agentTargetId;
     if (!channelId || !agentTargetId) throw new Error("Conversation fork probe needs a spawned agent and its channel");
@@ -1287,7 +1292,36 @@ export class HeadlessRunner {
       targetId?: unknown;
     };
     const replay = await rpc.call(String(forkService.targetId), channelRpcMethods["getReplayAfter"], [{ after: 0 }]);
+    const edited = await rpc.call(channel.targetId, channelRpcMethods["fork"], [
+      {
+        operationId: `system-test-edit-fork-${crypto.randomUUID()}`,
+        locus: { kind: "before-message", messageId: firstMessageId },
+        seed: {
+          blocks: [{ type: "text", content: "ALTERNATE: begin again with a different first message" }],
+          replaces: { messageId: firstMessageId },
+        },
+        reason: "system test: edit and fork",
+        label: "edit fork probe",
+      },
+    ]);
+    const editedAgent = edited.clonedAgents[0];
+    const editedTarget = editedAgent ? `do:${editedAgent.source}:${editedAgent.className}:${editedAgent.objectKey}` : "";
+    const editedService = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", edited.forkedChannelId)) as {
+      targetId?: unknown;
+    };
+    const [editedCanFork, editedReplay] = await Promise.all([
+      editedTarget
+        ? rpc.call(editedTarget, forkProbeAgentMethods["canFork"], [edited.forkedChannelId])
+        : Promise.resolve(undefined),
+      rpc.call(String(editedService.targetId), channelRpcMethods["getReplayAfter"], [{ after: 0 }]),
+    ]);
     return {
+      edit: {
+        forkedChannelId: edited.forkedChannelId,
+        clonedAgentCount: edited.clonedAgents.length,
+        canFork: editedCanFork,
+        replayText: JSON.stringify(editedReplay),
+      },
       fork: { forkedChannelId: forked.forkedChannelId, clonedAgentCount: forked.clonedAgents.length },
       adopted: { canFork, modelMatches: JSON.stringify(sourceSettings.model) === JSON.stringify(clonedSettings.model) },
       forkReplayText: JSON.stringify(replay),

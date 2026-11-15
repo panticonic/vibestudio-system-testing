@@ -298,12 +298,11 @@ async function orchestrateConversationFork(
   let failure: SystemTestFailure | undefined;
   let probe: ConversationForkProbe | undefined;
   try {
-    await context.sendAndWait(
-      session,
+    const inputMessageId = await session.send(
       "Reply with exactly the single word MARIGOLD and nothing else. Do not call any tool.",
-      "answer before the fork",
     );
-    probe = await context.runner.probeConversationFork(session);
+    await session.waitForInput(inputMessageId, { signal: context.signal });
+    probe = await context.runner.probeConversationFork(session, inputMessageId);
   } catch (cause) {
     failure = systemTestFailure("conversation-fork", cause);
     error = failure.error.message;
@@ -338,6 +337,11 @@ function validateConversationFork(result: TestExecutionResult) {
     return { passed: false, reason: "The cloned agent did not keep its source's settings" };
   if (!probe.forkReplayText.includes("MARIGOLD"))
     return { passed: false, reason: "The fork channel does not hold the answer given before the fork" };
+  const editCanFork = probe.edit.canFork as { ok?: unknown } | undefined;
+  if (probe.edit.clonedAgentCount !== 1 || editCanFork?.ok !== true)
+    return { passed: false, reason: `The edit-and-fork did not clone and adopt the agent: ${JSON.stringify(probe.edit)}` };
+  if (!probe.edit.replayText.includes("ALTERNATE") || probe.edit.replayText.includes("MARIGOLD"))
+    return { passed: false, reason: "The edit-and-fork channel must hold the replacement and not the replaced message or its answer" };
   return { passed: true, reason: undefined };
 }
 
