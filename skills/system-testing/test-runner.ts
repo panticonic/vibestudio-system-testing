@@ -1,4 +1,5 @@
 import { agentToolFailureSchema } from "@workspace/agentic-protocol";
+import { isRpcAbortedBy } from "@vibestudio/rpc";
 import type {
   ReportClaimJudge,
   TestCase,
@@ -422,7 +423,7 @@ export class TestRunner {
           if (
             observation.status === "rejected" &&
             observation.reason !== terminalError &&
-            observation.reason !== controller.signal.reason
+            !isRpcAbortedBy(observation.reason, controller.signal.reason)
           )
             failures.push(observation.reason);
           if (failures.length > 1) {
@@ -896,12 +897,15 @@ export class TestRunner {
         try {
           await promise;
         } catch (settlementError) {
-          if (settlementError !== error && settlementError !== deadlineError)
+          if (!isRpcAbortedBy(settlementError, deadlineError))
             throw new AggregateError(
-              [error, settlementError],
+              [deadlineError, settlementError],
               `${message}; owned operation failed during cancellation`,
             );
         }
+        // An abort listener may reject synchronously before the timer's race
+        // rejection. The expired deadline remains the authoritative reason.
+        throw deadlineError;
       }
       throw error;
     } finally {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { rpcCallerAbortedError } from "@vibestudio/rpc";
 import type { ChatMessage } from "@workspace/agentic-core";
 import {
   findSystemTestImplementationInspections,
@@ -59,134 +60,165 @@ function remoteRpcFailure(message: string, handle: string): Error {
 }
 
 describe("TestRunner", () => {
-  it("adds pending invocation and lifecycle context to headless timeouts", async () => {
-    const lifecycleMessage = {
-      id: "turn:waiting",
-      senderId: "agent-1",
-      content: "Waiting for model credential approval",
-      contentType: "lifecycle",
-      kind: "system",
-      complete: true,
-      lifecycle: {
-        status: "waiting",
-        reason: "model_credential_required",
-        title: "Waiting for model credential approval",
-      },
-    } satisfies ChatMessage;
-    const diagnosticMessage = {
-      id: "diagnostic:empty",
-      senderId: "agent-1",
-      content: "Assistant message had no visible content.",
-      contentType: "diagnostic",
-      kind: "system",
-      complete: true,
-      diagnostic: {
-        code: "message_empty",
-        severity: "warning",
-        title: "No assistant response",
-      },
-    } satisfies ChatMessage;
-    const messages = [lifecycleMessage, diagnosticMessage];
-    const cleanupOrder: string[] = [];
-    let waitSignal: AbortSignal | undefined;
-    const session = {
-      channelId: "chat-timeout",
-      agentTargetId: "agent-target-timeout",
-      messages,
-      sendAndWait: vi.fn(
-        (
-          _prompt: string,
-          opts?: {
-            signal?: AbortSignal;
-          },
-        ) => {
-          waitSignal = opts?.signal;
-          return new Promise((_resolve, reject) => {
-            const abort = () => reject(opts?.signal?.reason);
-            if (opts?.signal?.aborted) abort();
-            else opts?.signal?.addEventListener("abort", abort, { once: true });
-          });
+  it.each(["identity", "rpc", "mixed", "foreign"] as const)(
+    "adds pending invocation and lifecycle context to headless timeouts (%s)",
+    async (cancellation) => {
+      const lifecycleMessage = {
+        id: "turn:waiting",
+        senderId: "agent-1",
+        content: "Waiting for model credential approval",
+        contentType: "lifecycle",
+        kind: "system",
+        complete: true,
+        lifecycle: {
+          status: "waiting",
+          reason: "model_credential_required",
+          title: "Waiting for model credential approval",
         },
-      ),
-      captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
-      snapshot: vi.fn(() => ({
+      } satisfies ChatMessage;
+      const diagnosticMessage = {
+        id: "diagnostic:empty",
+        senderId: "agent-1",
+        content: "Assistant message had no visible content.",
+        contentType: "diagnostic",
+        kind: "system",
+        complete: true,
+        diagnostic: {
+          code: "message_empty",
+          severity: "warning",
+          title: "No assistant response",
+        },
+      } satisfies ChatMessage;
+      const messages = [lifecycleMessage, diagnosticMessage];
+      const cleanupOrder: string[] = [];
+      let waitSignal: AbortSignal | undefined;
+      const session = {
         channelId: "chat-timeout",
+        agentTargetId: "agent-target-timeout",
+        messages,
+        sendAndWait: vi.fn(
+          (
+            _prompt: string,
+            opts?: {
+              signal?: AbortSignal;
+            },
+          ) => {
+            waitSignal = opts?.signal;
+            return new Promise((_resolve, reject) => {
+              const abort = () => {
+                const reason = opts?.signal?.reason;
+                reject(
+                  cancellation === "identity"
+                    ? reason
+                    : cancellation === "rpc"
+                      ? rpcCallerAbortedError(reason)
+                      : cancellation === "mixed"
+                        ? new AggregateError([
+                            rpcCallerAbortedError(reason),
+                            new Error("actual cleanup failed"),
+                          ])
+                        : rpcCallerAbortedError(
+                            new Error("different cancellation owner"),
+                          ),
+                );
+              };
+              if (opts?.signal?.aborted) abort();
+              else opts?.signal?.addEventListener("abort", abort, { once: true });
+            });
+          },
+        ),
+        captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
+        snapshot: vi.fn(() => ({
+          channelId: "chat-timeout",
+          agentEntityId: "agent-entity-timeout",
+          agentTargetId: "agent-target-timeout",
+          agentContextId: "ctx-timeout",
+          messages,
+          invocations: [{ id: "call-eval", name: "eval", status: "pending" }],
+          debugEvents: [],
+          cleanupErrors: [],
+          participants: {},
+          connected: true,
+          duration: 10,
+        })),
+        interrupt: vi.fn(async () => {
+          cleanupOrder.push("interrupt");
+        }),
+        close: vi.fn(async () => {
+          cleanupOrder.push("close");
+        }),
+      };
+      const runner = {
+        modelRef: TEST_MODEL,
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
+        spawn: vi.fn(async () => session),
+        collectDiagnostics: vi.fn(async () => ({})),
+      } as unknown as HeadlessRunner;
+      const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
+
+      const { result, execution } = await tester.runOne({
+        name: "timeout-test",
+        category: "test",
+        description: "timeout",
+        prompt: "hang",
+        validate: () => ({ passed: true }),
+      });
+
+      expect(result.passed).toBe(false);
+      expect(execution.error).toContain(
+        'Timed out waiting for agent to finish test "timeout-test"',
+      );
+      expect(execution.error).toContain("Pending invocations: eval:pending.");
+      expect(execution.error).toContain(
+        'Last lifecycle: waiting reason=model_credential_required "Waiting for model credential approval".',
+      );
+      expect(execution.error).toContain(
+        'Last diagnostic: code=message_empty "No assistant response".',
+      );
+      expect(waitSignal?.aborted).toBe(true);
+      if (cancellation === "identity" || cancellation === "rpc") {
+        expect(execution.error).not.toContain(
+          "owned operation failed during cancellation",
+        );
+        expect(execution.error).not.toContain(
+          "agent cancellation or observation failed",
+        );
+      } else {
+        expect(execution.error).toContain(
+          "owned operation failed during cancellation",
+        );
+      }
+      expect(runner.collectDiagnostics).toHaveBeenCalledWith({
+        channelId: "chat-timeout",
+      });
+      expect(session.close).toHaveBeenCalledWith({
+        onPhase: expect.any(Function),
+      });
+      expect(session.interrupt).toHaveBeenCalledWith("agent-target-timeout", {
+        timeoutMs: 30_000,
+      });
+      expect(cleanupOrder).toEqual(["interrupt", "close"]);
+      expect(session.captureModelExecutionEvidence).toHaveBeenCalledOnce();
+      expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
+      expect(execution.provenance).toEqual({
+        channelId: "chat-timeout",
+        branchId: "main",
         agentEntityId: "agent-entity-timeout",
         agentTargetId: "agent-target-timeout",
-        agentContextId: "ctx-timeout",
-        messages,
-        invocations: [{ id: "call-eval", name: "eval", status: "pending" }],
-        debugEvents: [],
-        cleanupErrors: [],
-        participants: {},
-        connected: true,
-        duration: 10,
-      })),
-      interrupt: vi.fn(async () => {
-        cleanupOrder.push("interrupt");
-      }),
-      close: vi.fn(async () => {
-        cleanupOrder.push("close");
-      }),
-    };
-    const runner = {
-      modelRef: TEST_MODEL,
-      closeOwnedDevelopmentSessions: vi.fn(async () => []),
-      spawn: vi.fn(async () => session),
-      collectDiagnostics: vi.fn(async () => ({})),
-    } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
-
-    const { result, execution } = await tester.runOne({
-      name: "timeout-test",
-      category: "test",
-      description: "timeout",
-      prompt: "hang",
-      validate: () => ({ passed: true }),
-    });
-
-    expect(result.passed).toBe(false);
-    expect(execution.error).toContain(
-      'Timed out waiting for agent to finish test "timeout-test"',
-    );
-    expect(execution.error).toContain("Pending invocations: eval:pending.");
-    expect(execution.error).toContain(
-      'Last lifecycle: waiting reason=model_credential_required "Waiting for model credential approval".',
-    );
-    expect(execution.error).toContain(
-      'Last diagnostic: code=message_empty "No assistant response".',
-    );
-    expect(waitSignal?.aborted).toBe(true);
-    expect(runner.collectDiagnostics).toHaveBeenCalledWith({
-      channelId: "chat-timeout",
-    });
-    expect(session.close).toHaveBeenCalledWith({
-      onPhase: expect.any(Function),
-    });
-    expect(session.interrupt).toHaveBeenCalledWith("agent-target-timeout", {
-      timeoutMs: 30_000,
-    });
-    expect(cleanupOrder).toEqual(["interrupt", "close"]);
-    expect(session.captureModelExecutionEvidence).toHaveBeenCalledOnce();
-    expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
-    expect(execution.provenance).toEqual({
-      channelId: "chat-timeout",
-      branchId: "main",
-      agentEntityId: "agent-entity-timeout",
-      agentTargetId: "agent-target-timeout",
-      contextId: "ctx-timeout",
-    });
-    expect(execution.trajectoryReview).toEqual({
-      required: true,
-      agentReportedOutcome: "unspecified",
-      invocationCount: 1,
-      modelCallCount: 1,
-      unexpectedToolFailureCount: 0,
-      repeatedFailureOperations: [],
-      potentialConfusionSignals: ["missing-completion-report"],
-      frequentOperations: [],
-    });
-  });
+        contextId: "ctx-timeout",
+      });
+      expect(execution.trajectoryReview).toEqual({
+        required: true,
+        agentReportedOutcome: "unspecified",
+        invocationCount: 1,
+        modelCallCount: 1,
+        unexpectedToolFailureCount: 0,
+        repeatedFailureOperations: [],
+        potentialConfusionSignals: ["missing-completion-report"],
+        frequentOperations: [],
+      });
+    },
+  );
 
   it.each([false, true])(
     "keeps the original test failure and active session when diagnostics collection fails (orchestrated: %s)",
