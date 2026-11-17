@@ -1065,6 +1065,9 @@ function validateRejectedCellScope(result: TestExecutionResult) {
 
 const agentCellAuthorityPolicy: NonNullable<TestCase['authorityPolicy']> = {
       authority: [
+        // The fixture computes its one clone id before provisioning; lineage worlds need explicit retirement authority.
+        // This case-only decision still issues a confirmation bound to the exact protected invocation.
+        { ruleId: "owned-fork-retirement", capability: { kind: "exact", key: "context.boundary" }, resource: { kind: "prefix", prefix: "context/ctx-" }, tier: "critical", decision: "once" },
         { ruleId: "owned-channel-service", capability: { kind: "exact", key: "workspace-service:channel" }, resource: { kind: "prefix", prefix: "do:workers/pubsub-channel:PubSubChannel:" }, tier: "gated", decision: "once" },
         { ruleId: "owned-mission-service", capability: { kind: "exact", key: "workspace-service:missions" }, resource: { kind: "exact", key: "do:workers/missions:MissionsDO:workspace-missions" }, tier: "gated", decision: "once" },
         ...(["edit", "run", "retire"] as const).map((action) => ({

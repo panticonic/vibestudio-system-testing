@@ -444,6 +444,8 @@ async function measureAgentCellFork(
       throw new Error(
         "The fork did not preserve its source history, model and agent adoption",
       );
+    // Retain verified measurements even when the subsequent owned teardown fails.
+    source.fork = result;
   } catch (cause) {
     failures.push(cause);
   }
