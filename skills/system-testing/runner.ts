@@ -41,7 +41,7 @@ import {
   type VcsStateNodeRef,
 } from "@vibestudio/service-schemas/vcs";
 import type { AttachedHostApprovalAuditEvent } from "@vibestudio/service-schemas/attachedHosts";
-import type { TestAuthorityPolicy } from "./types.js";
+import type { TestAuthorityPolicy, TestExecutionResult } from "./types.js";
 import type { BlobReader } from "@workspace/agentic-protocol";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
 import { evalInPanel } from "@workspace/testkit";
@@ -638,25 +638,32 @@ export class HeadlessRunner {
   }
 
   /** A non-chat workload uses the same exact per-case policy and recursive ownership. */
-  async withCaseContext<T>(operation: (contextId: string) => Promise<T>): Promise<T> {
+  async withCaseContext(
+    operation: (contextId: string) => Promise<TestExecutionResult>,
+  ): Promise<TestExecutionResult> {
     if (!this.testAuthorityPolicy)
       throw new Error("An owned case context requires an exact test authority policy");
+    const startedAt = Date.now();
     const owned = await rpc.call("main", mainRpcMethods["runtime.createContext"], [
       { testPolicy: this.testAuthorityPolicy },
     ]);
-    const failures: unknown[] = [];
-    let result: T | undefined;
-    try { result = await operation(owned.contextId); }
-    catch (error) { failures.push(error); }
+    let result: TestExecutionResult;
+    try {
+      result = await operation(owned.contextId);
+    } catch (cause) {
+      const failure = systemTestFailure("case-operation", cause);
+      result = { messages: [], duration: Date.now() - startedAt, error: failure.error.message, failure };
+    }
     try {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
         { contextId: owned.contextId, recursive: true },
       ]);
-    } catch (error) { failures.push(error); }
-    if (failures.length === 1) throw failures[0];
-    if (failures.length > 1)
-      throw new AggregateError(failures, "Case operation and context retirement failed");
-    return result as T;
+    } catch (cause) {
+      const failure = systemTestFailure("case-context-retirement", cause);
+      result.cleanupErrors = [...(result.cleanupErrors ?? []), failure.error.message];
+      result.cleanupFailures = [...(result.cleanupFailures ?? []), failure];
+    }
+    return result;
   }
 
   /**

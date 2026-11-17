@@ -1296,9 +1296,9 @@ describe("owned non-chat case contexts", () => {
       expect(contextId).toBe("owned-case");
       await Promise.resolve();
       order.push("joined");
-      return 42;
+      return { messages: [], duration: 1 };
     });
-    expect(result).toBe(42);
+    expect(result).toMatchObject({ messages: [], duration: 1 });
     expect(order).toEqual(["joined", "retired"]);
   });
 
@@ -1311,6 +1311,24 @@ describe("owned non-chat case contexts", () => {
     });
     const runner = new HeadlessRunner("ctx-test").forTest("native-soak");
     const pending = runner.withCaseContext(async () => { throw cancelled; });
-    await expect(pending).rejects.toMatchObject({ errors: [cancelled, cleanup] });
+    await expect(pending).resolves.toMatchObject({
+      error: "caller cancelled",
+      failure: { phase: "case-operation", error: { message: "caller cancelled" } },
+      cleanupErrors: ["retirement failed"],
+      cleanupFailures: [{ phase: "case-context-retirement", error: { message: "retirement failed" } }],
+    });
   });
+  it("keeps completed native evidence when recursive context retirement fails", async () => {
+    mocks.rpc.call.mockImplementation(async (_target, method) => {
+      if (method.name === "runtime.createContext") return { contextId: "owned-case" };
+      throw new Error("database is locked");
+    });
+    const runner = new HeadlessRunner("ctx-test").forTest("native-soak");
+    const execution = { messages: [], duration: 10, diagnostics: { nativeTurns: 65, modelCalls: 0 } };
+    const result = await runner.withCaseContext(async () => execution);
+    expect(result).toBe(execution);
+    expect(result.diagnostics).toEqual({ nativeTurns: 65, modelCalls: 0 });
+    expect(result.cleanupErrors).toEqual(["database is locked"]);
+  });
+
 });

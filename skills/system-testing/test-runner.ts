@@ -621,6 +621,23 @@ export class TestRunner {
           },
         };
       }
+      const reportedCleanup = [
+        ...new Set([
+          ...(execution.cleanupErrors ?? []),
+          ...(execution.cleanupFailures ?? []).map((failure) => failure.error.message),
+        ]),
+      ];
+      if (reportedCleanup.length > 0) {
+        const reason = `Test cleanup failed: ${reportedCleanup.join("; ")}`;
+        execution.error ??= reason;
+        execution.failure ??= execution.cleanupFailures?.[0] ??
+          systemTestFailure("orchestration-cleanup", new Error(reportedCleanup.join("; ")));
+        result = {
+          passed: false,
+          reason: result.passed ? reason : `${result.reason ?? "Requested outcome was not established"}; ${reason}`,
+          details: { ...(result.details ?? {}), taskOutcome: result, cleanupErrors: reportedCleanup },
+        };
+      }
       outcome = { result, execution };
     } catch (err) {
       const duration = Date.now() - startTime;

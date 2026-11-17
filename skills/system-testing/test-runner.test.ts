@@ -2477,3 +2477,32 @@ describe("report claims", () => {
     expect(second.execution.validationFailure?.phase).toBe("validation");
   });
 });
+
+it.each(["message", "structured"] as const)(
+  "rejects reported orchestration cleanup failures while retaining native evidence (%s)",
+  async (kind) => {
+    const failure = {
+      phase: "case-context-retirement",
+      error: { name: "Error", message: "database is locked", errorKind: "internal" as const },
+    };
+    const execution: TestExecutionResult = {
+      messages: [], duration: 1,
+      diagnostics: { nativeTurns: 65, modelCalls: 0 },
+      ...(kind === "message" ? { cleanupErrors: ["database is locked"] } : { cleanupFailures: [failure] }),
+    };
+    const runner = {
+      modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      collectDiagnostics: vi.fn(async () => ({})),
+    } as unknown as HeadlessRunner;
+    const tester = new TestRunner(runner, { testTimeoutMs: 1000 });
+    const outcome = await tester.runOne({
+      name: "reported-cleanup-failure", category: "test", description: "cleanup evidence", prompt: "Harness-owned native workload.",
+      validation: "harness", orchestrate: async () => execution,
+      validate: () => ({ passed: true }),
+    });
+    expect(outcome.result.passed).toBe(false);
+    expect(outcome.result.reason).toContain("database is locked");
+    expect(outcome.execution.diagnostics).toMatchObject({ nativeTurns: 65, modelCalls: 0 });
+  },
+);
