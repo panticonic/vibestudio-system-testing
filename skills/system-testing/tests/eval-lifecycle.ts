@@ -8,6 +8,8 @@ import {
   type SystemTestFailure,
 } from "../structured-error.js";
 import { getToolCalls, getToolExecutions } from "./_helpers.js";
+import { evalOperationJournalSchema } from "@vibestudio/service-schemas/eval";
+import { NativePermissionInventoryObservationSchema } from "@vibestudio/service-schemas/permissions";
 import {
   completedScenarioEvidence,
   invocationReturnValue,
@@ -304,31 +306,24 @@ function exactPermissionsListIntent(value: unknown): boolean {
   );
 }
 
-function permissionsListResult(
+function completedPermissionInventory(
   call: ReturnType<typeof getToolCalls>[number],
 ): boolean {
-  const code = String(call.arguments?.["code"] ?? "");
-  if (
-    !/\bservices\.permissions\.list\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']permissions\.list["']|mainRpcMethods\[\s*["']permissions\.list["']\s*\])/u.test(
-      code,
-    )
-  )
+  const payload = call.execution?.result;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
     return false;
-  const returned = invocationReturnValue(call);
-  if (!returned.present) return false;
-  if (Array.isArray(returned.value)) return true;
-  // Large permission inventories use the ordinary bounded-result contract.
-  // Requiring an unbounded array would reject the production transport itself.
-  return walkRecords([returned.value]).some(
-    (value) =>
-      value["truncated"] === true &&
-      value["scopeKey"] === "$lastLargeReturn" &&
-      value["scopeValueType"] === "string" &&
-      typeof value["originalChars"] === "number" &&
-      typeof value["limitChars"] === "number" &&
-      value["originalChars"] > value["limitChars"] &&
-      typeof value["preview"] === "string" &&
-      value["preview"].trimStart().startsWith("["),
+  const details = (payload as Record<string, unknown>)["details"];
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return false;
+  const journal = evalOperationJournalSchema.safeParse(
+    (details as Record<string, unknown>)["operationJournal"],
+  );
+  // Observe the protected operation itself. Guest code may alias the API,
+  // summarize its rows, or wrap an inventory large enough to be truncated.
+  return journal.success && journal.data.entries.some(
+    (entry) =>
+      entry["type"] === "permissions.inventory" &&
+      NativePermissionInventoryObservationSchema.safeParse(entry["receipt"]).success,
   );
 }
 
@@ -368,7 +363,7 @@ function validateExactAuthority(result: TestExecutionResult) {
   // Attenuation belongs to an admitted eval run. Discovering the contract and
   // processing an already-returned inventory are separate calls; this probe
   // checks every run that actually performs the protected permissions read.
-  const reads = successfulEvalCalls(result).filter(permissionsListResult);
+  const reads = successfulEvalCalls(result).filter(completedPermissionInventory);
   const exact =
     reads.length > 0 &&
     reads.every((call) => {
@@ -392,7 +387,7 @@ function validateExactAuthority(result: TestExecutionResult) {
     : {
         passed: false,
         reason:
-          "Protected permissions reads did not carry the exact read-only request allowlist and structured result",
+          "No native permission inventory was captured, or a protected read lacked the exact read-only request allowlist",
       };
 }
 
@@ -439,16 +434,16 @@ function validatePreauthorization(result: TestExecutionResult) {
   }
   // Authorization can prepare its own cell without executing the operation.
   // The actual read must follow it, or occur in that same authorized cell.
-  const read = calls.slice(calls.indexOf(call)).find(permissionsListResult);
+  const read = calls.slice(calls.indexOf(call)).find(completedPermissionInventory);
   const earlierRead = calls
     .slice(0, calls.indexOf(call))
-    .some(permissionsListResult);
+    .some(completedPermissionInventory);
   return read && !earlierRead
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "Preauthorized eval did not return the structured permissions result",
+          "No native permission inventory followed the exact preauthorization",
       };
 }
 
