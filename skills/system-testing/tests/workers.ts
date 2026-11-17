@@ -1510,7 +1510,17 @@ export const workerTests: TestCase[] = [
         ["runtime.createEntity", "rpc.call", "runtime.retireEntity"],
       ]);
       if (!base.passed) return base;
-      if (!hasDurableObjectProbeStateArgs(base.evidence.evalCode)) {
+      // Each eval has its own lexical scope. Joining cells before parsing
+      // makes valid repeated local declarations look like a syntax error.
+      if (
+        !base.evidence.calls.some(
+          (call) =>
+            call.name === "eval" &&
+            call.execution?.status === "complete" &&
+            call.execution.isError !== true &&
+            hasDurableObjectProbeStateArgs(String(call.arguments?.["code"] ?? "")),
+        )
+      ) {
         return {
           passed: false,
           reason:

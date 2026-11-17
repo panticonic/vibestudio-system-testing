@@ -1742,11 +1742,11 @@ describe("worker test validators", () => {
 });
 
 describe("independent runtime retirement observation", () => {
-  it("accepts cross-eval cleanup only when the real fixture inventory is empty", () => {
+  it("keeps local declarations scoped to each eval during cross-eval cleanup", () => {
     const first = attachJournal(
       execution(
         "Created.",
-        'scope.handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } }); return { createdId: scope.handle.id };',
+        'const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } }); scope.handle = handle; return { createdId: handle.id };',
         { createdId: "worker-entity-probe" },
       ),
       doCallEntries({ probe: "ready" }).slice(0, 2),
@@ -1763,7 +1763,7 @@ describe("independent runtime retirement observation", () => {
     const second = attachJournal(
       execution(
         "The probe was ready and its instance was retired.",
-        `${probeMethodsImport} const observed = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); await workers.destroy(scope.handle); return { observed, destroyedId: scope.handle.id };`,
+        `${probeMethodsImport} const handle = scope.handle; const observed = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); await workers.destroy(handle); return { observed, destroyedId: handle.id };`,
         { observed: { probe: "ready" }, destroyedId: "worker-entity-probe" },
       ),
       secondEntries,
@@ -1778,6 +1778,15 @@ describe("independent runtime retirement observation", () => {
       second.messages.splice(1, 0, firstCall);
     }
     expect(test("call-do-method").validate(second).passed).toBe(true);
+    const invalidCell = structuredClone(second);
+    const invalidCreation = invalidCell.messages.find(
+      (message) => message.invocation?.id === "create-call",
+    );
+    if (invalidCreation?.invocation?.arguments) {
+      invalidCreation.invocation.arguments["code"] =
+        String(invalidCreation.invocation.arguments["code"]) + " const handle = null;";
+    }
+    expect(test("call-do-method").validate(invalidCell).passed).toBe(false);
     const missingStateArgs = structuredClone(second);
     const diagnosis = missingStateArgs.messages.find(
       (message) =>
