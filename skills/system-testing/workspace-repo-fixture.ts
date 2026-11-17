@@ -2,6 +2,7 @@ import type { VcsClient } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDirs";
 import { serializeSystemTestError } from "./structured-error.js";
+import { panelRepairWorldSource, type DraftLoss } from "./panel-repair-world.js";
 
 type FixtureVcs = Pick<
   VcsClient,
@@ -51,6 +52,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "buildable-worker"; section: "workers" }
   | { kind: "buildable-regular-worker"; section: "workers" }
   | { kind: "buildable-panel"; section: "panels" }
+  | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
   | { kind: "optimizable-panel"; section: "panels" }
   | { kind: "created-repository"; section: WorkspaceRepoSection }
   | {
@@ -1275,6 +1277,13 @@ function repositorySeedFiles(
   }
   if (fixture.kind === "optimizable-panel") {
     return buildablePanelFiles(repoName, { repeatedStatusLabels: 512 });
+  }
+  if (fixture.kind === "draft-repair-panel") {
+    return buildablePanelFiles(repoName).map((file) =>
+      file.path === "index.tsx"
+        ? { ...file, content: panelRepairWorldSource(fixture.fault) }
+        : file,
+    );
   }
   if (fixture.kind === "buildable-panel") {
     return buildablePanelFiles(repoName);

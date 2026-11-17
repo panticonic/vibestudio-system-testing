@@ -14,6 +14,7 @@ import { smokeTests } from "./tests/smoke.js";
 import { filesystemTests } from "./tests/filesystem.js";
 import { vcsTests } from "./tests/vcs.js";
 import { panelTests } from "./tests/panels.js";
+import { panelRepairTests } from "./tests/panel-repair.js";
 import { workerTests } from "./tests/workers.js";
 import { buildTests } from "./tests/build.js";
 import { oauthTests } from "./tests/oauth.js";
@@ -167,6 +168,7 @@ export function allTests(): TestCase[] {
     ...gitInteropTests,
     ...templateTests,
     ...panelTests,
+    ...panelRepairTests,
     ...workerTests,
     ...buildTests,
     ...oauthTests,

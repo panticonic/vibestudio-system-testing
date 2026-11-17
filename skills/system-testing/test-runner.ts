@@ -21,6 +21,7 @@ import type {
 import { headForChannel } from "@vibestudio/trajectory-identity";
 import { systemTestFailure } from "./structured-error.js";
 import { materializeValidationEvidence } from "./validation-evidence.js";
+import { verifyPanelDraft } from "./panel-repair-oracle.js";
 import { DEFAULT_SYSTEM_TEST_TIMEOUT_MS } from "./config.js";
 import {
   projectValidationInput,
@@ -522,6 +523,27 @@ export class TestRunner {
               workspaceRepoFixtureState,
             ),
         };
+      }
+      if (workspaceRepoFixtureState?.kind === "draft-repair-panel") {
+        enterPhase("validation");
+        const { contextId, repoPath } = workspaceRepoFixtureState;
+        if (execution.provenance?.contextId !== contextId) {
+          throw new Error("Panel repair must run in its seeded workspace context.");
+        }
+        const handle = await testRunner.openPanelClient(repoPath, {
+          contextId,
+          ref: `ctx:${contextId}`,
+          focus: false,
+          parentId: null,
+        });
+        try {
+          execution.diagnostics = {
+            ...execution.diagnostics,
+            panelDraftVerification: await verifyPanelDraft(handle),
+          };
+        } finally {
+          await handle.archive();
+        }
       }
       const validationExecution = await materializeValidationEvidence(
         execution,
