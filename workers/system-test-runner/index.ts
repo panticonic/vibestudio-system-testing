@@ -4,6 +4,9 @@ import {
 } from "@vibestudio/service-schemas/mainRpc";
 import type { MainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import {
+  panelTeacherInputSchema,
+  type PanelTeacherInput,
+  type PanelTeacherResult,
   systemTestDescriptorSchema,
   systemTestDoctorResultSchema,
   systemTestFailedRunSchema,
@@ -496,8 +499,8 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   }
 
   private async runHarnessUtility(
-    kind: "doctor" | "list",
-    code: string,
+    kind: "doctor" | "list" | "teacher",
+    code: string | ((runId: string) => string),
   ): Promise<unknown> {
     const runId = `system-test-runner:${kind}:${crypto.randomUUID()}`;
     // A utility call owns a finite EvalDO for exactly one invocation. Startup
@@ -516,7 +519,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         source: {
           kind: "inline",
           code: `
-          ${code}
+          ${typeof code === "function" ? code(runId) : code}
           const serialized = JSON.stringify(utilityValue);
           scope[${JSON.stringify(scopeKey)}] = serialized;
           return {
@@ -548,6 +551,52 @@ export class SystemTestRunnerDO extends DurableObjectBase {
         { scopeKey: subKey },
       ]);
     }
+  }
+
+  @rpc({ website: { kind: "closed", reason: "Owned teacher execution uses one seeded test context and panel." },
+    requires: SYSTEM_TEST_OPERATOR, effect: { kind: "open" }, tier: "open", sensitivity: "write" })
+  async runPanelTeacher(input: PanelTeacherInput): Promise<PanelTeacherResult> {
+    const selected = panelTeacherInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher", (runId) => `
+      import { panelTree, vcs } from "@workspace/runtime";
+      import { createPanelRepair } from "@workspace/natlang-services";
+      const selected = ${JSON.stringify(selected)};
+      const panel = panelTree.get(selected.panelId);
+      const assigned = await panel.observe();
+      if (assigned.contextId!==selected.contextId || assigned.source!==selected.panelSource ||
+          assigned.kind!=="workspace" || assigned.requestedRef!=="ctx:"+selected.contextId)
+        throw new Error("Teacher panel is outside the selected seeded fixture context");
+      const panelRepair = createPanelRepair({ contextId:selected.contextId, panelSource:selected.panelSource,
+        panel, vcs, build:services.build });
+      natlang.captureModelTurns({executorModel:selected.executorModel});
+      const programPath = "skills/workspace-dev/panel-repair/repairPanel.nl";
+      const root = await natlang.load(programPath,{services:{panelRepair}});
+      const report = await root({panelSource:selected.panelSource,goal:selected.goal});
+      async function page(after) {
+        const rows = await natlang.calls({run:${JSON.stringify(runId)},...(after?{after}:{})});
+        if (!rows.length) return [];
+        const next = rows[rows.length-1].callId;
+        if (next===after) throw new Error("Teacher records pagination did not advance");
+        return rows.concat(await page(next));
+      }
+      const rows = await page(), ids = new Set(rows.map(row=>row.callId));
+      const rootCallIds = rows.filter(row=>row.parentCallId===null).map(row=>row.callId);
+      if(rootCallIds.length!==1) throw new Error("Teacher run must record its one actual authored root");
+      const calls = [];
+      for(const row of rows) {
+        const detail = await natlang.trace(row.callId,{raw:true});
+        if(!detail.record || detail.summary.run_id!==${JSON.stringify(runId)} ||
+          detail.record.call_id!==row.callId || (detail.record.parent_call_id!==null && !ids.has(detail.record.parent_call_id)))
+          throw new Error("Teacher record has incomplete run lineage");
+        if(calls.length && (detail.summary.owner_key!==calls[0].summary.owner_key || detail.summary.owner_kind!==calls[0].summary.owner_kind)) throw new Error("Teacher records cross owners");
+        for(const turn of detail.record.model_turns??[]) if(turn.kind==="generation" && turn.reply &&
+          turn.reply.raw_response?.vibestudio?.model!==selected.executorModel) throw new Error("Teacher reply came from another actual model");
+        calls.push(detail);
+      }
+      const rootRecord = calls.find(call=>call.callId===rootCallIds[0])?.record;
+      if(!rootRecord || rootRecord.definition.name!=="repairPanel") throw new Error("Teacher did not execute the authored repairPanel root");
+      const utilityValue = {report,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath};
+    `) as PanelTeacherResult;
   }
 
   @rpc({
@@ -918,7 +967,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
 }
 
 export function systemTestUtilityKeys(
-  kind: "doctor" | "list",
+  kind: "doctor" | "list" | "teacher",
   invocationId: string,
 ): { subKey: string; scopeKey: string } {
   return {

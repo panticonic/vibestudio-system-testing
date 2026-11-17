@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { panelTeacherInputSchema } from "@vibestudio/service-schemas/systemTestRunner";
 import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import { wireCallerFor } from "@vibestudio/rpc/internal";
 import { createMainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
@@ -334,6 +335,17 @@ describe("system-test durable execution ownership", () => {
     await expect(
       owner.call("getSystemTestRunResult", record.runId),
     ).resolves.toEqual({ summary: record.summary });
+  });
+});
+
+describe("owned panel teacher input", () => {
+  it("requires a pinned model and one panel source inside the seeded world", () => {
+    const input = {contextId:"owned-context",panelId:"panel-id",panelSource:"panels/seeded-world",executorModel:"openai-codex:gpt-6-luna",goal:"Repair the assigned panel"};
+    expect(panelTeacherInputSchema.parse(input)).toEqual(input);
+    for (const panelSource of ["panels/..", "panels/../other", "panels/seeded/child", "panels/\\other"])
+      expect(panelTeacherInputSchema.safeParse({...input,panelSource}).success).toBe(false);
+    expect(panelTeacherInputSchema.safeParse({...input,executorModel:"executor"}).success).toBe(false);
+    expect(panelTeacherInputSchema.safeParse({...input,programPath:"other.nl"}).success).toBe(false);
   });
 });
 
