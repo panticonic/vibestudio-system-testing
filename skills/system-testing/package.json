@@ -82,10 +82,10 @@
     "@vibestudio/automation": "workspace:*",
     "@workspace/model-catalog": "workspace:*",
     "@workspace/agentic-do": "workspace:*",
-    "@workspace/pty-stream": "workspace:*"
+    "@workspace/pty-stream": "workspace:*",
+    "@vibestudio/rpc": "workspace:*"
   },
   "devDependencies": {
-    "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*"
   }
 }
