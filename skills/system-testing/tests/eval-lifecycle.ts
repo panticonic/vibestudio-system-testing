@@ -1,3 +1,7 @@
+import {
+  probeAgentCellCompaction,
+  type AgentCellCompactionProbe,
+} from "../agent-cell-compaction.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -729,6 +733,74 @@ async function orchestrateAgentReplay(
   return execution;
 }
 
+async function orchestrateAgentCellCompaction(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await context.runner.spawn();
+  let probe: AgentCellCompactionProbe | undefined;
+  let failure: SystemTestFailure | undefined;
+  try {
+    probe = await probeAgentCellCompaction(session, {
+      turns: 65,
+      signal: context.signal,
+    });
+  } catch (cause) {
+    failure = systemTestFailure("agent-cell-compaction", cause);
+  }
+  const execution: TestExecutionResult = {
+    messages: [...session.messages],
+    duration: Date.now() - startedAt,
+    snapshot: session.snapshot(),
+    diagnostics: { ...(probe ? { agentCellCompaction: probe } : {}) },
+    ...(failure ? { error: failure.error.message, failure } : {}),
+  };
+  try {
+    await session.close();
+  } catch (cause) {
+    execution.cleanupErrors = [`close: ${formatError(cause)}`];
+    execution.cleanupFailures = [
+      systemTestFailure("agent-cell-compaction-close", cause),
+    ];
+  }
+  return execution;
+}
+
+function validateAgentCellCompaction(result: TestExecutionResult) {
+  const probe = result.diagnostics?.["agentCellCompaction"] as
+    | AgentCellCompactionProbe
+    | undefined;
+  if (
+    !probe ||
+    probe.turns !== 65 ||
+    probe.validatedTurns !== 65 ||
+    probe.modelCalls !== 0
+  )
+    return {
+      passed: false,
+      reason: "The harness did not join 65 actual model-free agent turns",
+    };
+  const gc = probe.lastStorage?.compaction;
+  if (
+    !gc?.lastCollectedHead ||
+    !Number.isSafeInteger(gc.observedCommitsAtLastCollection) ||
+    (gc.observedCommitsAtLastCollection ?? 0) < 64
+  )
+    return {
+      passed: false,
+      reason:
+        "The actual agent did not report a scheduled collection past the default threshold",
+    };
+  if (probe.firstStorage?.compaction?.lastCollectedHead !== null)
+    return {
+      passed: false,
+      reason: "The fresh agent already had a collection before the workload",
+    };
+  if (!/^[0-9a-f]{64}$/u.test(probe.nativeReceiptDigest))
+    return { passed: false, reason: "Native result receipt chain is missing" };
+  return { passed: true, reason: undefined };
+}
+
 async function orchestrateLiveKernelContinuity(
   context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
@@ -1139,6 +1211,15 @@ export const evalLifecycleTests: TestCase[] = [
     orchestrate: orchestrateAgentReplay,
     validation: "harness",
     validate: validateAgentReplay,
+  },
+  {
+    name: "agent-cell-compaction-soak",
+    description: "The actual agent closes 65 model-free turns and compacts on its default schedule",
+    category: "eval-lifecycle",
+    prompt: "Harness-orchestrated model-free agent cell compaction check.",
+    orchestrate: orchestrateAgentCellCompaction,
+    validation: "harness",
+    validate: validateAgentCellCompaction,
   },
   {
     name: "eval-live-kernel-continuity",
