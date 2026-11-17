@@ -2,6 +2,7 @@ import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
+import { systemTestRunnerRpcMethods } from "@vibestudio/service-schemas/systemTestRunner";
 import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { RpcCaller } from "@vibestudio/rpc";
 import { createRpcMethodCaller, type RpcMethodArgs, type RpcMethodResult } from "@vibestudio/shared/rpcMethods";
@@ -659,8 +660,6 @@ export class HeadlessRunner {
       parentId: null,
     });
     try {
-      const { systemTestRunnerRpcMethods } =
-        await import("@workspace-workers/system-test-runner/contract");
       const result = await rpc.call(
         owner,
         systemTestRunnerRpcMethods.runPanelTeacher,
