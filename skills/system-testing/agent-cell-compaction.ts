@@ -1,5 +1,7 @@
-import type { HeadlessSession } from "@workspace/agentic-session";
-import { rpc } from "@workspace/runtime";
+import { HeadlessSession } from "@workspace/agentic-session";
+import type { RpcClient } from "@vibestudio/rpc";
+import type { TestExecutionResult } from "./types.js";
+import { systemTestFailure } from "./structured-error.js";
 import { withRpcAbortSignal } from "@vibestudio/rpc";
 import { createMissionsClient } from "@vibestudio/service-schemas/clients/missionsClient";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -70,9 +72,9 @@ function storageSample(value: unknown): StorageSample {
 /** The caller owns the headless session. This operation owns and retires its manual mission. */
 export async function probeAgentCellCompaction(
   session: HeadlessSession,
-  options: { turns: number; signal: AbortSignal },
+  options: { rpc: RpcClient; turns: number; signal: AbortSignal },
 ): Promise<AgentCellCompactionProbe> {
-  const { turns, signal } = options;
+  const { rpc, turns, signal } = options;
   if (!Number.isSafeInteger(turns) || turns < 65)
     throw new Error("The compaction workload must cross 64 closed turns");
   const wire = withRpcAbortSignal(rpc, signal);
@@ -269,4 +271,41 @@ export async function probeAgentCellCompaction(
     );
   if (!result) throw new Error("Agent soak has no joined result");
   return result;
+}
+
+/** Durable worker entry: this owner creates and joins the entire native workload. */
+export async function runAgentCellCompaction(
+  rpc: RpcClient,
+  signal: AbortSignal,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await HeadlessSession.createWithAgent({
+    config: { clientId: rpc.selfId, rpc },
+    rpcCall: rpc.call,
+    source: "workers/agent-worker",
+    className: "AiChatWorker",
+  });
+  let probe: AgentCellCompactionProbe | undefined;
+  let failure;
+  try {
+    probe = await probeAgentCellCompaction(session, { rpc, turns: 65, signal });
+  } catch (cause) {
+    failure = systemTestFailure("agent-cell-compaction", cause);
+  }
+  const execution: TestExecutionResult = {
+    messages: [...session.messages],
+    duration: Date.now() - startedAt,
+    snapshot: session.snapshot(),
+    diagnostics: { ...(probe ? { agentCellCompaction: probe } : {}) },
+    ...(failure ? { error: failure.error.message, failure } : {}),
+  };
+  try {
+    await session.close();
+  } catch (cause) {
+    execution.cleanupErrors = [String(cause)];
+    execution.cleanupFailures = [
+      systemTestFailure("agent-cell-compaction-close", cause),
+    ];
+  }
+  return execution;
 }

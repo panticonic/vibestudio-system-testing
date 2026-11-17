@@ -8,6 +8,7 @@ import { allTests } from "./stages.js";
 import { TestRunner } from "./test-runner.js";
 import type {
   ReportClaimJudge,
+  TestExecutionResult,
   TestCase,
   TestSuiteResult,
   TestSuiteResultEntry,
@@ -77,6 +78,10 @@ export function systemTestProgressCheckpoint(
 }
 
 export interface SystemTestRunOptions {
+  /** Installed worker owns operations that require a durable code identity. */
+  runAgentCellCompaction?: (
+    signal: AbortSignal,
+  ) => Promise<TestExecutionResult>;
   runId: string;
   contextId: string;
   names?: string[];
@@ -403,6 +408,9 @@ export async function runSystemTests(
     ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
   });
   const tester = new TestRunner(runner, {
+    ...(options.runAgentCellCompaction
+      ? { runAgentCellCompaction: options.runAgentCellCompaction }
+      : {}),
     testTimeoutMs,
     ...(options.claimJudge ? { claimJudge: options.claimJudge } : {}),
     onTestStart: (test) => {

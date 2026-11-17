@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { evalLifecycleTests } from "./eval-lifecycle.js";
 
 const test = evalLifecycleTests.find(
@@ -86,4 +86,27 @@ describe("actual agent compaction evidence", () => {
       await validate({ turns: 65, validatedTurns: 65, modelCalls: 0 }),
     ).toMatchObject({ passed: false });
   });
+});
+
+it("joins the durable workload owner and preserves its original failure and cleanup evidence", async () => {
+  const controller = new AbortController();
+  const result = {
+    messages: [], duration: 7, error: "original failure",
+    cleanupErrors: ["original cleanup failure"],
+  };
+  let finish!: (value: typeof result) => void;
+  const runAgentCellCompaction = vi.fn(() => new Promise<typeof result>((resolve) => { finish = resolve; }));
+  const spawn = vi.fn();
+  const running = test.orchestrate!({
+    runner: { spawn } as never,
+    signal: controller.signal,
+    remainingTimeMs: () => 1000,
+    diagnostics: {},
+    sendAndWait: vi.fn(),
+    runAgentCellCompaction,
+  });
+  expect(runAgentCellCompaction).toHaveBeenCalledWith(controller.signal);
+  expect(spawn).not.toHaveBeenCalled();
+  finish(result);
+  expect(await running).toBe(result);
 });

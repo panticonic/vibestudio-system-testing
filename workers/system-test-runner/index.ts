@@ -222,6 +222,9 @@ function systemTestEvalCode(
         ...options,
         installedUnits,
         claimJudge,
+        runAgentCellCompaction: (signal) => rpc.call(
+          recordOwner, systemTestRunnerRpcMethods.runAgentCellCompaction, [], { signal }
+        ),
         contextId: ctx.contextId,
         onProgress: publishProgress,
         onInspectionUpdate: async (liveRecord) => {
@@ -640,6 +643,25 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     // The run outlives this call: a later activation pulls it by the entity that hosts it.
     this.setStateValue(this.hostStateKey(config.runId), admission.hostId);
     return { runId: options.runId };
+  }
+
+  @rpc({
+    website: {
+      kind: "closed",
+      reason: "Owns an isolated native agent compaction workload.",
+    },
+    requires: SYSTEM_TEST_OPERATOR,
+    effect: { kind: "open" },
+    tier: "open",
+    sensitivity: "write",
+  })
+  async runAgentCellCompaction() {
+    const { runAgentCellCompaction } =
+      await import("@workspace-skills/system-testing/agent-cell-compaction");
+    return runAgentCellCompaction(
+      this.rpc,
+      this.rpcAbortSignal ?? new AbortController().signal,
+    );
   }
 
   private async readStoredSystemTestRecord(

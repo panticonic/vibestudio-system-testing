@@ -1,7 +1,4 @@
-import {
-  probeAgentCellCompaction,
-  type AgentCellCompactionProbe,
-} from "../agent-cell-compaction.js";
+import type { AgentCellCompactionProbe } from "../agent-cell-compaction.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -736,34 +733,11 @@ async function orchestrateAgentReplay(
 async function orchestrateAgentCellCompaction(
   context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
-  const startedAt = Date.now();
-  const session = await context.runner.spawn();
-  let probe: AgentCellCompactionProbe | undefined;
-  let failure: SystemTestFailure | undefined;
-  try {
-    probe = await probeAgentCellCompaction(session, {
-      turns: 65,
-      signal: context.signal,
-    });
-  } catch (cause) {
-    failure = systemTestFailure("agent-cell-compaction", cause);
-  }
-  const execution: TestExecutionResult = {
-    messages: [...session.messages],
-    duration: Date.now() - startedAt,
-    snapshot: session.snapshot(),
-    diagnostics: { ...(probe ? { agentCellCompaction: probe } : {}) },
-    ...(failure ? { error: failure.error.message, failure } : {}),
-  };
-  try {
-    await session.close();
-  } catch (cause) {
-    execution.cleanupErrors = [`close: ${formatError(cause)}`];
-    execution.cleanupFailures = [
-      systemTestFailure("agent-cell-compaction-close", cause),
-    ];
-  }
-  return execution;
+  if (!context.runAgentCellCompaction)
+    throw new Error(
+      "The compaction workload requires its durable runner owner",
+    );
+  return context.runAgentCellCompaction(context.signal);
 }
 
 function validateAgentCellCompaction(result: TestExecutionResult) {

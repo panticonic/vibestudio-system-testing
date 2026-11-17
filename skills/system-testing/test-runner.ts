@@ -80,6 +80,9 @@ export class TestRunner {
       testTimeoutMs?: number;
       /** Judges the report claims tests declare (`TestCase.reportClaims`). */
       claimJudge?: ReportClaimJudge;
+      runAgentCellCompaction?: (
+        signal: AbortSignal,
+      ) => Promise<TestExecutionResult>;
     },
   ) {
     if (!runner) {
@@ -467,6 +470,9 @@ export class TestRunner {
         ? await this.withTimeout(
             test.orchestrate({
               runner: testRunner,
+              ...(this.opts?.runAgentCellCompaction
+                ? { runAgentCellCompaction: this.opts.runAgentCellCompaction }
+                : {}),
               signal: orchestrationController.signal,
               remainingTimeMs,
               diagnostics: orchestrationDiagnostics,
