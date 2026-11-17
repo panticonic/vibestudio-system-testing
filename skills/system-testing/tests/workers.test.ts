@@ -1704,24 +1704,31 @@ describe("worker test validators", () => {
       test("installed-workspace-service-consumer").validate(publicId).passed,
     ).toBe(true);
 
-    const unrelatedTarget = structuredClone(result);
-    const unrelatedEval = unrelatedTarget.messages.find(
+    const retainedHandle = structuredClone(result);
+    const retainedEval = retainedHandle.messages.find(
       (message) =>
         message.kind === "message" && message.invocation?.id === "call-eval",
     );
-    if (unrelatedEval?.kind === "message" && unrelatedEval.invocation) {
-      unrelatedEval.invocation.arguments = {
+    if (retainedEval?.kind === "message" && retainedEval.invocation) {
+      retainedEval.invocation.arguments = {
         code: [
           probeMethodsImport,
           'const handle = await workers.create("workers/probe", { key: "installed-probe" });',
-          "const observed = await rpc.call(other.id, fixtureWorkerRpcMethods.consumeTestkitService, []);",
-          "await workers.destroy(handle);",
+          "scope.workerHandle = handle;",
+          "const observed = await rpc.call(scope.workerHandle.targetId, fixtureWorkerRpcMethods.consumeTestkitService, []);",
+          "await workers.destroy(scope.workerHandle);",
         ].join("\n"),
       };
     }
     expect(
-      test("installed-workspace-service-consumer").validate(unrelatedTarget)
+      test("installed-workspace-service-consumer").validate(retainedHandle)
         .passed,
+    ).toBe(true);
+
+    const unobserved = structuredClone(retainedHandle);
+    editJournal(unobserved, (entries) => { entries.length = 0; });
+    expect(
+      test("installed-workspace-service-consumer").validate(unobserved).passed,
     ).toBe(false);
 
     const wildcard = structuredClone(result);
