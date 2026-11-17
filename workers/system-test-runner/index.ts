@@ -658,10 +658,10 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async runAgentCellCompaction() {
     const { runAgentCellCompaction } =
       await import("@workspace-skills/system-testing/agent-cell-compaction");
-    return runAgentCellCompaction(
-      this.rpc,
-      this.rpcAbortSignal ?? new AbortController().signal,
-    );
+    const signal = this.rpcAbortSignal ?? new AbortController().signal;
+    // The admitted worker owns cleanup independently of its caller's abort.
+    // The workload still receives the caller's signal explicitly.
+    return this.runDetached(() => runAgentCellCompaction(this.rpc, signal));
   }
 
   private async readStoredSystemTestRecord(
