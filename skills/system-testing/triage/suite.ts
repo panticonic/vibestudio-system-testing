@@ -30,12 +30,12 @@ export default defineEvaluationSuite<CaseInput, CaseExpected>({
   fixture: {
     async create(testCase, context) {
       const app = (await context.loadFreshProgram()) as {
-        triageFailure: { triage(failure: Failure): Promise<Triage> };
+        triageFailure(failure: Failure): Promise<Triage>;
       };
       return {
         execute: () =>
           context.runtime.run(() =>
-            app.triageFailure.triage(testCase.input.failure),
+            app.triageFailure(testCase.input.failure),
           ),
       };
     },
