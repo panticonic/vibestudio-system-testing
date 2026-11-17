@@ -1,5 +1,6 @@
 import { HeadlessSession } from "@workspace/agentic-session";
 import type { RpcClient } from "@vibestudio/rpc";
+import type { ResidentSessionRegistrar } from "@vibestudio/shared/residentSession";
 import type { TestExecutionResult } from "./types.js";
 import { systemTestFailure } from "./structured-error.js";
 import { withRpcAbortSignal } from "@vibestudio/rpc";
@@ -275,7 +276,7 @@ export async function probeAgentCellCompaction(
 
 /** Durable worker entry: this owner creates and joins the entire native workload. */
 export async function runAgentCellCompaction(
-  rpc: RpcClient,
+  rpc: RpcClient & ResidentSessionRegistrar,
   signal: AbortSignal,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();

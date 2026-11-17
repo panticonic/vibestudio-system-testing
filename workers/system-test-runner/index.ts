@@ -29,7 +29,11 @@ import {
  * session, shell, or arbitrary eval can impersonate that execution identity.
  */
 import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
-import { deserializeRpcFailure, formatRpcFailure } from "@vibestudio/rpc";
+import {
+  deserializeRpcFailure,
+  formatRpcFailure,
+  withRpcContext,
+} from "@vibestudio/rpc";
 import {
   anyOf,
   methodCapability,
@@ -48,6 +52,10 @@ import {
   systemTestTrajectory,
 } from "@workspace-skills/system-testing/record-analysis";
 import type { SystemTestRunRecord } from "@workspace-skills/system-testing/cli";
+import type {
+  ResidentSessionRegistrar,
+  ResidentSessionReceiver,
+} from "@vibestudio/shared/residentSession";
 import { readEvalStatusWithRetry } from "./eval-status-retry.js";
 
 type EvalRunStatus = z.infer<typeof evalRunStatusSchema>;
@@ -661,7 +669,22 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     const signal = this.rpcAbortSignal ?? new AbortController().signal;
     // The admitted worker owns cleanup independently of its caller's abort.
     // The workload still receives the caller's signal explicitly.
-    return this.runDetached(() => runAgentCellCompaction(this.rpc, signal));
+    const registrar: ResidentSessionRegistrar = {
+      registerResidentSession: (channelId, receiver, relationship) => {
+        const ownedReceiver: ResidentSessionReceiver = (payload) =>
+          this.runDetached(() => receiver(payload));
+        ownedReceiver.abortAll = receiver.abortAll;
+        const close = this.registerResidentChannelSession(
+          channelId, ownedReceiver, relationship,
+        );
+        return { transport: { call: this.rpc.call }, close };
+      },
+    };
+    const wire = Object.assign(
+      withRpcContext(this.rpc, (operation) => this.runDetached(operation)),
+      registrar,
+    );
+    return this.runDetached(() => runAgentCellCompaction(wire, signal));
   }
 
   private async readStoredSystemTestRecord(
