@@ -8,6 +8,32 @@ import { createMissionsClient } from "@vibestudio/service-schemas/clients/missio
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { MissionRecord } from "@vibestudio/automation/mission";
+import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
+import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
+import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
+import { contextIdForTargetKey } from "@vibestudio/shared/runtime/contextIdentity";
+
+interface ForkAgentRpc {
+  getAgentSettings(): Promise<{ model?: unknown }>;
+  canFork(channelId: string): Promise<{ ok: boolean; reason?: string }>;
+}
+const forkAgentMethods = createReceiverRpcMethods<ForkAgentRpc>([
+  "getAgentSettings",
+  "canFork",
+]);
+
+export interface AgentCellForkProbe {
+  operationId: string;
+  forkedContextId: string;
+  forkedChannelId: string;
+  clonedAgentTargetId: string;
+  clonedAgentCount: number;
+  sourceSequence: number;
+  forkSequence: number;
+  adopted: boolean;
+  modelPreserved: boolean;
+  elapsedMs: number;
+}
 
 interface CompactionState {
   head: string;
@@ -35,6 +61,7 @@ export interface AgentCellCompactionProbe {
   elapsedMs: number;
   meanTurnMs: number;
   p95TurnMs: number;
+  fork?: AgentCellForkProbe;
 }
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -172,24 +199,33 @@ export async function probeAgentCellCompaction(
         }));
       }
       const invocation = await session.waitUntil(
-        () =>
-          session
-            .snapshot()
-            .invocations.slice(-12)
-            .find((candidate) => {
-              if (
-                candidate.name !== "eval" ||
-                candidate.status !== "complete" ||
-                !object(candidate.result)
-              )
-                return false;
-              const details = candidate.result["details"];
-              return (
-                object(details) &&
-                object(details["returnValue"]) &&
-                details["returnValue"]["turn"] === n
-              );
-            }),
+        () => {
+          const messages = session.messages;
+          let inspected = 0;
+          for (
+            let index = messages.length - 1;
+            index >= 0 && inspected < 12;
+            index--
+          ) {
+            const candidate = messages[index]?.invocation;
+            if (!candidate) continue;
+            inspected++;
+            if (
+              candidate.name !== "eval" ||
+              candidate.execution.status !== "complete" ||
+              !object(candidate.execution.result)
+            )
+              continue;
+            const details = candidate.execution.result["details"];
+            if (
+              object(details) &&
+              object(details["returnValue"]) &&
+              details["returnValue"]["turn"] === n
+            )
+              return candidate;
+          }
+          return undefined;
+        },
         { signal },
       );
       if (
@@ -200,7 +236,7 @@ export async function probeAgentCellCompaction(
           "The native result has a duplicate or foreign invocation identity",
         );
       seen.add(invocation.id);
-      const details = (invocation.result as Record<string, unknown>)[
+      const details = (invocation.execution.result as Record<string, unknown>)[
         "details"
       ] as Record<string, unknown>;
       const value = details["returnValue"] as Record<string, unknown>;
@@ -216,6 +252,20 @@ export async function probeAgentCellCompaction(
         `${digest}\n${admitted.runId}\n${invocation.id}\n${n}`,
       );
       durations.push(Date.now() - turnStartedAt);
+      if (n === 1 || n % 64 === 0 || n === turns) {
+        console.info(
+          "[system-test:native-turns]",
+          JSON.stringify({
+            validatedTurns: n,
+            turns,
+            executorId,
+            channelId,
+            elapsedMs: Date.now() - startedAt,
+            nativeReceiptDigest: digest,
+            lastInvocationId,
+          }),
+        );
+      }
       if (n === 64) {
         // A controlled idle interval in the workload exercises the production idle collection hook.
         await new Promise((resolve) => setTimeout(resolve, 1_000));
@@ -274,10 +324,161 @@ export async function probeAgentCellCompaction(
   return result;
 }
 
+/** Measure the ordinary channel fork, then retire only its deterministic owned context. */
+async function measureAgentCellFork(
+  rpc: RpcClient,
+  signal: AbortSignal,
+  source: AgentCellCompactionProbe,
+): Promise<AgentCellForkProbe> {
+  const wire = withRpcAbortSignal(rpc, signal);
+  const operationId = `system-test-native-fork-${crypto.randomUUID()}`;
+  const expectedContextId = contextIdForTargetKey(`fork:${operationId}`);
+  const existing = await wire.call(
+    "main",
+    mainRpcMethods["runtime.listContexts"],
+    [{ prefix: expectedContextId }],
+  );
+  if (existing.contexts.includes(expectedContextId))
+    throw new Error("The owned fork context already exists");
+  const channel = await resolveDurableObjectService(
+    wire,
+    "vibestudio.channel.v1",
+    source.channelId,
+  );
+  if (channel.kind !== "durable-object")
+    throw new Error("The source channel did not resolve to a Durable Object");
+  const before = await wire.call(
+    channel.targetId,
+    channelRpcMethods.getReplayAfter,
+    [{ after: 0, limit: 1 }],
+  );
+  const sourceSequence = before.ready.snapshotLastSeq;
+  if (
+    typeof sourceSequence !== "number" ||
+    !Number.isSafeInteger(sourceSequence)
+  )
+    throw new Error("The source replay omitted its bounded snapshot head");
+  const failures: unknown[] = [];
+  let result: AgentCellForkProbe | undefined;
+  let attempted = false;
+  try {
+    attempted = true;
+    const startedAt = Date.now();
+    const forked = await wire.call(channel.targetId, channelRpcMethods.fork, [
+      {
+        operationId,
+        locus: { kind: "head" },
+        reason: "Measure a fork after actual native turns",
+        label: "Native turn fork",
+      },
+    ]);
+    const elapsedMs = Date.now() - startedAt;
+    if (
+      forked.forkedContextId !== expectedContextId ||
+      forked.clonedAgents.length !== 1
+    )
+      throw new Error(
+        "The normal fork did not return its one expected cloned agent",
+      );
+    const cloned = forked.clonedAgents[0]!;
+    const clonedAgentTargetId = `do:${cloned.source}:${cloned.className}:${cloned.objectKey}`;
+    if (clonedAgentTargetId === source.executorId)
+      throw new Error("The fork returned the source agent");
+    const [originalResult, copyResult, adoptionResult] =
+      await Promise.allSettled([
+        wire.call(source.executorId, forkAgentMethods.getAgentSettings, []),
+        wire.call(clonedAgentTargetId, forkAgentMethods.getAgentSettings, []),
+        wire.call(clonedAgentTargetId, forkAgentMethods.canFork, [
+          forked.forkedChannelId,
+        ]),
+      ]);
+    if (
+      originalResult.status !== "fulfilled" ||
+      copyResult.status !== "fulfilled" ||
+      adoptionResult.status !== "fulfilled"
+    ) {
+      const rejected = [originalResult, copyResult, adoptionResult].filter(
+        (entry) => entry.status === "rejected",
+      );
+      throw new AggregateError(
+        rejected.map((entry) => entry.reason),
+        "Fork verification failed",
+      );
+    }
+    const original = originalResult.value,
+      copy = copyResult.value,
+      adopted = adoptionResult.value;
+    const forkChannel = await resolveDurableObjectService(
+      wire,
+      "vibestudio.channel.v1",
+      forked.forkedChannelId,
+    );
+    if (forkChannel.kind !== "durable-object")
+      throw new Error("The fork channel did not resolve to a Durable Object");
+    const after = await wire.call(
+      forkChannel.targetId,
+      channelRpcMethods.getReplayAfter,
+      [{ after: 0, limit: 1 }],
+    );
+    const forkSequence = after.ready.snapshotLastSeq;
+    if (typeof forkSequence !== "number" || !Number.isSafeInteger(forkSequence))
+      throw new Error("The fork replay omitted its bounded snapshot head");
+    result = {
+      operationId,
+      forkedContextId: forked.forkedContextId,
+      forkedChannelId: forked.forkedChannelId,
+      clonedAgentTargetId,
+      clonedAgentCount: forked.clonedAgents.length,
+      sourceSequence,
+      forkSequence,
+      adopted: adopted.ok,
+      modelPreserved:
+        JSON.stringify(original.model) === JSON.stringify(copy.model),
+      elapsedMs,
+    };
+    if (
+      !result.adopted ||
+      !result.modelPreserved ||
+      result.forkSequence < result.sourceSequence
+    )
+      throw new Error(
+        "The fork did not preserve its source history, model and agent adoption",
+      );
+  } catch (cause) {
+    failures.push(cause);
+  }
+  if (attempted) {
+    try {
+      // The normal clone key identifies ownership even when its reply was lost.
+      // A lineage edge is not included in the source session's recursive teardown.
+      const contexts = await rpc.call(
+        "main",
+        mainRpcMethods["runtime.listContexts"],
+        [{ prefix: expectedContextId }],
+      );
+      if (contexts.contexts.includes(expectedContextId))
+        await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
+          { contextId: expectedContextId, recursive: true },
+        ]);
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length)
+    throw new AggregateError(
+      failures,
+      "Native fork and its owned context retirement failed",
+    );
+  if (!result) throw new Error("The normal fork returned no evidence");
+  return result;
+}
+
 /** Durable worker entry: this owner creates and joins the entire native workload. */
 export async function runAgentCellCompaction(
   rpc: RpcClient & ResidentSessionRegistrar,
   signal: AbortSignal,
+  turns = 65,
 ): Promise<TestExecutionResult> {
   const startedAt = Date.now();
   const session = await HeadlessSession.createWithAgent({
@@ -289,14 +490,23 @@ export async function runAgentCellCompaction(
   let probe: AgentCellCompactionProbe | undefined;
   let failure;
   try {
-    probe = await probeAgentCellCompaction(session, { rpc, turns: 65, signal });
+    probe = await probeAgentCellCompaction(session, { rpc, turns, signal });
+    probe.fork = await measureAgentCellFork(rpc, signal, probe);
   } catch (cause) {
-    failure = systemTestFailure("agent-cell-compaction", cause);
+    failure = systemTestFailure(
+      probe ? "agent-cell-fork" : "agent-cell-compaction",
+      cause,
+    );
   }
+  const snapshot = session.snapshot();
+  // Return a bounded diagnostic tail; the receipt chain covers every joined turn.
+  snapshot.messages = snapshot.messages.slice(-16);
+  snapshot.invocations = snapshot.invocations.slice(-8);
+  snapshot.tasks = snapshot.tasks.slice(-8);
   const execution: TestExecutionResult = {
-    messages: [...session.messages],
+    messages: [...snapshot.messages],
     duration: Date.now() - startedAt,
-    snapshot: session.snapshot(),
+    snapshot,
     diagnostics: { ...(probe ? { agentCellCompaction: probe } : {}) },
     ...(failure ? { error: failure.error.message, failure } : {}),
   };

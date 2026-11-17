@@ -82,6 +82,7 @@ export interface SystemTestRunOptions {
   runAgentCellCompaction?: (
     signal: AbortSignal,
     contextId: string,
+    turns: number,
   ) => Promise<TestExecutionResult>;
   runId: string;
   contextId: string;

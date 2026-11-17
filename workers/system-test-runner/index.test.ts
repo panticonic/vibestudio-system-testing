@@ -464,7 +464,8 @@ it("gives the native soak a real owner-local registrar and a registered independ
   const { runAgentCellCompaction } = await import("@workspace-skills/system-testing/agent-cell-compaction");
   const owner = await recordOwner();
   const result = { messages: [], duration: 0 };
-  vi.mocked(runAgentCellCompaction).mockImplementationOnce(async (wire) => {
+  vi.mocked(runAgentCellCompaction).mockImplementationOnce(async (wire, _signal, turns) => {
+    expect(turns).toBe(10000);
     expect(owner.instance.callerForTest()).toBeNull();
     const registration = wire.registerResidentSession("probe-channel", async () => {}, { targetId: "probe-channel-owner" });
     expect(owner.instance.residentsForTest().active).toBe(1);
@@ -475,5 +476,5 @@ it("gives the native soak a real owner-local registrar and a registered independ
     await expect(view.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: "probe" }])).resolves.toEqual({ ok: true });
     return result;
   });
-  expect(await owner.call("runAgentCellCompaction")).toEqual(result);
+  expect(await owner.call("runAgentCellCompaction", 10000)).toEqual(result);
 });

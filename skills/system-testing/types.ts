@@ -294,6 +294,7 @@ export interface TestOrchestrationContext {
   runAgentCellCompaction?: (
     signal: AbortSignal,
     contextId: string,
+    turns: number,
   ) => Promise<TestExecutionResult>;
   runner: HeadlessRunner;
   /** The test owns this cancellation boundary. Awaited orchestration work must

@@ -732,28 +732,29 @@ async function orchestrateAgentReplay(
 
 async function orchestrateAgentCellCompaction(
   context: TestOrchestrationContext,
+  turns = 65,
 ): Promise<TestExecutionResult> {
   if (!context.runAgentCellCompaction)
     throw new Error(
       "The compaction workload requires its durable runner owner",
     );
   const run = context.runAgentCellCompaction;
-  return context.runner.withCaseContext((contextId) => run(context.signal, contextId));
+  return context.runner.withCaseContext((contextId) => run(context.signal, contextId, turns));
 }
 
-function validateAgentCellCompaction(result: TestExecutionResult) {
+function validateAgentCellCompaction(result: TestExecutionResult, turns = 65) {
   const probe = result.diagnostics?.["agentCellCompaction"] as
     | AgentCellCompactionProbe
     | undefined;
   if (
     !probe ||
-    probe.turns !== 65 ||
-    probe.validatedTurns !== 65 ||
+    probe.turns !== turns ||
+    probe.validatedTurns !== turns ||
     probe.modelCalls !== 0
   )
     return {
       passed: false,
-      reason: "The harness did not join 65 actual model-free agent turns",
+      reason: `The harness did not join ${turns} actual model-free agent turns`,
     };
   const gc = probe.lastStorage?.compaction;
   if (
@@ -773,6 +774,13 @@ function validateAgentCellCompaction(result: TestExecutionResult) {
     };
   if (!/^[0-9a-f]{64}$/u.test(probe.nativeReceiptDigest))
     return { passed: false, reason: "Native result receipt chain is missing" };
+  const fork = probe.fork;
+  if (!fork || fork.clonedAgentCount !== 1 || !fork.adopted || !fork.modelPreserved ||
+      !fork.forkedContextId || !fork.forkedChannelId || !fork.clonedAgentTargetId ||
+      !Number.isSafeInteger(fork.sourceSequence) || fork.sourceSequence < 1 ||
+      !Number.isSafeInteger(fork.forkSequence) || fork.forkSequence < fork.sourceSequence ||
+      !Number.isFinite(fork.elapsedMs) || fork.elapsedMs < 0)
+    return { passed: false, reason: "The normal conversation fork did not retain its joined adoption and history evidence" };
   return { passed: true, reason: undefined };
 }
 
@@ -1055,6 +1063,20 @@ function validateRejectedCellScope(result: TestExecutionResult) {
       };
 }
 
+const agentCellAuthorityPolicy: NonNullable<TestCase['authorityPolicy']> = {
+      authority: [
+        { ruleId: "owned-channel-service", capability: { kind: "exact", key: "workspace-service:channel" }, resource: { kind: "prefix", prefix: "do:workers/pubsub-channel:PubSubChannel:" }, tier: "gated", decision: "once" },
+        { ruleId: "owned-mission-service", capability: { kind: "exact", key: "workspace-service:missions" }, resource: { kind: "exact", key: "do:workers/missions:MissionsDO:workspace-missions" }, tier: "gated", decision: "once" },
+        ...(["edit", "run", "retire"] as const).map((action) => ({
+          ruleId: `owned-mission-${action}`,
+          capability: { kind: "prefix" as const, prefix: `userland:workers/missions/missions.${action}#` },
+          resource: { kind: "exact" as const, key: "mission:do:workers/missions:MissionsDO:workspace-missions" },
+          tier: action === "retire" ? "critical" as const : "gated" as const,
+          decision: "once" as const,
+        })),
+      ],
+    };
+
 export const evalLifecycleTests: TestCase[] = [
   {
     name: "eval-cell-local-imports-retained-handle",
@@ -1189,24 +1211,25 @@ export const evalLifecycleTests: TestCase[] = [
   },
   {
     name: "agent-cell-compaction-soak",
-    authorityPolicy: {
-      authority: [
-        { ruleId: "owned-mission-service", capability: { kind: "exact", key: "workspace-service:missions" }, resource: { kind: "exact", key: "do:workers/missions:MissionsDO:workspace-missions" }, tier: "gated", decision: "once" },
-        ...(["edit", "run", "retire"] as const).map((action) => ({
-          ruleId: `owned-mission-${action}`,
-          capability: { kind: "prefix" as const, prefix: `userland:workers/missions/missions.${action}#` },
-          resource: { kind: "exact" as const, key: "mission:do:workers/missions:MissionsDO:workspace-missions" },
-          tier: action === "retire" ? "critical" as const : "gated" as const,
-          decision: "once" as const,
-        })),
-      ],
-    },
+    authorityPolicy: agentCellAuthorityPolicy,
     description: "The actual agent closes 65 model-free turns and compacts on its default schedule",
     category: "eval-lifecycle",
     prompt: "Harness-orchestrated model-free agent cell compaction check.",
     orchestrate: orchestrateAgentCellCompaction,
     validation: "harness",
     validate: validateAgentCellCompaction,
+  },
+  {
+    name: "agent-cell-fork-benchmark",
+    description: "Measure a normal conversation fork after 10,000 actual model-free native turns",
+    category: "eval-lifecycle",
+    explicitOnly: true,
+    timeoutMs: 12 * 60 * 60 * 1000,
+    authorityPolicy: agentCellAuthorityPolicy,
+    prompt: "Harness-orchestrated native history and normal conversation fork measurement.",
+    orchestrate: (context) => orchestrateAgentCellCompaction(context, 10_000),
+    validation: "harness",
+    validate: (result) => validateAgentCellCompaction(result, 10_000),
   },
   {
     name: "eval-live-kernel-continuity",

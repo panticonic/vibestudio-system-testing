@@ -231,7 +231,7 @@ function systemTestEvalCode(
         ...options,
         installedUnits,
         claimJudge,
-        runAgentCellCompaction: async (signal, contextId) => {
+        runAgentCellCompaction: async (signal, contextId, turns) => {
           signal.throwIfAborted();
           const owner = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{
             kind: "do",
@@ -240,7 +240,7 @@ function systemTestEvalCode(
             key: "compaction-" + crypto.randomUUID(),
             contextId,
           }], { signal });
-          return rpc.call(owner.targetId, systemTestRunnerRpcMethods.runAgentCellCompaction, [], { signal });
+          return rpc.call(owner.targetId, systemTestRunnerRpcMethods.runAgentCellCompaction, [turns], { signal });
         },
         contextId: ctx.contextId,
         onProgress: publishProgress,
@@ -672,7 +672,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     tier: "open",
     sensitivity: "write",
   })
-  async runAgentCellCompaction() {
+  async runAgentCellCompaction(turns = 65) {
     const { runAgentCellCompaction } =
       await import("@workspace-skills/system-testing/agent-cell-compaction");
     const signal = this.rpcAbortSignal ?? new AbortController().signal;
@@ -693,7 +693,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
       withRpcContext(this.rpc, (operation) => this.runDetached(operation)),
       registrar,
     );
-    return this.runDetached(() => runAgentCellCompaction(wire, signal));
+    return this.runDetached(() => runAgentCellCompaction(wire, signal, turns));
   }
 
   private async readStoredSystemTestRecord(

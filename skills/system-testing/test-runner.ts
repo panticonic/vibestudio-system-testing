@@ -83,6 +83,7 @@ export class TestRunner {
       runAgentCellCompaction?: (
         signal: AbortSignal,
         contextId: string,
+        turns: number,
       ) => Promise<TestExecutionResult>;
     },
   ) {

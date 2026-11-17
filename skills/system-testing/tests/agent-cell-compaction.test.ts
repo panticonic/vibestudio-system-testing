@@ -9,6 +9,12 @@ const evidence = () => ({
   validatedTurns: 65,
   modelCalls: 0,
   nativeReceiptDigest: "a".repeat(64),
+  fork: {
+    operationId: "native-fork-test", forkedContextId: "owned-fork-context",
+    forkedChannelId: "fork-channel", clonedAgentTargetId: "do:cloned-agent",
+    clonedAgentCount: 1, sourceSequence: 100, forkSequence: 101,
+    adopted: true, modelPreserved: true, elapsedMs: 12,
+  },
   firstStorage: {
     engine: "dolt",
     compaction: {
@@ -88,7 +94,7 @@ describe("actual agent compaction evidence", () => {
   });
 });
 
-it("joins the durable workload owner and preserves its original failure and cleanup evidence", async () => {
+it.each([65, 10000])("joins the durable workload owner for %i turns and preserves its original failure and cleanup evidence", async (turns) => {
   const controller = new AbortController();
   const result = {
     messages: [], duration: 7, error: "original failure",
@@ -97,7 +103,8 @@ it("joins the durable workload owner and preserves its original failure and clea
   let finish!: (value: typeof result) => void;
   const runAgentCellCompaction = vi.fn(() => new Promise<typeof result>((resolve) => { finish = resolve; }));
   const spawn = vi.fn();
-  const running = test.orchestrate!({
+  const selected = turns === 65 ? test : evalLifecycleTests.find((candidate) => candidate.name === "agent-cell-fork-benchmark")!;
+  const running = selected.orchestrate!({
     runner: { spawn, withCaseContext: (operation: (id: string) => Promise<unknown>) => operation("case-context") } as never,
     signal: controller.signal,
     remainingTimeMs: () => 1000,
@@ -105,8 +112,23 @@ it("joins the durable workload owner and preserves its original failure and clea
     sendAndWait: vi.fn(),
     runAgentCellCompaction,
   });
-  expect(runAgentCellCompaction).toHaveBeenCalledWith(controller.signal, "case-context");
+  expect(runAgentCellCompaction).toHaveBeenCalledWith(controller.signal, "case-context", turns);
   expect(spawn).not.toHaveBeenCalled();
   finish(result);
   expect(await running).toBe(result);
+});
+
+it("keeps the long measurement explicit and requires all 10,000 joined turns", async () => {
+  const benchmark = evalLifecycleTests.find((candidate) => candidate.name === "agent-cell-fork-benchmark")!;
+  expect(benchmark.explicitOnly).toBe(true);
+  expect(await benchmark.validate!({ messages: [], duration: 0, diagnostics: { agentCellCompaction: evidence() } })).toMatchObject({ passed: false });
+  expect(await benchmark.validate!({ messages: [], duration: 0, diagnostics: { agentCellCompaction: { ...evidence(), turns: 10000, validatedTurns: 10000 } } })).toMatchObject({ passed: true });
+});
+it.each(["adoption", "model", "history", "measurement"])("rejects missing fork %s proof", async (kind) => {
+  const probe = evidence();
+  if (kind === "adoption") probe.fork.adopted = false;
+  if (kind === "model") probe.fork.modelPreserved = false;
+  if (kind === "history") probe.fork.forkSequence = 99;
+  if (kind === "measurement") probe.fork.elapsedMs = NaN;
+  expect(await validate(probe)).toMatchObject({ passed: false });
 });
