@@ -39,6 +39,7 @@ import { gitInteropTests } from "./tests/git-interop.js";
 import { templateTests } from "./tests/templates.js";
 import { vcsAdvancedTests } from "./tests/vcs-advanced.js";
 import { blobstoreTests } from "./tests/blobstore.js";
+import { tendrilTests } from "./tests/tendrils.js";
 import { serverLogTests } from "./tests/server-logs.js";
 import { unitDiagnosticsTests } from "./tests/unit-diagnostics.js";
 import { multiUserTests } from "./tests/multi-user.js";
@@ -70,6 +71,7 @@ import { clientLaunchTests } from "./tests/client-launch.js";
 import { terminalChatCardsTests } from "./tests/terminal-chat-cards.js";
 
 export {
+  tendrilTests,
   agentCapabilityTests,
   agenticRuntimeTests,
   agentOrchestrationTests,
@@ -187,6 +189,7 @@ export function allTests(): TestCase[] {
     ...evalLifecycleTests,
     ...selfDevelopmentTests,
     ...blobstoreTests,
+    ...tendrilTests,
     ...serverLogTests,
     ...problemReportingTests,
     ...webhookTests,
