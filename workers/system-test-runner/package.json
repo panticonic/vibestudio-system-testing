@@ -131,7 +131,7 @@
             "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
           },
           "tier": "gated",
-          "evidence": "exact",
+          "evidence": "bounded-dynamic",
           "packages": [
             "@workspace-skills/system-testing"
           ]
@@ -143,7 +143,7 @@
             "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
           },
           "tier": "gated",
-          "evidence": "exact",
+          "evidence": "bounded-dynamic",
           "packages": [
             "@workspace-skills/system-testing"
           ]
@@ -155,7 +155,7 @@
             "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
           },
           "tier": "critical",
-          "evidence": "exact",
+          "evidence": "bounded-dynamic",
           "packages": [
             "@workspace-skills/system-testing"
           ]
