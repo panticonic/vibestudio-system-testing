@@ -10,7 +10,10 @@ export async function verifyPanelDraft(handle: PanelHandle) {
   const session = await handle.cdp.session();
   const { page } = session;
   const topic = page.getByRole("textbox", { name: "Topic", exact: true });
-  const preview = page.getByRole("button", { name: "Preview topic", exact: true });
+  const preview = page.getByRole("button", {
+    name: "Preview topic",
+    exact: true,
+  });
   const editor = page.getByRole("button", { name: "Edit topic", exact: true });
   const saved = page.locator('[aria-label="Saved topic"]');
   const draft = `Draft ${crypto.randomUUID()}`;
@@ -46,16 +49,43 @@ export async function verifyPanelDraft(handle: PanelHandle) {
     preservesUnsavedDraft: afterNavigation === draft,
     navigationDoesNotSave: previewBeforeSave === original,
     saveCommitsDraft: previewAfterSave === draft,
-    discardRestoresSaved: afterDiscard === draft && previewAfterDiscard === draft,
+    discardRestoresSaved:
+      afterDiscard === draft && previewAfterDiscard === draft,
     discardedDraftStaysDiscarded: afterDiscardAndReturn === draft,
   };
   return {
     passed: Object.values(checks).every(Boolean),
     checks,
     evidence: {
-      original, draft, abandoned, previewBeforeSave, afterNavigation,
-      previewAfterSave, afterDiscard, previewAfterDiscard, afterDiscardAndReturn,
+      original,
+      draft,
+      abandoned,
+      previewBeforeSave,
+      afterNavigation,
+      previewAfterSave,
+      afterDiscard,
+      previewAfterDiscard,
+      afterDiscardAndReturn,
     },
     browserBinding: session.receipt,
   };
+}
+
+/** Open the current revision in the seeded context and retire that exact handle. */
+export async function observePanelDraft(
+  runner: HeadlessRunner,
+  contextId: string,
+  panelPath: string,
+) {
+  const handle = await runner.openPanelClient(panelPath, {
+    contextId,
+    ref: `ctx:${contextId}`,
+    focus: false,
+    parentId: null,
+  });
+  try {
+    return await verifyPanelDraft(handle);
+  } finally {
+    await handle.archive();
+  }
 }

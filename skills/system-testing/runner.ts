@@ -4,7 +4,11 @@ import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
 import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { RpcCaller } from "@vibestudio/rpc";
-import { createRpcMethodCaller, type RpcMethodArgs, type RpcMethodResult } from "@vibestudio/shared/rpcMethods";
+import {
+  createRpcMethodCaller,
+  type RpcMethodArgs,
+  type RpcMethodResult,
+} from "@vibestudio/shared/rpcMethods";
 import {
   HeadlessSession,
   type HeadlessWithAgentConfig,
@@ -253,7 +257,10 @@ function fixtureContextAuthority(
 /** The panel an `openPanel` failure left committed, from its failure record. */
 export function committedPanelId(error: unknown): string | undefined {
   const data = (error as { errorData?: unknown } | null)?.errorData as
-    | { details?: { slotCommitted?: unknown }; provenance?: { panelId?: unknown } }
+    | {
+        details?: { slotCommitted?: unknown };
+        provenance?: { panelId?: unknown };
+      }
     | undefined;
   const panelId = data?.provenance?.panelId;
   return data?.details?.slotCommitted === true && typeof panelId === "string"
@@ -275,7 +282,11 @@ export class HeadlessRunner {
 
   /** Read the canonical user-facing permission inventory for harness assertions. */
   async listPermissions(): Promise<unknown[]> {
-    const permissions = await rpc.call("main", mainRpcMethods["permissions.list"], []);
+    const permissions = await rpc.call(
+      "main",
+      mainRpcMethods["permissions.list"],
+      [],
+    );
     if (!Array.isArray(permissions))
       throw new Error("permissions.list returned no inventory");
     return permissions;
@@ -387,11 +398,9 @@ export class HeadlessRunner {
                 testAuthorityPolicy,
                 input?.counteractionRepoPaths ?? [],
               );
-              return rpc.call(
-                "main",
-                mainRpcMethods["runtime.createContext"],
-                [contextPolicy ? { testPolicy: contextPolicy } : {}],
-              );
+              return rpc.call("main", mainRpcMethods["runtime.createContext"], [
+                contextPolicy ? { testPolicy: contextPolicy } : {},
+              ]);
             },
             destroyContext: (contextId) =>
               rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
@@ -632,11 +641,57 @@ export class HeadlessRunner {
         "Runtime observation requires exactly one task-owned worker repository",
       );
     const source = workers[0]!.repoPath;
-    const entities = await rpc.call("main", mainRpcMethods["runtime.listEntities"], []);
+    const entities = await rpc.call(
+      "main",
+      mainRpcMethods["runtime.listEntities"],
+      [],
+    );
     return {
       source,
       entities: entities.filter((entity) => entity.source === source),
     };
+  }
+
+  /** Run the authored program under a harness-owned EvalDO in this exact seeded context. */
+  async runPanelRepairTeacher(state: WorkspaceRepoFixtureState, goal: string) {
+    if (
+      state.kind !== "draft-repair-panel" ||
+      state.contextId !== this.workspaceRepoFixtureContextId
+    ) {
+      throw new Error(
+        "Panel repair requires the runner's own prepared draft fixture.",
+      );
+    }
+    const { contextId, repoPath } = state;
+    const owner = await this.fixtureForkOwner();
+    const before = (await vcs.status({ contextId })).workingHead;
+    const handle = await this.openPanelClient(repoPath, {
+      contextId,
+      ref: `ctx:${contextId}`,
+      focus: false,
+      parentId: null,
+    });
+    try {
+      const { systemTestRunnerRpcMethods } =
+        await import("@workspace-workers/system-test-runner/contract");
+      const result = await rpc.call(
+        owner,
+        systemTestRunnerRpcMethods.runPanelTeacher,
+        [
+          {
+            contextId,
+            panelId: handle.id,
+            panelSource: repoPath,
+            executorModel: this.modelRef,
+            goal,
+          },
+        ],
+      );
+      const after = (await vcs.status({ contextId })).workingHead;
+      return { result, before, after };
+    } finally {
+      await handle.archive();
+    }
   }
 
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {
@@ -733,7 +788,9 @@ export class HeadlessRunner {
     additionalSystemPrompt?: string;
   }): Promise<HeadlessSession> {
     if (opts?.realChatPanel && opts.syntheticPanelUiTools)
-      throw new Error("A session uses either the real chat panel or synthetic panel UI tools, not both");
+      throw new Error(
+        "A session uses either the real chat panel or synthetic panel UI tools, not both",
+      );
     const policy = this.shared.modelPolicy;
     const model = policy.activeModel;
     const contextMode =
@@ -935,12 +992,17 @@ export class HeadlessRunner {
    * and wait until it reports its channel subscription established. A failed attach closes
    * the session, which archives a panel that was already opened.
    */
-  private async attachChatPanel(session: HeadlessSession, signal?: AbortSignal): Promise<void> {
+  private async attachChatPanel(
+    session: HeadlessSession,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const channelId = session.channelId;
     const contextId = session.agentContextId;
     try {
       if (!channelId || !contextId)
-        throw new Error("A real chat panel needs a connected session with an agent context");
+        throw new Error(
+          "A real chat panel needs a connected session with an agent context",
+        );
       const panel = await openPanel(CHAT_PANEL_SOURCE, {
         contextId,
         stateArgs: { channelName: channelId },
@@ -988,11 +1050,15 @@ export class HeadlessRunner {
     answer: ChatMessage,
     options?: { signal?: AbortSignal; screenshot?: boolean },
   ): Promise<ChatPanelRenderEvidence> {
-    const panel = session.channelId ? this.chatPanels.get(session.channelId) : undefined;
+    const panel = session.channelId
+      ? this.chatPanels.get(session.channelId)
+      : undefined;
     if (!panel) throw new Error("Session was not spawned with realChatPanel");
     return observeChatPanelRendering(session, panel, answer, {
       ...(options?.signal ? { signal: options.signal } : {}),
-      ...(options?.screenshot ? { storeScreenshot: (data) => blobstore.putBase64(data) } : {}),
+      ...(options?.screenshot
+        ? { storeScreenshot: (data) => blobstore.putBase64(data) }
+        : {}),
     });
   }
 
@@ -1011,22 +1077,18 @@ export class HeadlessRunner {
       );
     }
     this.fixtureForkOwnerPromise ??= rpc
-      .call(
-        "main",
-        mainRpcMethods["runtime.createEntity"],
-        [
-          {
-            kind: "do",
-            execution: {
-              surface: "code",
-              source: "workers/system-test-runner",
-            },
-            className: "SystemTestRunnerDO",
-            key: `system-test-fork-owner:${this.testName ?? "unknown"}:${crypto.randomUUID()}`,
-            contextId: taskContextId,
+      .call("main", mainRpcMethods["runtime.createEntity"], [
+        {
+          kind: "do",
+          execution: {
+            surface: "code",
+            source: "workers/system-test-runner",
           },
-        ],
-      )
+          className: "SystemTestRunnerDO",
+          key: `system-test-fork-owner:${this.testName ?? "unknown"}:${crypto.randomUUID()}`,
+          contextId: taskContextId,
+        },
+      ])
       .then((handle) => {
         if (!handle.id || handle.contextId !== taskContextId) {
           throw new Error(
@@ -1099,7 +1161,11 @@ export class HeadlessRunner {
     }
     if (channelId) {
       try {
-        const service = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", channelId)) as {
+        const service = (await resolveDurableObjectService(
+          rpc,
+          "vibestudio.channel.v1",
+          channelId,
+        )) as {
           kind?: unknown;
           targetId?: unknown;
         };
@@ -1164,20 +1230,18 @@ export class HeadlessRunner {
           `eval.start returned ${started.runId}, expected ${runId}`,
         );
       }
-      const cancel = await rpc.call(
-        "main",
-        mainRpcMethods["eval.cancel"],
-        [{ scopeKey: subKey, runId }],
-      );
-      const terminal = await rpc.call(
-        "main",
-        mainRpcMethods["eval.get"],
-        [{ scopeKey: subKey, runId }],
-      );
+      const cancel = await rpc.call("main", mainRpcMethods["eval.cancel"], [
+        { scopeKey: subKey, runId },
+      ]);
+      const terminal = await rpc.call("main", mainRpcMethods["eval.get"], [
+        { scopeKey: subKey, runId },
+      ]);
       return { runId, cancel, terminal };
     } finally {
       if (activated) {
-        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["eval.dispose"], [
+          { scopeKey: subKey },
+        ]);
       }
     }
   }
@@ -1212,11 +1276,9 @@ export class HeadlessRunner {
       let terminal: { status: string; result?: unknown } | null = null;
       const settleDeadline = Date.now() + 30_000;
       while (Date.now() < settleDeadline) {
-        terminal = await rpc.call(
-          "main",
-          mainRpcMethods["eval.get"],
-          [{ scopeKey: subKey, runId }],
-        );
+        terminal = await rpc.call("main", mainRpcMethods["eval.get"], [
+          { scopeKey: subKey, runId },
+        ]);
         if (terminal.status === "done" || terminal.status === "cancelled")
           break;
         await new Promise((resolve) => setTimeout(resolve, 25));
@@ -1238,11 +1300,9 @@ export class HeadlessRunner {
       const pages: EvalEventPagesProbe["pages"] = [];
       let after = 0;
       do {
-        const page = await rpc.call(
-          "main",
-          mainRpcMethods["eval.events"],
-          [{ scopeKey: subKey, runId, after, limit: 1 }],
-        );
+        const page = await rpc.call("main", mainRpcMethods["eval.events"], [
+          { scopeKey: subKey, runId, after, limit: 1 },
+        ]);
         pages.push(page);
         after = page.next;
         if (!page.hasMore) break;
@@ -1252,7 +1312,9 @@ export class HeadlessRunner {
       return { runId, firstPage, repeatedFirstPage, pages, terminal };
     } finally {
       if (activated)
-        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["eval.dispose"], [
+          { scopeKey: subKey },
+        ]);
     }
   }
 
@@ -1332,7 +1394,9 @@ export class HeadlessRunner {
    * and authority preparation as panels and eval clients, while evidence is
    * captured by the harness rather than copied from an agent response.
    */
-  async callSelfDevelopment<K extends keyof typeof developmentRpcMethods & string>(
+  async callSelfDevelopment<
+    K extends keyof typeof developmentRpcMethods & string,
+  >(
     method: K,
     ...args: RpcMethodArgs<(typeof developmentRpcMethods)[K]>
   ): Promise<RpcMethodResult<(typeof developmentRpcMethods)[K]>> {
@@ -1365,27 +1429,43 @@ export class HeadlessRunner {
     if (admitsWork && this.developmentSessionAdmissionClosed) {
       throw new Error("The test's development resource lifetime has ended");
     }
-    const call = createRpcMethodCaller(rpc, targetId, developmentRpcMethods)(method, args)
-      .then((result) => {
-        if (method === "openSession") {
-          if (isRecord(result) && result["kind"] === "opened" && isRecord(result["session"]) && typeof result["session"]["sessionId"] === "string")
-            this.ownedDevelopmentSessions.add(result["session"]["sessionId"]);
-        } else if (method === "start") {
-          const startedRunId = isRecord(result) && typeof result["runId"] === "string" ? result["runId"] : undefined;
-          const sessionId = sessionIdFromInput(args[0]);
-          if (!startedRunId || !sessionId) throw new Error("Development start returned an invalid run identity");
-          const runs =
-            this.ownedDevelopmentRuns.get(sessionId) ?? new Set<string>();
-          runs.add(startedRunId);
-          this.ownedDevelopmentRuns.set(sessionId, runs);
-        } else if (method === "closeSession") {
-          if (isRecord(result) && result["state"] === "closed" && typeof result["sessionId"] === "string") {
-            this.ownedDevelopmentSessions.delete(result["sessionId"]);
-            this.ownedDevelopmentRuns.delete(result["sessionId"]);
-          }
+    const call = createRpcMethodCaller(
+      rpc,
+      targetId,
+      developmentRpcMethods,
+    )(method, args).then((result) => {
+      if (method === "openSession") {
+        if (
+          isRecord(result) &&
+          result["kind"] === "opened" &&
+          isRecord(result["session"]) &&
+          typeof result["session"]["sessionId"] === "string"
+        )
+          this.ownedDevelopmentSessions.add(result["session"]["sessionId"]);
+      } else if (method === "start") {
+        const startedRunId =
+          isRecord(result) && typeof result["runId"] === "string"
+            ? result["runId"]
+            : undefined;
+        const sessionId = sessionIdFromInput(args[0]);
+        if (!startedRunId || !sessionId)
+          throw new Error("Development start returned an invalid run identity");
+        const runs =
+          this.ownedDevelopmentRuns.get(sessionId) ?? new Set<string>();
+        runs.add(startedRunId);
+        this.ownedDevelopmentRuns.set(sessionId, runs);
+      } else if (method === "closeSession") {
+        if (
+          isRecord(result) &&
+          result["state"] === "closed" &&
+          typeof result["sessionId"] === "string"
+        ) {
+          this.ownedDevelopmentSessions.delete(result["sessionId"]);
+          this.ownedDevelopmentRuns.delete(result["sessionId"]);
         }
-        return result;
-      });
+      }
+      return result;
+    });
     if (admitsWork) this.developmentAdmissions.add(call);
     try {
       return await call;
@@ -1422,13 +1502,10 @@ export class HeadlessRunner {
             runId,
             idempotencyKey: `system-test-owner-stop-${runId}`,
           });
-        const session = await this.callSelfDevelopment(
-          "closeSession",
-          {
-            sessionId,
-            idempotencyKey: `system-test-owner-close-${sessionId}`,
-          },
-        );
+        const session = await this.callSelfDevelopment("closeSession", {
+          sessionId,
+          idempotencyKey: `system-test-owner-close-${sessionId}`,
+        });
         const runs = await Promise.all(
           [...runIds].map((runId) =>
             this.callSelfDevelopment("get", { runId }),
@@ -1472,7 +1549,9 @@ export class HeadlessRunner {
     authorityCeilingDigest: string;
     expiresAt: number;
   }> {
-    return rpc.call("main", mainRpcMethods["attachedHosts.attachClient"], [{ sessionId }]);
+    return rpc.call("main", mainRpcMethods["attachedHosts.attachClient"], [
+      { sessionId },
+    ]);
   }
 
   /** Read bounded parent-captured approval evidence without changing child results. */

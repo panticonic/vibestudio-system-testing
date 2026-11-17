@@ -21,7 +21,7 @@ import type {
 import { headForChannel } from "@vibestudio/trajectory-identity";
 import { systemTestFailure } from "./structured-error.js";
 import { materializeValidationEvidence } from "./validation-evidence.js";
-import { verifyPanelDraft } from "./panel-repair-oracle.js";
+import { observePanelDraft } from "./panel-repair-oracle.js";
 import { DEFAULT_SYSTEM_TEST_TIMEOUT_MS } from "./config.js";
 import {
   projectValidationInput,
@@ -326,6 +326,25 @@ export class TestRunner {
         workspaceRepoFixtureState =
           await testRunner.prepareWorkspaceRepoFixture();
       }
+      if (workspaceRepoFixtureState?.kind === "draft-repair-panel") {
+        enterPhase("fixture-baseline");
+        const { contextId, repoPath } = workspaceRepoFixtureState;
+        const baseline = await observePanelDraft(
+          testRunner,
+          contextId,
+          repoPath,
+        );
+        orchestrationDiagnostics["panelDraftBaseline"] = baseline;
+        const { preservesUnsavedDraft, ...neighborChecks } = baseline.checks;
+        if (
+          preservesUnsavedDraft ||
+          !Object.values(neighborChecks).every(Boolean)
+        ) {
+          throw new Error(
+            "The seeded panel did not exhibit the expected isolated draft-loss symptom.",
+          );
+        }
+      }
       enterPhase(test.orchestrate ? "orchestration" : "session-setup");
       const remainingTimeMs = (): number =>
         Math.max(0, testDeadline - Date.now());
@@ -463,45 +482,76 @@ export class TestRunner {
       // test deadline, so anything else that failed to settle ran forever —
       // one cdp scenario held a run in `orchestration` for five and a half
       // hours. `timeoutMs` bounds the test, not just its turns.
-      const execution = test.orchestrate
-        ? await this.withTimeout(
-            test.orchestrate({
-              runner: testRunner,
-              signal: orchestrationController.signal,
-              remainingTimeMs,
-              diagnostics: orchestrationDiagnostics,
-              sendAndWait: async (targetSession, prompt, phase) => {
-                const completed = await sendAndCapture(
-                  targetSession,
-                  prompt,
-                  phase,
+      const execution =
+        workspaceRepoFixtureState?.kind === "draft-repair-panel" &&
+        test.validation === "harness"
+          ? await (async (): Promise<TestExecutionResult> => {
+              enterPhase("natlang-teacher");
+              const state = workspaceRepoFixtureState;
+              const observed = await this.withTimeout(
+                testRunner.runPanelRepairTeacher(state, test.prompt),
+                remainingTimeMs(),
+                `Timed out running the Natlang teacher for "${test.name}"`,
+                orchestrationController,
+              );
+              return {
+                messages: [],
+                duration: Date.now() - startTime,
+                provenance: {
+                  channelId: null,
+                  branchId: null,
+                  agentEntityId: null,
+                  agentTargetId: null,
+                  contextId: state.contextId,
+                },
+                diagnostics: {
+                  natlangTeacher: observed.result,
+                  panelRepairWorkspace: {
+                    before: observed.before,
+                    after: observed.after,
+                  },
+                },
+              };
+            })()
+          : test.orchestrate
+            ? await this.withTimeout(
+                test.orchestrate({
+                  runner: testRunner,
+                  signal: orchestrationController.signal,
+                  remainingTimeMs,
+                  diagnostics: orchestrationDiagnostics,
+                  sendAndWait: async (targetSession, prompt, phase) => {
+                    const completed = await sendAndCapture(
+                      targetSession,
+                      prompt,
+                      phase,
+                    );
+                    return completed.response;
+                  },
+                }),
+                remainingTimeMs(),
+                `Timed out running test "${test.name}": its orchestration did not settle within ${testTimeoutMs}ms`,
+                orchestrationController,
+              )
+            : await (async (): Promise<TestExecutionResult> => {
+                session = await testRunner.spawn();
+                enterPhase("agent-turn");
+                const { modelExecutionEvidence } = await sendAndCapture(
+                  session,
+                  test.prompt,
                 );
-                return completed.response;
-              },
-            }),
-            remainingTimeMs(),
-            `Timed out running test "${test.name}": its orchestration did not settle within ${testTimeoutMs}ms`,
-            orchestrationController,
-          )
-        : await (async (): Promise<TestExecutionResult> => {
-            session = await testRunner.spawn();
-            enterPhase("agent-turn");
-            const { modelExecutionEvidence } = await sendAndCapture(
-              session,
-              test.prompt,
-            );
 
-            const messages = [...session.messages] as ChatMessage[];
-            const snapshot = session.snapshot();
-            const duration = Date.now() - startTime;
-            return {
-              messages,
-              duration,
-              snapshot,
-              modelExecutionEvidence,
-              provenance: provenanceFromSnapshot(snapshot),
-            };
-          })();
+                const messages = [...session.messages] as ChatMessage[];
+                const snapshot = session.snapshot();
+                const duration = Date.now() - startTime;
+                return {
+                  messages,
+                  duration,
+                  snapshot,
+                  modelExecutionEvidence,
+                  provenance: provenanceFromSnapshot(snapshot),
+                };
+              })();
       execution.duration ||= Date.now() - startTime;
       execution.submittedInputs = submittedInputs;
       execution.modelExecutionEvidence ??=
@@ -528,23 +578,21 @@ export class TestRunner {
         enterPhase("validation");
         const { contextId, repoPath } = workspaceRepoFixtureState;
         if (execution.provenance?.contextId !== contextId) {
-          throw new Error("Panel repair must run in its seeded workspace context.");
+          throw new Error(
+            "Panel repair must run in its seeded workspace context.",
+          );
         }
-        const handle = await testRunner.openPanelClient(repoPath, {
-          contextId,
-          ref: `ctx:${contextId}`,
-          focus: false,
-          parentId: null,
-        });
-        try {
-          execution.diagnostics = {
-            ...execution.diagnostics,
-            panelDraftVerification: await verifyPanelDraft(handle),
-          };
-        } finally {
-          await handle.archive();
-        }
+        execution.diagnostics = {
+          ...execution.diagnostics,
+          panelDraftBaseline: orchestrationDiagnostics["panelDraftBaseline"],
+          panelDraftVerification: await observePanelDraft(
+            testRunner,
+            contextId,
+            repoPath,
+          ),
+        };
       }
+
       const validationExecution = await materializeValidationEvidence(
         execution,
         testRunner.validationEvidenceReader,
