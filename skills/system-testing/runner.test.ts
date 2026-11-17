@@ -1277,3 +1277,40 @@ describe("HeadlessRunner", () => {
     expect(diagnostics).not.toHaveProperty("buildProvenanceError");
   });
 });
+
+describe("owned non-chat case contexts", () => {
+  it("attaches the exact case policy and joins work before recursive retirement", async () => {
+    const order: string[] = [];
+    mocks.rpc.call.mockImplementation(async (_target, method, args) => {
+      if (method.name === "runtime.createContext") {
+        expect(args[0].testPolicy.testId).toBe("native-soak");
+        return { contextId: "owned-case" };
+      }
+      expect(method.name).toBe("runtime.destroyContext");
+      expect(args).toEqual([{ contextId: "owned-case", recursive: true }]);
+      order.push("retired");
+      return undefined;
+    });
+    const runner = new HeadlessRunner("ctx-test").forTest("native-soak");
+    const result = await runner.withCaseContext(async (contextId) => {
+      expect(contextId).toBe("owned-case");
+      await Promise.resolve();
+      order.push("joined");
+      return 42;
+    });
+    expect(result).toBe(42);
+    expect(order).toEqual(["joined", "retired"]);
+  });
+
+  it("retains the original cancellation and a failed context retirement", async () => {
+    const cancelled = new Error("caller cancelled");
+    const cleanup = new Error("retirement failed");
+    mocks.rpc.call.mockImplementation(async (_target, method) => {
+      if (method.name === "runtime.createContext") return { contextId: "owned-case" };
+      throw cleanup;
+    });
+    const runner = new HeadlessRunner("ctx-test").forTest("native-soak");
+    const pending = runner.withCaseContext(async () => { throw cancelled; });
+    await expect(pending).rejects.toMatchObject({ errors: [cancelled, cleanup] });
+  });
+});

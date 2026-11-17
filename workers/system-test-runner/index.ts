@@ -184,6 +184,7 @@ function systemTestEvalCode(
       SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT,
     } from "@workspace-skills/system-testing/cli";
     const { blobstore, rpc } = await import("@workspace/runtime");
+    const { mainRpcMethods } = await import("@vibestudio/service-schemas/mainRpc");
     const { systemTestRunnerRpcMethods } = await import("@workspace-workers/system-test-runner/contract");
     const recordOwner = ${JSON.stringify(recordOwner)};
     const options = ${JSON.stringify(options)};
@@ -230,9 +231,17 @@ function systemTestEvalCode(
         ...options,
         installedUnits,
         claimJudge,
-        runAgentCellCompaction: (signal) => rpc.call(
-          recordOwner, systemTestRunnerRpcMethods.runAgentCellCompaction, [], { signal }
-        ),
+        runAgentCellCompaction: async (signal, contextId) => {
+          signal.throwIfAborted();
+          const owner = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{
+            kind: "do",
+            execution: { surface: "code", source: "workers/system-test-runner" },
+            className: "SystemTestRunnerDO",
+            key: "compaction-" + crypto.randomUUID(),
+            contextId,
+          }], { signal });
+          return rpc.call(owner.targetId, systemTestRunnerRpcMethods.runAgentCellCompaction, [], { signal });
+        },
         contextId: ctx.contextId,
         onProgress: publishProgress,
         onInspectionUpdate: async (liveRecord) => {

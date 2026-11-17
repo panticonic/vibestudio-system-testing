@@ -637,6 +637,28 @@ export class HeadlessRunner {
     );
   }
 
+  /** A non-chat workload uses the same exact per-case policy and recursive ownership. */
+  async withCaseContext<T>(operation: (contextId: string) => Promise<T>): Promise<T> {
+    if (!this.testAuthorityPolicy)
+      throw new Error("An owned case context requires an exact test authority policy");
+    const owned = await rpc.call("main", mainRpcMethods["runtime.createContext"], [
+      { testPolicy: this.testAuthorityPolicy },
+    ]);
+    const failures: unknown[] = [];
+    let result: T | undefined;
+    try { result = await operation(owned.contextId); }
+    catch (error) { failures.push(error); }
+    try {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
+        { contextId: owned.contextId, recursive: true },
+      ]);
+    } catch (error) { failures.push(error); }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, "Case operation and context retirement failed");
+    return result as T;
+  }
+
   /**
    * Create one exact task context. Seeded variants commit their typed source
    * repository only on that local line; task-created variants deliberately

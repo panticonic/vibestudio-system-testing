@@ -293,6 +293,7 @@ export interface TestOrchestrationContext {
   /** Installed worker owns operations that require a durable code identity. */
   runAgentCellCompaction?: (
     signal: AbortSignal,
+    contextId: string,
   ) => Promise<TestExecutionResult>;
   runner: HeadlessRunner;
   /** The test owns this cancellation boundary. Awaited orchestration work must

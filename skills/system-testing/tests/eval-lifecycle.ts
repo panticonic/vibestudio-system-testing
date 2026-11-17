@@ -737,7 +737,8 @@ async function orchestrateAgentCellCompaction(
     throw new Error(
       "The compaction workload requires its durable runner owner",
     );
-  return context.runAgentCellCompaction(context.signal);
+  const run = context.runAgentCellCompaction;
+  return context.runner.withCaseContext((contextId) => run(context.signal, contextId));
 }
 
 function validateAgentCellCompaction(result: TestExecutionResult) {
@@ -1188,6 +1189,18 @@ export const evalLifecycleTests: TestCase[] = [
   },
   {
     name: "agent-cell-compaction-soak",
+    authorityPolicy: {
+      authority: [
+        { ruleId: "owned-mission-service", capability: { kind: "exact", key: "workspace-service:missions" }, resource: { kind: "exact", key: "do:workers/missions:MissionsDO:workspace-missions" }, tier: "gated", decision: "once" },
+        ...(["edit", "run", "retire"] as const).map((action) => ({
+          ruleId: `owned-mission-${action}`,
+          capability: { kind: "prefix" as const, prefix: `userland:workers/missions/missions.${action}#` },
+          resource: { kind: "exact" as const, key: "mission:do:workers/missions:MissionsDO:workspace-missions" },
+          tier: action === "retire" ? "critical" as const : "gated" as const,
+          decision: "once" as const,
+        })),
+      ],
+    },
     description: "The actual agent closes 65 model-free turns and compacts on its default schedule",
     category: "eval-lifecycle",
     prompt: "Harness-orchestrated model-free agent cell compaction check.",

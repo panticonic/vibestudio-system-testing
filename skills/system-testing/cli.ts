@@ -81,6 +81,7 @@ export interface SystemTestRunOptions {
   /** Installed worker owns operations that require a durable code identity. */
   runAgentCellCompaction?: (
     signal: AbortSignal,
+    contextId: string,
   ) => Promise<TestExecutionResult>;
   runId: string;
   contextId: string;

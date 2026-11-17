@@ -82,6 +82,7 @@ export class TestRunner {
       claimJudge?: ReportClaimJudge;
       runAgentCellCompaction?: (
         signal: AbortSignal,
+        contextId: string,
       ) => Promise<TestExecutionResult>;
     },
   ) {

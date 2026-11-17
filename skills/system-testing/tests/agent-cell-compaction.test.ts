@@ -98,14 +98,14 @@ it("joins the durable workload owner and preserves its original failure and clea
   const runAgentCellCompaction = vi.fn(() => new Promise<typeof result>((resolve) => { finish = resolve; }));
   const spawn = vi.fn();
   const running = test.orchestrate!({
-    runner: { spawn } as never,
+    runner: { spawn, withCaseContext: (operation: (id: string) => Promise<unknown>) => operation("case-context") } as never,
     signal: controller.signal,
     remainingTimeMs: () => 1000,
     diagnostics: {},
     sendAndWait: vi.fn(),
     runAgentCellCompaction,
   });
-  expect(runAgentCellCompaction).toHaveBeenCalledWith(controller.signal);
+  expect(runAgentCellCompaction).toHaveBeenCalledWith(controller.signal, "case-context");
   expect(spawn).not.toHaveBeenCalled();
   finish(result);
   expect(await running).toBe(result);
