@@ -201,6 +201,13 @@ export const messagingTests: TestCase[] = [
     prompt:
       "Delegate to a subagent to count the markdown files under the skills directory in the background. " +
       "Once it is under way, tell it you also want the total line count, then give me both numbers.",
+    reportClaims: [
+      {
+        id: "resolved-counts",
+        claim:
+          "The answer reports a single resolved Markdown file count and the total line count for the same files, without leaving conflicting or unverified counts unresolved.",
+      },
+    ],
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
