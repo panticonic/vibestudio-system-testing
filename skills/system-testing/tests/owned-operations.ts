@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type { TestCase } from "../types.js";
-import { ownedOperationsWorlds } from "../owned-operations-worlds.js";
+import { ownedOperationsWorlds, ownedOperationsComposedWorlds } from "../owned-operations-worlds.js";
 import type { OwnedOperationsResult } from "../owned-operations-contract.js";
 export const ownedOperationsTests: TestCase[] = ownedOperationsWorlds.map(world => ({
  name: `owned-operations-${world.id}`, category: "agent-orchestration", explicitOnly: true, validation: "harness",
@@ -25,3 +25,11 @@ export const ownedOperationsTests: TestCase[] = ownedOperationsWorlds.map(world 
     : {passed:false,reason:"Actual authored execution, persisted-state oracle, nested calls and exact owned cleanup must all succeed",details:{verification,cleanupErrors,authoredNestedStages:[...names]}};
  }
 }));
+
+for(const world of ownedOperationsComposedWorlds)ownedOperationsTests.push({
+ name:`owned-operations-${world.id}`,category:"agent-orchestration",explicitOnly:true,validation:"harness",
+ description:"Compose an actual restarted release workflow and a dependent locally committed content project in one native call tree",
+ prompt:world.goal,
+ async orchestrate(context){context.signal.throwIfAborted();const started=Date.now();const observed=await context.runner.runOwnedOperations(world.id);context.signal.throwIfAborted();return {messages:[],duration:Date.now()-started,provenance:{channelId:null,branchId:null,agentEntityId:null,agentTargetId:null,contextId:observed.world.contextId},diagnostics:{natlangTeacher:observed.teacher,ownedOperationsWorld:observed.world,ownedOperationsVerification:observed.verification,ownedOperationsAudit:observed.audit,ownedOperationsCleanupErrors:observed.cleanupErrors,contentProjectWorld:observed.composition?.contentWorld,composedWorkflowWorld:observed.composition?.world,composedWorkflowVerification:observed.composition?.verification,contentProjectVerification:observed.composition?.contentVerification,dependencyAudit:observed.composition?.dependencyAudit}};},
+ validate(result){const diagnostics=result.diagnostics,teacher=diagnostics?.["natlangTeacher"] as OwnedOperationsResult["teacher"]|undefined,composition=diagnostics?.["composedWorkflowVerification"] as {passed?:boolean}|undefined,cleanup=diagnostics?.["ownedOperationsCleanupErrors"] as string[]|undefined;return teacher?.trainingEligible===true&&composition?.passed===true&&cleanup?.length===0?{passed:true,details:{twoActualSkills:true,strictEffectDependency:true,semanticReviewRequired:true}}:{passed:false,reason:"Both actual skill oracles, completed native child order and read-before-content dependency must pass",details:{composition,cleanup,semanticReviewRequired:true}};},
+});

@@ -446,3 +446,16 @@ export const ownedOperationsInventory = ownedOperationsWorlds.map(world => ({
  id: world.id, sourceGroup: world.sourceGroup, split: "train" as const, kind: world.request.kind,
  sourceId: `vibestudio:owned-operations:${world.id}`,
 }));
+
+/** Composed derivative shares the entire release source lineage, including its protected siblings. */
+const composedReleaseSource=ownedOperationsWorlds.find(world=>world.id==="release-audit-continuation")!;
+export const ownedOperationsComposedWorlds=[{
+ id:"release-readiness-dossier",sourceGroup:composedReleaseSource.sourceGroup,operations:composedReleaseSource,
+ goal:"Continue the real owned release checkpoint across its restart, read its actual outcome and finish its resource cleanup. Only after a ready outcome, prepare and locally commit a release evidence dossier. Do not publish or imply the external release ran.",
+ content:{goal:"Prepare and locally commit a usable release evidence dossier only after the assigned owned operations workflow has returned a ready handoff, its actual checkpoint outcome has been read and its owned resources are cleaned up. Document the supplied protocol without inventing results or suggesting the external release ran.",audience:"The release reviewer and next operator",documentRoles:["release evidence and provenance checklist","conditional continuation and unresolved-evidence guide"],facts:[
+  {id:"release-protocol",text:"The assigned release workflow retains its earlier checkpoint across a real worker restart before assessing the updated gate evidence."},
+  {id:"release-prerequisite",text:"Project preparation is permitted only after the actual post-restart checkpoint has been read as ready and owned worker resources have been cleaned up. This readiness does not establish external deployment or publication."},
+  {id:"release-records",text:"The dossier should tell the reviewer to preserve security-review and migration-check evidence with the checkpoint lineage, and to distinguish supplied gate approvals from independently executed deployment checks."},
+  {id:"release-unknowns",text:"No deployment result, preview target or external publication receipt is supplied. Keep those outcomes unresolved rather than describing the release as completed."},
+ ]},
+}];
