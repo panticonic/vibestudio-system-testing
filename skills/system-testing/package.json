@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./authoring-contract": "./authoring-contract.ts",
+    "./authoring-managed": "./authoring-managed.ts",
     "./presentation-contract": "./presentation-contract.ts",
     "./pdf-intake-managed": "./pdf-intake-managed.ts",
     "./pdf-intake-contract": "./pdf-intake-contract.ts",
@@ -81,6 +83,8 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace/natlang": "workspace:*",
+    "@workspace-skills/natlang-authoring": "workspace:*",
     "@workspace-skills/visualize": "workspace:*",
     "@workspace-skills/pdf-intake-bindings": "workspace:*",
     "@workspace-skills/publish-preflight-bindings": "workspace:*",

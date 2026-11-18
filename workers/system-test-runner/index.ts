@@ -1,3 +1,4 @@
+import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills/system-testing/authoring-contract";
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
@@ -875,6 +876,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const assignedServices={};
       `,
     }, runId)) as Awaited<ReturnType<ManagedPresentationReceiver["runManagedPresentationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews only the assigned compiler snapshots in this owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedAuthoringTeacher(input: AuthoringInput & {executorModel:string}): ReturnType<ManagedAuthoringReceiver["runManagedAuthoringTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"natlangAuthoring",operation:"reviewProgram",input:{goal:"Review the assigned Natlang source"}},
+      inputCode:"prepared.request",
+      bindingCode:`
+        import {fs,vcs,contextId as actualContextId} from "@workspace/runtime";
+        import {prepareManagedAuthoring,verifyManagedAuthoring} from "@workspace-skills/system-testing/authoring-managed";
+        const input=${JSON.stringify(input)};
+        if(actualContextId!==input.contextId) throw new Error("Authoring review belongs to another context");
+        const ports={fs,vcs,describe:(path)=>natlang.describe(path)};
+        const prepared=await prepareManagedAuthoring(ports,input.caseId);
+        const assignedServices={authoringCompiler:prepared.service};
+      `,
+    }, runId)}
+      const verification=await verifyManagedAuthoring(ports,prepared,utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedAuthoringReceiver["runManagedAuthoringTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies real compiler readbacks in an owned context without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedAuthoring(input: AuthoringInput): ReturnType<ManagedAuthoringReceiver["qualifyManagedAuthoring"]> {
+    return await this.runHarnessUtility("teacher",`
+      import {fs,vcs,contextId as actualContextId} from "@workspace/runtime";
+      import {qualifyManagedAuthoring} from "@workspace-skills/system-testing/authoring-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Authoring qualification belongs to another context");
+      const utilityValue=await qualifyManagedAuthoring({fs,vcs,describe:(path)=>natlang.describe(path)},input.caseId);
+    `) as Awaited<ReturnType<ManagedAuthoringReceiver["qualifyManagedAuthoring"]>>;
   }
 
   private async integrationFixtureIdentity() {

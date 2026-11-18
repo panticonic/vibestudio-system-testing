@@ -1,3 +1,4 @@
+import { managedAuthoringTests } from "./tests/authoring-managed.js";
 import { managedPdfTests } from "./tests/pdf-intake.js";
 import { managedPresentationTests } from "./tests/presentation-managed.js";
 import { managedPublicationTests } from "./tests/publication-preflight.js";
@@ -187,6 +188,7 @@ export function allTests(): TestCase[] {
   ...managedAutomationTests,
   ...managedPublicationTests,
   ...managedPdfTests,
+  ...managedAuthoringTests,
   ...managedPresentationTests,
   ...ownedOperationsTests,
   ...localMessagingTests,
