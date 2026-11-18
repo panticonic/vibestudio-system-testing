@@ -46,7 +46,14 @@ export async function prepareIntegrationHandoff(
   const initialScratch = (await fs.exists("/.tmp"))
     ? await fs.readdir("/.tmp")
     : [];
-  const sources = scenario.questions.map(({ file }, index) => {
+  const requestedFiles = [
+    ...new Set(
+      scenario.questions.flatMap(({ evidence }) =>
+        evidence.map(({ file }) => file),
+      ),
+    ),
+  ];
+  const sources = requestedFiles.map((file, index) => {
     const assigned = world.files.find(({ path }) => path === file);
     if (!assigned)
       throw new Error(
@@ -59,7 +66,7 @@ export async function prepareIntegrationHandoff(
     };
   });
   const handoffRequest = {
-    goal: "Once the integration is verified, stage a scratch evidence handoff quoting these assigned workspace files. Include the lines with the full requested settings and values.",
+    goal: "Once the integration is verified, prepare a scratch evidence handoff quoting the full requested settings and values from the assigned workspace files. Hold the handoff and identify any unanswered questions if the files do not support every answer.",
     questions: scenario.questions.map(({ text }) => text),
     sources: sources.map(({ id, path }) => ({ id, path })),
   };
@@ -74,7 +81,7 @@ export async function prepareIntegrationHandoff(
     },
   ];
   const request = {
-    goal: `${integration.goal} Only after the integration succeeds, stage a scratch evidence handoff from the resulting files.`,
+    goal: `${integration.goal} After verifying the integration, prepare the assigned handoff and stage it only if the resulting files support every answer.`,
     work,
   };
 
@@ -95,6 +102,7 @@ export async function prepareIntegrationHandoff(
   }
 
   const scratch = bindManagedScratchHandoff(fs, rpc, handoffRequest);
+  const reads = new Set<string>();
   return {
     before,
     initialScratch,
@@ -110,7 +118,10 @@ export async function prepareIntegrationHandoff(
       }),
       scratchHandoffRead: {
         async read(id: string) {
-          return (await ready()) ? scratch.scratchHandoffRead.read(id) : null;
+          if (!(await ready())) return null;
+          const observed = await scratch.scratchHandoffRead.read(id);
+          if (observed) reads.add(id);
+          return observed;
         },
       },
       scratchHandoffWrite: {
@@ -121,6 +132,7 @@ export async function prepareIntegrationHandoff(
         },
       },
     },
+    reads,
     releaseHead: () => releasedHead,
   };
 }
@@ -137,9 +149,9 @@ function spansForKeys(content: string, keys: string[]) {
         item.key.type === "StringLiteral" &&
         item.key.value === key,
     );
-    if (!property?.loc)
-      throw new Error(`The joined result has no field ${key}`);
-    return { first: property.loc.start.line, last: property.loc.end.line };
+    return property?.loc
+      ? { first: property.loc.start.line, last: property.loc.end.line }
+      : null;
   });
 }
 
@@ -147,15 +159,17 @@ function coversSpans(
   excerpts: Excerpt[],
   spans: ReturnType<typeof spansForKeys>,
 ) {
-  return spans.every(({ first, last }) =>
-    Array.from(
-      { length: last - first + 1 },
-      (_, offset) => first + offset,
-    ).every((line) =>
-      excerpts.some(
-        ({ firstLine, lastLine }) => firstLine <= line && line <= lastLine,
+  return spans.every(
+    (span) =>
+      span &&
+      Array.from(
+        { length: span.last - span.first + 1 },
+        (_, offset) => span.first + offset,
+      ).every((line) =>
+        excerpts.some(
+          ({ firstLine, lastLine }) => firstLine <= line && line <= lastLine,
+        ),
       ),
-    ),
   );
 }
 
@@ -170,23 +184,66 @@ export async function verifyIntegrationHandoff(
       report?: {
         status: string;
         head?: string;
-        artifact?: { path: string; bytes: number };
+        artifact?: { path: string; bytes: number } | null;
+        unanswered?: string[];
+        missingSources?: string[];
       };
     }[];
   } | null;
   const integrated = await verifyWorkspaceIntegration(vcs, world.fixture);
   const stage = report?.results?.[1]?.report;
+  const unanswered = assignment.scenario.questions
+    .filter((question) => question.unanswered)
+    .map(({ text }) => text);
+  const expectedStatus = unanswered.length ? "unanswered" : "staged";
+  const sources = new Map(
+    await Promise.all(
+      assignment.sources.map(async ({ file, id }) => {
+        const assigned = world.fixture.files.find(({ path }) => path === file);
+        if (!assigned)
+          throw new Error("Handoff source is outside the integration");
+        const observed = await vcs.readFile({
+          state: integrated.head,
+          repositoryId: world.fixture.repositoryId,
+          file: { kind: "id", fileId: assigned.fileId },
+        });
+        return [
+          file,
+          {
+            id,
+            text:
+              observed?.content.kind === "text" ? observed.content.text : null,
+          },
+        ] as const;
+      }),
+    ),
+  );
+  const expectedCoverage =
+    assignment.scenario.questions.every((question) => {
+      const available = question.evidence.map(({ file, keys }) => {
+        const text = sources.get(file)?.text;
+        return text != null && spansForKeys(text, keys).every(Boolean);
+      });
+      return question.unanswered
+        ? available.includes(false)
+        : available.every(Boolean);
+    }) && [...sources.values()].every(({ text }) => text !== null);
   const paired =
     report?.results?.length === 2 &&
     report.results[0]?.report?.status === "integrated" &&
     report.results[0].report.head === JSON.stringify(integrated.head) &&
-    stage?.status === "staged";
+    stage?.status === expectedStatus &&
+    isDeepStrictEqual(stage.unanswered, unanswered) &&
+    isDeepStrictEqual(stage.missingSources, []);
   const added = (await fs.readdir("/.tmp").catch(() => [])).filter(
     (name) => stageName.test(name) && !assignment.initialScratch.includes(name),
   );
-  let evidenceMatches = false;
+  let evidenceMatches =
+    expectedStatus === "unanswered" &&
+    added.length === 0 &&
+    stage?.artifact === null;
   let artifact: { path: string; bytes: number; sha256: string } | null = null;
-  if (added.length === 1) {
+  if (expectedStatus === "staged" && added.length === 1) {
     const directory = `/.tmp/${added[0]}`;
     const path = `${directory}/handoff.json`;
     const entries = await fs.readdir(directory);
@@ -205,47 +262,44 @@ export async function verifyIntegrationHandoff(
         const { answers } = JSON.parse(text) as {
           answers: { question: string; evidence: Excerpt[] }[];
         };
-        const matches = await Promise.all(
-          assignment.scenario.questions.map(async ({ text, keys }, index) => {
-            const source = assignment.sources[index]!;
-            const file = world.fixture.files.find(
-              ({ path }) => path === source.file,
-            );
-            if (!file) return false;
-            const observed = await vcs.readFile({
-              state: integrated.head,
-              repositoryId: world.fixture.repositoryId,
-              file: { kind: "id", fileId: file.fileId },
-            });
-            if (!observed || observed.content.kind !== "text") return false;
-            const lines = observed.content.text.split(/\r?\n/u);
-            const answer = answers[index];
-            return (
-              answer?.question === text &&
-              Array.isArray(answer.evidence) &&
-              answer.evidence.length >= 1 &&
-              answer.evidence.length <= 4 &&
-              answer.evidence.every(
-                ({ sourceId, firstLine, lastLine, text }) =>
-                  sourceId === source.id &&
-                  Number.isInteger(firstLine) &&
-                  Number.isInteger(lastLine) &&
-                  firstLine >= 1 &&
-                  lastLine >= firstLine &&
-                  lastLine <= lines.length &&
-                  lastLine - firstLine < 8 &&
-                  text === lines.slice(firstLine - 1, lastLine).join("\n"),
-              ) &&
-              coversSpans(
-                answer.evidence,
-                spansForKeys(observed.content.text, keys),
-              )
-            );
-          }),
-        );
         evidenceMatches =
-          answers.length === matches.length &&
-          matches.every(Boolean) &&
+          Array.isArray(answers) &&
+          answers.length === assignment.scenario.questions.length &&
+          assignment.scenario.questions.every(({ text, evidence }, index) => {
+            const answer = answers[index];
+            if (
+              answer?.question !== text ||
+              !Array.isArray(answer.evidence) ||
+              answer.evidence.length < 1 ||
+              answer.evidence.length > 4
+            )
+              return false;
+            let accountedExcerpts = 0;
+            for (const { file, keys } of evidence) {
+              const source = sources.get(file);
+              if (!source || source.text === null) return false;
+              const excerpts = answer.evidence.filter(
+                ({ sourceId }) => sourceId === source.id,
+              );
+              const lines = source.text.split(/\r?\n/u);
+              if (
+                !excerpts.every(
+                  ({ firstLine, lastLine, text }) =>
+                    Number.isInteger(firstLine) &&
+                    Number.isInteger(lastLine) &&
+                    firstLine >= 1 &&
+                    lastLine >= firstLine &&
+                    lastLine <= lines.length &&
+                    lastLine - firstLine < 8 &&
+                    text === lines.slice(firstLine - 1, lastLine).join("\n"),
+                ) ||
+                !coversSpans(excerpts, spansForKeys(source.text, keys))
+              )
+                return false;
+              accountedExcerpts += excerpts.length;
+            }
+            return accountedExcerpts === answer.evidence.length;
+          }) &&
           stage?.artifact?.path === artifact.path &&
           stage.artifact.bytes === artifact.bytes;
       } catch {
@@ -260,13 +314,18 @@ export async function verifyIntegrationHandoff(
       assignment.releaseHead(),
       integrated.head,
     ),
-    exactClaims: evidenceMatches,
+    exactClaims: expectedCoverage && evidenceMatches,
+    allSourcesRead: assignment.sources.every(({ id }) =>
+      assignment.reads.has(id),
+    ),
     pairedReports: paired,
   };
   return {
     passed: Object.values(checks).every(Boolean),
     checks,
     artifact,
+    expectedStatus,
+    unanswered,
     before: JSON.stringify(assignment.before),
     after: JSON.stringify(integrated.head),
     seed: world.fixture.commonSeedEvent,
@@ -292,36 +351,51 @@ export async function qualifyIntegrationHandoff(
     "reference",
   );
   if (!integrated.passed) throw new Error("Reference integration failed");
-  const answers = await Promise.all(
-    assigned.scenario.questions.map(async ({ text, keys }, index) => {
-      const source = assigned.sources[index]!;
-      const observed = await assigned.services.scratchHandoffRead.read(
-        source.id,
-      );
-      if (!observed) throw new Error("Integrated file could not be read");
+  const readback = new Map();
+  for (const { file, id } of assigned.sources) {
+    const observed = await assigned.services.scratchHandoffRead.read(id);
+    if (!observed) throw new Error("Integrated file could not be read");
+    readback.set(file, observed);
+  }
+  const unanswered: string[] = [];
+  const answers = [];
+  for (const { text, evidence } of assigned.scenario.questions) {
+    const excerpts: Excerpt[] = [];
+    for (const { file, keys } of evidence) {
+      const observed = readback.get(file)!;
       const spans = spansForKeys(observed.lines.join("\n"), keys);
-      const firstLine = Math.min(...spans.map((span) => span.first));
-      const lastLine = Math.max(...spans.map((span) => span.last));
-      const evidence = [
-        {
-          sourceId: source.id,
-          firstLine,
-          lastLine,
-          text: observed.lines.slice(firstLine - 1, lastLine).join("\n"),
-        },
-      ];
-      return { question: text, evidence };
-    }),
-  );
-  const artifact = await assigned.services.scratchHandoffWrite.stage(
-    JSON.stringify({ answers }) + "\n",
-  );
+      if (spans.some((span) => span === null)) break;
+      const firstLine = Math.min(...spans.map((span) => span!.first));
+      const lastLine = Math.max(...spans.map((span) => span!.last));
+      excerpts.push({
+        sourceId: observed.id,
+        firstLine,
+        lastLine,
+        text: observed.lines.slice(firstLine - 1, lastLine).join("\n"),
+      });
+    }
+    if (excerpts.length === evidence.length)
+      answers.push({ question: text, evidence: excerpts });
+    else unanswered.push(text);
+  }
+  const artifact = unanswered.length
+    ? null
+    : await assigned.services.scratchHandoffWrite.stage(
+        JSON.stringify({ answers }) + "\n",
+      );
   const verified = await verifyIntegrationHandoff(ports, world, assigned, {
     results: [
       {
         report: { status: "integrated", head: JSON.stringify(integrated.head) },
       },
-      { report: { status: "staged", artifact } },
+      {
+        report: {
+          status: unanswered.length ? "unanswered" : "staged",
+          artifact,
+          unanswered,
+          missingSources: [],
+        },
+      },
     ],
   });
   return {

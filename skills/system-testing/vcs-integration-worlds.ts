@@ -157,6 +157,102 @@ const multiFileWorlds: Array<{
       },
     ],
   },
+  {
+    id: "regional-continuity",
+    sourceGroup: "regional-continuity",
+    goal: "Preserve regional failover and the manual reopen gate. Adopt the incoming regional waiting period and two-probe requirement.",
+    files: [
+      {
+        path: "continuity/route.json",
+        baseline: { failover: "global", waitSeconds: 30, ticket: "C-44" },
+        local: { failover: "region" },
+        incoming: { waitSeconds: 90 },
+      },
+      {
+        path: "continuity/gate.json",
+        baseline: { reopen: "automatic", successfulProbes: 1 },
+        local: { reopen: "manual" },
+        incoming: { successfulProbes: 2 },
+      },
+    ],
+  },
+  {
+    id: "reviewer-access",
+    sourceGroup: "reviewer-access",
+    goal: "Keep review visibility restricted and retain the local session limit despite the incoming proposal. Adopt incoming named access and audit events.",
+    files: [
+      {
+        path: "access/review.json",
+        baseline: { visibility: "team", requireNamedAccess: false },
+        local: { visibility: "restricted" },
+        incoming: { requireNamedAccess: true },
+      },
+      {
+        path: "access/session.json",
+        baseline: { limitMinutes: 60, audit: [] },
+        local: { limitMinutes: 20 },
+        incoming: { limitMinutes: 45, audit: ["opened", "closed"] },
+        ownership: { limitMinutes: "local" },
+      },
+    ],
+  },
+  {
+    id: "custody-routing",
+    sourceGroup: "custody-routing",
+    goal: "Keep the local custody desk and supervisor-only transfer access. Adopt the incoming intake path and require the recorded seal check.",
+    files: [
+      {
+        path: "custody/route.json",
+        baseline: { desk: "East", intake: "/paper", record: "R-82" },
+        local: { desk: "West" },
+        incoming: { intake: "/scan" },
+      },
+      {
+        path: "custody/checks.json",
+        baseline: { supervisorOnly: false, verifySeal: false },
+        local: { supervisorOnly: true },
+        incoming: { verifySeal: true },
+      },
+    ],
+  },
+  {
+    id: "archive-recall",
+    sourceGroup: "archive-recall",
+    goal: "Preserve the local decision to suspend new deposits and keep the recall record restricted. Adopt the incoming replacement and archive destination.",
+    files: [
+      {
+        path: "archive/deposits.json",
+        baseline: { accepting: true, destination: "standard" },
+        local: { accepting: false },
+        incoming: { destination: "quarantine" },
+      },
+      {
+        path: "archive/recall.json",
+        baseline: { visibility: "team", replacement: "none" },
+        local: { visibility: "restricted" },
+        incoming: { replacement: "catalog-42" },
+      },
+    ],
+  },
+  {
+    id: "export-reconciliation",
+    sourceGroup: "export-reconciliation",
+    goal: "Retain the local manual confirmation and private audience. Adopt the incoming three dedicated output shards and checksum algorithm.",
+    files: [
+      {
+        path: "export/confirmation.json",
+        baseline: { confirm: "automatic", checksum: "sha256" },
+        local: { confirm: "manual" },
+        incoming: { checksum: "sha512" },
+      },
+      {
+        path: "export/output.json",
+        baseline: { audience: "team", shards: ["all"] },
+        local: { audience: "private" },
+        incoming: { shards: ["north", "central", "south"] },
+      },
+    ],
+  },
 ];
 
 const settings =

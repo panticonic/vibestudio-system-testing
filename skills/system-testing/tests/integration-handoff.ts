@@ -9,7 +9,7 @@ type Qualified = Awaited<
   ReturnType<IntegrationHandoffReceiver["qualifyIntegrationHandoff"]>
 >;
 const goal =
-  "Integrate the assigned settings, then stage a scratch handoff using the verified resulting workspace files.";
+  "Integrate the assigned settings, then prepare a scratch handoff from the verified files. Stage it only when every answer is supported.";
 export const managedIntegrationHandoffTests: TestCase[] =
   integrationHandoffWorlds.map((world) => ({
     name: `integration-handoff-${world.id}`,
@@ -74,39 +74,39 @@ managedIntegrationHandoffTests.push({
   validation: "harness",
   async orchestrate(context) {
     const started = Date.now();
-    const observed = await context.runner.runIntegrationHandoff(
-      "review-controls",
-      true,
-    );
-    if (observed.kind !== "reference")
-      throw new Error("Qualification called a teacher");
+    const cases: { id: string; qualification: Qualified }[] = [];
+    for (const { id } of integrationHandoffWorlds) {
+      context.signal.throwIfAborted();
+      const observed = await context.runner.runIntegrationHandoff(id, true);
+      if (observed.kind !== "reference")
+        throw new Error("Qualification called a teacher");
+      cases.push({ id, qualification: observed.result });
+    }
     return {
       messages: [],
       duration: Date.now() - started,
-      diagnostics: { integrationHandoffQualification: observed.result },
+      diagnostics: { integrationHandoffQualification: cases },
     };
   },
   validate(result) {
-    const checks = result.diagnostics?.["integrationHandoffQualification"] as
-      | Qualified
+    const cases = result.diagnostics?.["integrationHandoffQualification"] as
+      | { id: string; qualification: Qualified }[]
       | undefined;
-    return checks?.earlyReadDenied &&
-      checks.earlyStageDenied &&
-      checks.verified.passed
-      ? {
-          passed: true,
-          details: {
-            earlyReadDenied: true,
-            earlyStageDenied: true,
-            integratedHandoffVerified: true,
-            modelCalls: 0,
-          },
-        }
-      : {
-          passed: false,
-          reason:
-            "The managed handoff must reject use before integration and verify the final artifact",
-          details: checks,
-        };
+    const passed =
+      cases?.length === integrationHandoffWorlds.length &&
+      integrationHandoffWorlds.every(({ id, questions }, index) => {
+        const observed = cases[index];
+        const checks = observed?.qualification;
+        const held = questions.some(({ unanswered }) => unanswered);
+        return (
+          observed?.id === id &&
+          checks?.earlyReadDenied &&
+          checks.earlyStageDenied &&
+          checks.verified.passed &&
+          checks.verified.expectedStatus === (held ? "unanswered" : "staged") &&
+          Boolean(checks.verified.artifact) === !held
+        );
+      });
+    return { passed, details: { cases, modelCalls: 0 } };
   },
 });
