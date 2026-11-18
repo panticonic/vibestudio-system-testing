@@ -1,3 +1,6 @@
+import { managedNewsMethods } from "./news-contract.js";
+import { managedNewsWorlds, newsPanel, newsWorker } from "./news-worlds.js";
+import { launchAgentIntoChannel } from "@workspace/agentic-core";
 import { managedSpectroliteMethods } from "./spectrolite-contract.js";
 import { managedSpectroliteWorlds, spectrolitePanel, spectroliteVault } from "./spectrolite-worlds.js";
 import { managedGrimoireMethods } from "./grimoire-contract.js";
@@ -65,7 +68,7 @@ import type { AttachedHostApprovalAuditEvent } from "@vibestudio/service-schemas
 import type { TestAuthorityPolicy } from "./types.js";
 import type { BlobReader } from "@workspace/agentic-protocol";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
-import { evalInPanel, setViewport, waitFor } from "@workspace/testkit";
+import { evalInPanel, setViewport, waitFor, waitForText } from "@workspace/testkit";
 import { publishAtomicPanelStoreFixture } from "./atomic-panel-store-fixture.js";
 import { probeSemanticCommand } from "./semantic-command-probe.js";
 import {
@@ -855,6 +858,67 @@ export class HeadlessRunner {
       return {kind:"teacher" as const,result:await rpc.call(owner,managedPdfMethods.runManagedPdfTeacher,[{...input,executorModel:this.modelRef}])};
     } finally {
       await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    }
+  }
+
+  async runManagedNews(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = managedNewsWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown News case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    const channelId = `natlang-news-${crypto.randomUUID()}`;
+    const agentKey = channelId;
+    let owner: string | undefined;
+    let cleanup: { contextId: string; caseId: string; channelId: string; agentKey: string; channelTargetId: string; participantId: string } | undefined;
+    let panel: Awaited<ReturnType<typeof openPanel>> | undefined;
+    let failure: unknown;
+    try {
+      owner = await this.createFixtureWorker(contextId);
+      const channel = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{
+        kind: "do", execution: {surface: "code", source: "workers/pubsub-channel"},
+        className: "PubSubChannel", key: channelId, contextId,
+      }]);
+      if (channel.contextId !== contextId) throw new Error("News channel has another owner context");
+      cleanup = { contextId, caseId, channelId, agentKey, channelTargetId: channel.targetId, participantId: "" };
+      const { subscription } = await launchAgentIntoChannel(rpc, {
+        source: newsWorker, className: "NewsAgentWorker", key: agentKey, channelId, contextId,
+        config: { handle: "news", model: this.modelRef, timezone: "UTC" }, replay: true,
+      });
+      const { participantId } = subscription;
+      if (!participantId) throw new Error("News agent did not join its owned channel");
+      const input = { ...cleanup, participantId };
+      const result = qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedNewsMethods.qualifyManagedNews, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedNewsMethods.runManagedNewsTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+      if (world.panel) {
+        panel = await this.openPanelClient(newsPanel, {
+          contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+          stateArgs: {channelName: channelId, agentKey},
+        });
+        await waitForText(panel, world.setup.length ? "Your inbox is ready" : "Add source");
+        const state = await panel.stateArgs.get<{ channelName?: string; agentKey?: string }>();
+        if (state.channelName !== channelId || state.agentKey !== agentKey)
+          throw new Error("News panel did not present the assigned reader");
+      }
+      return result;
+    } catch (error) {
+      failure = error;
+      throw error;
+    } finally {
+      try {
+        try {
+          try { await panel?.archive(); }
+          finally {
+            if (owner && cleanup && !(await rpc.call(owner, managedNewsMethods.retireManagedNews, [cleanup])))
+              throw new Error("The fixture's News schedules remain installed");
+          }
+        } finally {
+          await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+        }
+      } catch (cleanupError) {
+        if (failure === undefined) throw cleanupError;
+        throw new Error(`News review failed (${String(failure)}) and cleanup failed (${String(cleanupError)})`, { cause: failure });
+      }
     }
   }
 

@@ -1,3 +1,4 @@
+import type { NewsInput, ManagedNewsReceiver } from "@workspace-skills/system-testing/news-contract";
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
@@ -1114,6 +1115,66 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(panelState.source!==spectrolitePanel || panelState.contextId!==input.contextId || panelState.requestedRef!=="ctx:"+input.contextId || panelState.kind!=="workspace") throw new Error("Spectrolite panel belongs to another assignment");
       const prepared=prepareSpectroliteReview(panel,actualContextId,spectroliteVault,world);
       const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the owned News participant and its exact schedule owners."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedNewsTeacher(input: NewsInput & {executorModel:string}): ReturnType<ManagedNewsReceiver["runManagedNewsTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.newsBindings(input)}
+      let teacher;
+      try {
+        await prepared.seed();
+        ${domainTeacherCode({
+          executorModel:input.executorModel,
+          work:{kind:"domain",domain:"news",operation:"reviewNews",input:{goal:"Review the assigned News settings"}},
+          inputCode:"prepared.request",
+          bindingCode:"const assignedServices=prepared.services;",
+        },runId)}
+        teacher=utilityValue;
+      } finally { await prepared.close(); }
+      const utilityValue={contextId:actualContextId,teacher,verification:prepared.verify(teacher.report)};
+    `) as Awaited<ReturnType<ManagedNewsReceiver["runManagedNewsTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks installed reader and schedule state without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedNews(input: NewsInput): ReturnType<ManagedNewsReceiver["qualifyManagedNews"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.newsBindings(input)}
+      let report;
+      try {
+        await natlang.describe("skills/news-workflows/reviewNews.nl");
+        await prepared.seed();
+        await prepared.services.newsRead.observe();
+        report=prepared.reference();
+      } finally { await prepared.close(); }
+      const verification=prepared.verify(report);
+      const altered={...report,findings:report.findings.map(finding=>({...finding,evidenceIds:["different-reader"]}))};
+      const utilityValue={verification,rejectedDifferentEvidence:!prepared.verify(altered).passed};
+    `) as Awaited<ReturnType<ManagedNewsReceiver["qualifyManagedNews"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Retires only schedules owned by the News fixture."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async retireManagedNews(input: NewsInput): Promise<boolean> {
+    return await this.runHarnessUtility("teacher", `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {retireNewsOwners} from "@workspace/news-live-evidence/live";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("News cleanup belongs to another context");
+      const utilityValue=await retireNewsOwners(input);
+    `) as boolean;
+  }
+
+  private newsBindings(input: NewsInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareLiveNews} from "@workspace/news-live-evidence/live";
+      import {managedNewsWorlds} from "@workspace-skills/system-testing/news-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("News review belongs to another context");
+      const world=managedNewsWorlds.find(world=>world.id===input.caseId);
+      if(!world) throw new Error("Unknown News assignment");
+      const prepared=prepareLiveNews(input,world);
     `;
   }
 

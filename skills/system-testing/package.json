@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./news-worlds": "./news-worlds.ts",
+    "./news-contract": "./news-contract.ts",
     "./spectrolite-worlds": "./spectrolite-worlds.ts",
     "./spectrolite-contract": "./spectrolite-contract.ts",
     "./grimoire-worlds": "./grimoire-worlds.ts",
