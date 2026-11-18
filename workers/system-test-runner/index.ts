@@ -1,3 +1,5 @@
+import type { IncidentContinuationInput, ManagedIncidentContinuationReceiver } from "@workspace-skills/system-testing/incident-continuation-contract";
+import { incidentContinuationWorlds } from "@workspace-skills/system-testing/incident-continuation-worlds";
 import type { LogAuditInput, ManagedLogAuditReceiver } from "@workspace-skills/system-testing/log-audit-contract";
 import { hostWorkerdLogTag, managedLogAuditWorlds } from "@workspace-skills/system-testing/log-audit-worlds";
 import type { LocalComparisonInput, ManagedLocalComparisonReceiver } from "@workspace-skills/system-testing/local-model-comparison-contract";
@@ -1333,6 +1335,50 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(!world) throw new Error("Unknown host log audit");
       const prepared=prepareManagedLogAudit(filter=>rpc.call("main",mainRpcMethods["serverLog.query"],[filter]),actualContextId,world,${JSON.stringify(seed)});
       const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs the assigned incident continuation in an owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedIncidentContinuationTeacher(input: IncidentContinuationInput & {executorModel:string}): ReturnType<ManagedIncidentContinuationReceiver["runManagedIncidentContinuationTeacher"]> {
+    const bindings=await this.incidentContinuationBindings(input);
+    return await this.runHarnessUtility("teacher",runId=>`${composedTeacherCode({
+      executorModel: input.executorModel,
+      workflowRequest: {goal:"Verify the incident and assess local follow-up",work:[
+        {kind:"domain",domain:"system",operation:"investigateSystem",input:{goal:"Verify the incident"}},
+        {kind:"domain",domain:"localModel",operation:"prepareLocalModel",input:{goal:"Assess the local follow-up"}},
+      ]},
+      bindingCode: bindings,
+      requestCode:"continuation.workflowRequest",
+      requiredOrder:["investigateSystem","prepareLocalModel"],
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,...await continuation.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedIncidentContinuationReceiver["runManagedIncidentContinuationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the incident report's two live sources without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedIncidentContinuation(input: IncidentContinuationInput): ReturnType<ManagedIncidentContinuationReceiver["qualifyManagedIncidentContinuation"]> {
+    const bindings=await this.incidentContinuationBindings(input);
+    return await this.runHarnessUtility("teacher",`
+      ${bindings}
+      await natlang.describe("skills/vibestudio-workflows/runWorkflow.nl");
+      const utilityValue=await continuation.qualify();
+    `) as Awaited<ReturnType<ManagedIncidentContinuationReceiver["qualifyManagedIncidentContinuation"]>>;
+  }
+
+  private async incidentContinuationBindings(input: IncidentContinuationInput): Promise<string> {
+    const incident=incidentContinuationWorlds.find(({id})=>id===input.caseId);
+    if(!incident) throw new Error("Unknown incident continuation assignment");
+    const log=await this.logAuditBindings({contextId:input.contextId,caseId:incident.log});
+    return `
+      ${log}
+      import {extensions} from "@workspace/runtime";
+      import {prepareIncidentContinuation} from "@workspace-skills/system-investigation-live/continuation";
+      import {localModelComparisonWorlds} from "@workspace-skills/system-testing/local-model-comparison-worlds";
+      const incident=${JSON.stringify(incident)};
+      const models=localModelComparisonWorlds.find(world=>world.id===incident.models);
+      if(!models) throw new Error("Unknown incident model comparison");
+      const continuation=prepareIncidentContinuation(actualContextId,incident.id,incident.goal,prepared,extensions,models);
+      Object.assign(assignedServices,continuation.services);
     `;
   }
 

@@ -1,3 +1,4 @@
+import { managedIncidentContinuationTests } from "./tests/incident-continuation-managed.js";
 import { managedLogAuditTests } from "./tests/log-audit-managed.js";
 import { managedLocalComparisonTests } from "./tests/local-model-comparison-managed.js";
 import { managedGoogleSetupTests } from "./tests/google-setup-managed.js";
@@ -205,6 +206,7 @@ export function allTests(): TestCase[] {
     ...managedGoogleSetupTests,
     ...managedLocalComparisonTests,
     ...managedLogAuditTests,
+    ...managedIncidentContinuationTests,
   ...managedNewsTests,
   ...managedSetupTests,
   ...managedPresentationTests,

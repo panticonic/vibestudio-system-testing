@@ -49,6 +49,8 @@
   "exports": {
     "./news-worlds": "./news-worlds.ts",
     "./news-contract": "./news-contract.ts",
+    "./incident-continuation-contract": "./incident-continuation-contract.ts",
+    "./incident-continuation-worlds": "./incident-continuation-worlds.ts",
     "./log-audit-worlds": "./log-audit-worlds.ts",
     "./log-audit-contract": "./log-audit-contract.ts",
     "./local-model-comparison-worlds": "./local-model-comparison-worlds.ts",
