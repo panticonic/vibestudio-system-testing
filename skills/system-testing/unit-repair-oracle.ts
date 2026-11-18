@@ -4,11 +4,33 @@ export { verifyUnit } from "@workspace/harness/unit-verification";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDirs";
 
-export type UnitRepairFault = "type-mismatch" | "missing-helper";
+import { workerRepairWorlds } from "./unit-repair-worlds.js";
+
+export type UnitRepairFault =
+  | "type-mismatch"
+  | "missing-helper"
+  | (typeof workerRepairWorlds)[number]["id"];
+
+function workerTests(
+  name: string,
+  assertions: readonly (readonly [string, string])[],
+) {
+  return `import { describe, it, expect } from "@workspace/test-runtime";
+import { rpc } from "@workspace/runtime";
+import { ${name} } from "./index.js";
+
+describe("assigned worker contract", () => {
+  it("uses the actual injected runtime", () => { expect(typeof rpc.call).toBe("function"); });
+${assertions.map(([description, code]) => `  it(${JSON.stringify(description)}, () => { ${code}; });`).join("\n")}
+});
+`;
+}
 
 export function unitRepairSeedFiles(repoName: string, fault: UnitRepairFault) {
+  const world = workerRepairWorlds.find(({ id }) => id === fault);
   const failedSource =
-    fault === "type-mismatch"
+    world?.source ??
+    (fault === "type-mismatch"
       ? `export function normalizeLabels(values: string[]): string[] {
   return values.map(value => {
     const trimmed: number = value.trim();
@@ -18,7 +40,7 @@ export function unitRepairSeedFiles(repoName: string, fault: UnitRepairFault) {
       : `import { trimLabel } from "./removed-helper.js";
 export function normalizeLabels(values: string[]): string[] {
   return values.map(trimLabel);
-}`;
+}`);
   return [
     {
       path: "package.json",
@@ -30,7 +52,9 @@ export function normalizeLabels(values: string[]): string[] {
             private: true,
             type: "module",
             vibestudio: {
-              title: "Label normalizer fixture",
+              title: world
+                ? "Worker repair fixture"
+                : "Label normalizer fixture",
               kind: "worker",
               entry: "index.ts",
               authority: { requests: [], serviceRequests: [], provides: [] },
@@ -50,12 +74,14 @@ export function normalizeLabels(values: string[]): string[] {
     {
       path: "index.ts",
       content: `${failedSource}
-export default { fetch() { return new Response("Label normalizer"); } };
+export default { fetch() { return new Response(${JSON.stringify(world ? "Worker repair fixture" : "Label normalizer")}); } };
 `,
     },
     {
       path: "index.test.ts",
-      content: `import { describe, it, expect } from "@workspace/test-runtime";
+      content: world
+        ? workerTests(world.name, world.assertions)
+        : `import { describe, it, expect } from "@workspace/test-runtime";
 import { rpc } from "@workspace/runtime";
 import { normalizeLabels } from "./index.js";
 
