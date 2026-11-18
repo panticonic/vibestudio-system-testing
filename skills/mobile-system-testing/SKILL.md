@@ -11,3 +11,11 @@ tooling open as separate workspaces; they are not installed into the current
 workspace, so run these scenarios in the workspace that contains the tooling.
 Core system testing does not assume a mobile client, debugging extension, or
 attached device.
+
+The shared Natlang program mounts `domains.mobileSystem.runMobileScenario`.
+Use it with the assigned workspace, operation, optional exact device, and
+inspection or execution authority. The installed binding delegates to phone
+provisioning and mobile-debug with the same device throughout. Pairing uses
+the paired device ID to check workspace readiness. Development install checks
+the installed package, running bundle, and rendering on the selected Android
+device. When an observation remains opening, inspect the existing pairing.

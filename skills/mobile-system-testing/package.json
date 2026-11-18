@@ -4,9 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./system-tests.ts"
+    ".": "./system-tests.ts",
+    "./bindings": "./bindings.ts",
+    "./live-bindings": "./live-bindings.ts"
   },
   "dependencies": {
-    "@workspace-skills/system-testing": "workspace:*"
+    "@workspace-skills/system-testing": "workspace:*",
+    "@workspace/runtime": "workspace:*",
+    "@workspace-skills/phone-setup": "workspace:*",
+    "@vibestudio/service-schemas": "workspace:*",
+    "zod": "3.25.76"
   }
 }

@@ -82,5 +82,73 @@ type Triage = {
   /** The signals that support the class, most decisive first, quoted from the record. */
   evidence: Signal[];
 };
+type TestPacketInput = {
+  kind: "run";
+  goal: string;
+  attemptId: string;
+  readiness: "ready" | "failed" | "pending";
+  terminal: "pending" | "passed" | "failed" | "cancelled" | "timed-out";
+  cleanup: "released" | "outstanding" | "unknown";
+  retained: "summary" | "full" | "missing";
+  failure: Failure | null;
+};
+type TestAuthorInput = {
+  kind: "scenario";
+  goal: string;
+  fixture: "isolated" | "shared" | "missing";
+  resourcesOwned: boolean;
+  prompt: "user-goal" | "leaks-api" | "leaks-oracle";
+  proof: "effect" | "dispatch-only" | "prose-only" | "unjoined-receipt";
+  liveData: boolean;
+  explicitOnly: boolean;
+};
+type TestMobileInput = {
+  kind: "mobile";
+  goal: string;
+  currentWorkspace: string;
+  toolingWorkspace: string | null;
+  attachedDriver: "paired" | "absent" | "stale";
+  deviceRequested: boolean;
+  foreground: boolean;
+  unitReady: boolean;
+  observedPostcondition: boolean;
+};
+type TestReviewRequest = | { kind: "triage"; goal: string; failure: Failure }
+  | {
+      kind: "read-run";
+      goal: string;
+      target: string;
+      runId: string;
+      testName: string;
+    }
+  | TestPacketInput
+  | TestAuthorInput
+  | TestMobileInput;
+type RunReview = {
+  kind: "run";
+  next:
+    | "resolve-infrastructure"
+    | "wait-owned-run"
+    | "join-cleanup"
+    | "obtain-failure-packet"
+    | "triage-retained"
+    | "verified";
+  basis: string;
+};
+type TestReviewReport = | { kind: "triage"; class: FailureClass; evidence: Signal[] }
+  | { kind: "read-run"; runId: string; retained: boolean }
+  | RunReview
+  | { kind: "scenario"; ready: boolean; blockers: string[] }
+  | {
+      kind: "mobile";
+      next:
+        | "open-tooling-workspace"
+        | "build-unit"
+        | "attach-driver"
+        | "foreground-only"
+        | "exercise-postcondition"
+        | "verified";
+      basis: string | null;
+    };
 declare const fn: NatlangFunction<[failure: Failure], Triage> & { readonly classify: ((failure: Failure) => FailureClass | null) & {  }; readonly deliveredOutcome: NatlangFunction<[message: string, complaint: string], boolean>; readonly evidence: ((failureClass: FailureClass, signals: readonly Signal[]) => Signal[]) & {  }; readonly run: ((runnerTargetId: string, runId: string) => Promise<{ test: string; triage: Triage }[]>) & {  }; readonly signals: ((failure: Failure) => Signal[]) & {  }; readonly triage: ((failure: Failure) => Promise<Triage>) & {  } };
 export default fn;
