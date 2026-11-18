@@ -22,6 +22,7 @@ import { headForChannel } from "@vibestudio/trajectory-identity";
 import { systemTestFailure } from "./structured-error.js";
 import { materializeValidationEvidence } from "./validation-evidence.js";
 import { observePanelDraft } from "./panel-repair-oracle.js";
+import { matchesPanelDraftChecks, panelRepairWorlds } from "./panel-repair-world.js";
 import { DEFAULT_SYSTEM_TEST_TIMEOUT_MS } from "./config.js";
 import {
   projectValidationInput,
@@ -335,13 +336,10 @@ export class TestRunner {
           repoPath,
         );
         orchestrationDiagnostics["panelDraftBaseline"] = baseline;
-        const { preservesUnsavedDraft, ...neighborChecks } = baseline.checks;
-        if (
-          preservesUnsavedDraft ||
-          !Object.values(neighborChecks).every(Boolean)
-        ) {
+        const world = panelRepairWorlds.find(({ id }) => id === test.name);
+        if (!world || !matchesPanelDraftChecks(baseline.checks, world.failedChecks)) {
           throw new Error(
-            "The seeded panel did not exhibit the expected isolated draft-loss symptom.",
+            `The seeded panel baseline did not reproduce exactly the assigned failures: ${JSON.stringify(baseline.checks)}.`,
           );
         }
       }

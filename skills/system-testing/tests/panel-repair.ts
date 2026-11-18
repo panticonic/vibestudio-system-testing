@@ -19,17 +19,24 @@ export const panelRepairTests: TestCase[] = panelRepairWorlds.map((world) => ({
   },
   authorityPolicy: panelControlAuthorityPolicy("verify-repaired-topic-panel"),
   resources: [PANEL_AUTOMATION_RESOURCE],
-  prompt:
-    "The workspace topic panel loses my unsaved changes when I switch to Preview topic and back. Fix the provided panel so the draft is still there when I return. Preview should continue showing the saved value until I select Save, and Discard should still restore the saved value. Check the result in the running panel. Leave the change in this workspace.",
+  prompt: `${world.symptoms} Fix the provided panel. Preserve unsaved edits across navigation, show only the saved value in Preview topic, and keep Save and Discard working. Check the result in the running panel and leave the change in this workspace.`,
   validate(result) {
     const repair = result.diagnostics?.["natlangTeacher"] as
-      | { report: { status: string; revision: string }; trainingEligible?: boolean; executionError?: unknown; captureErrors?: string[] }
+      | {
+          report: { status: string; revision: string };
+          trainingEligible?: boolean;
+          executionError?: unknown;
+          captureErrors?: string[];
+        }
       | undefined;
     const workspace = result.diagnostics?.["panelRepairWorkspace"] as
       | { before: unknown; after: unknown }
       | undefined;
     if (
-      repair?.report?.status !== "verified" || repair.trainingEligible !== true || Boolean(repair.executionError) || Boolean(repair.captureErrors?.length) ||
+      repair?.report?.status !== "verified" ||
+      repair.trainingEligible !== true ||
+      Boolean(repair.executionError) ||
+      Boolean(repair.captureErrors?.length) ||
       !workspace ||
       JSON.stringify(workspace.after) !== repair.report.revision ||
       JSON.stringify(workspace.before) === JSON.stringify(workspace.after)
