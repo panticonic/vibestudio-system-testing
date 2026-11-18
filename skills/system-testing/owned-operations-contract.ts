@@ -1,8 +1,9 @@
+import { ownedOperationsWorlds } from "./owned-operations-worlds.js";
 import { z } from "zod";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
 import type { createOwnedOperations, verifyOwnedOperations } from "@workspace/natlang-services";
-export const ownedOperationsInputSchema = z.object({ contextId: z.string().min(1), caseId: z.enum(["incident-payment-and-ledger", "release-audit-continuation"]), executorModel: z.string().regex(/^[^:]+:.+$/u) }).strict();
+export const ownedOperationsInputSchema = z.object({ contextId: z.string().min(1), caseId: z.enum(ownedOperationsWorlds.map(world => world.id) as [string, ...string[]]), executorModel: z.string().regex(/^[^:]+:.+$/u) }).strict();
 export type OwnedOperationsInput = z.infer<typeof ownedOperationsInputSchema>;
 export type OwnedOperationsAudit = ReturnType<ReturnType<typeof createOwnedOperations>["audit"]>;
 export type OwnedOperationsVerification = ReturnType<typeof verifyOwnedOperations>;
