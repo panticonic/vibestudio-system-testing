@@ -1,3 +1,4 @@
+import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
 import type { VerifiedMemoryReceiver, VerifiedMemoryInput } from "@workspace-skills/system-testing/verified-memory-contract";
 import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills/system-testing/authoring-contract";
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
@@ -943,6 +944,41 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/memory/verifiedRecall/recallDecision.nl");
       const utilityValue=await qualifyManagedMemory({memory,vcs,blobstore},actualContextId,input.caseId);
     `) as Awaited<ReturnType<VerifiedMemoryReceiver["qualifyManagedMemory"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Plans onboarding using only the actual assigned owner receipt."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedSetupTeacher(input: SetupInput & {executorModel:string}): ReturnType<ManagedSetupReceiver["runManagedSetupTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"onboarding",operation:"planSetup",input:{goal:"Plan the assigned installed setup"}},
+      inputCode:"prepared.request",
+      bindingCode:`
+        import {vcs,contextId as actualContextId} from "@workspace/runtime";
+        import {inspectInstalledSetup} from "@workspace-skills/onboarding/prepare-installed-setup";
+        import {prepareManagedSetup,verifyManagedSetup} from "@workspace-skills/system-testing/onboarding-managed";
+        const input=${JSON.stringify(input)};
+        if(actualContextId!==input.contextId) throw new Error("Setup plan belongs to another context");
+        const ports={vcs,observe:inspectInstalledSetup};
+        const prepared=await prepareManagedSetup(ports,actualContextId,input.caseId);
+        const assignedServices={onboardingRead:prepared.service};
+      `,
+    }, runId)}
+      const verification=await verifyManagedSetup(ports,prepared,utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedSetupReceiver["runManagedSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies installed onboarding receipts and catalog routes without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedSetup(input: SetupInput): ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]> {
+    return await this.runHarnessUtility("teacher",`
+      import {vcs,contextId as actualContextId} from "@workspace/runtime";
+      import {inspectInstalledSetup} from "@workspace-skills/onboarding/prepare-installed-setup";
+      import {qualifyManagedSetup} from "@workspace-skills/system-testing/onboarding-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Setup qualification belongs to another context");
+      await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
+      const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
+    `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
   }
 
   private async integrationFixtureIdentity() {

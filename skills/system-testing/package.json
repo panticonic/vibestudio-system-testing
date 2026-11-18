@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./onboarding-contract": "./onboarding-contract.ts",
+    "./onboarding-managed": "./onboarding-managed.ts",
     "./verified-memory-contract": "./verified-memory-contract.ts",
     "./verified-memory-managed": "./verified-memory-managed.ts",
     "./authoring-contract": "./authoring-contract.ts",

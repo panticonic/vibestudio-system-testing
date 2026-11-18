@@ -1,3 +1,4 @@
+import { managedSetupTests } from "./tests/onboarding-managed.js";
 import { managedMemoryTests } from "./tests/verified-memory.js";
 import { managedAuthoringTests } from "./tests/authoring-managed.js";
 import { managedPdfTests } from "./tests/pdf-intake.js";
@@ -191,6 +192,7 @@ export function allTests(): TestCase[] {
   ...managedPdfTests,
   ...managedAuthoringTests,
   ...managedMemoryTests,
+  ...managedSetupTests,
   ...managedPresentationTests,
   ...ownedOperationsTests,
   ...localMessagingTests,
