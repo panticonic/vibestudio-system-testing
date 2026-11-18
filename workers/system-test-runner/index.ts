@@ -1,3 +1,4 @@
+import { contentProjectTeacherInputSchema, contentProjectInputSchema, type ContentProjectTeacherInput, type ContentProjectInput, type ContentProjectResult, type ContentProjectReceiver } from "@workspace-skills/system-testing/content-project-contract";
 import { createVcsClient } from "@workspace/runtime/vcs-client";
 import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
   type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
@@ -295,7 +296,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -623,6 +624,45 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         verification,
       };
     `) as UnitRepairTeacherResult;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs the authored content-project workflow in one owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runContentProjectTeacher(input:ContentProjectTeacherInput):Promise<ContentProjectResult> {
+    const selected=contentProjectTeacherInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher",runId=>`${authoredTeacherCode({
+      executorModel:selected.executorModel,programPath:"skills/workspace-dev/content-project/deliverProject.nl",rootName:"deliverProject",serviceNames:["projectWorkspace","projectWorkspaceEdit"],request:selected.request,
+      bindingCode:`
+        import {vcs,contextId as actualContextId} from "@workspace/runtime";
+        import {prepareProjects} from "@workspace-skills/workspace-dev";
+        import {createProjectDelivery} from "@workspace/natlang-services";
+        import {verifyContentProject} from "@workspace-skills/system-testing/content-project-oracle";
+        const selected=${JSON.stringify(selected)};
+        if(actualContextId!==selected.contextId)throw new Error("Content teacher belongs to another context");
+        const before=await vcs.status({contextId:selected.contextId});
+        if(!before.clean)throw new Error("Content teacher requires a clean owned context");
+        const privateRequest=structuredClone(selected.request);
+        const assignedService=createProjectDelivery({contextId:actualContextId,vcs,prepareProjects},selected);
+        if((await assignedService.observe()).repositoryId)throw new Error("Content fixture assigned repository is not fresh");
+      `,
+    },runId)}
+      const verification=await verifyContentProject(vcs,{contextId:selected.contextId,repoPath:"projects/"+selected.name,request:privateRequest,before});
+      const after=await vcs.status({contextId:selected.contextId});
+      utilityValue={teacher:utilityValue,world:{kind:"content-project",contextId:selected.contextId,repoPath:"projects/"+selected.name,before:JSON.stringify(before.workingHead),after:JSON.stringify(after.workingHead),request:privateRequest},verification};
+    `) as ContentProjectResult;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the content structural verifier using actual owned product state without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runContentProjectReference(input:ContentProjectInput,variant:"reference"|"negative") {
+    const selected=contentProjectInputSchema.parse(input);
+    if(variant!=="reference"&&variant!=="negative")throw new Error("Unknown content verifier candidate");
+    return await this.runHarnessUtility("teacher",`
+      import {vcs,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareProjects} from "@workspace-skills/workspace-dev";
+      import {runContentProjectReference} from "@workspace-skills/system-testing/content-project-reference";
+      const selected=${JSON.stringify(selected)};
+      if(actualContextId!==selected.contextId)throw new Error("Content reference belongs to another context");
+      const utilityValue=await runContentProjectReference({contextId:actualContextId,vcs,prepareProjects},selected,${JSON.stringify(variant)});
+    `) as Awaited<ReturnType<ContentProjectReceiver["runContentProjectReference"]>>;
   }
 
   private async integrationFixtureIdentity() {

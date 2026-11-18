@@ -1,3 +1,4 @@
+import {contentProjectRpcMethods, type ContentProjectInput} from "./content-project-contract.js";
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -694,6 +695,17 @@ export class HeadlessRunner {
       goal,
       executorModel: this.modelRef,
     }]);
+  }
+
+  async runContentProject(request:ContentProjectInput["request"],variant:"teacher"|"reference"|"negative"="teacher") {
+    const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
+    const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
+    try {
+      const owner=await this.createFixtureWorker(target.contextId);
+      const input={contextId:target.contextId,name:`content-${crypto.randomUUID()}`,title:"Grounded project deliverable",request:structuredClone(request)};
+      if(variant==="teacher")return {kind:"teacher" as const,result:await rpc.call(owner,contentProjectRpcMethods.runContentProjectTeacher,[{...input,executorModel:this.modelRef}])};
+      return {kind:"reference" as const,result:await rpc.call(owner,contentProjectRpcMethods.runContentProjectReference,[input,variant])};
+    } finally {await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);}
   }
 
   private async createWorkspaceIntegrationWorld(seed:string,values:{theme:string;locale:string}) {

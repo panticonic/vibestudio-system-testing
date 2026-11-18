@@ -59,7 +59,10 @@
     "./stages": "./stages.ts",
     "./test-runner": "./test-runner.ts",
     "./tests/*": "./tests/*.ts",
-    "./vcs-integration-fixture-contract": "./vcs-integration-fixture-contract.ts"
+    "./vcs-integration-fixture-contract": "./vcs-integration-fixture-contract.ts",
+    "./content-project-contract": "./content-project-contract.ts",
+    "./content-project-oracle": "./content-project-oracle.ts",
+    "./content-project-reference": "./content-project-reference.ts"
   },
   "dependencies": {
     "@workspace/harness": "workspace:*",

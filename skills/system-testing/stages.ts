@@ -1,3 +1,4 @@
+import {contentProjectTests} from "./tests/content-project.js";
 import { unitRepairTests } from "./tests/unit-repair.js";
 import {workspaceIntegrationTests} from "./tests/workspace-integration.js";
 import { trelloLiveImportTests } from "./tests/trello-live-import.js";
@@ -172,6 +173,7 @@ export function allTests(): TestCase[] {
     ...panelTests,
     ...panelRepairTests,
   ...unitRepairTests,
+  ...contentProjectTests,
     ...workspaceIntegrationTests,
     ...workerTests,
     ...buildTests,
