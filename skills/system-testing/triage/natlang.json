@@ -1,0 +1,20 @@
+{
+  "schema": "natlang.package/v2",
+  "name": "vibestudio-system-test-review",
+  "version": "0.1.0",
+  "targets": { "main": { "entry": "reviewSystemTest.nl" } },
+  "include": [
+    "types.ts",
+    "services.d.ts",
+    "triageFailure.nl",
+    "triageFailure",
+    "reviewSystemTest.nl",
+    "reviewSystemTest"
+  ],
+  "serviceScopes": {
+    "systemTests": [
+      "triageFailure.nl/**",
+      "reviewSystemTest/inspectRun/readAssignedRun.nl"
+    ]
+  }
+}
