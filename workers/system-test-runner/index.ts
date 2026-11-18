@@ -1,3 +1,4 @@
+import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
 import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace-skills/system-testing/automation-lifecycle-managed";
@@ -859,6 +860,21 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(actualContextId!==input.contextId) throw new Error("PDF qualification belongs to another context");
       const utilityValue=await qualifyManagedPdf({fs,rpc,vcs,extensions},input.caseId);
     `) as Awaited<ReturnType<ManagedPdfReceiver["qualifyManagedPdf"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Prepares a response for the assigned managed preview."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPresentationTeacher(input: PresentationTeacherInput): ReturnType<ManagedPresentationReceiver["runManagedPresentationTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => domainTeacherCode({
+      executorModel: input.executorModel,
+      work:{kind:"domain",domain:"visualize",operation:"preparePresentation",input:input.request},
+      inputCode:"assignedRequest",
+      bindingCode:`
+        import {contextId as actualContextId} from "@workspace/runtime";
+        if(actualContextId!==${JSON.stringify(input.contextId)}) throw new Error("Presentation belongs to another context");
+        const assignedRequest=${JSON.stringify(input.request)};
+        const assignedServices={};
+      `,
+    }, runId)) as Awaited<ReturnType<ManagedPresentationReceiver["runManagedPresentationTeacher"]>>;
   }
 
   private async integrationFixtureIdentity() {

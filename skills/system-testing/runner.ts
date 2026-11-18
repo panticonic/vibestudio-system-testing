@@ -1,3 +1,6 @@
+import { managedPresentationMethods } from "./presentation-contract.js";
+import { managedPresentationWorlds } from "./presentation-worlds.js";
+import { checkPresentation, observePresentation, referencePresentation } from "./presentation-managed.js";
 import { managedPdfMethods } from "./pdf-intake-contract.js";
 import { managedPublicationMethods } from "./publication-preflight-contract.js";
 import { managedAutomationMethods } from "./automation-lifecycle-contract.js";
@@ -844,6 +847,56 @@ export class HeadlessRunner {
       return {kind:"teacher" as const,result:await rpc.call(owner,managedPdfMethods.runManagedPdfTeacher,[{...input,executorModel:this.modelRef}])};
     } finally {
       await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    }
+  }
+
+  async runManagedPresentation(qualification: boolean, signal: AbortSignal) {
+    const fixture = this.workspaceRepoFixture;
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (fixture?.kind !== "presentation-preview-panel" || !fixture.repoName || !contextId)
+      throw new Error("Presentation requires the runner's owned preview panel fixture");
+    const world = managedPresentationWorlds.find(({ id }) => id === fixture.caseId);
+    if (!world) throw new Error("Unknown managed presentation case");
+    const before = await vcs.status({ contextId });
+    const teacher = qualification
+      ? null
+      : await rpc.call(await this.fixtureForkOwner(), managedPresentationMethods.runManagedPresentationTeacher, [
+          { contextId, executorModel: this.modelRef, request: world.request },
+        ]);
+    const report = qualification ? referencePresentation(world) : teacher?.report;
+    const preview = checkPresentation(world, report);
+    if (!preview?.length) return { contextId, caseId: world.id, teacher, verification: null, rejectedAlteredMdx: false };
+    const altered = referencePresentation(world);
+    const first = altered.views.find((view) => view.status === "ready");
+    if (first) first.rendered = { ...first.rendered, mdx: "<Stats items={[]} />" };
+    const rejectedAlteredMdx = checkPresentation(world, altered) === null;
+    const source = `panels/${fixture.repoName}`;
+    signal.throwIfAborted();
+    const handle = await this.openPanelClient(source, {
+      contextId,
+      ref: `ctx:${contextId}`,
+      focus: false,
+      parentId: null,
+      stateArgs: { views: preview.map(({ id, mdx }) => ({ id, mdx })) },
+    });
+    try {
+      const observation = await observePresentation(handle, preview, contextId, source, signal);
+      const after = await vcs.status({ contextId });
+      const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
+        JSON.stringify(before.workingHead) === JSON.stringify(after.workingHead);
+      return {
+        contextId,
+        caseId: world.id,
+        teacher,
+        verification: {
+          ...observation,
+          checks: { ...observation.checks, exactReport: true, protectedHeadUnchanged },
+          passed: observation.passed && protectedHeadUnchanged,
+        },
+        rejectedAlteredMdx,
+      };
+    } finally {
+      await handle.archive();
     }
   }
 

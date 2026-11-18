@@ -57,6 +57,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "buildable-panel"; section: "panels" }
   | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
   | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
+  | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
   | { kind: "optimizable-panel"; section: "panels" }
   | { kind: "created-repository"; section: WorkspaceRepoSection }
   | {
@@ -1299,6 +1300,25 @@ title.textContent = copy.title;
 const caption = document.createElement("p");
 caption.textContent = copy.caption;
 document.getElementById("root")!.append(title, caption);\n` },
+    ];
+  }
+  if (fixture.kind === "presentation-preview-panel") {
+    const [manifest] = buildablePanelFiles(repoName);
+    const config = JSON.parse(manifest!.content);
+    config.dependencies["@workspace/agentic-chat"] = "workspace:*";
+    config.dependencies["@workspace/react"] = "workspace:*";
+    return [
+      { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
+      { path: "index.tsx", content: `import { MessageContent } from "@workspace/agentic-chat/presentation";
+import { useStateArgs } from "@workspace/react/hooks";
+export default function PresentationPreview() {
+  const { views = [] } = useStateArgs<{ views?: { id: string; mdx: string }[] }>();
+  return <main data-presentation-preview="true">
+    {views.map(({ id, mdx }) => <article key={id} data-presentation-view={id}>
+      <MessageContent content={mdx} isStreaming={false} />
+    </article>)}
+  </main>;
+}\n` },
     ];
   }
   if (fixture.kind === "draft-repair-panel") {
