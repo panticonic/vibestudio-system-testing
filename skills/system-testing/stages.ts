@@ -1,3 +1,4 @@
+import {workspaceIntegrationTests} from "./tests/workspace-integration.js";
 import { trelloLiveImportTests } from "./tests/trello-live-import.js";
 import { problemReportingTests } from "./tests/problem-reporting.js";
 import {
@@ -169,6 +170,7 @@ export function allTests(): TestCase[] {
     ...templateTests,
     ...panelTests,
     ...panelRepairTests,
+    ...workspaceIntegrationTests,
     ...workerTests,
     ...buildTests,
     ...oauthTests,

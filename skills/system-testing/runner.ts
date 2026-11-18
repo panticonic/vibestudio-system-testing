@@ -1,3 +1,6 @@
+import {qualifyWorkspaceIntegration} from "./vcs-integration-qualification.js";
+import {prepareWorkspaceIntegration} from "./vcs-integration-fixture.js";
+import {verifyWorkspaceIntegration} from "./vcs-integration-oracle.js";
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -680,6 +683,31 @@ export class HeadlessRunner {
     }
   }
 
+  private workspaceIntegrationPort() {
+    return {vcs,
+      createContext:()=>{const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);return rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);},
+      destroyContext:(contextId:string)=>rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId,recursive:true}]),
+    };
+  }
+
+  async runWorkspaceIntegrationQualification(seed: string) {
+    return qualifyWorkspaceIntegration(this.workspaceIntegrationPort(),seed);
+  }
+
+  async runWorkspaceIntegrationTeacher(seed: string, goal: string, values: {theme:string;locale:string}) {
+    const prepared=await prepareWorkspaceIntegration(this.workspaceIntegrationPort(),seed,values);
+    try {
+      const before=(await vcs.status({contextId:prepared.fixture.contextId})).workingHead;
+      const owner=await this.createFixtureWorker(prepared.fixture.contextId);
+      const result=await rpc.call(owner,systemTestRunnerRpcMethods.runWorkspaceIntegrationTeacher,[{contextId:prepared.fixture.contextId,source:prepared.fixture.source,files:prepared.files,executorModel:this.modelRef,goal}]);
+      const verification=await verifyWorkspaceIntegration(vcs,prepared.fixture);
+      return {result,verification,world:{kind:"vcs-integration",contextId:prepared.fixture.contextId,source:prepared.fixture.source,
+        commonSeedEvent:prepared.fixture.commonSeedEvent,before,after:verification.head,mainEventId:prepared.fixture.mainEventId,
+        repoPath:prepared.repoPath,repositoryId:prepared.fixture.repositoryId,fileId:prepared.fixture.fileId,path:prepared.fixture.path,
+        initialComparison:prepared.initialComparison,privateOracle:{baseline:prepared.fixture.baseline,required:prepared.fixture.required,sourceChangeIds:prepared.fixture.sourceChangeIds}}};
+    } finally {await prepared.cleanup();}
+  }
+
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {
     return this.requireWorkspaceRepoFixtureLifecycle().prepare();
   }
@@ -1051,7 +1079,13 @@ export class HeadlessRunner {
         "Workspace fixture fork owner requires a prepared task context",
       );
     }
-    this.fixtureForkOwnerPromise ??= rpc
+    this.fixtureForkOwnerPromise ??= this.createFixtureWorker(taskContextId);
+    return this.fixtureForkOwnerPromise;
+  }
+
+  /** A new channel-free worker owned by the explicit captured task context. */
+  private createFixtureWorker(contextId: string): Promise<string> {
+    return rpc
       .call(
         "main",
         mainRpcMethods["runtime.createEntity"],
@@ -1064,19 +1098,18 @@ export class HeadlessRunner {
             },
             className: "SystemTestRunnerDO",
             key: `system-test-fork-owner:${this.testName ?? "unknown"}:${crypto.randomUUID()}`,
-            contextId: taskContextId,
+            contextId,
           },
         ],
       )
       .then((handle) => {
-        if (!handle.id || handle.contextId !== taskContextId) {
+        if (!handle.id || handle.contextId !== contextId) {
           throw new Error(
             "Workspace fixture fork owner was not created in its task context",
           );
         }
         return handle.id;
       });
-    return this.fixtureForkOwnerPromise;
   }
 
   rpcFaultEvidence(

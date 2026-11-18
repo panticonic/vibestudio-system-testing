@@ -1,3 +1,4 @@
+import { authoredTeacherCode } from "./authored-teacher.js";
 import {
   createMainRpcCaller,
   mainRpcMethods,
@@ -5,6 +6,8 @@ import {
 import type { MainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import {
   panelTeacherInputSchema,
+  workspaceIntegrationTeacherInputSchema,
+  type WorkspaceIntegrationTeacherInput,
   type PanelTeacherInput,
   type PanelTeacherResult,
   systemTestDescriptorSchema,
@@ -557,46 +560,34 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     requires: SYSTEM_TEST_OPERATOR, effect: { kind: "open" }, tier: "open", sensitivity: "write" })
   async runPanelTeacher(input: PanelTeacherInput): Promise<PanelTeacherResult> {
     const selected = panelTeacherInputSchema.parse(input);
-    return await this.runHarnessUtility("teacher", (runId) => `
-      import { panelTree, vcs } from "@workspace/runtime";
-      import { createPanelRepair } from "@workspace/natlang-services";
-      const selected = ${JSON.stringify(selected)};
-      const panel = panelTree.get(selected.panelId);
-      const assigned = await panel.observe();
-      if (assigned.contextId!==selected.contextId || assigned.source!==selected.panelSource ||
-          assigned.kind!=="workspace" || assigned.requestedRef!=="ctx:"+selected.contextId)
-        throw new Error("Teacher panel is outside the selected seeded fixture context");
-      const panelRepair = createPanelRepair({ contextId:selected.contextId, panelSource:selected.panelSource,
-        panel, vcs, build:services.build });
-      natlang.captureModelTurns({executorModel:selected.executorModel});
-      const programPath = "skills/workspace-dev/panel-repair/repairPanel.nl";
-      const root = await natlang.load(programPath,{services:{panelRepair}});
-      const report = await root({panelSource:selected.panelSource,goal:selected.goal});
-      async function page(after) {
-        const rows = await natlang.calls({run:${JSON.stringify(runId)},...(after?{after}:{})});
-        if (!rows.length) return [];
-        const next = rows[rows.length-1].callId;
-        if (next===after) throw new Error("Teacher records pagination did not advance");
-        return rows.concat(await page(next));
-      }
-      const rows = await page(), ids = new Set(rows.map(row=>row.callId));
-      const rootCallIds = rows.filter(row=>row.parentCallId===null).map(row=>row.callId);
-      if(rootCallIds.length!==1) throw new Error("Teacher run must record its one actual authored root");
-      const calls = [];
-      for(const row of rows) {
-        const detail = await natlang.trace(row.callId,{raw:true});
-        if(!detail.record || detail.summary.run_id!==${JSON.stringify(runId)} ||
-          detail.record.call_id!==row.callId || (detail.record.parent_call_id!==null && !ids.has(detail.record.parent_call_id)))
-          throw new Error("Teacher record has incomplete run lineage");
-        if(calls.length && (detail.summary.owner_key!==calls[0].summary.owner_key || detail.summary.owner_kind!==calls[0].summary.owner_kind)) throw new Error("Teacher records cross owners");
-        for(const turn of detail.record.model_turns??[]) if(turn.kind==="generation" && turn.reply &&
-          turn.reply.raw_response?.vibestudio?.model!==selected.executorModel) throw new Error("Teacher reply came from another actual model");
-        calls.push(detail);
-      }
-      const rootRecord = calls.find(call=>call.callId===rootCallIds[0])?.record;
-      if(!rootRecord || rootRecord.definition.name!=="repairPanel") throw new Error("Teacher did not execute the authored repairPanel root");
-      const utilityValue = {report,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath};
-    `) as PanelTeacherResult;
+    return await this.runHarnessUtility("teacher", (runId) => authoredTeacherCode({
+      executorModel:selected.executorModel,programPath:"skills/workspace-dev/panel-repair/repairPanel.nl",rootName:"repairPanel",serviceName:"panelRepair",
+      request:{panelSource:selected.panelSource,goal:selected.goal},
+      bindingCode:`
+        import {panelTree,vcs,contextId as actualContextId} from "@workspace/runtime";
+        import {createPanelRepair} from "@workspace/natlang-services";
+        const selected=${JSON.stringify(selected)};
+        if(actualContextId!==selected.contextId) throw new Error("Teacher worker belongs to another context");
+        const panel=panelTree.get(selected.panelId), assigned=await panel.observe();
+        if(assigned.contextId!==selected.contextId || assigned.source!==selected.panelSource || assigned.kind!=="workspace" || assigned.requestedRef!=="ctx:"+selected.contextId) throw new Error("Teacher panel is outside selected fixture context");
+        const assignedService=createPanelRepair({contextId:selected.contextId,panelSource:selected.panelSource,panel,vcs,build:services.build});
+      `,
+    },runId)) as PanelTeacherResult;
+  }
+
+  @rpc({ website:{kind:"closed",reason:"Owned VCS teacher operates only in the explicit test context and source."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write" })
+  async runWorkspaceIntegrationTeacher(input: WorkspaceIntegrationTeacherInput): Promise<PanelTeacherResult> {
+    const selected=workspaceIntegrationTeacherInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher",runId=>authoredTeacherCode({
+      executorModel:selected.executorModel,programPath:"skills/vibestudio-vcs/integration/integrateWorkspace.nl",rootName:"integrateWorkspace",serviceName:"workspaceIntegration",request:{goal:selected.goal},
+      bindingCode:`
+        import {vcs,contextId as actualContextId} from "@workspace/runtime";
+        import {createWorkspaceIntegration} from "@workspace/natlang-services";
+        const selected=${JSON.stringify(selected)};
+        if(actualContextId!==selected.contextId) throw new Error("Teacher worker belongs to another context");
+        const assignedService=createWorkspaceIntegration({vcs,contextId:selected.contextId,source:selected.source,files:selected.files});
+      `,
+    },runId)) as PanelTeacherResult;
   }
 
   @rpc({
