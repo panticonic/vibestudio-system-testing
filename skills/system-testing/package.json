@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./integration-handoff-contract": "./integration-handoff-contract.ts",
+    "./integration-handoff-managed": "./integration-handoff-managed.ts",
     "./scratch-handoff-managed": "./scratch-handoff-managed.ts",
     "./scratch-handoff-contract": "./scratch-handoff-contract.ts",
     "./scratch-handoff-worlds": "./scratch-handoff-worlds.ts",

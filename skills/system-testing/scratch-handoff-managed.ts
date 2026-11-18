@@ -30,7 +30,7 @@ export function bindManagedScratchHandoff(
   );
 }
 
-async function readWorkspaceBytes(
+export async function readWorkspaceBytes(
   rpc: ScratchRpc,
   path: string,
   limit: number,

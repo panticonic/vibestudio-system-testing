@@ -40,14 +40,18 @@ describe("authored teacher capture eligibility", () => {
   it("rejects another actual teacher", async () => { expect((await capture("done", "root", true)).trainingEligible).toBe(false); });
 });
 
-it("qualifies a composed route only when the actual prerequisite completes first", async () => {
+it.each([false, true])("qualifies a composed route with a domain assignment (%s) only after its prerequisite", async (domain) => {
+  const nextWork = domain
+    ? {kind:"domain", domain:"scratchHandoff",operation:"assembleHandoff", input:{goal:"Prepare after readiness"}} as const
+    : {kind:"deliverProject",input:{goal:"Prepare after readiness"}} as const;
+  const nextOperation = domain ? "assembleHandoff" : "deliverProject";
   const options = {
     executorModel: "provider:teacher",
     workflowRequest: {goal: "Ready the release and prepare the handoff", work: [
-      {kind: "deliverProject", input: {goal: "Prepare after readiness"}},
+      nextWork,
       {kind: "operate", input: {goal: "Establish readiness"}},
     ]},
-    requiredOrder: ["operate", "deliverProject"],
+    requiredOrder: ["operate", nextOperation],
     bindingCode: "const assignedServices={};",
   } as const;
   const generated = composedTeacherCode({
@@ -57,11 +61,11 @@ it("qualifies a composed route only when the actual prerequisite completes first
   }, "run-one");
   const root = {callId:"root",parentCallId:null};
   const release = {callId:"operate",parentCallId:"root"};
-  const project = {callId:"deliverProject",parentCallId:"root"};
+  const project = {callId:nextOperation,parentCallId:"root"};
   const at = (second: number) => new Date(second * 1000).toISOString();
   const run = (projectStarted: number) => new AsyncFunction("natlang", generated + "\nreturn utilityValue;")({
     captureModelTurns() {},
-    load: async () => async () => ({results:[{kind:"operate",report:{ready:true}},{kind:"deliverProject",report:{committed:true}}],remaining:[]}),
+    load: async () => async () => ({results:[{kind:"operate",report:{ready:true}},{...nextWork,report:{committed:true}}],remaining:[]}),
     calls: async ({ after }: { after?: string }) => after ? [] : [root, project, release],
     trace: async (id: string) => ({
       callId: id,

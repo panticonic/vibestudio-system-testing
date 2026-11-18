@@ -70,7 +70,8 @@ type ComposedTeacherOptions = {
   executorModel: string;
   workflowRequest: { goal: string; work: Assignment[] };
   bindingCode: string;
-  requiredOrder?: VibestudioSkill[];
+  requiredOrder?: string[];
+  requestCode?: string;
 };
 
 /** Keep the complete report for goals that require several skills. */
@@ -78,7 +79,7 @@ export function composedTeacherCode<Options extends ComposedTeacherOptions>(
   options: Options,
   runId: string,
 ): string {
-  return captureWorkflow(options, runId, false);
+  return captureWorkflow(options, runId, false, options.requestCode);
 }
 
 function captureWorkflow(
@@ -116,7 +117,7 @@ ${options.bindingCode}
         const workflow=await root(${requestCode});
         const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
         if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) || workflow.remaining.length!==0 ||
-           (requiredOrder && JSON.stringify(returnedSkills)!==JSON.stringify(requiredOrder)))
+           (requiredOrder && JSON.stringify(workflow.results.map(result=>result.kind==="domain"?result.operation:result.kind))!==JSON.stringify(requiredOrder)))
           throw new Error("The shared workflow did not return the assigned skills' completed results");
         report=${single ? "workflow.results[0].report" : "workflow"};
       } catch(error) {

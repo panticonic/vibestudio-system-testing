@@ -1,3 +1,5 @@
+import { integrationHandoffMethods } from "./integration-handoff-contract.js";
+import { integrationHandoffWorlds } from "./integration-handoff-worlds.js";
 import { scratchHandoffRpcMethods } from "./scratch-handoff-contract.js";
 import {localMessagingRpcMethods,type LocalMessagingInput} from "./local-messaging/contract.js";
 import {ownedOperationsRpcMethods, type OwnedOperationsInput} from "./owned-operations-contract.js";
@@ -785,6 +787,16 @@ export class HeadlessRunner {
         commonSeedEvent:prepared.fixture.commonSeedEvent,before:prepared.before,after:verification.head,mainEventId:prepared.fixture.mainEventId,
         repoPath:prepared.repoPath,repositoryId:prepared.fixture.repositoryId,
         initialComparison:prepared.initialComparison,privateOracle:{files:prepared.fixture.files}}};
+    } finally {await world.cleanup();}
+  }
+
+  async runIntegrationHandoff(caseId:string, reference = false) {
+    const selected = integrationHandoffWorlds.find((world)=>world.id === caseId);
+    if(!selected) throw new Error("Unknown integration handoff world");
+    const world = await this.createWorkspaceIntegrationWorld(`handoff-${caseId}`, selected.integration);
+    try {
+      if(reference) return {kind:"reference" as const,result:await rpc.call(world.owner,integrationHandoffMethods.qualifyIntegrationHandoff,[caseId])};
+      return {kind:"teacher" as const,result:await rpc.call(world.owner,integrationHandoffMethods.runIntegrationHandoffTeacher,[{caseId,executorModel:this.modelRef}])};
     } finally {await world.cleanup();}
   }
 

@@ -9,7 +9,8 @@ import { createVcsClient } from "@workspace/runtime/vcs-client";
 import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
   type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
 } from "@workspace-skills/system-testing/vcs-integration-fixture-contract";
-import { authoredTeacherCode, domainTeacherCode } from "./authored-teacher.js";
+import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode } from "./authored-teacher.js";
 import {
   createMainRpcCaller,
   mainRpcMethods,
@@ -302,7 +303,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -714,6 +715,44 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(actualContextId!==selected.contextId) throw new Error("Scratch qualification belongs to another context");
       const utilityValue=await qualifyManagedScratchHandoff(fs,vcs,rpc,selected.caseId,${JSON.stringify(negative)});
     `) as Awaited<ReturnType<ScratchHandoffReceiver["qualifyScratchHandoff"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs a composed integration and handoff in an owned workspace."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runIntegrationHandoffTeacher(input: {caseId:string;executorModel:string}): ReturnType<IntegrationHandoffReceiver["runIntegrationHandoffTeacher"]> {
+    const world = this.integrationFixtureWorld();
+    return await this.runHarnessUtility("teacher",runId=>`${composedTeacherCode({
+      executorModel:input.executorModel,
+      workflowRequest:{goal:"Integrate then create a scratch handoff",work:[
+        {kind:"integrateWorkspace",input:{goal:"Integrate assigned changes"}},
+        {kind:"domain",domain:"scratchHandoff",operation:"assembleHandoff",input:{goal:"Handoff verified state"}},
+      ]},
+      requiredOrder:["integrateWorkspace","assembleHandoff"],
+      requestCode:"assignment.request",
+      bindingCode:`
+        import {fs,vcs,rpc,contextId as actualContextId} from "@workspace/runtime";
+        import {prepareIntegrationHandoff,verifyIntegrationHandoff} from "@workspace-skills/system-testing/integration-handoff-managed";
+        const world=${JSON.stringify(world)}, caseId=${JSON.stringify(input.caseId)};
+        if(actualContextId!==world.fixture.contextId) throw new Error("Integration handoff belongs to another context");
+        const ports={fs,vcs,rpc};
+        const assignment=await prepareIntegrationHandoff(ports,world,caseId);
+        const assignedServices=assignment.services;
+      `,
+    },runId)}
+      const verification=await verifyIntegrationHandoff(ports,world,assignment,utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,caseId,verification};
+    `) as Awaited<ReturnType<IntegrationHandoffReceiver["runIntegrationHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the live integration and handoff dependency without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyIntegrationHandoff(caseId: string): ReturnType<IntegrationHandoffReceiver["qualifyIntegrationHandoff"]> {
+    const world = this.integrationFixtureWorld();
+    return await this.runHarnessUtility("teacher",`
+      import {fs,vcs,rpc,contextId as actualContextId} from "@workspace/runtime";
+      import {qualifyIntegrationHandoff} from "@workspace-skills/system-testing/integration-handoff-managed";
+      const world=${JSON.stringify(world)};
+      if(actualContextId!==world.fixture.contextId) throw new Error("Integration qualification belongs to another context");
+      const utilityValue=await qualifyIntegrationHandoff({fs,vcs,rpc},world,${JSON.stringify(caseId)});
+    `) as Awaited<ReturnType<IntegrationHandoffReceiver["qualifyIntegrationHandoff"]>>;
   }
 
   private async integrationFixtureIdentity() {
