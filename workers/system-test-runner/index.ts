@@ -1,3 +1,4 @@
+import type { RuntimeProgramInput, ManagedRuntimeProgramReceiver } from "@workspace-skills/system-testing/runtime-program-contract";
 import type { IncidentContinuationInput, ManagedIncidentContinuationReceiver } from "@workspace-skills/system-testing/incident-continuation-contract";
 import { incidentContinuationWorlds } from "@workspace-skills/system-testing/incident-continuation-worlds";
 import type { LogAuditInput, ManagedLogAuditReceiver } from "@workspace-skills/system-testing/log-audit-contract";
@@ -1379,6 +1380,55 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(!models) throw new Error("Unknown incident model comparison");
       const continuation=prepareIncidentContinuation(actualContextId,incident.id,incident.goal,prepared,extensions,models);
       Object.assign(assignedServices,continuation.services);
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the owned typed program and execution evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedRuntimeProgramTeacher(input: RuntimeProgramInput & {executorModel:string}): ReturnType<ManagedRuntimeProgramReceiver["runManagedRuntimeProgramTeacher"]> {
+    const observation=await this.measureRuntimeProgram(input);
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"runtimeEvidence",operation:"reviewRuntimeEvidence",input:{goal:"Review the owned program evidence"}},
+      inputCode:"observed.request",
+      bindingCode:`
+        import {contextId as actualContextId} from "@workspace/runtime";
+        import {verifyRuntimeProgram} from "@workspace-skills/system-testing/runtime-program-managed";
+        const observed=${JSON.stringify(observation)};
+        if(actualContextId!==observed.contextId) throw new Error("Runtime program review belongs to another context");
+        const assignedServices={};
+      `,
+    },runId)}
+      const verification=verifyRuntimeProgram(observed,utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedRuntimeProgramReceiver["runManagedRuntimeProgramTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies actual typed program receipts without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedRuntimeProgram(input: RuntimeProgramInput): ReturnType<ManagedRuntimeProgramReceiver["qualifyManagedRuntimeProgram"]> {
+    return await this.runHarnessUtility("teacher",runId=>`
+      ${this.runtimeProgramBindings(input,runId)}
+      await natlang.describe("skills/runtime-evidence-review/reviewRuntimeEvidence.nl");
+      const report={kind:"program",next:observed.expected,basis:observed.request.execution?.id??observed.request.path};
+      const verification=verifyRuntimeProgram(observed,report);
+      const rejectedWrongReceipt=!verifyRuntimeProgram(observed,{...report,basis:"foreign-program-receipt"}).passed;
+      const utilityValue={verification,rejectedWrongReceipt};
+    `) as Awaited<ReturnType<ManagedRuntimeProgramReceiver["qualifyManagedRuntimeProgram"]>>;
+  }
+
+  private async measureRuntimeProgram(input: RuntimeProgramInput): Promise<unknown> {
+    return await this.runHarnessUtility("teacher",runId=>`
+      ${this.runtimeProgramBindings(input,runId)}
+      const utilityValue=observed;
+    `);
+  }
+
+  private runtimeProgramBindings(input: RuntimeProgramInput, runId: string) {
+    return `
+      import {fs,contextId as actualContextId} from "@workspace/runtime";
+      import {measureRuntimeProgram,verifyRuntimeProgram} from "@workspace-skills/system-testing/runtime-program-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Runtime program belongs to another context");
+      const observed=await measureRuntimeProgram({fs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)},actualContextId,${JSON.stringify(runId)},input.caseId);
     `;
   }
 

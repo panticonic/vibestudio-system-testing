@@ -1,3 +1,4 @@
+import { managedRuntimeProgramMethods } from "./runtime-program-contract.js";
 import { managedIncidentContinuationMethods } from "./incident-continuation-contract.js";
 import { incidentContinuationWorlds } from "./incident-continuation-worlds.js";
 import { managedLogAuditMethods } from "./log-audit-contract.js";
@@ -957,6 +958,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedLogAuditMethods.qualifyManagedLogAudit, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedLogAuditMethods.runManagedLogAuditTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedRuntimeProgram(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedRuntimeProgramMethods.qualifyManagedRuntimeProgram, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedRuntimeProgramMethods.runManagedRuntimeProgramTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
