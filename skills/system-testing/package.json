@@ -47,6 +47,9 @@
     }
   },
   "exports": {
+    "./scratch-handoff-managed": "./scratch-handoff-managed.ts",
+    "./scratch-handoff-contract": "./scratch-handoff-contract.ts",
+    "./scratch-handoff-worlds": "./scratch-handoff-worlds.ts",
     "./unit-repair-oracle": "./unit-repair-oracle.ts",
     ".": "./index.ts",
     "./cli": "./cli.ts",
@@ -69,6 +72,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/scratch-handoff-bindings": "workspace:*",
     "@workspace/harness": "workspace:*",
     "@babel/parser": "^7.29.2",
     "@workspace-workers/pubsub-channel": "workspace:*",

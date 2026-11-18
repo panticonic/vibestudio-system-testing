@@ -1,3 +1,5 @@
+import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type ScratchHandoffInput, type ScratchHandoffTeacherInput, type ScratchHandoffReceiver } from "@workspace-skills/system-testing/scratch-handoff-contract";
+import { managedScratchWorlds } from "@workspace-skills/system-testing/scratch-handoff-worlds";
 import {localMessagingInputSchema,type LocalMessagingInput,type LocalMessagingResult} from "@workspace-skills/system-testing/local-messaging-contract";
 import {localMessagingTeacherCode} from "./local-messaging-teacher.js";
 import {ownedOperationsInputSchema,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
@@ -7,7 +9,7 @@ import { createVcsClient } from "@workspace/runtime/vcs-client";
 import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
   type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
 } from "@workspace-skills/system-testing/vcs-integration-fixture-contract";
-import { authoredTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, domainTeacherCode } from "./authored-teacher.js";
 import {
   createMainRpcCaller,
   mainRpcMethods,
@@ -300,7 +302,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -678,6 +680,40 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(actualContextId!==selected.contextId)throw new Error("Content reference belongs to another context");
       const utilityValue=await runContentProjectReference({contextId:actualContextId,vcs,prepareProjects},selected,${JSON.stringify(variant)});
     `) as Awaited<ReturnType<ContentProjectReceiver["runContentProjectReference"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs one managed corpus world in its owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runScratchHandoffTeacher(input: ScratchHandoffTeacherInput): ReturnType<ScratchHandoffReceiver["runScratchHandoffTeacher"]> {
+    const selected = scratchHandoffTeacherInputSchema.parse(input);
+    const world = managedScratchWorlds.find((item) => item.id === selected.caseId);
+    if (!world) throw new Error("Unknown scratch handoff case");
+    return await this.runHarnessUtility("teacher", runId => {
+      const work = {kind:"domain" as const,domain:"scratchHandoff",operation:"assembleHandoff",input:{goal:world.goal}};
+      const captured = domainTeacherCode({executorModel:selected.executorModel,work,inputCode:"seeded.request",bindingCode:`
+        import {fs,vcs,rpc,contextId as actualContextId} from "@workspace/runtime";
+        import {bindManagedScratchHandoff,seedScratchHandoff,verifyManagedScratchHandoff} from "@workspace-skills/system-testing/scratch-handoff-managed";
+        const selected=${JSON.stringify(selected)};
+        if(actualContextId!==selected.contextId) throw new Error("Scratch handoff belongs to another context");
+        const seeded=await seedScratchHandoff(fs,vcs,selected.caseId);
+        const assignedServices=bindManagedScratchHandoff(fs,rpc,seeded.request);
+      `},runId);
+      return `${captured}
+        const verification=await verifyManagedScratchHandoff(fs,vcs,rpc,seeded,utilityValue.report);
+        utilityValue={teacher:utilityValue,world:{contextId:actualContextId,caseId:selected.caseId},verification};
+      `;
+    }) as Awaited<ReturnType<ScratchHandoffReceiver["runScratchHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the real scratch filesystem verifier without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyScratchHandoff(input: ScratchHandoffInput, negative: boolean): ReturnType<ScratchHandoffReceiver["qualifyScratchHandoff"]> {
+    const selected=scratchHandoffInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher",`
+      import {fs,vcs,rpc,contextId as actualContextId} from "@workspace/runtime";
+      import {qualifyManagedScratchHandoff} from "@workspace-skills/system-testing/scratch-handoff-managed";
+      const selected=${JSON.stringify(selected)};
+      if(actualContextId!==selected.contextId) throw new Error("Scratch qualification belongs to another context");
+      const utilityValue=await qualifyManagedScratchHandoff(fs,vcs,rpc,selected.caseId,${JSON.stringify(negative)});
+    `) as Awaited<ReturnType<ScratchHandoffReceiver["qualifyScratchHandoff"]>>;
   }
 
   private async integrationFixtureIdentity() {

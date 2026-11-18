@@ -1,3 +1,4 @@
+import { scratchHandoffRpcMethods } from "./scratch-handoff-contract.js";
 import {localMessagingRpcMethods,type LocalMessagingInput} from "./local-messaging/contract.js";
 import {ownedOperationsRpcMethods, type OwnedOperationsInput} from "./owned-operations-contract.js";
 import {contentProjectRpcMethods, type ContentProjectInput} from "./content-project-contract.js";
@@ -724,6 +725,20 @@ export class HeadlessRunner {
       if(variant==="teacher")return {kind:"teacher" as const,result:await rpc.call(owner,contentProjectRpcMethods.runContentProjectTeacher,[{...input,executorModel:this.modelRef}])};
       return {kind:"reference" as const,result:await rpc.call(owner,contentProjectRpcMethods.runContentProjectReference,[input,variant])};
     } finally {await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);}
+  }
+
+  async runScratchHandoff(caseId: string, reference?: "reference" | "negative") {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const target = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? {testPolicy:policy} : {}]);
+    try {
+      const owner = await this.createFixtureWorker(target.contextId);
+      const input = { contextId: target.contextId, caseId };
+      if (reference)
+        return { kind:"reference" as const, result: await rpc.call(owner,scratchHandoffRpcMethods.qualifyScratchHandoff,[input,reference==="negative"]) };
+      return { kind:"teacher" as const, result: await rpc.call(owner,scratchHandoffRpcMethods.runScratchHandoffTeacher,[{...input,executorModel:this.modelRef}]) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{contextId:target.contextId,recursive:true}]);
+    }
   }
 
   private async createWorkspaceIntegrationWorld(seed:string,worldId:string) {

@@ -1,44 +1,121 @@
-export type VibestudioSkill = "repairPanel" | "repairUnit" | "deliverProject" | "integrateWorkspace" | "operate" | "routeMessage";
+export type VibestudioSkill =
+  | "repairPanel"
+  | "repairUnit"
+  | "deliverProject"
+  | "integrateWorkspace"
+  | "operate"
+  | "routeMessage";
 
 /** Exact source-authentic capture of the shared program and the skill it actually calls. */
-export function authoredTeacherCode<Request extends { goal: string }>(options: { skill: VibestudioSkill; serviceNames: string[]; executorModel: string; request: Request; bindingCode: string }, runId: string): string {
-  return captureWorkflow({
-    executorModel: options.executorModel,
-    workflowRequest: {goal: options.request.goal, work: [{kind: options.skill, input: options.request}]},
-    bindingCode: `${options.bindingCode}
+export function authoredTeacherCode<Request extends { goal: string }>(
+  options: {
+    skill: VibestudioSkill;
+    serviceNames: string[];
+    executorModel: string;
+    request: Request;
+    bindingCode: string;
+  },
+  runId: string,
+): string {
+  return captureWorkflow(
+    {
+      executorModel: options.executorModel,
+      workflowRequest: {
+        goal: options.request.goal,
+        work: [{ kind: options.skill, input: options.request }],
+      },
+      bindingCode: `${options.bindingCode}
       const assignedServices=Object.fromEntries(${JSON.stringify(options.serviceNames)}.map(name=>[name,assignedService]));
     `,
-  }, runId, true);
+    },
+    runId,
+    true,
+  );
+}
+
+type DomainAssignment = {
+  kind: "domain";
+  domain: string;
+  operation: string;
+  input: { goal: string };
+};
+type Assignment =
+  | DomainAssignment
+  | { kind: VibestudioSkill; input: { goal: string } };
+
+export function domainTeacherCode<Work extends DomainAssignment>(
+  options: {
+    executorModel: string;
+    work: Work;
+    bindingCode: string;
+    inputCode: string;
+  },
+  runId: string,
+): string {
+  return captureWorkflow(
+    {
+      executorModel: options.executorModel,
+      workflowRequest: { goal: options.work.input.goal, work: [options.work] },
+      bindingCode: options.bindingCode,
+    },
+    runId,
+    true,
+    `{goal:${options.inputCode}.goal,work:[{
+    kind:"domain",domain:${JSON.stringify(options.work.domain)},operation:${JSON.stringify(options.work.operation)},input:${options.inputCode}
+  }]}`,
+  );
 }
 
 type ComposedTeacherOptions = {
   executorModel: string;
-  workflowRequest: { goal: string; work: {kind: VibestudioSkill; input: {goal: string}}[] };
+  workflowRequest: { goal: string; work: Assignment[] };
   bindingCode: string;
   requiredOrder?: VibestudioSkill[];
 };
 
 /** Keep the complete report for goals that require several skills. */
-export function composedTeacherCode<Options extends ComposedTeacherOptions>(options: Options, runId: string): string {
+export function composedTeacherCode<Options extends ComposedTeacherOptions>(
+  options: Options,
+  runId: string,
+): string {
   return captureWorkflow(options, runId, false);
 }
 
-function captureWorkflow(options: ComposedTeacherOptions, runId: string, single: boolean): string {
-  const expected = options.workflowRequest.work.map(item => item.kind).sort();
-  if (!expected.length || new Set(expected).size !== expected.length ||
-      (options.requiredOrder && JSON.stringify([...options.requiredOrder].sort()) !== JSON.stringify(expected)))
-    throw new Error("Declare one assignment per required skill and order only those skills");
+function captureWorkflow(
+  options: ComposedTeacherOptions,
+  runId: string,
+  single: boolean,
+  requestCode = JSON.stringify(options.workflowRequest),
+): string {
+  const expected = options.workflowRequest.work
+    .map((item) => (item.kind === "domain" ? item.operation : item.kind))
+    .sort();
+  const expectedAssignments = options.workflowRequest.work
+    .map((item) =>
+      item.kind === "domain" ? item.domain + "/" + item.operation : item.kind,
+    )
+    .sort();
+  if (
+    !expected.length ||
+    new Set(expected).size !== expected.length ||
+    (options.requiredOrder &&
+      JSON.stringify([...options.requiredOrder].sort()) !==
+        JSON.stringify(expected))
+  )
+    throw new Error(
+      "Declare one assignment per required skill and order only those skills",
+    );
   return `
 ${options.bindingCode}
       natlang.captureModelTurns({executorModel:${JSON.stringify(options.executorModel)}});
       const programPath="skills/vibestudio-workflows/runWorkflow.nl";
-      const expectedSkills=${JSON.stringify(expected)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
+      const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
       let report=null, executionError=null;
       try {
         const root=await natlang.load(programPath,{services:assignedServices});
-        const workflow=await root(${JSON.stringify(options.workflowRequest)});
-        const returnedSkills=workflow.results.map(result=>result.kind);
-        if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedSkills) || workflow.remaining.length!==0 ||
+        const workflow=await root(${requestCode});
+        const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
+        if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) || workflow.remaining.length!==0 ||
            (requiredOrder && JSON.stringify(returnedSkills)!==JSON.stringify(requiredOrder)))
           throw new Error("The shared workflow did not return the assigned skills' completed results");
         report=${single ? "workflow.results[0].report" : "workflow"};

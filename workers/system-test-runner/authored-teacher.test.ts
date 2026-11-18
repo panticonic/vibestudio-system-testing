@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authoredTeacherCode, composedTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode } from "./authored-teacher.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const options = { skill: "repairPanel" as const, serviceNames: ["assigned", "assignedEdit"], executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
@@ -78,4 +78,66 @@ it("qualifies a composed route only when the actual prerequisite completes first
   const failure = await run(2);
   expect(failure.trainingEligible).toBe(false);
   expect(failure.captureErrors).toContain("A dependent skill began before its prerequisite completed");
+});
+
+it("binds a domain result to its submitted domain and direct recorded operation", async () => {
+  const generated = domainTeacherCode(
+    {
+      executorModel: "provider:teacher",
+      work: {
+        kind: "domain",
+        domain: "scratchHandoff",
+        operation: "assembleHandoff",
+        input: { goal: "unused descriptor" },
+      },
+      inputCode: "seeded",
+      bindingCode:
+        'const seeded={goal:"task", sources:["real scratch path"]}, assignedServices={};',
+    },
+    "domain-one",
+  );
+  const rows = [
+    { callId: "root", parentCallId: null },
+    { callId: "handoff", parentCallId: "root" },
+  ];
+  const run = (domain: string) =>
+    new AsyncFunction("natlang", generated + "\nreturn utilityValue;")({
+      captureModelTurns() {},
+      load: async () => async (request: { work: { input: unknown }[] }) => {
+        expect(request.work[0]?.input).toEqual({
+          goal: "task",
+          sources: ["real scratch path"],
+        });
+        return {
+          results: [
+            {
+              kind: "domain",
+              domain,
+              operation: "assembleHandoff",
+              report: { status: "staged" },
+            },
+          ],
+          remaining: [],
+        };
+      },
+      calls: async ({ after }: { after?: string }) => (after ? [] : rows),
+      trace: async (id: string) => ({
+        callId: id,
+        summary: {
+          run_id: "domain-one",
+          owner_key: "owned",
+          owner_kind: "test",
+        },
+        record: {
+          call_id: id,
+          parent_call_id: id === "root" ? null : "root",
+          definition: {
+            name: id === "root" ? "runWorkflow" : "assembleHandoff",
+          },
+          outcome: "done",
+        },
+      }),
+    });
+  expect((await run("scratchHandoff")).trainingEligible).toBe(true);
+  expect((await run("other")).trainingEligible).toBe(false);
 });
