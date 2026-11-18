@@ -1,3 +1,4 @@
+import {ownedOperationsTests} from "./tests/owned-operations.js";
 import {contentProjectTests} from "./tests/content-project.js";
 import { unitRepairTests } from "./tests/unit-repair.js";
 import {workspaceIntegrationTests} from "./tests/workspace-integration.js";
@@ -174,6 +175,7 @@ export function allTests(): TestCase[] {
     ...panelRepairTests,
   ...unitRepairTests,
   ...contentProjectTests,
+  ...ownedOperationsTests,
     ...workspaceIntegrationTests,
     ...workerTests,
     ...buildTests,

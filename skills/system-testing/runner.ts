@@ -1,3 +1,4 @@
+import {ownedOperationsRpcMethods, type OwnedOperationsInput} from "./owned-operations-contract.js";
 import {contentProjectRpcMethods, type ContentProjectInput} from "./content-project-contract.js";
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
@@ -695,6 +696,15 @@ export class HeadlessRunner {
       goal,
       executorModel: this.modelRef,
     }]);
+  }
+
+  async runOwnedOperations(caseId: OwnedOperationsInput["caseId"]) {
+    const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
+    const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
+    try {
+      const owner=await this.createFixtureWorker(target.contextId);
+      return await rpc.call(owner,ownedOperationsRpcMethods.runOwnedOperationsTeacher,[{contextId:target.contextId,caseId,executorModel:this.modelRef}]);
+    } finally {await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);}
   }
 
   async runContentProject(request:ContentProjectInput["request"],variant:"teacher"|"reference"|"negative"="teacher") {

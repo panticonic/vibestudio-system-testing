@@ -62,7 +62,9 @@
     "./vcs-integration-fixture-contract": "./vcs-integration-fixture-contract.ts",
     "./content-project-contract": "./content-project-contract.ts",
     "./content-project-oracle": "./content-project-oracle.ts",
-    "./content-project-reference": "./content-project-reference.ts"
+    "./content-project-reference": "./content-project-reference.ts",
+    "./owned-operations-contract": "./owned-operations-contract.ts",
+    "./owned-operations-worlds": "./owned-operations-worlds.ts"
   },
   "dependencies": {
     "@workspace/harness": "workspace:*",

@@ -1,3 +1,5 @@
+import {ownedOperationsInputSchema,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
+import {ownedOperationsTeacherCode} from "./owned-operations-teacher.js";
 import { contentProjectTeacherInputSchema, contentProjectInputSchema, type ContentProjectTeacherInput, type ContentProjectInput, type ContentProjectResult, type ContentProjectReceiver } from "@workspace-skills/system-testing/content-project-contract";
 import { createVcsClient } from "@workspace/runtime/vcs-client";
 import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
@@ -624,6 +626,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         verification,
       };
     `) as UnitRepairTeacherResult;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Run an authored owned-worker workflow with a private persisted-state and cleanup oracle."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runOwnedOperationsTeacher(input:OwnedOperationsInput):Promise<OwnedOperationsResult> {
+    const selected=ownedOperationsInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher",runId=>ownedOperationsTeacherCode(selected,runId)) as OwnedOperationsResult;
   }
 
   @rpc({website:{kind:"closed",reason:"Runs the authored content-project workflow in one owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
