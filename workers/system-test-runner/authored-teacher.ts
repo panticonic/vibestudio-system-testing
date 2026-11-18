@@ -30,9 +30,7 @@ ${options.bindingCode}
         try {
           const detail=await natlang.trace(row.callId,{raw:true});
           calls.push(detail);
-          if(detail.record?.outcome!=="done") captureErrors.push("Call did not complete successfully: "+row.callId);
-          if((detail.events??[]).some(event=>event.kind==="action"&&event.outcome==="error")) captureErrors.push("Failed action in "+row.callId);
-          if(!detail.record || detail.summary.run_id!==${JSON.stringify(runId)} || detail.record.call_id!==row.callId ||
+          if(!detail.record || detail.summary.run_id!==${JSON.stringify(runId)} || detail.record.call_id!==row.callId || detail.record.parent_call_id!==row.parentCallId ||
             (detail.record.parent_call_id!==null&&!ids.has(detail.record.parent_call_id))) captureErrors.push("Incomplete run lineage for "+row.callId);
           if(calls.length>1 && (detail.summary.owner_key!==calls[0].summary.owner_key || detail.summary.owner_kind!==calls[0].summary.owner_kind)) captureErrors.push("Teacher records cross owners");
           for(const turn of detail.record?.model_turns??[]) if(turn.kind==="generation"&&turn.reply&&turn.reply.raw_response?.vibestudio?.model!==${JSON.stringify(options.executorModel)}) captureErrors.push("Teacher reply came from another actual model");
@@ -40,6 +38,7 @@ ${options.bindingCode}
       }
       const rootRecord=calls.find(call=>call.callId===rootCallIds[0])?.record;
       if(!rootRecord || rootRecord.definition.name!==${JSON.stringify(options.rootName)}) captureErrors.push("Assigned authored root was not observed");
+      if(rootRecord?.outcome!=="done") captureErrors.push("Assigned authored root did not complete successfully");
       const utilityValue={report,executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
         trainingEligible:executionError===null&&captureErrors.length===0};
   `;

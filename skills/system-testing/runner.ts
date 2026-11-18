@@ -686,6 +686,13 @@ export class HeadlessRunner {
   private workspaceIntegrationPort() {
     return {vcs,
       createContext:()=>{const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);return rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);},
+      createSourceContext:async(parentContextId:string)=>{
+        const ownerEntityId=await this.createFixtureWorker(parentContextId);
+        const child=await rpc.call("main",mainRpcMethods["runtime.createSubagentContext"],[{
+          parentContextId,ownerEntityId,targetKey:`system-test-vcs-source:${this.testName??"unknown"}:${crypto.randomUUID()}`,
+        }]);
+        return {...child,ownerEntityId};
+      },
       destroyContext:(contextId:string)=>rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId,recursive:true}]),
     };
   }
@@ -698,7 +705,7 @@ export class HeadlessRunner {
     const prepared=await prepareWorkspaceIntegration(this.workspaceIntegrationPort(),seed,values);
     try {
       const before=(await vcs.status({contextId:prepared.fixture.contextId})).workingHead;
-      const owner=await this.createFixtureWorker(prepared.fixture.contextId);
+      const owner=prepared.ownerEntityId;
       const result=await rpc.call(owner,systemTestRunnerRpcMethods.runWorkspaceIntegrationTeacher,[{contextId:prepared.fixture.contextId,source:prepared.fixture.source,files:prepared.files,executorModel:this.modelRef,goal}]);
       const verification=await verifyWorkspaceIntegration(vcs,prepared.fixture);
       return {result,verification,world:{kind:"vcs-integration",contextId:prepared.fixture.contextId,source:prepared.fixture.source,

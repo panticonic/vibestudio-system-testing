@@ -4,7 +4,7 @@ import type { IntegrationOracleFixture } from "./vcs-integration-oracle.js";
 
 type FixtureClient = Pick<VcsClient, "status" | "edit" | "commit" | "merge" | "resolveRepository" | "readFile" | "compare">;
 /** Owned real semantic contexts; existing fixture lifecycle authority, without pushing fixture source to main. */
-export async function prepareWorkspaceIntegration(port: Pick<WorkspaceRepoFixturePort, "createContext" | "destroyContext"> & { vcs: FixtureClient }, seed: string, values: { theme: string; locale: string } = { theme: "dark", locale: "es" }) {
+export async function prepareWorkspaceIntegration(port: Pick<WorkspaceRepoFixturePort, "createContext" | "destroyContext"> & { vcs: FixtureClient; createSourceContext(parentContextId: string): Promise<{contextId: string; ownerEntityId: string}> }, seed: string, values: { theme: string; locale: string } = { theme: "dark", locale: "es" }) {
   const contexts: string[] = [];
   const cleanup = async () => {
     const results = await Promise.allSettled(contexts.map((id) => port.destroyContext(id)));
@@ -29,11 +29,12 @@ export async function prepareWorkspaceIntegration(port: Pick<WorkspaceRepoFixtur
     if (!repository) throw new Error("Created repository absent from local baseline");
     const file = await port.vcs.readFile({ state: committed.event, repositoryId: repository.repositoryId, file: { kind: "path", path } });
     if (!file || file.content.kind !== "text") throw new Error("Created fixture file missing");
-    const sourceContext = await port.createContext(); contexts.push(sourceContext.contextId);
+    // A legitimate owned child exposes this incoming event to the target caller's
+    // existing reachable-context graph; the independent harness's access is insufficient.
+    const sourceContext = await port.createSourceContext(target.contextId);
+    // Child cleanup belongs to the target's recursive lifecycle teardown.
     const sourceInitial = await port.vcs.status({ contextId: sourceContext.contextId });
-    if (!sourceInitial.clean || sourceInitial.mainRelation !== "at" || sourceInitial.mainEventId !== initial.mainEventId) throw new Error("Protected main changed during fixture setup");
-    const based = await port.vcs.merge({ contextId: sourceContext.contextId, commandId: crypto.randomUUID(), expectedWorkingHead: sourceInitial.workingHead, source: committed.event });
-    await port.vcs.commit({ contextId: sourceContext.contextId, commandId: crypto.randomUUID(), expectedWorkingHead: based.workingHead, message: "Adopt local fixture baseline" });
+    if (!sourceInitial.clean || sourceInitial.committed.eventId !== committed.event.eventId || sourceInitial.mainEventId !== initial.mainEventId) throw new Error("Source child did not fork the exact committed fixture baseline");
     const write = async (contextId: string, value: Record<string, unknown>, intentSummary: string) => {
       const status = await port.vcs.status({ contextId });
       return port.vcs.edit({ contextId, commandId: crypto.randomUUID(), expectedWorkingHead: status.workingHead, intentSummary,
@@ -47,7 +48,7 @@ export async function prepareWorkspaceIntegration(port: Pick<WorkspaceRepoFixtur
     if (!comparison.coordinates.some((item) => item.coordinate.kind === "file" && item.coordinate.id === file.fileId && item.status === "conflict")) throw new Error("Fixture did not produce the declared real file conflict");
     const fixture: IntegrationOracleFixture = { contextId: target.contextId, source: sourceCommit.event, repositoryId: repository.repositoryId,
       fileId: file.fileId, path, commonSeedEvent: committed.event, sourceChangeIds: comparison.coordinates.filter((item) => item.coordinate.kind === "file" && item.coordinate.id === file.fileId).flatMap((item) => item.attribution.theirs.map((change) => change.changeId)), mainEventId: initial.mainEventId, baseline, required: { [theme]: values.theme, [locale]: values.locale } };
-    return { fixture, initialComparison: comparison, repoPath, files: [{ repositoryId: repository.repositoryId, path, workspacePath: `${repoPath}/${path}` }],
+    return { fixture, ownerEntityId: sourceContext.ownerEntityId, initialComparison: comparison, repoPath, files: [{ repositoryId: repository.repositoryId, path, workspacePath: `${repoPath}/${path}` }],
       request: { goal: "Integrate the assigned incoming source, preserving the independently requested local and incoming changes and all untouched settings. Do not publish." }, cleanup };
   } catch (error) {
     try { await cleanup(); } catch (cleanupError) { throw new AggregateError([error, cleanupError], "Fixture setup and cleanup failed"); }
