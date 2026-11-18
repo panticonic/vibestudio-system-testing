@@ -1,3 +1,4 @@
+import { managedMemoryMethods } from "./verified-memory-contract.js";
 import { managedAuthoringMethods } from "./authoring-contract.js";
 import { managedPresentationMethods } from "./presentation-contract.js";
 import { managedPresentationWorlds } from "./presentation-worlds.js";
@@ -848,6 +849,20 @@ export class HeadlessRunner {
       return {kind:"teacher" as const,result:await rpc.call(owner,managedPdfMethods.runManagedPdfTeacher,[{...input,executorModel:this.modelRef}])};
     } finally {
       await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    }
+  }
+
+  async runManagedMemory(caseId: string, qualification = false) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const target = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(target.contextId);
+      const input = { contextId: target.contextId, caseId };
+      if (qualification)
+        return { kind: "reference" as const, result: await rpc.call(owner, managedMemoryMethods.qualifyManagedMemory, [input]) };
+      return { kind: "teacher" as const, result: await rpc.call(owner, managedMemoryMethods.runManagedMemoryTeacher, [{ ...input, executorModel: this.modelRef }]) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId: target.contextId, recursive: true }]);
     }
   }
 
