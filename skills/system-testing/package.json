@@ -72,6 +72,7 @@
     "@workspace/agentic-session": "workspace:*",
     "@workspace/agentic-core": "workspace:*",
     "@workspace/agentic-protocol": "workspace:*",
+    "@workspace/natlang-services": "workspace:*",
     "@workspace/runtime": "workspace:*",
     "@workspace/testkit": "workspace:*",
     "@workspace-skills/workspace-dev": "workspace:*",
