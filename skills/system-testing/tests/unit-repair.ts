@@ -1,4 +1,8 @@
 import type { UnitRepairTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
+import {
+  PANEL_AUTOMATION_RESOURCE,
+  PANEL_RUNTIME_STATE_AUTHORITY,
+} from "../panel-authority.js";
 import type { UnitRepairFault } from "../unit-repair-oracle.js";
 import type { TestCase } from "../types.js";
 
@@ -17,6 +21,8 @@ export const unitRepairTests: TestCase[] = cases.map(({ name, fault }) => ({
   prompt: goal,
   explicitOnly: true,
   validation: "harness",
+  authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] },
+  resources: [PANEL_AUTOMATION_RESOURCE],
   workspaceRepoFixture: {
     kind: "unit-repair-worker",
     section: "workers",

@@ -87,10 +87,15 @@ export async function verifyUnitRepairOutcome(
     candidate.revision,
     protectedPaths,
   );
-  const evidence =
-    candidate.build.status === "ok"
-      ? await oracle.unitRepairEdit.test(candidate.revision)
-      : candidate;
+  let evidence = candidate;
+  let executionError: string | null = null;
+  if (candidate.build.status === "ok") {
+    try {
+      evidence = await oracle.unitRepairEdit.test(candidate.revision);
+    } catch (error) {
+      executionError = error instanceof Error ? error.message : String(error);
+    }
+  }
   const tests = evidence.tests;
   const manifestAndTests = (files: ProtectedSource) =>
     files.map((file) => ({
@@ -120,6 +125,6 @@ export async function verifyUnitRepairOutcome(
   return {
     passed: Object.values(checks).every(Boolean),
     checks,
-    evidence: { ...evidence, protectedSource },
+    evidence: { ...evidence, protectedSource, executionError },
   };
 }
