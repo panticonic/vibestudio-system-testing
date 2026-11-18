@@ -49,6 +49,8 @@
   "exports": {
     "./news-worlds": "./news-worlds.ts",
     "./news-contract": "./news-contract.ts",
+    "./provenance-history-contract": "./provenance-history-contract.ts",
+    "./provenance-history-managed": "./provenance-history-managed.ts",
     "./runtime-program-contract": "./runtime-program-contract.ts",
     "./runtime-program-managed": "./runtime-program-managed.ts",
     "./incident-continuation-contract": "./incident-continuation-contract.ts",

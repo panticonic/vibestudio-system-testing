@@ -1,3 +1,4 @@
+import type { ProvenanceHistoryInput, ManagedProvenanceHistoryReceiver } from "@workspace-skills/system-testing/provenance-history-contract";
 import type { RuntimeProgramInput, ManagedRuntimeProgramReceiver } from "@workspace-skills/system-testing/runtime-program-contract";
 import type { IncidentContinuationInput, ManagedIncidentContinuationReceiver } from "@workspace-skills/system-testing/incident-continuation-contract";
 import { incidentContinuationWorlds } from "@workspace-skills/system-testing/incident-continuation-worlds";
@@ -1429,6 +1430,47 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Runtime program belongs to another context");
       const observed=await measureRuntimeProgram({fs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)},actualContextId,${JSON.stringify(runId)},input.caseId);
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews exact provenance in the owned fixture repository."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedProvenanceHistoryTeacher(input: ProvenanceHistoryInput & {executorModel:string}): ReturnType<ManagedProvenanceHistoryReceiver["runManagedProvenanceHistoryTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"provenance",operation:"reviewProvenance",input:{goal:"Read assigned VCS provenance"}},
+      inputCode:"prepared.request",
+      bindingCode:this.provenanceHistoryBindings(input),
+    },runId)}
+      const verification=await prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedProvenanceHistoryReceiver["runManagedProvenanceHistoryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the native provenance read and evidence scope without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedProvenanceHistory(input: ProvenanceHistoryInput): ReturnType<ManagedProvenanceHistoryReceiver["qualifyManagedProvenanceHistory"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.provenanceHistoryBindings(input)}
+      await natlang.describe("skills/provenance-orientation/reviewProvenance.nl");
+      let rejectedOutside=false;
+      try { await assignedServices.provenanceHistory.readNext({path:"other-workspace.txt",walk:"cause",scope:"work-unit"}); }
+      catch { rejectedOutside=true; }
+      for(const check of prepared.request.checks) await assignedServices.provenanceHistory.readNext(check);
+      const report=prepared.reference();
+      const verification=await prepared.verify(report);
+      const altered={...report,findings:report.findings.map(row=>({...row,evidence:["foreign-evidence"]}))};
+      const rejectedWrongCoordinate=rejectedOutside&&!(await prepared.verify(altered)).passed;
+      const utilityValue={verification,rejectedWrongCoordinate};
+    `) as Awaited<ReturnType<ManagedProvenanceHistoryReceiver["qualifyManagedProvenanceHistory"]>>;
+  }
+
+  private provenanceHistoryBindings(input: ProvenanceHistoryInput) {
+    return `
+      import {vcs,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedProvenanceHistory} from "@workspace-skills/system-testing/provenance-history-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Provenance history belongs to another context");
+      const prepared=await prepareManagedProvenanceHistory(vcs,actualContextId,input.repoPath,input.caseId);
+      const assignedServices={provenanceHistory:prepared.service};
     `;
   }
 

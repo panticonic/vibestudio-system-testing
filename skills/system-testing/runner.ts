@@ -1,3 +1,4 @@
+import { managedProvenanceHistoryMethods } from "./provenance-history-contract.js";
 import { managedRuntimeProgramMethods } from "./runtime-program-contract.js";
 import { managedIncidentContinuationMethods } from "./incident-continuation-contract.js";
 import { incidentContinuationWorlds } from "./incident-continuation-worlds.js";
@@ -961,6 +962,18 @@ export class HeadlessRunner {
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
+  }
+
+  async runManagedProvenanceHistory(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const fixture = this.workspaceRepoFixture;
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (fixture?.kind !== "provenance-record" || !fixture.repoName || !contextId)
+      throw new Error("Provenance history requires the runner's own seeded repository");
+    const owner = await this.fixtureForkOwner();
+    const input = { contextId, caseId, repoPath: `projects/${fixture.repoName}` };
+    return qualification
+      ? { kind: "reference" as const, result: await rpc.call(owner, managedProvenanceHistoryMethods.qualifyManagedProvenanceHistory, [input], { signal }) }
+      : { kind: "teacher" as const, result: await rpc.call(owner, managedProvenanceHistoryMethods.runManagedProvenanceHistoryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
   }
 
   async runManagedRuntimeProgram(caseId: string, qualification: boolean, signal: AbortSignal) {
