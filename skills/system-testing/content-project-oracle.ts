@@ -33,20 +33,27 @@ export async function verifyContentProject(vcs:Client,world:{contextId:string;re
   if(event.node.kind!=="event")throw new Error("Committed event did not resolve");
   if(JSON.stringify(event.node.value.parentEventIds)!==JSON.stringify([world.before.committed.eventId]))reasons.push("Final event is not the single local commit from the owned initial basis");
   const fileIds=new Set([...files.values()].map(f=>f.fileId));
+  let preparations=0;
   for(const applicationId of event.node.value.applicationIds){
     const application=await vcs.inspect({node:{kind:"application",applicationId}});evidence.push(application);
     if(application.node.kind!=="application")throw new Error("Application identity did not resolve");
     const app=application.node.value;
     if(app.appliedChangeCount!==app.appliedChanges.length){reasons.push("Application evidence is incomplete; no partial preview is accepted");continue;}
     const work=await vcs.inspect({node:{kind:"work-unit",workUnitId:app.workUnitId}});evidence.push(work);
-    if(work.node.kind!=="work-unit"||work.node.value.authorContextId!==world.contextId||work.node.value.kind!=="edit")reasons.push("Commit includes work outside the assigned authored edits");
-    for(const change of app.appliedChanges)for(const effect of change.appliedEffects){
+    const effects=app.appliedChanges.flatMap(change=>change.appliedEffects);
+    const createsAssigned=effects.some(effect=>effect.kind==="repository-placement"&&effect.repositoryId===repository.repositoryId&&effect.beforePath===null&&effect.afterPath===world.repoPath);
+    if(work.node.kind!=="work-unit"||work.node.value.authorContextId!==world.contextId||
+      (work.node.value.kind!=="edit"&&!(work.node.value.kind==="lifecycle"&&createsAssigned)))
+      reasons.push("Commit includes work outside the assigned project preparation and edits");
+    if(work.node.kind==="work-unit"&&work.node.value.kind==="lifecycle"&&createsAssigned)preparations++;
+    for(const effect of effects){
       if(effect.kind==="repository-placement"){
         if(effect.repositoryId!==repository.repositoryId||effect.beforePath!==null||effect.afterPath!==world.repoPath)reasons.push("Repository effect outside assigned project creation");
       }else if(!fileIds.has(effect.fileId))reasons.push("File effect outside final assigned project");
       else if(effect.kind==="placement"&&(effect.before&&effect.before.repositoryId!==repository.repositoryId||!effect.after||effect.after.repositoryId!==repository.repositoryId))reasons.push("File moved outside assigned repository");
     }
   }
+  if(preparations!==1)reasons.push("Expected exactly one actual project preparation in the local commit");
   const after=await vcs.status({contextId:world.contextId});
   if(JSON.stringify(after.workingHead)!==JSON.stringify(status.workingHead)||after.mainEventId!==status.mainEventId)reasons.push("State changed during independent inspection");
   const semanticReviewInput = {
