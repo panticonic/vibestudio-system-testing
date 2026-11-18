@@ -8,7 +8,10 @@ import type {
 } from "@workspace/runtime";
 import { createPdfIntakeBindings } from "@workspace-skills/pdf-intake-bindings";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
-import { managedPdfWorlds } from "./pdf-intake-worlds.js";
+import {
+  managedPdfExpectation,
+  managedPdfWorlds,
+} from "./pdf-intake-worlds.js";
 
 const maximumBytes = 64 * 1024;
 const extensionName = "@workspace-extensions/pdf-ingest";
@@ -96,6 +99,8 @@ export async function prepareManagedPdf(ports: Ports, caseId: string) {
   const receipts: Receipt[] = [];
   let probes = 0;
   const extractionRequests: number[][] = [];
+  const readAttempts: number[][] = [];
+  let faultDelivered = false;
   const engine: Engine = {
     async probe(bytes, options) {
       probes++;
@@ -112,10 +117,24 @@ export async function prepareManagedPdf(ports: Ports, caseId: string) {
         options,
       ])) as Receipt;
       receipts.push(receipt);
+      if (world.fault?.batch === extractionRequests.length) {
+        faultDelivered = true;
+        if (world.fault.kind === "read-error")
+          throw new Error("The assigned PDF batch became unavailable.");
+        return {
+          ...receipt,
+          document: { ...receipt.document, digest: "f".repeat(64) },
+        };
+      }
       return receipt;
     },
   };
   const bindings = createPdfIntakeBindings(engine, request, retained);
+  const read = bindings.pdfIntakeRead.read;
+  bindings.pdfIntakeRead.read = (document, pages, mode) => {
+    readAttempts.push([...pages]);
+    return read(document, pages, mode);
+  };
   return {
     world,
     request,
@@ -123,6 +142,8 @@ export async function prepareManagedPdf(ports: Ports, caseId: string) {
     bindings,
     receipts,
     extractionRequests,
+    readAttempts,
+    faultDelivered: () => faultDelivered,
     probes: () => probes,
     digest,
   };
@@ -132,15 +153,22 @@ type Prepared = Awaited<ReturnType<typeof prepareManagedPdf>>;
 
 function expectedCitation(
   prepared: Prepared,
-  expected: { page: number; quote: string },
+  expected: { page: number; quote: string; line?: number },
 ): Citation | null {
-  const page = prepared.receipts
+  const expectation = managedPdfExpectation(prepared.world);
+  if (!expectation.readPages.includes(expected.page)) return null;
+  const received = prepared.world.fault
+    ? prepared.receipts.slice(0, prepared.world.fault.batch - 1)
+    : prepared.receipts;
+  const page = received
     .flatMap((receipt) => receipt.pages)
     .find((page) => page.pageNumber === expected.page);
   const line =
-    page?.lines.findIndex(({ text }) => text === expected.quote) ?? -1;
+    expected.line ??
+    page?.lines.findIndex(({ text }) => text === expected.quote) ??
+    -1;
   const observed = page?.lines[line];
-  return observed
+  return observed?.text === expected.quote
     ? {
         page: expected.page,
         line,
@@ -176,16 +204,6 @@ export async function verifyManagedPdf(
     request.document,
     maximumBytes,
   );
-  const requestedBatches: number[][] = [];
-  if (!world.blocked)
-    for (
-      let offset = 0;
-      offset < request.pages.length;
-      offset += request.batchSize
-    )
-      requestedBatches.push(
-        request.pages.slice(offset, offset + request.batchSize),
-      );
   const expected = world.claims.flatMap(({ evidence }) => evidence);
   const citations = expected.map((item) => expectedCitation(prepared, item));
   const unanswered = world.blocked
@@ -193,13 +211,8 @@ export async function verifyManagedPdf(
     : world.claims
         .filter(({ evidence }) => !evidence.length)
         .map(({ question }) => question);
-  const expectedStatus =
-    world.blocked ??
-    (expected.length === 0
-      ? "no-match"
-      : unanswered.length
-        ? "partial-match"
-        : "verified");
+  const { expectedStatus, readPages, remaining, attemptedBatches } =
+    managedPdfExpectation(world);
   const checks = {
     sourceUnchanged: sha256Hex(persisted) === digest,
     workspaceHeadUnchanged:
@@ -207,8 +220,10 @@ export async function verifyManagedPdf(
       isDeepStrictEqual(before.workingHead, current.workingHead),
     localExtraction:
       prepared.probes() === 1 &&
-      isDeepStrictEqual(prepared.extractionRequests, requestedBatches) &&
-      receipts.length === requestedBatches.length &&
+      prepared.faultDelivered() === Boolean(world.fault) &&
+      isDeepStrictEqual(prepared.readAttempts, attemptedBatches) &&
+      isDeepStrictEqual(prepared.extractionRequests, attemptedBatches) &&
+      receipts.length === attemptedBatches.length &&
       receipts.every(
         (receipt, index) =>
           receipt.document.digest === digest &&
@@ -216,7 +231,7 @@ export async function verifyManagedPdf(
             receipt.pages
               .map(({ pageNumber }) => pageNumber)
               .sort((a, b) => a - b),
-            [...requestedBatches[index]!].sort((a, b) => a - b),
+            [...attemptedBatches[index]!].sort((a, b) => a - b),
           ) &&
           receipt.pages.every((page) =>
             page.lines.every((line) => line.source === "embedded-text"),
@@ -234,10 +249,8 @@ export async function verifyManagedPdf(
     disposition:
       report?.digest === digest &&
       report.status === expectedStatus &&
-      JSON.stringify(report.readPages) ===
-        JSON.stringify(world.blocked ? [] : request.pages) &&
-      JSON.stringify(report.remaining) ===
-        JSON.stringify(world.blocked ? request.pages : []) &&
+      JSON.stringify(report.readPages) === JSON.stringify(readPages) &&
+      JSON.stringify(report.remaining) === JSON.stringify(remaining) &&
       JSON.stringify(report.unanswered) === JSON.stringify(unanswered),
   };
   return {
@@ -247,7 +260,10 @@ export async function verifyManagedPdf(
     digest,
     expectedStatus,
     requestedPages: request.pages,
-    readPages: world.blocked ? [] : request.pages,
+    readPages,
+    remaining,
+    attemptedBatches: prepared.readAttempts,
+    fault: world.fault ?? null,
     seedRevision: JSON.stringify(before.workingHead),
   };
 }
@@ -264,18 +280,24 @@ export async function qualifyManagedPdf(ports: Ports, caseId: string) {
     : !probe.embedded || (request.purpose === "ocr" && !request.allowOcr)
       ? "engine-unavailable"
       : null;
+  const readPages: number[] = [];
+  let interrupted = false;
   if (!status) {
     const mode: Mode = "embedded";
     for (
       let offset = 0;
       offset < request.pages.length;
       offset += request.batchSize
-    )
-      await bindings.pdfIntakeRead.read(
-        request.document,
-        request.pages.slice(offset, offset + request.batchSize),
-        mode,
-      );
+    ) {
+      const batch = request.pages.slice(offset, offset + request.batchSize);
+      try {
+        await bindings.pdfIntakeRead.read(request.document, batch, mode);
+        readPages.push(...batch);
+      } catch {
+        interrupted = true;
+        break;
+      }
+    }
   }
   const citations = world.claims
     .flatMap(({ evidence }) => evidence)
@@ -289,14 +311,16 @@ export async function qualifyManagedPdf(ports: Ports, caseId: string) {
   const report = {
     status:
       status ??
-      (citations.length === 0
-        ? "no-match"
-        : unanswered.length
-          ? "partial-match"
-          : "verified"),
+      (interrupted
+        ? "incomplete"
+        : citations.length === 0
+          ? "no-match"
+          : unanswered.length
+            ? "partial-match"
+            : "verified"),
     digest: probe.digest,
-    readPages: status ? [] : request.pages,
-    remaining: status ? request.pages : [],
+    readPages,
+    remaining: request.pages.slice(readPages.length),
     citations,
     unanswered,
   };
