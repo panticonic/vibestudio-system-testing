@@ -107,6 +107,15 @@
           ]
         },
         {
+          "capability": "server-logs.read",
+          "resource": {
+            "kind": "exact",
+            "key": "server-logs.read"
+          },
+          "tier": "gated",
+          "evidence": "exact"
+        },
+        {
           "capability": "approvals.decide",
           "resource": {
             "kind": "exact",

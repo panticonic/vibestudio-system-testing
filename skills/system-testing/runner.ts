@@ -1,3 +1,5 @@
+import { managedLogAuditMethods } from "./log-audit-contract.js";
+import { managedLogAuditWorlds } from "./log-audit-worlds.js";
 import { managedLocalComparisonMethods } from "./local-model-comparison-contract.js";
 import { localModelComparisonWorlds } from "./local-model-comparison-worlds.js";
 import { managedGoogleSetupMethods } from "./google-setup-contract.js";
@@ -923,6 +925,22 @@ export class HeadlessRunner {
         if (failure === undefined) throw cleanupError;
         throw new Error(`News review failed (${String(failure)}) and cleanup failed (${String(cleanupError)})`, { cause: failure });
       }
+    }
+  }
+
+  async runManagedLogAudit(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedLogAuditWorlds.some((world) => world.id === caseId))
+      throw new Error("Unknown host log audit");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedLogAuditMethods.qualifyManagedLogAudit, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedLogAuditMethods.runManagedLogAuditTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 

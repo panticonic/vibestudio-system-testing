@@ -1,3 +1,5 @@
+import type { LogAuditInput, ManagedLogAuditReceiver } from "@workspace-skills/system-testing/log-audit-contract";
+import { hostWorkerdLogTag, managedLogAuditWorlds } from "@workspace-skills/system-testing/log-audit-worlds";
 import type { LocalComparisonInput, ManagedLocalComparisonReceiver } from "@workspace-skills/system-testing/local-model-comparison-contract";
 import type { GoogleSetupInput, ManagedGoogleSetupReceiver } from "@workspace-skills/system-testing/google-setup-contract";
 import type { NewsInput, ManagedNewsReceiver } from "@workspace-skills/system-testing/news-contract";
@@ -1264,6 +1266,72 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const world=localModelComparisonWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown local model comparison");
       const prepared=await prepareLocalModelComparison(extensions,actualContextId,world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews exact windows of the owned test server log."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedLogAuditTeacher(input: LogAuditInput & {executorModel:string}): ReturnType<ManagedLogAuditReceiver["runManagedLogAuditTeacher"]> {
+    const bindings=await this.logAuditBindings(input);
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"system",operation:"investigateSystem",input:{goal:"Review the assigned host log windows"}},
+      inputCode:"prepared.request",
+      bindingCode:bindings,
+    },runId)}
+      const verification=prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedLogAuditReceiver["runManagedLogAuditTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the current server log windows without executing a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedLogAudit(input: LogAuditInput): ReturnType<ManagedLogAuditReceiver["qualifyManagedLogAudit"]> {
+    const bindings=await this.logAuditBindings(input);
+    return await this.runHarnessUtility("teacher", `
+      ${bindings}
+      await natlang.describe(systemInvestigationSkill+"/investigateSystem.nl");
+      for(const {sinceSeq,tag} of prepared.request.windows) await assignedServices.serverLog.query({sinceSeq,tag,limit:100});
+      const verification=prepared.verify(prepared.expected);
+      let rejectedForeign=false;
+      try { await assignedServices.serverLog.query({sinceSeq:0,tag:"unrelated",limit:100}); }
+      catch { rejectedForeign=true; }
+      const rejectedDifferentWindow=rejectedForeign&&!prepared.verify({...prepared.expected,findings:[{code:"log-routine",evidenceIds:["another-boot:1"]}]}).passed;
+      const utilityValue={verification,rejectedDifferentWindow};
+    `) as Awaited<ReturnType<ManagedLogAuditReceiver["qualifyManagedLogAudit"]>>;
+  }
+
+  private async logAuditBindings(input: LogAuditInput): Promise<string> {
+    const world=managedLogAuditWorlds.find(({id})=>id===input.caseId);
+    if (!world) throw new Error("Unknown host log audit assignment");
+    const {contextId}=await this.integrationFixtureIdentity();
+    if (contextId!==input.contextId) throw new Error("Host log fixture belongs to another context");
+    const marker=`natlang-host-log-${crypto.randomUUID()}`;
+    const initial=await this.rpc.call("main",mainRpcMethods["serverLog.query"],[{contains:marker,limit:1}]);
+    const seed={marker,boot:initial.serverBootId,workspaceId:initial.workspaceId,start:initial.latestSeq,steps:[] as number[]};
+    for (const [index,line] of world.lines.entries()) {
+      const message=`${marker} ${line}`;
+      console.warn(message);
+      const sinceSeq=seed.steps.at(-1)??seed.start;
+      const deadline=Date.now()+10_000;
+      while (true) {
+        const current=await this.rpc.call("main",mainRpcMethods["serverLog.query"],[{sinceSeq,tag:hostWorkerdLogTag,contains:marker,limit:4}]);
+        if (current.serverBootId!==seed.boot || current.workspaceId!==seed.workspaceId) throw new Error("Host log changed while seeding the test");
+        const captured=current.records.find(record=>record.message.includes(message));
+        if (captured) { seed.steps.push(captured.seq); break; }
+        if (Date.now()>=deadline) throw new Error(`VibeStudio did not capture issued host-log line ${index+1}`);
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+    }
+    return `
+      import {rpc,contextId as actualContextId} from "@workspace/runtime";
+      import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
+      import {prepareManagedLogAudit} from "@workspace-skills/system-investigation-live";
+      import {managedLogAuditWorlds,systemInvestigationSkill} from "@workspace-skills/system-testing/log-audit-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Host log audit belongs to another context");
+      const world=managedLogAuditWorlds.find(world=>world.id===input.caseId);
+      if(!world) throw new Error("Unknown host log audit");
+      const prepared=prepareManagedLogAudit(filter=>rpc.call("main",mainRpcMethods["serverLog.query"],[filter]),actualContextId,world,${JSON.stringify(seed)});
       const assignedServices=prepared.services;
     `;
   }
