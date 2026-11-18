@@ -1,12 +1,12 @@
 /** Exact source-authentic capture shared by harness-owned workflow roots, including failures. */
-export function authoredTeacherCode(options: { programPath: string; rootName: string; serviceName: string; executorModel: string; request: unknown; bindingCode: string }, runId: string): string {
+export function authoredTeacherCode(options: { programPath: string; rootName: string; serviceNames: string[]; executorModel: string; request: unknown; bindingCode: string }, runId: string): string {
   return `
 ${options.bindingCode}
       natlang.captureModelTurns({executorModel:${JSON.stringify(options.executorModel)}});
       const programPath=${JSON.stringify(options.programPath)};
       let report=null, executionError=null;
       try {
-        const root=await natlang.load(programPath,{services:{[${JSON.stringify(options.serviceName)}]:assignedService}});
+        const root=await natlang.load(programPath,{services:Object.fromEntries(${JSON.stringify(options.serviceNames)}.map(name=>[name,assignedService]))});
         report=await root(${JSON.stringify(options.request)});
       } catch(error) {
         executionError={name:error instanceof Error?error.name:"ThrownValue",message:error instanceof Error?error.message:String(error)};

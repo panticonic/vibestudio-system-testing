@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { authoredTeacherCode } from "./authored-teacher.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const options = { programPath: "program/root.nl", rootName: "root", serviceName: "assigned", executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
+const options = { programPath: "program/root.nl", rootName: "root", serviceNames: ["assigned", "assignedEdit"], executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
 async function capture(rootOutcome: string, childParent = "root", wrongModel = false) {
   const rows = [{ callId: "root", parentCallId: null }, { callId: "child", parentCallId: "root" }];
   return new AsyncFunction("natlang", authoredTeacherCode(options, "run-one") + "\nreturn utilityValue;")({
-    captureModelTurns() {}, load: async () => async () => ({ status: "verified" }),
+    captureModelTurns() {}, load: async (_path: string, binding: {services:Record<string,object>}) => {
+      expect(Object.keys(binding.services)).toEqual(["assigned", "assignedEdit"]);
+      expect(binding.services["assigned"]).toBe(binding.services["assignedEdit"]);
+      return async () => ({ status: "verified" });
+    },
     calls: async ({ after }: { after?: string }) => after ? [] : rows,
     trace: async (id: string) => ({ callId: id, summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
       events: [{ kind: "action", outcome: "error" }],

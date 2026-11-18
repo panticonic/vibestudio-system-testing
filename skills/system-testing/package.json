@@ -57,7 +57,8 @@
     "./scenario-validation": "./scenario-validation.ts",
     "./stages": "./stages.ts",
     "./test-runner": "./test-runner.ts",
-    "./tests/*": "./tests/*.ts"
+    "./tests/*": "./tests/*.ts",
+    "./vcs-integration-fixture-contract": "./vcs-integration-fixture-contract.ts"
   },
   "dependencies": {
     "@babel/parser": "^7.29.2",

@@ -1,10 +1,8 @@
-import {qualifyWorkspaceIntegration} from "./vcs-integration-qualification.js";
-import {prepareWorkspaceIntegration} from "./vcs-integration-fixture.js";
-import {verifyWorkspaceIntegration} from "./vcs-integration-oracle.js";
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
+import { integrationFixtureRpcMethods } from "./vcs-integration-fixture-contract.js";
 import { systemTestRunnerRpcMethods } from "@vibestudio/service-schemas/systemTestRunner";
 import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { RpcCaller } from "@vibestudio/rpc";
@@ -683,36 +681,45 @@ export class HeadlessRunner {
     }
   }
 
-  private workspaceIntegrationPort() {
-    return {vcs,
-      createContext:()=>{const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);return rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);},
-      createSourceContext:async(parentContextId:string)=>{
-        const ownerEntityId=await this.createFixtureWorker(parentContextId);
-        const child=await rpc.call("main",mainRpcMethods["runtime.createSubagentContext"],[{
-          parentContextId,ownerEntityId,targetKey:`system-test-vcs-source:${this.testName??"unknown"}:${crypto.randomUUID()}`,
-        }]);
-        return {...child,ownerEntityId};
-      },
-      destroyContext:(contextId:string)=>rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId,recursive:true}]),
-    };
+  private async createWorkspaceIntegrationWorld(seed:string,values:{theme:string;locale:string}) {
+    const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
+    const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
+    const cleanup=()=>rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    try {
+      const owner=await this.createFixtureWorker(target.contextId);
+      const prepared=await rpc.call(owner,integrationFixtureRpcMethods.prepareWorkspaceIntegrationFixture,[{seed,values}]);
+      if(prepared.fixture.contextId!==target.contextId || prepared.ownerEntityId!==owner) throw new Error("Integration fixture returned another owner or context");
+      return {owner,prepared,cleanup};
+    } catch(error) {
+      try {await cleanup();} catch(cleanupError) {throw new AggregateError([error,cleanupError],"Integration setup and cleanup failed");}
+      throw error;
+    }
   }
 
   async runWorkspaceIntegrationQualification(seed: string) {
-    return qualifyWorkspaceIntegration(this.workspaceIntegrationPort(),seed);
+    const checks=[];
+    for(const variant of ["reference","negative","alias"] as const) {
+      const world=await this.createWorkspaceIntegrationWorld(`${seed}-${variant}`,variant==="alias"?{theme:"solarized",locale:"fr"}:{theme:"dark",locale:"es"});
+      try {
+        const verdict=await rpc.call(world.owner,integrationFixtureRpcMethods.qualifyWorkspaceIntegrationFixture,[variant]);
+        if(verdict.passed!==(variant!=="negative")) throw new Error(`Oracle qualification failed for ${variant}: ${JSON.stringify(verdict.reasons)}`);
+        checks.push({variant,verdict});
+      } finally {await world.cleanup();}
+    }
+    return checks;
   }
 
   async runWorkspaceIntegrationTeacher(seed: string, goal: string, values: {theme:string;locale:string}) {
-    const prepared=await prepareWorkspaceIntegration(this.workspaceIntegrationPort(),seed,values);
+    const world=await this.createWorkspaceIntegrationWorld(seed,values);
+    const {prepared,owner}=world;
     try {
-      const before=(await vcs.status({contextId:prepared.fixture.contextId})).workingHead;
-      const owner=prepared.ownerEntityId;
       const result=await rpc.call(owner,systemTestRunnerRpcMethods.runWorkspaceIntegrationTeacher,[{contextId:prepared.fixture.contextId,source:prepared.fixture.source,files:prepared.files,executorModel:this.modelRef,goal}]);
-      const verification=await verifyWorkspaceIntegration(vcs,prepared.fixture);
+      const verification=await rpc.call(owner,integrationFixtureRpcMethods.verifyWorkspaceIntegrationFixture,[]);
       return {result,verification,world:{kind:"vcs-integration",contextId:prepared.fixture.contextId,source:prepared.fixture.source,
-        commonSeedEvent:prepared.fixture.commonSeedEvent,before,after:verification.head,mainEventId:prepared.fixture.mainEventId,
+        commonSeedEvent:prepared.fixture.commonSeedEvent,before:prepared.before,after:verification.head,mainEventId:prepared.fixture.mainEventId,
         repoPath:prepared.repoPath,repositoryId:prepared.fixture.repositoryId,fileId:prepared.fixture.fileId,path:prepared.fixture.path,
         initialComparison:prepared.initialComparison,privateOracle:{baseline:prepared.fixture.baseline,required:prepared.fixture.required,sourceChangeIds:prepared.fixture.sourceChangeIds}}};
-    } finally {await prepared.cleanup();}
+    } finally {await world.cleanup();}
   }
 
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {

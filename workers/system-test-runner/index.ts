@@ -1,3 +1,7 @@
+import { createVcsClient } from "@workspace/runtime/vcs-client";
+import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
+  type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
+} from "@workspace-skills/system-testing/vcs-integration-fixture-contract";
 import { authoredTeacherCode } from "./authored-teacher.js";
 import {
   createMainRpcCaller,
@@ -288,7 +292,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -561,7 +565,7 @@ export class SystemTestRunnerDO extends DurableObjectBase {
   async runPanelTeacher(input: PanelTeacherInput): Promise<PanelTeacherResult> {
     const selected = panelTeacherInputSchema.parse(input);
     return await this.runHarnessUtility("teacher", (runId) => authoredTeacherCode({
-      executorModel:selected.executorModel,programPath:"skills/workspace-dev/panel-repair/repairPanel.nl",rootName:"repairPanel",serviceName:"panelRepair",
+      executorModel:selected.executorModel,programPath:"skills/workspace-dev/panel-repair/repairPanel.nl",rootName:"repairPanel",serviceNames:["panelRepair","panelRepairEdit"],
       request:{panelSource:selected.panelSource,goal:selected.goal},
       bindingCode:`
         import {panelTree,vcs,contextId as actualContextId} from "@workspace/runtime";
@@ -575,11 +579,60 @@ export class SystemTestRunnerDO extends DurableObjectBase {
     },runId)) as PanelTeacherResult;
   }
 
+  private async integrationFixtureIdentity() {
+    const ownerEntityId = `do:${this.env["WORKER_SOURCE"]}:${this.env["WORKER_CLASS_NAME"]}:${this.objectKey}`;
+    const contextId = await this.rpc.call("main",mainRpcMethods["runtime.resolveContext"],[ownerEntityId]);
+    if (!contextId) throw new Error("Integration fixture worker has no registered context");
+    return {ownerEntityId,contextId};
+  }
+
+  private integrationFixtureWorld(): OwnedIntegrationWorld {
+    const row = this.sql.exec<{value:string}>("SELECT value FROM state WHERE key = ?", "__integration_fixture").toArray()[0];
+    if (!row) throw new Error("Integration fixture was not prepared by this worker");
+    return JSON.parse(row.value) as OwnedIntegrationWorld;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Harness seeds its owned local VCS exercise without publishing."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async prepareWorkspaceIntegrationFixture(input:IntegrationFixtureInput) {
+    const {contextId,ownerEntityId}=await this.integrationFixtureIdentity();
+    const vcs=createVcsClient(this.rpc,contextId);
+    const world=await prepareWorkspaceIntegration({vcs,createContext:async()=>({contextId}),
+      // The outer harness owns target teardown; it runs even if this invocation fails.
+      destroyContext:async()=>{},
+      createSourceContext:async(parentContextId)=>{
+        if(parentContextId!==contextId) throw new Error("Integration source has another parent");
+        const child=await this.rpc.call("main",mainRpcMethods["runtime.createSubagentContext"],[{parentContextId,ownerEntityId,targetKey:`integration-source:${ownerEntityId}:${crypto.randomUUID()}`}]);
+        return {...child,ownerEntityId};
+      },
+    },input.seed,input.values);
+    const {cleanup,...stored}=world;
+    this.sql.exec("INSERT OR REPLACE INTO state(key,value) VALUES (?,?)", "__integration_fixture",JSON.stringify(stored));
+    const before=(await vcs.status()).workingHead;
+    return {...stored,before};
+  }
+
+  @rpc({website:{kind:"closed",reason:"Independent oracle reads only the stored fixture and real VCS state."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async verifyWorkspaceIntegrationFixture() {
+    const {contextId}=await this.integrationFixtureIdentity();
+    const world=this.integrationFixtureWorld();
+    if(world.fixture.contextId!==contextId) throw new Error("Stored integration fixture belongs to another context");
+    return verifyWorkspaceIntegration(createVcsClient(this.rpc,contextId),world.fixture);
+  }
+
+  @rpc({website:{kind:"closed",reason:"Harness qualifies reference, negative and alias candidates in an owned world without model calls."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyWorkspaceIntegrationFixture(variant:"reference"|"negative"|"alias") {
+    const {contextId}=await this.integrationFixtureIdentity();
+    const world=this.integrationFixtureWorld();
+    if(world.fixture.contextId!==contextId) throw new Error("Stored integration fixture belongs to another context");
+    if(!["reference","negative","alias"].includes(variant)) throw new Error("Unknown oracle qualification variant");
+    return exerciseWorkspaceIntegration(createVcsClient(this.rpc,contextId),world,variant);
+  }
+
   @rpc({ website:{kind:"closed",reason:"Owned VCS teacher operates only in the explicit test context and source."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write" })
   async runWorkspaceIntegrationTeacher(input: WorkspaceIntegrationTeacherInput): Promise<PanelTeacherResult> {
     const selected=workspaceIntegrationTeacherInputSchema.parse(input);
     return await this.runHarnessUtility("teacher",runId=>authoredTeacherCode({
-      executorModel:selected.executorModel,programPath:"skills/vibestudio-vcs/integration/integrateWorkspace.nl",rootName:"integrateWorkspace",serviceName:"workspaceIntegration",request:{goal:selected.goal},
+      executorModel:selected.executorModel,programPath:"skills/vibestudio-vcs/integration/integrateWorkspace.nl",rootName:"integrateWorkspace",serviceNames:["workspaceIntegration"],request:{goal:selected.goal},
       bindingCode:`
         import {vcs,contextId as actualContextId} from "@workspace/runtime";
         import {createWorkspaceIntegration} from "@workspace/natlang-services";
