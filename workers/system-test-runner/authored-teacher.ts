@@ -39,7 +39,7 @@ ${options.bindingCode}
       const rootRecord=calls.find(call=>call.callId===rootCallIds[0])?.record;
       if(!rootRecord || rootRecord.definition.name!==${JSON.stringify(options.rootName)}) captureErrors.push("Assigned authored root was not observed");
       if(rootRecord?.outcome!=="done") captureErrors.push("Assigned authored root did not complete successfully");
-      const utilityValue={report,executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
+      let utilityValue={report,executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
         trainingEligible:executionError===null&&captureErrors.length===0};
   `;
 }

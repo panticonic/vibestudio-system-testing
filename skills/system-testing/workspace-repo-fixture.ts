@@ -1,3 +1,4 @@
+import { unitRepairSeedFiles, type UnitRepairFault } from "./unit-repair-oracle.js";
 import type { VcsClient } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDirs";
@@ -51,6 +52,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "buildable-app"; section: "apps" }
   | { kind: "buildable-worker"; section: "workers" }
   | { kind: "buildable-regular-worker"; section: "workers" }
+  | { kind: "unit-repair-worker"; section: "workers"; fault: UnitRepairFault }
   | { kind: "buildable-panel"; section: "panels" }
   | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
   | { kind: "optimizable-panel"; section: "panels" }
@@ -1370,6 +1372,7 @@ function repositorySeedFiles(
       },
     ];
   }
+  if (fixture.kind === "unit-repair-worker") return unitRepairSeedFiles(repoName, fixture.fault);
   if (fixture.kind === "buildable-regular-worker") {
     return [
       {

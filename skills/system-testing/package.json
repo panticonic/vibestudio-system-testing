@@ -47,6 +47,7 @@
     }
   },
   "exports": {
+    "./unit-repair-oracle": "./unit-repair-oracle.ts",
     ".": "./index.ts",
     "./cli": "./cli.ts",
     "./deterministic": "./deterministic.ts",
@@ -61,6 +62,7 @@
     "./vcs-integration-fixture-contract": "./vcs-integration-fixture-contract.ts"
   },
   "dependencies": {
+    "@workspace/harness": "workspace:*",
     "@babel/parser": "^7.29.2",
     "@workspace-workers/pubsub-channel": "workspace:*",
     "@vibestudio/workspace-contracts": "workspace:*",

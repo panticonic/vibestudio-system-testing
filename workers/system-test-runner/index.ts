@@ -10,6 +10,9 @@ import {
 import type { MainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import {
   panelTeacherInputSchema,
+  unitRepairTeacherInputSchema,
+  type UnitRepairTeacherInput,
+  type UnitRepairTeacherResult,
   workspaceIntegrationTeacherInputSchema,
   type WorkspaceIntegrationTeacherInput,
   type PanelTeacherInput,
@@ -577,6 +580,49 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const assignedService=createPanelRepair({contextId:selected.contextId,panelSource:selected.panelSource,panel,vcs,build:services.build});
       `,
     },runId)) as PanelTeacherResult;
+  }
+
+  @rpc({ website: { kind: "closed", reason: "Runs authored repair in one owned worker fixture." },
+    requires: SYSTEM_TEST_OPERATOR, effect: { kind: "open" }, tier: "open", sensitivity: "write" })
+  async runUnitRepairTeacher(input: UnitRepairTeacherInput): Promise<UnitRepairTeacherResult> {
+    const selected = unitRepairTeacherInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher", (runId) => `${authoredTeacherCode({
+      executorModel: selected.executorModel,
+      programPath: "skills/workspace-dev/unit-repair/repairUnit.nl",
+      rootName: "repairUnit",
+      serviceNames: ["unitRepair", "unitRepairEdit"],
+      request: { unit: selected.unit, suite: "unit", goal: selected.goal },
+      bindingCode: `
+        import {vcs, rpc, openPanel, contextId as actualContextId} from "@workspace/runtime";
+        import {createUnitRepair,verifyUnit,verifyUnitRepairOutcome} from "@workspace-skills/system-testing/unit-repair-oracle";
+        const selected=${JSON.stringify(selected)};
+        if(actualContextId!==selected.contextId) throw new Error("Teacher worker belongs to another context");
+        const build = services.build;
+        const verifyTests = (command) => verifyUnit({
+          rpc, openPanel, contextId: selected.contextId,
+          operationPrefix: "natlang-unit-repair",
+        }, command);
+        const options = {contextId: selected.contextId, unit: selected.unit, suite: "unit",
+          editablePaths: [selected.unit + "/index.ts"], vcs, build, verifyTests};
+        const repair = createUnitRepair(options);
+        const assignedService = {...repair.unitRepair, ...repair.unitRepairEdit};
+        const oracle = createUnitRepair(options);
+        const baseline = await oracle.unitRepair.observe();
+        if(baseline.build.status!=="failed" ||
+          !baseline.build.diagnostics.some(d=>d.severity==="error" && (d.source==="tsc" || d.source==="esbuild"))) {
+          throw new Error("Expected the seeded source to fail the real compiler");
+        }
+        const protectedPaths = [selected.unit + "/package.json", selected.unit + "/index.test.ts"];
+        const protectedBefore = await oracle.unitRepair.readSource(baseline.revision, protectedPaths);
+      `,
+    }, runId)}
+      const verification = await verifyUnitRepairOutcome(oracle, baseline, protectedPaths, protectedBefore);
+      utilityValue = {
+        teacher: utilityValue, world: {contextId: selected.contextId, unit: selected.unit, before: baseline.revision,
+          after: verification.evidence.revision, baseline: baseline.build.diagnostics},
+        verification,
+      };
+    `) as UnitRepairTeacherResult;
   }
 
   private async integrationFixtureIdentity() {

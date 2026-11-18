@@ -681,6 +681,21 @@ export class HeadlessRunner {
     }
   }
 
+  async runUnitRepairTeacher(goal: string) {
+    const fixture = this.workspaceRepoFixture;
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (fixture?.kind !== "unit-repair-worker" || !fixture.repoName || !contextId) {
+      throw new Error("Unit repair requires the runner's own prepared worker fixture.");
+    }
+    const owner = await this.fixtureForkOwner();
+    return rpc.call(owner, systemTestRunnerRpcMethods.runUnitRepairTeacher, [{
+      contextId,
+      unit: `workers/${fixture.repoName}`,
+      goal,
+      executorModel: this.modelRef,
+    }]);
+  }
+
   private async createWorkspaceIntegrationWorld(seed:string,values:{theme:string;locale:string}) {
     const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
     const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
