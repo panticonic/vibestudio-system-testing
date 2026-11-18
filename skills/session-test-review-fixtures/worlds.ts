@@ -188,8 +188,8 @@ const resources = [
   { id: "owned-supervisor", kind: "supervisor" },
   { id: "owned-scratch", kind: "scratch" },
 ] satisfies TestkitRelease["resources"];
-const releases = resources
-  .toReversed()
+const releases = [...resources]
+  .reverse()
   .map((resource) => ({ ...resource, acknowledgement: "released" as const }));
 function testkit(
   id: string,
@@ -387,7 +387,7 @@ export const sessionTestReviewWorlds: SessionTestReviewWorld[] = [
   testkit(
     "registered-order-used-for-release",
     "Review a test cleanup that released each resource in registration order.",
-    releases.toReversed(),
+    [...releases].reverse(),
     ["revise", "testkit-release-order"],
   ),
 ];
