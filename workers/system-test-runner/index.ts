@@ -1,3 +1,4 @@
+import type { GoogleSetupInput, ManagedGoogleSetupReceiver } from "@workspace-skills/system-testing/google-setup-contract";
 import type { NewsInput, ManagedNewsReceiver } from "@workspace-skills/system-testing/news-contract";
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
@@ -1175,6 +1176,50 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const world=managedNewsWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown News assignment");
       const prepared=prepareLiveNews(input,world);
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the owned Google setup panel and account readiness."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedGoogleSetupTeacher(input: GoogleSetupInput & {executorModel:string}): ReturnType<ManagedGoogleSetupReceiver["runManagedGoogleSetupTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"google",operation:"guideGoogleWorkspace",input:{goal:"Review the assigned setup journey"}},
+      inputCode:"prepared.request",
+      bindingCode:this.googleSetupBindings(input),
+    },runId)}
+      const verification=prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedGoogleSetupReceiver["runManagedGoogleSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the installed Google setup journey without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedGoogleSetup(input: GoogleSetupInput): ReturnType<ManagedGoogleSetupReceiver["qualifyManagedGoogleSetup"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.googleSetupBindings(input)}
+      await natlang.describe(googleSetupSkill+"/guideGoogleWorkspace.nl");
+      await assignedServices.googleWorkspaceRead.readiness();
+      await assignedServices.googleSetupPanel.observe();
+      const report=prepared.reference();
+      const verification=prepared.verify(report);
+      const altered={...report,panelFindings:report.panelFindings.map(finding=>({...finding,evidenceId:"different-panel"}))};
+      const utilityValue={verification,rejectedDifferentReceipt:!prepared.verify(altered).passed};
+    `) as Awaited<ReturnType<ManagedGoogleSetupReceiver["qualifyManagedGoogleSetup"]>>;
+  }
+
+  private googleSetupBindings(input: GoogleSetupInput): string {
+    return `
+      import {panelTree,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareGoogleSetupJourney} from "@workspace-skills/google-drive/live-setup-journey";
+      import {managedGoogleSetupWorlds,googleSetupPanel,googleSetupSkill} from "@workspace-skills/system-testing/google-setup-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Google setup review belongs to another context");
+      const world=managedGoogleSetupWorlds.find(world=>world.id===input.caseId);
+      if(!world) throw new Error("Unknown Google setup case");
+      const panel=panelTree.get(input.panelId);
+      const state=await panel.observe();
+      if(state.source!==googleSetupPanel || state.contextId!==input.contextId || state.requestedRef!=="ctx:"+input.contextId || state.kind!=="workspace") throw new Error("Google setup panel belongs to another assignment");
+      const prepared=prepareGoogleSetupJourney(panel,actualContextId,world);
+      const assignedServices=prepared.services;
     `;
   }
 

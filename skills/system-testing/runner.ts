@@ -1,3 +1,5 @@
+import { managedGoogleSetupMethods } from "./google-setup-contract.js";
+import { managedGoogleSetupWorlds, googleSetupPanel } from "./google-setup-worlds.js";
 import { managedNewsMethods } from "./news-contract.js";
 import { managedNewsWorlds, newsPanel, newsWorker } from "./news-worlds.js";
 import { launchAgentIntoChannel } from "@workspace/agentic-core";
@@ -918,6 +920,29 @@ export class HeadlessRunner {
       } catch (cleanupError) {
         if (failure === undefined) throw cleanupError;
         throw new Error(`News review failed (${String(failure)}) and cleanup failed (${String(cleanupError)})`, { cause: failure });
+      }
+    }
+  }
+
+  async runManagedGoogleSetup(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedGoogleSetupWorlds.some((world) => world.id === caseId))
+      throw new Error("Unknown Google setup case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    let panel: Awaited<ReturnType<typeof openPanel>> | undefined;
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      panel = await this.openPanelClient(googleSetupPanel, {
+        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+      });
+      const input = { contextId, panelId: panel.id, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedGoogleSetupMethods.qualifyManagedGoogleSetup, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedGoogleSetupMethods.runManagedGoogleSetupTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      try { await panel?.archive(); }
+      finally {
+        await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
       }
     }
   }

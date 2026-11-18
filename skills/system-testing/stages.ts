@@ -1,3 +1,4 @@
+import { managedGoogleSetupTests } from "./tests/google-setup-managed.js";
 import { managedNewsTests } from "./tests/news-managed.js";
 import { managedSpectroliteTests } from "./tests/spectrolite-managed.js";
 import { managedGrimoireTests } from "./tests/grimoire-managed.js";
@@ -199,6 +200,7 @@ export function allTests(): TestCase[] {
   ...managedChecklistTests,
   ...managedGrimoireTests,
   ...managedSpectroliteTests,
+    ...managedGoogleSetupTests,
   ...managedNewsTests,
   ...managedSetupTests,
   ...managedPresentationTests,
