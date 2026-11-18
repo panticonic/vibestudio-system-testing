@@ -726,13 +726,13 @@ export class HeadlessRunner {
     } finally {await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);}
   }
 
-  private async createWorkspaceIntegrationWorld(seed:string,values:{theme:string;locale:string}) {
+  private async createWorkspaceIntegrationWorld(seed:string,worldId:string) {
     const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
     const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
     const cleanup=()=>rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
     try {
       const owner=await this.createFixtureWorker(target.contextId);
-      const prepared=await rpc.call(owner,integrationFixtureRpcMethods.prepareWorkspaceIntegrationFixture,[{seed,values}]);
+      const prepared=await rpc.call(owner,integrationFixtureRpcMethods.prepareWorkspaceIntegrationFixture,[{seed,worldId}]);
       if(prepared.fixture.contextId!==target.contextId || prepared.ownerEntityId!==owner) throw new Error("Integration fixture returned another owner or context");
       return {owner,prepared,cleanup};
     } catch(error) {
@@ -741,29 +741,35 @@ export class HeadlessRunner {
     }
   }
 
-  async runWorkspaceIntegrationQualification(seed: string) {
+  async runWorkspaceIntegrationQualification(seed: string, worldId?: string) {
     const checks=[];
     for(const variant of ["reference","negative","alias"] as const) {
-      const world=await this.createWorkspaceIntegrationWorld(`${seed}-${variant}`,variant==="alias"?{theme:"solarized",locale:"fr"}:{theme:"dark",locale:"es"});
+      const world=await this.createWorkspaceIntegrationWorld(`${seed}-${variant}`,variant === "alias" ? (worldId ? "paired-limits" : "theme-locale-alias") : (worldId ?? "theme-locale"));
       try {
         const verdict=await rpc.call(world.owner,integrationFixtureRpcMethods.qualifyWorkspaceIntegrationFixture,[variant]);
         if(verdict.passed!==(variant!=="negative")) throw new Error(`Oracle qualification failed for ${variant}: ${JSON.stringify(verdict.reasons)}`);
+        const files = world.prepared.fixture.files;
+        if (variant === "negative" && (
+          verdict.verificationPaths.length !== files.length - 1 ||
+          !files.slice(0, -1).every((file) => verdict.verificationPaths.includes(file.path)) ||
+          !verdict.reasons.includes(`Required or preserved fields differ: ${files.at(-1)!.path}`)
+        )) throw new Error("Negative qualification must fail on the omitted final file");
         checks.push({variant,verdict});
       } finally {await world.cleanup();}
     }
     return checks;
   }
 
-  async runWorkspaceIntegrationTeacher(seed: string, goal: string, values: {theme:string;locale:string}) {
-    const world=await this.createWorkspaceIntegrationWorld(seed,values);
+  async runWorkspaceIntegrationTeacher(seed: string, goal: string, worldId: string) {
+    const world=await this.createWorkspaceIntegrationWorld(seed,worldId);
     const {prepared,owner}=world;
     try {
       const result=await rpc.call(owner,systemTestRunnerRpcMethods.runWorkspaceIntegrationTeacher,[{contextId:prepared.fixture.contextId,source:prepared.fixture.source,files:prepared.files,executorModel:this.modelRef,goal}]);
       const verification=await rpc.call(owner,integrationFixtureRpcMethods.verifyWorkspaceIntegrationFixture,[]);
       return {result,verification,world:{kind:"vcs-integration",contextId:prepared.fixture.contextId,source:prepared.fixture.source,
         commonSeedEvent:prepared.fixture.commonSeedEvent,before:prepared.before,after:verification.head,mainEventId:prepared.fixture.mainEventId,
-        repoPath:prepared.repoPath,repositoryId:prepared.fixture.repositoryId,fileId:prepared.fixture.fileId,path:prepared.fixture.path,
-        initialComparison:prepared.initialComparison,privateOracle:{baseline:prepared.fixture.baseline,required:prepared.fixture.required,sourceChangeIds:prepared.fixture.sourceChangeIds}}};
+        repoPath:prepared.repoPath,repositoryId:prepared.fixture.repositoryId,
+        initialComparison:prepared.initialComparison,privateOracle:{files:prepared.fixture.files}}};
     } finally {await world.cleanup();}
   }
 

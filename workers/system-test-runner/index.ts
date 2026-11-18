@@ -705,7 +705,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const child=await this.rpc.call("main",mainRpcMethods["runtime.createSubagentContext"],[{parentContextId,ownerEntityId,targetKey:`integration-source:${ownerEntityId}:${crypto.randomUUID()}`}]);
         return {...child,ownerEntityId};
       },
-    },input.seed,input.values);
+    },input.seed,input.worldId);
     const {cleanup,...stored}=world;
     this.sql.exec("INSERT OR REPLACE INTO state(key,value) VALUES (?,?)", "__integration_fixture",JSON.stringify(stored));
     const before=(await vcs.status()).workingHead;
