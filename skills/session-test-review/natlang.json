@@ -1,0 +1,6 @@
+{
+  "schema": "natlang.package/v2",
+  "name": "vibestudio-session-test-review",
+  "version": "0.1.0",
+  "targets": { "main": { "entry": "reviewSessionTest.nl" } }
+}

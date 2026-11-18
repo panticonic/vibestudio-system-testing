@@ -1,0 +1,11 @@
+{
+  "name": "@workspace-skills/session-test-review-fixtures",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@vibestudio/service-schemas": "workspace:*",
+    "@workspace/natlang": "workspace:*",
+    "@workspace/testkit": "workspace:*",
+    "vitest": "^3.2.7"
+  }
+}
