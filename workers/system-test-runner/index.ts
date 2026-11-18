@@ -1,3 +1,4 @@
+import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
 import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace-skills/system-testing/automation-lifecycle-managed";
 import type { ManagedAutomationReceiver } from "@workspace-skills/system-testing/automation-lifecycle-contract";
@@ -306,7 +307,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -827,6 +828,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const prepared=await prepareManagedPublication(rpc,vcs,panel,input);
       const utilityValue=await qualifyManagedPublication(rpc,vcs,panel,prepared);
     `) as Awaited<ReturnType<ManagedPublicationReceiver["qualifyManagedPublication"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs one local PDF extraction assignment in its owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPdfTeacher(input: PdfIntakeInput & {executorModel:string}): ReturnType<ManagedPdfReceiver["runManagedPdfTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"pdfIntake",operation:"extractPdfEvidence",input:{goal:"Extract assigned PDF evidence"}},
+      inputCode:"prepared.request",bindingCode:`
+        import {fs,rpc,vcs,extensions,contextId as actualContextId} from "@workspace/runtime";
+        import {prepareManagedPdf,verifyManagedPdf} from "@workspace-skills/system-testing/pdf-intake-managed";
+        const input=${JSON.stringify(input)};
+        if(actualContextId!==input.contextId) throw new Error("PDF intake belongs to another context");
+        const ports={fs,rpc,vcs,extensions};
+        const prepared=await prepareManagedPdf(ports,input.caseId);
+        const assignedServices=prepared.bindings;
+      `,
+    },runId)}
+      const verification=await verifyManagedPdf(ports,prepared,utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedPdfReceiver["runManagedPdfTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies bundled PDF extraction against owned PDF bytes without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedPdf(input: PdfIntakeInput): ReturnType<ManagedPdfReceiver["qualifyManagedPdf"]> {
+    return await this.runHarnessUtility("teacher",`
+      import {fs,rpc,vcs,extensions,contextId as actualContextId} from "@workspace/runtime";
+      import {qualifyManagedPdf} from "@workspace-skills/system-testing/pdf-intake-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("PDF qualification belongs to another context");
+      const utilityValue=await qualifyManagedPdf({fs,rpc,vcs,extensions},input.caseId);
+    `) as Awaited<ReturnType<ManagedPdfReceiver["qualifyManagedPdf"]>>;
   }
 
   private async integrationFixtureIdentity() {

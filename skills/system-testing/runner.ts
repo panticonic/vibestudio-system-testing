@@ -1,3 +1,4 @@
+import { managedPdfMethods } from "./pdf-intake-contract.js";
 import { managedPublicationMethods } from "./publication-preflight-contract.js";
 import { managedAutomationMethods } from "./automation-lifecycle-contract.js";
 import { integrationHandoffMethods } from "./integration-handoff-contract.js";
@@ -830,6 +831,20 @@ export class HeadlessRunner {
         return {kind:"reference" as const,result:await rpc.call(owner,managedPublicationMethods.qualifyManagedPublication,[input])};
       return {kind:"teacher" as const,result:await rpc.call(owner,managedPublicationMethods.runManagedPublicationTeacher,[{...input,executorModel:this.modelRef}])};
     } finally {await handle.archive();}
+  }
+
+  async runManagedPdf(caseId: string, qualification = false) {
+    const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
+    const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
+    try {
+      const owner=await this.createFixtureWorker(target.contextId);
+      const input={contextId:target.contextId,caseId};
+      if(qualification)
+        return {kind:"reference" as const,result:await rpc.call(owner,managedPdfMethods.qualifyManagedPdf,[input])};
+      return {kind:"teacher" as const,result:await rpc.call(owner,managedPdfMethods.runManagedPdfTeacher,[{...input,executorModel:this.modelRef}])};
+    } finally {
+      await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    }
   }
 
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {

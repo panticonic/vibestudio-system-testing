@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./pdf-intake-managed": "./pdf-intake-managed.ts",
+    "./pdf-intake-contract": "./pdf-intake-contract.ts",
     "./publication-preflight-contract": "./publication-preflight-contract.ts",
     "./publication-preflight-managed": "./publication-preflight-managed.ts",
     "./automation-lifecycle-managed": "./automation-lifecycle-managed.ts",
@@ -78,6 +80,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/pdf-intake-bindings": "workspace:*",
     "@workspace-skills/publish-preflight-bindings": "workspace:*",
     "@workspace/integrations": "workspace:*",
     "@workspace-skills/automation-lifecycle-bindings": "workspace:*",
