@@ -1,3 +1,4 @@
+import type { LocalComparisonInput, ManagedLocalComparisonReceiver } from "@workspace-skills/system-testing/local-model-comparison-contract";
 import type { GoogleSetupInput, ManagedGoogleSetupReceiver } from "@workspace-skills/system-testing/google-setup-contract";
 import type { NewsInput, ManagedNewsReceiver } from "@workspace-skills/system-testing/news-contract";
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
@@ -1219,6 +1220,50 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const state=await panel.observe();
       if(state.source!==googleSetupPanel || state.contextId!==input.contextId || state.requestedRef!=="ctx:"+input.contextId || state.kind!=="workspace") throw new Error("Google setup panel belongs to another assignment");
       const prepared=prepareGoogleSetupJourney(panel,actualContextId,world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Compares read-only inventory for the assigned local models."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedLocalComparisonTeacher(input: LocalComparisonInput & {executorModel:string}): ReturnType<ManagedLocalComparisonReceiver["runManagedLocalComparisonTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"localModel",operation:"prepareLocalModel",input:{goal:"Compare the assigned local models"}},
+      inputCode:"prepared.request",
+      bindingCode:this.localComparisonBindings(input),
+    },runId)}
+      const verification=prepared.verify(utilityValue.report,await prepared.readback());
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedLocalComparisonReceiver["runManagedLocalComparisonTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the actual catalog and comparison without executing models."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedLocalComparison(input: LocalComparisonInput): ReturnType<ManagedLocalComparisonReceiver["qualifyManagedLocalComparison"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.localComparisonBindings(input)}
+      await natlang.describe(localModelSkill+"/prepareLocalModel.nl");
+      const refs=[prepared.request.modelRef,...prepared.request.alternatives];
+      for(const ref of refs) await assignedServices.localModelTaskInventory.inspect(ref);
+      const after=await prepared.readback();
+      const verification=prepared.verify(prepared.expected,after);
+      let rejectedOutsideInventory=false;
+      try { await assignedServices.localModelTaskInventory.inspect("local:outside-assignment"); }
+      catch { rejectedOutsideInventory=true; }
+      const rejectedDifferentModel=rejectedOutsideInventory&&!prepared.verify({...prepared.expected,ref:"local:outside-assignment"},after).passed;
+      const utilityValue={verification,rejectedDifferentModel};
+    `) as Awaited<ReturnType<ManagedLocalComparisonReceiver["qualifyManagedLocalComparison"]>>;
+  }
+
+  private localComparisonBindings(input: LocalComparisonInput): string {
+    return `
+      import {extensions,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareLocalModelComparison} from "@workspace-skills/local-model-task-bindings/live";
+      import {localModelComparisonWorlds,localModelSkill} from "@workspace-skills/system-testing/local-model-comparison-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Local model comparison belongs to another context");
+      const world=localModelComparisonWorlds.find(world=>world.id===input.caseId);
+      if(!world) throw new Error("Unknown local model comparison");
+      const prepared=await prepareLocalModelComparison(extensions,actualContextId,world);
       const assignedServices=prepared.services;
     `;
   }

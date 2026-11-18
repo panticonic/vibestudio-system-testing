@@ -1,3 +1,5 @@
+import { managedLocalComparisonMethods } from "./local-model-comparison-contract.js";
+import { localModelComparisonWorlds } from "./local-model-comparison-worlds.js";
 import { managedGoogleSetupMethods } from "./google-setup-contract.js";
 import { managedGoogleSetupWorlds, googleSetupPanel } from "./google-setup-worlds.js";
 import { managedNewsMethods } from "./news-contract.js";
@@ -921,6 +923,22 @@ export class HeadlessRunner {
         if (failure === undefined) throw cleanupError;
         throw new Error(`News review failed (${String(failure)}) and cleanup failed (${String(cleanupError)})`, { cause: failure });
       }
+    }
+  }
+
+  async runManagedLocalComparison(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!localModelComparisonWorlds.some((world) => world.id === caseId))
+      throw new Error("Unknown local model comparison");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedLocalComparisonMethods.qualifyManagedLocalComparison, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedLocalComparisonMethods.runManagedLocalComparisonTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 

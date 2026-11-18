@@ -49,6 +49,8 @@
   "exports": {
     "./news-worlds": "./news-worlds.ts",
     "./news-contract": "./news-contract.ts",
+    "./local-model-comparison-worlds": "./local-model-comparison-worlds.ts",
+    "./local-model-comparison-contract": "./local-model-comparison-contract.ts",
     "./google-setup-worlds": "./google-setup-worlds.ts",
     "./google-setup-contract": "./google-setup-contract.ts",
     "./spectrolite-worlds": "./spectrolite-worlds.ts",

@@ -1,3 +1,4 @@
+import { managedLocalComparisonTests } from "./tests/local-model-comparison-managed.js";
 import { managedGoogleSetupTests } from "./tests/google-setup-managed.js";
 import { managedNewsTests } from "./tests/news-managed.js";
 import { managedSpectroliteTests } from "./tests/spectrolite-managed.js";
@@ -201,6 +202,7 @@ export function allTests(): TestCase[] {
   ...managedGrimoireTests,
   ...managedSpectroliteTests,
     ...managedGoogleSetupTests,
+    ...managedLocalComparisonTests,
   ...managedNewsTests,
   ...managedSetupTests,
   ...managedPresentationTests,
