@@ -64,7 +64,9 @@
     "./content-project-oracle": "./content-project-oracle.ts",
     "./content-project-reference": "./content-project-reference.ts",
     "./owned-operations-contract": "./owned-operations-contract.ts",
-    "./owned-operations-worlds": "./owned-operations-worlds.ts"
+    "./owned-operations-worlds": "./owned-operations-worlds.ts",
+    "./local-messaging": "./local-messaging/fixture.ts",
+    "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
     "@workspace/harness": "workspace:*",
@@ -91,10 +93,13 @@
     "@vibestudio/automation": "workspace:*",
     "@workspace/model-catalog": "workspace:*",
     "@workspace/agentic-do": "workspace:*",
-    "@workspace/pty-stream": "workspace:*"
+    "@workspace/pty-stream": "workspace:*",
+    "@workspace-workers/local-messaging-fixture": "workspace:*",
+    "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
     "@vibestudio/rpc": "workspace:*",
-    "@workspace/pubsub": "workspace:*"
+    "@workspace/pubsub": "workspace:*",
+    "@workspace-skills/messaging": "workspace:*"
   }
 }

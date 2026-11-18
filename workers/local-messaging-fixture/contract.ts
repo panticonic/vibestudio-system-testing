@@ -1,0 +1,4 @@
+import {createReceiverRpcMethods} from "@vibestudio/shared/rpcMethods";
+import type {LocalMessagingProbeDO,LocalMessagingSenderDO,LocalMessagingChannelDO} from "./index.js";
+type Receiver=Pick<LocalMessagingProbeDO,"configure"|"snapshot"> & Pick<LocalMessagingSenderDO,"inspect"|"inspectDelivery"|"send"|"closeAdmission"> & Pick<LocalMessagingChannelDO,"joinFixtureDelivery">;
+export const localMessagingFixtureMethods=createReceiverRpcMethods<Receiver>(["configure","snapshot","inspect","inspectDelivery","send","closeAdmission","joinFixtureDelivery"]);

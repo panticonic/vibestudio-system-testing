@@ -1,0 +1,48 @@
+{
+  "name": "@workspace-workers/local-messaging-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./contract": "./contract.ts"
+  },
+  "vibestudio": {
+    "kind": "worker",
+    "entry": "index.ts",
+    "agentVisible": false,
+    "title": "Owned local messaging fixture",
+    "durable": {
+      "classes": [
+        {
+          "className": "LocalMessagingSenderDO"
+        },
+        {
+          "className": "LocalMessagingProbeDO"
+        },
+        {
+          "className": "LocalMessagingChannelDO"
+        }
+      ]
+    },
+    "authority": {
+      "requests": [],
+      "provides": [],
+      "serviceRequests": []
+    }
+  },
+  "dependencies": {
+    "@workspace/agentic-do": "workspace:*",
+    "@workspace/runtime": "workspace:*",
+    "@workspace/pubsub": "workspace:*",
+    "@workspace/harness": "workspace:*",
+    "@workspace-skills/messaging": "workspace:*",
+    "@workspace-workers/pubsub-channel": "workspace:*",
+    "@vibestudio/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7",
+    "@vibestudio/durable": "workspace:*",
+    "@vibestudio/rpc": "workspace:*"
+  }
+}

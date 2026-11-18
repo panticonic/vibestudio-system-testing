@@ -1,3 +1,5 @@
+import {localMessagingInputSchema,type LocalMessagingInput,type LocalMessagingResult} from "@workspace-skills/system-testing/local-messaging-contract";
+import {localMessagingTeacherCode} from "./local-messaging-teacher.js";
 import {ownedOperationsInputSchema,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
 import {ownedOperationsTeacherCode} from "./owned-operations-teacher.js";
 import { contentProjectTeacherInputSchema, contentProjectInputSchema, type ContentProjectTeacherInput, type ContentProjectInput, type ContentProjectResult, type ContentProjectReceiver } from "@workspace-skills/system-testing/content-project-contract";
@@ -571,7 +573,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runPanelTeacher(input: PanelTeacherInput): Promise<PanelTeacherResult> {
     const selected = panelTeacherInputSchema.parse(input);
     return await this.runHarnessUtility("teacher", (runId) => authoredTeacherCode({
-      executorModel:selected.executorModel,programPath:"skills/workspace-dev/panel-repair/repairPanel.nl",rootName:"repairPanel",serviceNames:["panelRepair","panelRepairEdit"],
+      executorModel:selected.executorModel,skill: "repairPanel",serviceNames:["panelRepair","panelRepairEdit"],
       request:{panelSource:selected.panelSource,goal:selected.goal},
       bindingCode:`
         import {panelTree,vcs,contextId as actualContextId} from "@workspace/runtime";
@@ -585,14 +587,19 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     },runId)) as PanelTeacherResult;
   }
 
+  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging only, with independent routing and absence verification."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runLocalMessagingTeacher(input:LocalMessagingInput):Promise<LocalMessagingResult>{
+    const selected=localMessagingInputSchema.parse(input);
+    return await this.runHarnessUtility("teacher",runId=>localMessagingTeacherCode(selected,runId)) as LocalMessagingResult;
+  }
+
   @rpc({ website: { kind: "closed", reason: "Runs authored repair in one owned worker fixture." },
     requires: SYSTEM_TEST_OPERATOR, effect: { kind: "open" }, tier: "open", sensitivity: "write" })
   async runUnitRepairTeacher(input: UnitRepairTeacherInput): Promise<UnitRepairTeacherResult> {
     const selected = unitRepairTeacherInputSchema.parse(input);
     return await this.runHarnessUtility("teacher", (runId) => `${authoredTeacherCode({
       executorModel: selected.executorModel,
-      programPath: "skills/workspace-dev/unit-repair/repairUnit.nl",
-      rootName: "repairUnit",
+      skill: "repairUnit",
       serviceNames: ["unitRepair", "unitRepairEdit"],
       request: { unit: selected.unit, suite: "unit", goal: selected.goal },
       bindingCode: `
@@ -638,7 +645,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runContentProjectTeacher(input:ContentProjectTeacherInput):Promise<ContentProjectResult> {
     const selected=contentProjectTeacherInputSchema.parse(input);
     return await this.runHarnessUtility("teacher",runId=>`${authoredTeacherCode({
-      executorModel:selected.executorModel,programPath:"skills/workspace-dev/content-project/deliverProject.nl",rootName:"deliverProject",serviceNames:["projectWorkspace","projectWorkspaceEdit"],request:selected.request,
+      executorModel:selected.executorModel,skill: "deliverProject",serviceNames:["projectWorkspace","projectWorkspaceEdit"],request:selected.request,
       bindingCode:`
         import {vcs,contextId as actualContextId} from "@workspace/runtime";
         import {prepareProjects} from "@workspace-skills/workspace-dev";
@@ -726,7 +733,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runWorkspaceIntegrationTeacher(input: WorkspaceIntegrationTeacherInput): Promise<PanelTeacherResult> {
     const selected=workspaceIntegrationTeacherInputSchema.parse(input);
     return await this.runHarnessUtility("teacher",runId=>authoredTeacherCode({
-      executorModel:selected.executorModel,programPath:"skills/vibestudio-vcs/integration/integrateWorkspace.nl",rootName:"integrateWorkspace",serviceNames:["workspaceIntegration"],request:{goal:selected.goal},
+      executorModel:selected.executorModel,skill: "integrateWorkspace",serviceNames:["workspaceIntegration"],request:{goal:selected.goal},
       bindingCode:`
         import {vcs,contextId as actualContextId} from "@workspace/runtime";
         import {createWorkspaceIntegration} from "@workspace/natlang-services";

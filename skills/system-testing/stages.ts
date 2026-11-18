@@ -1,3 +1,4 @@
+import {localMessagingTests} from "./local-messaging/cases.js";
 import {ownedOperationsTests} from "./tests/owned-operations.js";
 import {contentProjectTests} from "./tests/content-project.js";
 import { unitRepairTests } from "./tests/unit-repair.js";
@@ -176,6 +177,7 @@ export function allTests(): TestCase[] {
   ...unitRepairTests,
   ...contentProjectTests,
   ...ownedOperationsTests,
+  ...localMessagingTests,
     ...workspaceIntegrationTests,
     ...workerTests,
     ...buildTests,
