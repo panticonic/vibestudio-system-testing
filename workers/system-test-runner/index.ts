@@ -1,3 +1,4 @@
+import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
 import type { VerifiedMemoryReceiver, VerifiedMemoryInput } from "@workspace-skills/system-testing/verified-memory-contract";
@@ -1016,6 +1017,60 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/terminal-apps/checklist/verifyChecklist.nl");
       const utilityValue=await qualifyManagedChecklist(input.caseId);
     `) as Awaited<ReturnType<ManagedChecklistReceiver["qualifyManagedChecklist"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Observes the installed garden service in the test-owned world."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async inspectOwnedGarden(input: Parameters<ManagedGrimoireReceiver["inspectOwnedGarden"]>[0]) {
+    return await this.runHarnessUtility("teacher", `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {observeGarden} from "@workspace-skills/examples-review-fixtures/live-garden";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Garden belongs to another context");
+      const utilityValue=await observeGarden(input.garden,"before");
+    `);
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews assigned Grimoire claims against the installed garden worker."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedGrimoireTeacher(input: GardenReviewInput & {executorModel:string}): ReturnType<ManagedGrimoireReceiver["runManagedGrimoireTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"examples",operation:"reviewExample",input:{goal:"Review the assigned garden"}},
+      inputCode:"world.request",
+      bindingCode:this.gardenReviewBindings(input),
+    },runId)}
+      const verification=prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedGrimoireReceiver["runManagedGrimoireTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies real garden observations and negative evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedGrimoire(input: GardenReviewInput): ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.gardenReviewBindings(input)}
+      await natlang.describe("skills/examples-review/reviewExample.nl");
+      await assignedServices.gardenRead.observe();
+      const report=prepared.expected();
+      const verification=prepared.verify(report);
+      const altered={...report,evidenceIds:["other-garden"]};
+      const utilityValue={
+        verification,
+        rejectedAlteredEvidence:!prepared.verify(altered).passed,
+      };
+    `) as Awaited<ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]>>;
+  }
+
+  private gardenReviewBindings(input: GardenReviewInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareGardenReview} from "@workspace-skills/examples-review-fixtures/live-garden";
+      import {managedGrimoireWorlds} from "@workspace-skills/system-testing/grimoire-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Garden belongs to another context");
+      const world=managedGrimoireWorlds.find(world=>world.id===input.caseId);
+      if(!world) throw new Error("Unknown Grimoire world");
+      const prepared=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.visits.map(resident=>resident.toLowerCase()));
+      const assignedServices=prepared.services;
+    `;
   }
 
   private async integrationFixtureIdentity() {

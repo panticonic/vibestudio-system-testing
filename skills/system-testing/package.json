@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./grimoire-worlds": "./grimoire-worlds.ts",
+    "./grimoire-contract": "./grimoire-contract.ts",
     "./checklist-contract": "./checklist-contract.ts",
     "./checklist-managed": "./checklist-managed.ts",
     "./onboarding-contract": "./onboarding-contract.ts",

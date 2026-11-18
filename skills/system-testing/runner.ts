@@ -1,3 +1,5 @@
+import { managedGrimoireMethods } from "./grimoire-contract.js";
+import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
 import { managedMemoryMethods } from "./verified-memory-contract.js";
@@ -61,7 +63,7 @@ import type { AttachedHostApprovalAuditEvent } from "@vibestudio/service-schemas
 import type { TestAuthorityPolicy } from "./types.js";
 import type { BlobReader } from "@workspace/agentic-protocol";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
-import { evalInPanel } from "@workspace/testkit";
+import { evalInPanel, setViewport, waitFor } from "@workspace/testkit";
 import { publishAtomicPanelStoreFixture } from "./atomic-panel-store-fixture.js";
 import { probeSemanticCommand } from "./semantic-command-probe.js";
 import {
@@ -851,6 +853,45 @@ export class HeadlessRunner {
       return {kind:"teacher" as const,result:await rpc.call(owner,managedPdfMethods.runManagedPdfTeacher,[{...input,executorModel:this.modelRef}])};
     } finally {
       await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    }
+  }
+
+  async runManagedGrimoire(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = managedGrimoireWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown Grimoire case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    const garden = `natlang-garden-${crypto.randomUUID()}`;
+    let handle: Awaited<ReturnType<typeof openPanel>> | undefined;
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      handle = await this.openPanelClient(grimoirePanel, {
+        contextId, ref: `ctx:${contextId}`, stateArgs: { estateKey: garden }, focus: false, parentId: null, signal,
+      });
+      const panel = handle;
+      const before = await rpc.call(owner, managedGrimoireMethods.inspectOwnedGarden, [{ contextId, garden }], { signal });
+      if (world.visits.length > 0) {
+        await setViewport(panel, { width: 1200, height: 1000 });
+        const { page } = await panel.cdp.session();
+        try {
+          for (const resident of world.visits) {
+            signal.throwIfAborted();
+            await page.getByRole("button", { name: resident, exact: true }).click();
+            await waitFor(async () => {
+              signal.throwIfAborted();
+              const notice = await this.evalInPanelClient<string>(panel, 'document.querySelector(".garden-observations p")?.textContent ?? ""');
+              return notice.startsWith(`${resident} pauses to watch you.`) || undefined;
+            }, { label: `${resident}'s visit appears in the actual garden` });
+          }
+        } finally { await page.close(); }
+      }
+      const input = { contextId, garden, caseId, before };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedGrimoireMethods.qualifyManagedGrimoire, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedGrimoireMethods.runManagedGrimoireTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      try { await handle?.archive(); }
+      finally { await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]); }
     }
   }
 
