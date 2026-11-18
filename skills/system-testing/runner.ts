@@ -1,3 +1,4 @@
+import { managedAutomationMethods } from "./automation-lifecycle-contract.js";
 import { integrationHandoffMethods } from "./integration-handoff-contract.js";
 import { integrationHandoffWorlds } from "./integration-handoff-worlds.js";
 import { scratchHandoffRpcMethods } from "./scratch-handoff-contract.js";
@@ -798,6 +799,20 @@ export class HeadlessRunner {
       if(reference) return {kind:"reference" as const,result:await rpc.call(world.owner,integrationHandoffMethods.qualifyIntegrationHandoff,[caseId])};
       return {kind:"teacher" as const,result:await rpc.call(world.owner,integrationHandoffMethods.runIntegrationHandoffTeacher,[{caseId,executorModel:this.modelRef}])};
     } finally {await world.cleanup();}
+  }
+
+  async runManagedAutomation(caseId: string, qualification = false) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const target = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? {testPolicy:policy} : {}]);
+    try {
+      const owner = await this.createFixtureWorker(target.contextId);
+      const input = { contextId: target.contextId, caseId };
+      if (qualification)
+        return { kind:"reference" as const, result: await rpc.call(owner,managedAutomationMethods.qualifyManagedAutomation,[input]) };
+      return { kind:"teacher" as const, result: await rpc.call(owner,managedAutomationMethods.runManagedAutomationTeacher,[{...input,executorModel:this.modelRef}]) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{contextId:target.contextId,recursive:true}]);
+    }
   }
 
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {

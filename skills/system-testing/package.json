@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./automation-lifecycle-managed": "./automation-lifecycle-managed.ts",
+    "./automation-lifecycle-contract": "./automation-lifecycle-contract.ts",
     "./integration-handoff-contract": "./integration-handoff-contract.ts",
     "./integration-handoff-managed": "./integration-handoff-managed.ts",
     "./scratch-handoff-managed": "./scratch-handoff-managed.ts",
@@ -74,6 +76,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/automation-lifecycle-bindings": "workspace:*",
     "@workspace-skills/scratch-handoff-bindings": "workspace:*",
     "@workspace/harness": "workspace:*",
     "@babel/parser": "^7.29.2",

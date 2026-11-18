@@ -1,3 +1,5 @@
+import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace-skills/system-testing/automation-lifecycle-managed";
+import type { ManagedAutomationReceiver } from "@workspace-skills/system-testing/automation-lifecycle-contract";
 import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type ScratchHandoffInput, type ScratchHandoffTeacherInput, type ScratchHandoffReceiver } from "@workspace-skills/system-testing/scratch-handoff-contract";
 import { managedScratchWorlds } from "@workspace-skills/system-testing/scratch-handoff-worlds";
 import {localMessagingInputSchema,type LocalMessagingInput,type LocalMessagingResult} from "@workspace-skills/system-testing/local-messaging-contract";
@@ -303,7 +305,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -753,6 +755,44 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(actualContextId!==world.fixture.contextId) throw new Error("Integration qualification belongs to another context");
       const utilityValue=await qualifyIntegrationHandoff({fs,vcs,rpc},world,${JSON.stringify(caseId)});
     `) as Awaited<ReturnType<IntegrationHandoffReceiver["qualifyIntegrationHandoff"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs one test-owned, manual-only automation lifecycle assignment."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedAutomationTeacher(input:{caseId:string;contextId:string;executorModel:string}): ReturnType<ManagedAutomationReceiver["runManagedAutomationTeacher"]> {
+    const owner = await this.integrationFixtureIdentity();
+    if (owner.contextId !== input.contextId) throw new Error("Automation case belongs to another context");
+    const seed = await seedManagedAutomation(this.rpc,input.caseId);
+    try {
+      return await this.runHarnessUtility("teacher",runId => `${domainTeacherCode({
+        executorModel:input.executorModel,
+        work:{kind:"domain",domain:"automationLifecycle",operation:"reconcileAutomation",input:{goal:"Reconcile the assigned mission"}},
+        inputCode:"prepared.request",bindingCode:`
+          import {rpc,contextId as actualContextId} from "@workspace/runtime";
+          import {prepareManagedAutomation,verifyManagedAutomation} from "@workspace-skills/system-testing/automation-lifecycle-managed";
+          if(actualContextId!==${JSON.stringify(input.contextId)}) throw new Error("Automation case belongs to another context");
+          const prepared=prepareManagedAutomation(rpc,${JSON.stringify(seed)});
+          const assignedServices=prepared.services;
+        `,
+      },runId)}
+        const verification=await verifyManagedAutomation(prepared,utilityValue.report);
+        utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+      `) as Awaited<ReturnType<ManagedAutomationReceiver["runManagedAutomationTeacher"]>>;
+    } finally {await pauseManagedAutomationFixture(this.rpc,seed);}
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies owner-scoped automation scheduling without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedAutomation(input:{caseId:string;contextId:string}): ReturnType<ManagedAutomationReceiver["qualifyManagedAutomation"]> {
+    const owner = await this.integrationFixtureIdentity();
+    if (owner.contextId !== input.contextId) throw new Error("Automation qualification belongs to another context");
+    const seed = await seedManagedAutomation(this.rpc,input.caseId);
+    try {
+      return await this.runHarnessUtility("teacher",`
+        import {rpc,contextId as actualContextId} from "@workspace/runtime";
+        import {qualifyManagedAutomation} from "@workspace-skills/system-testing/automation-lifecycle-managed";
+        if(actualContextId!==${JSON.stringify(input.contextId)}) throw new Error("Automation qualification belongs to another context");
+        const utilityValue=await qualifyManagedAutomation(rpc,${JSON.stringify(seed)});
+      `) as Awaited<ReturnType<ManagedAutomationReceiver["qualifyManagedAutomation"]>>;
+    } finally {await pauseManagedAutomationFixture(this.rpc,seed);}
   }
 
   private async integrationFixtureIdentity() {

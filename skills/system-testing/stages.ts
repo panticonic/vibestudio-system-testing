@@ -1,3 +1,4 @@
+import { managedAutomationTests } from "./tests/automation-lifecycle.js";
 import { managedIntegrationHandoffTests } from "./tests/integration-handoff.js";
 import { managedScratchHandoffTests } from "./tests/scratch-handoff.js";
 import {localMessagingTests} from "./local-messaging/cases.js";
@@ -180,6 +181,7 @@ export function allTests(): TestCase[] {
   ...contentProjectTests,
   ...managedScratchHandoffTests,
   ...managedIntegrationHandoffTests,
+  ...managedAutomationTests,
   ...ownedOperationsTests,
   ...localMessagingTests,
     ...workspaceIntegrationTests,
