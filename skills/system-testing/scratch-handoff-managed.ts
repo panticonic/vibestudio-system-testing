@@ -99,6 +99,55 @@ function expectedAnswers(world: StagedWorld) {
   }));
 }
 
+type Answer = ReturnType<typeof expectedAnswers>[number];
+
+function citedLines(answer: Answer, sources: World["sources"]) {
+  if (
+    !Array.isArray(answer.evidence) ||
+    answer.evidence.length < 1 ||
+    answer.evidence.length > 4
+  )
+    return null;
+  const cited = new Set<string>();
+  for (const { sourceId, firstLine, lastLine, text } of answer.evidence) {
+    const lines = sources[sourceId]?.split(/\r?\n/u);
+    if (
+      !lines ||
+      !Number.isInteger(firstLine) ||
+      !Number.isInteger(lastLine) ||
+      firstLine < 1 ||
+      lastLine < firstLine ||
+      lastLine > lines.length ||
+      lastLine - firstLine >= 8 ||
+      text !== lines.slice(firstLine - 1, lastLine).join("\n")
+    )
+      return null;
+    for (let line = firstLine; line <= lastLine; line++) {
+      const key = `${sourceId}:${line}`;
+      if (cited.has(key)) return null;
+      cited.add(key);
+    }
+  }
+  return cited;
+}
+
+function checkAnswers(body: string, world: StagedWorld) {
+  const { answers } = JSON.parse(body) as { answers: Answer[] };
+  const expected = expectedAnswers(world);
+  return (
+    Array.isArray(answers) &&
+    answers.length === expected.length &&
+    expected.every(
+      (answer, index) =>
+        answers[index]?.question === answer.question &&
+        isDeepStrictEqual(
+          citedLines(answers[index]!, world.sources),
+          citedLines(answer, world.sources),
+        ),
+    )
+  );
+}
+
 export async function verifyManagedScratchHandoff(
   fs: RuntimeFs,
   vcs: Pick<VcsClient, "status">,
@@ -168,9 +217,7 @@ export async function verifyManagedScratchHandoff(
         exactReadback =
           report?.artifact?.path === path &&
           report.artifact.bytes === artifact.bytes &&
-          isDeepStrictEqual(JSON.parse(body), {
-            answers: expectedAnswers(world),
-          });
+          checkAnswers(body, world);
       } catch {
         // A non-JSON candidate fails exact evidence readback.
       }
@@ -213,14 +260,31 @@ export async function qualifyManagedScratchHandoff(
     status: world.status,
     artifact: null,
     missingSources,
-    unanswered: [],
+    unanswered:
+      world.status === "unanswered"
+        ? world.unanswered.map((index) => world.questions[index]!)
+        : [],
   };
   if (world.status === "staged") {
     const answers = expectedAnswers(world);
+    for (const answer of answers) {
+      const split = answer.evidence.flatMap(({ sourceId, firstLine, text }) =>
+        text.split("\n").map((line, offset) => ({
+          sourceId,
+          firstLine: firstLine + offset,
+          lastLine: firstLine + offset,
+          text: line,
+        })),
+      );
+      if (split.length <= 4) answer.evidence = split;
+    }
     if (negative) answers[0]!.evidence[0]!.text += " (unobserved)";
     report.artifact = await binding.scratchHandoffWrite.stage(
       JSON.stringify({ answers }) + "\n",
     );
+  } else if (negative) {
+    report.artifact =
+      await binding.scratchHandoffWrite.stage('{"answers":[]}\n');
   }
   return verifyManagedScratchHandoff(fs, vcs, rpc, seeded, report);
 }

@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ScratchHandoffReceiver } from "../scratch-handoff-contract.js";
-import { managedScratchWorlds } from "../scratch-handoff-worlds.js";
+import {
+  extendedScratchWorlds,
+  managedScratchWorlds,
+} from "../scratch-handoff-worlds.js";
 
 type Captured = Awaited<
   ReturnType<ScratchHandoffReceiver["runScratchHandoffTeacher"]>
@@ -118,5 +121,78 @@ managedScratchHandoffTests.push({
           reason: "Real scratch verifier did not pass its three checks",
           details: { reference, negative, missing },
         };
+  },
+});
+
+const qualificationCases = [
+  ...extendedScratchWorlds.map(({ id, status }) => ({
+    id,
+    status,
+    mode: "reference" as const,
+  })),
+  {
+    id: "transfer-preconditions",
+    status: "staged",
+    mode: "negative",
+  },
+  {
+    id: "pending-signature-and-window",
+    status: "unanswered",
+    mode: "negative",
+  },
+  {
+    id: "missing-inventory-and-seal",
+    status: "source-unavailable",
+    mode: "negative",
+  },
+] as const;
+
+managedScratchHandoffTests.push({
+  name: "scratch-handoff-cross-source-qualification",
+  category: "project-lifecycle",
+  description:
+    "Verify cross-source excerpts and withheld handoffs against real workspace files",
+  prompt:
+    "Qualify the cross-source handoff oracles using owned workspace files without model calls.",
+  explicitOnly: true,
+  validation: "harness",
+  async orchestrate(context) {
+    const started = Date.now();
+    const attempts = [];
+    for (const { id, mode, status } of qualificationCases) {
+      context.signal.throwIfAborted();
+      const observed = await context.runner.runScratchHandoff(id, mode);
+      if (observed.kind !== "reference")
+        throw new Error("Qualification used an executor");
+      const { passed, checks, expectedStatus, artifact } = observed.result;
+      const matched =
+        status === expectedStatus &&
+        checks.disposition &&
+        checks.originalsUnchanged &&
+        checks.protectedUnchanged &&
+        (mode === "reference"
+          ? passed &&
+            checks.exactReadback &&
+            Boolean(artifact) === (status === "staged")
+          : !passed && !checks.exactReadback);
+      attempts.push({ id, mode, status, matched, checks });
+    }
+    return {
+      messages: [],
+      duration: Date.now() - started,
+      diagnostics: { scratchCrossSourceQualification: attempts },
+    };
+  },
+  validate(result) {
+    const attempts = result.diagnostics?.["scratchCrossSourceQualification"] as
+      | { matched: boolean }[]
+      | undefined;
+    const passed =
+      attempts?.length === qualificationCases.length &&
+      attempts.every(({ matched }) => matched);
+    return {
+      passed,
+      details: { attempts: attempts ?? [], modelCalls: 0 },
+    };
   },
 });
