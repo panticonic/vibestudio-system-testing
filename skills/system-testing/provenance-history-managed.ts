@@ -6,6 +6,7 @@ import {
 
 type Report = {
   kind: "live-history";
+  constraint?: { status: string; evidence: string[] };
   findings: {
     check: ProvenanceHistoryCheck;
     status: string;
@@ -39,8 +40,20 @@ export async function prepareManagedProvenanceHistory(
     kind: "live-history" as const,
     goal: world.goal,
     checks: world.checks,
+    ...(world.constraint
+      ? { proposedProperty: world.constraint.proposedProperty }
+      : {}),
   };
   let pending = false;
+  const sources = new Map<string, string>();
+  function sourceRef(node: unknown) {
+    const key = JSON.stringify(node);
+    const existing = sources.get(key);
+    if (existing) return existing;
+    const id = `source:${sources.size + 1}`;
+    sources.set(key, id);
+    return id;
+  }
 
   async function observe(check: ProvenanceHistoryCheck, index: number) {
     const file = await vcs.readFile({
@@ -76,14 +89,18 @@ export async function prepareManagedProvenanceHistory(
         !!walk?.nextCursor ||
         Boolean(walk?.omitted.length) ||
         entries.some(({ boundary }) => boundary === "outside-visibility"),
-      records: entries.map(({ label, intent, group, boundary }, item) => ({
-        ref: `history:${index + 1}:${item + 1}`,
-        label,
-        intent: intent?.text ?? null,
-        tier: intent?.tier ?? null,
-        group: group ?? null,
-        boundary: boundary ?? null,
-      })),
+      records: entries.map(
+        ({ node, label, intent, group, detail, boundary }, item) => ({
+          ref: `history:${index + 1}:${item + 1}`,
+          source: sourceRef(node),
+          label,
+          detail: detail ?? null,
+          intent: intent?.text ?? null,
+          tier: intent?.tier ?? null,
+          group: group ?? null,
+          boundary: boundary ?? null,
+        }),
+      ),
     };
     return { receipt, walk, fileId };
   }
@@ -109,9 +126,40 @@ export async function prepareManagedProvenanceHistory(
     }
   }
 
+  function constraintReference(): Report["constraint"] {
+    const expected = world?.constraint;
+    if (!expected) return undefined;
+    const records = readbacks.flatMap(({ receipt }) => receipt.records);
+    const match = records.find((record) => {
+      if (expected.evidence === "retry-counteraction")
+        return (
+          record.group === "counteractions" &&
+          /300 seconds/iu.test(record.detail ?? "") &&
+          /staging cut the link/iu.test(record.intent ?? "")
+        );
+      if (expected.evidence === "policy")
+        return /Cap the retry backoff at 30 seconds/iu.test(
+          record.intent ?? "",
+        );
+      if (expected.evidence === "cache")
+        return /Cache the upstream feed for 900 seconds/iu.test(
+          record.intent ?? "",
+        );
+      return false;
+    });
+    if (expected.evidence !== "none" && !match)
+      throw new Error(
+        "The proposed change lacks its assigned recorded evidence",
+      );
+    return { status: expected.status, evidence: match ? [match.ref] : [] };
+  }
+
   function reference(): Report {
     return {
       kind: "live-history",
+      ...(request.proposedProperty
+        ? { constraint: constraintReference() }
+        : {}),
       findings: readbacks.map(({ receipt }) => ({
         check: receipt.check,
         status: !receipt.exists
@@ -130,6 +178,11 @@ export async function prepareManagedProvenanceHistory(
     const after = await vcs.status({ contextId });
     const expected = reference();
     const checks = {
+      constraint: expected.constraint
+        ? report?.constraint?.status === expected.constraint.status &&
+          JSON.stringify(report.constraint.evidence) ===
+            JSON.stringify(expected.constraint.evidence)
+        : report?.constraint === undefined,
       unchanged:
         after.clean &&
         JSON.stringify(after.workingHead) === JSON.stringify(workingHead),
@@ -171,6 +224,12 @@ export async function prepareManagedProvenanceHistory(
       repositoryId,
       workingHead,
       readbacks,
+      ...(expected.constraint
+        ? {
+            property: request.proposedProperty,
+            constraint: expected.constraint,
+          }
+        : {}),
       checks,
       passed: Object.values(checks).every(Boolean),
     };
