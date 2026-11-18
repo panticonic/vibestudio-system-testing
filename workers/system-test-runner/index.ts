@@ -1,3 +1,4 @@
+import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
@@ -1069,6 +1070,49 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const world=managedGrimoireWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown Grimoire world");
       const prepared=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.visits.map(resident=>resident.toLowerCase()));
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews owned Spectrolite document and actual preview evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedSpectroliteTeacher(input: SpectroliteInput & {executorModel:string}): ReturnType<ManagedSpectroliteReceiver["runManagedSpectroliteTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"spectrolite",operation:"reviewSpectrolite",input:{goal:"Review the assigned Spectrolite document"}},
+      inputCode:"prepared.request",
+      bindingCode:this.spectroliteBindings(input),
+    },runId)}
+      const verification=prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedSpectroliteReceiver["runManagedSpectroliteTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live Spectrolite evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedSpectrolite(input: SpectroliteInput): ReturnType<ManagedSpectroliteReceiver["qualifyManagedSpectrolite"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.spectroliteBindings(input)}
+      await natlang.describe("skills/spectrolite-review/reviewSpectrolite.nl");
+      await assignedServices.spectroliteRead.observe();
+      const report=prepared.reference();
+      const verification=prepared.verify(report);
+      const altered={findings:report.findings.map(finding=>({...finding,evidenceIds:["different-revision"]}))};
+      const utilityValue={verification,rejectedDifferentRevision:!prepared.verify(altered).passed};
+    `) as Awaited<ReturnType<ManagedSpectroliteReceiver["qualifyManagedSpectrolite"]>>;
+  }
+
+  private spectroliteBindings(input: SpectroliteInput): string {
+    return `
+      import {panelTree,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareSpectroliteReview} from "@workspace-skills/spectrolite-review-fixtures/live";
+      import {managedSpectroliteWorlds,spectrolitePanel,spectroliteVault} from "@workspace-skills/system-testing/spectrolite-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Spectrolite review belongs to another context");
+      const world=managedSpectroliteWorlds.find(world=>world.id===input.caseId);
+      if(!world) throw new Error("Unknown Spectrolite assignment");
+      const panel=panelTree.get(input.panelId);
+      const panelState=await panel.observe();
+      if(panelState.source!==spectrolitePanel || panelState.contextId!==input.contextId || panelState.requestedRef!=="ctx:"+input.contextId || panelState.kind!=="workspace") throw new Error("Spectrolite panel belongs to another assignment");
+      const prepared=prepareSpectroliteReview(panel,actualContextId,spectroliteVault,world);
       const assignedServices=prepared.services;
     `;
   }

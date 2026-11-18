@@ -1,3 +1,4 @@
+import { managedSpectroliteTests } from "./tests/spectrolite-managed.js";
 import { managedGrimoireTests } from "./tests/grimoire-managed.js";
 import { managedChecklistTests } from "./tests/checklist-managed.js";
 import { managedSetupTests } from "./tests/onboarding-managed.js";
@@ -196,6 +197,7 @@ export function allTests(): TestCase[] {
   ...managedMemoryTests,
   ...managedChecklistTests,
   ...managedGrimoireTests,
+  ...managedSpectroliteTests,
   ...managedSetupTests,
   ...managedPresentationTests,
   ...ownedOperationsTests,

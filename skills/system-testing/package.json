@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./spectrolite-worlds": "./spectrolite-worlds.ts",
+    "./spectrolite-contract": "./spectrolite-contract.ts",
     "./grimoire-worlds": "./grimoire-worlds.ts",
     "./grimoire-contract": "./grimoire-contract.ts",
     "./checklist-contract": "./checklist-contract.ts",

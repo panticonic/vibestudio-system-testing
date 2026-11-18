@@ -1,3 +1,5 @@
+import { managedSpectroliteMethods } from "./spectrolite-contract.js";
+import { managedSpectroliteWorlds, spectrolitePanel, spectroliteVault } from "./spectrolite-worlds.js";
 import { managedGrimoireMethods } from "./grimoire-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
@@ -853,6 +855,54 @@ export class HeadlessRunner {
       return {kind:"teacher" as const,result:await rpc.call(owner,managedPdfMethods.runManagedPdfTeacher,[{...input,executorModel:this.modelRef}])};
     } finally {
       await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);
+    }
+  }
+
+  async runManagedSpectrolite(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = managedSpectroliteWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown Spectrolite case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    let panel: Awaited<ReturnType<typeof openPanel>> | undefined;
+    try {
+      const { workingHead } = await vcs.status({ contextId });
+      const repository = await vcs.resolveRepository({ state: workingHead, repoPath: spectroliteVault });
+      if (!repository) throw new Error("The installed Spectrolite vault is absent");
+      const seeded = await vcs.edit({
+        contextId, expectedWorkingHead: workingHead, commandId: `spectrolite:seed:${contextId}`,
+        changes: Object.entries(world.files).map(([path, text]) => ({
+          kind: "file-create" as const, path, repositoryId: repository.repositoryId,
+          content: { kind: "text" as const, text }, mode: 0o644,
+        })),
+      });
+      await vcs.commit({
+        contextId, expectedWorkingHead: seeded.workingHead, commandId: `spectrolite:commit:${contextId}`,
+        message: "Seed the assigned Spectrolite review vault",
+      });
+      const owner = await this.createFixtureWorker(contextId);
+      panel = await this.openPanelClient(spectrolitePanel, {
+        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+        stateArgs: { repoRoot: spectroliteVault, openPath: world.follow?.path ?? world.path },
+      });
+      if (world.follow) {
+        const follow = world.follow;
+        const target = panel;
+        await waitFor(async () => {
+          signal.throwIfAborted();
+          return (await target.snapshot()).document.text.includes(follow.heading) || undefined;
+        }, { label: "Spectrolite opens the assigned starting note" });
+        const { page } = await panel.cdp.session();
+        try {
+          await page.locator(`[data-wikilink=${JSON.stringify(follow.target)}]`).click();
+        } finally { await page.close(); }
+      }
+      const input = { contextId, caseId, panelId: panel.id };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedSpectroliteMethods.qualifyManagedSpectrolite, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedSpectroliteMethods.runManagedSpectroliteTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      try { await panel?.archive(); }
+      finally { await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]); }
     }
   }
 
