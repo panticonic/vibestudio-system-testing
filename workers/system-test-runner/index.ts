@@ -1,3 +1,4 @@
+import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
 import type { VerifiedMemoryReceiver, VerifiedMemoryInput } from "@workspace-skills/system-testing/verified-memory-contract";
 import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills/system-testing/authoring-contract";
@@ -311,7 +312,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver, ManagedChecklistReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -979,6 +980,42 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
       const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
     `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Verifies the assigned release checklist through a live workspace PTY."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedChecklistTeacher(input: ChecklistInput & {executorModel:string}): ReturnType<ManagedChecklistReceiver["runManagedChecklistTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedChecklist,verifyManagedChecklist} from "@workspace-skills/system-testing/checklist-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Checklist belongs to another context");
+      const prepared=prepareManagedChecklist(input.caseId);
+      let teacher, retired;
+      try {
+        ${domainTeacherCode({
+          executorModel:input.executorModel,
+          work:{kind:"domain",domain:"terminalChecklist",operation:"verifyChecklist",input:{goal:"Verify the assigned release checklist"}},
+          inputCode:"prepared.request",
+          bindingCode:"const assignedServices=prepared.services;",
+        }, runId)}
+        teacher=utilityValue;
+      } finally {
+        retired=await prepared.close();
+      }
+      const utilityValue={teacher,contextId:actualContextId,verification:verifyManagedChecklist(prepared,teacher.report,retired)};
+    `) as Awaited<ReturnType<ManagedChecklistReceiver["runManagedChecklistTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live release checklist screens and restart without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedChecklist(input: ChecklistInput): ReturnType<ManagedChecklistReceiver["qualifyManagedChecklist"]> {
+    return await this.runHarnessUtility("teacher",`
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {qualifyManagedChecklist} from "@workspace-skills/system-testing/checklist-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Checklist qualification belongs to another context");
+      await natlang.describe("skills/terminal-apps/checklist/verifyChecklist.nl");
+      const utilityValue=await qualifyManagedChecklist(input.caseId);
+    `) as Awaited<ReturnType<ManagedChecklistReceiver["qualifyManagedChecklist"]>>;
   }
 
   private async integrationFixtureIdentity() {

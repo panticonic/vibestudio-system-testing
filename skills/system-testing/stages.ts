@@ -1,3 +1,4 @@
+import { managedChecklistTests } from "./tests/checklist-managed.js";
 import { managedSetupTests } from "./tests/onboarding-managed.js";
 import { managedMemoryTests } from "./tests/verified-memory.js";
 import { managedAuthoringTests } from "./tests/authoring-managed.js";
@@ -192,6 +193,7 @@ export function allTests(): TestCase[] {
   ...managedPdfTests,
   ...managedAuthoringTests,
   ...managedMemoryTests,
+  ...managedChecklistTests,
   ...managedSetupTests,
   ...managedPresentationTests,
   ...ownedOperationsTests,

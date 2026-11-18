@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./checklist-contract": "./checklist-contract.ts",
+    "./checklist-managed": "./checklist-managed.ts",
     "./onboarding-contract": "./onboarding-contract.ts",
     "./onboarding-managed": "./onboarding-managed.ts",
     "./verified-memory-contract": "./verified-memory-contract.ts",
