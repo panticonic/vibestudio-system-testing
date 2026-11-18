@@ -47,6 +47,8 @@
     }
   },
   "exports": {
+    "./publication-preflight-contract": "./publication-preflight-contract.ts",
+    "./publication-preflight-managed": "./publication-preflight-managed.ts",
     "./automation-lifecycle-managed": "./automation-lifecycle-managed.ts",
     "./automation-lifecycle-contract": "./automation-lifecycle-contract.ts",
     "./integration-handoff-contract": "./integration-handoff-contract.ts",
@@ -76,6 +78,8 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/publish-preflight-bindings": "workspace:*",
+    "@workspace/integrations": "workspace:*",
     "@workspace-skills/automation-lifecycle-bindings": "workspace:*",
     "@workspace-skills/scratch-handoff-bindings": "workspace:*",
     "@workspace/harness": "workspace:*",

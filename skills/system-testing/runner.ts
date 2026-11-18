@@ -1,3 +1,4 @@
+import { managedPublicationMethods } from "./publication-preflight-contract.js";
 import { managedAutomationMethods } from "./automation-lifecycle-contract.js";
 import { integrationHandoffMethods } from "./integration-handoff-contract.js";
 import { integrationHandoffWorlds } from "./integration-handoff-worlds.js";
@@ -813,6 +814,22 @@ export class HeadlessRunner {
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{contextId:target.contextId,recursive:true}]);
     }
+  }
+
+  async runManagedPublication(goal:string, qualification = false) {
+    const fixture=this.workspaceRepoFixture;
+    const contextId=this.workspaceRepoFixtureContextId;
+    if(fixture?.kind!=="publication-preflight-panel" || !fixture.repoName || !contextId)
+      throw new Error("Publication preflight requires the runner's prepared panel fixture");
+    const panelSource=`panels/${fixture.repoName}`;
+    const owner=await this.fixtureForkOwner();
+    const handle=await this.openPanelClient(panelSource,{contextId,ref:`ctx:${contextId}`,focus:false,parentId:null});
+    try {
+      const input={contextId,panelId:handle.id,panelSource,caseId:fixture.caseId,goal};
+      if(qualification)
+        return {kind:"reference" as const,result:await rpc.call(owner,managedPublicationMethods.qualifyManagedPublication,[input])};
+      return {kind:"teacher" as const,result:await rpc.call(owner,managedPublicationMethods.runManagedPublicationTeacher,[{...input,executorModel:this.modelRef}])};
+    } finally {await handle.archive();}
   }
 
   async prepareWorkspaceRepoFixture(): Promise<WorkspaceRepoFixtureState> {

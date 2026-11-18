@@ -1,3 +1,4 @@
+import { managedPublicationWorlds } from "./publication-preflight-worlds.js";
 import { unitRepairSeedFiles, type UnitRepairFault } from "./unit-repair-oracle.js";
 import type { VcsClient } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -55,6 +56,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "unit-repair-worker"; section: "workers"; fault: UnitRepairFault }
   | { kind: "buildable-panel"; section: "panels" }
   | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
+  | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
   | { kind: "optimizable-panel"; section: "panels" }
   | { kind: "created-repository"; section: WorkspaceRepoSection }
   | {
@@ -1279,6 +1281,25 @@ function repositorySeedFiles(
   }
   if (fixture.kind === "optimizable-panel") {
     return buildablePanelFiles(repoName, { repeatedStatusLabels: 512 });
+  }
+  if (fixture.kind === "publication-preflight-panel") {
+    const world = managedPublicationWorlds.find(({ id }) => id === fixture.caseId);
+    if (!world) throw new Error("Unknown publication preflight panel fixture");
+    const [manifest] = buildablePanelFiles(repoName);
+    const config = JSON.parse(manifest!.content);
+    config.vibestudio.website = { entry: "website.ts", title: world.title };
+    return [
+      { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
+      { path: "copy.ts", content: `export const copy = ${JSON.stringify({title:world.title,caption:world.caption})};\n` },
+      { path: "index.tsx", content: `import { copy } from "./copy.js";
+export default function ReviewPanel() { return <main><h1>{copy.title}</h1><p>{copy.caption}</p></main>; }\n` },
+      { path: "website.ts", content: `import { copy } from "./copy.js";
+const title = document.createElement("h1");
+title.textContent = copy.title;
+const caption = document.createElement("p");
+caption.textContent = copy.caption;
+document.getElementById("root")!.append(title, caption);\n` },
+    ];
   }
   if (fixture.kind === "draft-repair-panel") {
     return buildablePanelFiles(repoName).map((file) =>

@@ -1,3 +1,4 @@
+import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
 import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace-skills/system-testing/automation-lifecycle-managed";
 import type { ManagedAutomationReceiver } from "@workspace-skills/system-testing/automation-lifecycle-contract";
 import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type ScratchHandoffInput, type ScratchHandoffTeacherInput, type ScratchHandoffReceiver } from "@workspace-skills/system-testing/scratch-handoff-contract";
@@ -305,7 +306,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver {
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -793,6 +794,39 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const utilityValue=await qualifyManagedAutomation(rpc,${JSON.stringify(seed)});
       `) as Awaited<ReturnType<ManagedAutomationReceiver["qualifyManagedAutomation"]>>;
     } finally {await pauseManagedAutomationFixture(this.rpc,seed);}
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews an owned portable build and rendered panel without publication."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPublicationTeacher(input: PublicationInput & {executorModel:string}): ReturnType<ManagedPublicationReceiver["runManagedPublicationTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"publication",operation:"preflightPublication",input:{goal:input.goal}},
+      inputCode:"prepared.request",bindingCode:`
+        import {rpc,vcs,panelTree,contextId as actualContextId} from "@workspace/runtime";
+        import {prepareManagedPublication,verifyManagedPublication} from "@workspace-skills/system-testing/publication-preflight-managed";
+        const input=${JSON.stringify(input)};
+        if(actualContextId!==input.contextId) throw new Error("Publication preflight belongs to another context");
+        const panel=panelTree.get(input.panelId);
+        const prepared=await prepareManagedPublication(rpc,vcs,panel,input);
+        const assignedServices={websiteReadback:prepared.service};
+      `,
+    },runId)}
+      const verification=await verifyManagedPublication(rpc,vcs,panel,prepared,utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedPublicationReceiver["runManagedPublicationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks real website packaging and panel reception without a model or deployment."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedPublication(input: PublicationInput): ReturnType<ManagedPublicationReceiver["qualifyManagedPublication"]> {
+    return await this.runHarnessUtility("teacher",`
+      import {rpc,vcs,panelTree,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedPublication,qualifyManagedPublication} from "@workspace-skills/system-testing/publication-preflight-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Publication qualification belongs to another context");
+      const panel=panelTree.get(input.panelId);
+      const prepared=await prepareManagedPublication(rpc,vcs,panel,input);
+      const utilityValue=await qualifyManagedPublication(rpc,vcs,panel,prepared);
+    `) as Awaited<ReturnType<ManagedPublicationReceiver["qualifyManagedPublication"]>>;
   }
 
   private async integrationFixtureIdentity() {
