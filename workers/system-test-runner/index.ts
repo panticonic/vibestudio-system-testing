@@ -1,3 +1,4 @@
+import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
 import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
 import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
@@ -1756,6 +1757,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const world=managedLogAuditWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown host log audit");
       const prepared=prepareManagedLogAudit(filter=>rpc.call("main",mainRpcMethods["serverLog.query"],[filter]),actualContextId,world,${JSON.stringify(seed)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures only secret-free readiness from the owned integration fixture."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedIntegrationReadinessTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedIntegrationReadinessReceiver["runManagedIntegrationReadinessTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"apiIntegration",operation:"reviewIntegration",input:{goal:"Check the assigned integration"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedIntegrationReadinessBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedIntegrationReadinessReceiver["runManagedIntegrationReadinessTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies exact host credential matches with a disposable seeded binding."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedIntegrationReadiness(input: {contextId:string;caseId:string}): ReturnType<ManagedIntegrationReadinessReceiver["qualifyManagedIntegrationReadiness"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedIntegrationReadinessBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedIntegrationReadinessReceiver["qualifyManagedIntegrationReadiness"]>>;
+  }
+
+  private managedIntegrationReadinessBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedIntegrationReadiness} from "@workspace-skills/system-testing/integration-readiness-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Integration readiness belongs to another context");
+      const prepared=prepareManagedIntegrationReadiness(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
