@@ -85,15 +85,24 @@ export function prepareManagedNativeSuite(contextId: string, caseId: string) {
         (mode === "inspect"
           ? executed === null && report?.result === null
           : executed?.current === true &&
-            executed.status === "passed" &&
+            executed.status === scenario.expectedStatus &&
+            executed.receipt?.operation === "test" &&
+            executed.receipt.target === target &&
+            executed.receipt.suite === suite &&
+            executed.receipt.runtime === runtime &&
+            executed.receipt.contextId === contextId &&
+            executed.receipt.ref === `ctx:${contextId}` &&
+            executed.receipt.stateHash === observed?.stateHash &&
             executed.failed === 0 &&
-            (executed.passed ?? 0) > 0 &&
+            (scenario.expectedStatus === "no-tests"
+              ? executed.passed === 0
+              : (executed.passed ?? 0) > 0) &&
             !!executed.artifactKey &&
             /^[a-f0-9]{64}$/u.test(executed.executionDigest ?? "") &&
             /^[a-f0-9]{64}$/u.test(executed.reportDigest ?? "") &&
             (runtime === "native") ===
               executed.artifactKey.startsWith("native:") &&
-            report?.result?.outcome === "verified" &&
+            report?.result?.outcome === scenario.expectedOutcome &&
             !!report.result.followUp.trim()),
     };
     return {
@@ -141,8 +150,8 @@ export function prepareManagedNativeSuite(contextId: string, caseId: string) {
           next: mode === "verify" ? "run-assignment" : "report-plan",
         },
         execution,
-        result: execution
-          ? { outcome: "verified", followUp: "Inspect the typed run result." }
+        result: mode === "verify"
+          ? { outcome: scenario.expectedOutcome, followUp: "Inspect the typed run result." }
           : null,
       }),
       rejectsWrongAssignment,
