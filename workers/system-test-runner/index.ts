@@ -1,6 +1,7 @@
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
 import type { ManagedProblemDraftReceiver } from "@workspace-skills/system-testing/problem-draft-managed";
+import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
 import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
 import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
 import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
@@ -1855,6 +1856,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Problem draft belongs to another context");
       const prepared=await prepareManagedProblemDraft(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures assigned host preflight and scope comparison."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedAuthorityReviewTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedAuthorityReviewReceiver["runManagedAuthorityReviewTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"agenticDevelopment",operation:"planAuthorityReview",input:{goal:"Plan the assigned agentic change"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedAuthorityReviewBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedAuthorityReviewReceiver["runManagedAuthorityReviewTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies real host preflight observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedAuthorityReview(input: {contextId:string;caseId:string}): ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedAuthorityReviewBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]>>;
+  }
+
+  private managedAuthorityReviewBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedAuthorityReview} from "@workspace-skills/system-testing/authority-review-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Authority review belongs to another context");
+      const prepared=prepareManagedAuthorityReview(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

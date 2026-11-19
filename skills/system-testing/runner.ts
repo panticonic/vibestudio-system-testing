@@ -1,6 +1,7 @@
 import { managedIntegrationReadinessMethods } from "./integration-readiness-managed.js";
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
+import { managedAuthorityReviewMethods } from "./authority-review-managed.js";
 import { managedAgenticChangeMethods } from "./agentic-change-managed.js";
 import { managedGadReviewMethods } from "./gad-review-managed.js";
 import { managedPhoneSetupMethods } from "./phone-setup-managed.js";
@@ -1420,6 +1421,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedProblemDraftMethods.qualifyManagedProblemDraft, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedProblemDraftMethods.runManagedProblemDraftTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedAuthorityReview(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedAuthorityReviewMethods.qualifyManagedAuthorityReview, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedAuthorityReviewMethods.runManagedAuthorityReviewTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

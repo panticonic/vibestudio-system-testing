@@ -50,6 +50,7 @@
     "./integration-readiness-managed": "./integration-readiness-managed.ts",
     "./terminal-check-managed": "./terminal-check-managed.ts",
     "./problem-draft-managed": "./problem-draft-managed.ts",
+    "./authority-review-managed": "./authority-review-managed.ts",
     "./agentic-change-managed": "./agentic-change-managed.ts",
     "./gad-review-managed": "./gad-review-managed.ts",
     "./phone-setup-managed": "./phone-setup-managed.ts",
@@ -134,6 +135,7 @@
   },
   "dependencies": {
     "@workspace-skills/problem-reporting": "workspace:*",
+    "@workspace-skills/capabilities": "workspace:*",
     "@workspace-skills/agentic-development": "workspace:*",
     "@workspace-skills/api-integrations": "workspace:*",
     "@workspace-skills/terminal": "workspace:*",
