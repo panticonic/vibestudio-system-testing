@@ -3,6 +3,7 @@ import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { managedReleaseReviewHandoffMethods } from "./release-review-handoff-contract.js";
+import { buildPerformanceMethods } from "./build-performance-managed.js";
 import { managedLogCursorMethods } from "./log-cursor-managed.js";
 import { managedEvalRecoveryMethods } from "./eval-recovery-managed.js";
 import { managedPdfLayoutMethods } from "./pdf-layout-managed.js";
@@ -1526,6 +1527,22 @@ export class HeadlessRunner {
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
+  }
+
+  async runBuildPerformance(
+    { goal, initialBudgetBytes }: { goal: string; initialBudgetBytes?: number },
+    qualification: boolean,
+    signal: AbortSignal,
+  ) {
+    const fixture = this.workspaceRepoFixture;
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (fixture?.kind !== "buildable-panel" || !fixture.repoName || !contextId)
+      throw new Error("Build performance requires the assigned panel fixture");
+    const owner = await this.fixtureForkOwner();
+    const input = { goal, ...(initialBudgetBytes === undefined ? {} : { initialBudgetBytes }), contextId, source: `panels/${fixture.repoName}` };
+    if (qualification)
+      return { kind: "reference" as const, value: await rpc.call(owner, buildPerformanceMethods.qualifyBuildPerformance, [input], { signal }) };
+    return { kind: "teacher" as const, value: await rpc.call(owner, buildPerformanceMethods.runBuildPerformanceTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
   }
 
   async runManagedLogCursor(caseId: string, qualification: boolean, signal: AbortSignal) {

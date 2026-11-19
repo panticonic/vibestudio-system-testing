@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { BuildPerformanceInput, BuildPerformanceReceiver } from "@workspace-skills/system-testing/build-performance-managed";
 import type { ManagedLogCursorReceiver } from "@workspace-skills/system-testing/log-cursor-managed";
 import { managedLogCursorWorlds } from "@workspace-skills/system-testing/log-cursor-worlds";
 import { evalRecoveryProbeCode, type ManagedEvalRecoveryReceiver } from "@workspace-skills/system-testing/eval-recovery-managed";
@@ -2077,6 +2078,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned native build performance review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runBuildPerformanceTeacher(input: BuildPerformanceInput & {executorModel:string}): ReturnType<BuildPerformanceReceiver["runBuildPerformanceTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"performance",operation:"reviewBuildPerformance",input:{goal:input.goal}},
+      inputCode: "prepared.request",
+      bindingCode: this.buildPerformanceBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<BuildPerformanceReceiver["runBuildPerformanceTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the native build and same-key repeat without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyBuildPerformance(input: BuildPerformanceInput): ReturnType<BuildPerformanceReceiver["qualifyBuildPerformance"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"performance",operation:"reviewBuildPerformance"}],
+      this.buildPerformanceBindings(input),
+    )) as Awaited<ReturnType<BuildPerformanceReceiver["qualifyBuildPerformance"]>>;
+  }
+
+  private buildPerformanceBindings(input: BuildPerformanceInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {bindBuildPerformance} from "@workspace-skills/performance-build-bindings";
+      import {prepareBuildPerformance} from "@workspace-skills/system-testing/build-performance-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Build performance belongs to another context");
+      const prepared=prepareBuildPerformance(input,bindBuildPerformance(input));
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures the assigned host log cursor review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

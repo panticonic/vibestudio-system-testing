@@ -3,6 +3,7 @@ import { managedTerminalCheckTests } from "./tests/terminal-check-managed.js";
 import { managedProblemDraftTests } from "./tests/problem-draft-managed.js";
 import { managedClientAdmissionTests } from "./tests/client-admission-managed.js";
 import { managedReleaseReviewHandoffTests } from "./tests/release-review-handoff-managed.js";
+import { managedBuildPerformanceTests } from "./tests/build-performance-managed.js";
 import { managedLogCursorTests } from "./tests/log-cursor-managed.js";
 import { managedEvalRecoveryTests } from "./tests/eval-recovery-managed.js";
 import { managedPdfLayoutTests } from "./tests/pdf-layout-managed.js";
@@ -234,6 +235,7 @@ export function allTests(): TestCase[] {
   ...managedClientAdmissionTests,
   ...managedReleaseReviewHandoffTests,
   ...managedLogCursorTests,
+  ...managedBuildPerformanceTests,
   ...managedEvalRecoveryTests,
   ...managedPdfLayoutTests,
   ...managedDictationTests,
