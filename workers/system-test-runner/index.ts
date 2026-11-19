@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { AndroidAuditReceiver } from "@workspace-skills/system-testing/android-audit-managed";
 import type { DeliveryHistoryReceiver } from "@workspace-skills/system-testing/delivery-history-managed";
 import type { PublicationRevisionReceiver } from "@workspace-skills/system-testing/publication-revision-managed";
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
@@ -2111,6 +2112,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {preparePublicationRevision} from "@workspace-skills/system-testing/publication-revision-managed";
       const prepared=await preparePublicationRevision(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned Android runtime audit."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runAndroidAuditTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<AndroidAuditReceiver["runAndroidAuditTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"mobileDebug",operation:"auditAndroidRuntime",input:{goal:"Audit the assigned Android runtime"}},
+      inputCode: "prepared.request",
+      bindingCode: this.androidAuditBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<AndroidAuditReceiver["runAndroidAuditTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies native Android inventory and application evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyAndroidAudit(input: {contextId:string;caseId:string}): ReturnType<AndroidAuditReceiver["qualifyAndroidAudit"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"mobileDebug",operation:"auditAndroidRuntime"}], this.androidAuditBindings(input),
+    )) as Awaited<ReturnType<AndroidAuditReceiver["qualifyAndroidAudit"]>>;
+  }
+
+  private androidAuditBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedAndroidAudit} from "@workspace-skills/system-testing/android-audit-managed";
+      import {listAndroidAuditDevices,bindAndroidRuntimeAudit} from "@workspace-skills/mobile-runtime-audit-bindings";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Android audit belongs to another context");
+      const prepared=await prepareManagedAndroidAudit(input,listAndroidAuditDevices,bindAndroidRuntimeAudit);
       const assignedServices=prepared.services;
     `;
   }
