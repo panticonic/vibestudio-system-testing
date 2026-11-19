@@ -1,5 +1,6 @@
 import { managedIntegrationReadinessTests } from "./tests/integration-readiness-managed.js";
 import { managedTerminalCheckTests } from "./tests/terminal-check-managed.js";
+import { managedAgenticChangeTests } from "./tests/agentic-change-managed.js";
 import { managedGadReviewTests } from "./tests/gad-review-managed.js";
 import { managedPhoneSetupTests } from "./tests/phone-setup-managed.js";
 import { managedTestkitCleanupTests } from "./tests/testkit-cleanup-managed.js";
@@ -215,6 +216,7 @@ export function allTests(): TestCase[] {
   ...managedPdfTests,
   ...managedAuthoringTests,
   ...managedSessionReplayTests,
+  ...managedAgenticChangeTests,
   ...managedGadReviewTests,
   ...managedTerminalCheckTests,
   ...managedIntegrationReadinessTests,

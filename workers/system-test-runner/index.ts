@@ -1,5 +1,6 @@
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
+import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
 import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
 import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
 import type { TestkitCleanupInput, ManagedTestkitCleanupReceiver } from "@workspace-skills/system-testing/testkit-cleanup-contract";
@@ -1821,6 +1822,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Terminal checks belong to another context");
       const prepared=prepareManagedTerminalChecks(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an agentic stack change plan from owned source."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedAgenticChangeTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedAgenticChangeReceiver["runManagedAgenticChangeTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"agenticDevelopment",operation:"planAgenticChange",input:{goal:"Plan the assigned agentic change"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedAgenticChangeBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedAgenticChangeReceiver["runManagedAgenticChangeTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live agentic stack source observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedAgenticChange(input: {contextId:string;caseId:string}): ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedAgenticChangeBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]>>;
+  }
+
+  private managedAgenticChangeBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedAgenticChange} from "@workspace-skills/system-testing/agentic-change-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Agentic development belongs to another context");
+      const prepared=await prepareManagedAgenticChange(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
