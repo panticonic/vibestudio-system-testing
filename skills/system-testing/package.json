@@ -67,6 +67,7 @@
     "./build-performance-managed": "./build-performance-managed.ts",
     "./log-cursor-managed": "./log-cursor-managed.ts",
     "./eval-recovery-managed": "./eval-recovery-managed.ts",
+    "./pdf-media-managed": "./pdf-media-managed.ts",
     "./android-pair-managed": "./android-pair-managed.ts",
     "./android-install-managed": "./android-install-managed.ts",
     "./android-audit-managed": "./android-audit-managed.ts",

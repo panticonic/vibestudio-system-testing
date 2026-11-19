@@ -2,6 +2,7 @@ import { managedIntegrationReadinessMethods } from "./integration-readiness-mana
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
+import { pdfMediaMethods } from "./pdf-media-managed.js";
 import { androidPairMethods } from "./android-pair-managed.js";
 import { androidInstallMethods } from "./android-install-managed.js";
 import { androidAuditMethods } from "./android-audit-managed.js";
@@ -1547,6 +1548,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.qualifyManagedVcsDelivery, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.runManagedVcsDeliveryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runPdfMedia(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      if (qualification)
+        return { kind: "reference" as const, value: await rpc.call(owner, pdfMediaMethods.qualifyPdfMedia, [input], { signal }) };
+      return { kind: "teacher" as const, value: await rpc.call(owner, pdfMediaMethods.runPdfMediaTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

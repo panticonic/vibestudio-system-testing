@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { PdfMediaReceiver } from "@workspace-skills/system-testing/pdf-media-managed";
 import type { AndroidPairReceiver } from "@workspace-skills/system-testing/android-pair-managed";
 import type { AndroidInstallReceiver } from "@workspace-skills/system-testing/android-install-managed";
 import type { AndroidAuditReceiver } from "@workspace-skills/system-testing/android-audit-managed";
@@ -2114,6 +2115,36 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {preparePublicationRevision} from "@workspace-skills/system-testing/publication-revision-managed";
       const prepared=await preparePublicationRevision(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures review of real PDF extraction evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runPdfMediaTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<PdfMediaReceiver["runPdfMediaTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"mediaImport",operation:"reviewMediaAndImport",input:{goal:"Review the assigned PDF extraction"}},
+      inputCode: "prepared.request",
+      bindingCode: this.pdfMediaBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<PdfMediaReceiver["runPdfMediaTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the live PDF extraction and evidence readback."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyPdfMedia(input: {contextId:string;caseId:string}): ReturnType<PdfMediaReceiver["qualifyPdfMedia"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"mediaImport",operation:"reviewMediaAndImport"}], this.pdfMediaBindings(input),
+    )) as Awaited<ReturnType<PdfMediaReceiver["qualifyPdfMedia"]>>;
+  }
+
+  private pdfMediaBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedPdfMedia} from "@workspace-skills/system-testing/pdf-media-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("PDF review belongs to another context");
+      const prepared=await prepareManagedPdfMedia(input);
       const assignedServices=prepared.services;
     `;
   }
