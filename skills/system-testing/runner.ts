@@ -3,6 +3,7 @@ import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { managedReleaseReviewHandoffMethods } from "./release-review-handoff-contract.js";
+import { publicationRevisionMethods } from "./publication-revision-managed.js";
 import { transcriptCursorMethods } from "./transcript-cursor-managed.js";
 import { unitIdentityMethods } from "./unit-identity-managed.js";
 import { gmailComposeHistoryMethods } from "./gmail-compose-history-managed.js";
@@ -884,6 +885,18 @@ export class HeadlessRunner {
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{contextId:target.contextId,recursive:true}]);
     }
+  }
+
+  async runPublicationRevision(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const fixture = this.workspaceRepoFixture;
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (fixture?.kind !== "publication-preflight-panel" || !fixture.repoName || !contextId)
+      throw new Error("Publication revision requires the assigned website fixture");
+    const owner = await this.fixtureForkOwner();
+    const input = { caseId, contextId, source: `panels/${fixture.repoName}` };
+    if (qualification)
+      return { kind: "reference" as const, value: await rpc.call(owner, publicationRevisionMethods.qualifyPublicationRevision, [input], { signal }) };
+    return { kind: "teacher" as const, value: await rpc.call(owner, publicationRevisionMethods.runPublicationRevisionTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
   }
 
   async runManagedPublication(goal:string, qualification = false) {

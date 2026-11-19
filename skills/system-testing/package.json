@@ -56,6 +56,7 @@
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
     "./log-cursor-worlds": "./log-cursor-worlds.ts",
+    "./publication-revision-managed": "./publication-revision-managed.ts",
     "./transcript-cursor-managed": "./transcript-cursor-managed.ts",
     "./unit-identity-managed": "./unit-identity-managed.ts",
     "./gmail-compose-history-managed": "./gmail-compose-history-managed.ts",
@@ -158,6 +159,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/publication-revision-bindings": "workspace:*",
     "@workspace-skills/session-cursor-bindings": "workspace:*",
     "@workspace-skills/unit-identity-bindings": "workspace:*",
     "@workspace-skills/problem-reporting": "workspace:*",

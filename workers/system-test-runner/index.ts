@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { PublicationRevisionReceiver } from "@workspace-skills/system-testing/publication-revision-managed";
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
 import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
@@ -2083,6 +2084,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an exact website revision review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runPublicationRevisionTeacher(input: {contextId:string;caseId:string;source:string;executorModel:string}): ReturnType<PublicationRevisionReceiver["runPublicationRevisionTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"publication",operation:"reviewPublicationRevision",input:{goal:"Review the assigned website revision"}},
+      inputCode: "prepared.request",
+      bindingCode: this.publicationRevisionBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<PublicationRevisionReceiver["runPublicationRevisionTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies native package comparison without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyPublicationRevision(input: {contextId:string;caseId:string;source:string}): ReturnType<PublicationRevisionReceiver["qualifyPublicationRevision"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"publication",operation:"reviewPublicationRevision"}], this.publicationRevisionBindings(input),
+    )) as Awaited<ReturnType<PublicationRevisionReceiver["qualifyPublicationRevision"]>>;
+  }
+
+  private publicationRevisionBindings(input: {contextId:string;caseId:string;source:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {preparePublicationRevision} from "@workspace-skills/system-testing/publication-revision-managed";
+      const prepared=await preparePublicationRevision(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures an assigned bounded channel transcript read."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
