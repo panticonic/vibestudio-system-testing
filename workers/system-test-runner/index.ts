@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedWebBriefReceiver } from "@workspace-skills/system-testing/web-brief-managed";
 import type { ManagedArchitectureBoundaryReceiver } from "@workspace-skills/system-testing/architecture-boundary-managed";
 import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
 import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
@@ -132,6 +133,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  WebBrief: {kind:"domain",domain:"webResearch",operation:"writeAssignedBrief",input:{goal:"Write the assigned web brief"}},
   ArchitectureBoundary: {kind:"domain",domain:"architecture",operation:"reviewArchitectureBoundary",input:{goal:"Review the assigned architecture boundary"}},
   ProblemDraft: {kind:"domain",domain:"problems",operation:"saveProblemDraft",input:{goal:"Save the assigned local report"}},
   ClientAdmission: {kind:"domain",domain:"clientDevelopment",operation:"reviewClientAdmission",input:{goal:"Review the assigned System client"}},
@@ -1936,6 +1938,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Release handoff belongs to another context");
       const prepared=await prepareReleaseReviewHandoff(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned public source brief."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedWebBriefTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedWebBriefReceiver["runManagedWebBriefTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.WebBrief,
+      inputCode:"prepared.request",
+      bindingCode:this.managedWebBriefBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedWebBriefReceiver["runManagedWebBriefTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live public page fetches and receipts without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedWebBrief(input: {contextId:string;caseId:string}): ReturnType<ManagedWebBriefReceiver["qualifyManagedWebBrief"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.WebBrief],
+      this.managedWebBriefBindings(input),
+    )) as Awaited<ReturnType<ManagedWebBriefReceiver["qualifyManagedWebBrief"]>>;
+  }
+
+  private managedWebBriefBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedWebBrief} from "@workspace-skills/system-testing/web-brief-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Web brief belongs to another context");
+      const prepared=prepareManagedWebBrief(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
