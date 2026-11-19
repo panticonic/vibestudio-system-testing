@@ -67,6 +67,7 @@
     "./build-performance-managed": "./build-performance-managed.ts",
     "./log-cursor-managed": "./log-cursor-managed.ts",
     "./eval-recovery-managed": "./eval-recovery-managed.ts",
+    "./delivery-history-managed": "./delivery-history-managed.ts",
     "./pdf-layout-managed": "./pdf-layout-managed.ts",
     "./offline-dictation-managed": "./offline-dictation-managed.ts",
     "./native-suite-managed": "./native-suite-managed.ts",
@@ -159,6 +160,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/delivery-history-bindings": "workspace:*",
     "@workspace-skills/publication-revision-bindings": "workspace:*",
     "@workspace-skills/session-cursor-bindings": "workspace:*",
     "@workspace-skills/unit-identity-bindings": "workspace:*",

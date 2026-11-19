@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { DeliveryHistoryReceiver } from "@workspace-skills/system-testing/delivery-history-managed";
 import type { PublicationRevisionReceiver } from "@workspace-skills/system-testing/publication-revision-managed";
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
@@ -2110,6 +2111,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {preparePublicationRevision} from "@workspace-skills/system-testing/publication-revision-managed";
       const prepared=await preparePublicationRevision(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures a scoped delivery history audit."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runDeliveryHistoryTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<DeliveryHistoryReceiver["runDeliveryHistoryTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"conversation",operation:"reviewDeliveryHistory",input:{goal:"Audit the assigned delivery receipt"}},
+      inputCode: "prepared.request",
+      bindingCode: this.deliveryHistoryBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<DeliveryHistoryReceiver["runDeliveryHistoryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies actual channel replay and consumer identity without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyDeliveryHistory(input: {contextId:string;caseId:string}): ReturnType<DeliveryHistoryReceiver["qualifyDeliveryHistory"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"conversation",operation:"reviewDeliveryHistory"}], this.deliveryHistoryBindings(input),
+    )) as Awaited<ReturnType<DeliveryHistoryReceiver["qualifyDeliveryHistory"]>>;
+  }
+
+  private deliveryHistoryBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareDeliveryHistory} from "@workspace-skills/system-testing/delivery-history-managed";
+      const prepared=await prepareDeliveryHistory(${JSON.stringify(input)});
       const assignedServices=prepared.services;
     `;
   }

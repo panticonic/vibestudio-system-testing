@@ -12,6 +12,7 @@ import { managedTourRehearsalTests } from "./tests/tour-rehearsal-managed.js";
 import { managedBuildPerformanceTests } from "./tests/build-performance-managed.js";
 import { managedLogCursorTests } from "./tests/log-cursor-managed.js";
 import { managedEvalRecoveryTests } from "./tests/eval-recovery-managed.js";
+import { managedDeliveryHistoryTests } from "./tests/delivery-history-managed.js";
 import { managedPdfLayoutTests } from "./tests/pdf-layout-managed.js";
 import { managedDictationTests } from "./tests/offline-dictation-managed.js";
 import { managedNativeSuiteTests } from "./tests/native-suite-managed.js";
@@ -279,6 +280,7 @@ export function allTests(): TestCase[] {
   ...managedPresentationTests,
   ...managedPanelHealthTests,
   ...ownedOperationsTests,
+  ...managedDeliveryHistoryTests,
   ...localMessagingTests,
     ...workspaceIntegrationTests,
     ...workerTests,
