@@ -89,3 +89,32 @@ export type SessionReview = {
   finding: string;
   evidenceIds: string[];
 };
+
+export type ReplayMessage = { id: string; text: string; senderId: string };
+export type ReplayOperation = { key: string; text: string; messageId: string };
+export type ReplayCheckpoint = {
+  receipt: string;
+  originalChannel: string;
+  replayChannel: string;
+  original: ReplayOperation;
+  retry: ReplayOperation | null;
+  originBefore: ReplayMessage[];
+  before: ReplayMessage[];
+  after: ReplayMessage[];
+};
+export type LiveReplayRequest = { goal: string; checkpoints: string[] };
+export type ReplayDisposition =
+  | "confirmed-retry"
+  | "original-payload-kept"
+  | "distinct-message"
+  | "retry-pending"
+  | "wrong-channel"
+  | "inconsistent-replay";
+export type LiveReplayFinding = {
+  receipt: string;
+  disposition: ReplayDisposition;
+  originalId: string;
+  retryId: string | null;
+  retainedIds: string[];
+};
+export type LiveReplayReport = { findings: LiveReplayFinding[] };

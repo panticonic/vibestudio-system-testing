@@ -14,3 +14,13 @@ module neither creates a session nor starts a suite and owns no cleanup effects.
 | Review testkit release            | Testkit runs deferred cleanup in reverse order even on failure. Inspect each owned panel, page client, worker, supervisor, and scratch path by matching its runtime identity.                                                                      |
 
 The fixture bank owns hard expectations and exact scoring in TypeScript.
+
+## Live continuation
+
+The caller creates disposable channels and reconnects through the product's
+HeadlessSession client. It reads the durable message window independently of
+the reconnecting projection. `reviewLiveReplay` asks the bound reader for
+each assigned checkpoint and dispatches it through channel routing, replay
+integrity, and retry identity checks. The retry stage distinguishes the
+first accepted payload from later text sent with the same idempotency key.
+Only the caller owns channel creation, sending and cleanup.

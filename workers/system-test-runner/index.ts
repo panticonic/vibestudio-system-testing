@@ -1,3 +1,4 @@
+import type { SessionReplayInput, ManagedSessionReplayReceiver } from "@workspace-skills/system-testing/session-replay-contract";
 import type { PanelHealthInput, ManagedPanelHealthReceiver } from "@workspace-skills/system-testing/panel-health-contract";
 import type { ChannelRosterInput, ManagedChannelRosterReceiver } from "@workspace-skills/system-testing/channel-roster-contract";
 import type { MissionPlanningInput, ManagedMissionPlanningReceiver } from "@workspace-skills/system-testing/mission-planning-contract";
@@ -966,6 +967,45 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const assignedServices={};
       `,
     }, runId)) as Awaited<ReturnType<ManagedPresentationReceiver["runManagedPresentationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the assigned headless session and exact replay evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedSessionReplayTeacher(input: SessionReplayInput & {executorModel:string}): ReturnType<ManagedSessionReplayReceiver["runManagedSessionReplayTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"sessionTest",operation:"reviewLiveReplay",input:{goal:"Review reconnect evidence"}},
+      inputCode:"prepared.request",
+      bindingCode:this.sessionReplayBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedSessionReplayReceiver["runManagedSessionReplayTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the assigned durable replay without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedSessionReplay(input: SessionReplayInput): ReturnType<ManagedSessionReplayReceiver["qualifyManagedSessionReplay"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.sessionReplayBindings(input)}
+      if(prepared.firstCase) {
+        const program=await natlang.describe("skills/vibestudio-workflows/runWorkflow.nl");
+        if(!program.functions.some(({name})=>name==="reviewLiveReplay")) throw new Error("The shared Natlang workflow is missing live session replay");
+      }
+      let rejectedForeignReceipt=false;
+      try {await assignedServices.sessionReplay.inspect("foreign-receipt");}
+      catch(error) {rejectedForeignReceipt=error instanceof Error && error.message.includes("assigned checkpoints");}
+      for(const receipt of prepared.request.checkpoints) await assignedServices.sessionReplay.inspect(receipt);
+      const utilityValue={verified:prepared.verify(prepared.reference()),rejectedForeignReceipt};
+    `) as Awaited<ReturnType<ManagedSessionReplayReceiver["qualifyManagedSessionReplay"]>>;
+  }
+
+  private sessionReplayBindings(input: SessionReplayInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {bindSessionReplay} from "@workspace-skills/system-testing/session-replay-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Session replay belongs to a different context");
+      const prepared=bindSessionReplay(actualContextId,input.caseId,input.evidence);
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Reviews only the assigned compiler snapshots in this owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

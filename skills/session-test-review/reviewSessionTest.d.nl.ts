@@ -92,5 +92,32 @@ type SessionReview = {
   finding: string;
   evidenceIds: string[];
 };
+type ReplayMessage = { id: string; text: string; senderId: string };
+type ReplayOperation = { key: string; text: string; messageId: string };
+type ReplayCheckpoint = {
+  receipt: string;
+  originalChannel: string;
+  replayChannel: string;
+  original: ReplayOperation;
+  retry: ReplayOperation | null;
+  originBefore: ReplayMessage[];
+  before: ReplayMessage[];
+  after: ReplayMessage[];
+};
+type LiveReplayRequest = { goal: string; checkpoints: string[] };
+type ReplayDisposition = | "confirmed-retry"
+  | "original-payload-kept"
+  | "distinct-message"
+  | "retry-pending"
+  | "wrong-channel"
+  | "inconsistent-replay";
+type LiveReplayFinding = {
+  receipt: string;
+  disposition: ReplayDisposition;
+  originalId: string;
+  retryId: string | null;
+  retainedIds: string[];
+};
+type LiveReplayReport = { findings: LiveReplayFinding[] };
 declare const fn: NatlangFunction<[request: SessionReviewRequest], SessionReview> & { readonly reviewRelease: NatlangFunction<[evidence: SessionRelease | TestkitRelease], SessionReview> & { readonly checkSessionClose: NatlangFunction<[evidence: SessionRelease], SessionReview>; readonly checkTestkitRelease: NatlangFunction<[evidence: TestkitRelease], SessionReview> }; readonly reviewSession: NatlangFunction<[evidence: Seed | Continuation], SessionReview> & { readonly checkContinuation: NatlangFunction<[evidence: Continuation], SessionReview>; readonly checkSeed: NatlangFunction<[evidence: Seed], SessionReview> }; readonly reviewVerification: NatlangFunction<[evidence: Dispatch | VerifyResult], SessionReview> & { readonly checkDispatch: NatlangFunction<[evidence: Dispatch], SessionReview>; readonly checkResult: NatlangFunction<[evidence: VerifyResult], SessionReview> } };
 export default fn;

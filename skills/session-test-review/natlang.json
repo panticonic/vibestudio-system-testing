@@ -2,5 +2,7 @@
   "schema": "natlang.package/v2",
   "name": "vibestudio-session-test-review",
   "version": "0.1.0",
+  "serviceBinding": "explicit",
+  "serviceScopes": { "sessionReplay": ["reviewLiveReplay/readCheckpoint.nl"] },
   "targets": { "main": { "entry": "reviewSessionTest.nl" } }
 }

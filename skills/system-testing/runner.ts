@@ -1,3 +1,5 @@
+import { sessionReplayMethods } from "./session-replay-contract.js";
+import { exerciseSessionReplay } from "./session-replay-managed.js";
 import { managedPanelHealthMethods } from "./panel-health-contract.js";
 import { managedPanelHealthWorlds } from "./panel-health-worlds.js";
 import { managedChannelRosterMethods } from "./channel-roster-contract.js";
@@ -1342,6 +1344,21 @@ export class HeadlessRunner {
       return { kind: "teacher" as const, result: await rpc.call(owner, managedMemoryMethods.runManagedMemoryTeacher, [{ ...input, executorModel: this.modelRef }]) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId: target.contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedSessionReplay(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const evidence = await exerciseSessionReplay(contextId, caseId, signal);
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId, evidence };
+      if (qualification)
+        return { kind: "reference" as const, result: await rpc.call(owner, sessionReplayMethods.qualifyManagedSessionReplay, [input], { signal }) };
+      return { kind: "teacher" as const, result: await rpc.call(owner, sessionReplayMethods.runManagedSessionReplayTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 

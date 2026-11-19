@@ -1,3 +1,4 @@
+import { managedSessionReplayTests } from "./tests/session-replay-managed.js";
 import { managedPanelHealthTests } from "./tests/panel-health-managed.js";
 import { managedChannelRosterTests } from "./tests/channel-roster-managed.js";
 import { managedMissionPlanningTests } from "./tests/mission-planning-managed.js";
@@ -208,6 +209,7 @@ export function allTests(): TestCase[] {
   ...managedPublicationTests,
   ...managedPdfTests,
   ...managedAuthoringTests,
+  ...managedSessionReplayTests,
   ...managedMemoryTests,
   ...managedChecklistTests,
   ...managedGrimoireTests,
