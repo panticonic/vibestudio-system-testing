@@ -30,7 +30,8 @@ Only the caller owns channel creation, sending and cleanup.
 The fixture executes the installed Testkit runner against disposable workspace
 resources, retaining the result, deferred registration order, cleanup
 acknowledgements and a separate post-run inventory. The Natlang workflow uses
-the existing release reviewer for LIFO and acknowledgement semantics. Its
+the shared session reviewer with a release request. That reviewer routes to
+the Testkit-specific check for LIFO and acknowledgement semantics. Its
 inventory stage distinguishes remaining registered resources from allocations
 that were never registered. Its outcome stage reports the suite result
 independently. A callback can report an error after releasing its resource,

@@ -1038,9 +1038,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async qualifyManagedTestkitCleanup(input: TestkitCleanupInput): ReturnType<ManagedTestkitCleanupReceiver["qualifyManagedTestkitCleanup"]> {
     return await this.runHarnessUtility("teacher",`
       ${this.testkitCleanupBindings(input)}
-      if(prepared.firstCase) {
+      if(prepared.describesProgram) {
         const program=await natlang.describe("skills/vibestudio-workflows/runWorkflow.nl");
-        if(!program.functions.some(({name})=>name==="reviewLiveCleanup")) throw new Error("The shared Natlang workflow is missing Testkit cleanup");
+        for(const name of ["reviewLiveCleanup", "reviewSessionTest", "reviewRelease", "checkTestkitRelease"]) {
+          if(!program.functions.some((fn)=>fn.name===name)) throw new Error("The shared Natlang workflow is missing "+name);
+        }
       }
       let rejectedForeignReceipt=false;
       try {await assignedServices.testkitCleanup.inspect("foreign-receipt");}

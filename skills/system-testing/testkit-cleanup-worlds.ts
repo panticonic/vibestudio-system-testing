@@ -277,3 +277,30 @@ export const managedTestkitCleanupWorlds = [
     ],
   ),
 ];
+
+export const multiPhaseTestkitCleanupWorlds = [
+  world(
+    "after-hook-mixed-residue-across-phases",
+    "The test completed its body, but the after hook threw. Review cleanup across setup, body and the after hook. Distinguish the two resources still present from the directory removed before its callback reported an error.",
+    "after",
+    [
+      scratch("setup-evidence", "nonrecursive", "before"),
+      worker("body-reader", "unregistered"),
+      scratch("body-output"),
+      scratch("after-audit", "report-after-release", "after"),
+    ],
+  ),
+  world(
+    "browser-setup-and-after-hook-residue",
+    "An editor and its inspection client were opened in setup. The after hook threw after allocating scratch output. Check whether the browser resources were still closed and identify only the scratch output left behind.",
+    "after",
+    [
+      panel("setup-editor", "before"),
+      page("setup-inspection", "before"),
+      scratch("body-output"),
+      scratch("after-output", "nonrecursive", "after"),
+    ],
+  ),
+];
+
+managedTestkitCleanupWorlds.push(...multiPhaseTestkitCleanupWorlds);

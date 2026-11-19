@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedTestkitCleanupReceiver } from "../testkit-cleanup-contract.js";
-import { managedTestkitCleanupWorlds } from "../testkit-cleanup-worlds.js";
+import {
+  managedTestkitCleanupWorlds,
+  multiPhaseTestkitCleanupWorlds,
+} from "../testkit-cleanup-worlds.js";
 import {
   PANEL_AUTOMATION_RESOURCE,
   panelControlAuthorityPolicy,
@@ -76,49 +79,65 @@ export const managedTestkitCleanupTests: TestCase[] =
     },
   }));
 
-managedTestkitCleanupTests.push({
-  ...settings,
-  name: "testkit-cleanup-managed-qualification",
-  description:
-    "Qualify actual Testkit outcomes and live cleanup inventory without a model",
-  prompt:
-    "Read back the test outcome, deferred cleanup and remaining resources.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const { id } of managedTestkitCleanupWorlds) {
-      try {
-        const run = await runner.runManagedTestkitCleanup(id, true, signal);
-        if (run.kind !== "reference")
-          throw new Error("Testkit cleanup qualification ran a teacher");
-        checks.push(run.result);
-      } catch (cause) {
-        throw new Error(`Failed to qualify Testkit cleanup case ${id}`, {
-          cause,
-        });
+function cleanupQualification(
+  name: string,
+  worlds: readonly { id: string }[],
+): TestCase {
+  return {
+    ...settings,
+    name,
+    description:
+      "Qualify actual Testkit outcomes and live cleanup inventory without a model",
+    prompt:
+      "Read back the test outcome, deferred cleanup and remaining resources.",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const { id } of worlds) {
+        try {
+          const run = await runner.runManagedTestkitCleanup(id, true, signal);
+          if (run.kind !== "reference")
+            throw new Error("Testkit cleanup qualification ran a teacher");
+          checks.push(run.result);
+        } catch (cause) {
+          throw new Error(`Failed to qualify Testkit cleanup case ${id}`, {
+            cause,
+          });
+        }
       }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { cleanupQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["cleanupQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedTestkitCleanupWorlds.length &&
-      checks.every(
-        ({ verified, rejectedForeignReceipt }) =>
-          verified.passed && rejectedForeignReceipt,
-      )
-      ? { passed: true, details: { cases: checks.length, modelCalls: 0 } }
-      : {
-          passed: false,
-          reason:
-            "The Testkit run or cleanup inventory differed from the assignment.",
-          details: { checks },
-        };
-  },
-});
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { cleanupQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["cleanupQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verified, rejectedForeignReceipt }) =>
+            verified.passed && rejectedForeignReceipt,
+        )
+        ? { passed: true, details: { cases: checks.length, modelCalls: 0 } }
+        : {
+            passed: false,
+            reason:
+              "The Testkit run or cleanup inventory differed from the assignment.",
+            details: { checks },
+          };
+    },
+  };
+}
+
+managedTestkitCleanupTests.push(
+  cleanupQualification(
+    "testkit-cleanup-managed-qualification",
+    managedTestkitCleanupWorlds,
+  ),
+  cleanupQualification(
+    "testkit-cleanup-multi-phase-qualification",
+    multiPhaseTestkitCleanupWorlds,
+  ),
+);

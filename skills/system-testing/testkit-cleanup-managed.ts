@@ -14,7 +14,10 @@ import type {
   LiveCleanupRequest,
   TestkitOwnedResource,
 } from "../session-test-review/types.js";
-import { managedTestkitCleanupWorlds } from "./testkit-cleanup-worlds.js";
+import {
+  managedTestkitCleanupWorlds,
+  multiPhaseTestkitCleanupWorlds,
+} from "./testkit-cleanup-worlds.js";
 
 function world(caseId: string) {
   const found = managedTestkitCleanupWorlds.find(({ id }) => id === caseId);
@@ -334,6 +337,8 @@ export async function prepareTestkitCleanup(caseId: string) {
     services,
     reference,
     verify,
-    firstCase: assigned === managedTestkitCleanupWorlds[0],
+    describesProgram:
+      assigned === managedTestkitCleanupWorlds[0] ||
+      assigned === multiPhaseTestkitCleanupWorlds[0],
   };
 }
