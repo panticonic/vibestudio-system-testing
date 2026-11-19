@@ -7,13 +7,20 @@ const gate = (afterReload: boolean) => ({
   afterReload,
 });
 const viewport = (width: number) => ({ kind: "viewport" as const, width });
-type Check =
-  | typeof owners
-  | ReturnType<typeof gate>
-  | ReturnType<typeof viewport>;
-type Code = "owner-routes" | "gmail-closed" | "viewport-fits";
+const scope = (scope: "gmail" | "workspace") =>
+  [{ kind: "scope-choice", scope }, "setup-scope-confirmed"] as const;
+const browser = (opening: "here" | "external") =>
+  [{ kind: "browser-choice", opening }, "setup-browser-confirmed"] as const;
+const reset = [{ kind: "choice-reload" }, "setup-defaults-restored"] as const;
+type Evidence =
+  | readonly [typeof owners, "owner-routes"]
+  | readonly [ReturnType<typeof gate>, "gmail-closed"]
+  | readonly [ReturnType<typeof viewport>, "viewport-fits"]
+  | ReturnType<typeof scope>
+  | ReturnType<typeof browser>
+  | typeof reset;
 
-function journey(id: string, goal: string, evidence: [Check, Code][]) {
+function journey(id: string, goal: string, evidence: Evidence[]) {
   return {
     id,
     goal,
@@ -63,6 +70,77 @@ export const managedGoogleSetupWorlds = [
     [
       [viewport(390), "viewport-fits"],
       [gate(true), "gmail-closed"],
+      [owners, "owner-routes"],
+    ],
+  ),
+  journey(
+    "mail-only-with-account-handoff",
+    "Verify that a mail-only setup starts with Gmail-only API guidance. Identify the account and permissions owners and check the launch gate.",
+    [scope("gmail"), [owners, "owner-routes"], [gate(false), "gmail-closed"]],
+  ),
+  journey(
+    "broaden-to-workspace-apps",
+    "Inspect the broader app setup needed by a teammate who uses files and calendar as well as mail. Verify that this choice keeps Gmail gated.",
+    [scope("workspace"), [gate(false), "gmail-closed"]],
+  ),
+  journey(
+    "narrow-after-scope-review",
+    "Compare the broad Google Workspace option with Gmail-only guidance. Leave the selector on Gmail because we only need mail.",
+    [scope("workspace"), scope("gmail"), [gate(false), "gmail-closed"]],
+  ),
+  journey(
+    "prefer-in-panel-browser",
+    "Preview the local browser preference for someone who wants to keep the setup in VibeStudio. Keep Gmail as the only app.",
+    [browser("here"), scope("gmail"), [owners, "owner-routes"]],
+  ),
+  journey(
+    "return-to-normal-browser",
+    "Try the in-panel option, then leave the default browser selected for a user who needs passkeys. Check that the choice doesn't change the mail scope.",
+    [browser("here"), browser("external"), [gate(false), "gmail-closed"]],
+  ),
+  journey(
+    "inside-browser-with-full-apps",
+    "Preview the full suite using the in-panel browser preference. Verify the selected app scope and opening preference don't override each other.",
+    [scope("workspace"), browser("here"), [gate(false), "gmail-closed"]],
+  ),
+  journey(
+    "retain-browser-when-narrowing",
+    "Review the setup for the full suite in the in-panel browser, then narrow back to Gmail without losing the browser choice.",
+    [browser("here"), scope("workspace"), scope("gmail")],
+  ),
+  journey(
+    "reload-after-browser-change",
+    "After trying the in-panel browser, reload the panel and report what it defaults to. Confirm that reload leaves account setup unresolved.",
+    [browser("here"), reset, [owners, "owner-routes"]],
+  ),
+  journey(
+    "reload-after-broad-scope",
+    "A colleague selected all apps and reopened the panel. Verify the scope on each side of reload and confirm that Gmail still requires account setup.",
+    [scope("workspace"), reset, [gate(false), "gmail-closed"]],
+  ),
+  journey(
+    "resume-full-app-preview-after-reload",
+    "Preview both preferences, reload to see the default pair, then restore the full-suite choice while keeping the restored normal browser.",
+    [scope("workspace"), browser("here"), reset, scope("workspace")],
+  ),
+  journey(
+    "mobile-choice-readback",
+    "At 390 pixels, switch to the full app suite, verify the layout there, and check the Gmail launch gate for the user doing setup on a phone.",
+    [
+      [viewport(390), "viewport-fits"],
+      scope("workspace"),
+      [viewport(390), "viewport-fits"],
+      [gate(false), "gmail-closed"],
+    ],
+  ),
+  journey(
+    "handoff-across-viewport-and-reload",
+    "Verify in-panel setup at phone width, then reload and inspect the account routes at desktop width. Confirm the previous browser choice didn't survive.",
+    [
+      [viewport(320), "viewport-fits"],
+      browser("here"),
+      reset,
+      [viewport(1280), "viewport-fits"],
       [owners, "owner-routes"],
     ],
   ),
