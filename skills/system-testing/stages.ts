@@ -12,6 +12,7 @@ import { managedTourRehearsalTests } from "./tests/tour-rehearsal-managed.js";
 import { managedBuildPerformanceTests } from "./tests/build-performance-managed.js";
 import { managedLogCursorTests } from "./tests/log-cursor-managed.js";
 import { managedEvalRecoveryTests } from "./tests/eval-recovery-managed.js";
+import { managedAndroidInstallTests } from "./tests/android-install-managed.js";
 import { managedAndroidAuditTests } from "./tests/android-audit-managed.js";
 import { managedDeliveryHistoryTests } from "./tests/delivery-history-managed.js";
 import { managedPdfLayoutTests } from "./tests/pdf-layout-managed.js";
@@ -281,6 +282,7 @@ export function allTests(): TestCase[] {
   ...managedPresentationTests,
   ...managedPanelHealthTests,
   ...ownedOperationsTests,
+  ...managedAndroidInstallTests,
   ...managedAndroidAuditTests,
   ...managedDeliveryHistoryTests,
   ...localMessagingTests,

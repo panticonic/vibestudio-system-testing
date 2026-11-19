@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { AndroidInstallReceiver } from "@workspace-skills/system-testing/android-install-managed";
 import type { AndroidAuditReceiver } from "@workspace-skills/system-testing/android-audit-managed";
 import type { DeliveryHistoryReceiver } from "@workspace-skills/system-testing/delivery-history-managed";
 import type { PublicationRevisionReceiver } from "@workspace-skills/system-testing/publication-revision-managed";
@@ -2112,6 +2113,42 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {preparePublicationRevision} from "@workspace-skills/system-testing/publication-revision-managed";
       const prepared=await preparePublicationRevision(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned Android development installation."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runAndroidInstallTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<AndroidInstallReceiver["runAndroidInstallTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"mobileSystem",operation:"runMobileScenario",input:{goal:"Exercise the assigned Android development installation"}},
+      inputCode: "prepared.request",
+      bindingCode: this.androidInstallBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<AndroidInstallReceiver["runAndroidInstallTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the assigned Android installation and readback."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyAndroidInstall(input: {contextId:string;caseId:string}): ReturnType<AndroidInstallReceiver["qualifyAndroidInstall"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"mobileSystem",operation:"runMobileScenario"}], this.androidInstallBindings(input),
+    )) as Awaited<ReturnType<AndroidInstallReceiver["qualifyAndroidInstall"]>>;
+  }
+
+  private androidInstallBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId,rpc} from "@workspace/runtime";
+      import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
+      import {prepareManagedAndroidInstall} from "@workspace-skills/system-testing/android-install-managed";
+      import {listMobileDebugDevices,bindInstalledMobileScenario,inspectInternalAndroidApp} from "@workspace-skills/mobile-system-testing/live-bindings";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Android installation belongs to another context");
+      const {workspaceId}=await rpc.call("main",mainRpcMethods["auth.getConnectionInfo"],[]);
+      if(!workspaceId) throw new Error("The assigned Android installation requires a workspace");
+      const prepared=await prepareManagedAndroidInstall(input,workspaceId,{
+        bind:bindInstalledMobileScenario,inventory:listMobileDebugDevices,verifyApp:inspectInternalAndroidApp,
+      });
       const assignedServices=prepared.services;
     `;
   }

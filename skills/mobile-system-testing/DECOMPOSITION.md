@@ -2,9 +2,10 @@
 
 The original onboarding and mobile-debug scenarios exercise different effects.
 Onboarding joins a desktop provider and an attached device to a pairing receipt
-and then checks the paired phone's actual workspace. Development install uses a
-single assigned Android target, optionally resets the app only when authorized,
-and independently verifies installation, the running bundle and rendering.
+and then checks the paired phone's actual workspace. Development install uses a single assigned Android target and optionally resets
+the app when authorized. It verifies installation, process and device image
+evidence against the exact installation receipt. A separate pairing scenario
+owns workspace connection and shell readiness.
 
 | Part | Implementation |
 | --- | --- |
@@ -19,3 +20,9 @@ and independently verifies installation, the running bundle and rendering.
 Read-only assignments stop after target selection. A headless worker may
 read a supplied receipt. This workflow leaves an attached operation pending
 when foreground ownership is missing.
+
+
+The managed development cases use a single disposable emulator. They preserve
+the original extension-install test's native install and launch path. The
+independent harness reads the app before and after the attempt. A missing
+assigned target and a caller without foreground ownership have separate cases.

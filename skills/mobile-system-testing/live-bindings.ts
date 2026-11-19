@@ -1,8 +1,8 @@
 import { phoneSetup } from "@workspace-skills/phone-setup";
 import { extensions } from "@workspace/runtime";
-import type { mobileNativeMethods } from "@vibestudio/service-schemas/mobileNative";
+import { mobileNativeMethods } from "@vibestudio/service-schemas/mobileNative";
 import type { z } from "zod";
-import { bindMobileScenario, type MobilePorts } from "./bindings.js";
+import { bindMobileScenario, INTERNAL_PACKAGE, type MobilePorts } from "./bindings.js";
 import type {
   MobileAssignment,
   MobileDevice,
@@ -18,11 +18,19 @@ async function mobileDebug<M extends NativeMethod>(
   method: M,
   ...args: z.input<(typeof mobileNativeMethods)[M]["args"]>
 ): Promise<NativeValue<M>> {
-  return (await extensions.invoke(
+  return mobileNativeMethods[method].returns.parse(await extensions.invoke(
     "@workspace-extensions/mobile-debug",
     method,
     args,
   )) as NativeValue<M>;
+}
+
+export function listMobileDebugDevices() {
+  return mobileDebug("listDevices");
+}
+
+export function inspectInternalAndroidApp(device: string) {
+  return mobileDebug("verify", { device, packageName: INTERNAL_PACKAGE });
 }
 
 function deviceState(state: string, ready: boolean): MobileDevice["state"] {
@@ -40,6 +48,7 @@ export function bindInstalledMobileScenario(
   observed: Omit<MobileInventory, "devices">,
   signal?: AbortSignal,
 ) {
+  const matchesAssignment = (id: string) => !request.deviceId || request.deviceId === id;
   let setup: ReturnType<typeof phoneSetup> | undefined;
   const phone = () => (setup ??= phoneSetup());
   const ports: MobilePorts = {
@@ -52,11 +61,13 @@ export function bindInstalledMobileScenario(
       )
         return inventory;
       if (request.scenario === "development") {
-        const devices = await mobileDebug("listDevices");
-        inventory.devices = devices.map(({ serial, state }) => ({
-          id: serial,
-          state: deviceState(state, state === "device"),
-        }));
+        const devices = await listMobileDebugDevices();
+        inventory.devices = devices
+          .filter(({ serial }) => matchesAssignment(serial))
+          .map(({ serial, state }) => ({
+            id: serial,
+            state: deviceState(state, state === "device"),
+          }));
       } else if (inventory.provider) {
         const api = await phone();
         const providers = await api.providers();
@@ -74,8 +85,8 @@ export function bindInstalledMobileScenario(
         const discovered = await api.devices(providerId, "android");
         inventory.devices = discovered.devices
           .filter(
-            ({ platform, providerId: candidate }) =>
-              platform === "android" && candidate === providerId,
+            ({ platform, providerId: candidate, deviceId }) =>
+              platform === "android" && candidate === providerId && matchesAssignment(deviceId),
           )
           .map(({ deviceId, state, ready }) => ({
             id: deviceId,
