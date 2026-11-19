@@ -20,8 +20,9 @@ The fixture bank owns hard expectations and exact scoring in TypeScript.
 The caller creates disposable channels and reconnects through the product's
 HeadlessSession client. It reads the durable message window independently of
 the reconnecting projection. `reviewLiveReplay` asks the bound reader for
-each assigned checkpoint and dispatches it through channel routing, replay
-integrity, and retry identity checks. The retry stage distinguishes the
+each assigned checkpoint. The exact request adapter sends its channel, accepted
+message, and retry identities to the shared session reviewer. The checkpoint
+then checks the complete transcript prefix and classifies the retry payload. The retry stage distinguishes the
 first accepted payload from later text sent with the same idempotency key.
 Only the caller owns channel creation, sending and cleanup.
 

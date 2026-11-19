@@ -202,3 +202,28 @@ export const managedSessionReplayWorlds = [
     ],
   ),
 ];
+
+export const composedSessionReplayWorlds = [
+  world(
+    "reconcile-after-unsubmitted-retry",
+    "Review the recovered dock update before any retry, the correction submitted under its original key, and the separate follow-up. Cite the accepted identity at each reconnect.",
+    ["Keep dock four open until the pallet count is confirmed.", "The floor lead will report the count."],
+    [
+      step(0, "inspect"),
+      step(0, "revise", "Close dock four now."),
+      step(0, "append", "The pallet count is confirmed. Close dock four."),
+    ],
+  ),
+  world(
+    "return-to-source-after-parallel-retry",
+    "Compare the retry in the parallel room with the retry on the original channel. Then confirm whether the next distinct checklist message preserved the source transcript.",
+    ["Log the water pressure at the north valve.", "Retain the instrument reading."],
+    [
+      step(0, "other-channel-retry"),
+      step(0, "retry"),
+      step(1, "append", "Attach the downstream pressure reading."),
+    ],
+  ),
+];
+
+managedSessionReplayWorlds.push(...composedSessionReplayWorlds);

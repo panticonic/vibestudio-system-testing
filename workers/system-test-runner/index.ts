@@ -1079,9 +1079,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async qualifyManagedSessionReplay(input: SessionReplayInput): ReturnType<ManagedSessionReplayReceiver["qualifyManagedSessionReplay"]> {
     return await this.runHarnessUtility("teacher",`
       ${this.sessionReplayBindings(input)}
-      if(prepared.firstCase) {
+      if(prepared.describesProgram) {
         const program=await natlang.describe("skills/vibestudio-workflows/runWorkflow.nl");
-        if(!program.functions.some(({name})=>name==="reviewLiveReplay")) throw new Error("The shared Natlang workflow is missing live session replay");
+        for(const name of ["reviewLiveReplay", "reviewSessionTest", "checkContinuation"]) {
+          if(!program.functions.some((fn)=>fn.name===name)) throw new Error("The shared Natlang workflow is missing "+name);
+        }
       }
       let rejectedForeignReceipt=false;
       try {await assignedServices.sessionReplay.inspect("foreign-receipt");}

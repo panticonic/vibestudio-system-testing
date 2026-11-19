@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedSessionReplayReceiver } from "../session-replay-contract.js";
-import { managedSessionReplayWorlds } from "../session-replay-worlds.js";
+import {
+  composedSessionReplayWorlds,
+  managedSessionReplayWorlds,
+} from "../session-replay-worlds.js";
 
 type Teacher = Awaited<
   ReturnType<ManagedSessionReplayReceiver["runManagedSessionReplayTeacher"]>
@@ -63,48 +66,55 @@ export const managedSessionReplayTests: TestCase[] =
     },
   }));
 
-managedSessionReplayTests.push({
-  ...settings,
-  name: "session-replay-managed-qualification",
-  description:
-    "Qualify the headless reconnect and durable transcript without a model",
-  prompt: "Verify exact accepted messages and the resulting live replay.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const { id } of managedSessionReplayWorlds) {
-      try {
-        const run = await runner.runManagedSessionReplay(id, true, signal);
-        if (run.kind !== "reference")
-          throw new Error("Replay qualification ran a teacher");
-        checks.push(run.result);
-      } catch (cause) {
-        throw new Error(`Failed to qualify session replay case ${id}`, {
-          cause,
-        });
+function replayQualification(name: string, worlds: readonly {id: string}[]): TestCase {
+  return {
+    ...settings,
+    name,
+    description:
+      "Qualify the headless reconnect and durable transcript without a model",
+    prompt: "Verify exact accepted messages and the resulting live replay.",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const { id } of worlds) {
+        try {
+          const run = await runner.runManagedSessionReplay(id, true, signal);
+          if (run.kind !== "reference")
+            throw new Error("Replay qualification ran a teacher");
+          checks.push(run.result);
+        } catch (cause) {
+          throw new Error(`Failed to qualify session replay case ${id}`, {
+            cause,
+          });
+        }
       }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { replayQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["replayQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedSessionReplayWorlds.length &&
-      checks.every(
-        ({ verified, rejectedForeignReceipt }) =>
-          verified.passed && rejectedForeignReceipt,
-      )
-      ? { passed: true, details: { cases: checks.length, modelCalls: 0 } }
-      : {
-          passed: false,
-          reason:
-            "The transcript readback or oracle differed from the assigned replay.",
-          details: { checks },
-        };
-  },
-});
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { replayQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["replayQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verified, rejectedForeignReceipt }) =>
+            verified.passed && rejectedForeignReceipt,
+        )
+        ? { passed: true, details: { cases: checks.length, modelCalls: 0 } }
+        : {
+            passed: false,
+            reason:
+              "The transcript readback or oracle differed from the assigned replay.",
+            details: { checks },
+          };
+    },
+  };
+}
+
+managedSessionReplayTests.push(
+  replayQualification("session-replay-managed-qualification", managedSessionReplayWorlds),
+  replayQualification("session-replay-composed-qualification", composedSessionReplayWorlds),
+);

@@ -12,7 +12,10 @@ import type {
   ReplayMessage,
   ReplayOperation,
 } from "../session-test-review/types.js";
-import { managedSessionReplayWorlds } from "./session-replay-worlds.js";
+import {
+  composedSessionReplayWorlds,
+  managedSessionReplayWorlds,
+} from "./session-replay-worlds.js";
 
 type Lane = { key: string; target: string; expected: ReplayMessage[] };
 
@@ -271,6 +274,8 @@ export function bindSessionReplay(
     services,
     reference,
     verify,
-    firstCase: assigned === managedSessionReplayWorlds[0],
+    describesProgram:
+      assigned === managedSessionReplayWorlds[0] ||
+      assigned === composedSessionReplayWorlds[0],
   };
 }
