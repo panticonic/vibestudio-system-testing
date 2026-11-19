@@ -55,6 +55,7 @@
     "./release-review-handoff-worlds": "./release-review-handoff-worlds.ts",
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
+    "./git-bridge-review-managed": "./git-bridge-review-managed.ts",
     "./vcs-delivery-managed": "./vcs-delivery-managed.ts",
     "./web-brief-managed": "./web-brief-managed.ts",
     "./architecture-boundary-managed": "./architecture-boundary-managed.ts",
@@ -144,6 +145,7 @@
   },
   "dependencies": {
     "@workspace-skills/problem-reporting": "workspace:*",
+    "@workspace-skills/git-bridge-review-bindings": "workspace:*",
     "@workspace-skills/vcs-delivery-bindings": "workspace:*",
     "@workspace-skills/web-research-bindings": "workspace:*",
     "@workspace-skills/architecture": "workspace:*",

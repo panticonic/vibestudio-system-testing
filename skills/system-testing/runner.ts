@@ -3,6 +3,8 @@ import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { managedReleaseReviewHandoffMethods } from "./release-review-handoff-contract.js";
+import { managedGitBridgeReviewMethods } from "./git-bridge-review-managed.js";
+import { managedGitBridgeReviewWorlds } from "./git-bridge-review-worlds.js";
 import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
@@ -1456,6 +1458,34 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedReleaseReviewHandoffMethods.qualifyManagedReleaseReviewHandoff, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedReleaseReviewHandoffMethods.runManagedReleaseReviewHandoffTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedGitBridgeReview(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = managedGitBridgeReviewWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown assigned Git Bridge review");
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      if (world.draft) {
+        const { workingHead } = await vcs.status({ contextId });
+        const repository = await vcs.resolveRepository({ state: workingHead, repoPath: world.repository });
+        if (!repository) throw new Error("The assigned Git Bridge fixture repository is absent");
+        await vcs.edit({
+          contextId, expectedWorkingHead: workingHead, commandId: `git-bridge-review:seed:${contextId}`,
+          changes: [{
+            kind: "file-create", path: "bridge-delivery-fixture.md", repositoryId: repository.repositoryId,
+            content: { kind: "text", text: "Review this draft before exporting the protected repository.\n" }, mode: 0o644,
+          }],
+        });
+      }
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedGitBridgeReviewMethods.qualifyManagedGitBridgeReview, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedGitBridgeReviewMethods.runManagedGitBridgeReviewTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

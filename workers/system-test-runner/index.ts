@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedGitBridgeReviewReceiver } from "@workspace-skills/system-testing/git-bridge-review-managed";
 import type { ManagedVcsDeliveryReceiver } from "@workspace-skills/system-testing/vcs-delivery-managed";
 import type { ManagedWebBriefReceiver } from "@workspace-skills/system-testing/web-brief-managed";
 import type { ManagedArchitectureBoundaryReceiver } from "@workspace-skills/system-testing/architecture-boundary-managed";
@@ -134,6 +135,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  GitBridgeReview: {kind:"domain",domain:"gitBridge",operation:"reviewGitBridge",input:{goal:"Review the assigned Git Bridge repository"}},
   VcsDelivery: {kind:"domain",domain:"vcsDelivery",operation:"reviewVcsDelivery",input:{goal:"Review the assigned semantic VCS delivery"}},
   WebBrief: {kind:"domain",domain:"webResearch",operation:"writeAssignedBrief",input:{goal:"Write the assigned web brief"}},
   ArchitectureBoundary: {kind:"domain",domain:"architecture",operation:"reviewArchitectureBoundary",input:{goal:"Review the assigned architecture boundary"}},
@@ -1940,6 +1942,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Release handoff belongs to another context");
       const prepared=await prepareReleaseReviewHandoff(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned Git Bridge review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedGitBridgeReviewTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedGitBridgeReviewReceiver["runManagedGitBridgeReviewTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.GitBridgeReview,
+      inputCode:"prepared.request",
+      bindingCode:this.managedGitBridgeReviewBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedGitBridgeReviewReceiver["runManagedGitBridgeReviewTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the live Git Bridge and semantic repository without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedGitBridgeReview(input: {contextId:string;caseId:string}): ReturnType<ManagedGitBridgeReviewReceiver["qualifyManagedGitBridgeReview"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.GitBridgeReview],
+      this.managedGitBridgeReviewBindings(input),
+    )) as Awaited<ReturnType<ManagedGitBridgeReviewReceiver["qualifyManagedGitBridgeReview"]>>;
+  }
+
+  private managedGitBridgeReviewBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedGitBridgeReview} from "@workspace-skills/system-testing/git-bridge-review-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Git Bridge review belongs to another context");
+      const prepared=await prepareManagedGitBridgeReview(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
