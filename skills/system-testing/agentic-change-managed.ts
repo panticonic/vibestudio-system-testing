@@ -136,12 +136,8 @@ export async function prepareManagedAgenticChange(
       },
       canary: {
         surface: world.surface,
-        probe: world.persistedContract
-          ? "Complete a turn in a fresh channel and reopen its transcript."
-          : "Open a fresh chat panel and inspect the advertised capability at boot.",
-        observations: world.persistedContract
-          ? ["Persisted terminal outcome and rendered transcript"]
-          : ["Capability visibility and panel console"],
+        probe: world.probe,
+        observations: [...world.observations],
         cleanup: [
           "Close the canary surface and retire only its owned registrations and diagnostics.",
         ],

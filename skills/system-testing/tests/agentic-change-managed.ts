@@ -63,41 +63,51 @@ export const managedAgenticChangeTests: TestCase[] =
     },
   }));
 
-managedAgenticChangeTests.push({
-  ...settings,
-  name: "agentic-change-oracle-qualification",
-  description:
-    "Qualify agentic source observations and exact revision checks without model calls",
-  prompt: "Read the owned revision and check the change plan.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const { id } of managedAgenticChangeWorlds) {
-      const run = await runner.runManagedAgenticChange(id, true, signal);
-      if (run.kind !== "reference")
-        throw new Error("Agentic change qualification invoked a teacher");
-      checks.push(run.result);
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { agenticChangeQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["agenticChangeQualification"] as
-      | Qualification[]
-      | undefined;
-    return {
-      passed:
-        checks?.length === managedAgenticChangeWorlds.length &&
-        checks.every(
-          ({ verification, rejectedForeignContext, rejectedWrongRevision }) =>
-            verification.passed &&
-            rejectedForeignContext &&
-            rejectedWrongRevision,
-        ),
-      details: { checks },
-    };
-  },
-});
+function qualifyAgenticChange(name: string, worlds: readonly { id: string }[]): TestCase {
+  return {
+    ...settings,
+    name,
+    timeoutMs: worlds.length === 1 ? settings.timeoutMs : null,
+    description:
+      "Qualify agentic source observations and exact revision checks without model calls",
+    prompt: "Read the owned revision and check the change plan.",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const { id } of worlds) {
+        const run = await runner.runManagedAgenticChange(id, true, signal);
+        if (run.kind !== "reference")
+          throw new Error("Agentic change qualification invoked a teacher");
+        checks.push(run.result);
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { agenticChangeQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["agenticChangeQualification"] as
+        | Qualification[]
+        | undefined;
+      return {
+        passed:
+          checks?.length === worlds.length &&
+          checks.every(
+            ({ verification, rejectedForeignContext, rejectedWrongRevision }) =>
+              verification.passed &&
+              rejectedForeignContext &&
+              rejectedWrongRevision,
+          ),
+        details: { checks },
+      };
+    },
+  };
+}
+
+managedAgenticChangeTests.push(
+  qualifyAgenticChange("agentic-change-oracle-qualification", managedAgenticChangeWorlds),
+  ...managedAgenticChangeWorlds.map((world) =>
+    qualifyAgenticChange(`agentic-change-oracle-${world.id}`, [world])
+  ),
+);
