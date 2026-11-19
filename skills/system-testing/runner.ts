@@ -1,3 +1,5 @@
+import { managedChannelRosterMethods } from "./channel-roster-contract.js";
+import { managedChannelRosterWorlds } from "./channel-roster-worlds.js";
 import { managedMissionPlanningMethods } from "./mission-planning-contract.js";
 import { managedMissionPlanningWorlds } from "./mission-planning-worlds.js";
 import { managedBrowserHandoffMethods } from "./browser-handoff-contract.js";
@@ -939,6 +941,21 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedMissionPlanningMethods.qualifyManagedMissionPlanning, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedMissionPlanningMethods.runManagedMissionPlanningTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedChannelRoster(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedChannelRosterWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown channel roster case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedChannelRosterMethods.qualifyManagedChannelRoster, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedChannelRosterMethods.runManagedChannelRosterTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

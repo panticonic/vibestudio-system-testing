@@ -1,3 +1,4 @@
+import type { ChannelRosterInput, ManagedChannelRosterReceiver } from "@workspace-skills/system-testing/channel-roster-contract";
 import type { MissionPlanningInput, ManagedMissionPlanningReceiver } from "@workspace-skills/system-testing/mission-planning-contract";
 import type { BrowserHandoffInput, ManagedBrowserHandoffReceiver } from "@workspace-skills/system-testing/browser-handoff-contract";
 import type { BrowserLibraryInput, ManagedBrowserLibraryReceiver } from "@workspace-skills/system-testing/browser-library-contract";
@@ -1035,6 +1036,39 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
       const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
     `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reconciles the assigned live channel roster."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedChannelRosterTeacher(input: ChannelRosterInput & {executorModel:string}): ReturnType<ManagedChannelRosterReceiver["runManagedChannelRosterTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.channelRosterBindings(input)}
+      ${domainTeacherCode({
+        executorModel: input.executorModel,
+        work: {kind:"domain",domain:"channelAgent",operation:"runRosterPlan",input:{goal:"Reconcile the assigned channels"}},
+        inputCode: "prepared.request",
+        bindingCode: "const assignedServices=prepared.services;",
+      },runId)}
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedChannelRosterReceiver["runManagedChannelRosterTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies real channel membership and conflict handling without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedChannelRoster(input: ChannelRosterInput): ReturnType<ManagedChannelRosterReceiver["qualifyManagedChannelRoster"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.channelRosterBindings(input)}
+      await natlang.describe("skills/agents/channel-membership/runRosterPlan.nl");
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedChannelRosterReceiver["qualifyManagedChannelRoster"]>>;
+  }
+
+  private channelRosterBindings(input: ChannelRosterInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedChannelRoster} from "@workspace-skills/system-testing/channel-roster-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Channel roster belongs to another context");
+      const prepared=await prepareManagedChannelRoster(input.caseId);
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Reconciles assigned planning records in an owned Mission Control store."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
