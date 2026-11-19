@@ -15,7 +15,7 @@ const settings = {
 export const managedGmailComposeHistoryTests: TestCase[] = gmailComposeHistoryWorlds.map((world) => ({
   ...settings,
   name: `gmail-compose-history-live-${world.id}`,
-  description: "Verify a Gmail compose disposition from native channel events",
+  description: "Audit native Gmail compose lineage and review the projected draft or delivery state",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
     const start = Date.now();
@@ -38,7 +38,7 @@ export const managedGmailComposeHistoryTests: TestCase[] = gmailComposeHistoryWo
 managedGmailComposeHistoryTests.push({
   ...settings,
   name: "gmail-compose-history-oracle-qualification",
-  description: "Qualify actual compose-history channel receipts without calling a model",
+  description: "Qualify actual compose-history receipts and review projections without calling a model",
   prompt: gmailComposeHistoryWorlds[0].goal,
   async orchestrate({ runner, signal }) {
     const start = Date.now();

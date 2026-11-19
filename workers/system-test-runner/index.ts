@@ -2337,7 +2337,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const bindings = await this.gmailComposeBindings(input);
     return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
       executorModel: input.executorModel,
-      work: {kind:"domain",domain:"gmailReview",operation:"inspectComposeHistory",input:{goal:"Review the assigned compose history"}},
+      work: {kind:"domain",domain:"gmailReview",operation:"auditComposeHistory",input:{goal:"Review the assigned compose history"}},
       inputCode: "prepared.request",
       bindingCode: bindings,
     },runId)}
@@ -2348,7 +2348,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies native compose channel receipts without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyGmailComposeHistory(input: {contextId:string;caseId:string}): ReturnType<GmailComposeHistoryReceiver["qualifyGmailComposeHistory"]> {
     return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
-      [{domain:"gmailReview",operation:"inspectComposeHistory"}],
+      [{domain:"gmailReview",operation:"auditComposeHistory"}],
       await this.gmailComposeBindings(input),
     )) as Awaited<ReturnType<GmailComposeHistoryReceiver["qualifyGmailComposeHistory"]>>;
   }

@@ -5,6 +5,7 @@ export const gmailComposeHistoryWorlds = [
     initial: { status: "review", to: "recipient@example.test" },
     updates: [{ status: "saving" }, { status: "saved", draftId: "assigned-draft" }],
     action: "draft-recorded",
+    review: { status: "ready", code: "compose-readback", kind: "draft" },
   },
   {
     id: "reconcile-uncertain-delivery",
@@ -12,6 +13,7 @@ export const gmailComposeHistoryWorlds = [
     initial: { status: "review", to: "recipient@example.test", rfcMessageId: "<synthetic@vibestudio.local>" },
     updates: [{ status: "sending" }, { status: "delivery-unknown" }],
     action: "reconcile-delivery",
+    review: { status: "waiting", code: "delivery-unproven", kind: "reconcile" },
   },
   {
     id: "hold-draft-identity-change",
@@ -19,5 +21,25 @@ export const gmailComposeHistoryWorlds = [
     initial: { status: "review", to: "recipient@example.test" },
     updates: [{ status: "saved", draftId: "first-draft" }, { status: "saved", draftId: "different-draft" }],
     action: "hold",
+    review: { status: "attention", code: "saved-draft-lineage-mismatch", kind: "draft" },
+  },
+  {
+    id: "audit-retained-draft-after-resave",
+    goal: "Audit the accepted Gmail draft after it was reopened and saved again. Confirm whether both saves refer to the same draft and cite the later save.",
+    initial: { status: "review", to: "recipient@example.test" },
+    updates: [
+      { status: "saved", draftId: "retained-draft" }, { status: "review" },
+      { status: "saving" }, { status: "saved", draftId: "retained-draft" },
+    ],
+    action: "draft-recorded",
+    review: { status: "ready", code: "saved-draft-updated", kind: "draft" },
+  },
+  {
+    id: "hold-draft-missing-recipient",
+    goal: "Review the latest compose revision after its recipient was cleared. Identify what must be resolved before the draft is ready.",
+    initial: { status: "review", to: "recipient@example.test" },
+    updates: [{ status: "drafting", to: "" }],
+    action: "resolve-recipient",
+    review: { status: "waiting", code: "draft-needs-recipient", kind: "draft" },
   },
 ] as const;

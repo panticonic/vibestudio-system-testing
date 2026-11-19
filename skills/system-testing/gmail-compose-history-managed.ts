@@ -19,10 +19,15 @@ type Receipt = {
     };
   }[];
 };
-type Report = { receipt: Receipt; decision: { action: string; reason: string }; evidenceIds: string[] };
+type History = { receipt: Receipt; decision: { action: string; reason: string }; evidenceIds: string[] };
+type Review = { status: string; findings: { code: string; evidenceIds: string[] }[] };
+type Report = { history: History; review: Review };
 type Binding = {
   request: { goal: string; operationId: string };
-  services: { gmailComposeHistory: { read(id: string): Promise<Receipt> } };
+  services: {
+    gmailComposeHistory: { read(id: string): Promise<Receipt> };
+    gmailComposeAudit: { project(id: string, kind: "draft" | "reconcile"): Promise<unknown> };
+  };
 };
 
 export async function seedGmailComposeChannel(
@@ -71,7 +76,18 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
   const world = assigned;
   let received: Receipt | undefined;
   let reads = 0;
+  let projected: unknown;
+  let projections = 0;
   const services = {
+    gmailComposeAudit: {
+      async project(id: string, kind: "draft" | "reconcile") {
+        if (reads !== 1) throw new Error("Read the assigned channel history before projecting a review");
+        const value = await bound.services.gmailComposeAudit.project(id, kind);
+        projections++;
+        projected = structuredClone(value);
+        return value;
+      },
+    },
     gmailComposeHistory: {
       async read(id: string) {
         const receipt = await bound.services.gmailComposeHistory.read(id);
@@ -83,6 +99,7 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
   };
   const evidenceIds = [seed.lineage[0]!.id, seed.lineage.at(-1)!.id];
   function verify(report: Report | null) {
+    const history = report?.history;
     let stage = { ...world.initial } as { status: string; to?: string; draftId?: string; rfcMessageId?: string };
     const expected = seed.lineage.map((entry, index) => {
       if (index) stage = { ...stage, ...world.updates[index - 1] };
@@ -91,17 +108,45 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
         draftId: stage.draftId ?? null, mimeIdentity: !!stage.rfcMessageId, sentIdentity: false,
       }};
     });
+    const latest = expected.at(-1)!;
+    const target = {
+      id: expected[0]!.id, channelId: seed.channelId, accountRef: "channel-only:" + seed.channelId,
+    };
+    const readback = world.review.kind === "reconcile"
+      ? { kind: "reconcile", id: latest.id, providerProof: "not-checked" }
+      : {
+        kind: "draft", id: latest.id, origin: "channel-readback",
+        beforeDraft: expected.slice(0, -1).findLast(({ state }) => state.draftId !== null)?.state.draftId ?? null,
+        afterDraft: latest.state.draftId,
+      };
     const checks = {
       channel: reads === 1 && received?.channelId === seed.channelId && received.messageId === seed.messageId,
-      lineage: isDeepStrictEqual(received?.events, expected) && isDeepStrictEqual(report?.receipt, received),
-      disposition: report?.decision.action === world.action && typeof report.decision.reason === "string" && !!report.decision.reason.trim(),
-      evidence: isDeepStrictEqual(report?.evidenceIds, evidenceIds),
+      lineage: isDeepStrictEqual(received?.events, expected) && isDeepStrictEqual(history?.receipt, received),
+      disposition: history?.decision.action === world.action && typeof history.decision.reason === "string" && !!history.decision.reason.trim(),
+      evidence: isDeepStrictEqual(history?.evidenceIds, evidenceIds),
+      projection: projections === 1 && isDeepStrictEqual(projected, {
+        kind: "compose", goal: world.goal,
+        scope: { target, observed: { ...target, id: latest.id, binding: "channel-readback" } },
+        card: {
+          id: latest.id, messageId: seed.messageId, requestedMessageId: seed.messageId,
+          ownedByChannel: true, state: latest.state.status, hasRecipient: latest.state.recipientPresent, alias: latest.state.alias,
+        },
+        readback,
+      }),
+      review: isDeepStrictEqual(report?.review, expectedReview(latest.id)),
     };
-    return { seed, request: bound.request, received, checks, passed: Object.values(checks).every(Boolean) };
+    return { seed, request: bound.request, received, projected, checks, passed: Object.values(checks).every(Boolean) };
+  }
+  function expectedReview(id: string): Review {
+    return { status: world.review.status, findings: [{ code: world.review.code, evidenceIds: [id] }] };
   }
   async function qualify() {
     const receipt = await services.gmailComposeHistory.read(bound.request.operationId);
-    return verify({ receipt, decision: { action: world.action, reason: "Related native compose records agree." }, evidenceIds });
+    await services.gmailComposeAudit.project(bound.request.operationId, world.review.kind);
+    return verify({
+      history: { receipt, decision: { action: world.action, reason: "Related native compose records agree." }, evidenceIds },
+      review: expectedReview(receipt.events.at(-1)!.id),
+    });
   }
   return { request: bound.request, services, qualify, verify };
 }
