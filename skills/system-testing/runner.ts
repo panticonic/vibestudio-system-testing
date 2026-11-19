@@ -1,3 +1,5 @@
+import { managedTendrilMethods } from "./tendril-contract.js";
+import { managedTendrilWorlds } from "./tendril-worlds.js";
 import { managedProvenanceHistoryMethods } from "./provenance-history-contract.js";
 import { managedRuntimeProgramMethods } from "./runtime-program-contract.js";
 import { managedIncidentContinuationMethods } from "./incident-continuation-contract.js";
@@ -886,6 +888,36 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
         { contextId: target.contextId, recursive: true },
       ]);
+    }
+  }
+
+  async runManagedTendril(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedTendrilWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown Tendril case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    const channelId = `natlang-tendril-${crypto.randomUUID()}`;
+    let warm: Awaited<ReturnType<typeof openPanel>> | undefined;
+    try {
+      // Opening an ordinary workspace panel starts the managed headless device.
+      warm = await this.openPanelClient("about/workspace", {
+        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+      });
+      await waitForText(warm, "Workspace");
+      const owner = await this.createFixtureWorker(contextId);
+      const channel = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{
+        kind: "do", execution: { surface: "code", source: "workers/pubsub-channel" },
+        className: "PubSubChannel", key: channelId, contextId,
+      }]);
+      if (channel.contextId !== contextId) throw new Error("Tendril channel belongs to another context");
+      const input = { contextId, caseId, channelId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedTendrilMethods.qualifyManagedTendril, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedTendrilMethods.runManagedTendrilTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      try { await warm?.archive(); }
+      finally {
+        await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+      }
     }
   }
 

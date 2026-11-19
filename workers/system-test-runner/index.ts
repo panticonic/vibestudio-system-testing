@@ -1,3 +1,4 @@
+import type { TendrilInput, ManagedTendrilReceiver } from "@workspace-skills/system-testing/tendril-contract";
 import type { ProvenanceHistoryInput, ManagedProvenanceHistoryReceiver } from "@workspace-skills/system-testing/provenance-history-contract";
 import type { RuntimeProgramInput, ManagedRuntimeProgramReceiver } from "@workspace-skills/system-testing/runtime-program-contract";
 import type { IncidentContinuationInput, ManagedIncidentContinuationReceiver } from "@workspace-skills/system-testing/incident-continuation-contract";
@@ -1030,6 +1031,49 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
       const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
     `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Exercises the owned live Tendril board."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedTendrilTeacher(input: TendrilInput & {executorModel:string}): ReturnType<ManagedTendrilReceiver["runManagedTendrilTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.tendrilBindings(input)}
+      let teacher;
+      try {
+        ${domainTeacherCode({
+          executorModel: input.executorModel,
+          work: {kind:"domain",domain:"tendril",operation:"runTendril",input:{goal:"Operate the assigned Tendril board"}},
+          inputCode: "prepared.request",
+          bindingCode: "const assignedServices=prepared.services;",
+        }, runId)}
+        teacher=utilityValue;
+      } finally { await prepared.close(); }
+      const utilityValue={teacher,contextId:actualContextId,verification:prepared.verify(teacher.report)};
+    `) as Awaited<ReturnType<ManagedTendrilReceiver["runManagedTendrilTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Verifies the actual Tendril state and panel without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedTendril(input: TendrilInput): ReturnType<ManagedTendrilReceiver["qualifyManagedTendril"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.tendrilBindings(input)}
+      let utilityValue;
+      try {
+        await natlang.describe("skills/tendrils/workflow/runTendril.nl");
+        const report=await prepared.reference();
+        const verification=prepared.verify(report);
+        const altered={...report,presentation:{...report.presentation,slotId:"different-panel"}};
+        utilityValue={verification,rejectsOtherSlot:!prepared.verify(altered).passed};
+      } finally { await prepared.close(); }
+    `) as Awaited<ReturnType<ManagedTendrilReceiver["qualifyManagedTendril"]>>;
+  }
+
+  private tendrilBindings(input: TendrilInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedTendril} from "@workspace-skills/system-testing/tendril-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Tendril belongs to another context");
+      const prepared=prepareManagedTendril(input);
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Verifies the assigned release checklist through a live workspace PTY."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

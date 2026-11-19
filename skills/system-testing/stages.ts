@@ -64,6 +64,7 @@ import { gitInteropTests } from "./tests/git-interop.js";
 import { templateTests } from "./tests/templates.js";
 import { vcsAdvancedTests } from "./tests/vcs-advanced.js";
 import { blobstoreTests } from "./tests/blobstore.js";
+import { managedTendrilTests } from "./tests/tendril-managed.js";
 import { tendrilTests } from "./tests/tendrils.js";
 import { serverLogTests } from "./tests/server-logs.js";
 import { unitDiagnosticsTests } from "./tests/unit-diagnostics.js";
@@ -240,6 +241,7 @@ export function allTests(): TestCase[] {
     ...selfDevelopmentTests,
     ...blobstoreTests,
     ...tendrilTests,
+    ...managedTendrilTests,
     ...serverLogTests,
     ...problemReportingTests,
     ...webhookTests,
