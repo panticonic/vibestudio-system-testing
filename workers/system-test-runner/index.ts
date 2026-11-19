@@ -64,8 +64,8 @@ import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace
 import type { ManagedAutomationReceiver } from "@workspace-skills/system-testing/automation-lifecycle-contract";
 import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type ScratchHandoffInput, type ScratchHandoffTeacherInput, type ScratchHandoffReceiver } from "@workspace-skills/system-testing/scratch-handoff-contract";
 import { managedScratchWorlds } from "@workspace-skills/system-testing/scratch-handoff-worlds";
-import {localMessagingInputSchema,type LocalMessagingInput,type LocalMessagingResult} from "@workspace-skills/system-testing/local-messaging-contract";
-import {localMessagingTeacherCode} from "./local-messaging-teacher.js";
+import {localMessagingInputSchema,localMessagingQualificationSchema,type LocalMessagingInput,type LocalMessagingQualification,type LocalMessagingResult} from "@workspace-skills/system-testing/local-messaging-contract";
+import {localMessagingQualificationCode,localMessagingTeacherCode} from "./local-messaging-teacher.js";
 import {ownedOperationsInputSchema,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
 import {ownedOperationsTeacherCode} from "./owned-operations-teacher.js";
 import { contentProjectTeacherInputSchema, contentProjectInputSchema, type ContentProjectTeacherInput, type ContentProjectInput, type ContentProjectResult, type ContentProjectReceiver } from "@workspace-skills/system-testing/content-project-contract";
@@ -676,6 +676,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runLocalMessagingTeacher(input:LocalMessagingInput):Promise<LocalMessagingResult>{
     const selected=localMessagingInputSchema.parse(input);
     return await this.runHarnessUtility("teacher",runId=>localMessagingTeacherCode(selected,runId)) as LocalMessagingResult;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks owned local messaging with its original delivery receipts."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyLocalMessaging(input: LocalMessagingQualification): Promise<LocalMessagingResult> {
+    const selected = localMessagingQualificationSchema.parse(input);
+    return await this.runHarnessUtility("teacher", localMessagingQualificationCode(selected)) as LocalMessagingResult;
   }
 
   @rpc({ website: { kind: "closed", reason: "Runs authored repair in one owned worker fixture." },

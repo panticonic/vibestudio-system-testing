@@ -45,9 +45,20 @@ export async function createLocalMessagingFixture(options:{contextId:string;case
   const target=sender.targetId;
   const service={inspect:(phrase:string)=>rpc.call(target,actor.inspect,[phrase]),send:(revision:string,phrase:string,ref:string,content:string)=>rpc.call(target,actor.send,[revision,phrase,ref,content])};
   // Explicit typed methods preserve the real receiver boundary; no closure is serialized to another realm.
-  const assignedService={inspect:service.inspect,send:service.send,inspectDelivery:(receipt:import("@workspace-skills/messaging/local-workflow").Receipt|null)=>rpc.call(target,actor.inspectDelivery,[receipt])};
-  return {request:world.request,assignedService,close,
-   async verify(report:unknown){
+  let resolution: Awaited<ReturnType<typeof service.inspect>>["resolution"] | undefined;
+  const assignedService = {
+    async inspect(phrase: string) {
+      if (phrase !== world.request.recipientPhrase)
+        throw new Error("Inspect only the caller's assigned recipient phrase");
+      const snapshot = await service.inspect(phrase);
+      resolution = structuredClone(snapshot.resolution);
+      return snapshot;
+    },
+    send: service.send,
+    inspectDelivery: (receipt: import("@workspace-skills/messaging/local-workflow").Receipt | null) =>
+      rpc.call(target, actor.inspectDelivery, [receipt]),
+  };
+  async function verify(report:unknown){
     await rpc.call(target,actor.closeAdmission,[]);
     const boundaries:Array<{channelId:string;after:number;through:number;joined:boolean;barrier:unknown}>=[],events:Array<{channelId:string;event:ChannelEvent}>=[];
     for(const channel of channels.values()){
@@ -59,9 +70,40 @@ export async function createLocalMessagingFixture(options:{contextId:string;case
       events.push(...retained.map(event=>({channelId:channel.id,event})));
     }
     const snapshots=await Promise.all(probes.map(async p=>({...await rpc.call(p.handle.targetId,actor.snapshot,[]),joined:true})));
+    const expectedRef = world.expected.status === "delivered"
+      ? "@" + world.participants.find(({ slot }) => slot === world.expected.recipientSlots[0])!.handle
+      : null;
+    const correctResolution = world.expected.status === "held"
+      ? resolution?.kind === "ambiguous" && resolution.reason === world.expected.reason
+      : resolution?.kind === "ref" && resolution.ref === expectedRef;
+    if (!correctResolution)
+      throw new Error("The canonical roster resolution differs from the assigned case");
     const evidence={expectedStatus:world.expected.status,expectedRecipientIds:world.expected.recipientSlots.map(slot=>probes.find(p=>p.slot===slot)!.participantId),ownedChannelIds:[...channels.values()].map(c=>c.id),ownedProbeIds:probes.map(p=>p.participantId),requiredFacts:[...world.request.facts],senderId:sender!.id,sourceChannelId:source.id,report,closedAdmission:true,boundaries,events,probeSnapshots:snapshots};
     return {verification:verifyOutcome(evidence),evidence};
-   },
-  };
+  }
+  async function qualify() {
+    const { recipientPhrase, facts } = world.request;
+    const snapshot = await assignedService.inspect(recipientPhrase);
+    const decision = snapshot.resolution;
+    if (!snapshot.revision) throw new Error("The canonical roster has no revision");
+    const content = decision.kind === "ref" ? facts.join("\n") : null;
+    const receipt = decision.kind === "ref" && content !== null
+      ? await assignedService.send(snapshot.revision, recipientPhrase, decision.ref, content)
+      : null;
+    const readback = await assignedService.inspectDelivery(receipt);
+    if (receipt
+      ? !readback.committed || readback.messageId !== receipt.messageId || readback.content !== content
+      : readback.committed || readback.messageId !== null)
+      throw new Error("The live messaging service disagrees with its delivery readback");
+    return verify({
+      status: receipt ? "delivered" : "held",
+      recipientRef: receipt?.to ?? null,
+      messageId: receipt?.messageId ?? null,
+      content,
+      clarification: receipt ? null : "Which participant in this channel should receive the message?",
+      evidence: readback.evidence,
+    });
+  }
+  return { request:world.request, assignedService, close, qualify, verify };
  }catch(error){try{await close();}catch(cleanup){throw new AggregateError([error,cleanup],"Messaging setup and cleanup failed");}throw error;}
 }

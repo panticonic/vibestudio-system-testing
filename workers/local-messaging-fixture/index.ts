@@ -17,21 +17,22 @@ function actorId(value:{source:string;className:string;key:string}) {return cano
 
 /** A passive real delivery endpoint: persists original channel input and acknowledges it; never invokes a model. */
 export class LocalMessagingProbeDO extends DurableObjectBase {
- protected createTables():void {}
- private config():Configuration {
+ protected createTables(): void {
   this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_configuration (id INTEGER PRIMARY KEY, json TEXT NOT NULL)");
+  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_probe_revision (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)");
+  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_probe_deliveries (id TEXT PRIMARY KEY, json TEXT NOT NULL)");
+ }
+ private config():Configuration {
   const row=this.sql.exec("SELECT json FROM messaging_configuration WHERE id=1").toArray()[0];
   if(!row)throw new Error("Synthetic messaging probe is not configured");
   return JSON.parse(String(row["json"])) as Configuration;
  }
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async configure(input:Configuration) {
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_configuration (id INTEGER PRIMARY KEY, json TEXT NOT NULL)");
   const previous=this.sql.exec("SELECT json FROM messaging_configuration WHERE id=1").toArray()[0];
   if(previous && String(previous["json"])!==JSON.stringify(input))throw new Error("Owned messaging configuration is immutable");
   this.sql.exec("INSERT OR IGNORE INTO messaging_configuration(id,json) VALUES(1,?)",JSON.stringify(input));
   const id=actorId({source:String(this.env["WORKER_SOURCE"]),className:String(this.env["WORKER_CLASS_NAME"]),key:this.objectKey});
   const joined=await this.rpc.call(input.channelTargetId,channelRpcMethods.join,[{participantId:id,operationId:`join:${input.fixtureId}:${id}`,contextId:input.contextId,metadata:{type:"agent",handle:input.handle,name:input.name},delivery:"addressed",endpoint:{kind:"entity",entityId:id,invocation:"direct"},applicationConfig:null,replay:false}]);
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_probe_revision (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)");
   this.sql.exec("INSERT OR REPLACE INTO messaging_probe_revision VALUES(1,?)",joined.revision);
   return {participantId:id,revision:joined.revision};
  }
@@ -43,13 +44,11 @@ export class LocalMessagingProbeDO extends DurableObjectBase {
   const revision=this.sql.exec("SELECT revision FROM messaging_probe_revision WHERE id=1").toArray()[0]?.["revision"];
   const expected=actorId({source:String(this.env["WORKER_SOURCE"]),className:String(this.env["WORKER_CLASS_NAME"]),key:this.objectKey});
   if(input.participantId!==expected || input.subscriptionRevision!==Number(revision))throw new Error("Delivery belongs to another owned recipient generation");
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_probe_deliveries (id TEXT PRIMARY KEY, json TEXT NOT NULL)");
   this.sql.exec("INSERT OR IGNORE INTO messaging_probe_deliveries VALUES(?,?)",input.deliveryId,JSON.stringify(input));
   return {deliveryId:input.deliveryId,disposition:"processed"};
  }
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async snapshot() {
   const config=this.config();
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_probe_deliveries (id TEXT PRIMARY KEY, json TEXT NOT NULL)");
   const revision=this.sql.exec("SELECT revision FROM messaging_probe_revision WHERE id=1").toArray()[0]?.["revision"];
   return {channelId:config.channelId,participantId:actorId({source:String(this.env["WORKER_SOURCE"]),className:String(this.env["WORKER_CLASS_NAME"]),key:this.objectKey}),delivery:"addressed" as const,subscriptionRevision:Number(revision),deliveries:this.sql.exec("SELECT json FROM messaging_probe_deliveries ORDER BY id").toArray().map(row=>JSON.parse(String(row["json"])) as ResidentChannelDeliveryInput)};
  }
@@ -57,16 +56,20 @@ export class LocalMessagingProbeDO extends DurableObjectBase {
 
 /** Owns an actual agent subscription and reuses canonical discovery and notify. It performs no inference. */
 export class LocalMessagingSenderDO extends AgentWorkerBase {
+ protected override createAgentTables(): void {
+  super.createAgentTables();
+  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_configuration (id INTEGER PRIMARY KEY, json TEXT NOT NULL)");
+  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_send (id TEXT PRIMARY KEY, args TEXT NOT NULL, receipt TEXT)");
+ }
+
  private readonly pendingSends=new Set<Promise<unknown>>();
  private configuration():Configuration {
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_configuration (id INTEGER PRIMARY KEY,json TEXT NOT NULL)");
   const row=this.sql.exec("SELECT json FROM messaging_configuration WHERE id=1").toArray()[0];
   if(!row)throw new Error("Owned messaging sender is not configured");
   return JSON.parse(String(row["json"])) as Configuration;
  }
  protected override getParticipantInfo():ParticipantDescriptor {return {name:"Owned synthetic sender",handle:"fixture-sender",type:"agent",metadata:{}};}
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async configure(input:Configuration) {
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_configuration (id INTEGER PRIMARY KEY,json TEXT NOT NULL)");
   const previous=this.sql.exec("SELECT json FROM messaging_configuration WHERE id=1").toArray()[0];
   if(previous && String(previous["json"])!==JSON.stringify(input))throw new Error("Owned sender configuration is immutable");
   if(!input.lease)throw new Error("Owned sender requires its exact fixture lease");
@@ -98,7 +101,6 @@ export class LocalMessagingSenderDO extends AgentWorkerBase {
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async inspectDelivery(receipt:Receipt|null){return this.bindings().read.inspectDelivery(receipt);}
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async send(revision:string,phrase:string,ref:string,content:string){
   const config=this.configuration();if(!config.lease?.active)throw new Error("Owned send admission is closed");
-  this.sql.exec("CREATE TABLE IF NOT EXISTS messaging_send (id TEXT PRIMARY KEY,args TEXT NOT NULL,receipt TEXT)");
   const key=config.lease.operationId,args=JSON.stringify([revision,phrase,ref,content]);
   const existing=this.sql.exec("SELECT args,receipt FROM messaging_send WHERE id=?",key).toArray()[0];
   if(existing){if(existing["args"]!==args)throw new Error("Owned operation already has another exact message intent");if(typeof existing["receipt"]==="string")return JSON.parse(existing["receipt"]) as Receipt;throw new Error("Owned send outcome is unknown; inspect the original log without sending again");}

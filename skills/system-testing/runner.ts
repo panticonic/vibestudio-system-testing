@@ -780,11 +780,22 @@ export class HeadlessRunner {
     }]);
   }
 
-  async runLocalMessaging(caseId:LocalMessagingInput["caseId"]) {
-    const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
-    const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
-    try {const owner=await this.createFixtureWorker(target.contextId);return await rpc.call(owner,localMessagingRpcMethods.runLocalMessagingTeacher,[{contextId:target.contextId,caseId,executorModel:this.modelRef}]);}
-    finally {await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);}
+  async runLocalMessaging(caseId: LocalMessagingInput["caseId"], qualification = false, signal?: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [
+      policy ? { testPolicy: policy } : {},
+    ]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      if (qualification)
+        return await rpc.call(owner, localMessagingRpcMethods.qualifyLocalMessaging, [input], { signal });
+      return await rpc.call(owner, localMessagingRpcMethods.runLocalMessagingTeacher, [
+        { ...input, executorModel: this.modelRef },
+      ], { signal });
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
   }
 
   async runOwnedOperations(caseId: OwnedOperationsInput["caseId"]) {

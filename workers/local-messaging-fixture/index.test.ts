@@ -3,7 +3,7 @@ import {createTestDO} from "@vibestudio/durable/test-utils";
 import {rpcMethodAuthority} from "@vibestudio/rpc";
 import {wireCallerFor} from "@vibestudio/rpc/internal";
 import {PubSubChannel} from "@workspace-workers/pubsub-channel";
-import {LocalMessagingProbeDO,LocalMessagingChannelDO} from "./index.js";
+import {LocalMessagingProbeDO,LocalMessagingSenderDO,LocalMessagingChannelDO} from "./index.js";
 class Probe extends LocalMessagingProbeDO {wire(){return wireCallerFor(this.rpc);}}
 const dbs:Array<{close():void}>=[];
 afterEach(()=>{for(const db of dbs.splice(0))db.close();vi.restoreAllMocks();});
@@ -26,4 +26,37 @@ it("the fixture channel joins the same inherited canonical capture and wait with
  expect(rpcMethodAuthority(entity.instance,"joinFixtureDelivery")).toMatchObject({website:{kind:"closed"}});
  await expect(entity.instance.joinFixtureDelivery()).resolves.toEqual(receipt);
  expect(prepare).toHaveBeenCalledWith("delivery");expect(wait).toHaveBeenCalledWith("delivery",receipt.barrier);
+});
+
+it("registers sender and probe tables before fixture RPCs can change the durable schema", async () => {
+  const probe = await createTestDO(LocalMessagingProbeDO);
+  dbs.push(probe.db);
+  const image = {
+    WORKER_SOURCE: "workers/local-messaging-fixture",
+    WORKER_CLASS_NAME: "LocalMessagingSenderDO",
+    WORKER_EXECUTION_DIGEST: "e".repeat(64),
+  };
+  const schemaProbe = await createTestDO(
+    LocalMessagingSenderDO,
+    { ...image, VIBESTUDIO_SCHEMA_PROBE: true },
+    { initialize: false },
+  );
+  dbs.push(schemaProbe.db);
+  const response = await schemaProbe.instance.fetch(
+    new Request("http://test/test-key/__vibestudio_schema_descriptor"),
+  );
+  expect(response.ok).toBe(true);
+  const sender = await createTestDO(LocalMessagingSenderDO, {
+    ...image,
+    VIBESTUDIO_SCHEMA_DESCRIPTOR: await response.json(),
+  });
+  dbs.push(sender.db);
+  const tables = (sql: typeof probe.sql) => sql
+    .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'messaging_%' ORDER BY name")
+    .toArray()
+    .map(({ name }) => name);
+  expect(tables(probe.sql)).toEqual([
+    "messaging_configuration", "messaging_probe_deliveries", "messaging_probe_revision",
+  ]);
+  expect(tables(sender.sql)).toEqual(["messaging_configuration", "messaging_send"]);
 });
