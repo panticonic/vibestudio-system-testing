@@ -31,6 +31,24 @@ export const deliveryHistoryWorlds = [
   },
 ] as const;
 
+export const chatDeliveryWorlds = [
+  {
+    id: "reopened-chat-after-retry",
+    goal: "Audit the handoff reminder after a sender retry. Confirm that the accepted message appears once with the same text in the assigned reopened chat.",
+    text: "Leave the signed inventory at the front desk.",
+    mode: "retry",
+  },
+  {
+    id: "wrong-chat-same-reminder",
+    goal: "Check whether this reminder receipt belongs to the assigned chat, even though the other team sent exactly the same reminder.",
+    text: "Bring the replacement key to the Tuesday handoff.",
+    mode: "foreign",
+  },
+] as const;
+
+export const isChatDeliveryCase = (id: string) =>
+  chatDeliveryWorlds.some((world) => world.id === id);
+
 export const deliveryOriginByMode = {
   received: "matched",
   retry: "matched",

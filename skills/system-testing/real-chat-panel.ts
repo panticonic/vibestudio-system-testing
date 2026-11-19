@@ -358,6 +358,36 @@ export function awaitChatPanelConnected(
   );
 }
 
+/** Wait for the accepted message in the actual chat pane and read every matching visible row. */
+export async function observeVisibleChatMessage(
+  panel: PanelHandle,
+  messageId: string,
+  signal: AbortSignal,
+): Promise<{ messageId: string; text: string }[]> {
+  return evaluateInPanel(
+    panel,
+    `(async (messageId) => {
+      const rows = () => Array.from(document.querySelectorAll('.message-content[data-message-id]'))
+        .filter((node) => node.getAttribute('data-message-id') === messageId &&
+          node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible' &&
+          !node.querySelector('[data-ui-render="pending"]'))
+        .map((node) => ({ messageId, text: node.textContent ?? "" }));
+      let visible = rows();
+      if (visible.length) return visible;
+      return await new Promise((resolve) => {
+        const observer = new MutationObserver(() => {
+          visible = rows();
+          if (!visible.length) return;
+          observer.disconnect();
+          resolve(visible);
+        });
+        observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+      });
+    })(${JSON.stringify(messageId)})`,
+    signal,
+  );
+}
+
 function isRenderedAgentText(message: ChatMessage): boolean {
   return (
     isAgentCompletionMessage(message) &&
