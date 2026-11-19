@@ -80,3 +80,7 @@ temporary panels in `finally`, and close or dispose page clients when the API
 has a close method. Channel unsubscribe does not clean up panels the agent
 opened. Leave panels open only when the user or harness explicitly asked for
 that.
+
+Use the shared Natlang [transcript continuation workflow](../../skills/session-test-review/resumeChannelTranscript.nl)
+to recover a bounded transcript from a saved channel cursor. It reports the
+completed messages and the exact native position safe to save next.

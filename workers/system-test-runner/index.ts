@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
 import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
@@ -2082,6 +2083,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned bounded channel transcript read."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runTranscriptCursorTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<TranscriptCursorReceiver["runTranscriptCursorTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"sessionTest",operation:"resumeChannelTranscript",input:{goal:"Recover the assigned transcript"}},
+      inputCode: "prepared.request",
+      bindingCode: this.transcriptCursorBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<TranscriptCursorReceiver["runTranscriptCursorTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies actual replay coordinates without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyTranscriptCursor(input: {contextId:string;caseId:string}): ReturnType<TranscriptCursorReceiver["qualifyTranscriptCursor"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"sessionTest",operation:"resumeChannelTranscript"}], this.transcriptCursorBindings(input),
+    )) as Awaited<ReturnType<TranscriptCursorReceiver["qualifyTranscriptCursor"]>>;
+  }
+
+  private transcriptCursorBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareTranscriptCase} from "@workspace-skills/system-testing/transcript-cursor-managed";
+      const prepared=await prepareTranscriptCase(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures an assigned unit identity review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

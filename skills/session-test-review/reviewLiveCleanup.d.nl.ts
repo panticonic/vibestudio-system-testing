@@ -141,5 +141,39 @@ type LiveCleanupReport = {
   inventory: CleanupInventory;
   remainingIds: string[];
 };
+type TranscriptCursor = { channelId: string; seq: number };
+type TranscriptRow = {
+  envelopeId: string;
+  seq: number;
+  messageId: string;
+  role: "user" | "assistant";
+  preview: string;
+};
+type TranscriptPage = {
+  after: number;
+  through: number;
+  nextAfter: number;
+  envelopeCount: number;
+  hasMore: boolean;
+  messages: TranscriptRow[];
+};
+type TranscriptStart = {
+  channelId: string;
+  saved: TranscriptCursor;
+  maxPages: number;
+  first: TranscriptPage | null;
+};
+type TranscriptRequest = { goal: string; operationId: string };
+type TranscriptReview = {
+  pages: TranscriptPage[];
+  usable: boolean;
+};
+type TranscriptReport = {
+  start: TranscriptStart;
+  pages: TranscriptPage[];
+  messages: TranscriptRow[];
+  outcome: "complete" | "continue" | "caught-up" | "foreign-channel" | "future-cursor" | "hold";
+  next: TranscriptCursor | null;
+};
 declare const fn: NatlangFunction<[request: LiveCleanupRequest], LiveCleanupReport> & { readonly inspectInventory: NatlangFunction<[evidence: LiveCleanupEvidence], CleanupInventory> & { readonly matchRegistrations: NatlangFunction<[remaining: TestkitOwnedResource[], registered: TestkitOwnedResource[]], boolean[]> }; readonly readCleanup: NatlangFunction<[receipt: string], LiveCleanupEvidence>; readonly readOutcome: NatlangFunction<[evidence: LiveCleanupEvidence], TestkitOutcome>; readonly checkTestkitRelease: NatlangFunction<[evidence: TestkitRelease], SessionReview> };
 export default fn;

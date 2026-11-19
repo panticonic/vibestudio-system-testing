@@ -141,5 +141,39 @@ type LiveCleanupReport = {
   inventory: CleanupInventory;
   remainingIds: string[];
 };
+type TranscriptCursor = { channelId: string; seq: number };
+type TranscriptRow = {
+  envelopeId: string;
+  seq: number;
+  messageId: string;
+  role: "user" | "assistant";
+  preview: string;
+};
+type TranscriptPage = {
+  after: number;
+  through: number;
+  nextAfter: number;
+  envelopeCount: number;
+  hasMore: boolean;
+  messages: TranscriptRow[];
+};
+type TranscriptStart = {
+  channelId: string;
+  saved: TranscriptCursor;
+  maxPages: number;
+  first: TranscriptPage | null;
+};
+type TranscriptRequest = { goal: string; operationId: string };
+type TranscriptReview = {
+  pages: TranscriptPage[];
+  usable: boolean;
+};
+type TranscriptReport = {
+  start: TranscriptStart;
+  pages: TranscriptPage[];
+  messages: TranscriptRow[];
+  outcome: "complete" | "continue" | "caught-up" | "foreign-channel" | "future-cursor" | "hold";
+  next: TranscriptCursor | null;
+};
 declare const fn: NatlangFunction<[request: LiveReplayRequest], LiveReplayReport> & { readonly inspectCheckpoint: NatlangFunction<[evidence: ReplayCheckpoint], LiveReplayFinding> & { readonly classifyRetry: NatlangFunction<[evidence: ReplayCheckpoint], ReplayDisposition> & { readonly matchAcceptedIdentity: NatlangFunction<[evidence: ReplayCheckpoint], ReplayDisposition> }; readonly matchesChannel: NatlangFunction<[evidence: ReplayCheckpoint], boolean>; readonly preservesReplay: NatlangFunction<[evidence: ReplayCheckpoint], boolean> }; readonly readCheckpoint: NatlangFunction<[receipt: string], ReplayCheckpoint> };
 export default fn;

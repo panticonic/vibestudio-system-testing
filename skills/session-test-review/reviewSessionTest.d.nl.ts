@@ -141,5 +141,39 @@ type LiveCleanupReport = {
   inventory: CleanupInventory;
   remainingIds: string[];
 };
+type TranscriptCursor = { channelId: string; seq: number };
+type TranscriptRow = {
+  envelopeId: string;
+  seq: number;
+  messageId: string;
+  role: "user" | "assistant";
+  preview: string;
+};
+type TranscriptPage = {
+  after: number;
+  through: number;
+  nextAfter: number;
+  envelopeCount: number;
+  hasMore: boolean;
+  messages: TranscriptRow[];
+};
+type TranscriptStart = {
+  channelId: string;
+  saved: TranscriptCursor;
+  maxPages: number;
+  first: TranscriptPage | null;
+};
+type TranscriptRequest = { goal: string; operationId: string };
+type TranscriptReview = {
+  pages: TranscriptPage[];
+  usable: boolean;
+};
+type TranscriptReport = {
+  start: TranscriptStart;
+  pages: TranscriptPage[];
+  messages: TranscriptRow[];
+  outcome: "complete" | "continue" | "caught-up" | "foreign-channel" | "future-cursor" | "hold";
+  next: TranscriptCursor | null;
+};
 declare const fn: NatlangFunction<[request: SessionReviewRequest], SessionReview> & { readonly reviewRelease: NatlangFunction<[evidence: SessionRelease | TestkitRelease], SessionReview> & { readonly checkSessionClose: NatlangFunction<[evidence: SessionRelease], SessionReview>; readonly checkTestkitRelease: NatlangFunction<[evidence: TestkitRelease], SessionReview> }; readonly reviewSession: NatlangFunction<[evidence: Seed | Continuation], SessionReview> & { readonly checkContinuation: NatlangFunction<[evidence: Continuation], SessionReview>; readonly checkSeed: NatlangFunction<[evidence: Seed], SessionReview> }; readonly reviewVerification: NatlangFunction<[evidence: Dispatch | VerifyResult], SessionReview> & { readonly checkDispatch: NatlangFunction<[evidence: Dispatch], SessionReview>; readonly checkResult: NatlangFunction<[evidence: VerifyResult], SessionReview> } };
 export default fn;

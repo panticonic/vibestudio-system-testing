@@ -141,3 +141,44 @@ export type LiveCleanupReport = {
   inventory: CleanupInventory;
   remainingIds: string[];
 };
+
+export type TranscriptCursor = { channelId: string; seq: number };
+
+export type TranscriptRow = {
+  envelopeId: string;
+  seq: number;
+  messageId: string;
+  role: "user" | "assistant";
+  preview: string;
+};
+
+export type TranscriptPage = {
+  after: number;
+  through: number;
+  nextAfter: number;
+  envelopeCount: number;
+  hasMore: boolean;
+  messages: TranscriptRow[];
+};
+
+export type TranscriptStart = {
+  channelId: string;
+  saved: TranscriptCursor;
+  maxPages: number;
+  first: TranscriptPage | null;
+};
+
+export type TranscriptRequest = { goal: string; operationId: string };
+
+export type TranscriptReview = {
+  pages: TranscriptPage[];
+  usable: boolean;
+};
+
+export type TranscriptReport = {
+  start: TranscriptStart;
+  pages: TranscriptPage[];
+  messages: TranscriptRow[];
+  outcome: "complete" | "continue" | "caught-up" | "foreign-channel" | "future-cursor" | "hold";
+  next: TranscriptCursor | null;
+};

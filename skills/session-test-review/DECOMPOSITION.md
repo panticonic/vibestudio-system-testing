@@ -36,3 +36,20 @@ that were never registered. Its outcome stage reports the suite result
 independently. A callback can report an error after releasing its resource,
 and a passing test can still have cleanup residue. The caller retires any
 owned leftovers after taking the evidence.
+
+## Durable transcript continuation
+
+This workflow resumes a caller-assigned conversation from a saved channel and
+sequence. One native forward replay call fixes the watermark. Each additional
+call must use the previous page's cursor and the original watermark.
+
+| Responsibility | Implementation |
+|---|---|
+| Scope the target, read the native pages and retain their durable sequence coordinates | TypeScript binding |
+| Refuse an unrelated channel or a cursor ahead of the native log | Natlang admission |
+| Read bounded pages in order and check continuity | Nested Natlang traversal and page assessment |
+| Retain completed visible messages separately from the raw replay cursor | Native envelope projection and Natlang completion |
+| Return a finished or partial checkpoint | Natlang disposition |
+
+The workflow returns a checkpoint for the caller to save. Its read lease
+covers one bounded snapshot, including when the conversation is still active.
