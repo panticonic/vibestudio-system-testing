@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
 import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
@@ -2081,6 +2082,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned unit identity review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runUnitIdentityTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<UnitIdentityReceiver["runUnitIdentityTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"unitIdentity",operation:"prepareUnitIdentity",input:{goal:"Review the assigned unit icon"}},
+      inputCode: "prepared.request",
+      bindingCode: this.unitIdentityBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<UnitIdentityReceiver["runUnitIdentityTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies icon preparation against the actual working state without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyUnitIdentity(input: {contextId:string;caseId:string}): ReturnType<UnitIdentityReceiver["qualifyUnitIdentity"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"unitIdentity",operation:"prepareUnitIdentity"}], this.unitIdentityBindings(input),
+    )) as Awaited<ReturnType<UnitIdentityReceiver["qualifyUnitIdentity"]>>;
+  }
+
+  private unitIdentityBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareUnitIdentityCase} from "@workspace-skills/system-testing/unit-identity-managed";
+      const prepared=await prepareUnitIdentityCase(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures an assigned Gmail compose history review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
