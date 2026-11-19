@@ -1,3 +1,5 @@
+import { managedBrowserHandoffMethods } from "./browser-handoff-contract.js";
+import { managedBrowserHandoffWorlds } from "./browser-handoff-worlds.js";
 import { managedBrowserLibraryMethods } from "./browser-library-contract.js";
 import { managedBrowserLibraryWorlds } from "./browser-library-worlds.js";
 import { managedCollectionMethods } from "./collection-contract.js";
@@ -905,6 +907,21 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedBrowserLibraryMethods.qualifyManagedBrowserLibrary, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedBrowserLibraryMethods.runManagedBrowserLibraryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedBrowserHandoff(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedBrowserHandoffWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown browser handoff case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedBrowserHandoffMethods.qualifyManagedBrowserHandoff, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedBrowserHandoffMethods.runManagedBrowserHandoffTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

@@ -1,3 +1,4 @@
+import { managedBrowserHandoffTests } from "./tests/browser-handoff-managed.js";
 import { managedProvenanceHistoryTests } from "./tests/provenance-history-managed.js";
 import { managedRuntimeProgramTests } from "./tests/runtime-program-managed.js";
 import { managedIncidentContinuationTests } from "./tests/incident-continuation-managed.js";
@@ -246,6 +247,7 @@ export function allTests(): TestCase[] {
     ...managedTendrilTests,
     ...managedCollectionTests,
     ...managedBrowserLibraryTests,
+    ...managedBrowserHandoffTests,
     ...serverLogTests,
     ...problemReportingTests,
     ...webhookTests,

@@ -8,7 +8,7 @@ type Exercise = Awaited<
 type Qualification = Awaited<
   ReturnType<ManagedBrowserLibraryReceiver["qualifyManagedBrowserLibrary"]>
 >;
-const settings = {
+export const browserLibrarySettings = {
   category: "project-lifecycle",
   explicitOnly: true,
   validation: "harness" as const,
@@ -32,7 +32,7 @@ const settings = {
 
 export const managedBrowserLibraryTests: TestCase[] =
   managedBrowserLibraryWorlds.map(({ id, request }) => ({
-    ...settings,
+    ...browserLibrarySettings,
     name: `browser-library-live-${id}`,
     description:
       "Curate test-owned browser records and verify the persisted library",
@@ -83,7 +83,7 @@ export const managedBrowserLibraryTests: TestCase[] =
   }));
 
 managedBrowserLibraryTests.push({
-  ...settings,
+  ...browserLibrarySettings,
   name: "browser-library-managed-oracle-qualification",
   description: "Qualify live browser-library changes without a model",
   prompt:

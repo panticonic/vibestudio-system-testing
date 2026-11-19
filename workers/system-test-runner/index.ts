@@ -1,3 +1,4 @@
+import type { BrowserHandoffInput, ManagedBrowserHandoffReceiver } from "@workspace-skills/system-testing/browser-handoff-contract";
 import type { BrowserLibraryInput, ManagedBrowserLibraryReceiver } from "@workspace-skills/system-testing/browser-library-contract";
 import type { CollectionInput, ManagedCollectionReceiver } from "@workspace-skills/system-testing/collection-contract";
 import type { TendrilInput, ManagedTendrilReceiver } from "@workspace-skills/system-testing/tendril-contract";
@@ -1033,6 +1034,62 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
       const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
     `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Executes the owned browser-reference handoff."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedBrowserHandoffTeacher(input: BrowserHandoffInput & {executorModel:string}): ReturnType<ManagedBrowserHandoffReceiver["runManagedBrowserHandoffTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.browserHandoffBindings(input)}
+      let teacher, verification;
+      try {
+        ${composedTeacherCode({
+          executorModel: input.executorModel,
+          workflowRequest: {goal:"Prove and hand off the assigned browser bookmark",work:[
+            {kind:"domain",domain:"browserLibrary",operation:"curateBrowserLibrary",input:{goal:"Curate the assigned browser library"}},
+            {kind:"domain",domain:"collection",operation:"organizeCollection",input:{goal:"Persist the verified reference on the assigned panel"}},
+          ]},
+          requestCode: "prepared.workflowRequest",
+          requiredOrder: ["curateBrowserLibrary","organizeCollection"],
+          bindingCode: "const assignedServices=prepared.services;",
+        }, runId)}
+        teacher=utilityValue;
+        verification=await prepared.verify(teacher.report);
+      } finally { await prepared.close(); }
+      const utilityValue={teacher,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedBrowserHandoffReceiver["runManagedBrowserHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the browser-to-collection dependency without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedBrowserHandoff(input: BrowserHandoffInput): ReturnType<ManagedBrowserHandoffReceiver["qualifyManagedBrowserHandoff"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.browserHandoffBindings(input)}
+      let utilityValue;
+      try {
+        if (assignment.id===managedBrowserHandoffWorlds[0]?.id)
+          await natlang.describe("skills/vibestudio-workflows/runWorkflow.nl");
+        utilityValue=await prepared.qualify();
+      } finally { await prepared.close(); }
+    `) as Awaited<ReturnType<ManagedBrowserHandoffReceiver["qualifyManagedBrowserHandoff"]>>;
+  }
+
+  private browserHandoffBindings(input: BrowserHandoffInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedBrowserHandoff} from "@workspace-skills/browser-handoff-runtime";
+      import {folders,origin,seedBookmarks,seedVisits,managedBrowserLibraryWorlds} from "@workspace-skills/system-testing/browser-library-worlds";
+      import {collectionRootTitle,collectionSeed} from "@workspace-skills/system-testing/collection-worlds";
+      import {managedBrowserHandoffWorlds} from "@workspace-skills/system-testing/browser-handoff-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Browser handoff belongs to another context");
+      const assignment=managedBrowserHandoffWorlds.find(({id})=>id===input.caseId);
+      const library=managedBrowserLibraryWorlds.find(({id})=>id===assignment?.library);
+      if(!assignment || !library) throw new Error("Unknown browser handoff assignment");
+      const prepared=await prepareManagedBrowserHandoff({
+        contextId:actualContextId,assignment,library,
+        history:{folders,origin,bookmarks:seedBookmarks,visits:seedVisits},
+        collectionRoot:collectionRootTitle,collectionSeed,
+      });
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Curates test-owned browser references."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

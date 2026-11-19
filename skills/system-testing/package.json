@@ -65,6 +65,8 @@
     "./spectrolite-contract": "./spectrolite-contract.ts",
     "./grimoire-worlds": "./grimoire-worlds.ts",
     "./grimoire-contract": "./grimoire-contract.ts",
+    "./browser-handoff-contract": "./browser-handoff-contract.ts",
+    "./browser-handoff-worlds": "./browser-handoff-worlds.ts",
     "./browser-library-contract": "./browser-library-contract.ts",
     "./browser-library-worlds": "./browser-library-worlds.ts",
     "./collection-contract": "./collection-contract.ts",
