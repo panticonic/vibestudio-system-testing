@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedDictationReceiver } from "@workspace-skills/system-testing/offline-dictation-managed";
 import type { ManagedNativeSuiteReceiver } from "@workspace-skills/system-testing/native-suite-managed";
 import type { ManagedGitBridgeReviewReceiver } from "@workspace-skills/system-testing/git-bridge-review-managed";
 import type { ManagedVcsDeliveryReceiver } from "@workspace-skills/system-testing/vcs-delivery-managed";
@@ -136,6 +137,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  Dictation: {kind:"domain",domain:"dictation",operation:"reviewDictation",input:{goal:"Review the assigned offline dictation"}},
   NativeSuite: {kind:"domain",domain:"testSuite",operation:"reviewTestSuite",input:{goal:"Review the assigned declared test suite"}},
   GitBridgeReview: {kind:"domain",domain:"gitBridge",operation:"reviewGitBridge",input:{goal:"Review the assigned Git Bridge repository"}},
   VcsDelivery: {kind:"domain",domain:"vcsDelivery",operation:"reviewVcsDelivery",input:{goal:"Review the assigned semantic VCS delivery"}},
@@ -2006,6 +2008,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("VCS delivery review belongs to another context");
       const prepared=await prepareManagedVcsDelivery(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned offline dictation review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedDictationTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedDictationReceiver["runManagedDictationTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.Dictation,
+      inputCode:"prepared.request",
+      bindingCode:this.managedDictationBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedDictationReceiver["runManagedDictationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies installed speech readiness without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedDictation(input: {contextId:string;caseId:string}): ReturnType<ManagedDictationReceiver["qualifyManagedDictation"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.Dictation],
+      this.managedDictationBindings(input),
+    )) as Awaited<ReturnType<ManagedDictationReceiver["qualifyManagedDictation"]>>;
+  }
+
+  private managedDictationBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedDictation} from "@workspace-skills/system-testing/offline-dictation-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Dictation review belongs to another context");
+      const prepared=prepareManagedDictation(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

@@ -55,6 +55,7 @@
     "./release-review-handoff-worlds": "./release-review-handoff-worlds.ts",
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
+    "./offline-dictation-managed": "./offline-dictation-managed.ts",
     "./native-suite-managed": "./native-suite-managed.ts",
     "./git-bridge-review-managed": "./git-bridge-review-managed.ts",
     "./vcs-delivery-managed": "./vcs-delivery-managed.ts",
@@ -146,6 +147,7 @@
   },
   "dependencies": {
     "@workspace-skills/problem-reporting": "workspace:*",
+    "@workspace-skills/offline-dictation-bindings": "workspace:*",
     "@workspace-skills/native-suite-review-bindings": "workspace:*",
     "@workspace-skills/git-bridge-review-bindings": "workspace:*",
     "@workspace-skills/vcs-delivery-bindings": "workspace:*",
@@ -182,6 +184,7 @@
     "@workspace-skills/panel-health-runtime": "workspace:*",
     "@workspace/agentic-protocol": "workspace:*",
     "@workspace/natlang-services": "workspace:*",
+    "@workspace/speech": "workspace:*",
     "@workspace/runtime": "workspace:*",
     "@workspace/testkit": "workspace:*",
     "@workspace-skills/workspace-dev": "workspace:*",
