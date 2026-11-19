@@ -3,7 +3,10 @@ import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { PanelHandle } from "@workspace/runtime";
 import { renderComponent } from "@workspace-skills/visualize/render";
 import type { PresentationReport } from "@workspace-skills/visualize/types";
-import type { PresentationWorld } from "./presentation-worlds.js";
+import type {
+  PresentationInteraction,
+  PresentationWorld,
+} from "./presentation-worlds.js";
 
 const catalogSelectors = {
   Chart: ".vs-r-chart-svg",
@@ -27,7 +30,9 @@ export function referencePresentation(
             status: "ready",
             rendered: renderComponent(item.component),
           }
-        : item,
+        : item.status === "needs-review"
+          ? { id: item.id, status: item.status, reason: item.reason }
+          : item,
     ),
   };
 }
@@ -49,20 +54,29 @@ export function checkPresentation(world: PresentationWorld, value: unknown) {
     mdx: string;
     selector: string;
     labels: string[];
+    interaction?: PresentationInteraction;
   }[] = [];
   for (const [index, target] of expected.views.entries()) {
     const actual = report.views[index];
     if (!actual || target.id !== actual.id || target.status !== actual.status)
       return null;
+    const assigned = world.expected[index]!;
     if (actual.status === "needs-review") {
       if (
+        "labels" in assigned ||
+        assigned.status !== "needs-review" ||
         typeof actual.reason !== "string" ||
-        !/(?:capacity|capacities)/iu.test(actual.reason) ||
-        !/(?:missing|unconfirmed|not (?:given|provided|confirmed|verified)|lack)/iu.test(
+        !(assigned.reasonTerms
+          ? assigned.reasonTerms.every((term) =>
+              actual.reason.toLowerCase().includes(term.toLowerCase()),
+            )
+          : /(?:capacity|capacities)/iu.test(actual.reason)) ||
+        !/(?:missing|unconfirmed|unavailable|unknown|absent|not (?:given|provided|confirmed|verified|collected|available)|lack)/iu.test(
           actual.reason,
         )
-      )
+      ) {
         return null;
+      }
       continue;
     }
     if (!isDeepStrictEqual(actual, target)) {
@@ -76,13 +90,13 @@ export function checkPresentation(world: PresentationWorld, value: unknown) {
       )
         return null;
     }
-    const assigned = world.expected[index]!;
     if ("labels" in assigned && actual.status === "ready")
       views.push({
         id: actual.id,
         mdx: actual.rendered.mdx,
         selector: catalogSelectors[assigned.component.component],
         labels: assigned.labels,
+        ...(assigned.interaction ? { interaction: assigned.interaction } : {}),
       });
   }
   return views;
@@ -105,14 +119,74 @@ export async function observePresentation(
   try {
     signal.throwIfAborted();
     const selectors = JSON.stringify(prepared.map(({ selector }) => selector));
+    const probes = JSON.stringify(
+      prepared.flatMap(({ id, interaction }) =>
+        interaction
+          ? [
+              {
+                id,
+                kind: interaction.kind,
+                target:
+                  interaction.kind === "checklist"
+                    ? interaction.item
+                    : undefined,
+                choices:
+                  interaction.kind === "choice"
+                    ? interaction.choices
+                    : undefined,
+              },
+            ]
+          : [],
+      ),
+    );
     rendered = await session.page.evaluate<{
       ids: string[];
       texts: string[];
       rendered: boolean[];
       errors: number;
+      interactions: unknown[];
     }>(
       `(async () => {
         const selectors = ${selectors};
+        const probes = ${probes};
+        const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const click = async (control) => {
+          if (!control) throw new Error("Assigned preview control was unavailable");
+          control.click();
+          await frame();
+        };
+        const readInteraction = async (probe) => {
+          const view = Array.from(document.querySelectorAll("[data-presentation-view]"))
+            .find(node => node.getAttribute("data-presentation-view") === probe.id);
+          if (!view) throw new Error("Assigned preview view was unavailable");
+          const text = node => node?.textContent?.trim();
+          if (probe.kind === "chart-table") {
+            const button = view.querySelector(".vs-r-chart button[aria-pressed]");
+            const before = text(button);
+            await click(button);
+            const table = view.querySelector(".vs-r-table-scroll table");
+            const cells = Array.from(table?.rows ?? []).map(row => Array.from(row.cells).map(text));
+            return { id: probe.id, kind: probe.kind, before, after: text(button), cells };
+          }
+          if (probe.kind === "checklist") {
+            const items = Array.from(view.querySelectorAll(".vs-r-checklist li"));
+            const count = () => items.filter(item => item.hasAttribute("data-checked")).length + "/" + items.length;
+            const item = items.find(row => text(row.querySelector("label")) === probe.target);
+            const before = count();
+            if (item?.hasAttribute("data-checked")) throw new Error("Assigned checklist item was already checked");
+            await click(item?.querySelector('[role="checkbox"]'));
+            return { id: probe.id, kind: probe.kind, item: probe.target, before, after: count() };
+          }
+          const roles = '[role="radio"], [role="checkbox"]';
+          const options = Array.from(view.querySelectorAll(".vs-r-choice")).map(option => ({
+            label: text(option),
+            control: option.matches(roles) ? option : option.querySelector(roles),
+          }));
+          for (const choice of probe.choices) await click(options.find(option => option.label === choice)?.control);
+          return { id: probe.id, kind: probe.kind, choices: probe.choices,
+            selected: options.filter(option => option.control?.getAttribute("aria-checked") === "true")
+              .map(option => option.label) };
+        };
         const read = () => {
           const views = Array.from(document.querySelectorAll("[data-presentation-view]"));
           const errors = document.querySelectorAll('[data-ui-render="failed"], [data-ui-feedback-category]').length;
@@ -123,7 +197,7 @@ export async function observePresentation(
             errors,
           };
         };
-        return await new Promise((resolve) => {
+        const observed = await new Promise((resolve) => {
           const check = () => {
             const preview = document.querySelector("[data-presentation-preview]");
             if (!preview || preview.querySelector('[data-ui-render="pending"]')) return;
@@ -135,6 +209,9 @@ export async function observePresentation(
           observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
           check();
         });
+        const interactions = [];
+        for (const probe of probes) interactions.push(await readInteraction(probe));
+        return { ...observed, interactions };
       })()`,
     );
   } finally {
@@ -158,6 +235,12 @@ export async function observePresentation(
     ),
     browserRenderedCatalog:
       rendered.errors === 0 && rendered.rendered.every(Boolean),
+    interactiveReadback: isDeepStrictEqual(
+      rendered.interactions,
+      prepared.flatMap(({ id, interaction }) =>
+        interaction ? [{ id, ...interaction }] : [],
+      ),
+    ),
     visibleLabels: prepared.every(({ labels }, index) =>
       labels.every((label) => rendered.texts[index]?.includes(label)),
     ),
