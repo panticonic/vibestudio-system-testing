@@ -1,3 +1,4 @@
+import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
 import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
 import type { TestkitCleanupInput, ManagedTestkitCleanupReceiver } from "@workspace-skills/system-testing/testkit-cleanup-contract";
 import type { SessionReplayInput, ManagedSessionReplayReceiver } from "@workspace-skills/system-testing/session-replay-contract";
@@ -1754,6 +1755,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const world=managedLogAuditWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown host log audit");
       const prepared=prepareManagedLogAudit(filter=>rpc.call("main",mainRpcMethods["serverLog.query"],[filter]),actualContextId,world,${JSON.stringify(seed)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures a GAD review of a conversation owned by the test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedGadReviewTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedGadReviewReceiver["runManagedGadReviewTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"gad",operation:"reviewChannel",input:{goal:"Review the assigned channel"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedGadReviewBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedGadReviewReceiver["runManagedGadReviewTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live channel health and transcript evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedGadReview(input: {contextId:string;caseId:string}): ReturnType<ManagedGadReviewReceiver["qualifyManagedGadReview"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedGadReviewBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedGadReviewReceiver["qualifyManagedGadReview"]>>;
+  }
+
+  private managedGadReviewBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedGadReview} from "@workspace-skills/system-testing/gad-review-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("GAD review belongs to another context");
+      const prepared=await prepareManagedGadReview(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

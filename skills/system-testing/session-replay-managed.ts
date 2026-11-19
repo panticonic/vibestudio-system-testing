@@ -16,8 +16,8 @@ import { managedSessionReplayWorlds } from "./session-replay-worlds.js";
 
 type Lane = { key: string; target: string; expected: ReplayMessage[] };
 
-async function createLane(contextId: string, title: string): Promise<Lane> {
-  const key = `natlang-replay-${crypto.randomUUID()}`;
+export async function createOwnedHeadlessChannel(contextId: string, title: string): Promise<Lane> {
+  const key = `natlang-channel-${crypto.randomUUID()}`;
   const { targetId: target, contextId: owner } = await rpc.call(
     "main",
     mainRpcMethods["runtime.createEntity"],
@@ -96,7 +96,7 @@ async function observe(
   );
 }
 
-async function withClient<T>(
+export async function withOwnedChannelClient<T>(
   lane: Lane,
   contextId: string,
   run: (client: HeadlessSession) => Promise<T>,
@@ -130,14 +130,14 @@ export async function exerciseSessionReplay(
   signal: AbortSignal,
 ) {
   const assigned = world(caseId);
-  const primary = await createLane(contextId, "Owned continuation source");
+  const primary = await createOwnedHeadlessChannel(contextId, "Owned continuation source");
   const hasAlternative = assigned.steps.some(({ action }) =>
     action.startsWith("other-channel"),
   );
   const alternate = hasAlternative
-    ? await createLane(contextId, "Owned comparison channel")
+    ? await createOwnedHeadlessChannel(contextId, "Owned comparison channel")
     : null;
-  const originals = await withClient(primary, contextId, async (client) => {
+  const originals = await withOwnedChannelClient(primary, contextId, async (client) => {
     const accepted: ReplayOperation[] = [];
     for (const [index, text] of assigned.messages.entries()) {
       signal.throwIfAborted();
@@ -150,7 +150,7 @@ export async function exerciseSessionReplay(
     return accepted;
   });
   if (alternate) {
-    await withClient(alternate, contextId, async (client) => {
+    await withOwnedChannelClient(alternate, contextId, async (client) => {
       const text = assigned.messages[0]!;
       const messageId = await client.send(text, {
         idempotencyKey: "comparison-copy",
@@ -173,7 +173,7 @@ export async function exerciseSessionReplay(
     if (!isDeepStrictEqual(originBefore, primary.expected))
       throw new Error("The originating channel drifted before reconnect");
     evidence.push(
-      await withClient(lane, contextId, async (client) => {
+      await withOwnedChannelClient(lane, contextId, async (client) => {
         const before = await observe(lane, client, signal);
         let retry: ReplayOperation | null = null;
         if (step.action !== "inspect" && step.action !== "other-channel") {

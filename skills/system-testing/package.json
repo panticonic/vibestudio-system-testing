@@ -47,6 +47,7 @@
     }
   },
   "exports": {
+    "./gad-review-managed": "./gad-review-managed.ts",
     "./phone-setup-managed": "./phone-setup-managed.ts",
     "./news-worlds": "./news-worlds.ts",
     "./news-contract": "./news-contract.ts",
@@ -128,6 +129,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/gad-context": "workspace:*",
     "@workspace/natlang": "workspace:*",
     "@workspace-skills/natlang-authoring": "workspace:*",
     "@workspace-skills/visualize": "workspace:*",
