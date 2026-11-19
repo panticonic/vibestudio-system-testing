@@ -1,6 +1,8 @@
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
 import type { ManagedProblemDraftReceiver } from "@workspace-skills/system-testing/problem-draft-managed";
+import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-testing/client-admission-contract";
+import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
 import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
 import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
@@ -48,7 +50,8 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
   type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
 } from "@workspace-skills/system-testing/vcs-integration-fixture-contract";
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
-import { authoredTeacherCode, composedTeacherCode, domainTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode } from "./authored-teacher.js";
+
 import {
   createMainRpcCaller,
   mainRpcMethods,
@@ -124,6 +127,14 @@ export type {
   SystemTestRunCompletion,
   SystemTestRunnerSnapshot,
 } from "@vibestudio/service-schemas/systemTestRunner";
+
+const managedDomainWork = {
+  ProblemDraft: {kind:"domain",domain:"problems",operation:"saveProblemDraft",input:{goal:"Save the assigned local report"}},
+  ClientAdmission: {kind:"domain",domain:"clientDevelopment",operation:"reviewClientAdmission",input:{goal:"Review the assigned System client"}},
+  ExtensionRelease: {kind:"domain",domain:"extensionDevelopment",operation:"reviewExtensionRelease",input:{goal:"Review the assigned extension release"}},
+  AuthorityReview: {kind:"domain",domain:"capabilities",operation:"reviewAuthority",input:{goal:"Review the assigned authority ceiling"}},
+  AgenticChange: {kind:"domain",domain:"agenticDevelopment",operation:"planAgenticChange",input:{goal:"Plan the assigned agentic change"}},
+} as const;
 
 const SYSTEM_TEST_OPERATOR = anyOf(
   methodCapability("host"),
@@ -1833,7 +1844,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runManagedProblemDraftTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedProblemDraftReceiver["runManagedProblemDraftTeacher"]> {
     return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
       executorModel:input.executorModel,
-      work:{kind:"domain",domain:"agenticDevelopment",operation:"planProblemDraft",input:{goal:"Plan the assigned agentic change"}},
+      work:managedDomainWork.ProblemDraft,
       inputCode:"prepared.request",
       bindingCode:this.managedProblemDraftBindings(input),
     },runId)}
@@ -1843,11 +1854,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies live local report writes without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedProblemDraft(input: {contextId:string;caseId:string}): ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]> {
-    return await this.runHarnessUtility("teacher",`
-      ${this.managedProblemDraftBindings(input)}
-      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
-      const utilityValue=await prepared.qualify();
-    `) as Awaited<ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]>>;
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      managedDomainWork.ProblemDraft,
+      this.managedProblemDraftBindings(input),
+    )) as Awaited<ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]>>;
   }
 
   private managedProblemDraftBindings(input: {contextId:string;caseId:string}): string {
@@ -1861,11 +1871,44 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `;
   }
 
+  @rpc({website:{kind:"closed",reason:"Captures the assigned System client admission review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedClientAdmissionTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedClientAdmissionReceiver["runManagedClientAdmissionTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.ClientAdmission,
+      inputCode:"prepared.request",
+      bindingCode:this.managedClientAdmissionBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedClientAdmissionReceiver["runManagedClientAdmissionTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live client admission observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedClientAdmission(input: {contextId:string;caseId:string}): ReturnType<ManagedClientAdmissionReceiver["qualifyManagedClientAdmission"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      managedDomainWork.ClientAdmission,
+      this.managedClientAdmissionBindings(input),
+    )) as Awaited<ReturnType<ManagedClientAdmissionReceiver["qualifyManagedClientAdmission"]>>;
+  }
+
+  private managedClientAdmissionBindings(input: {contextId:string;caseId:string}): string {
+    const assignment=managedClientAdmissionWorlds.find(({id})=>id===input.caseId);
+    if(!assignment) throw new Error("Unknown client admission assignment");
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedClientAdmission} from "@workspace-skills/clientdev/managed-fixture";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Client review belongs to another context");
+      const prepared=await prepareManagedClientAdmission(actualContextId,${JSON.stringify(assignment)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
   @rpc({website:{kind:"closed",reason:"Captures an assigned extension source and live release review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedExtensionReleaseTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedExtensionReleaseReceiver["runManagedExtensionReleaseTeacher"]> {
     return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
       executorModel:input.executorModel,
-      work:{kind:"domain",domain:"agenticDevelopment",operation:"planExtensionRelease",input:{goal:"Plan the assigned agentic change"}},
+      work:managedDomainWork.ExtensionRelease,
       inputCode:"prepared.request",
       bindingCode:this.managedExtensionReleaseBindings(input),
     },runId)}
@@ -1875,11 +1918,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies live extension review without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedExtensionRelease(input: {contextId:string;caseId:string}): ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]> {
-    return await this.runHarnessUtility("teacher",`
-      ${this.managedExtensionReleaseBindings(input)}
-      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
-      const utilityValue=await prepared.qualify();
-    `) as Awaited<ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]>>;
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      managedDomainWork.ExtensionRelease,
+      this.managedExtensionReleaseBindings(input),
+    )) as Awaited<ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]>>;
   }
 
   private managedExtensionReleaseBindings(input: {contextId:string;caseId:string}): string {
@@ -1897,7 +1939,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runManagedAuthorityReviewTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedAuthorityReviewReceiver["runManagedAuthorityReviewTeacher"]> {
     return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
       executorModel:input.executorModel,
-      work:{kind:"domain",domain:"agenticDevelopment",operation:"planAuthorityReview",input:{goal:"Plan the assigned agentic change"}},
+      work:managedDomainWork.AuthorityReview,
       inputCode:"prepared.request",
       bindingCode:this.managedAuthorityReviewBindings(input),
     },runId)}
@@ -1907,11 +1949,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies real host preflight observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedAuthorityReview(input: {contextId:string;caseId:string}): ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]> {
-    return await this.runHarnessUtility("teacher",`
-      ${this.managedAuthorityReviewBindings(input)}
-      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
-      const utilityValue=await prepared.qualify();
-    `) as Awaited<ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]>>;
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      managedDomainWork.AuthorityReview,
+      this.managedAuthorityReviewBindings(input),
+    )) as Awaited<ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]>>;
   }
 
   private managedAuthorityReviewBindings(input: {contextId:string;caseId:string}): string {
@@ -1929,7 +1970,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runManagedAgenticChangeTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedAgenticChangeReceiver["runManagedAgenticChangeTeacher"]> {
     return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
       executorModel:input.executorModel,
-      work:{kind:"domain",domain:"agenticDevelopment",operation:"planAgenticChange",input:{goal:"Plan the assigned agentic change"}},
+      work:managedDomainWork.AgenticChange,
       inputCode:"prepared.request",
       bindingCode:this.managedAgenticChangeBindings(input),
     },runId)}
@@ -1939,11 +1980,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies live agentic stack source observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedAgenticChange(input: {contextId:string;caseId:string}): ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]> {
-    return await this.runHarnessUtility("teacher",`
-      ${this.managedAgenticChangeBindings(input)}
-      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
-      const utilityValue=await prepared.qualify();
-    `) as Awaited<ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]>>;
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      managedDomainWork.AgenticChange,
+      this.managedAgenticChangeBindings(input),
+    )) as Awaited<ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]>>;
   }
 
   private managedAgenticChangeBindings(input: {contextId:string;caseId:string}): string {

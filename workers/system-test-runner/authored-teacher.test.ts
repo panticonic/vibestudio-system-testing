@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authoredTeacherCode, composedTeacherCode, domainTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode } from "./authored-teacher.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const options = { skill: "repairPanel" as const, serviceNames: ["assigned", "assignedEdit"], executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
@@ -65,7 +65,7 @@ it.each([false, true])("qualifies a composed route with a domain assignment (%s)
   const at = (second: number) => new Date(second * 1000).toISOString();
   const run = (projectStarted: number) => new AsyncFunction("natlang", generated + "\nreturn utilityValue;")({
     captureModelTurns() {},
-    load: async () => async () => ({results:[{kind:"operate",report:{ready:true}},{...nextWork,report:{committed:true}}],remaining:[]}),
+    load: async () => Object.assign(async () => ({results:[{kind:"operate",report:{ready:true}},{...nextWork,report:{committed:true}}],remaining:[]}), { domains: {scratchHandoff:{assembleHandoff() {}}} }),
     calls: async ({ after }: { after?: string }) => after ? [] : [root, project, release],
     trace: async (id: string) => ({
       callId: id,
@@ -104,10 +104,11 @@ it("binds a domain result to its submitted domain and direct recorded operation"
     { callId: "root", parentCallId: null },
     { callId: "handoff", parentCallId: "root" },
   ];
-  const run = (domain: string) =>
+  const run = (domain: string, mounted = true) =>
     new AsyncFunction("natlang", generated + "\nreturn utilityValue;")({
       captureModelTurns() {},
-      load: async () => async (request: { work: { input: unknown }[] }) => {
+      load: async () => Object.assign(async (request: { work: { input: unknown }[] }) => {
+        expect(mounted).toBe(true);
         expect(request.work[0]?.input).toEqual({
           goal: "task",
           sources: ["real scratch path"],
@@ -123,7 +124,7 @@ it("binds a domain result to its submitted domain and direct recorded operation"
           ],
           remaining: [],
         };
-      },
+      }, { domains: mounted ? {scratchHandoff: {assembleHandoff() {}}} : {} }),
       calls: async ({ after }: { after?: string }) => (after ? [] : rows),
       trace: async (id: string) => ({
         callId: id,
@@ -144,4 +145,20 @@ it("binds a domain result to its submitted domain and direct recorded operation"
     });
   expect((await run("scratchHandoff")).trainingEligible).toBe(true);
   expect((await run("other")).trainingEligible).toBe(false);
+  const missing = await run("scratchHandoff", false);
+  expect(missing.trainingEligible).toBe(false);
+  expect(missing.executionError.message).toContain("no mounted callable scratchHandoff/assembleHandoff");
+});
+
+it("uses the same mounted operation check during model-free qualification", async () => {
+  const generated = domainTeacherQualificationCode(
+    {domain: "capabilities", operation: "reviewAuthority"},
+    'const assignedServices={}, prepared={qualify:()=>({passed:true})};',
+  );
+  const run = (operation: string) =>
+    new AsyncFunction("natlang", generated + "\nreturn utilityValue;")({
+      load: async () => ({ domains: { capabilities: { [operation]() {} } } }),
+    });
+  await expect(run("reviewAuthority")).resolves.toEqual({passed:true});
+  await expect(run("planAuthorityReview")).rejects.toThrow("no mounted callable capabilities/reviewAuthority");
 });

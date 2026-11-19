@@ -1,0 +1,32 @@
+export const managedClientAdmissionWorlds = [
+  {
+    id: "terminal-browser-compatible",
+    goal: "Review the published terminal browser against the terminal host, including its trusted device capabilities and published build evidence.",
+    source: "clients/terminal-browser",
+    host: "terminal",
+    runtime: "terminal",
+    publishedAbi: "terminal-host-1",
+    workingAbi: "terminal-host-1",
+    abi: "compatible",
+  },
+  {
+    id: "browser-id-does-not-match-runtime",
+    goal: "Assess whether the mobile browser can run on a desktop host that also offers the browser product. Keep the mobile source identity and distinguish a shared product ID from a matching runtime.",
+    source: "clients/mobile-browser",
+    host: "desktop",
+    runtime: "react-native",
+    publishedAbi: "rn-host-6",
+    workingAbi: "rn-host-6",
+    abi: "wrong-runtime",
+  },
+  {
+    id: "working-desktop-abi-incompatible",
+    goal: "Inspect the assigned desktop browser candidate with a changed ABI. Check the working and published contracts independently and explain which compatibility issue must be resolved.",
+    source: "clients/desktop-browser",
+    host: "desktop",
+    runtime: "web",
+    publishedAbi: "web-host-1",
+    workingAbi: "web-host-0",
+    abi: "wrong-abi",
+  },
+] as const;

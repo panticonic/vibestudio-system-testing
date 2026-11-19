@@ -43,6 +43,29 @@ type Assignment =
   | DomainAssignment
   | { kind: VibestudioSkill; input: { goal: string } };
 
+type DomainSelector = Pick<DomainAssignment, "domain" | "operation">;
+
+function requireMountedDomains(assignments: readonly DomainSelector[]): string {
+  return `
+    for (const {domain,operation} of ${JSON.stringify(assignments)}) {
+      if(typeof root.domains?.[domain]?.[operation]!=="function")
+        throw new Error("The shared workflow has no mounted callable "+domain+"/"+operation);
+    }
+  `;
+}
+
+export function domainTeacherQualificationCode(
+  work: DomainSelector,
+  bindingCode: string,
+): string {
+  return `
+    ${bindingCode}
+    const root=await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+    ${requireMountedDomains([work])}
+    const utilityValue=await prepared.qualify();
+  `;
+}
+
 export function domainTeacherCode<Work extends DomainAssignment>(
   options: {
     executorModel: string;
@@ -88,6 +111,9 @@ function captureWorkflow(
   single: boolean,
   requestCode = JSON.stringify(options.workflowRequest),
 ): string {
+  const domains = options.workflowRequest.work
+    .filter((item): item is DomainAssignment => item.kind === "domain")
+    .map(({ domain, operation }) => ({ domain, operation }));
   const expected = options.workflowRequest.work
     .map((item) => (item.kind === "domain" ? item.operation : item.kind))
     .sort();
@@ -114,6 +140,7 @@ ${options.bindingCode}
       let report=null, executionError=null;
       try {
         const root=await natlang.load(programPath,{services:assignedServices});
+        ${requireMountedDomains(domains)}
         const workflow=await root(${requestCode});
         const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
         if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) || workflow.remaining.length!==0 ||

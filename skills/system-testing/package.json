@@ -50,6 +50,8 @@
     "./integration-readiness-managed": "./integration-readiness-managed.ts",
     "./terminal-check-managed": "./terminal-check-managed.ts",
     "./problem-draft-managed": "./problem-draft-managed.ts",
+    "./client-admission-worlds": "./client-admission-worlds.ts",
+    "./client-admission-contract": "./client-admission-contract.ts",
     "./extension-release-managed": "./extension-release-managed.ts",
     "./authority-review-managed": "./authority-review-managed.ts",
     "./agentic-change-managed": "./agentic-change-managed.ts",
