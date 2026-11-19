@@ -42,15 +42,13 @@ type Report = {
   unanswered: string[];
 };
 
-function makePacket(sheets: string[][]) {
-  const safe = (value: string) => value.replace(/[\\()]/gu, "\\$&");
+export function packetFromStreams(streams: readonly string[]) {
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    `<< /Type /Pages /Count ${sheets.length} /Kids [${sheets.map((_, index) => `${4 + 2 * index} 0 R`).join(" ")}] >>`,
+    `<< /Type /Pages /Count ${streams.length} /Kids [${streams.map((_, index) => `${4 + 2 * index} 0 R`).join(" ")}] >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
-  for (const [index, lines] of sheets.entries()) {
-    const stream = `BT /F1 12 Tf 24 170 Td 20 TL ${lines.map((text) => `(${safe(text)}) Tj T*`).join(" ")} ET\n`;
+  for (const [index, stream] of streams.entries()) {
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 500 200] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + index * 2} 0 R >>`,
     );
@@ -71,6 +69,16 @@ function makePacket(sheets: string[][]) {
   if (!/^[\u0000-\u007f]*$/u.test(pdf))
     throw new Error("Managed PDF packets use ASCII display text");
   return pdf;
+}
+
+function makePacket(sheets: string[][]) {
+  const safe = (value: string) => value.replace(/[\\()]/gu, "\\$&");
+  return packetFromStreams(
+    sheets.map(
+      (lines) =>
+        `BT /F1 12 Tf 24 170 Td 20 TL ${lines.map((text) => `(${safe(text)}) Tj T*`).join(" ")} ET\n`,
+    ),
+  );
 }
 
 export async function prepareManagedPdf(ports: Ports, caseId: string) {

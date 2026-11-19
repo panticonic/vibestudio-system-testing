@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedPdfLayoutReceiver } from "@workspace-skills/system-testing/pdf-layout-managed";
 import type { ManagedDictationReceiver } from "@workspace-skills/system-testing/offline-dictation-managed";
 import type { ManagedNativeSuiteReceiver } from "@workspace-skills/system-testing/native-suite-managed";
 import type { ManagedGitBridgeReviewReceiver } from "@workspace-skills/system-testing/git-bridge-review-managed";
@@ -137,6 +138,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  PdfLayout: {kind:"domain",domain:"pdfIntake",operation:"reviewPdfLayout",input:{goal:"Review the assigned PDF layout"}},
   Dictation: {kind:"domain",domain:"dictation",operation:"reviewDictation",input:{goal:"Review the assigned offline dictation"}},
   NativeSuite: {kind:"domain",domain:"testSuite",operation:"reviewTestSuite",input:{goal:"Review the assigned declared test suite"}},
   GitBridgeReview: {kind:"domain",domain:"gitBridge",operation:"reviewGitBridge",input:{goal:"Review the assigned Git Bridge repository"}},
@@ -2008,6 +2010,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("VCS delivery review belongs to another context");
       const prepared=await prepareManagedVcsDelivery(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned PDF layout review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPdfLayoutTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedPdfLayoutReceiver["runManagedPdfLayoutTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.PdfLayout,
+      inputCode:"prepared.request",
+      bindingCode:this.managedPdfLayoutBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedPdfLayoutReceiver["runManagedPdfLayoutTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies actual PDF fragment geometry without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedPdfLayout(input: {contextId:string;caseId:string}): ReturnType<ManagedPdfLayoutReceiver["qualifyManagedPdfLayout"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.PdfLayout],
+      this.managedPdfLayoutBindings(input),
+    )) as Awaited<ReturnType<ManagedPdfLayoutReceiver["qualifyManagedPdfLayout"]>>;
+  }
+
+  private managedPdfLayoutBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedPdfLayout} from "@workspace-skills/system-testing/pdf-layout-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("PDF layout review belongs to another context");
+      const prepared=prepareManagedPdfLayout(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

@@ -55,6 +55,7 @@
     "./release-review-handoff-worlds": "./release-review-handoff-worlds.ts",
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
+    "./pdf-layout-managed": "./pdf-layout-managed.ts",
     "./offline-dictation-managed": "./offline-dictation-managed.ts",
     "./native-suite-managed": "./native-suite-managed.ts",
     "./git-bridge-review-managed": "./git-bridge-review-managed.ts",
