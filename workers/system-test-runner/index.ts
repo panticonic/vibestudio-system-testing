@@ -1,3 +1,5 @@
+import type { BrowserLibraryInput, ManagedBrowserLibraryReceiver } from "@workspace-skills/system-testing/browser-library-contract";
+import type { CollectionInput, ManagedCollectionReceiver } from "@workspace-skills/system-testing/collection-contract";
 import type { TendrilInput, ManagedTendrilReceiver } from "@workspace-skills/system-testing/tendril-contract";
 import type { ProvenanceHistoryInput, ManagedProvenanceHistoryReceiver } from "@workspace-skills/system-testing/provenance-history-contract";
 import type { RuntimeProgramInput, ManagedRuntimeProgramReceiver } from "@workspace-skills/system-testing/runtime-program-contract";
@@ -1031,6 +1033,97 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
       const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
     `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Curates test-owned browser references."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedBrowserLibraryTeacher(input: BrowserLibraryInput & {executorModel:string}): ReturnType<ManagedBrowserLibraryReceiver["runManagedBrowserLibraryTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.browserLibraryBindings(input)}
+      let teacher, verification;
+      try {
+        ${domainTeacherCode({
+          executorModel: input.executorModel,
+          work: {kind:"domain",domain:"browserLibrary",operation:"curateBrowserLibrary",input:{goal:"Curate the assigned browser library"}},
+          inputCode: "prepared.request",
+          bindingCode: "const assignedServices=prepared.services;",
+        }, runId)}
+        teacher=utilityValue;
+        verification=await prepared.verify(teacher.report);
+      } finally { await prepared.close(); }
+      const utilityValue={teacher,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedBrowserLibraryReceiver["runManagedBrowserLibraryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the real browser library without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedBrowserLibrary(input: BrowserLibraryInput): ReturnType<ManagedBrowserLibraryReceiver["qualifyManagedBrowserLibrary"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.browserLibraryBindings(input)}
+      let utilityValue;
+      try {
+        await natlang.describe("skills/browser-library/curateBrowserLibrary.nl");
+        const rejectsOutside=await prepared.rejectsOutside();
+        const report=await prepared.reference();
+        const verification=await prepared.verify(report);
+        const altered={findings:report.findings.map(row=>({...row,evidence:["unrelated-observation"]}))};
+        const rejectsWrongReceipt=!(await prepared.verify(altered)).passed;
+        utilityValue={verification,rejectsOutside,rejectsWrongReceipt};
+      } finally { await prepared.close(); }
+    `) as Awaited<ReturnType<ManagedBrowserLibraryReceiver["qualifyManagedBrowserLibrary"]>>;
+  }
+
+  private browserLibraryBindings(input: BrowserLibraryInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedBrowserLibrary} from "@workspace-skills/browser-library-runtime/managed";
+      import {folders,origin,seedBookmarks,seedVisits,managedBrowserLibraryWorlds} from "@workspace-skills/system-testing/browser-library-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Browser library belongs to another context");
+      const world=managedBrowserLibraryWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown browser-library assignment");
+      const prepared=await prepareManagedBrowserLibrary(actualContextId,world,{folders,origin,bookmarks:seedBookmarks,visits:seedVisits});
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Organizes one test-owned collection."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedCollectionTeacher(input: CollectionInput & {executorModel:string}): ReturnType<ManagedCollectionReceiver["runManagedCollectionTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.collectionBindings(input)}
+      ${domainTeacherCode({
+        executorModel: input.executorModel,
+        work: {kind:"domain",domain:"collection",operation:"organizeCollection",input:{goal:"Organize the assigned collection"}},
+        inputCode: "prepared.request",
+        bindingCode: "const assignedServices=prepared.services;",
+      }, runId)}
+      const verification=await prepared.verify(utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedCollectionReceiver["runManagedCollectionTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live collection effects without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedCollection(input: CollectionInput): ReturnType<ManagedCollectionReceiver["qualifyManagedCollection"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.collectionBindings(input)}
+      await natlang.describe("skills/collection-conductor/organizeCollection.nl");
+      const rejectsOutside=await prepared.rejectsOutside();
+      const report=await prepared.reference();
+      const verification=await prepared.verify(report);
+      const altered={results:report.results.map(row=>({...row,evidence:["unrelated-observation"]}))};
+      const rejectsWrongReceipt=!(await prepared.verify(altered)).passed;
+      const utilityValue={verification,rejectsOutside,rejectsWrongReceipt};
+    `) as Awaited<ReturnType<ManagedCollectionReceiver["qualifyManagedCollection"]>>;
+  }
+
+  private collectionBindings(input: CollectionInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedCollection} from "@workspace-skills/collection-conductor-runtime/managed";
+      import {collectionRootTitle,collectionSeed,managedCollectionWorlds} from "@workspace-skills/system-testing/collection-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Collection belongs to another context");
+      const world=managedCollectionWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown collection assignment");
+      const prepared=await prepareManagedCollection(actualContextId,world,collectionRootTitle,collectionSeed);
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Exercises the owned live Tendril board."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

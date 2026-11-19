@@ -1,3 +1,7 @@
+import { managedBrowserLibraryMethods } from "./browser-library-contract.js";
+import { managedBrowserLibraryWorlds } from "./browser-library-worlds.js";
+import { managedCollectionMethods } from "./collection-contract.js";
+import { managedCollectionWorlds } from "./collection-worlds.js";
 import { managedTendrilMethods } from "./tendril-contract.js";
 import { managedTendrilWorlds } from "./tendril-worlds.js";
 import { managedProvenanceHistoryMethods } from "./provenance-history-contract.js";
@@ -888,6 +892,36 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
         { contextId: target.contextId, recursive: true },
       ]);
+    }
+  }
+
+  async runManagedBrowserLibrary(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedBrowserLibraryWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown browser-library case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedBrowserLibraryMethods.qualifyManagedBrowserLibrary, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedBrowserLibraryMethods.runManagedBrowserLibraryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedCollection(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedCollectionWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown collection case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedCollectionMethods.qualifyManagedCollection, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedCollectionMethods.runManagedCollectionTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 
