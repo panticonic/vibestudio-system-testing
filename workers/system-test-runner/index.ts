@@ -1,5 +1,6 @@
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
+import type { ManagedProblemDraftReceiver } from "@workspace-skills/system-testing/problem-draft-managed";
 import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
 import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
 import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
@@ -1822,6 +1823,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Terminal checks belong to another context");
       const prepared=prepareManagedTerminalChecks(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned local-only problem report."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedProblemDraftTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedProblemDraftReceiver["runManagedProblemDraftTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"agenticDevelopment",operation:"planProblemDraft",input:{goal:"Plan the assigned agentic change"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedProblemDraftBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedProblemDraftReceiver["runManagedProblemDraftTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live local report writes without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedProblemDraft(input: {contextId:string;caseId:string}): ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedProblemDraftBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]>>;
+  }
+
+  private managedProblemDraftBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedProblemDraft} from "@workspace-skills/system-testing/problem-draft-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Problem draft belongs to another context");
+      const prepared=await prepareManagedProblemDraft(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
