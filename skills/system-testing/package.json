@@ -224,6 +224,7 @@
   "devDependencies": {
     "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*",
-    "@workspace-skills/messaging": "workspace:*"
+    "@workspace-skills/messaging": "workspace:*",
+    "@workspace-skills/phone-setup": "workspace:*"
   }
 }
