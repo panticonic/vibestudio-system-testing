@@ -1,3 +1,5 @@
+import { managedPanelHealthMethods } from "./panel-health-contract.js";
+import { managedPanelHealthWorlds } from "./panel-health-worlds.js";
 import { managedChannelRosterMethods } from "./channel-roster-contract.js";
 import { managedChannelRosterWorlds } from "./channel-roster-worlds.js";
 import { managedMissionPlanningMethods } from "./mission-planning-contract.js";
@@ -1336,6 +1338,43 @@ export class HeadlessRunner {
       return { kind: "teacher" as const, result: await rpc.call(owner, managedAuthoringMethods.runManagedAuthoringTeacher, [{ ...input, executorModel: this.modelRef }]) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId: target.contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedPanelHealth(qualification: boolean, signal: AbortSignal) {
+    const fixture = this.workspaceRepoFixture;
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (fixture?.kind !== "panel-health-preview" || !fixture.repoName || !contextId)
+      throw new Error("Panel health requires the owned preview panel fixture");
+    const world = managedPanelHealthWorlds.find(({ id }) => id === fixture.caseId);
+    if (!world) throw new Error("Unknown managed panel health case");
+    const before = await vcs.status({ contextId });
+    const source = `panels/${fixture.repoName}`;
+    signal.throwIfAborted();
+    const handle = await this.openPanelClient(source, {
+      contextId, ref: `ctx:${contextId}`, focus: false, parentId: null,
+      stateArgs: { first: world.initial, ...(world.later ? { later: world.later } : {}) },
+    });
+    try {
+      const owner = await this.fixtureForkOwner();
+      const input = { contextId, caseId: world.id, source, panelId: handle.id };
+      const result = qualification
+        ? { teacher: null, ...await rpc.call(owner, managedPanelHealthMethods.qualifyManagedPanelHealth, [input], { signal }) }
+        : { ...await rpc.call(owner, managedPanelHealthMethods.runManagedPanelHealthTeacher,
+          [{ ...input, executorModel: this.modelRef }], { signal }), rejectsForeignObservation: false, rejectsWrongReceipt: false };
+      const after = await vcs.status({ contextId });
+      const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
+        JSON.stringify(before.workingHead) === JSON.stringify(after.workingHead);
+      return {
+        ...result, contextId, caseId: world.id,
+        verification: {
+          ...result.verification,
+          checks: { ...result.verification.checks, protectedHeadUnchanged },
+          passed: result.verification.passed && protectedHeadUnchanged,
+        },
+      };
+    } finally {
+      await handle.archive();
     }
   }
 

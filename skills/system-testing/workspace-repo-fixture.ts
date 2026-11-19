@@ -57,6 +57,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "buildable-panel"; section: "panels" }
   | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
   | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
+  | { kind: "panel-health-preview"; section: "panels"; caseId: string }
   | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
   | { kind: "optimizable-panel"; section: "panels" }
   | { kind: "created-repository"; section: WorkspaceRepoSection }
@@ -1315,6 +1316,43 @@ for (const label of copy.publicLabels) {
   paragraph.textContent = label;
   root.append(paragraph);
 }\n` },
+    ];
+  }
+  if (fixture.kind === "panel-health-preview") {
+    const [manifest] = buildablePanelFiles(repoName);
+    const config = JSON.parse(manifest!.content);
+    config.dependencies["@workspace/react"] = "workspace:*";
+    return [
+      { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
+      { path: "index.tsx", content: `import { useLayoutEffect, useRef, useState } from "react";
+import { useStateArgs } from "@workspace/react/hooks";
+type Frame = { markers: string[][]; logs: { level: "error" | "warning" | "info"; message: string }[] };
+export default function PanelHealthPreview() {
+  const { first, later } = useStateArgs<{ first?: Frame; later?: Frame }>();
+  const [step, setStep] = useState<"first" | "later">("first");
+  const frame = step === "first" ? first : later;
+  const emitted = useRef("");
+  const [ready, setReady] = useState("");
+  useLayoutEffect(() => {
+    if (!frame || emitted.current === step) return;
+    emitted.current = step;
+    for (const entry of frame.logs) {
+      if (entry.level === "error") console.error(entry.message);
+      else if (entry.level === "warning") console.warn(entry.message);
+      else console.info(entry.message);
+    }
+    setReady(step);
+  }, [frame, step]);
+  return <main data-panel-probe-ready={ready}>
+    {frame?.markers.flatMap(([id, ...values]) => values.map((value, index) =>
+      <p key={id + "/" + index} data-panel-health={id}>{value}</p>
+    ))}
+    {later && step === "first" && <button type="button" data-panel-probe-advance onClick={() => setStep("later")}>
+      Run the next check
+    </button>}
+  </main>;
+}
+` },
     ];
   }
   if (fixture.kind === "presentation-preview-panel") {

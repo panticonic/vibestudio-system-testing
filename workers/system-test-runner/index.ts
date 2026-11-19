@@ -1,3 +1,4 @@
+import type { PanelHealthInput, ManagedPanelHealthReceiver } from "@workspace-skills/system-testing/panel-health-contract";
 import type { ChannelRosterInput, ManagedChannelRosterReceiver } from "@workspace-skills/system-testing/channel-roster-contract";
 import type { MissionPlanningInput, ManagedMissionPlanningReceiver } from "@workspace-skills/system-testing/mission-planning-contract";
 import type { BrowserHandoffInput, ManagedBrowserHandoffReceiver } from "@workspace-skills/system-testing/browser-handoff-contract";
@@ -918,6 +919,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(actualContextId!==input.contextId) throw new Error("PDF handoff qualification belongs to another context");
       const utilityValue=await qualifyManagedPdfHandoff({fs,rpc,vcs,extensions},input.caseId);
     `) as Awaited<ReturnType<ManagedPdfReceiver["qualifyManagedPdfHandoff"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the assigned live panel diagnostics."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPanelHealthTeacher(input: PanelHealthInput & {executorModel:string}): ReturnType<ManagedPanelHealthReceiver["runManagedPanelHealthTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.panelHealthBindings(input)}
+      ${domainTeacherCode({
+        executorModel: input.executorModel,
+        work: {kind:"domain",domain:"panelHealth",operation:"reviewPanelHealth",input:{goal:"Review the assigned panel's health"}},
+        inputCode: "prepared.request",
+        bindingCode: "const assignedServices=prepared.services;",
+      },runId)}
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedPanelHealthReceiver["runManagedPanelHealthTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live DOM and console observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedPanelHealth(input: PanelHealthInput): ReturnType<ManagedPanelHealthReceiver["qualifyManagedPanelHealth"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.panelHealthBindings(input)}
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedPanelHealthReceiver["qualifyManagedPanelHealth"]>>;
+  }
+
+  private panelHealthBindings(input: PanelHealthInput): string {
+    return `
+      import {panelTree,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedPanelHealth} from "@workspace-skills/system-testing/panel-health-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Panel health belongs to another context");
+      const prepared=await prepareManagedPanelHealth(panelTree.get(input.panelId),actualContextId,input.source,input.caseId);
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Prepares a response for the assigned managed preview."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
