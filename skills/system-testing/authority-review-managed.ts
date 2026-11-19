@@ -158,7 +158,7 @@ export function prepareManagedAuthorityReview(
     }).passed;
     return { verification, rejectedForeignOperation, rejectedWrongCeiling };
   }
-  return { request: bound.request, services, verify, qualify };
+  return { request: bound.request, services, verify, qualify, reference };
 }
 
 type Prepared = ReturnType<typeof prepareManagedAuthorityReview>;

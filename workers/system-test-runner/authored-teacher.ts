@@ -55,13 +55,13 @@ function requireMountedDomains(assignments: readonly DomainSelector[]): string {
 }
 
 export function domainTeacherQualificationCode(
-  work: DomainSelector,
+  work: readonly DomainSelector[],
   bindingCode: string,
 ): string {
   return `
     ${bindingCode}
     const root=await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
-    ${requireMountedDomains([work])}
+    ${requireMountedDomains(work)}
     const utilityValue=await prepared.qualify();
   `;
 }

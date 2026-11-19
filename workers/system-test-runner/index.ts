@@ -3,6 +3,8 @@ import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-test
 import type { ManagedProblemDraftReceiver } from "@workspace-skills/system-testing/problem-draft-managed";
 import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-testing/client-admission-contract";
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
+import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
+import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
 import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
 import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
 import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
@@ -1855,7 +1857,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies live local report writes without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedProblemDraft(input: {contextId:string;caseId:string}): ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      managedDomainWork.ProblemDraft,
+      [managedDomainWork.ProblemDraft],
       this.managedProblemDraftBindings(input),
     )) as Awaited<ReturnType<ManagedProblemDraftReceiver["qualifyManagedProblemDraft"]>>;
   }
@@ -1886,7 +1888,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies live client admission observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedClientAdmission(input: {contextId:string;caseId:string}): ReturnType<ManagedClientAdmissionReceiver["qualifyManagedClientAdmission"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      managedDomainWork.ClientAdmission,
+      [managedDomainWork.ClientAdmission],
       this.managedClientAdmissionBindings(input),
     )) as Awaited<ReturnType<ManagedClientAdmissionReceiver["qualifyManagedClientAdmission"]>>;
   }
@@ -1900,6 +1902,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Client review belongs to another context");
       const prepared=await prepareManagedClientAdmission(actualContextId,${JSON.stringify(assignment)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned release and authority review handoff."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedReleaseReviewHandoffTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedReleaseReviewHandoffReceiver["runManagedReleaseReviewHandoffTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${composedTeacherCode({
+      executorModel:input.executorModel,
+      workflowRequest:{goal:"Prepare the assigned release review handoff",work:releaseReviewHandoffWork.map((work)=>({...work,input:{goal:"Complete assigned work"}}))},
+      requiredOrder:releaseReviewHandoffWork.map(({operation})=>operation),
+      requestCode:"prepared.request",
+      bindingCode:this.managedReleaseReviewHandoffBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedReleaseReviewHandoffReceiver["runManagedReleaseReviewHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the live release review and handoff dependency gates without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedReleaseReviewHandoff(input: {contextId:string;caseId:string}): ReturnType<ManagedReleaseReviewHandoffReceiver["qualifyManagedReleaseReviewHandoff"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      releaseReviewHandoffWork,
+      this.managedReleaseReviewHandoffBindings(input),
+    )) as Awaited<ReturnType<ManagedReleaseReviewHandoffReceiver["qualifyManagedReleaseReviewHandoff"]>>;
+  }
+
+  private managedReleaseReviewHandoffBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareReleaseReviewHandoff} from "@workspace-skills/system-testing/release-review-handoff-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Release handoff belongs to another context");
+      const prepared=await prepareReleaseReviewHandoff(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
@@ -1919,7 +1953,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies live extension review without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedExtensionRelease(input: {contextId:string;caseId:string}): ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      managedDomainWork.ExtensionRelease,
+      [managedDomainWork.ExtensionRelease],
       this.managedExtensionReleaseBindings(input),
     )) as Awaited<ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]>>;
   }
@@ -1950,7 +1984,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies real host preflight observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedAuthorityReview(input: {contextId:string;caseId:string}): ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      managedDomainWork.AuthorityReview,
+      [managedDomainWork.AuthorityReview],
       this.managedAuthorityReviewBindings(input),
     )) as Awaited<ReturnType<ManagedAuthorityReviewReceiver["qualifyManagedAuthorityReview"]>>;
   }
@@ -1981,7 +2015,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies live agentic stack source observations without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedAgenticChange(input: {contextId:string;caseId:string}): ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      managedDomainWork.AgenticChange,
+      [managedDomainWork.AgenticChange],
       this.managedAgenticChangeBindings(input),
     )) as Awaited<ReturnType<ManagedAgenticChangeReceiver["qualifyManagedAgenticChange"]>>;
   }

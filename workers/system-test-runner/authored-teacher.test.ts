@@ -152,7 +152,7 @@ it("binds a domain result to its submitted domain and direct recorded operation"
 
 it("uses the same mounted operation check during model-free qualification", async () => {
   const generated = domainTeacherQualificationCode(
-    {domain: "capabilities", operation: "reviewAuthority"},
+    [{domain: "capabilities", operation: "reviewAuthority"}],
     'const assignedServices={}, prepared={qualify:()=>({passed:true})};',
   );
   const run = (operation: string) =>

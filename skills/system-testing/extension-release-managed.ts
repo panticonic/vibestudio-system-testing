@@ -212,7 +212,12 @@ export async function prepareManagedExtensionRelease(
       ).passed,
     };
   }
-  return { request: bound.request, services, verify, qualify };
+  function reference(): Report | null {
+    const [source] = sourceReads;
+    const [runtime] = runtimeReads;
+    return source && runtime ? expected(source, runtime) : null;
+  }
+  return { request: bound.request, services, verify, qualify, reference };
 }
 
 type Prepared = Awaited<ReturnType<typeof prepareManagedExtensionRelease>>;

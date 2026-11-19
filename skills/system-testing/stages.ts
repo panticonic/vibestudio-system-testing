@@ -2,6 +2,7 @@ import { managedIntegrationReadinessTests } from "./tests/integration-readiness-
 import { managedTerminalCheckTests } from "./tests/terminal-check-managed.js";
 import { managedProblemDraftTests } from "./tests/problem-draft-managed.js";
 import { managedClientAdmissionTests } from "./tests/client-admission-managed.js";
+import { managedReleaseReviewHandoffTests } from "./tests/release-review-handoff-managed.js";
 import { managedExtensionReleaseTests } from "./tests/extension-release-managed.js";
 import { managedAuthorityReviewTests } from "./tests/authority-review-managed.js";
 import { managedAgenticChangeTests } from "./tests/agentic-change-managed.js";
@@ -222,6 +223,7 @@ export function allTests(): TestCase[] {
   ...managedSessionReplayTests,
   ...managedProblemDraftTests,
   ...managedClientAdmissionTests,
+  ...managedReleaseReviewHandoffTests,
   ...managedExtensionReleaseTests,
   ...managedAuthorityReviewTests,
   ...managedAgenticChangeTests,
