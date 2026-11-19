@@ -1,0 +1,32 @@
+export const explorerTextWorlds = [
+  {
+    id: "unicode-size-claim",
+    goal: "Check a maintenance note that says the reported size counts characters. Compare the multibyte status message in both native stores and classify the discrepancy.",
+    text: "Rückmeldung 🧭\n",
+    claim: "reports-characters",
+    repeat: false,
+    lineEnding: "lf",
+    check: "utf8-size",
+    classification: "doc-mismatch",
+  },
+  {
+    id: "crlf-preservation",
+    goal: "Check a migration note that says CRLF is normalized on write. Show which behavior the file and blob actually demonstrate.",
+    text: "queued\r\nready\r\n",
+    claim: "normalizes-line-endings",
+    repeat: false,
+    lineEnding: "crlf",
+    check: "line-endings",
+    classification: "doc-mismatch",
+  },
+  {
+    id: "idempotent-delivery-record",
+    goal: "Verify a retried store of the same delivery record retains its identity and both stores round-trip the content. Confirm scratch cleanup.",
+    text: "delivery=ready\nowner=dispatch\n",
+    claim: null,
+    repeat: true,
+    lineEnding: "lf",
+    check: "exact-content",
+    classification: "ok",
+  },
+] as const;

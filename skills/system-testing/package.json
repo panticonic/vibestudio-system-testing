@@ -56,6 +56,8 @@
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
     "./log-cursor-worlds": "./log-cursor-worlds.ts",
+    "./explorer-probe-worlds": "./explorer-probe-worlds.ts",
+    "./explorer-probe-managed": "./explorer-probe-managed.ts",
     "./tour-rehearsal-worlds": "./tour-rehearsal-worlds.ts",
     "./tour-rehearsal-managed": "./tour-rehearsal-managed.ts",
     "./build-performance-managed": "./build-performance-managed.ts",

@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
 import type { BuildPerformanceInput, BuildPerformanceReceiver } from "@workspace-skills/system-testing/build-performance-managed";
 import type { ManagedLogCursorReceiver } from "@workspace-skills/system-testing/log-cursor-managed";
@@ -2079,6 +2080,41 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned text contract probe."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runExplorerProbeTeacher(input: ExplorerProbeInput & {executorModel:string}): ReturnType<ExplorerProbeReceiver["runExplorerProbeTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"explorer",operation:"probeWorkspaceText",input:{goal:"Probe the assigned text stores"}},
+      inputCode: "prepared.request",
+      bindingCode: this.explorerProbeBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ExplorerProbeReceiver["runExplorerProbeTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the native text round trip without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyExplorerProbe(input: ExplorerProbeInput): ReturnType<ExplorerProbeReceiver["qualifyExplorerProbe"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"explorer",operation:"probeWorkspaceText"}],
+      this.explorerProbeBindings(input),
+    )) as Awaited<ReturnType<ExplorerProbeReceiver["qualifyExplorerProbe"]>>;
+  }
+
+  private explorerProbeBindings(input: ExplorerProbeInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {bindExplorerTextProbe} from "@workspace-skills/explorer-probe-bindings";
+      import {prepareExplorerProbe} from "@workspace-skills/system-testing/explorer-probe-managed";
+      import {explorerTextWorlds} from "@workspace-skills/system-testing/explorer-probe-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Explorer probe belongs to another context");
+      const world=explorerTextWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown Explorer probe assignment");
+      const prepared=prepareExplorerProbe(input,bindExplorerTextProbe(world));
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures a rehearsal on the assigned tour panel."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
