@@ -1,6 +1,7 @@
 import { managedIntegrationReadinessMethods } from "./integration-readiness-managed.js";
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
+import { managedExtensionReleaseMethods } from "./extension-release-managed.js";
 import { managedAuthorityReviewMethods } from "./authority-review-managed.js";
 import { managedAgenticChangeMethods } from "./agentic-change-managed.js";
 import { managedGadReviewMethods } from "./gad-review-managed.js";
@@ -1421,6 +1422,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedProblemDraftMethods.qualifyManagedProblemDraft, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedProblemDraftMethods.runManagedProblemDraftTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedExtensionRelease(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedExtensionReleaseMethods.qualifyManagedExtensionRelease, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedExtensionReleaseMethods.runManagedExtensionReleaseTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

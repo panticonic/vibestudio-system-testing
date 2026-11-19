@@ -1,6 +1,7 @@
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
 import type { ManagedProblemDraftReceiver } from "@workspace-skills/system-testing/problem-draft-managed";
+import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
 import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
 import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
 import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
@@ -1856,6 +1857,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Problem draft belongs to another context");
       const prepared=await prepareManagedProblemDraft(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned extension source and live release review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedExtensionReleaseTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedExtensionReleaseReceiver["runManagedExtensionReleaseTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"agenticDevelopment",operation:"planExtensionRelease",input:{goal:"Plan the assigned agentic change"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedExtensionReleaseBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedExtensionReleaseReceiver["runManagedExtensionReleaseTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live extension review without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedExtensionRelease(input: {contextId:string;caseId:string}): ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedExtensionReleaseBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedExtensionReleaseReceiver["qualifyManagedExtensionRelease"]>>;
+  }
+
+  private managedExtensionReleaseBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedExtensionRelease} from "@workspace-skills/system-testing/extension-release-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Extension review belongs to another context");
+      const prepared=await prepareManagedExtensionRelease(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

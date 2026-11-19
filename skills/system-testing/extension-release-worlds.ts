@@ -1,0 +1,38 @@
+export const managedExtensionReleaseWorlds = [
+  {
+    id: "read-approved-git-bridge",
+    goal: "Check the published Git Bridge review method against the host's current approved runtime. Describe availability without invoking or rebuilding it.",
+    name: "@workspace-extensions/git-bridge",
+    source: "extensions/git-bridge",
+    method: "reviewTemplatePublication",
+    mode: "published",
+    activation: "startup",
+  },
+  {
+    id: "read-pdf-probe-contract",
+    goal: "Check the installed PDF probe's declaration and current lifecycle. Keep the extension cold if it is cold and report whether the method was seen on a live process.",
+    name: "@workspace-extensions/pdf-ingest",
+    source: "extensions/pdf-ingest",
+    method: "probe",
+    mode: "published",
+    activation: "on-invoke",
+  },
+  {
+    id: "hold-unpublished-pdf-candidate",
+    goal: "Review the new probeCandidate declaration in this context. Check the approved runtime independently and identify what still has to happen before relying on the candidate.",
+    name: "@workspace-extensions/pdf-ingest",
+    source: "extensions/pdf-ingest",
+    method: "probeCandidate",
+    mode: "manifest-change",
+    activation: "on-invoke",
+  },
+  {
+    id: "hold-code-only-pdf-candidate",
+    goal: "Check whether a local change to the PDF extension implementation is active. Its public probe method remains declared. Use the exact local and published sources and host runtime to decide what needs review.",
+    name: "@workspace-extensions/pdf-ingest",
+    source: "extensions/pdf-ingest",
+    method: "probe",
+    mode: "code-change",
+    activation: "on-invoke",
+  },
+] as const;
