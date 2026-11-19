@@ -76,6 +76,7 @@
     "./authoring-managed": "./authoring-managed.ts",
     "./presentation-contract": "./presentation-contract.ts",
     "./pdf-intake-managed": "./pdf-intake-managed.ts",
+    "./pdf-handoff-managed": "./pdf-handoff-managed.ts",
     "./pdf-intake-contract": "./pdf-intake-contract.ts",
     "./publication-preflight-contract": "./publication-preflight-contract.ts",
     "./publication-preflight-managed": "./publication-preflight-managed.ts",

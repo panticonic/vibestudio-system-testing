@@ -1,5 +1,5 @@
 type Evidence = [source: string, firstLine: number, lastLine: number];
-type World = {
+export type ScratchHandoffWorld = {
   id: string;
   group: string;
   goal: string;
@@ -11,7 +11,7 @@ type World = {
   | { status: "unanswered"; unanswered: number[] }
 );
 
-export const managedScratchWorlds: World[] = [
+export const managedScratchWorlds: ScratchHandoffWorld[] = [
   {
     id: "release-transition",
     group: "release-operations",
@@ -124,7 +124,7 @@ export const managedScratchWorlds: World[] = [
   },
 ];
 
-export const extendedScratchWorlds: World[] = [
+export const extendedScratchWorlds: ScratchHandoffWorld[] = [
   {
     id: "restoration-by-region",
     group: "restoration-by-region",

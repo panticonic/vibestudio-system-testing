@@ -402,3 +402,54 @@ export function managedPdfExpectation({
     ),
   };
 }
+
+export const managedPdfHandoffWorlds = [
+  {
+    pdf: "superseded-release-date",
+    goal: "Prepare an evidence handoff explaining the replacement release date.",
+  },
+  {
+    pdf: "retention-and-hold",
+    goal: "Stage an archive handoff with the normal retention period and legal-hold exception.",
+  },
+  {
+    pdf: "handoff-partial",
+    goal: "Prepare an export handoff. Hold the artifact if the packet supplies a time but leaves the owner unconfirmed.",
+  },
+  {
+    pdf: "caption-and-value",
+    goal: "Stage a handoff for the forecast with its original unit and figure.",
+  },
+  {
+    pdf: "batch-across-sections",
+    goal: "Hand over the routing decision and the signage deadline as a single evidence artifact.",
+  },
+  {
+    pdf: "superseded-custody-route",
+    goal: "Stage a custody handoff that traces the original and replacement desks across packet revisions.",
+  },
+  {
+    pdf: "section-specific-hold",
+    goal: "Hand over the Support disposition with the heading that identifies the correct occurrence.",
+  },
+  {
+    pdf: "audit-denominator",
+    goal: "Create an audit handoff whose count, denominator, and comparison scope are independently supported.",
+  },
+  {
+    pdf: "storage-exceptions",
+    goal: "Hand over the storage rule, exception, and the release condition together.",
+  },
+  {
+    pdf: "release-approval-out-of-scope",
+    goal: "Review a release handoff from the selected pages only. Hold the artifact if the approval is outside their scope.",
+  },
+  {
+    pdf: "final-batch-mismatched-receipt",
+    goal: "Preserve the verified activation evidence and hold the handoff if the later pages cannot verify the owner.",
+  },
+  {
+    pdf: "interrupted-review-batches",
+    goal: "Prepare a review schedule handoff from verified pages. Do not stage it if interrupted extraction leaves the backup check unknown.",
+  },
+];

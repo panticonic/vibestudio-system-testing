@@ -878,6 +878,42 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedPdfReceiver["qualifyManagedPdf"]>>;
   }
 
+  @rpc({website:{kind:"closed",reason:"Runs PDF intake followed by a scratch handoff in one owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPdfHandoffTeacher(input: PdfIntakeInput & {executorModel:string}): ReturnType<ManagedPdfReceiver["runManagedPdfHandoffTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${composedTeacherCode({
+      executorModel: input.executorModel,
+      workflowRequest: { goal: "Carry verified PDF evidence into scratch", work: [
+        { kind: "domain", domain: "pdfIntake", operation: "extractPdfEvidence", input: { goal: "Read the assigned PDF pages" } },
+        { kind: "domain", domain: "scratchHandoff", operation: "assembleHandoff", input: { goal: "Hand over verified evidence" } },
+      ] },
+      requiredOrder: ["extractPdfEvidence", "assembleHandoff"],
+      requestCode: "prepared.request",
+      bindingCode: `
+        import {fs,rpc,vcs,extensions,contextId as actualContextId} from "@workspace/runtime";
+        import {prepareManagedPdfHandoff,verifyManagedPdfHandoff} from "@workspace-skills/system-testing/pdf-handoff-managed";
+        const input=${JSON.stringify(input)};
+        if(actualContextId!==input.contextId) throw new Error("PDF handoff belongs to another context");
+        const ports={fs,rpc,vcs,extensions};
+        const prepared=await prepareManagedPdfHandoff(ports,input.caseId);
+        const assignedServices=prepared.services;
+      `,
+    }, runId)}
+      const verification=await verifyManagedPdfHandoff(ports,prepared,utilityValue.report);
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+    `) as Awaited<ReturnType<ManagedPdfReceiver["runManagedPdfHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies actual PDF page transfer into an owned scratch artifact without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedPdfHandoff(input: PdfIntakeInput): ReturnType<ManagedPdfReceiver["qualifyManagedPdfHandoff"]> {
+    return await this.runHarnessUtility("teacher", `
+      import {fs,rpc,vcs,extensions,contextId as actualContextId} from "@workspace/runtime";
+      import {qualifyManagedPdfHandoff} from "@workspace-skills/system-testing/pdf-handoff-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("PDF handoff qualification belongs to another context");
+      const utilityValue=await qualifyManagedPdfHandoff({fs,rpc,vcs,extensions},input.caseId);
+    `) as Awaited<ReturnType<ManagedPdfReceiver["qualifyManagedPdfHandoff"]>>;
+  }
+
   @rpc({website:{kind:"closed",reason:"Prepares a response for the assigned managed preview."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedPresentationTeacher(input: PresentationTeacherInput): ReturnType<ManagedPresentationReceiver["runManagedPresentationTeacher"]> {
     return await this.runHarnessUtility("teacher", runId => domainTeacherCode({

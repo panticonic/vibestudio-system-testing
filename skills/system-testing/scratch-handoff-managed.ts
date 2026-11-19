@@ -61,17 +61,22 @@ export async function seedScratchHandoff(
 ) {
   const world = managedScratchWorlds.find((item) => item.id === caseId);
   if (!world) throw new Error(`Unknown managed scratch handoff: ${caseId}`);
+  const seeded = await planScratchHandoff(fs, vcs, world);
+  await materializeScratchSources(fs, seeded);
+  return seeded;
+}
+
+export async function planScratchHandoff(
+  fs: RuntimeFs,
+  vcs: Pick<VcsClient, "status">,
+  world: World,
+) {
   const initial = await vcs.status();
   const directory = await fs.mkdtemp("handoff-input");
   const sources = Object.keys(world.sources).map((id) => ({
     id,
     path: `${directory}/${id}.txt`,
   }));
-  for (const { id, path } of sources) {
-    const text = world.sources[id];
-    if (text !== null && text !== undefined) await fs.writeFile(path, text);
-  }
-
   return {
     world,
     directory,
@@ -83,7 +88,14 @@ export async function seedScratchHandoff(
   };
 }
 
-type Seeded = Awaited<ReturnType<typeof seedScratchHandoff>>;
+type Seeded = Awaited<ReturnType<typeof planScratchHandoff>>;
+
+export async function materializeScratchSources(fs: RuntimeFs, seeded: Seeded) {
+  for (const { id, path } of seeded.request.sources) {
+    const text = seeded.world.sources[id];
+    if (text !== null && text !== undefined) await fs.writeFile(path, text);
+  }
+}
 type StagedWorld = Extract<World, { status: "staged" }>;
 function expectedAnswers(world: StagedWorld) {
   return world.questions.map((question, index) => ({
@@ -248,8 +260,17 @@ export async function qualifyManagedScratchHandoff(
   negative: boolean,
 ) {
   const seeded = await seedScratchHandoff(fs, vcs, caseId);
+  const binding = bindManagedScratchHandoff(fs, rpc, seeded.request);
+  const report = await referenceScratchHandoff(seeded, binding, negative);
+  return verifyManagedScratchHandoff(fs, vcs, rpc, seeded, report);
+}
+
+export async function referenceScratchHandoff(
+  seeded: Seeded,
+  binding: ReturnType<typeof bindManagedScratchHandoff>,
+  negative = false,
+) {
   const { world, request } = seeded;
-  const binding = bindManagedScratchHandoff(fs, rpc, request);
   const sources = await Promise.all(
     request.sources.map(({ id }) => binding.scratchHandoffRead.read(id)),
   );
@@ -286,5 +307,5 @@ export async function qualifyManagedScratchHandoff(
     report.artifact =
       await binding.scratchHandoffWrite.stage('{"answers":[]}\n');
   }
-  return verifyManagedScratchHandoff(fs, vcs, rpc, seeded, report);
+  return report;
 }

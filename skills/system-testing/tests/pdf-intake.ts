@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedPdfReceiver } from "../pdf-intake-contract.js";
-import { managedPdfWorlds } from "../pdf-intake-worlds.js";
+import {
+  managedPdfHandoffWorlds,
+  managedPdfWorlds,
+} from "../pdf-intake-worlds.js";
 
 type Run = Awaited<ReturnType<ManagedPdfReceiver["runManagedPdfTeacher"]>>;
 type Qualification = Awaited<
@@ -102,6 +105,121 @@ managedPdfTests.push({
           passed: false,
           reason:
             "Actual PDF extraction and its independent oracle failed to qualify",
+          details: { checks },
+        };
+  },
+});
+
+type HandoffRun = Awaited<
+  ReturnType<ManagedPdfReceiver["runManagedPdfHandoffTeacher"]>
+>;
+type HandoffQualification = Awaited<
+  ReturnType<ManagedPdfReceiver["qualifyManagedPdfHandoff"]>
+>;
+
+managedPdfTests.push(
+  ...managedPdfHandoffWorlds.map(
+    ({ pdf, goal }): TestCase => ({
+      name: `pdf-handoff-live-${pdf}`,
+      category: "project-lifecycle",
+      description:
+        "Verify scoped PDF evidence and carry the verified lines into an owned scratch handoff",
+      prompt: goal,
+      explicitOnly: true,
+      validation: "harness",
+      async orchestrate(context) {
+        context.signal.throwIfAborted();
+        const started = Date.now();
+        const observed = await context.runner.runManagedPdfHandoff(pdf);
+        if (observed.kind !== "teacher")
+          throw new Error("Missing composed PDF handoff");
+        context.signal.throwIfAborted();
+        const { teacher, contextId, verification } = observed.result;
+        return {
+          messages: [],
+          duration: Date.now() - started,
+          provenance: {
+            channelId: null,
+            branchId: null,
+            agentEntityId: null,
+            agentTargetId: null,
+            contextId,
+          },
+          diagnostics: {
+            natlangTeacher: teacher,
+            managedPdfHandoff: { contextId, verification },
+          },
+        };
+      },
+      validate(result) {
+        const teacher = result.diagnostics?.["natlangTeacher"] as
+          | (HandoffRun["teacher"] & { trainingEligible?: boolean })
+          | undefined;
+        const packet = result.diagnostics?.["managedPdfHandoff"] as
+          | Omit<HandoffRun, "teacher">
+          | undefined;
+        return teacher?.trainingEligible && packet?.verification.passed
+          ? { passed: true, details: packet.verification.checks }
+          : {
+              passed: false,
+              reason:
+                "The verified PDF prefix and scratch outcome must both match",
+              details: packet?.verification,
+            };
+      },
+    }),
+  ),
+);
+
+managedPdfTests.push({
+  name: "pdf-handoff-managed-oracle-qualification",
+  category: "project-lifecycle",
+  description:
+    "Qualify the cross-skill evidence boundary with a real PDF and scratch files",
+  prompt:
+    "Exercise PDF handoff cases with verified lines and independent artifact readback.",
+  explicitOnly: true,
+  validation: "harness",
+  async orchestrate(context) {
+    const started = Date.now();
+    const checks = [];
+    for (const { pdf } of managedPdfHandoffWorlds) {
+      context.signal.throwIfAborted();
+      const observed = await context.runner.runManagedPdfHandoff(pdf, true);
+      if (observed.kind !== "reference")
+        throw new Error("Qualification invoked a teacher");
+      checks.push(observed.result);
+    }
+    return {
+      messages: [],
+      duration: Date.now() - started,
+      diagnostics: { pdfHandoffQualification: checks },
+    };
+  },
+  validate(result) {
+    const checks = result.diagnostics?.["pdfHandoffQualification"] as
+      | HandoffQualification[]
+      | undefined;
+    const passed =
+      checks?.length === managedPdfHandoffWorlds.length &&
+      managedPdfHandoffWorlds.every(({ pdf }, index) => {
+        const row = checks[index];
+        return (
+          row?.verification.pdf.caseId === pdf &&
+          row.verification.passed &&
+          row.earlyReadDenied &&
+          row.earlyWriteDenied
+        );
+      });
+    return passed
+      ? {
+          passed: true,
+          details: { checkedCases: checks?.length, modelCalls: 0 },
+        }
+      : {
+          passed: false,
+          reason:
+            "The early-access gate or verified PDF handoff did not qualify",
           details: { checks },
         };
   },

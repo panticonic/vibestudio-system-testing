@@ -131,9 +131,12 @@ export async function prepareManagedPdf(ports: Ports, caseId: string) {
   };
   const bindings = createPdfIntakeBindings(engine, request, retained);
   const read = bindings.pdfIntakeRead.read;
-  bindings.pdfIntakeRead.read = (document, pages, mode) => {
+  const verifiedBatches: Awaited<ReturnType<typeof read>>[] = [];
+  bindings.pdfIntakeRead.read = async (document, pages, mode) => {
     readAttempts.push([...pages]);
-    return read(document, pages, mode);
+    const receipt = await read(document, pages, mode);
+    verifiedBatches.push(structuredClone(receipt));
+    return receipt;
   };
   return {
     world,
@@ -143,6 +146,7 @@ export async function prepareManagedPdf(ports: Ports, caseId: string) {
     receipts,
     extractionRequests,
     readAttempts,
+    verifiedBatches,
     faultDelivered: () => faultDelivered,
     probes: () => probes,
     digest,
@@ -270,6 +274,19 @@ export async function verifyManagedPdf(
 
 export async function qualifyManagedPdf(ports: Ports, caseId: string) {
   const prepared = await prepareManagedPdf(ports, caseId);
+  const report = await referencePdfIntake(prepared);
+  const accepted = await verifyManagedPdf(ports, prepared, report);
+  const wrong = await verifyManagedPdf(ports, prepared, {
+    ...report,
+    digest: report.citations.length ? report.digest : "forged",
+    citations: report.citations.map((item, index) =>
+      index === 0 ? { ...item, bounds: [0, 0, 0, 0] } : item,
+    ),
+  });
+  return { accepted, rejectedUnsupportedReceipt: !wrong.passed };
+}
+
+export async function referencePdfIntake(prepared: Prepared): Promise<Report> {
   const { world, request, bindings } = prepared;
   const probe = await bindings.pdfIntakeProbe.probe(request.document);
   const invalid =
@@ -308,7 +325,7 @@ export async function qualifyManagedPdf(ports: Ports, caseId: string) {
     : world.claims
         .filter(({ evidence }) => !evidence.length)
         .map(({ question }) => question);
-  const report = {
+  return {
     status:
       status ??
       (interrupted
@@ -324,13 +341,4 @@ export async function qualifyManagedPdf(ports: Ports, caseId: string) {
     citations,
     unanswered,
   };
-  const accepted = await verifyManagedPdf(ports, prepared, report);
-  const wrong = await verifyManagedPdf(ports, prepared, {
-    ...report,
-    digest: citations.length ? report.digest : "forged",
-    citations: citations.map((item, index) =>
-      index === 0 ? { ...item, bounds: [0, 0, 0, 0] } : item,
-    ),
-  });
-  return { accepted, rejectedUnsupportedReceipt: !wrong.passed };
 }
