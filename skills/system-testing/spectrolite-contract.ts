@@ -5,6 +5,7 @@ export type SpectroliteInput = {
   caseId: string;
   contextId: string;
   panelId: string;
+  navigation: { from: string; target: string; to: string }[];
 };
 type Verification = { passed: boolean; checks: Record<string, boolean> };
 export interface ManagedSpectroliteReceiver {

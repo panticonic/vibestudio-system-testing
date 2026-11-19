@@ -1160,7 +1160,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const panel=panelTree.get(input.panelId);
       const panelState=await panel.observe();
       if(panelState.source!==spectrolitePanel || panelState.contextId!==input.contextId || panelState.requestedRef!=="ctx:"+input.contextId || panelState.kind!=="workspace") throw new Error("Spectrolite panel belongs to another assignment");
-      const prepared=prepareSpectroliteReview(panel,actualContextId,spectroliteVault,world);
+      const prepared=prepareSpectroliteReview(panel,actualContextId,spectroliteVault,world,input.navigation);
       const assignedServices=prepared.services;
     `;
   }

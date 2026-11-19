@@ -1071,21 +1071,28 @@ export class HeadlessRunner {
       const owner = await this.createFixtureWorker(contextId);
       panel = await this.openPanelClient(spectrolitePanel, {
         contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
-        stateArgs: { repoRoot: spectroliteVault, openPath: world.follow?.path ?? world.path },
+        stateArgs: { repoRoot: spectroliteVault, openPath: world.follow?.[0]?.path ?? world.path },
       });
-      if (world.follow) {
-        const follow = world.follow;
+      const navigation: { from: string; target: string; to: string }[] = [];
+      if (world.follow?.length) {
         const target = panel;
-        await waitFor(async () => {
+        const editor = (path: string, heading?: string) => waitFor(async () => {
           signal.throwIfAborted();
-          return (await target.snapshot()).document.text.includes(follow.heading) || undefined;
-        }, { label: "Spectrolite opens the assigned starting note" });
+          const current = await this.evalInPanelClient<{ path: string | null; text: string }>(target,
+            '(() => { const node = document.querySelector(\'[data-testid="spectrolite-editor"]\'); return { path: node?.querySelector(\'[contenteditable="true"]\')?.getAttribute("aria-label") ?? null, text: node?.innerText ?? "" }; })()');
+          return current.path === path && (!heading || current.text.includes(heading)) ? current.path : undefined;
+        }, { label: `Spectrolite opens ${path}` });
         const { page } = await panel.cdp.session();
         try {
-          await page.locator(`[data-wikilink=${JSON.stringify(follow.target)}]`).click();
+          for (const hop of world.follow) {
+            const from = await editor(hop.path, hop.heading);
+            await page.locator(`[data-wikilink=${JSON.stringify(hop.target)}]`).click();
+            const to = await editor(hop.destination);
+            navigation.push({ from, target: hop.target, to });
+          }
         } finally { await page.close(); }
       }
-      const input = { contextId, caseId, panelId: panel.id };
+      const input = { contextId, caseId, panelId: panel.id, navigation };
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedSpectroliteMethods.qualifyManagedSpectrolite, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedSpectroliteMethods.runManagedSpectroliteTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
