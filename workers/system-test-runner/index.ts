@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedNativeSuiteReceiver } from "@workspace-skills/system-testing/native-suite-managed";
 import type { ManagedGitBridgeReviewReceiver } from "@workspace-skills/system-testing/git-bridge-review-managed";
 import type { ManagedVcsDeliveryReceiver } from "@workspace-skills/system-testing/vcs-delivery-managed";
 import type { ManagedWebBriefReceiver } from "@workspace-skills/system-testing/web-brief-managed";
@@ -135,6 +136,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  NativeSuite: {kind:"domain",domain:"testSuite",operation:"reviewTestSuite",input:{goal:"Review the assigned declared test suite"}},
   GitBridgeReview: {kind:"domain",domain:"gitBridge",operation:"reviewGitBridge",input:{goal:"Review the assigned Git Bridge repository"}},
   VcsDelivery: {kind:"domain",domain:"vcsDelivery",operation:"reviewVcsDelivery",input:{goal:"Review the assigned semantic VCS delivery"}},
   WebBrief: {kind:"domain",domain:"webResearch",operation:"writeAssignedBrief",input:{goal:"Write the assigned web brief"}},
@@ -2004,6 +2006,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("VCS delivery review belongs to another context");
       const prepared=await prepareManagedVcsDelivery(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned declared test suite review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedNativeSuiteTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedNativeSuiteReceiver["runManagedNativeSuiteTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.NativeSuite,
+      inputCode:"prepared.request",
+      bindingCode:this.managedNativeSuiteBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedNativeSuiteReceiver["runManagedNativeSuiteTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies suite declarations and verification without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedNativeSuite(input: {contextId:string;caseId:string}): ReturnType<ManagedNativeSuiteReceiver["qualifyManagedNativeSuite"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.NativeSuite],
+      this.managedNativeSuiteBindings(input),
+    )) as Awaited<ReturnType<ManagedNativeSuiteReceiver["qualifyManagedNativeSuite"]>>;
+  }
+
+  private managedNativeSuiteBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedNativeSuite} from "@workspace-skills/system-testing/native-suite-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Suite review belongs to another context");
+      const prepared=prepareManagedNativeSuite(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

@@ -1,0 +1,32 @@
+export const managedNativeSuiteWorlds = [
+  {
+    id: "inspect-native-extension",
+    goal: "Find the declared route and approval for the test-runner extension's native suite. Inspect its declaration only.",
+    target: "extensions/test-runner",
+    suite: "native",
+    file: "index.test.ts",
+    testName: null,
+    mode: "inspect",
+    runtime: "native",
+  },
+  {
+    id: "verify-native-adapter-child-execution",
+    goal: "Verify that the workspace native test adapter executes only the selected module in its owned child process. Run the assigned native test and report its actual verification receipt.",
+    target: "extensions/test-runner",
+    suite: "native",
+    file: "index.test.ts",
+    testName: "executes selected modules in a child",
+    mode: "verify",
+    runtime: "native",
+  },
+  {
+    id: "verify-adventure-engine-workerd",
+    goal: "Verify the assigned Adventure Engine world test file using the runtime declared by the suite. Report the actual outcome and the recorded runtime.",
+    target: "packages/adventure-engine",
+    suite: "world",
+    file: "src/index.workerd.test.ts",
+    testName: null,
+    mode: "verify",
+    runtime: "workerd",
+  },
+] as const;
