@@ -124,6 +124,7 @@ export async function prepareManagedAuthoring(ports: Ports, caseId: string) {
             returns,
           })),
           services: [...shape.services],
+          serviceScopes: structuredClone(shape.serviceScopes),
         };
       } catch (error) {
         readback = {
@@ -244,6 +245,28 @@ export function reviewCompilerReadbacks(prepared: Prepared): AuthoringReport {
           "Remove the unassigned service.",
         );
   }
+  const selectorSet = (selectors: string[] | null) =>
+    selectors === null
+      ? "unrestricted"
+      : JSON.stringify([...new Set(selectors)].sort());
+  for (const name of candidate.services) {
+    const explicit = contract.expectedServiceScopes;
+    const expected =
+      explicit && Object.hasOwn(explicit, name)
+        ? explicit[name]!
+        : contract.preserveBaseline && baseline?.services.includes(name)
+          ? (baseline.serviceScopes[name] ?? null)
+          : undefined;
+    if (expected === undefined) continue;
+    const observed = selectorSet(candidate.serviceScopes[name] ?? null);
+    if (observed !== selectorSet(expected))
+      add(
+        "service-scope-change",
+        name,
+        observed,
+        `Restore the assigned selectors: ${selectorSet(expected)}.`,
+      );
+  }
   for (const helper of contract.requiredHelpers)
     if (!candidate.functions.some(({ source }) => source === helper))
       add(
@@ -316,6 +339,18 @@ export async function verifyManagedAuthoring(
     candidateRevision,
     baselineRevision,
     status: actual.status,
+    scopeReadbacks: prepared.reads.flatMap((read) =>
+      read.state === "compiled"
+        ? [
+            {
+              role: read.role,
+              revision: read.revision,
+              services: read.services,
+              scopes: read.serviceScopes,
+            },
+          ]
+        : [],
+    ),
     checks,
     passed: Object.values(checks).every(Boolean),
   };

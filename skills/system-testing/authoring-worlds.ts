@@ -206,3 +206,282 @@ export const managedAuthoringWorlds: AuthoringWorld[] = [
     { baseline: signatureFailure },
   ),
 ];
+
+const entry = "review.nl";
+const facts = "review/checkFacts.nl";
+const source = "review/checkFacts/readSource.nl";
+const lineage = "review/checkFacts/checkLineage.nl";
+const release = "review/recordDecision.nl";
+const summary = "review/writeSummary.nl";
+const subtree = facts + "/**";
+const indexedCallables = {
+  [entry]: callable(
+    "Coordinate evidence review and decide whether the handoff is ready",
+  ),
+  [facts]: callable(
+    "Check facts and evidence independently of the decision recorder",
+  ),
+  [source]: callable("Read the evidence source assigned to this check"),
+  [lineage]: callable("Verify the chain of custody for the assigned source"),
+  [release]: callable("Record only the reviewed decision handed to this stage"),
+  [summary]: callable("Write the report after the review decision"),
+};
+
+type Selectors = Record<string, string[] | null>;
+
+function scopedProgram(selectors: Selectors, changes: Tree = {}): Tree {
+  const serviceScopes = Object.fromEntries(
+    Object.entries(selectors).filter(([, paths]) => paths !== null),
+  );
+  return {
+    ...indexedCallables,
+    "services.d.ts": declarations(...Object.keys(selectors)),
+    "natlang.json": JSON.stringify({
+      schema: "natlang.package/v2",
+      name: "review-assignment",
+      version: "0.1.0",
+      serviceBinding: "explicit",
+      serviceScopes,
+      targets: { main: { entry } },
+    }),
+    ...changes,
+  };
+}
+
+const scopeFinding = (subject: string): Marker => ({
+  code: "service-scope-change",
+  subject,
+});
+const accepted = () => ({ ...ready, markers: [] });
+function scopeWorld(
+  id: string,
+  goal: string,
+  baseline: Selectors,
+  candidate: Selectors,
+  expected: AuthoringWorld["expected"],
+  options: {
+    expectedScopes?: Selectors;
+    changes?: Tree;
+    contract?: Partial<AuthoringContract>;
+  } = {},
+) {
+  const { expectedScopes, changes, contract } = options;
+  return world(
+    `scope-${id}`,
+    goal,
+    scopedProgram(candidate, changes),
+    expected,
+    {
+      baseline: scopedProgram(baseline),
+      contract: {
+        requiredHelpers: [facts, source, lineage, release, summary],
+        ...(expectedScopes ? { expectedServiceScopes: expectedScopes } : {}),
+        ...contract,
+      },
+    },
+  );
+}
+
+managedAuthoringWorlds.push(
+  scopeWorld(
+    "drop-release-restriction",
+    "Check if the decision recorder remains the only callable with write access after the release refactor.",
+    { decisionWriter: [release] },
+    { decisionWriter: null },
+    changed(scopeFinding("decisionWriter")),
+  ),
+  scopeWorld(
+    "exact-to-call-chain",
+    "Check whether source credentials now propagate through the fact-check call chain.",
+    { sourceReader: [facts] },
+    { sourceReader: [subtree] },
+    changed(scopeFinding("sourceReader")),
+  ),
+  scopeWorld(
+    "remove-call-chain-access",
+    "Determine whether evidence readers invoked under the fact checker retain their inherited grant.",
+    { evidenceReader: [subtree] },
+    { evidenceReader: [facts] },
+    changed(scopeFinding("evidenceReader")),
+  ),
+  scopeWorld(
+    "add-sibling-writer",
+    "Check whether the summary stage now holds the decision service intended for the recorder.",
+    { decisionWriter: [release] },
+    { decisionWriter: [release, summary] },
+    changed(scopeFinding("decisionWriter")),
+  ),
+  scopeWorld(
+    "reorder-exact-readers",
+    "Review a manifest-only reordering of the two exact audit readers.",
+    { auditReader: [source, lineage] },
+    { auditReader: [lineage, source] },
+    accepted(),
+  ),
+  scopeWorld(
+    "dedupe-mixed-selectors",
+    "Check whether two repeated grant entries change the scope after manifest normalization.",
+    { intakeReader: [subtree, release] },
+    { intakeReader: [release, subtree, release, subtree] },
+    accepted(),
+  ),
+  scopeWorld(
+    "deny-all-regression",
+    "Check whether the disabled dispatch service can now be used by the review entry.",
+    { dispatcher: [] },
+    { dispatcher: [entry] },
+    changed(scopeFinding("dispatcher")),
+  ),
+  scopeWorld(
+    "deny-all-to-unrestricted",
+    "Distinguish removing the disabled webhook scope from continuing to deny it to every callable.",
+    { webhook: [] },
+    { webhook: null },
+    changed(scopeFinding("webhook")),
+  ),
+  scopeWorld(
+    "observe-approved-hardening",
+    "Apply the newly approved audit restriction and verify that the hardened candidate meets it.",
+    { auditReader: null },
+    { auditReader: [lineage] },
+    accepted(),
+    { expectedScopes: { auditReader: [lineage] } },
+  ),
+  scopeWorld(
+    "hardening-not-applied",
+    "Require the reviewer-only audit restriction even though the unconstrained candidate matches its previous revision.",
+    { auditReader: null },
+    { auditReader: null },
+    changed(scopeFinding("auditReader")),
+    { expectedScopes: { auditReader: [lineage] } },
+  ),
+  scopeWorld(
+    "two-independent-services",
+    "Review both authority changes when the reader moves to the root and the recorder stays bound but can no longer write.",
+    { sourceReader: [source], decisionWriter: [release] },
+    { sourceReader: [entry], decisionWriter: [] },
+    changed(scopeFinding("sourceReader"), scopeFinding("decisionWriter")),
+  ),
+  scopeWorld(
+    "explicit-one-inherited-other",
+    "Accept the new evidence-reader allocation while preserving the baseline restriction on report writes.",
+    { evidenceReader: [source], reportWriter: [summary] },
+    { evidenceReader: [lineage], reportWriter: [entry, summary] },
+    changed(scopeFinding("reportWriter")),
+    { expectedScopes: { evidenceReader: [lineage] } },
+  ),
+  scopeWorld(
+    "intentional-unrestricted-reader",
+    "Apply the approved unrestricted read contract and check that the writer remains pinned to the recorder.",
+    { sourceReader: [source], decisionWriter: [release] },
+    { sourceReader: null, decisionWriter: [release] },
+    accepted(),
+    { expectedScopes: { sourceReader: null } },
+  ),
+  scopeWorld(
+    "manifest-restricts-approved-public-reader",
+    "Report an unintended restriction on a service explicitly approved for any callable.",
+    { publicReference: null },
+    { publicReference: [facts] },
+    changed(scopeFinding("publicReference")),
+    { expectedScopes: { publicReference: null } },
+  ),
+  scopeWorld(
+    "declaration-and-remaining-grant",
+    "Identify the removed upstream reviewer, its unexpected replacement, and the retained publisher whose grant shifted.",
+    { upstreamAudit: [lineage], publisher: [release] },
+    { externalAudit: [lineage], publisher: [summary] },
+    changed(
+      { code: "missing-service", subject: "upstreamAudit" },
+      { code: "unexpected-service", subject: "externalAudit" },
+      scopeFinding("publisher"),
+    ),
+  ),
+  scopeWorld(
+    "two-declared-services-stable",
+    "Confirm that the archive still has no callable grant and the custodian remains confined to the source subtree despite an unrelated helper addition.",
+    { archiveStore: [], custodian: [subtree] },
+    { custodian: [subtree], archiveStore: [] },
+    accepted(),
+    {
+      changes: {
+        "review/checkFacts/explain.nl": callable(
+          "Explain source custody without side effects",
+        ),
+      },
+    },
+  ),
+  scopeWorld(
+    "authority-and-return",
+    "Check both the changed review return type and the moved recording grant before accepting the integration.",
+    { decisionWriter: [release] },
+    { decisionWriter: [summary] },
+    changed(scopeFinding("decisionWriter"), {
+      code: "return-change",
+      subject: entry,
+    }),
+    {
+      changes: {
+        [entry]: callable(
+          "Review the handoff",
+          "  text: string",
+          "{label: string}",
+        ),
+      },
+    },
+  ),
+  scopeWorld(
+    "authority-and-required-input",
+    "Check whether adding a required reviewer ID also gave callers broader intake permissions.",
+    { intakeReader: [facts] },
+    { intakeReader: [subtree] },
+    changed(scopeFinding("intakeReader"), {
+      code: "parameter-change",
+      subject: entry,
+    }),
+    {
+      changes: {
+        [entry]: callable(
+          "Review with an assigned reviewer",
+          "  text: string\n  reviewer: string",
+        ),
+      },
+    },
+  ),
+  scopeWorld(
+    "approval-revokes-stage-access",
+    "Confirm that a temporary declaration is still present for compatibility but callable access has been fully revoked.",
+    { dispatcher: [release] },
+    { dispatcher: [] },
+    accepted(),
+    { expectedScopes: { dispatcher: [] } },
+  ),
+  scopeWorld(
+    "explicit-no-baseline-protection",
+    "Use the assigned threat-review grant and disregard older permission allocations for other services.",
+    { threatReader: [source], reportWriter: [summary] },
+    { threatReader: [lineage], reportWriter: [] },
+    accepted(),
+    {
+      expectedScopes: { threatReader: [lineage] },
+      contract: { preserveBaseline: false },
+    },
+  ),
+);
+
+managedAuthoringWorlds.push(
+  world(
+    "scope-explicit-without-baseline",
+    "Review the new incident program against its assigned audit grant before any baseline exists.",
+    scopedProgram({ auditReader: [entry] }),
+    changed(scopeFinding("auditReader")),
+    { contract: { expectedServiceScopes: { auditReader: [lineage] } } },
+  ),
+  world(
+    "scope-empty-exact-without-baseline",
+    "Verify that a retained declaration for an inactive shipping integration grants access to no callable.",
+    scopedProgram({ shippingService: [] }),
+    accepted(),
+    { contract: { expectedServiceScopes: { shippingService: [] } } },
+  ),
+);
