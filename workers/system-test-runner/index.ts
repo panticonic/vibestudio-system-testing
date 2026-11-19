@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedArchitectureBoundaryReceiver } from "@workspace-skills/system-testing/architecture-boundary-managed";
 import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
 import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
 import type { ManagedAgenticChangeReceiver } from "@workspace-skills/system-testing/agentic-change-managed";
@@ -131,6 +132,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  ArchitectureBoundary: {kind:"domain",domain:"architecture",operation:"reviewArchitectureBoundary",input:{goal:"Review the assigned architecture boundary"}},
   ProblemDraft: {kind:"domain",domain:"problems",operation:"saveProblemDraft",input:{goal:"Save the assigned local report"}},
   ClientAdmission: {kind:"domain",domain:"clientDevelopment",operation:"reviewClientAdmission",input:{goal:"Review the assigned System client"}},
   ExtensionRelease: {kind:"domain",domain:"extensionDevelopment",operation:"reviewExtensionRelease",input:{goal:"Review the assigned extension release"}},
@@ -1934,6 +1936,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Release handoff belongs to another context");
       const prepared=await prepareReleaseReviewHandoff(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures assigned architecture ownership from the actual local route."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedArchitectureBoundaryTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedArchitectureBoundaryReceiver["runManagedArchitectureBoundaryTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.ArchitectureBoundary,
+      inputCode:"prepared.request",
+      bindingCode:this.managedArchitectureBoundaryBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedArchitectureBoundaryReceiver["runManagedArchitectureBoundaryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies installed architecture provider evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedArchitectureBoundary(input: {contextId:string;caseId:string}): ReturnType<ManagedArchitectureBoundaryReceiver["qualifyManagedArchitectureBoundary"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.ArchitectureBoundary],
+      this.managedArchitectureBoundaryBindings(input),
+    )) as Awaited<ReturnType<ManagedArchitectureBoundaryReceiver["qualifyManagedArchitectureBoundary"]>>;
+  }
+
+  private managedArchitectureBoundaryBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedArchitectureBoundary} from "@workspace-skills/system-testing/architecture-boundary-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Architecture review belongs to another context");
+      const prepared=await prepareManagedArchitectureBoundary(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }
