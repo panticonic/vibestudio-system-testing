@@ -1,3 +1,5 @@
+import { managedMissionPlanningMethods } from "./mission-planning-contract.js";
+import { managedMissionPlanningWorlds } from "./mission-planning-worlds.js";
 import { managedBrowserHandoffMethods } from "./browser-handoff-contract.js";
 import { managedBrowserHandoffWorlds } from "./browser-handoff-worlds.js";
 import { managedBrowserLibraryMethods } from "./browser-library-contract.js";
@@ -922,6 +924,21 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedBrowserHandoffMethods.qualifyManagedBrowserHandoff, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedBrowserHandoffMethods.runManagedBrowserHandoffTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedMissionPlanning(caseId: string, qualification: boolean, signal: AbortSignal) {
+    if (!managedMissionPlanningWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown mission planning case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedMissionPlanningMethods.qualifyManagedMissionPlanning, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedMissionPlanningMethods.runManagedMissionPlanningTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

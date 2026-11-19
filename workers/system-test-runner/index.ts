@@ -1,3 +1,4 @@
+import type { MissionPlanningInput, ManagedMissionPlanningReceiver } from "@workspace-skills/system-testing/mission-planning-contract";
 import type { BrowserHandoffInput, ManagedBrowserHandoffReceiver } from "@workspace-skills/system-testing/browser-handoff-contract";
 import type { BrowserLibraryInput, ManagedBrowserLibraryReceiver } from "@workspace-skills/system-testing/browser-library-contract";
 import type { CollectionInput, ManagedCollectionReceiver } from "@workspace-skills/system-testing/collection-contract";
@@ -1034,6 +1035,43 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.describe("skills/onboarding/prepareSetup/planSetup.nl");
       const utilityValue=await qualifyManagedSetup({vcs,observe:inspectInstalledSetup},actualContextId,input.caseId);
     `) as Awaited<ReturnType<ManagedSetupReceiver["qualifyManagedSetup"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reconciles assigned planning records in an owned Mission Control store."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedMissionPlanningTeacher(input: MissionPlanningInput & {executorModel:string}): ReturnType<ManagedMissionPlanningReceiver["runManagedMissionPlanningTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `
+      ${this.missionPlanningBindings(input)}
+      ${domainTeacherCode({
+        executorModel: input.executorModel,
+        work: {kind:"domain",domain:"missionPlanning",operation:"reconcileMissionPlan",input:{goal:"Reconcile the assigned Mission Control plan"}},
+        inputCode: "prepared.request",
+        bindingCode: "const assignedServices=prepared.services;",
+      },runId)}
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedMissionPlanningReceiver["runManagedMissionPlanningTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies revision-bound Mission Control changes without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedMissionPlanning(input: MissionPlanningInput): ReturnType<ManagedMissionPlanningReceiver["qualifyManagedMissionPlanning"]> {
+    return await this.runHarnessUtility("teacher", `
+      ${this.missionPlanningBindings(input)}
+      if (world.id===managedMissionPlanningWorlds[0]?.id)
+        await natlang.describe("skills/mission-planning/reconcileMissionPlan.nl");
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedMissionPlanningReceiver["qualifyManagedMissionPlanning"]>>;
+  }
+
+  private missionPlanningBindings(input: MissionPlanningInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedMissionPlanning} from "@workspace-skills/mission-planning-runtime/managed";
+      import {missionProjects,missionCards,managedMissionPlanningWorlds} from "@workspace-skills/system-testing/mission-planning-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Mission planning belongs to another context");
+      const world=managedMissionPlanningWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown mission planning assignment");
+      const prepared=await prepareManagedMissionPlanning(world,{projects:missionProjects,cards:missionCards});
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Executes the owned browser-reference handoff."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

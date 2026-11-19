@@ -1,3 +1,4 @@
+import { managedMissionPlanningTests } from "./tests/mission-planning-managed.js";
 import { managedBrowserHandoffTests } from "./tests/browser-handoff-managed.js";
 import { managedProvenanceHistoryTests } from "./tests/provenance-history-managed.js";
 import { managedRuntimeProgramTests } from "./tests/runtime-program-managed.js";
@@ -248,6 +249,7 @@ export function allTests(): TestCase[] {
     ...managedCollectionTests,
     ...managedBrowserLibraryTests,
     ...managedBrowserHandoffTests,
+    ...managedMissionPlanningTests,
     ...serverLogTests,
     ...problemReportingTests,
     ...webhookTests,
