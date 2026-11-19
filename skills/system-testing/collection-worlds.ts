@@ -236,3 +236,18 @@ export const managedCollectionWorlds = [
     ],
   ),
 ];
+
+export const collectionFieldReadbackWorld = world(
+  "preserve-renamed-subtree-and-neighbor-notes",
+  "Rename the Review drafts group, add a note to Checklist under its new parent, move the Intake Agenda into the same group, and record separate notes for the moved agenda and the Review agenda.",
+  [
+    [rename(draft, "Release drafts"), edit("rename", "drafts")],
+    [note(ref("Checklist", "Release drafts"), "Checklist stays with the release"), edit("note", "checklist")],
+    [move(intakeAgenda, ref("Release drafts"), ref("Checklist", "Release drafts")),
+      moved("in-agenda", "drafts", "checklist")],
+    [note(ref("Agenda", "Release drafts"), "Moved from Intake"), edit("note", "in-agenda")],
+    [note(reviewAgenda, "Retain as the review agenda"), edit("note", "re-agenda")],
+  ],
+);
+
+managedCollectionWorlds.push(collectionFieldReadbackWorld);

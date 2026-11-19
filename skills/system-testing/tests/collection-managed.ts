@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedCollectionReceiver } from "../collection-contract.js";
-import { managedCollectionWorlds } from "../collection-worlds.js";
+import {
+  collectionFieldReadbackWorld,
+  managedCollectionWorlds,
+} from "../collection-worlds.js";
 import {
   panelControlAuthorityPolicy,
   PANEL_AUTOMATION_RESOURCE,
@@ -74,49 +77,56 @@ export const managedCollectionTests: TestCase[] = managedCollectionWorlds.map(
   }),
 );
 
-managedCollectionTests.push({
-  ...settings,
-  name: "collection-managed-oracle-qualification",
-  description: "Qualify live scoped collection changes without a model",
-  prompt:
-    "Check valid panel tree changes and refusal of changes outside the collection.",
-  async orchestrate(context) {
-    const started = Date.now();
-    const rows: Qualification[] = [];
-    for (const { id } of managedCollectionWorlds) {
-      try {
-        const run = await context.runner.runManagedCollection(
-          id,
-          true,
-          context.signal,
-        );
-        if (run.kind !== "reference")
-          throw new Error("Qualification invoked a teacher");
-        rows.push(run.result);
-      } catch (cause) {
-        throw new Error(`Collection qualification failed for ${id}`, { cause });
+function qualifyCollection(name: string, worlds: readonly { id: string }[]): TestCase {
+  return {
+    ...settings,
+    name,
+    description: "Qualify live scoped collection changes without a model",
+    prompt:
+      "Check valid panel tree changes and refusal of changes outside the collection.",
+    async orchestrate(context) {
+      const started = Date.now();
+      const rows: Qualification[] = [];
+      for (const { id } of worlds) {
+        try {
+          const run = await context.runner.runManagedCollection(
+            id,
+            true,
+            context.signal,
+          );
+          if (run.kind !== "reference")
+            throw new Error("Qualification invoked a teacher");
+          rows.push(run.result);
+        } catch (cause) {
+          throw new Error(`Collection qualification failed for ${id}`, { cause });
+        }
       }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { collectionQualification: rows },
-    };
-  },
-  validate(result) {
-    const rows = result.diagnostics?.["collectionQualification"] as
-      | Qualification[]
-      | undefined;
-    return rows?.length === managedCollectionWorlds.length &&
-      rows.every(
-        ({ verification, rejectsOutside, rejectsWrongReceipt }) =>
-          verification.passed && rejectsOutside && rejectsWrongReceipt,
-      )
-      ? { passed: true, details: { checkedCases: rows.length, modelCalls: 0 } }
-      : {
-          passed: false,
-          reason: "Collection effects or scope verification did not match.",
-          details: { rows },
-        };
-  },
-});
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { collectionQualification: rows },
+      };
+    },
+    validate(result) {
+      const rows = result.diagnostics?.["collectionQualification"] as
+        | Qualification[]
+        | undefined;
+      return rows?.length === worlds.length &&
+        rows.every(
+          ({ verification, rejectsOutside, rejectsWrongReceipt }) =>
+            verification.passed && rejectsOutside && rejectsWrongReceipt,
+        )
+        ? { passed: true, details: { checkedCases: rows.length, modelCalls: 0 } }
+        : {
+            passed: false,
+            reason: "Collection effects or scope verification did not match.",
+            details: { rows },
+          };
+    },
+  };
+}
+
+managedCollectionTests.push(
+  qualifyCollection("collection-managed-oracle-qualification", managedCollectionWorlds),
+  qualifyCollection("collection-field-readback-oracle-qualification", [collectionFieldReadbackWorld]),
+);
