@@ -63,42 +63,58 @@ export const managedClientAdmissionTests: TestCase[] =
     },
   }));
 
-managedClientAdmissionTests.push({
-  ...settings,
-  name: "client-admission-oracle-qualification",
-  description:
-    "Qualify published client and host contract readbacks without model calls",
-  prompt:
-    "Join the assigned client manifest, published trust and build catalog.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const { id } of managedClientAdmissionWorlds) {
-      const run = await runner.runManagedClientAdmission(id, true, signal);
-      if (run.kind !== "reference")
-        throw new Error("Client admission qualification invoked a teacher");
-      checks.push(run.result);
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { clientAdmissionQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["clientAdmissionQualification"] as
-      | Qualification[]
-      | undefined;
-    return {
-      passed:
-        checks?.length === managedClientAdmissionWorlds.length &&
-        checks.every(
-          ({ verification, rejectedForeignScope, rejectedWrongDecision }) =>
-            verification.passed &&
-            rejectedForeignScope &&
-            rejectedWrongDecision,
-        ),
-      details: { checks },
-    };
-  },
-});
+function qualifyClientAdmission(
+  name: string,
+  worlds: readonly { id: string }[],
+): TestCase {
+  return {
+    ...settings,
+    name,
+    timeoutMs: worlds.length === 1 ? settings.timeoutMs : null,
+    description:
+      "Qualify published client and host contract readbacks without model calls",
+    prompt:
+      "Join the assigned client manifest, published trust and build catalog.",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const { id } of worlds) {
+        const run = await runner.runManagedClientAdmission(id, true, signal);
+        if (run.kind !== "reference")
+          throw new Error("Client admission qualification invoked a teacher");
+        checks.push(run.result);
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { clientAdmissionQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["clientAdmissionQualification"] as
+        | Qualification[]
+        | undefined;
+      return {
+        passed:
+          checks?.length === worlds.length &&
+          checks.every(
+            ({ verification, rejectedForeignScope, rejectedWrongDecision }) =>
+              verification.passed &&
+              rejectedForeignScope &&
+              rejectedWrongDecision,
+          ),
+        details: { checks },
+      };
+    },
+  };
+}
+
+managedClientAdmissionTests.push(
+  qualifyClientAdmission(
+    "client-admission-oracle-qualification",
+    managedClientAdmissionWorlds,
+  ),
+  ...managedClientAdmissionWorlds.map((world) =>
+    qualifyClientAdmission(`client-admission-oracle-${world.id}`, [world])
+  ),
+);
