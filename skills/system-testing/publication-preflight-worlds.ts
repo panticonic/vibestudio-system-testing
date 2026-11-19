@@ -6,8 +6,12 @@ type World = {
   requiredCaption: string;
   audience: string;
   expectedBlockers: string[];
+  labels?: { id: string; text: string; packageOnly?: true }[];
+  expectedVisual?: "Checklist" | "Timeline" | "Compare" | "Prose";
   denyEntry?: boolean;
   anotherDestination?: boolean;
+  approvalMismatch?: "provider" | "environment";
+  deliveredPackage?: "without-html" | "changed-manifest";
   checkExisting?: boolean;
 };
 
@@ -69,5 +73,169 @@ export const managedPublicationWorlds: World[] = [
     goal: "Check the visible units and the complete approved file inventory in the assigned preview.",
     expectedBlockers: ["missing-presentation", "public-paths"],
     denyEntry: true,
+  },
+  {
+    id: "per-stop-accessibility",
+    title: "Station access board",
+    caption: "Station access by stop",
+    requiredCaption: "Station access by stop",
+    labels: [
+      { id: "step-free", text: "Step-free entry through Bay 4" },
+      { id: "contact", text: "Ring the blue help point" },
+    ],
+    audience: "Passengers using the station independently",
+    goal: "Give a short readiness verdict for the station board. Verify the accessible entrance and help point in the reviewed panel.",
+    expectedBlockers: [],
+    expectedVisual: "Prose",
+  },
+  {
+    id: "package-only-interpretation",
+    title: "Flood observation board",
+    caption: "Current monitoring stations",
+    requiredCaption: "Current monitoring stations",
+    labels: [
+      { id: "unit", text: "Height above gauge zero in meters" },
+      {
+        id: "stale",
+        text: "Gray readings are older than 24 hours",
+        packageOnly: true,
+      },
+    ],
+    audience: "Readers comparing local observation stations",
+    goal: "Check the exact rendered preview for measurement units and how to identify stale readings. Hold the review if either label belongs only to the package.",
+    expectedBlockers: ["missing-presentation"],
+  },
+  {
+    id: "preview-versus-production",
+    title: "Collection transfer guide",
+    caption: "Partner review copy",
+    requiredCaption: "Partner review copy",
+    labels: [{ id: "transfer", text: "Final transfer date remains pending" }],
+    audience: "Partner reviewers",
+    goal: "Compare what is confirmed for preview versus production. Assess this assigned preview using the current package and observed notice and distinguish pending production.",
+    expectedBlockers: [],
+    expectedVisual: "Compare",
+  },
+  {
+    id: "production-approval-scope",
+    title: "Seasonal collection hours",
+    caption: "Summer hours begin June 1",
+    requiredCaption: "Summer hours begin June 1",
+    audience: "Members checking opening hours",
+    goal: "Check whether the exact existing approval covers this preview environment before assessing its readiness.",
+    expectedBlockers: ["different-request"],
+    expectedVisual: "Prose",
+    approvalMismatch: "environment",
+  },
+  {
+    id: "provider-approval-scope",
+    title: "Partner notice board",
+    caption: "Current notice for invited partners",
+    requiredCaption: "Current notice for invited partners",
+    audience: "Invited partner coordinators",
+    goal: "Require approval for the requested preview provider, even when the destination text matches.",
+    expectedBlockers: ["different-request"],
+    expectedVisual: "Prose",
+    approvalMismatch: "provider",
+  },
+  {
+    id: "preview-html-delivery-gap",
+    title: "Community survey summary",
+    caption: "Percentages use submitted responses",
+    requiredCaption: "Percentages use submitted responses",
+    audience: "Survey participants",
+    goal: "List what must be repaired in the delivered public files before review. Require both a valid manifest and an HTML entry.",
+    expectedBlockers: ["html-entry", "public-manifest"],
+    expectedVisual: "Checklist",
+    deliveredPackage: "without-html",
+  },
+  {
+    id: "changed-public-manifest",
+    title: "Reading-room allocation",
+    caption: "Counts are per reading room",
+    requiredCaption: "Counts are per reading room",
+    audience: "Readers arranging a visit",
+    goal: "Verify that the delivered manifest still describes the built reading-room site before clearing review.",
+    expectedBlockers: ["public-manifest"],
+    deliveredPackage: "changed-manifest",
+  },
+  {
+    id: "release-checklist-compound",
+    title: "Collection statistics preview",
+    caption: "Annual accession totals",
+    requiredCaption: "Annual accession totals",
+    labels: [
+      {
+        id: "denominator",
+        text: "Counts exclude transfers between sites",
+        packageOnly: true,
+      },
+      { id: "date", text: "Series ends on 31 December", packageOnly: true },
+    ],
+    audience: "Researchers interpreting the accession series",
+    goal: "Make a checklist of every independent blocker across the preview labels, approved paths, and delivered manifest.",
+    expectedBlockers: [
+      "missing-presentation",
+      "public-paths",
+      "public-manifest",
+    ],
+    expectedVisual: "Checklist",
+    denyEntry: true,
+    deliveredPackage: "changed-manifest",
+  },
+  {
+    id: "progress-without-submission",
+    title: "Event admission update",
+    caption: "Preview schedule for invited reviewers",
+    requiredCaption: "Preview schedule for invited reviewers",
+    audience: "Event coordinators",
+    goal: "Show publication progress by phase for the exact preview operation. Report which phase is evidenced and where progress stops.",
+    expectedBlockers: ["missing-publication"],
+    expectedVisual: "Timeline",
+    checkExisting: true,
+  },
+  {
+    id: "progress-and-audience-blocker",
+    title: "Grounds closure notice",
+    caption: "Closures this weekend",
+    requiredCaption: "Closures this weekend",
+    labels: [
+      {
+        id: "detour",
+        text: "Accessible detour starts at Gate B",
+        packageOnly: true,
+      },
+    ],
+    audience: "Visitors planning an accessible route",
+    goal: "Check the existing publication and list the missing prerequisites for confirming it, including the accessible detour.",
+    expectedBlockers: ["missing-presentation", "missing-publication"],
+    expectedVisual: "Checklist",
+    checkExisting: true,
+  },
+  {
+    id: "preview-with-timezone-and-cutoff",
+    title: "Application window",
+    caption: "Remaining days for applicants",
+    requiredCaption: "Remaining days for applicants",
+    labels: [
+      { id: "timezone", text: "All times are UTC" },
+      { id: "cutoff", text: "Applications close at 17:00 UTC" },
+      { id: "audience", text: "Open to returning participants" },
+    ],
+    audience: "Returning participants checking the deadline",
+    goal: "Review the assigned deadline panel and its package for the applicable audience, time zone, and cutoff.",
+    expectedBlockers: [],
+  },
+  {
+    id: "review-order-on-wrong-destination",
+    title: "Maintenance notices",
+    caption: "Planned work",
+    requiredCaption: "Dates separately confirmed",
+    audience: "Maintenance partners",
+    goal: "Determine whether the existing approval can be used for this destination before assessing any file or label issues.",
+    expectedBlockers: ["different-request"],
+    expectedVisual: "Prose",
+    anotherDestination: true,
+    deliveredPackage: "without-html",
   },
 ];

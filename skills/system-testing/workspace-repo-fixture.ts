@@ -1291,15 +1291,30 @@ function repositorySeedFiles(
     config.vibestudio.website = { entry: "website.ts", title: world.title };
     return [
       { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
-      { path: "copy.ts", content: `export const copy = ${JSON.stringify({title:world.title,caption:world.caption})};\n` },
+      { path: "copy.ts", content: `export const copy = ${JSON.stringify({
+        title: world.title,
+        caption: world.caption,
+        panelLabels: (world.labels ?? []).filter(({ packageOnly }) => !packageOnly).map(({ text }) => text),
+        publicLabels: (world.labels ?? []).map(({ text }) => text),
+      })};\n` },
       { path: "index.tsx", content: `import { copy } from "./copy.js";
-export default function ReviewPanel() { return <main><h1>{copy.title}</h1><p>{copy.caption}</p></main>; }\n` },
+export default function ReviewPanel() {
+  return <main><h1>{copy.title}</h1><p>{copy.caption}</p>
+    {copy.panelLabels.map((label) => <p key={label}>{label}</p>)}
+  </main>;
+}\n` },
       { path: "website.ts", content: `import { copy } from "./copy.js";
 const title = document.createElement("h1");
 title.textContent = copy.title;
 const caption = document.createElement("p");
 caption.textContent = copy.caption;
-document.getElementById("root")!.append(title, caption);\n` },
+const root = document.getElementById("root")!;
+root.append(title, caption);
+for (const label of copy.publicLabels) {
+  const paragraph = document.createElement("p");
+  paragraph.textContent = label;
+  root.append(paragraph);
+}\n` },
     ];
   }
   if (fixture.kind === "presentation-preview-panel") {

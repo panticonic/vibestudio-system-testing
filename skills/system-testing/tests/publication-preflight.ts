@@ -107,11 +107,5 @@ function makeCase(
 }
 export const managedPublicationTests: TestCase[] = [
   ...managedPublicationWorlds.map((world) => makeCase(world, false)),
-  ...managedPublicationWorlds
-    .filter(({ id }) =>
-      ["review-ready", "two-review-blockers", "no-existing-receipt"].includes(
-        id,
-      ),
-    )
-    .map((world) => makeCase(world, true)),
+  ...managedPublicationWorlds.map((world) => makeCase(world, true)),
 ];

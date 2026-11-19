@@ -11,7 +11,12 @@ import { managedPublicationWorlds } from "./publication-preflight-worlds.js";
 
 type Rpc = Pick<typeof RuntimeRpc, "call" | "stream">;
 type Panel = Pick<PanelHandle, "observe" | "snapshot">;
-type Report = { status: string; blockers: string[]; evidence: string[] };
+type Report = {
+  status: string;
+  blockers: string[];
+  evidence: string[];
+  visual?: string;
+};
 
 export async function prepareManagedPublication(
   rpc: Rpc,
@@ -63,25 +68,54 @@ export async function prepareManagedPublication(
     action: world.checkExisting ? "check-existing" : "prepare",
     intendedDestination: intent,
   };
+  const reviewedIntent = {
+    provider:
+      world.approvalMismatch === "provider"
+        ? "other-provider"
+        : intent.provider,
+    destination: world.anotherDestination
+      ? "managed-review/other"
+      : intent.destination,
+    environment:
+      world.approvalMismatch === "environment"
+        ? ("production" as const)
+        : intent.environment,
+  };
+  // Deliver controlled packaging faults after the canonical build has been captured.
+  const delivered = {
+    ...artifact,
+    files: artifact.files
+      .filter(
+        ({ path }) =>
+          world.deliveredPackage !== "without-html" || path !== "index.html",
+      )
+      .map((file) =>
+        world.deliveredPackage === "changed-manifest" &&
+        file.path === "vibestudio-build.json"
+          ? { ...file, bytes: new TextEncoder().encode("{}") }
+          : file,
+      ),
+  };
   let reads = 0;
   const service = createWebsiteReadback(
     {
       reviewedSourceHash: build.sourceStateHash,
       requestedIntent: intent,
-      reviewedIntent: world.anotherDestination
-        ? { ...intent, destination: "managed-review/other" }
-        : intent,
+      reviewedIntent,
       panelId: reviewedPanel.panelId,
       panelRef: ref,
       panelBuildKey: reviewedPanel.buildKey,
       approvedPaths,
-      presentationProbes: [{ id: "caption", text: world.requiredCaption }],
+      presentationProbes: [
+        { id: "caption", text: world.requiredCaption },
+        ...(world.labels ?? []).map(({ id, text }) => ({ id, text })),
+      ],
       operationId: world.checkExisting ? "unissued-managed-review" : null,
     },
     {
       async readPackage() {
         reads++;
-        return artifact;
+        return delivered;
       },
       async readPanel() {
         const snapshot = await panel.snapshot();
@@ -131,7 +165,11 @@ export async function verifyManagedPublication(
       capture.buildKey === latest.buildKey &&
       capture.document.text.includes(world.title) &&
       capture.document.text.includes(world.requiredCaption) ===
-        (world.caption === world.requiredCaption),
+        (world.caption === world.requiredCaption) &&
+      (world.labels ?? []).every(
+        ({ text, packageOnly }) =>
+          capture.document.text.includes(text) === !packageOnly,
+      ),
     localArtifactRepeatable:
       built.artifactDigest === artifact.artifactDigest &&
       built.privateReceipt.sourceStateHash ===
@@ -143,7 +181,8 @@ export async function verifyManagedPublication(
       report?.status === (expected.length ? "blocked" : "ready-for-review") &&
       Array.isArray(report.blockers) &&
       isDeepStrictEqual([...report.blockers].sort(), [...expected].sort()) &&
-      (world.anotherDestination ||
+      (!world.expectedVisual || report.visual === world.expectedVisual) &&
+      (expected.includes("different-request") ||
         report.evidence?.some((item) =>
           item.includes(artifact.artifactDigest),
         )),
@@ -156,6 +195,7 @@ export async function verifyManagedPublication(
     artifactDigest: artifact.artifactDigest,
     publicPaths: artifact.files.map(({ path }) => path),
     panelAttempt: latest.attemptId,
+    visual: report?.visual ?? null,
   };
 }
 
@@ -185,6 +225,7 @@ export async function qualifyManagedPublication(
     status: blockers.length ? "blocked" : "ready-for-review",
     blockers,
     evidence: [artifact.artifactDigest],
+    visual: prepared.world.expectedVisual,
   };
   const accepted = await verifyManagedPublication(
     rpc,
