@@ -3,6 +3,12 @@ export const tendrilPanel = "panels/tendril-workflow-fixture";
 type Value = string | number | boolean;
 type Step =
   | { kind: "read" }
+  | {
+      kind: "update";
+      candidate: "review-layout" | "incident-layout" | "broken-boot";
+      expectedBuild: string;
+    }
+  | { kind: "restore"; expectedBuild: string }
   | { kind: "write"; field: { key: string; value: Value } }
   | { kind: "invoke"; name: string; expected: { key: string; value: Value } };
 
@@ -32,6 +38,37 @@ function world(id: string, goal: string, steps: Step[]) {
       steps,
     },
   };
+}
+
+export const tendrilCandidateBuild = {
+  "review-layout": "board-review",
+  "incident-layout": "board-incident",
+  "broken-boot": "board-broken",
+} as const;
+const reviewLayout: Step = {
+  kind: "update",
+  candidate: "review-layout",
+  expectedBuild: "board-review",
+};
+const incidentLayout: Step = {
+  kind: "update",
+  candidate: "incident-layout",
+  expectedBuild: "board-incident",
+};
+const brokenBuild: Step = {
+  kind: "update",
+  candidate: "broken-boot",
+  expectedBuild: "board-broken",
+};
+const restore = (expectedBuild: string): Step => ({
+  kind: "restore",
+  expectedBuild,
+});
+
+export function hasTendrilBuildSteps(request: { steps: Step[] }) {
+  return request.steps.some(
+    ({ kind }) => kind === "update" || kind === "restore",
+  );
 }
 
 export const managedTendrilWorlds = [
@@ -105,5 +142,63 @@ export const managedTendrilWorlds = [
     "inspect-without-changes",
     "Present the empty board and verify the initial screen without editing shared state or invoking a control.",
     [read],
+  ),
+  world(
+    "publish-review-layout",
+    "Publish the review layout on the live handoff board, keeping the agenda and confirmation visible.",
+    [write("label", "Review agenda"), confirm, reviewLayout, read],
+  ),
+  world(
+    "retire-bad-during-intake",
+    "Try the staged intake build. If it cannot boot, confirm the original board and its intake phase survived.",
+    [intake, write("label", "Intake receipts"), brokenBuild, read],
+  ),
+  world(
+    "restore-previous-layout",
+    "Review the new layout, update the active timer, and go back to the previous layout while keeping the new timer.",
+    [
+      write("minutes", 10),
+      reviewLayout,
+      write("minutes", 18),
+      restore("board-v1"),
+      read,
+    ],
+  ),
+  world(
+    "revert-to-last-good-release",
+    "Install the review layout first. If the next build fails, verify rollback to that layout and continue with the exposed acknowledge control.",
+    [startReview, reviewLayout, brokenBuild, confirm],
+  ),
+  world(
+    "recover-from-failed-candidate",
+    "Try the broken candidate before deploying the incident layout. Ensure the incident label survives the failure and the later successful build.",
+    [write("label", "Incident 09"), brokenBuild, incidentLayout, read],
+  ),
+  world(
+    "undo-after-two-live-builds",
+    "Install two consecutive layouts and return to the first new layout, preserving the board's confirmation and timer across the history jump.",
+    [
+      reviewLayout,
+      confirm,
+      incidentLayout,
+      write("minutes", 27),
+      restore("board-review"),
+    ],
+  ),
+  world(
+    "clear-after-rollback",
+    "Set the incident timer, attempt the new build, and clear the timer using the control on the restored page if the build fails.",
+    [incidentLayout, write("minutes", 16), brokenBuild, clearTimer, read],
+  ),
+  world(
+    "write-after-explicit-restore",
+    "Open the incident layout, restore the original page, and set the saved intake state on the restored presentation.",
+    [
+      incidentLayout,
+      restore("board-v1"),
+      intake,
+      write("label", "After review"),
+      read,
+    ],
   ),
 ];

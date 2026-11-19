@@ -1,9 +1,14 @@
 import type { TestCase } from "../types.js";
 import type { ManagedTendrilReceiver } from "../tendril-contract.js";
-import { managedTendrilWorlds, tendrilPanel } from "../tendril-worlds.js";
+import {
+  hasTendrilBuildSteps,
+  managedTendrilWorlds,
+  tendrilPanel,
+} from "../tendril-worlds.js";
 import {
   panelControlAuthorityPolicy,
   PANEL_AUTOMATION_RESOURCE,
+  PANEL_RUNTIME_SUPERVISION_AUTHORITY,
 } from "../panel-authority.js";
 
 type Exercise = Awaited<
@@ -18,7 +23,9 @@ const settings = {
   validation: "harness" as const,
   requiresUnits: [tendrilPanel, "workers/tendril"],
   resources: [PANEL_AUTOMATION_RESOURCE],
-  authorityPolicy: panelControlAuthorityPolicy("inspect-owned-tendril"),
+  authorityPolicy: panelControlAuthorityPolicy("inspect-owned-tendril", [
+    PANEL_RUNTIME_SUPERVISION_AUTHORITY,
+  ]),
 };
 
 export const managedTendrilTests: TestCase[] = managedTendrilWorlds.map(
@@ -73,53 +80,71 @@ export const managedTendrilTests: TestCase[] = managedTendrilWorlds.map(
   }),
 );
 
-managedTendrilTests.push({
-  ...settings,
-  name: "tendril-managed-oracle-qualification",
-  description: "Qualify the owned Tendril on a live presentation target",
-  prompt:
-    "Verify the live board, its exposed controls and exact durable state effects.",
-  async orchestrate(context) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const { id } of managedTendrilWorlds) {
-      try {
-        const run = await context.runner.runManagedTendril(
-          id,
-          true,
-          context.signal,
-        );
-        if (run.kind !== "reference")
-          throw new Error("Qualification invoked a teacher");
-        checks.push(run.result);
-      } catch (cause) {
-        throw new Error(`Tendril qualification failed for ${id}`, { cause });
-      }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { tendrilQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["tendrilQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedTendrilWorlds.length &&
-      checks.every(
-        ({ verification, rejectsOtherSlot }) =>
-          verification.passed && rejectsOtherSlot,
-      )
-      ? {
-          passed: true,
-          details: { checkedCases: checks.length, modelCalls: 0 },
+function qualification(
+  name: string,
+  worlds: typeof managedTendrilWorlds,
+): TestCase {
+  return {
+    ...settings,
+    name,
+    description: "Qualify the owned Tendril on a live presentation target",
+    prompt:
+      "Verify the live board, its exposed controls and exact durable state effects.",
+    async orchestrate(context) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const { id } of worlds) {
+        try {
+          const run = await context.runner.runManagedTendril(
+            id,
+            true,
+            context.signal,
+          );
+          if (run.kind !== "reference")
+            throw new Error("Qualification invoked a teacher");
+          checks.push(run.result);
+        } catch (cause) {
+          throw new Error(`Tendril qualification failed for ${id}`, { cause });
         }
-      : {
-          passed: false,
-          reason:
-            "Tendril did not verify the live effects and reject an unrelated slot.",
-          details: { checks },
-        };
-  },
-});
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { tendrilQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["tendrilQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verification, rejectsOtherSlot }) =>
+            verification.passed && rejectsOtherSlot,
+        )
+        ? {
+            passed: true,
+            details: { checkedCases: checks.length, modelCalls: 0 },
+          }
+        : {
+            passed: false,
+            reason:
+              "Tendril did not verify the live effects and reject an unrelated slot.",
+            details: { checks },
+          };
+    },
+  };
+}
+
+managedTendrilTests.push(
+  qualification(
+    "tendril-managed-oracle-qualification",
+    managedTendrilWorlds.filter(
+      ({ request }) => !hasTendrilBuildSteps(request),
+    ),
+  ),
+  qualification(
+    "tendril-build-managed-oracle-qualification",
+    managedTendrilWorlds.filter(({ request }) => hasTendrilBuildSteps(request)),
+  ),
+);

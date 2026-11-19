@@ -898,11 +898,14 @@ export class HeadlessRunner {
     const channelId = `natlang-tendril-${crypto.randomUUID()}`;
     let warm: Awaited<ReturnType<typeof openPanel>> | undefined;
     try {
-      // Opening an ordinary workspace panel starts the managed headless device.
-      warm = await this.openPanelClient("about/workspace", {
-        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
-      });
-      await waitForText(warm, "Workspace");
+      const devices = await rpc.call("main", mainRpcMethods["panelRuntime.listPresentationTargets"], []);
+      if (!devices.some((device) => device.platform === "headless" && device.online)) {
+        // The first ordinary panel starts the managed headless device.
+        warm = await this.openPanelClient("about/workspace", {
+          contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+        });
+        await waitForText(warm, "Workspace");
+      }
       const owner = await this.createFixtureWorker(contextId);
       const channel = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{
         kind: "do", execution: { surface: "code", source: "workers/pubsub-channel" },
