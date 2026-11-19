@@ -32,7 +32,7 @@ export function prepareManagedChecklist(caseId: string, signal?: AbortSignal) {
   let attachment: AttachedTerminalScreen | undefined;
   let launched = false;
   let continued = false;
-  let sent = 0;
+  const sent: ItemKey[] = [];
   const screens: Readback[] = [];
 
   function live() {
@@ -59,6 +59,7 @@ export function prepareManagedChecklist(caseId: string, signal?: AbortSignal) {
   async function observe(
     size: typeof launchSize,
     edit?: { revision: number; key: ItemKey; checked: boolean },
+    record = true,
   ) {
     const identity = live();
     const current = attachment?.screen;
@@ -89,7 +90,7 @@ export function prepareManagedChecklist(caseId: string, signal?: AbortSignal) {
       .filter((match) => match[2] === "x")
       .map((match) => match[1] as ItemKey);
     const receipt = { ...identity, ...size, checked };
-    screens.push(receipt);
+    if (record) screens.push(receipt);
     return structuredClone(receipt);
   }
 
@@ -108,14 +109,28 @@ export function prepareManagedChecklist(caseId: string, signal?: AbortSignal) {
           live().ptyId,
           launchSize,
         );
-        return observe(launchSize);
+        if (!world.setup.length) return observe(launchSize);
+        let initial = await observe(launchSize, undefined, false);
+        for (const key of world.setup) {
+          if (initial.checked.includes(key))
+            throw new Error("The owned checklist already contains a seed item");
+          const revision = attachment.screen.revision;
+          await shell.write(live().ptyId, key);
+          initial = await observe(
+            launchSize,
+            { revision, key, checked: true },
+            false,
+          );
+        }
+        screens.push(initial);
+        return structuredClone(initial);
       },
     },
     checklistKeys: {
       async toggle(key: ItemKey) {
-        if (!attachment || continued || world.request.keys[sent] !== key)
+        if (!attachment || continued || world.keys[sent.length] !== key)
           throw new Error("Use the next assigned key on the owned checklist.");
-        ++sent;
+        sent.push(key);
         const revision = attachment.screen.revision;
         const checked = !screens.at(-1)?.checked.includes(key);
         await shell.write(live().ptyId, key);
@@ -128,7 +143,7 @@ export function prepareManagedChecklist(caseId: string, signal?: AbortSignal) {
           !attachment ||
           continued ||
           kind !== world.request.continuation ||
-          sent !== world.request.keys.length
+          sent.length !== world.keys.length
         )
           throw new Error(
             "Continue only the assigned terminal after its recorded keys.",
@@ -155,6 +170,7 @@ export function prepareManagedChecklist(caseId: string, signal?: AbortSignal) {
     world,
     request: world.request,
     screens,
+    sent,
     services,
     async close() {
       const owned = session?.sessionId;
@@ -190,9 +206,25 @@ export function verifyManagedChecklist(
   const report = value as Report | null;
   const first = screens[0];
   const continued = world.request.continuation !== "none";
-  const steady = screens.slice(0, 1 + world.request.keys.length);
+  const steady = screens.slice(0, 1 + world.keys.length);
   const last = screens.at(-1);
+  const target = "target" in world.request ? world.request.target : null;
+  const finalTarget =
+    !target ||
+    Boolean(
+      first &&
+      last &&
+      (["1", "2", "3"] as const).every((key) => {
+        const wasChecked = first.checked.includes(key);
+        const isChecked = last.checked.includes(key);
+        if (target.checked.includes(key)) return isChecked;
+        if (target.unchecked.includes(key)) return !isChecked;
+        return wasChecked === isChecked;
+      }),
+    );
   const checks = {
+    assignedKeys: same(prepared.sent, world.keys),
+    finalTarget,
     exactScreenSequence: same(
       screens.map(({ checked }) => checked),
       world.expected,
@@ -238,6 +270,7 @@ export function verifyManagedChecklist(
     passed: Object.values(checks).every(Boolean),
     sessionId: first?.sessionId ?? null,
     screens,
+    sent: prepared.sent,
     continuation: world.request.continuation,
   };
 }
@@ -250,7 +283,7 @@ export async function qualifyManagedChecklist(
   let retired = false;
   try {
     await prepared.services.checklistOpen.launch();
-    for (const key of prepared.request.keys)
+    for (const key of prepared.world.keys)
       await prepared.services.checklistKeys.toggle(key);
     const mode = prepared.request.continuation;
     if (mode !== "none") await prepared.services.checklistResume.resume(mode);
