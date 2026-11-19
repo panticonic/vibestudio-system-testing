@@ -1,3 +1,4 @@
+import { managedPhoneSetupMethods } from "./phone-setup-managed.js";
 import { testkitCleanupMethods } from "./testkit-cleanup-contract.js";
 import { sessionReplayMethods } from "./session-replay-contract.js";
 import { exerciseSessionReplay } from "./session-replay-managed.js";
@@ -1072,6 +1073,21 @@ export class HeadlessRunner {
         if (failure === undefined) throw cleanupError;
         throw new Error(`News review failed (${String(failure)}) and cleanup failed (${String(cleanupError)})`, { cause: failure });
       }
+    }
+  }
+
+  async runManagedPhoneSetup(qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [
+      testPolicy ? { testPolicy } : {},
+    ]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedPhoneSetupMethods.qualifyManagedPhoneSetup, [{ contextId }], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedPhoneSetupMethods.runManagedPhoneSetupTeacher, [{ contextId, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 

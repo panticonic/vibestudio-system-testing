@@ -47,6 +47,7 @@
     }
   },
   "exports": {
+    "./phone-setup-managed": "./phone-setup-managed.ts",
     "./news-worlds": "./news-worlds.ts",
     "./news-contract": "./news-contract.ts",
     "./provenance-history-contract": "./provenance-history-contract.ts",

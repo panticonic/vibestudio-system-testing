@@ -1,3 +1,4 @@
+import { managedPhoneSetupTests } from "./tests/phone-setup-managed.js";
 import { managedTestkitCleanupTests } from "./tests/testkit-cleanup-managed.js";
 import { managedSessionReplayTests } from "./tests/session-replay-managed.js";
 import { managedPanelHealthTests } from "./tests/panel-health-managed.js";
@@ -212,6 +213,7 @@ export function allTests(): TestCase[] {
   ...managedAuthoringTests,
   ...managedSessionReplayTests,
   ...managedTestkitCleanupTests,
+  ...managedPhoneSetupTests,
   ...managedMemoryTests,
   ...managedChecklistTests,
   ...managedGrimoireTests,

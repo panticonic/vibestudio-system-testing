@@ -1,3 +1,4 @@
+import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
 import type { TestkitCleanupInput, ManagedTestkitCleanupReceiver } from "@workspace-skills/system-testing/testkit-cleanup-contract";
 import type { SessionReplayInput, ManagedSessionReplayReceiver } from "@workspace-skills/system-testing/session-replay-contract";
 import type { PanelHealthInput, ManagedPanelHealthReceiver } from "@workspace-skills/system-testing/panel-health-contract";
@@ -1754,6 +1755,65 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(!world) throw new Error("Unknown host log audit");
       const prepared=prepareManagedLogAudit(filter=>rpc.call("main",mainRpcMethods["serverLog.query"],[filter]),actualContextId,world,${JSON.stringify(seed)});
       const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned read-only phone setup task."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedPhoneSetupTeacher(input: {contextId:string;executorModel:string}): ReturnType<ManagedPhoneSetupReceiver["runManagedPhoneSetupTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"phoneSetup",operation:"setUpPhone",input:{goal:phoneSetupUnavailable.goal}},
+      inputCode:"binding.request",
+      bindingCode:this.managedPhoneSetupBindings(input.contextId),
+    },runId)}
+      const verification=verifyDesktopUnavailable(actualContextId,binding.request,readback,utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedPhoneSetupReceiver["runManagedPhoneSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies read-only phone provider evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedPhoneSetup(input: {contextId:string}): ReturnType<ManagedPhoneSetupReceiver["qualifyManagedPhoneSetup"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedPhoneSetupBindings(input.contextId)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      let rejectsForeignReceipt=false;
+      try { await assignedServices.phoneSetupRead.start("foreign-phone-setup"); }
+      catch (error) {
+        rejectsForeignReceipt=error instanceof Error && error.message.includes("current stage");
+      }
+      const observed=await assignedServices.phoneSetupRead.start(binding.request.operationId);
+      const verification=verifyDesktopUnavailable(actualContextId,binding.request,readback,{
+        status:"desktop-unavailable",
+        pairedDeviceId:null,
+        evidenceIds:[observed.receipt],
+        guidance:"Open the desktop app on this account",
+      });
+      const utilityValue={verification,rejectsForeignReceipt};
+    `) as Awaited<ReturnType<ManagedPhoneSetupReceiver["qualifyManagedPhoneSetup"]>>;
+  }
+
+  private managedPhoneSetupBindings(contextId: string): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {bindPhoneSetup} from "@workspace-skills/phone-setup/workflow";
+      import {verifyDesktopUnavailable} from "@workspace-skills/system-testing/phone-setup-managed";
+      if(actualContextId!==${JSON.stringify(contextId)}) throw new Error("Phone setup belongs to another context");
+      const binding=await bindPhoneSetup({
+        goal:${JSON.stringify(phoneSetupUnavailable.goal)},
+        target:{platform:${JSON.stringify(phoneSetupUnavailable.platform)}},
+      });
+      let readback=null;
+      const readOnly=async()=>{throw new Error("This assignment only reads desktop providers");};
+      const assignedServices={phoneSetupRead:{
+        start:async id=>{
+          const observed=await binding.services.phoneSetupRead.start(id);
+          if(observed.desktops.length!==0) throw new Error("The owned headless account unexpectedly has an eligible desktop");
+          readback=structuredClone(observed);
+          return observed;
+        },
+        discover:readOnly,
+        readiness:readOnly,
+      }};
     `;
   }
 
