@@ -1192,8 +1192,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       try {
         await natlang.describe("skills/news-workflows/reviewNews.nl");
         await prepared.seed();
-        await prepared.services.newsRead.observe();
-        report=prepared.reference();
+        report=await prepared.qualify();
       } finally { await prepared.close(); }
       const verification=prepared.verify(report);
       const altered={...report,findings:report.findings.map(finding=>({...finding,evidenceIds:["different-reader"]}))};

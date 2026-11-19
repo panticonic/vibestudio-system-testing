@@ -229,11 +229,7 @@ export async function verifyManagedAutomation(
     world.problem === "revision-race" ||
     world.problem === "revision-after-effect";
   const desiredState = world.action === "pause" ? "paused" : "active";
-  const expectedState = definitionChanged
-    ? "active"
-    : schedulingChanged
-      ? desiredState
-      : start.state;
+  const expectedState = schedulingChanged ? desiredState : start.state;
   const missing = world.problem === "missing";
   const stateAndReport =
     current?.state === expectedState &&
