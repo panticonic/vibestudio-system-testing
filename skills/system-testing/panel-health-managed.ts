@@ -32,8 +32,11 @@ export async function prepareManagedPanelHealth(
   source: string,
   caseId: string,
 ) {
-  const world = managedPanelHealthWorlds.find((entry) => entry.id === caseId);
-  if (!world) throw new Error("Unknown managed panel health assignment");
+  const assigned = managedPanelHealthWorlds.find(
+    (entry) => entry.id === caseId,
+  );
+  if (!assigned) throw new Error("Unknown managed panel health assignment");
+  const world = assigned;
   const request = {
     goal: world.goal,
     expectation: {

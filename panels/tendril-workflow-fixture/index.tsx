@@ -20,8 +20,11 @@ export default function TendrilWorkflowFixture() {
     let disposed = false;
     let close: (() => void) | undefined;
     void connectTendril()
-      .then((tendril) => {
-        if (disposed) return tendril.close();
+      .then(async (tendril) => {
+        if (disposed) {
+          await tendril.close();
+          return;
+        }
         contribute(tendril, "acknowledge", "confirmed", true);
         contribute(tendril, "clearReview", "confirmed", false);
         contribute(tendril, "startReview", "phase", "review");

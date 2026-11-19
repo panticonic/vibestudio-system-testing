@@ -1186,10 +1186,28 @@ export class HeadlessRunner {
           content: { kind: "text" as const, text }, mode: 0o644,
         })),
       });
-      await vcs.commit({
+      const baseline = await vcs.commit({
         contextId, expectedWorkingHead: seeded.workingHead, commandId: `spectrolite:commit:${contextId}`,
         message: "Seed the assigned Spectrolite review vault",
       });
+      if (world.draft) {
+        const state = { kind: "event" as const, eventId: baseline.event.eventId };
+        const changes = await Promise.all(Object.entries(world.draft.edits).map(async ([path, text]) => {
+          const file = await vcs.readFile({
+            state, repositoryId: repository.repositoryId, file: { kind: "path", path },
+          });
+          if (!file || file.content.kind !== "text")
+            throw new Error(`Missing committed draft source: ${path}`);
+          return {
+            kind: "text-edit" as const, repositoryId: repository.repositoryId, fileId: file.fileId,
+            edits: [{ start: 0, end: file.content.text.length, text }],
+          };
+        }));
+        const edited = await vcs.edit({
+          contextId, expectedWorkingHead: state, commandId: `spectrolite:draft:${contextId}`, changes,
+        });
+        if (!edited.changeIds.length) throw new Error("Spectrolite draft must change the vault");
+      }
       const owner = await this.createFixtureWorker(contextId);
       panel = await this.openPanelClient(spectrolitePanel, {
         contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,

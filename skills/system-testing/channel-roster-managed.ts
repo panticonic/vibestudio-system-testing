@@ -37,10 +37,13 @@ const options = {
 } as const;
 
 export async function prepareManagedChannelRoster(caseId: string) {
-  const world = managedChannelRosterWorlds.find((entry) => entry.id === caseId);
+  const assigned = managedChannelRosterWorlds.find(
+    (entry) => entry.id === caseId,
+  );
   const scope = contextId;
-  if (!world || !scope)
+  if (!assigned || !scope)
     throw new Error("An owned context and roster assignment are required");
+  const world = assigned;
 
   const token = crypto.randomUUID();
   const channels = new Map<
@@ -269,12 +272,14 @@ export async function prepareManagedChannelRoster(caseId: string) {
       const key = location(step.channel, step.handle);
       const desired = participantId(step.channel, step.handle);
       if (step.expected === "blocked") {
-        const prior = findings.findLast(
-          (finding, at) =>
-            finding.result &&
-            world.steps[at]?.channel === step.channel &&
-            world.steps[at]?.handle === step.handle,
-        );
+        const prior = [...findings.entries()]
+          .reverse()
+          .find(
+            ([at, finding]) =>
+              finding.result &&
+              world.steps[at]?.channel === step.channel &&
+              world.steps[at]?.handle === step.handle,
+          )?.[1];
         if (!prior)
           throw new Error(
             "A blocked roster step needs earlier conflict evidence",

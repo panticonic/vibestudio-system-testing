@@ -1,13 +1,21 @@
 export const spectrolitePanel = "panels/spectrolite";
 export const spectroliteVault = "projects/default";
-type ReviewCheck = "document" | "preview" | "navigation";
+type ReviewCheck =
+  | "document"
+  | "preview"
+  | "navigation"
+  | "revision"
+  | "publication";
 type Expected =
   | "document-ready"
   | "broken-link"
   | "preview-ready"
   | "preview-missing"
   | "render-error"
-  | "navigation-ready";
+  | "navigation-ready"
+  | "draft-changed"
+  | "revision-unchanged"
+  | "working-copy-dirty";
 
 function note(heading: string, body: string) {
   return `---\ntitle: ${heading}\n---\n\n# ${heading}\n\n${body}\n`;
@@ -24,6 +32,12 @@ type Options = {
   follow?: Follow[];
   previewText?: string;
   requiredText?: string[];
+  draft?: {
+    edits: Record<string, string>;
+    committedTitle: string;
+    staleText: string | null;
+    visibleText?: string;
+  };
 };
 function scenario(
   id: string,
@@ -45,6 +59,7 @@ function scenario(
     requiredText: options.requiredText ?? [path],
     previewText: options.previewText ?? null,
     follow: options.follow,
+    draft: options.draft,
   };
 }
 
@@ -587,5 +602,473 @@ managedSpectroliteWorlds.push(
       "The board requires two reviewers for this intake.",
     ],
     [previewMissing, navigation, documentReady],
+  ),
+);
+
+const changedRevision = ["revision", "draft-changed"] satisfies [
+  ReviewCheck,
+  Expected,
+];
+const sameRevision = ["revision", "revision-unchanged"] satisfies [
+  ReviewCheck,
+  Expected,
+];
+const dirtyVault = ["publication", "working-copy-dirty"] satisfies [
+  ReviewCheck,
+  Expected,
+];
+
+type DraftNotes = {
+  path: string;
+  committed: [heading: string, body: string];
+  working: [heading: string, body: string];
+  staleText: string;
+  visibleText?: string;
+};
+
+function revisedNote(
+  id: string,
+  goal: string,
+  notes: DraftNotes,
+  requested: [ReviewCheck, Expected][],
+  options: Options = {},
+) {
+  const { path, committed, working, staleText, visibleText } = notes;
+  const world = scenario(id, goal, path, ...working, requested, {
+    ...options,
+    draft: {
+      edits: { [path]: note(...working) },
+      committedTitle: committed[0],
+      staleText,
+      visibleText,
+    },
+  });
+  world.files[path] = note(...committed);
+  return world;
+}
+
+function coeditedVault(
+  id: string,
+  goal: string,
+  current: [path: string, heading: string, body: string],
+  separate: [
+    path: string,
+    heading: string,
+    committedBody: string,
+    workingBody: string,
+  ],
+  requested: [ReviewCheck, Expected][],
+  options: Options = {},
+) {
+  const [path, title, original, replacement] = separate;
+  return scenario(id, goal, ...current, requested, {
+    ...options,
+    links: { ...options.links, [path]: note(title, original) },
+    draft: {
+      edits: { [path]: note(title, replacement) },
+      committedTitle: current[1],
+      staleText: null,
+    },
+  });
+}
+
+managedSpectroliteWorlds.push(
+  revisedNote(
+    "draft-evacuation-route",
+    "Confirm the revised gate in the draft preview, check the cited muster plan, and report what the current vault state shows about publication.",
+    {
+      path: "Evacuation.mdx",
+      committed: [
+        "Original evacuation route",
+        callout("Exit through the east gate."),
+      ],
+      working: [
+        "Revised evacuation route",
+        `${callout("Exit through the west gate.")}\n\nSee [[Muster Plan]].`,
+      ],
+      staleText: "Exit through the east gate.",
+    },
+    [changedRevision, previewReady, documentReady, dirtyVault],
+    {
+      previewText: "Exit through the west gate.",
+      links: {
+        "Muster Plan.mdx": note(
+          "Approved muster point",
+          "Meet at the far fence.",
+        ),
+      },
+    },
+  ),
+  revisedNote(
+    "draft-customs-exception",
+    "Check whether the new customs exception names a real approval, and identify whether the exception is already committed.",
+    {
+      path: "Customs Desk.mdx",
+      committed: ["Routine clearance", "Inspect the packing list."],
+      working: [
+        "Customs exception proposal",
+        "Waiver still needs [[Signed Export Waiver]].",
+      ],
+      staleText: "Inspect the packing list.",
+    },
+    [brokenLink, changedRevision, dirtyVault],
+    { requiredText: ["Signed Export Waiver"] },
+  ),
+  revisedNote(
+    "draft-sound-check-remove-card",
+    "Determine whether the current sound check still has an inline preview now that the setup instructions are in plain text.",
+    {
+      path: "Sound Check.mdx",
+      committed: [
+        "Sound check card",
+        callout("Switch to the lobby amplifier."),
+      ],
+      working: [
+        "Sound check procedure",
+        "Bring the handheld meter and test each input from the mixing desk.",
+      ],
+      staleText: "Switch to the lobby amplifier.",
+    },
+    [previewMissing, changedRevision],
+  ),
+  revisedNote(
+    "draft-load-test-add-card",
+    "Verify the live load test now shows the equipment threshold and determine if the vault still holds an uncommitted revision.",
+    {
+      path: "Load Test.mdx",
+      committed: ["Load test setup", "Stage the empty trailer."],
+      working: ["Load test limit", callout("Stop loading at 400 kg.")],
+      staleText: "Stage the empty trailer.",
+    },
+    [previewReady, dirtyVault, changedRevision],
+    { previewText: "Stop loading at 400 kg." },
+  ),
+  revisedNote(
+    "draft-literal-repair",
+    "Verify that the quoted example in the repaired handbook no longer counts as a missing reference, and check if that repair is committed.",
+    {
+      path: "Handbook Examples.mdx",
+      committed: ["Broken handbook example", "Example: [[Temporary Project]]."],
+      working: [
+        "Repaired handbook example",
+        "Use this literal token:\n\n```text\n[[Temporary Project]]\n```",
+      ],
+      staleText: "Broken handbook example",
+    },
+    [documentReady, changedRevision, previewMissing],
+  ),
+  revisedNote(
+    "draft-ledger-referral-route",
+    "Navigate to the active ledger from the signoff desk, verify its newer hold notice, and determine whether it has been committed.",
+    {
+      path: "audit/Ledger.mdx",
+      committed: [
+        "Ledger release notice",
+        callout("Issue all reimbursement letters."),
+      ],
+      working: [
+        "Ledger hold notice",
+        callout("Hold letters with missing receipts."),
+      ],
+      staleText: "Issue all reimbursement letters.",
+    },
+    [navigation, changedRevision, previewReady],
+    {
+      previewText: "Hold letters with missing receipts.",
+      links: {
+        "Signoff Desk.mdx": note(
+          "Signoff desk",
+          "Review [[audit/Ledger]] first.",
+        ),
+      },
+      follow: [
+        {
+          path: "Signoff Desk.mdx",
+          heading: "Signoff desk",
+          target: "audit/Ledger",
+          destination: "audit/Ledger.mdx",
+        },
+      ],
+    },
+  ),
+  revisedNote(
+    "draft-resolve-duplicate-checklist",
+    "Verify that the revised dispatch note points to the overnight checklist and report whether the vault still has uncommitted edits.",
+    {
+      path: "Dispatch Brief.mdx",
+      committed: ["Dispatch brief", "Use [[Checklist]]."],
+      working: ["Dispatch brief revised", "Use [[overnight/Checklist]]."],
+      staleText: "Dispatch brief\n",
+    },
+    [documentReady, dirtyVault, changedRevision],
+    {
+      links: {
+        "day/Checklist.mdx": note(
+          "Day checklist",
+          "Collect the morning slips.",
+        ),
+        "overnight/Checklist.mdx": note(
+          "Overnight checklist",
+          "Count the emergency radios.",
+        ),
+      },
+    },
+  ),
+  revisedNote(
+    "draft-clinic-two-missing",
+    "Identify both references missing from the clinic draft while independently checking the displayed triage action.",
+    {
+      path: "Clinic Handoff.mdx",
+      committed: ["Clinic morning handoff", "File the visit log."],
+      working: [
+        "Clinic afternoon handoff",
+        `See [[Room Clearance]] and [[Staff Allocation]].\n\n${callout("Send arrivals to the temporary triage desk.")}`,
+      ],
+      staleText: "File the visit log.",
+    },
+    [changedRevision, brokenLink, previewReady],
+    {
+      requiredText: ["Room Clearance", "Staff Allocation"],
+      previewText: "Send arrivals to the temporary triage desk.",
+    },
+  ),
+  revisedNote(
+    "draft-access-hours-time-zone",
+    "Inspect the updated opening time and report whether the local copy still needs to be committed.",
+    {
+      path: "Access Hours.mdx",
+      committed: ["Access hours", callout("Open the gates at noon.")],
+      working: [
+        "Access hours revised",
+        callout("Open the gates at 11:30 CET."),
+      ],
+      staleText: "Open the gates at noon.",
+    },
+    [previewReady, changedRevision, dirtyVault],
+    { previewText: "Open the gates at 11:30 CET." },
+  ),
+  revisedNote(
+    "draft-bridge-inspection-hop",
+    "Follow the inspection desk's two-hop route and confirm that the bridge closure draft still lacks a named engineering receipt.",
+    {
+      path: "field/Bridge Record.mdx",
+      committed: ["Bridge reopened", "Vehicle access is unrestricted."],
+      working: ["Bridge clearance pending", "Await [[Engineering Signoff]]."],
+      staleText: "Vehicle access is unrestricted.",
+    },
+    [navigation, brokenLink, changedRevision, dirtyVault],
+    {
+      requiredText: ["Engineering Signoff"],
+      links: {
+        "Inspection Desk.mdx": note("Inspection desk", "Open [[field/Queue]]."),
+        "field/Queue.mdx": note(
+          "Field inspection queue",
+          "Read [[field/Bridge Record]].",
+        ),
+      },
+      follow: [
+        {
+          path: "Inspection Desk.mdx",
+          heading: "Inspection desk",
+          target: "field/Queue",
+          destination: "field/Queue.mdx",
+        },
+        {
+          path: "field/Queue.mdx",
+          heading: "Field inspection queue",
+          target: "field/Bridge Record",
+          destination: "field/Bridge Record.mdx",
+        },
+      ],
+    },
+  ),
+  revisedNote(
+    "draft-pilot-checkpoint",
+    "Read back the staged pilot checkpoint and distinguish the current text from the previously committed checkpoint even though the title is unchanged.",
+    {
+      path: "Pilot Checkpoint.mdx",
+      committed: ["Pilot checkpoint", "Checkpoint after the first shipment."],
+      working: [
+        "Pilot checkpoint",
+        "Checkpoint after the receiving confirmation.",
+      ],
+      staleText: "Checkpoint after the first shipment.",
+      visibleText: "Checkpoint after the receiving confirmation.",
+    },
+    [changedRevision, documentReady, previewMissing],
+  ),
+  revisedNote(
+    "draft-visitor-verified-escort",
+    "Verify the amended escort source and current visitor instruction before reporting the vault’s current publication status.",
+    {
+      path: "Visitor Entry.mdx",
+      committed: [
+        "Visitor entry preliminary",
+        "Escort rules are in [[Old Escort Policy]].",
+      ],
+      working: [
+        "Visitor entry reviewed",
+        `Consult [[Escorts]].\n\n${callout("Issue badges only after the escort arrives.")}`,
+      ],
+      staleText: "Old Escort Policy",
+    },
+    [documentReady, previewReady, dirtyVault, changedRevision],
+    {
+      links: {
+        "Escorts.mdx": note(
+          "Active escort instructions",
+          "Verify the arrival at reception.",
+        ),
+      },
+      previewText: "Issue badges only after the escort arrives.",
+    },
+  ),
+  revisedNote(
+    "draft-market-power-fallback",
+    "Locate the fallback plan in the edited market brief, verify that the inline instruction renders, then identify its commitment status.",
+    {
+      path: "Market Power.mdx",
+      committed: [
+        "Electrical assignment",
+        "Plug all stalls into the main supply.",
+      ],
+      working: [
+        "Electrical fallback assignment",
+        `${callout("Switch cold storage to the reserve circuit.")}\n\nSee [[Reserve Circuit]].`,
+      ],
+      staleText: "Plug all stalls into the main supply.",
+    },
+    [previewReady, documentReady, changedRevision],
+    {
+      links: {
+        "Reserve Circuit.mdx": note(
+          "Reserve load limits",
+          "Reserve the top feed for cold storage only.",
+        ),
+      },
+      previewText: "Switch cold storage to the reserve circuit.",
+    },
+  ),
+  revisedNote(
+    "draft-signage-title-only",
+    "Check whether a wording change limited to the sign title creates a different working revision, and whether its unchanged inline action still renders.",
+    {
+      path: "Road Sign.mdx",
+      committed: [
+        "Temporary road signage",
+        callout("Direct foot traffic to the covered crossing."),
+      ],
+      working: [
+        "Temporary crossing signage",
+        callout("Direct foot traffic to the covered crossing."),
+      ],
+      staleText: "Temporary road signage",
+    },
+    [changedRevision, previewReady],
+    { previewText: "Direct foot traffic to the covered crossing." },
+  ),
+  coeditedVault(
+    "draft-stewardship-unrelated-minutes",
+    "Check that the selected stewardship charter is unchanged while a separate meeting record keeps the working copy dirty.",
+    [
+      "Stewardship.mdx",
+      "Stewardship charter",
+      "The designated reviewer signs changes.",
+    ],
+    [
+      "Minutes.mdx",
+      "Meeting minutes",
+      "Meeting opened at 09:00.",
+      "Meeting opened at 09:00 and adjourned at 09:45.",
+    ],
+    [sameRevision, dirtyVault, documentReady],
+  ),
+  coeditedVault(
+    "draft-ticket-card-unrelated-schedule",
+    "Confirm the issued ticket card is still the committed copy and renders correctly while the adjacent schedule remains dirty.",
+    [
+      "Ticket Desk.mdx",
+      "Ticket desk notice",
+      callout("Bring the booking reference."),
+    ],
+    [
+      "Duty Schedule.mdx",
+      "Duty schedule",
+      "Staff open both positions.",
+      "Staff open the east position first.",
+    ],
+    [previewReady, sameRevision, dirtyVault],
+    { previewText: "Bring the booking reference." },
+  ),
+  coeditedVault(
+    "draft-incident-existing-missing-link",
+    "Identify the unresolved asset log in the unchanged incident note and independently report the vault’s current publication status.",
+    [
+      "Incident Ledger.mdx",
+      "Incident ledger",
+      "Await [[Independent Asset Log]].",
+    ],
+    [
+      "Dispatch Times.mdx",
+      "Dispatch times",
+      "Standby at 07:00.",
+      "Standby at 06:45.",
+    ],
+    [brokenLink, sameRevision, dirtyVault],
+    { requiredText: ["Independent Asset Log"] },
+  ),
+  coeditedVault(
+    "draft-commission-linked-source-edited",
+    "Check the commissioned note's stable revision and live resolution of its supporting reference after that supporting note was edited.",
+    [
+      "Commission.mdx",
+      "Commissioned repair",
+      "Use [[Inspection Scope]] for the written boundaries.",
+    ],
+    [
+      "Inspection Scope.mdx",
+      "Inspection scope",
+      "Inspect the canopy.",
+      "Inspect the canopy and gutter.",
+    ],
+    [documentReady, sameRevision, dirtyVault],
+  ),
+  coeditedVault(
+    "draft-routed-checklist-unrelated-index",
+    "Follow the modified index to the unchanged checklist and verify the route and report whether the vault has uncommitted edits.",
+    ["Crew Checklist.mdx", "Crew checklist", "Stage the labeling tools."],
+    [
+      "Crew Desk.mdx",
+      "Crew desk index",
+      "Keep this desk open.",
+      "Open [[Crew Checklist]] when the crew assembles.",
+    ],
+    [navigation, sameRevision, dirtyVault, previewMissing],
+    {
+      follow: [
+        {
+          path: "Crew Desk.mdx",
+          heading: "Crew desk index",
+          target: "Crew Checklist",
+          destination: "Crew Checklist.mdx",
+        },
+      ],
+    },
+  ),
+  coeditedVault(
+    "draft-reviewer-separate-implementation",
+    "Confirm that the publication checklist itself has no inline preview and matches its commitment even after the implementation note changed.",
+    [
+      "Publication Checklist.mdx",
+      "Publication checklist",
+      "Record the name of the reviewer.",
+    ],
+    [
+      "Implementation.mdx",
+      "Implementation notes",
+      "Retain last quarter's schedule.",
+      "Use the reissued schedule after facilities approval.",
+    ],
+    [previewMissing, dirtyVault, sameRevision],
   ),
 );

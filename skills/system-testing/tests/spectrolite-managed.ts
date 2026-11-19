@@ -82,56 +82,63 @@ export const managedSpectroliteTests: TestCase[] = managedSpectroliteWorlds.map(
   }),
 );
 
-managedSpectroliteTests.push({
-  ...settings,
-  name: "spectrolite-managed-oracle-qualification",
-  description:
-    "Qualify the actual Spectrolite editor and canonical document checks without a model",
-  prompt:
-    "Verify ordered document and preview checks and reject different-revision evidence.",
-  async orchestrate(context) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const world of managedSpectroliteWorlds) {
-      try {
-        const run = await context.runner.runManagedSpectrolite(
-          world.id,
-          true,
-          context.signal,
-        );
-        if (run.kind !== "reference")
-          throw new Error("Spectrolite qualification invoked a teacher");
-        checks.push(run.result);
-      } catch (cause) {
-        throw new Error(`Spectrolite qualification failed for ${world.id}`, {
-          cause,
-        });
-      }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { spectroliteQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["spectroliteQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedSpectroliteWorlds.length &&
-      checks.every(
-        ({ verification, rejectedDifferentRevision }) =>
-          verification.passed && rejectedDifferentRevision,
-      )
-      ? {
-          passed: true,
-          details: { checkedCases: checks.length, modelCalls: 0 },
+for (const draft of [false, true]) {
+  const worlds = managedSpectroliteWorlds.filter(
+    (world) => Boolean(world.draft) === draft,
+  );
+  managedSpectroliteTests.push({
+    ...settings,
+    name: draft
+      ? "spectrolite-managed-draft-qualification"
+      : "spectrolite-managed-oracle-qualification",
+    description:
+      "Qualify the actual Spectrolite editor and canonical document checks without a model",
+    prompt:
+      "Verify ordered document and preview checks and reject different-revision evidence.",
+    async orchestrate(context) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const world of worlds) {
+        try {
+          const run = await context.runner.runManagedSpectrolite(
+            world.id,
+            true,
+            context.signal,
+          );
+          if (run.kind !== "reference")
+            throw new Error("Spectrolite qualification invoked a teacher");
+          checks.push(run.result);
+        } catch (cause) {
+          throw new Error(`Spectrolite qualification failed for ${world.id}`, {
+            cause,
+          });
         }
-      : {
-          passed: false,
-          reason:
-            "The installed editor readback or evidence binding differed from the task.",
-          details: { checks },
-        };
-  },
-});
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { spectroliteQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["spectroliteQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verification, rejectedDifferentRevision }) =>
+            verification.passed && rejectedDifferentRevision,
+        )
+        ? {
+            passed: true,
+            details: { checkedCases: checks.length, modelCalls: 0 },
+          }
+        : {
+            passed: false,
+            reason:
+              "The installed editor readback or evidence binding differed from the task.",
+            details: { checks },
+          };
+    },
+  });
+}

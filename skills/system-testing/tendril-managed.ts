@@ -47,8 +47,9 @@ export function prepareManagedTendril(input: {
   contextId: string;
   channelId: string;
 }) {
-  const world = managedTendrilWorlds.find(({ id }) => id === input.caseId);
-  if (!world) throw new Error("Unknown Tendril assignment");
+  const assigned = managedTendrilWorlds.find(({ id }) => id === input.caseId);
+  if (!assigned) throw new Error("Unknown Tendril assignment");
+  const world = assigned;
   const { request } = world;
   const buildWorld = hasTendrilBuildSteps(request);
   let originalSource: string | undefined;
@@ -276,7 +277,8 @@ export function prepareManagedTendril(input: {
       if (
         !before ||
         !after ||
-        evidence?.pageId !== observed[index + 1]?.id ||
+        !evidence ||
+        evidence.pageId !== observed[index + 1]?.id ||
         !before.proof.some(
           (entry) =>
             entry.buildKey === before.buildKey && entry.state === "proven",
