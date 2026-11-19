@@ -5,6 +5,8 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedLogCursorReceiver } from "@workspace-skills/system-testing/log-cursor-managed";
+import { managedLogCursorWorlds } from "@workspace-skills/system-testing/log-cursor-worlds";
 import { evalRecoveryProbeCode, type ManagedEvalRecoveryReceiver } from "@workspace-skills/system-testing/eval-recovery-managed";
 import type { ManagedPdfLayoutReceiver } from "@workspace-skills/system-testing/pdf-layout-managed";
 import type { ManagedDictationReceiver } from "@workspace-skills/system-testing/offline-dictation-managed";
@@ -139,6 +141,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  LogCursor: {kind:"domain",domain:"serverLogs",operation:"reviewLogCursor",input:{goal:"Review the assigned saved log cursor"}},
   EvalRecovery: {kind:"domain",domain:"evalRecovery",operation:"reviewEvalRecovery",input:{goal:"Review the assigned eval attempt"}},
   PdfLayout: {kind:"domain",domain:"pdfIntake",operation:"reviewPdfLayout",input:{goal:"Review the assigned PDF layout"}},
   Dictation: {kind:"domain",domain:"dictation",operation:"reviewDictation",input:{goal:"Review the assigned offline dictation"}},
@@ -1758,15 +1761,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedLogAuditReceiver["qualifyManagedLogAudit"]>>;
   }
 
-  private async logAuditBindings(input: LogAuditInput): Promise<string> {
-    const world=managedLogAuditWorlds.find(({id})=>id===input.caseId);
-    if (!world) throw new Error("Unknown host log audit assignment");
+  private async seedAssignedHostLog(expectedContextId: string, lines: readonly string[]) {
     const {contextId}=await this.integrationFixtureIdentity();
-    if (contextId!==input.contextId) throw new Error("Host log fixture belongs to another context");
+    if (contextId!==expectedContextId) throw new Error("Host log fixture belongs to another context");
     const marker=`natlang-host-log-${crypto.randomUUID()}`;
     const initial=await this.rpc.call("main",mainRpcMethods["serverLog.query"],[{contains:marker,limit:1}]);
     const seed={marker,boot:initial.serverBootId,workspaceId:initial.workspaceId,start:initial.latestSeq,steps:[] as number[]};
-    for (const [index,line] of world.lines.entries()) {
+    for (const [index,line] of lines.entries()) {
       const message=`${marker} ${line}`;
       console.warn(message);
       const sinceSeq=seed.steps.at(-1)??seed.start;
@@ -1780,6 +1781,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         await new Promise(resolve=>setTimeout(resolve,100));
       }
     }
+    return seed;
+  }
+
+  private async logAuditBindings(input: LogAuditInput): Promise<string> {
+    const world=managedLogAuditWorlds.find(({id})=>id===input.caseId);
+    if (!world) throw new Error("Unknown host log audit assignment");
+    const seed=await this.seedAssignedHostLog(input.contextId, world.lines);
     return `
       import {rpc,contextId as actualContextId} from "@workspace/runtime";
       import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
@@ -2069,6 +2077,43 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned host log cursor review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedLogCursorTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedLogCursorReceiver["runManagedLogCursorTeacher"]> {
+    const bindings=await this.managedLogCursorBindings(input);
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.LogCursor,
+      inputCode:"prepared.request",
+      bindingCode:bindings,
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedLogCursorReceiver["runManagedLogCursorTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies host log cursor resumption without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedLogCursor(input: {contextId:string;caseId:string}): ReturnType<ManagedLogCursorReceiver["qualifyManagedLogCursor"]> {
+    const bindings=await this.managedLogCursorBindings(input);
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.LogCursor],
+      bindings,
+    )) as Awaited<ReturnType<ManagedLogCursorReceiver["qualifyManagedLogCursor"]>>;
+  }
+
+  private async managedLogCursorBindings(input: {contextId:string;caseId:string}): Promise<string> {
+    const world=managedLogCursorWorlds.find(({id})=>id===input.caseId);
+    if (!world) throw new Error("Unknown assigned saved host log cursor");
+    const seed=await this.seedAssignedHostLog(input.contextId, world.lines);
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedLogCursor} from "@workspace-skills/system-testing/log-cursor-managed";
+      import {bindServerLogCursor} from "@workspace-skills/server-log-cursor-bindings";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Host log cursor review belongs to another context");
+      const prepared=prepareManagedLogCursor(input,${JSON.stringify(seed)},bindServerLogCursor);
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures the assigned PDF layout review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

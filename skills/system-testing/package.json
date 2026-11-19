@@ -55,6 +55,8 @@
     "./release-review-handoff-worlds": "./release-review-handoff-worlds.ts",
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
+    "./log-cursor-worlds": "./log-cursor-worlds.ts",
+    "./log-cursor-managed": "./log-cursor-managed.ts",
     "./eval-recovery-managed": "./eval-recovery-managed.ts",
     "./pdf-layout-managed": "./pdf-layout-managed.ts",
     "./offline-dictation-managed": "./offline-dictation-managed.ts",
