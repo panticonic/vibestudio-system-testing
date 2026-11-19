@@ -12,6 +12,7 @@ import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skil
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
 import type { VerifiedMemoryReceiver, VerifiedMemoryInput } from "@workspace-skills/system-testing/verified-memory-contract";
+import { managedMemoryOperation } from "@workspace-skills/system-testing/verified-memory-worlds";
 import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills/system-testing/authoring-contract";
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
@@ -926,16 +927,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Verifies one assigned workspace memory decision at its committed source."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedMemoryTeacher(input: VerifiedMemoryInput & {executorModel:string}): ReturnType<VerifiedMemoryReceiver["runManagedMemoryTeacher"]> {
+    const operation = managedMemoryOperation(input.caseId);
     return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
       executorModel:input.executorModel,
-      work:{kind:"domain",domain:"verifiedMemory",operation:"recallDecision",input:{goal:"Find the assigned historical decision"}},
-      inputCode:"prepared.request",
+      work:{kind:"domain",domain:"verifiedMemory",operation,input:{goal:"Verify the assigned historical decision"}},
+      inputCode:"prepared.comparisonRequest ?? prepared.request",
       bindingCode:`
         import {memory,vcs,blobstore,contextId as actualContextId} from "@workspace/runtime";
         import {prepareManagedMemory,verifyManagedMemory} from "@workspace-skills/system-testing/verified-memory-managed";
         const input=${JSON.stringify(input)};
         if(actualContextId!==input.contextId) throw new Error("Memory review belongs to another context");
-        await natlang.describe("skills/memory/verifiedRecall/recallDecision.nl");
+        await natlang.describe(${JSON.stringify(`skills/memory/verifiedRecall/${operation}.nl`)});
         const ports={memory,vcs,blobstore};
         const prepared=await prepareManagedMemory(ports,actualContextId,input.caseId);
         const assignedServices=prepared.services;
@@ -948,12 +950,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies workspace recall and VCS readback in an owned context without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedMemory(input: VerifiedMemoryInput): ReturnType<VerifiedMemoryReceiver["qualifyManagedMemory"]> {
+    const operation = managedMemoryOperation(input.caseId);
     return await this.runHarnessUtility("teacher",`
       import {memory,vcs,blobstore,contextId as actualContextId} from "@workspace/runtime";
       import {qualifyManagedMemory} from "@workspace-skills/system-testing/verified-memory-managed";
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Memory qualification belongs to another context");
-      await natlang.describe("skills/memory/verifiedRecall/recallDecision.nl");
+      await natlang.describe(${JSON.stringify(`skills/memory/verifiedRecall/${operation}.nl`)});
       const utilityValue=await qualifyManagedMemory({memory,vcs,blobstore},actualContextId,input.caseId);
     `) as Awaited<ReturnType<VerifiedMemoryReceiver["qualifyManagedMemory"]>>;
   }

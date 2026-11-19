@@ -81,11 +81,28 @@ export async function prepareManagedMemory(
     throw new Error("The decision assignment has no owned revision");
   const assignedRepository = repositoryId;
   const request = { goal: world.goal, query, eventId, field: world.field };
+  const beforeEventId = world.comparison
+    ? events[world.comparison.before]
+    : undefined;
+  if (world.comparison && (!beforeEventId || beforeEventId === eventId))
+    throw new Error("The comparison needs two assigned revisions");
+  const assignedEvents = beforeEventId ? [beforeEventId, eventId] : [eventId];
+  const comparisonRequest = beforeEventId
+    ? {
+        goal: world.goal,
+        query,
+        beforeEventId,
+        afterEventId: eventId,
+        field: world.field,
+      }
+    : null;
   const operations: string[] = [];
+  let searches = 0;
+  let indexed = false;
   const leads: Lead[] = [];
-  async function readAssignedFile(): Promise<Source | null> {
+  async function readAssignedFile(eventId: string): Promise<Source | null> {
     const response = await ports.vcs.readFile({
-      state: { kind: "event", eventId: request.eventId },
+      state: { kind: "event", eventId },
       repositoryId: assignedRepository,
       file: { kind: "path", path: decisionPath },
     });
@@ -98,7 +115,7 @@ export async function prepareManagedMemory(
     )
       throw new Error("The source reader returned a different committed file");
     return {
-      eventId: request.eventId,
+      eventId,
       path: `${repoPath}/${decisionPath}`,
       contentHash: response.contentHash,
       text: response.content.text,
@@ -107,6 +124,8 @@ export async function prepareManagedMemory(
   return {
     world,
     request,
+    comparisonRequest,
+    assignedEvents,
     before,
     head,
     events,
@@ -116,9 +135,22 @@ export async function prepareManagedMemory(
     services: {
       decisionRecall: {
         async search(text: string): Promise<Lead[]> {
-          if (text !== query || operations.length)
-            throw new Error("Search once for the assigned decision.");
-          operations.push("search");
+          const previous = assignedEvents[searches - 1];
+          const next = assignedEvents[searches];
+          if (
+            text !== query ||
+            !next ||
+            (searches > 0 && !indexed) ||
+            (previous &&
+              leads.some((lead) => lead.id === previous) &&
+              operations.at(-1) !== `source:${previous}`)
+          )
+            throw new Error(
+              "Finish verification before searching for the next assigned revision.",
+            );
+          searches++;
+          operations.push(`search:${next}`);
+          if (indexed) return structuredClone(leads);
           const observed = await ports.memory.recall({
             query,
             kinds: ["commit"],
@@ -134,21 +166,22 @@ export async function prepareManagedMemory(
             )
               leads.push({ id, eventId: id, snippet: result.snippet });
           }
+          indexed = true;
           return structuredClone(leads);
         },
       },
       decisionSource: {
         async read(leadId: string): Promise<Source | null> {
           if (
-            leadId !== eventId ||
-            operations.length !== 1 ||
+            leadId !== assignedEvents[searches - 1] ||
+            operations.at(-1) !== `search:${leadId}` ||
             !leads.some(({ id }) => id === leadId)
           )
             throw new Error(
               "Read the assigned file at the exact recalled revision.",
             );
-          operations.push("source");
-          return readAssignedFile();
+          operations.push(`source:${leadId}`);
+          return readAssignedFile(leadId);
         },
       },
     },
@@ -173,49 +206,96 @@ function cite(prepared: Prepared, observed: Source | null): Citation | null {
   return { eventId, path, contentHash, ...found[0] };
 }
 
+function observedReport(
+  prepared: Prepared,
+  lead: Lead | undefined,
+  observed: Source | null,
+): Report {
+  const citation = cite(prepared, observed);
+  return {
+    status: !lead
+      ? "no-lead"
+      : !observed
+        ? "missing-source"
+        : citation
+          ? "verified"
+          : "missing-field",
+    leadId: lead?.id ?? null,
+    citation,
+  };
+}
+
+function comparisonStatus(field: string, before: Report, after: Report) {
+  if (!before.citation || !after.citation) return "unverified";
+  const value = (citation: Citation) =>
+    citation.quote.slice(field.length + 1).trim();
+  return value(before.citation) === value(after.citation)
+    ? "unchanged"
+    : "changed";
+}
+
+function joinsReport(expected: Report, value: Report | null | undefined) {
+  const { status, leadId, citation } = expected;
+  const claimed = value?.citation;
+  return (
+    value?.status === status &&
+    value.leadId === leadId &&
+    (citation
+      ? claimed?.eventId === citation.eventId &&
+        claimed.path === citation.path &&
+        claimed.contentHash === citation.contentHash &&
+        claimed.line === citation.line &&
+        claimed.quote === citation.quote
+      : claimed === null)
+  );
+}
+
+type Comparison = { status: string; before: Report; after: Report };
+
 export async function verifyManagedMemory(
   ports: Ports,
   prepared: Prepared,
-  report: Report | null,
+  value: unknown,
 ) {
   const after = await ports.vcs.status();
-  const selected = prepared.leads.find(
-    ({ eventId }) => eventId === prepared.request.eventId,
-  );
-  const expected = prepared.world.expected;
-  const observed = selected ? await prepared.readAssignedFile() : null;
-  const citation = cite(prepared, observed);
-  const status = !selected
-    ? "no-lead"
-    : !observed
-      ? "missing-source"
-      : citation
-        ? "verified"
-        : "missing-field";
-  const claimed = report?.citation;
+  const expectedOperations: string[] = [];
+  const observed: Report[] = [];
+  for (const eventId of prepared.assignedEvents) {
+    expectedOperations.push(`search:${eventId}`);
+    const lead = prepared.leads.find(({ id }) => id === eventId);
+    const source = lead ? await prepared.readAssignedFile(eventId) : null;
+    if (lead) expectedOperations.push(`source:${eventId}`);
+    observed.push(observedReport(prepared, lead, source));
+  }
+  const final = observed.at(-1)!;
+  const first = observed[0]!;
+  const assigned = prepared.world.comparison;
+  const status = assigned
+    ? comparisonStatus(prepared.request.field, first, final)
+    : final.status;
+  const matches = (expected: typeof prepared.world.expected, report: Report) =>
+    report.status === expected.status &&
+    (report.citation?.quote ?? null) === (expected.quote ?? null) &&
+    (report.citation?.line ?? null) === (expected.line ?? null);
+  const comparison = assigned ? (value as Comparison | null) : null;
   const checks = {
     protectedMainUnchanged:
       after.mainEventId === prepared.before.mainEventId &&
       same(after.workingHead, prepared.head),
     actualRecall:
-      same(prepared.operations, selected ? ["search", "source"] : ["search"]) &&
+      same(prepared.operations, expectedOperations) &&
       prepared.leads.length ===
         prepared.world.revisions.filter(({ indexed }) => indexed !== false)
           .length,
     observedWorld:
-      status === expected.status &&
-      (citation?.quote ?? null) === (expected.quote ?? null) &&
-      (citation?.line ?? null) === (expected.line ?? null),
-    joinedSource:
-      report?.status === status &&
-      report.leadId === (selected?.id ?? null) &&
-      (citation
-        ? claimed?.eventId === citation.eventId &&
-          claimed.path === citation.path &&
-          claimed.contentHash === citation.contentHash &&
-          claimed.line === citation.line &&
-          claimed.quote === citation.quote
-        : claimed === null),
+      matches(prepared.world.expected, final) &&
+      (!assigned ||
+        (matches(assigned.expected, first) && assigned.status === status)),
+    joinedSource: assigned
+      ? comparison?.status === status &&
+        joinsReport(first, comparison.before) &&
+        joinsReport(final, comparison.after)
+      : joinsReport(final, value as Report | null),
   };
   return {
     checks,
@@ -223,8 +303,16 @@ export async function verifyManagedMemory(
     status,
     caseId: prepared.world.id,
     eventId: prepared.request.eventId,
-    citation,
-    leadId: selected?.id ?? null,
+    citation: final.citation,
+    leadId: final.leadId,
+    endpoints: assigned
+      ? {
+          beforeEventId: prepared.assignedEvents[0]!,
+          afterEventId: prepared.request.eventId,
+          before: first,
+          after: final,
+        }
+      : null,
   };
 }
 
@@ -234,30 +322,38 @@ export async function qualifyManagedMemory(
   caseId: string,
 ) {
   const prepared = await prepareManagedMemory(ports, contextId, caseId);
-  const leads = await prepared.services.decisionRecall.search(
-    prepared.request.query,
-  );
-  const selected = leads.find(
-    ({ eventId }) => eventId === prepared.request.eventId,
-  );
-  const source = selected
-    ? await prepared.services.decisionSource.read(selected.id)
-    : null;
-  const citation = cite(prepared, source);
-  const status = !selected
-    ? "no-lead"
-    : !source
-      ? "missing-source"
-      : citation
-        ? "verified"
-        : "missing-field";
-  const reference = { status, leadId: selected?.id ?? null, citation };
+  const reports: Report[] = [];
+  for (const eventId of prepared.assignedEvents) {
+    const leads = await prepared.services.decisionRecall.search(
+      prepared.request.query,
+    );
+    const lead = leads.find(({ id }) => id === eventId);
+    const source = lead
+      ? await prepared.services.decisionSource.read(lead.id)
+      : null;
+    reports.push(observedReport(prepared, lead, source));
+  }
+  const before = reports[0]!;
+  const after = reports.at(-1)!;
+  const comparison = prepared.comparisonRequest;
+  const status = comparisonStatus(prepared.request.field, before, after);
+  const reference = comparison ? { status, before, after } : after;
   const accepted = await verifyManagedMemory(ports, prepared, reference);
-  const altered = await verifyManagedMemory(ports, prepared, {
-    ...reference,
-    ...(citation
-      ? { citation: { ...citation, eventId: "different-revision" } }
-      : { leadId: "unobserved-lead" }),
-  });
+  const altered = await verifyManagedMemory(
+    ports,
+    prepared,
+    comparison
+      ? {
+          status,
+          before: after,
+          after: before,
+        }
+      : {
+          ...after,
+          ...(after.citation
+            ? { citation: { ...after.citation, eventId: "different-revision" } }
+            : { leadId: "unobserved-lead" }),
+        },
+  );
   return { accepted, rejectedUnboundEvidence: !altered.passed };
 }

@@ -71,6 +71,7 @@
     "./onboarding-managed": "./onboarding-managed.ts",
     "./verified-memory-contract": "./verified-memory-contract.ts",
     "./verified-memory-managed": "./verified-memory-managed.ts",
+    "./verified-memory-worlds": "./verified-memory-worlds.ts",
     "./authoring-contract": "./authoring-contract.ts",
     "./authoring-managed": "./authoring-managed.ts",
     "./presentation-contract": "./presentation-contract.ts",
