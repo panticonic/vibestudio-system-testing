@@ -26,6 +26,29 @@ function sameDefinition(expected: Mission, observed: Mission) {
   );
 }
 
+function updatedCharter(mission: Mission) {
+  return {
+    ...mission.charter,
+    summary: "Updated review terms for the owned manual-only automation.",
+  };
+}
+
+function reviewedEdit(expected: Mission, observed: Mission) {
+  return (
+    observed.revisionDigest !== expected.revisionDigest &&
+    observed.revision === expected.revision + 1 &&
+    sameDefinition(
+      {
+        ...expected,
+        charter: updatedCharter(expected),
+        revision: observed.revision,
+        revisionDigest: observed.revisionDigest,
+      },
+      observed,
+    )
+  );
+}
+
 export async function seedManagedAutomation(rpc: MissionRpc, caseId: string) {
   const world = managedAutomationWorlds.find((item) => item.id === caseId);
   if (!world) throw new Error("Unknown managed automation lifecycle world");
@@ -63,7 +86,16 @@ export async function pauseManagedAutomationFixture(
 ) {
   const missions = createMissionsClient(rpc);
   const live = await missions.get(seed.start.missionId);
-  if (!live || !sameDefinition(seed.start, live))
+  if (
+    !live ||
+    (!sameDefinition(seed.start, live) &&
+      !(
+        (seed.world.problem === "revised-before-review" ||
+          seed.world.problem === "revision-race" ||
+          seed.world.problem === "revision-after-effect") &&
+        reviewedEdit(seed.start, live)
+      ))
+  )
     throw new Error(
       "The test-owned mission changed identity during lifecycle verification",
     );
@@ -75,9 +107,11 @@ export async function pauseManagedAutomationFixture(
     );
 }
 
-export function prepareManagedAutomation(rpc: MissionRpc, seed: Seed) {
+export async function prepareManagedAutomation(rpc: MissionRpc, seed: Seed) {
   const { world, original, start } = seed;
   const missions = createMissionsClient(rpc);
+  if (world.problem === "revised-before-review")
+    await missions.edit(start.missionId, { charter: updatedCharter(start) });
   const request = {
     goal: world.goal,
     missionId:
@@ -91,16 +125,63 @@ export function prepareManagedAutomation(rpc: MissionRpc, seed: Seed) {
     action: world.action,
   };
   const controllerCalls: string[] = [];
+  const transitionReceipts: Mission[] = [];
+  const attempts: string[] = [];
+  const observations: string[] = [];
+  let staleControllerGuard = false;
   const services = bindAutomationLifecycle(
     {
       get: (id) => missions.get(id),
       async transitionAtRevision(id, action, revision) {
+        if (world.problem === "lost-before-effect")
+          throw new Error(
+            "Controlled interruption before scheduling dispatch.",
+          );
+        if (world.problem === "revision-race")
+          await missions.edit(id, { charter: updatedCharter(start) });
         controllerCalls.push(action);
-        return missions.transitionAtRevision(id, action, revision);
+        let changed: Mission;
+        try {
+          changed = await missions.transitionAtRevision(id, action, revision);
+        } catch (error) {
+          staleControllerGuard = Boolean(
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            error.code === "MISSION_REVISION_CHANGED",
+          );
+          throw error;
+        }
+        transitionReceipts.push(changed);
+        if (world.problem === "lost-ack")
+          throw new Error("Controlled interruption after scheduling dispatch.");
+        if (world.problem === "revision-after-effect")
+          await missions.edit(id, { charter: updatedCharter(start) });
+        return changed;
       },
     },
     request,
   );
+  const read = services.automationLifecycleRead.observe;
+  services.automationLifecycleRead.observe = (id) => {
+    observations.push(id);
+    return read(id);
+  };
+  const apply = services.automationLifecycleChange.apply;
+  services.automationLifecycleChange.apply = async (id, digest, action) => {
+    attempts.push(action);
+    if (
+      world.problem === "race-already" &&
+      attempts.length === 1 &&
+      id === request.missionId &&
+      digest === request.revisionDigest &&
+      action === request.action
+    )
+      transitionReceipts.push(
+        await missions.transitionAtRevision(id, action, digest),
+      );
+    return apply(id, digest, action);
+  };
   return {
     world,
     request,
@@ -109,6 +190,10 @@ export function prepareManagedAutomation(rpc: MissionRpc, seed: Seed) {
     services,
     missions,
     controllerCalls,
+    transitionReceipts,
+    attempts,
+    observations,
+    staleControllerGuard: () => staleControllerGuard,
   };
 }
 
@@ -128,36 +213,75 @@ export async function verifyManagedAutomation(
   } | null;
   const current = await missions.get(start.missionId);
   const protectedDefault = await missions.getDefault(defaultId);
-  const expectedState =
-    world.status === "applied"
-      ? world.action === "pause"
-        ? "paused"
-        : "active"
+  const shouldAttempt =
+    world.status === "applied" ||
+    world.status === "reconciled" ||
+    world.status === "uncertain" ||
+    world.problem === "revision-race" ||
+    world.problem === "race-already";
+  const schedulingChanged =
+    world.status === "applied" ||
+    world.status === "reconciled" ||
+    world.problem === "revision-after-effect" ||
+    world.problem === "race-already";
+  const definitionChanged =
+    world.problem === "revised-before-review" ||
+    world.problem === "revision-race" ||
+    world.problem === "revision-after-effect";
+  const desiredState = world.action === "pause" ? "paused" : "active";
+  const expectedState = definitionChanged
+    ? "active"
+    : schedulingChanged
+      ? desiredState
       : start.state;
+  const missing = world.problem === "missing";
   const stateAndReport =
     current?.state === expectedState &&
     report?.missionId === request.missionId &&
     report.status === world.status &&
-    report.state === (world.problem === "missing" ? null : expectedState) &&
-    report.revisionDigest ===
-      (world.problem === "missing" ? null : start.revisionDigest);
+    report.state === (missing ? null : expectedState) &&
+    report.revisionDigest === (missing ? null : current.revisionDigest);
   const checks = {
     exactStateAndReport: stateAndReport,
     defaultMonitorUnchanged:
       protectedDefault !== null &&
       sameDefinition(original, protectedDefault) &&
       original.state === protectedDefault.state,
-    definitionPreserved: current !== null && sameDefinition(start, current),
+    exactDefinition:
+      current !== null &&
+      (definitionChanged
+        ? reviewedEdit(start, current)
+        : sameDefinition(start, current)),
+    revisionGuard:
+      world.problem !== "revision-race" || prepared.staleControllerGuard(),
+    effectReadback:
+      prepared.transitionReceipts.length === (schedulingChanged ? 1 : 0) &&
+      prepared.transitionReceipts.every(
+        (receipt) =>
+          receipt.state === desiredState && sameDefinition(start, receipt),
+      ),
+    scopedReadback: isDeepStrictEqual(
+      prepared.observations,
+      shouldAttempt
+        ? [request.missionId, request.missionId]
+        : [request.missionId],
+    ),
     noAutomationRunStarted:
       current !== null &&
       current.runCount === start.runCount &&
       current.lastRunAt === start.lastRunAt &&
       current.nextRunAt === undefined &&
       start.nextRunAt === undefined,
-    assignedTransition: isDeepStrictEqual(
-      controllerCalls,
-      world.status === "applied" ? [world.action] : [],
-    ),
+    assignedTransition:
+      isDeepStrictEqual(
+        controllerCalls,
+        shouldAttempt &&
+          world.problem !== "lost-before-effect" &&
+          world.problem !== "race-already"
+          ? [world.action]
+          : [],
+      ) &&
+      isDeepStrictEqual(prepared.attempts, shouldAttempt ? [world.action] : []),
     missingStaysMissing:
       world.problem !== "missing" ||
       (await missions.get(request.missionId)) === null,
@@ -167,16 +291,19 @@ export async function verifyManagedAutomation(
     checks,
     caseId: world.id,
     expectedStatus: world.status,
+    problem: world.problem ?? null,
     assignedId: request.missionId,
     expectedRevision: request.revisionDigest,
     observedRevision: current?.revisionDigest ?? null,
+    reportedRevision: report?.revisionDigest ?? null,
+    reportedState: report?.state ?? null,
     initialState: start.state,
     afterState: current?.state ?? null,
   };
 }
 
 export async function qualifyManagedAutomation(rpc: MissionRpc, seed: Seed) {
-  const prepared = prepareManagedAutomation(rpc, seed);
+  const prepared = await prepareManagedAutomation(rpc, seed);
   const { request, world, services, missions, start } = prepared;
   let staleControllerGuard = false;
   if (world.problem === "stale") {
@@ -198,24 +325,38 @@ export async function qualifyManagedAutomation(rpc: MissionRpc, seed: Seed) {
   const before = await services.automationLifecycleRead.observe(
     request.missionId,
   );
+  const desired = request.action === "pause" ? "paused" : "active";
+  const allowed =
+    before?.revisionDigest === request.revisionDigest &&
+    (before.state === "active" || before.state === "paused");
   const receipt =
-    world.status === "applied"
+    allowed && before.state !== desired
       ? await services.automationLifecycleChange.apply(
           request.missionId,
           request.revisionDigest,
           request.action,
         )
       : null;
-  if (world.status === "applied" && receipt !== "acknowledged")
-    throw new Error(
-      `Expected real scheduling acknowledgement for ${world.id}, got ${receipt}`,
-    );
   const after = receipt
     ? await services.automationLifecycleRead.observe(request.missionId)
     : before;
+  const verified =
+    after?.revisionDigest === request.revisionDigest && after.state === desired;
+  const status =
+    !allowed || receipt === "blocked"
+      ? "held"
+      : !receipt
+        ? "unchanged"
+        : !verified
+          ? "uncertain"
+          : receipt === "acknowledged"
+            ? "applied"
+            : receipt === "already"
+              ? "unchanged"
+              : "reconciled";
   const verification = await verifyManagedAutomation(prepared, {
     missionId: request.missionId,
-    status: world.status,
+    status,
     state: after?.state ?? null,
     revisionDigest: after?.revisionDigest ?? null,
   });

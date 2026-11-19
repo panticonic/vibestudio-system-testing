@@ -788,7 +788,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
           import {rpc,contextId as actualContextId} from "@workspace/runtime";
           import {prepareManagedAutomation,verifyManagedAutomation} from "@workspace-skills/system-testing/automation-lifecycle-managed";
           if(actualContextId!==${JSON.stringify(input.contextId)}) throw new Error("Automation case belongs to another context");
-          const prepared=prepareManagedAutomation(rpc,${JSON.stringify(seed)});
+          const prepared=await prepareManagedAutomation(rpc,${JSON.stringify(seed)});
           const assignedServices=prepared.services;
         `,
       },runId)}

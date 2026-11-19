@@ -20,6 +20,18 @@
       "provides": [],
       "requests": [
         {
+          "capability": "userland:workers/missions/missions.edit#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic",
+          "packages": [
+            "@workspace-skills/system-testing"
+          ]
+        },
+        {
           "capability": "context.boundary",
           "resource": {
             "kind": "prefix",

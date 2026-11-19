@@ -8,6 +8,23 @@ type Exercise = Awaited<
 type Qualification = Awaited<
   ReturnType<ManagedAutomationReceiver["qualifyManagedAutomation"]>
 >;
+const fixtureEditAuthority: NonNullable<TestCase["authorityPolicy"]> = {
+  authority: [
+    {
+      ruleId: "edit-owned-automation-fixture",
+      capability: {
+        kind: "prefix",
+        prefix: "userland:workers/missions/missions.edit#",
+      },
+      resource: {
+        kind: "exact",
+        key: "mission:do:workers/missions:MissionsDO:workspace-missions",
+      },
+      tier: "gated",
+      decision: "once",
+    },
+  ],
+};
 export const managedAutomationTests: TestCase[] = managedAutomationWorlds.map(
   (world) => ({
     name: `automation-lifecycle-live-${world.id}`,
@@ -16,6 +33,11 @@ export const managedAutomationTests: TestCase[] = managedAutomationWorlds.map(
       "Apply or hold owner-scoped scheduling in the real Missions service",
     prompt: world.goal,
     explicitOnly: true,
+    ...(world.problem === "revised-before-review" ||
+    world.problem === "revision-race" ||
+    world.problem === "revision-after-effect"
+      ? { authorityPolicy: fixtureEditAuthority }
+      : {}),
     validation: "harness",
     async orchestrate(context) {
       context.signal.throwIfAborted();
@@ -73,11 +95,12 @@ managedAutomationTests.push({
   prompt:
     "Qualify reversible owner-scoped automation scheduling and the stale revision guard.",
   explicitOnly: true,
+  authorityPolicy: fixtureEditAuthority,
   validation: "harness",
   async orchestrate(context) {
     const started = Date.now();
     const qualifications = [];
-    for (const id of ["pause-monitor", "resume-monitor", "stale-review"]) {
+    for (const { id } of managedAutomationWorlds) {
       context.signal.throwIfAborted();
       const observed = await context.runner.runManagedAutomation(id, true);
       if (observed.kind !== "reference")
@@ -94,15 +117,19 @@ managedAutomationTests.push({
     const observed = result.diagnostics?.["managedAutomationQualification"] as
       | Qualification[]
       | undefined;
-    return observed?.length === 3 &&
-      observed.every((row) => row.verification.passed) &&
-      observed[2]?.staleControllerGuard
+    return observed?.length === managedAutomationWorlds.length &&
+      managedAutomationWorlds.every((world, index) => {
+        const row = observed[index];
+        return (
+          row?.verification.caseId === world.id &&
+          row.verification.passed &&
+          (world.problem !== "stale" || row.staleControllerGuard)
+        );
+      })
       ? {
           passed: true,
           details: {
-            pause: true,
-            resume: true,
-            staleGuard: true,
+            checkedCases: observed.length,
             modelCalls: 0,
           },
         }
