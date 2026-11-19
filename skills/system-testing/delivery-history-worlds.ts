@@ -17,4 +17,24 @@ export const deliveryHistoryWorlds = [
     text: "The reading room closes at five on Thursday.",
     mode: "foreign",
   },
+  {
+    id: "reconcile-sender-from-retained-envelope",
+    goal: "Review the handoff receipt for the facilities note against the durable channel row. Establish whether the attributed speaker and the original sender agree.",
+    text: "Put the visitor sign-in sheet in the south lobby.",
+    mode: "sender-mismatch",
+  },
+  {
+    id: "locate-message-from-reconnect-receipt",
+    goal: "The site coordinator asks whether the message referenced by this receipt survived reconnect. Verify the exact claimed message against the channel and reconstructed view.",
+    text: "The storage cage will be unlocked after the delivery arrives.",
+    mode: "missing",
+  },
 ] as const;
+
+export const deliveryOriginByMode = {
+  received: "matched",
+  retry: "matched",
+  foreign: "foreign-channel",
+  "sender-mismatch": "receipt-mismatch",
+  missing: "missing-message",
+} as const;

@@ -7,7 +7,7 @@ import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import { bindDeliveryHistory } from "@workspace-skills/delivery-history-bindings";
 import type { DeliveryHistoryObservation, DeliveryHistoryReport } from "../conversation-evidence-review/types.js";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
-import { deliveryHistoryWorlds } from "./delivery-history-worlds.js";
+import { deliveryHistoryWorlds, deliveryOriginByMode } from "./delivery-history-worlds.js";
 
 type Input = { contextId: string; caseId: string };
 
@@ -16,6 +16,11 @@ export async function prepareDeliveryHistory(input: Input) {
   if (!world || input.contextId !== contextId) throw new Error("Unknown delivery history assignment");
   const source = await createOwnedHeadlessChannel(contextId, "Original delivery");
   const foreign = world.mode === "foreign";
+  const missing = world.mode === "missing";
+  const senderMismatch = world.mode === "sender-mismatch";
+  const origin = deliveryOriginByMode[world.mode];
+  const matched = origin === "matched";
+  const consumer = matched ? "matched" : "unreviewed";
   const selected = foreign ? await createOwnedHeadlessChannel(contextId, "Other delivery") : source;
   const key = "assigned-delivery";
   const send = (lane: typeof source) => withOwnedChannelClient(lane, contextId, (client) =>
@@ -24,7 +29,12 @@ export async function prepareDeliveryHistory(input: Input) {
   const originalId = await send(source);
   const retryId = world.mode === "retry" ? await send(source) : null;
   const decoyId = foreign ? await send(selected) : null;
-  const receipt = { channelId: source.key, messageId: originalId, senderId: rpc.selfId };
+  const senderId = rpc.selfId;
+  const receipt = {
+    channelId: source.key,
+    messageId: missing ? crypto.randomUUID() : originalId,
+    senderId: senderMismatch ? crypto.randomUUID() : senderId,
+  };
   const bound = bindDeliveryHistory({
     goal: world.goal, channelId: selected.key, channelTarget: selected.target, receipt,
     observeConsumer: () => withOwnedChannelClient(selected, contextId, async (client) => {
@@ -64,22 +74,21 @@ export async function prepareDeliveryHistory(input: Input) {
       scope: reads === 1 && observed?.channelId === selected.key && isDeepStrictEqual(observed.receipt, receipt) &&
         isDeepStrictEqual(report?.observation, observed),
       nativeDelivery: !page.ready.hasMoreAfter && rows.length === 1 && !!canonical &&
-        canonical.messageId === (decoyId ?? originalId) && canonical.senderId === receipt.senderId &&
+        canonical.messageId === (decoyId ?? originalId) && canonical.senderId === senderId &&
         canonical.text === world.text && (foreign ? decoyId !== originalId : decoyId === null) &&
         (world.mode === "retry" ? retryId === originalId : retryId === null),
-      retained: !!canonical && (foreign
+      retained: !!canonical && (foreign || missing
         ? observed?.retained.length === 0 && observed.rendered.length === 0
         : isDeepStrictEqual(observed?.retained, [canonical]) &&
-          isDeepStrictEqual(observed?.rendered, [{ messageId: originalId, senderId: receipt.senderId, text: world.text }])),
-      verdict: report?.origin === (foreign ? "foreign-channel" : "matched") &&
-        report.consumer === (foreign ? "unreviewed" : "matched") && report.verified === !foreign,
+          isDeepStrictEqual(observed?.rendered, [{ messageId: originalId, senderId, text: world.text }])),
+      verdict: report?.origin === origin && report.consumer === consumer && report.verified === matched,
     };
     return { ...input, request: bound.request, observed, canonical, retryId, decoyId, checks, passed: Object.values(checks).every(Boolean) };
   }
 
   async function qualify() {
     const observation = await services.deliveryHistory.inspect(bound.request.operationId);
-    return verify({ observation, origin: foreign ? "foreign-channel" : "matched", consumer: foreign ? "unreviewed" : "matched", verified: !foreign });
+    return verify({ observation, origin, consumer, verified: matched });
   }
   return { request: bound.request, services, qualify, verify };
 }
