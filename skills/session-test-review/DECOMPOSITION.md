@@ -24,3 +24,15 @@ each assigned checkpoint and dispatches it through channel routing, replay
 integrity, and retry identity checks. The retry stage distinguishes the
 first accepted payload from later text sent with the same idempotency key.
 Only the caller owns channel creation, sending and cleanup.
+
+## Live Testkit teardown
+
+The fixture executes the installed Testkit runner against disposable workspace
+resources, retaining the result, deferred registration order, cleanup
+acknowledgements and a separate post-run inventory. The Natlang workflow uses
+the existing release reviewer for LIFO and acknowledgement semantics. Its
+inventory stage distinguishes remaining registered resources from allocations
+that were never registered. Its outcome stage reports the suite result
+independently. A callback can report an error after releasing its resource,
+and a passing test can still have cleanup residue. The caller retires any
+owned leftovers after taking the evidence.

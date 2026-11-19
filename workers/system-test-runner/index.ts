@@ -1,3 +1,4 @@
+import type { TestkitCleanupInput, ManagedTestkitCleanupReceiver } from "@workspace-skills/system-testing/testkit-cleanup-contract";
 import type { SessionReplayInput, ManagedSessionReplayReceiver } from "@workspace-skills/system-testing/session-replay-contract";
 import type { PanelHealthInput, ManagedPanelHealthReceiver } from "@workspace-skills/system-testing/panel-health-contract";
 import type { ChannelRosterInput, ManagedChannelRosterReceiver } from "@workspace-skills/system-testing/channel-roster-contract";
@@ -967,6 +968,45 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const assignedServices={};
       `,
     }, runId)) as Awaited<ReturnType<ManagedPresentationReceiver["runManagedPresentationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews real Testkit cleanup in an owned fixture context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedTestkitCleanupTeacher(input: TestkitCleanupInput & {executorModel:string}): ReturnType<ManagedTestkitCleanupReceiver["runManagedTestkitCleanupTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"sessionTest",operation:"reviewLiveCleanup",input:{goal:"Review live Testkit cleanup"}},
+      inputCode:"prepared.request",
+      bindingCode:this.testkitCleanupBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedTestkitCleanupReceiver["runManagedTestkitCleanupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies real Testkit cleanup without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedTestkitCleanup(input: TestkitCleanupInput): ReturnType<ManagedTestkitCleanupReceiver["qualifyManagedTestkitCleanup"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.testkitCleanupBindings(input)}
+      if(prepared.firstCase) {
+        const program=await natlang.describe("skills/vibestudio-workflows/runWorkflow.nl");
+        if(!program.functions.some(({name})=>name==="reviewLiveCleanup")) throw new Error("The shared Natlang workflow is missing Testkit cleanup");
+      }
+      let rejectedForeignReceipt=false;
+      try {await assignedServices.testkitCleanup.inspect("foreign-receipt");}
+      catch(error) {rejectedForeignReceipt=error instanceof Error && error.message.includes("assigned cleanup receipt once");}
+      await assignedServices.testkitCleanup.inspect(prepared.request.receipt);
+      const utilityValue={verified:prepared.verify(prepared.reference),rejectedForeignReceipt};
+    `) as Awaited<ReturnType<ManagedTestkitCleanupReceiver["qualifyManagedTestkitCleanup"]>>;
+  }
+
+  private testkitCleanupBindings(input: TestkitCleanupInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareTestkitCleanup} from "@workspace-skills/system-testing/testkit-cleanup-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Testkit cleanup belongs to a different context");
+      const prepared=await prepareTestkitCleanup(input.caseId);
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Reviews the assigned headless session and exact replay evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

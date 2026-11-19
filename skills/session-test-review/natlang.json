@@ -3,6 +3,9 @@
   "name": "vibestudio-session-test-review",
   "version": "0.1.0",
   "serviceBinding": "explicit",
-  "serviceScopes": { "sessionReplay": ["reviewLiveReplay/readCheckpoint.nl"] },
+  "serviceScopes": {
+    "sessionReplay": ["reviewLiveReplay/readCheckpoint.nl"],
+    "testkitCleanup": ["reviewLiveCleanup/readCleanup.nl"]
+  },
   "targets": { "main": { "entry": "reviewSessionTest.nl" } }
 }

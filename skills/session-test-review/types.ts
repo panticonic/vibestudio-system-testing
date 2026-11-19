@@ -62,17 +62,18 @@ export type SessionRelease = {
   terminals: ("unsubscribe" | "retire-agent" | "destroy-context")[];
   errors: string[];
 };
+export type TestkitResourceKind = "panel" | "page-client" | "worker" | "supervisor" | "scratch";
 export type TestkitRelease = {
   kind: "testkit";
   receipt: string;
   // Resources in the order their release was registered with defer.
   resources: {
     id: string;
-    kind: "panel" | "page-client" | "worker" | "supervisor" | "scratch";
+    kind: TestkitResourceKind;
   }[];
   released: {
     id: string;
-    kind: "panel" | "page-client" | "worker" | "supervisor" | "scratch";
+    kind: TestkitResourceKind;
     acknowledgement: "released" | "failed";
   }[];
 };
@@ -118,3 +119,25 @@ export type LiveReplayFinding = {
   retainedIds: string[];
 };
 export type LiveReplayReport = { findings: LiveReplayFinding[] };
+
+export type TestkitOwnedResource = { id: string; kind: TestkitResourceKind };
+export type TestkitOutcome = "passed" | "failed" | "errored" | "timeout";
+export type CleanupInventory = "clear" | "registered-residue" | "unregistered-residue" | "mixed-residue";
+export type LiveCleanupEvidence = {
+  receipt: string;
+  outcome: TestkitOutcome;
+  error: string | null;
+  logs: string[];
+  acquired: TestkitOwnedResource[];
+  release: TestkitRelease;
+  remaining: TestkitOwnedResource[];
+  protectedUnchanged: boolean;
+};
+export type LiveCleanupRequest = { goal: string; receipt: string };
+export type LiveCleanupReport = {
+  receipt: string;
+  testOutcome: TestkitOutcome;
+  release: SessionReview;
+  inventory: CleanupInventory;
+  remainingIds: string[];
+};

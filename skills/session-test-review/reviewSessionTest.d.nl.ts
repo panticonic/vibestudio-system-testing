@@ -66,17 +66,18 @@ type SessionRelease = {
   terminals: ("unsubscribe" | "retire-agent" | "destroy-context")[];
   errors: string[];
 };
+type TestkitResourceKind = "panel" | "page-client" | "worker" | "supervisor" | "scratch";
 type TestkitRelease = {
   kind: "testkit";
   receipt: string;
   // Resources in the order their release was registered with defer.
   resources: {
     id: string;
-    kind: "panel" | "page-client" | "worker" | "supervisor" | "scratch";
+    kind: TestkitResourceKind;
   }[];
   released: {
     id: string;
-    kind: "panel" | "page-client" | "worker" | "supervisor" | "scratch";
+    kind: TestkitResourceKind;
     acknowledgement: "released" | "failed";
   }[];
 };
@@ -119,5 +120,26 @@ type LiveReplayFinding = {
   retainedIds: string[];
 };
 type LiveReplayReport = { findings: LiveReplayFinding[] };
+type TestkitOwnedResource = { id: string; kind: TestkitResourceKind };
+type TestkitOutcome = "passed" | "failed" | "errored" | "timeout";
+type CleanupInventory = "clear" | "registered-residue" | "unregistered-residue" | "mixed-residue";
+type LiveCleanupEvidence = {
+  receipt: string;
+  outcome: TestkitOutcome;
+  error: string | null;
+  logs: string[];
+  acquired: TestkitOwnedResource[];
+  release: TestkitRelease;
+  remaining: TestkitOwnedResource[];
+  protectedUnchanged: boolean;
+};
+type LiveCleanupRequest = { goal: string; receipt: string };
+type LiveCleanupReport = {
+  receipt: string;
+  testOutcome: TestkitOutcome;
+  release: SessionReview;
+  inventory: CleanupInventory;
+  remainingIds: string[];
+};
 declare const fn: NatlangFunction<[request: SessionReviewRequest], SessionReview> & { readonly reviewRelease: NatlangFunction<[evidence: SessionRelease | TestkitRelease], SessionReview> & { readonly checkSessionClose: NatlangFunction<[evidence: SessionRelease], SessionReview>; readonly checkTestkitRelease: NatlangFunction<[evidence: TestkitRelease], SessionReview> }; readonly reviewSession: NatlangFunction<[evidence: Seed | Continuation], SessionReview> & { readonly checkContinuation: NatlangFunction<[evidence: Continuation], SessionReview>; readonly checkSeed: NatlangFunction<[evidence: Seed], SessionReview> }; readonly reviewVerification: NatlangFunction<[evidence: Dispatch | VerifyResult], SessionReview> & { readonly checkDispatch: NatlangFunction<[evidence: Dispatch], SessionReview>; readonly checkResult: NatlangFunction<[evidence: VerifyResult], SessionReview> } };
 export default fn;

@@ -84,6 +84,8 @@
     "./verified-memory-contract": "./verified-memory-contract.ts",
     "./verified-memory-managed": "./verified-memory-managed.ts",
     "./verified-memory-worlds": "./verified-memory-worlds.ts",
+    "./testkit-cleanup-contract": "./testkit-cleanup-contract.ts",
+    "./testkit-cleanup-managed": "./testkit-cleanup-managed.ts",
     "./session-replay-contract": "./session-replay-contract.ts",
     "./session-replay-managed": "./session-replay-managed.ts",
     "./authoring-contract": "./authoring-contract.ts",
