@@ -3,6 +3,7 @@ import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { managedReleaseReviewHandoffMethods } from "./release-review-handoff-contract.js";
+import { managedEvalRecoveryMethods } from "./eval-recovery-managed.js";
 import { managedPdfLayoutMethods } from "./pdf-layout-managed.js";
 import { managedDictationMethods } from "./offline-dictation-managed.js";
 import { managedNativeSuiteMethods } from "./native-suite-managed.js";
@@ -1521,6 +1522,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.qualifyManagedVcsDelivery, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.runManagedVcsDeliveryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedEvalRecovery(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedEvalRecoveryMethods.qualifyManagedEvalRecovery, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedEvalRecoveryMethods.runManagedEvalRecoveryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

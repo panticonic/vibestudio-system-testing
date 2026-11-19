@@ -55,6 +55,7 @@
     "./release-review-handoff-worlds": "./release-review-handoff-worlds.ts",
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
+    "./eval-recovery-managed": "./eval-recovery-managed.ts",
     "./pdf-layout-managed": "./pdf-layout-managed.ts",
     "./offline-dictation-managed": "./offline-dictation-managed.ts",
     "./native-suite-managed": "./native-suite-managed.ts",
@@ -148,6 +149,7 @@
   },
   "dependencies": {
     "@workspace-skills/problem-reporting": "workspace:*",
+    "@workspace-skills/eval-recovery-bindings": "workspace:*",
     "@workspace-skills/offline-dictation-bindings": "workspace:*",
     "@workspace-skills/native-suite-review-bindings": "workspace:*",
     "@workspace-skills/git-bridge-review-bindings": "workspace:*",

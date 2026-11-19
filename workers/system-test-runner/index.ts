@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import { evalRecoveryProbeCode, type ManagedEvalRecoveryReceiver } from "@workspace-skills/system-testing/eval-recovery-managed";
 import type { ManagedPdfLayoutReceiver } from "@workspace-skills/system-testing/pdf-layout-managed";
 import type { ManagedDictationReceiver } from "@workspace-skills/system-testing/offline-dictation-managed";
 import type { ManagedNativeSuiteReceiver } from "@workspace-skills/system-testing/native-suite-managed";
@@ -138,6 +139,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  EvalRecovery: {kind:"domain",domain:"evalRecovery",operation:"reviewEvalRecovery",input:{goal:"Review the assigned eval attempt"}},
   PdfLayout: {kind:"domain",domain:"pdfIntake",operation:"reviewPdfLayout",input:{goal:"Review the assigned PDF layout"}},
   Dictation: {kind:"domain",domain:"dictation",operation:"reviewDictation",input:{goal:"Review the assigned offline dictation"}},
   NativeSuite: {kind:"domain",domain:"testSuite",operation:"reviewTestSuite",input:{goal:"Review the assigned declared test suite"}},
@@ -2012,6 +2014,61 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const prepared=await prepareManagedVcsDelivery(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures recovery of the assigned eval side effect."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedEvalRecoveryTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedEvalRecoveryReceiver["runManagedEvalRecoveryTeacher"]> {
+    const probe = await this.runEvalRecoveryProbe(input);
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.EvalRecovery,
+      inputCode:"prepared.request",
+      bindingCode:this.managedEvalRecoveryBindings(input, probe),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedEvalRecoveryReceiver["runManagedEvalRecoveryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the original native journal and exact readback without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedEvalRecovery(input: {contextId:string;caseId:string}): ReturnType<ManagedEvalRecoveryReceiver["qualifyManagedEvalRecovery"]> {
+    const probe = await this.runEvalRecoveryProbe(input);
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.EvalRecovery],
+      this.managedEvalRecoveryBindings(input, probe),
+    )) as Awaited<ReturnType<ManagedEvalRecoveryReceiver["qualifyManagedEvalRecovery"]>>;
+  }
+
+  private managedEvalRecoveryBindings(input: {contextId:string;caseId:string}, probe: Awaited<ReturnType<SystemTestRunnerDO["runEvalRecoveryProbe"]>>): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedEvalRecovery} from "@workspace-skills/system-testing/eval-recovery-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Eval recovery belongs to another context");
+      const prepared=prepareManagedEvalRecovery(input,${JSON.stringify(probe)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  private async runEvalRecoveryProbe(input: { contextId: string; caseId: string }) {
+    const code = evalRecoveryProbeCode(input);
+    const runId = "system-test-eval-recovery:" + crypto.randomUUID();
+    const scope = { key: runId, lifecycle: "finite" as const };
+    const execute = createEvalExecutor(createMainRpcCaller(this.rpc));
+    try {
+      const result = await execute({
+        runId, scope, source: { kind: "inline", code, syntax: "typescript" },
+      });
+      if (!result.success && result.error) {
+        const failure = formatRpcFailure(deserializeRpcFailure(result.error));
+        if (!failure.includes("Intentional failure after the assigned store"))
+          throw new Error("Eval recovery source failed before the assigned outcome: " + failure);
+      }
+      if (!result.operationJournal || result.operationJournal.entries.length === 0)
+        throw new Error("Eval recovery source returned no native receipts");
+      return { runId, success: result.success, operationJournal: result.operationJournal };
+    } finally {
+      await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
+    }
   }
 
   @rpc({website:{kind:"closed",reason:"Captures the assigned PDF layout review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
