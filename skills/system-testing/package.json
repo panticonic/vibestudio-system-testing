@@ -56,6 +56,8 @@
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
     "./log-cursor-worlds": "./log-cursor-worlds.ts",
+    "./tour-rehearsal-worlds": "./tour-rehearsal-worlds.ts",
+    "./tour-rehearsal-managed": "./tour-rehearsal-managed.ts",
     "./build-performance-managed": "./build-performance-managed.ts",
     "./log-cursor-managed": "./log-cursor-managed.ts",
     "./eval-recovery-managed": "./eval-recovery-managed.ts",

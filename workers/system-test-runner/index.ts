@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
 import type { BuildPerformanceInput, BuildPerformanceReceiver } from "@workspace-skills/system-testing/build-performance-managed";
 import type { ManagedLogCursorReceiver } from "@workspace-skills/system-testing/log-cursor-managed";
 import { managedLogCursorWorlds } from "@workspace-skills/system-testing/log-cursor-worlds";
@@ -2078,6 +2079,44 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures a rehearsal on the assigned tour panel."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runTourRehearsalTeacher(input: TourRehearsalInput & {executorModel:string}): ReturnType<TourRehearsalReceiver["runTourRehearsalTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"tour",operation:"rehearseTour",input:{goal:"Rehearse the assigned tour"}},
+      inputCode: "prepared.request",
+      bindingCode: this.tourRehearsalBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<TourRehearsalReceiver["runTourRehearsalTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the real tour state and presentation without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyTourRehearsal(input: TourRehearsalInput): ReturnType<TourRehearsalReceiver["qualifyTourRehearsal"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"tour",operation:"rehearseTour"}],
+      this.tourRehearsalBindings(input),
+    )) as Awaited<ReturnType<TourRehearsalReceiver["qualifyTourRehearsal"]>>;
+  }
+
+  private tourRehearsalBindings(input: TourRehearsalInput): string {
+    return `
+      import {contextId as actualContextId,panelTree} from "@workspace/runtime";
+      import {bindTourRehearsal} from "@workspace-skills/tour-rehearsal-bindings";
+      import {prepareTourRehearsal} from "@workspace-skills/system-testing/tour-rehearsal-managed";
+      import {tourRehearsalWorlds} from "@workspace-skills/system-testing/tour-rehearsal-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Tour rehearsal belongs to another context");
+      const world=tourRehearsalWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown tour rehearsal assignment");
+      const bound=bindTourRehearsal(panelTree.get(input.panelId),{
+        contextId:actualContextId,allowed:[...world.allowed],topics:[...world.topics],goal:world.goal,restore:world.restore,
+      });
+      const prepared=prepareTourRehearsal(input,bound);
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures the assigned native build performance review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

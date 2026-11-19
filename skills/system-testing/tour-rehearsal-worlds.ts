@@ -1,0 +1,33 @@
+export const tourRehearsalWorlds = [
+  {
+    id: "boundary-rehearsal-restore",
+    goal: "Rehearse the difference between capability approvals and connected websites. Show presenter notes for both topics, then restore the opening view.",
+    topics: ["Workspace capability boundaries", "Connected websites versus installed apps"],
+    allowed: ["workspaces", "websites"],
+    initial: { scene: "continuum", notes: false, progress: "2 / 6" },
+    expected: [{ scene: "workspaces", progress: "3 / 6" }, { scene: "websites", progress: "4 / 6" }],
+    notes: true,
+    restore: true,
+  },
+  {
+    id: "audience-automation-handoff",
+    goal: "Rehearse recurring work and then creating a first tool in audience view without notes. Leave the panel on the last scene.",
+    topics: ["Recurring work", "Creating a first tool"],
+    allowed: ["automations", "closing"],
+    initial: { scene: "opening", notes: true, progress: "1 / 6" },
+    expected: [{ scene: "automations", progress: "5 / 6" }, { scene: "closing", progress: "6 / 6" }],
+    notes: false,
+    restore: false,
+  },
+  {
+    id: "unassigned-topic-holds",
+    goal: "Rehearse recurring work and creating a first tool. Leave the current view untouched if the authorized set cannot cover both topics.",
+    topics: ["Recurring work", "Creating a first tool"],
+    allowed: ["automations"],
+    initial: { scene: "opening", notes: false, progress: "1 / 6" },
+    expected: [{ scene: "automations", progress: "5 / 6" }],
+    unmatched: ["Creating a first tool"],
+    notes: false,
+    restore: false,
+  },
+] as const;

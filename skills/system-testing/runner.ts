@@ -3,6 +3,8 @@ import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { managedReleaseReviewHandoffMethods } from "./release-review-handoff-contract.js";
+import { tourRehearsalMethods } from "./tour-rehearsal-managed.js";
+import { tourRehearsalWorlds } from "./tour-rehearsal-worlds.js";
 import { buildPerformanceMethods } from "./build-performance-managed.js";
 import { managedLogCursorMethods } from "./log-cursor-managed.js";
 import { managedEvalRecoveryMethods } from "./eval-recovery-managed.js";
@@ -1526,6 +1528,31 @@ export class HeadlessRunner {
         : { kind: "teacher" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.runManagedVcsDeliveryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runTourRehearsal(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = tourRehearsalWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown tour rehearsal case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    let handle: PanelHandle | undefined;
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      handle = await this.openPanelClient("panels/tour", {
+        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+        stateArgs: { scene: world.initial.scene, notes: world.initial.notes },
+      });
+      const input = { contextId, caseId, panelId: handle.id };
+      if (qualification)
+        return { kind: "reference" as const, value: await rpc.call(owner, tourRehearsalMethods.qualifyTourRehearsal, [input], { signal }) };
+      return { kind: "teacher" as const, value: await rpc.call(owner, tourRehearsalMethods.runTourRehearsalTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      try {
+        await handle?.archive();
+      } finally {
+        await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+      }
     }
   }
 
