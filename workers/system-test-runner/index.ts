@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
 import type { BuildPerformanceInput, BuildPerformanceReceiver } from "@workspace-skills/system-testing/build-performance-managed";
@@ -2080,6 +2081,43 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {
       await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: scope.key }]);
     }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned Gmail compose history review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runGmailComposeHistoryTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<GmailComposeHistoryReceiver["runGmailComposeHistoryTeacher"]> {
+    const bindings = await this.gmailComposeBindings(input);
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"gmailReview",operation:"inspectComposeHistory",input:{goal:"Review the assigned compose history"}},
+      inputCode: "prepared.request",
+      bindingCode: bindings,
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<GmailComposeHistoryReceiver["runGmailComposeHistoryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies native compose channel receipts without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyGmailComposeHistory(input: {contextId:string;caseId:string}): ReturnType<GmailComposeHistoryReceiver["qualifyGmailComposeHistory"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"gmailReview",operation:"inspectComposeHistory"}],
+      await this.gmailComposeBindings(input),
+    )) as Awaited<ReturnType<GmailComposeHistoryReceiver["qualifyGmailComposeHistory"]>>;
+  }
+
+  private async gmailComposeBindings(input: {contextId:string;caseId:string}): Promise<string> {
+    const identity = await this.integrationFixtureIdentity();
+    if (identity.contextId !== input.contextId) throw new Error("Compose history belongs to another context");
+    const seed = await seedGmailComposeChannel(this.rpc,input,identity.ownerEntityId);
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {bindGmailComposeHistory} from "@workspace-skills/gmail-compose-history-bindings";
+      import {prepareGmailComposeHistory} from "@workspace-skills/system-testing/gmail-compose-history-managed";
+      const seed=${JSON.stringify(seed)};
+      if(actualContextId!==seed.contextId) throw new Error("Compose history belongs to another context");
+      const bound=bindGmailComposeHistory({...seed,envelopeIds:seed.lineage.map(item=>item.id)});
+      const prepared=prepareGmailComposeHistory(seed,bound);
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures an assigned text contract probe."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
