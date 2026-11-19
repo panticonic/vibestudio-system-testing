@@ -47,6 +47,7 @@
     }
   },
   "exports": {
+    "./terminal-check-managed": "./terminal-check-managed.ts",
     "./gad-review-managed": "./gad-review-managed.ts",
     "./phone-setup-managed": "./phone-setup-managed.ts",
     "./news-worlds": "./news-worlds.ts",
@@ -129,6 +130,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/terminal": "workspace:*",
     "@workspace-skills/gad-context": "workspace:*",
     "@workspace/natlang": "workspace:*",
     "@workspace-skills/natlang-authoring": "workspace:*",

@@ -1,3 +1,4 @@
+import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
 import type { ManagedGadReviewReceiver } from "@workspace-skills/system-testing/gad-review-managed";
 import { phoneSetupUnavailable, type ManagedPhoneSetupReceiver } from "@workspace-skills/system-testing/phone-setup-managed";
 import type { TestkitCleanupInput, ManagedTestkitCleanupReceiver } from "@workspace-skills/system-testing/testkit-cleanup-contract";
@@ -1755,6 +1756,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const world=managedLogAuditWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown host log audit");
       const prepared=prepareManagedLogAudit(filter=>rpc.call("main",mainRpcMethods["serverLog.query"],[filter]),actualContextId,world,${JSON.stringify(seed)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs an exact terminal check plan owned by the test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedTerminalCheckTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedTerminalCheckReceiver["runManagedTerminalCheckTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"terminalChecks",operation:"runTerminalChecks",input:{goal:"Complete the assigned terminal checks"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedTerminalCheckBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedTerminalCheckReceiver["runManagedTerminalCheckTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies bounded native terminal execution without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedTerminalCheck(input: {contextId:string;caseId:string}): ReturnType<ManagedTerminalCheckReceiver["qualifyManagedTerminalCheck"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.managedTerminalCheckBindings(input)}
+      await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
+      const utilityValue=await prepared.qualify();
+    `) as Awaited<ReturnType<ManagedTerminalCheckReceiver["qualifyManagedTerminalCheck"]>>;
+  }
+
+  private managedTerminalCheckBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedTerminalChecks} from "@workspace-skills/system-testing/terminal-check-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Terminal checks belong to another context");
+      const prepared=prepareManagedTerminalChecks(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

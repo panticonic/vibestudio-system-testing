@@ -1,3 +1,4 @@
+import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedGadReviewMethods } from "./gad-review-managed.js";
 import { managedPhoneSetupMethods } from "./phone-setup-managed.js";
 import { testkitCleanupMethods } from "./testkit-cleanup-contract.js";
@@ -1374,6 +1375,20 @@ export class HeadlessRunner {
       if (qualification)
         return { kind: "reference" as const, result: await rpc.call(owner, testkitCleanupMethods.qualifyManagedTestkitCleanup, [input], { signal }) };
       return { kind: "teacher" as const, result: await rpc.call(owner, testkitCleanupMethods.runManagedTestkitCleanupTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedTerminalCheck(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedTerminalCheckMethods.qualifyManagedTerminalCheck, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedTerminalCheckMethods.runManagedTerminalCheckTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
