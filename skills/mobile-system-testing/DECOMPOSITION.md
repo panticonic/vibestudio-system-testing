@@ -26,3 +26,9 @@ The managed development cases use a single disposable emulator. They preserve
 the original extension-install test's native install and launch path. The
 independent harness reads the app before and after the attempt. A missing
 assigned target and a caller without foreground ownership have separate cases.
+
+
+The managed pairing cases use the original onboarding provisioning authority
+and public phone client against a desktop attached to the disposable account.
+The binder retains the native pairing receipt and joins readiness through its
+paired identity. The harness reads readiness independently before admission.

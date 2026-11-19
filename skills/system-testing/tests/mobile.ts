@@ -11,6 +11,54 @@ import {
   walkRecords,
 } from "../scenario-validation.js";
 
+export const androidPairingAuthority: NonNullable<TestCase["authorityPolicy"]> = {
+  authority: [
+    {
+      ruleId: "onboarding-desktop-phone-service",
+      capability: {
+        kind: "exact",
+        key: "workspace-service:phone.provisioning",
+      },
+      resource: {
+        kind: "exact",
+        key: "do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
+      },
+      tier: "gated",
+      decision: "once",
+    },
+    {
+      ruleId: "onboarding-desktop-mobile-discovery",
+      capability: {
+        kind: "prefix",
+        prefix: "userland:workers/phone-provisioning/mobile.devices.read#",
+      },
+      resource: {
+        kind: "exact",
+        // The worker declares resourceType "mobile-device" for both userland
+        // capabilities, so that — not "phone" — is the prompt's resource
+        // prefix. A rule keyed to "phone:" matched no prompt this surface
+        // raises, and the scenario failed on its own subject.
+        key: "mobile-device:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
+      },
+      tier: "gated",
+      decision: "once",
+    },
+    {
+      ruleId: "onboarding-desktop-mobile-provision",
+      capability: {
+        kind: "prefix",
+        prefix: "userland:workers/phone-provisioning/mobile.provision#",
+      },
+      resource: {
+        kind: "exact",
+        key: "mobile-device:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
+      },
+      tier: "gated",
+      decision: "once",
+    },
+  ],
+};
+
 export const mobileTests: TestCase[] = requiringUnits(
   ["workers/phone-provisioning"],
   [
@@ -28,53 +76,7 @@ export const mobileTests: TestCase[] = requiringUnits(
       // Its structured tool results are harness-observed protocol evidence, so a
       // prose completion report cannot be the pass/fail authority.
       validation: "harness",
-      authorityPolicy: {
-        authority: [
-          {
-            ruleId: "onboarding-desktop-phone-service",
-            capability: {
-              kind: "exact",
-              key: "workspace-service:phone.provisioning",
-            },
-            resource: {
-              kind: "exact",
-              key: "do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
-            },
-            tier: "gated",
-            decision: "once",
-          },
-          {
-            ruleId: "onboarding-desktop-mobile-discovery",
-            capability: {
-              kind: "prefix",
-              prefix: "userland:workers/phone-provisioning/mobile.devices.read#",
-            },
-            resource: {
-              kind: "exact",
-              // The worker declares resourceType "mobile-device" for both userland
-              // capabilities, so that — not "phone" — is the prompt's resource
-              // prefix. A rule keyed to "phone:" matched no prompt this surface
-              // raises, and the scenario failed on its own subject.
-              key: "mobile-device:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
-            },
-            tier: "gated",
-            decision: "once",
-          },
-          {
-            ruleId: "onboarding-desktop-mobile-provision",
-            capability: {
-              kind: "prefix",
-              prefix: "userland:workers/phone-provisioning/mobile.provision#",
-            },
-            resource: {
-              kind: "exact",
-              key: "mobile-device:do:workers/phone-provisioning:PhoneProvisioningDO:workspace-phone-provisioning",
-            },
-            tier: "gated",
-            decision: "once",
-          },
-        ],
-      },
+      authorityPolicy: androidPairingAuthority,
       prompt: [
         "Set up Vibestudio on the Android device attached to my connected desktop.",
         "Install the compatible app if needed, pair the phone, and make sure it finishes connecting to its workspace.",

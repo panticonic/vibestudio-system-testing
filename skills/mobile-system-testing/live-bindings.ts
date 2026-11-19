@@ -1,6 +1,7 @@
 import { phoneSetup } from "@workspace-skills/phone-setup";
 import { extensions } from "@workspace/runtime";
 import { mobileNativeMethods } from "@vibestudio/service-schemas/mobileNative";
+import type { PhoneProvisioningResult } from "@vibestudio/service-schemas/phoneProvisioning";
 import type { z } from "zod";
 import { bindMobileScenario, INTERNAL_PACKAGE, type MobilePorts } from "./bindings.js";
 import type {
@@ -44,10 +45,13 @@ function deviceState(state: string, ready: boolean): MobileDevice["state"] {
 /** The caller supplies the observed workspace identity, tooling and foreground ownership.
  *  Normal platform approval still applies to the delegated phone and debug APIs. */
 export function bindInstalledMobileScenario(
-  request: MobileAssignment,
-  observed: Omit<MobileInventory, "devices">,
+  assignment: MobileAssignment,
+  presence: Omit<MobileInventory, "devices">,
   signal?: AbortSignal,
 ) {
+  const request = { ...assignment };
+  const observed = { ...presence };
+  let paired: PhoneProvisioningResult | undefined;
   const matchesAssignment = (id: string) => !request.deviceId || request.deviceId === id;
   let setup: ReturnType<typeof phoneSetup> | undefined;
   const phone = () => (setup ??= phoneSetup());
@@ -100,6 +104,7 @@ export function bindInstalledMobileScenario(
       const receipt = await (
         await phone()
       ).provision({ providerId, platform: "android", deviceId, mode: "auto" });
+      paired = receipt;
       return {
         provider: receipt.platform === "android" ? receipt.providerId : "",
         workspace: receipt.workspace,
@@ -109,10 +114,10 @@ export function bindInstalledMobileScenario(
       };
     },
     async workspace(pairedDevice) {
-      return {
-        pairedDevice,
-        ...(await (await phone()).readiness(pairedDevice, signal)),
-      };
+      if (paired?.pairedDevice.deviceId !== pairedDevice)
+        throw new Error("Use the paired identity issued by this Android setup attempt");
+      const current = await (await phone()).waitForWorkspace(paired, undefined, signal);
+      return { pairedDevice, ...current };
     },
     async install(deviceId, reset) {
       signal?.throwIfAborted();

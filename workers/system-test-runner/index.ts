@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { AndroidPairReceiver } from "@workspace-skills/system-testing/android-pair-managed";
 import type { AndroidInstallReceiver } from "@workspace-skills/system-testing/android-install-managed";
 import type { AndroidAuditReceiver } from "@workspace-skills/system-testing/android-audit-managed";
 import type { DeliveryHistoryReceiver } from "@workspace-skills/system-testing/delivery-history-managed";
@@ -2113,6 +2114,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {preparePublicationRevision} from "@workspace-skills/system-testing/publication-revision-managed";
       const prepared=await preparePublicationRevision(${JSON.stringify(input)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned Android pairing."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runAndroidPairTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<AndroidPairReceiver["runAndroidPairTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"mobileSystem",operation:"runMobileScenario",input:{goal:"Exercise the assigned Android pairing"}},
+      inputCode: "prepared.request",
+      bindingCode: this.androidPairBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<AndroidPairReceiver["runAndroidPairTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies desktop pairing and the Android workspace readback."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyAndroidPair(input: {contextId:string;caseId:string}): ReturnType<AndroidPairReceiver["qualifyAndroidPair"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"mobileSystem",operation:"runMobileScenario"}], this.androidPairBindings(input),
+    )) as Awaited<ReturnType<AndroidPairReceiver["qualifyAndroidPair"]>>;
+  }
+
+  private androidPairBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId,workspace} from "@workspace/runtime";
+      import {phoneSetup} from "@workspace-skills/phone-setup";
+      import {prepareManagedAndroidPair} from "@workspace-skills/system-testing/android-pair-managed";
+      import {bindInstalledMobileScenario} from "@workspace-skills/mobile-system-testing/live-bindings";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Android pairing belongs to another context");
+      const prepared=await prepareManagedAndroidPair(input,await workspace.getActive(),await phoneSetup(),bindInstalledMobileScenario);
       const assignedServices=prepared.services;
     `;
   }
