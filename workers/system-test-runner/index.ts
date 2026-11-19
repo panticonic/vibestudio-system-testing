@@ -5,6 +5,7 @@ import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-te
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
 import type { ManagedReleaseReviewHandoffReceiver } from "@workspace-skills/system-testing/release-review-handoff-contract";
 import { releaseReviewHandoffWork } from "@workspace-skills/system-testing/release-review-handoff-worlds";
+import type { ManagedVcsDeliveryReceiver } from "@workspace-skills/system-testing/vcs-delivery-managed";
 import type { ManagedWebBriefReceiver } from "@workspace-skills/system-testing/web-brief-managed";
 import type { ManagedArchitectureBoundaryReceiver } from "@workspace-skills/system-testing/architecture-boundary-managed";
 import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
@@ -133,6 +134,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  VcsDelivery: {kind:"domain",domain:"vcsDelivery",operation:"reviewVcsDelivery",input:{goal:"Review the assigned semantic VCS delivery"}},
   WebBrief: {kind:"domain",domain:"webResearch",operation:"writeAssignedBrief",input:{goal:"Write the assigned web brief"}},
   ArchitectureBoundary: {kind:"domain",domain:"architecture",operation:"reviewArchitectureBoundary",input:{goal:"Review the assigned architecture boundary"}},
   ProblemDraft: {kind:"domain",domain:"problems",operation:"saveProblemDraft",input:{goal:"Save the assigned local report"}},
@@ -1938,6 +1940,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Release handoff belongs to another context");
       const prepared=await prepareReleaseReviewHandoff(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned semantic VCS delivery review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedVcsDeliveryTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedVcsDeliveryReceiver["runManagedVcsDeliveryTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.VcsDelivery,
+      inputCode:"prepared.request",
+      bindingCode:this.managedVcsDeliveryBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedVcsDeliveryReceiver["runManagedVcsDeliveryTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live semantic VCS delivery reads without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedVcsDelivery(input: {contextId:string;caseId:string}): ReturnType<ManagedVcsDeliveryReceiver["qualifyManagedVcsDelivery"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.VcsDelivery],
+      this.managedVcsDeliveryBindings(input),
+    )) as Awaited<ReturnType<ManagedVcsDeliveryReceiver["qualifyManagedVcsDelivery"]>>;
+  }
+
+  private managedVcsDeliveryBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedVcsDelivery} from "@workspace-skills/system-testing/vcs-delivery-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("VCS delivery review belongs to another context");
+      const prepared=await prepareManagedVcsDelivery(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

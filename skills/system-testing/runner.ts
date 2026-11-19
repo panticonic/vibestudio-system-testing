@@ -3,6 +3,8 @@ import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { managedReleaseReviewHandoffMethods } from "./release-review-handoff-contract.js";
+import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
+import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { managedArchitectureBoundaryMethods } from "./architecture-boundary-managed.js";
 import { managedExtensionReleaseMethods } from "./extension-release-managed.js";
@@ -1454,6 +1456,38 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedReleaseReviewHandoffMethods.qualifyManagedReleaseReviewHandoff, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedReleaseReviewHandoffMethods.runManagedReleaseReviewHandoffTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedVcsDelivery(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = managedVcsDeliveryWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown assigned VCS delivery case");
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const { workingHead } = await vcs.status({ contextId });
+      const repository = await vcs.resolveRepository({ state: workingHead, repoPath: deliveryRepository });
+      if (!repository) throw new Error("The installed semantic VCS skill repository is absent");
+      const seeded = await vcs.edit({
+        contextId, expectedWorkingHead: workingHead, commandId: `vcs-delivery:seed:${contextId}`,
+        changes: [{
+          kind: "file-create", path: world.seedPath, repositoryId: repository.repositoryId,
+          content: { kind: "text", text: world.text }, mode: 0o644,
+        }],
+      });
+      if (world.commit) {
+        await vcs.commit({
+          contextId, expectedWorkingHead: seeded.workingHead, commandId: `vcs-delivery:commit:${contextId}`,
+          message: "Seed the assigned committed delivery contract",
+        });
+      }
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.qualifyManagedVcsDelivery, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedVcsDeliveryMethods.runManagedVcsDeliveryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

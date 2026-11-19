@@ -55,6 +55,7 @@
     "./release-review-handoff-worlds": "./release-review-handoff-worlds.ts",
     "./release-review-handoff-managed": "./release-review-handoff-managed.ts",
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
+    "./vcs-delivery-managed": "./vcs-delivery-managed.ts",
     "./web-brief-managed": "./web-brief-managed.ts",
     "./architecture-boundary-managed": "./architecture-boundary-managed.ts",
     "./extension-release-managed": "./extension-release-managed.ts",
@@ -143,6 +144,7 @@
   },
   "dependencies": {
     "@workspace-skills/problem-reporting": "workspace:*",
+    "@workspace-skills/vcs-delivery-bindings": "workspace:*",
     "@workspace-skills/web-research-bindings": "workspace:*",
     "@workspace-skills/architecture": "workspace:*",
     "@workspace-skills/extensiondev": "workspace:*",
