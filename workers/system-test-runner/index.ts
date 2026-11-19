@@ -1117,7 +1117,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if(actualContextId!==input.contextId) throw new Error("Garden belongs to another context");
       const world=managedGrimoireWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown Grimoire world");
-      const prepared=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.visits.map(resident=>resident.toLowerCase()));
+      const prepared=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.actions.map(action=>action.toLowerCase()));
       const assignedServices=prepared.services;
     `;
   }

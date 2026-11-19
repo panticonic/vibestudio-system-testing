@@ -1108,19 +1108,41 @@ export class HeadlessRunner {
         contextId, ref: `ctx:${contextId}`, stateArgs: { estateKey: garden }, focus: false, parentId: null, signal,
       });
       const panel = handle;
-      const before = await rpc.call(owner, managedGrimoireMethods.inspectOwnedGarden, [{ contextId, garden }], { signal });
-      if (world.visits.length > 0) {
+      const before = await rpc.call(owner, managedGrimoireMethods.inspectOwnedGarden, [{ contextId, garden }], { signal }) as { day: number; phase: number };
+      if (world.actions.length > 0) {
         await setViewport(panel, { width: 1200, height: 1000 });
         const { page } = await panel.cdp.session();
+        let clock = before.day * 4 + before.phase;
         try {
-          for (const resident of world.visits) {
+          for (const [index, action] of world.actions.entries()) {
             signal.throwIfAborted();
-            await page.getByRole("button", { name: resident, exact: true }).click();
+            const quiet = action === "linger";
+            const button = quiet ? "Observe quietly" : action;
+            const control = page.getByRole("button", { name: button, exact: true });
+            if (!quiet) {
+              const selected = () => this.evalInPanelClient<boolean>(
+                panel,
+                `document.querySelector('.garden-stage .scene-note[aria-expanded="true"]')?.getAttribute("aria-label") === ${JSON.stringify(action)}`,
+              );
+              // Opening the resident card records a visit; closing it does not.
+              if (await selected()) {
+                await control.click();
+                await waitFor(async () => !(await selected()) || undefined, { label: `${action}'s resident card closes` });
+              }
+            }
+            await control.click();
+            if (quiet) clock++;
+            const expectedTime = `DAY ${Math.floor(clock / 4)} · ${["MORNING", "AFTERNOON", "EVENING", "NIGHT"][clock % 4]}`;
             await waitFor(async () => {
               signal.throwIfAborted();
-              const notice = await this.evalInPanelClient<string>(panel, 'document.querySelector(".garden-observations p")?.textContent ?? ""');
-              return notice.startsWith(`${resident} pauses to watch you.`) || undefined;
-            }, { label: `${resident}'s visit appears in the actual garden` });
+              const state = await this.evalInPanelClient<{ clock: string; notice: string; busy: boolean }>(
+                panel,
+                '({clock: document.querySelector(".garden-caption .eyebrow")?.textContent ?? "", notice: document.querySelector(".garden-observations p")?.textContent ?? "", busy: document.querySelector(".garden-observations button")?.disabled ?? true})',
+              );
+              return (!state.busy && state.clock.replace(/\s+/gu, " ").trim() === expectedTime &&
+                (quiet || state.notice.startsWith(`${action} pauses to watch you.`) ||
+                  state.notice.startsWith(`${action} recognises your hand`))) || undefined;
+            }, { label: `${caseId} action ${index + 1}: ${button} settles in the actual garden` });
           }
         } finally { await page.close(); }
       }
