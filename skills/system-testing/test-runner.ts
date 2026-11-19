@@ -1,4 +1,5 @@
 import { agentToolFailureSchema } from "@workspace/agentic-protocol";
+import { isRpcAbortedBy } from "@vibestudio/rpc";
 import type {
   ReportClaimJudge,
   TestCase,
@@ -81,6 +82,11 @@ export class TestRunner {
       testTimeoutMs?: number;
       /** Judges the report claims tests declare (`TestCase.reportClaims`). */
       claimJudge?: ReportClaimJudge;
+      runAgentCellCompaction?: (
+        signal: AbortSignal,
+        contextId: string,
+        turns: number,
+      ) => Promise<TestExecutionResult>;
     },
   ) {
     if (!runner) {
@@ -440,7 +446,7 @@ export class TestRunner {
           if (
             observation.status === "rejected" &&
             observation.reason !== terminalError &&
-            observation.reason !== controller.signal.reason
+            !isRpcAbortedBy(observation.reason, controller.signal.reason)
           )
             failures.push(observation.reason);
           if (failures.length > 1) {
@@ -515,6 +521,9 @@ export class TestRunner {
             ? await this.withTimeout(
                 test.orchestrate({
                   runner: testRunner,
+                  ...(this.opts?.runAgentCellCompaction
+                    ? { runAgentCellCompaction: this.opts.runAgentCellCompaction }
+                    : {}),
                   signal: orchestrationController.signal,
                   remainingTimeMs,
                   diagnostics: orchestrationDiagnostics,
@@ -679,6 +688,23 @@ export class TestRunner {
             taskOutcome: result,
             unexpectedToolFailures: unexpected,
           },
+        };
+      }
+      const reportedCleanup = [
+        ...new Set([
+          ...(execution.cleanupErrors ?? []),
+          ...(execution.cleanupFailures ?? []).map((failure) => failure.error.message),
+        ]),
+      ];
+      if (reportedCleanup.length > 0) {
+        const reason = `Test cleanup failed: ${reportedCleanup.join("; ")}`;
+        execution.error ??= reason;
+        execution.failure ??= execution.cleanupFailures?.[0] ??
+          systemTestFailure("orchestration-cleanup", new Error(reportedCleanup.join("; ")));
+        result = {
+          passed: false,
+          reason: result.passed ? reason : `${result.reason ?? "Requested outcome was not established"}; ${reason}`,
+          details: { ...(result.details ?? {}), taskOutcome: result, cleanupErrors: reportedCleanup },
         };
       }
       outcome = { result, execution };
@@ -964,12 +990,15 @@ export class TestRunner {
         try {
           await promise;
         } catch (settlementError) {
-          if (settlementError !== error && settlementError !== deadlineError)
+          if (!isRpcAbortedBy(settlementError, deadlineError))
             throw new AggregateError(
-              [error, settlementError],
+              [deadlineError, settlementError],
               `${message}; owned operation failed during cancellation`,
             );
         }
+        // An abort listener may reject synchronously before the timer's race
+        // rejection. The expired deadline remains the authoritative reason.
+        throw deadlineError;
       }
       throw error;
     } finally {

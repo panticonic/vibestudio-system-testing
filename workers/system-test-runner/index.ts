@@ -108,30 +108,40 @@ import {
 /**
  * Sealed authority conduit for the headless system-test harness.
  *
- * System-test source is intentionally evaluated in the normal EvalDO runtime,
- * where its portable APIs actually live. EvalDO recognizes this exact sealed
- * runner build and issues the explicit test policy for its nested runs. No
+ * System-test source is intentionally evaluated in the normal eval kernel, hosted by a
+ * session entity this runner owns, where its portable APIs actually live. The host recognizes
+ * this exact sealed runner build and issues the explicit test policy for its nested runs. The
+ * runner admits a run with the host, starts it on that entity and pulls its status from there. No
  * session, shell, or arbitrary eval can impersonate that execution identity.
  */
 import { DurableObjectBase, rpc } from "@workspace/runtime/worker/kernel";
-import { deserializeRpcFailure, formatRpcFailure } from "@vibestudio/rpc";
+import {
+  deserializeRpcFailure,
+  formatRpcFailure,
+  withRpcContext,
+} from "@vibestudio/rpc";
 import {
   anyOf,
   methodCapability,
   relationship,
 } from "@vibestudio/shared/authorization";
 import {
-  createEvalExecutor,
-  createEvalRunHandle,
-  createEvalRunObserver,
-  evalRunStatusSchema,
-} from "@vibestudio/service-schemas/eval";
+  createDynamicCodeExecutor,
+  createDynamicCodeRunObserver,
+  createDynamicCodeScope,
+  startDynamicCodeRun,
+} from "@vibestudio/service-schemas/dynamicCode";
+import type { evalRunStatusSchema } from "@vibestudio/service-schemas/eval";
 import type { z } from "zod";
 import {
   inspectSystemTestRun,
   systemTestTrajectory,
 } from "@workspace-skills/system-testing/record-analysis";
 import type { SystemTestRunRecord } from "@workspace-skills/system-testing/cli";
+import type {
+  ResidentSessionRegistrar,
+  ResidentSessionReceiver,
+} from "@vibestudio/shared/residentSession";
 import { readEvalStatusWithRetry } from "./eval-status-retry.js";
 
 type EvalRunStatus = z.infer<typeof evalRunStatusSchema>;
@@ -277,6 +287,7 @@ function systemTestEvalCode(
       SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT,
     } from "@workspace-skills/system-testing/cli";
     const { blobstore, rpc } = await import("@workspace/runtime");
+    const { mainRpcMethods } = await import("@vibestudio/service-schemas/mainRpc");
     const { systemTestRunnerRpcMethods } = await import("@workspace-workers/system-test-runner/contract");
     const recordOwner = ${JSON.stringify(recordOwner)};
     const options = ${JSON.stringify(options)};
@@ -300,7 +311,7 @@ function systemTestEvalCode(
       const header = { ...record, suite: { ...record.suite, results: [] } };
       await rpc.call(recordOwner, systemTestRunnerRpcMethods.storeSystemTestRunCheckpoint, [progressKey, header, entries.map(entry => retainedEntries.get(entry.test.name))]);
     };
-    // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
+    // eval kernel durably stores each progress payload with a 64 KiB ceiling. Leave
     // room for its event envelope and encoded strings instead of measuring
     // against the larger transient RPC transport limit.
     const durableHeartbeatLimit = SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT;
@@ -323,6 +334,17 @@ function systemTestEvalCode(
         ...options,
         installedUnits,
         claimJudge,
+        runAgentCellCompaction: async (signal, contextId, turns) => {
+          signal.throwIfAborted();
+          const owner = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{
+            kind: "do",
+            execution: { surface: "code", source: "workers/system-test-runner" },
+            className: "SystemTestRunnerDO",
+            key: "compaction-" + crypto.randomUUID(),
+            contextId,
+          }], { signal });
+          return rpc.call(owner.targetId, systemTestRunnerRpcMethods.runAgentCellCompaction, [turns], { signal });
+        },
         contextId: ctx.contextId,
         onProgress: publishProgress,
         onInspectionUpdate: async (liveRecord) => {
@@ -603,7 +625,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     code: string | ((runId: string) => string),
   ): Promise<unknown> {
     const runId = `system-test-runner:${kind}:${crypto.randomUUID()}`;
-    // A utility call owns a finite EvalDO for exactly one invocation. Startup
+    // A utility call owns a finite eval kernel for exactly one invocation. Startup
     // approval can call doctor while the CLI issues its next doctor/list
     // request, so a kind-only scope would let one invocation dispose or
     // overwrite another invocation's result before it was read.
@@ -611,8 +633,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       kind,
       crypto.randomUUID(),
     );
+    let hostId = "";
     try {
-      const execute = createEvalExecutor(createMainRpcCaller(this.rpc));
+      const execute = createDynamicCodeExecutor(this.rpc, {
+        onAdmitted: (admission) => {
+          hostId = admission.hostId;
+        },
+      });
       const result = await execute({
         runId,
         scope: { key: subKey, lifecycle: "finite" },
@@ -640,14 +667,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       }
       const stored = parseStoredSystemTestRecord(result.returnValue);
       try {
-        return await this.readStoredSystemTestRecord(subKey, stored);
+        return await this.readStoredSystemTestRecord(hostId, stored);
       } finally {
-        await this.rpc.call("main", mainRpcMethods["eval.deleteScopeValue"], [
-          { scopeKey: subKey, key: stored.scopeKey },
-        ]);
+        await createDynamicCodeScope(this.rpc, hostId).deleteScopeValue(
+          stored.scopeKey,
+        );
       }
     } finally {
-      await this.rpc.call("main", mainRpcMethods["eval.dispose"], [
+      await this.rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [
         { scopeKey: subKey },
       ]);
     }
@@ -3121,7 +3148,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     if (!this.caller?.userId || this.caller.userId === "system") {
       throw new Error("System tests require an authenticated human initiator");
     }
-    const handle = createEvalRunHandle(createMainRpcCaller(this.rpc), {
+    const { admission } = await startDynamicCodeRun(this.rpc, {
       runId: systemTestEvalRunId(config.runId),
       scope: { key: config.runId, lifecycle: "finite" },
       source: {
@@ -3130,46 +3157,75 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         syntax: "typescript",
       },
     });
-    await handle.start();
+    // The run outlives this call: a later activation pulls it by the entity that hosts it.
+    this.setStateValue(this.hostStateKey(config.runId), admission.hostId);
     return { runId: options.runId };
   }
 
+  @rpc({
+    website: {
+      kind: "closed",
+      reason: "Owns an isolated native agent compaction workload.",
+    },
+    requires: SYSTEM_TEST_OPERATOR,
+    effect: { kind: "open" },
+    tier: "open",
+    sensitivity: "write",
+  })
+  async runAgentCellCompaction(turns = 65) {
+    const { runAgentCellCompaction } =
+      await import("@workspace-skills/system-testing/agent-cell-compaction");
+    const signal = this.rpcAbortSignal ?? new AbortController().signal;
+    // The admitted worker owns cleanup independently of its caller's abort.
+    // The workload still receives the caller's signal explicitly.
+    const registrar: ResidentSessionRegistrar = {
+      registerResidentSession: (channelId, receiver, relationship) => {
+        const ownedReceiver: ResidentSessionReceiver = (payload) =>
+          this.runDetached(() => receiver(payload));
+        ownedReceiver.abortAll = receiver.abortAll;
+        const close = this.registerResidentChannelSession(
+          channelId, ownedReceiver, relationship,
+        );
+        return { transport: { call: this.rpc.call }, close };
+      },
+    };
+    const wire = Object.assign(
+      withRpcContext(this.rpc, (operation) => this.runDetached(operation)),
+      registrar,
+    );
+    return this.runDetached(() => runAgentCellCompaction(wire, signal, turns));
+  }
+
   private async readStoredSystemTestRecord(
-    runId: string,
+    hostId: string,
     stored: StoredSystemTestRecord,
   ): Promise<unknown> {
     const pageSize = 128 * 1024;
+    const scope = createDynamicCodeScope(this.rpc, hostId);
     let text = "";
     for (let offset = 0; offset < stored.length; offset += pageSize) {
-      const page = await this.rpc.call(
-        "main",
-        mainRpcMethods["eval.readScopeTextPage"],
-        [
-          {
-            scopeKey: runId,
-            key: stored.scopeKey,
-            offset,
-            limit: Math.min(pageSize, stored.length - offset),
-          },
-        ],
+      const page = await scope.readScopeTextPage(
+        stored.scopeKey,
+        offset,
+        Math.min(pageSize, stored.length - offset),
       );
       if (page.length !== stored.length || page.encoding !== "utf16le-base64") {
         throw new Error(
-          `system-test record ${runId} changed while it was being read`,
+          `system-test record ${stored.scopeKey} changed while it was being read`,
         );
       }
       text += decodeUtf16LeBase64(page.chunk);
     }
     if (text.length !== stored.length) {
       throw new Error(
-        `system-test record ${runId} was truncated (${text.length}/${stored.length} UTF-16 units)`,
+        `system-test record ${stored.scopeKey} was truncated (${text.length}/${stored.length} UTF-16 units)`,
       );
     }
     try {
       return JSON.parse(text);
     } catch (error) {
       throw new Error(
-        `system-test record ${runId} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        `system-test record ${stored.scopeKey} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -3270,7 +3326,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       );
     const released = await this.rpc.call(
       "main",
-      mainRpcMethods["eval.dispose"],
+      mainRpcMethods["dynamicCode.dispose"],
       [{ scopeKey: runId }],
     );
     return { released: released.ok };
@@ -3290,7 +3346,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async cancelSystemTestRun(runId: string): Promise<SystemTestRunCompletion> {
     let cancellation: EvalCancelResult;
     try {
-      cancellation = await this.evalRunObserver(runId).cancel();
+      const observer = this.evalRunObserver(runId);
+      cancellation = await observer.cancel();
+      await observer.release().catch(() => undefined);
     } catch (error) {
       throw new Error(
         `System-test run ${runId} could not settle its inner eval cancellation: ${
@@ -3301,7 +3359,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     }
     if (cancellation.forcedReset) {
       throw new Error(
-        `System-test run ${runId} required a forced EvalDO scope reset after non-cooperative cancellation; ` +
+        `System-test run ${runId} required a forced eval scope reset after non-cooperative cancellation; ` +
           "its terminal cleanup record is unavailable. Restart from a fresh exact run.",
       );
     }
@@ -3405,14 +3463,35 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     });
   }
 
-  private readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
-    return readEvalStatusWithRetry(() => this.evalRunObserver(runId).get());
+  private async readSystemTestEvalStatus(runId: string): Promise<EvalRunStatus> {
+    const observer = this.evalRunObserver(runId);
+    const status = (await readEvalStatusWithRetry(() =>
+      observer.get(),
+    )) as EvalRunStatus;
+    if (
+      status.status === "done" ||
+      status.status === "cancelled" ||
+      status.status === "approval-route-lost"
+    ) {
+      // The run ended: the host's admission is no longer needed (releasing twice is harmless).
+      await observer.release().catch(() => undefined);
+    }
+    return status;
   }
 
+  private hostStateKey(runId: string): string {
+    return `system-test-host:${runId}`;
+  }
+
+  /** The entity that hosts a run's kernel, recorded when the run was admitted. */
   private evalRunObserver(runId: string) {
-    return createEvalRunObserver(createMainRpcCaller(this.rpc), {
+    const hostId = this.getStateValue(this.hostStateKey(runId));
+    if (!hostId) {
+      throw new Error(`System-test run ${runId} was not started by this runner`);
+    }
+    return createDynamicCodeRunObserver(this.rpc, {
+      hostId,
       runId: systemTestEvalRunId(runId),
-      scopeKey: runId,
     });
   }
 }

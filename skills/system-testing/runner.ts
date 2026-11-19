@@ -85,10 +85,11 @@ import {contentProjectRpcMethods, type ContentProjectInput} from "./content-proj
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+import { startDynamicCodeRun } from "@vibestudio/service-schemas/dynamicCode";
 import { developmentBuiltinMethods } from "@vibestudio/service-schemas/development";
 import { integrationFixtureRpcMethods } from "./vcs-integration-fixture-contract.js";
 import { systemTestRunnerRpcMethods } from "@vibestudio/service-schemas/systemTestRunner";
-import { createRpcMethods } from "@vibestudio/shared/rpcMethods";
+import { createReceiverRpcMethods, createRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { RpcCaller } from "@vibestudio/rpc";
 import { createRpcMethodCaller, type RpcMethodArgs, type RpcMethodResult } from "@vibestudio/shared/rpcMethods";
 import {
@@ -126,7 +127,7 @@ import {
   type VcsStateNodeRef,
 } from "@vibestudio/service-schemas/vcs";
 import type { AttachedHostApprovalAuditEvent } from "@vibestudio/service-schemas/attachedHosts";
-import type { TestAuthorityPolicy } from "./types.js";
+import type { TestAuthorityPolicy, TestExecutionResult } from "./types.js";
 import type { BlobReader } from "@workspace/agentic-protocol";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
 import { evalInPanel, setViewport, waitFor, waitForText } from "@workspace/testkit";
@@ -140,7 +141,7 @@ import {
   type ChatPanelRenderEvidence,
 } from "./real-chat-panel.js";
 
-// This runner is eval'd server-side (in the orchestrating agent's EvalDO), so it
+// This runner is eval'd server-side (in the orchestrating agent's eval kernel), so it
 // uses the portable client surface — NOT panel-only `getStateArgs`/`slotId`.
 // `rpc.selfId` is the stable runtime id, used as the channel-membership clientId.
 const rpcConfig: NonNullable<ConnectionConfig["rpc"]> = rpc;
@@ -189,6 +190,34 @@ export interface EvalCancellationProbe {
   runId: string;
   cancel: { ok: true; forcedReset: boolean };
   terminal: { status: string; result?: unknown };
+}
+
+export interface EvalDeadlineRecoveryProbe {
+  /** A run whose cell never yields, with a deadline, ended by the node's CPU limit on its start call. */
+  spun: { runId: string; terminal: { status: string; result?: unknown } };
+  /** The next run of the same scope: admitted, executed and answered. */
+  next: { runId: string; terminal: { status: string; result?: unknown } };
+}
+
+/** The agent RPC methods the conversation fork probe reads. */
+interface ForkProbeAgentRpc {
+  getAgentSettings(): Promise<{ model?: unknown }>;
+  canFork(channelId: string): Promise<{ ok: boolean; reason?: string }>;
+}
+const forkProbeAgentMethods = createReceiverRpcMethods<ForkProbeAgentRpc>(["getAgentSettings", "canFork"]);
+
+export interface ConversationForkProbe {
+  /** The fork the channel made of the conversation as it stood, through the channel's own `fork` RPC. */
+  fork: { forkedChannelId: string; clonedAgentCount: number };
+  /** The cloned agent after its adoption: subscribed to the fork channel, with the settings its source had. */
+  adopted: { canFork: unknown; modelMatches: boolean };
+  /** The text the fork channel's replay holds: the answer given before the fork is part of it. */
+  forkReplayText: string;
+  /**
+   * Edit-and-fork: the conversation forked before its first message, which the fork replaces. The source agent had
+   * answered it, so no turn of the cell is held by the fork: the cloned agent joins as a new agent.
+   */
+  edit: { forkedChannelId: string; clonedAgentCount: number; canFork: unknown; replayText: string };
 }
 
 export interface EvalEventPagesProbe {
@@ -692,6 +721,35 @@ export class HeadlessRunner {
         unexpectedPrompts: "fail",
       },
     );
+  }
+
+  /** A non-chat workload uses the same exact per-case policy and recursive ownership. */
+  async withCaseContext(
+    operation: (contextId: string) => Promise<TestExecutionResult>,
+  ): Promise<TestExecutionResult> {
+    if (!this.testAuthorityPolicy)
+      throw new Error("An owned case context requires an exact test authority policy");
+    const startedAt = Date.now();
+    const owned = await rpc.call("main", mainRpcMethods["runtime.createContext"], [
+      { testPolicy: this.testAuthorityPolicy },
+    ]);
+    let result: TestExecutionResult;
+    try {
+      result = await operation(owned.contextId);
+    } catch (cause) {
+      const failure = systemTestFailure("case-operation", cause);
+      result = { messages: [], duration: Date.now() - startedAt, error: failure.error.message, failure };
+    }
+    try {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [
+        { contextId: owned.contextId, recursive: true },
+      ]);
+    } catch (cause) {
+      const failure = systemTestFailure("case-context-retirement", cause);
+      result.cleanupErrors = [...(result.cleanupErrors ?? []), failure.error.message];
+      result.cleanupFailures = [...(result.cleanupFailures ?? []), failure];
+    }
+    return result;
   }
 
   /**
@@ -2031,7 +2089,7 @@ export class HeadlessRunner {
   /**
    * Spawn a headless session bound to this panel.
    *
-   * The test agent's eval executes server-side in the agent's own EvalDO. The
+   * The test agent's eval executes server-side in the agent's own eval kernel. The
    * agent uses the standard Vibestudio chat prompt and tool surface; panel/UI
    * tools like inline_ui and feedback_form are simply absent because no panel
    * is connected to this headless session. Tests that specifically exercise
@@ -2507,35 +2565,152 @@ export class HeadlessRunner {
     const subKey = `system-test-cancel-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call("main", mainRpcMethods["eval.start"], [
-        {
-          scope: { key: subKey, lifecycle: "finite" },
-          runId,
-          source: { kind: "inline", code: "await new Promise(() => {});" },
-        },
-      ]);
+      const { admission, observer } = await startDynamicCodeRun(rpc, {
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: { kind: "inline", code: "await new Promise(() => {});" },
+      });
       activated = true;
-      if (started.runId !== runId) {
+      if (admission.runId !== runId) {
         throw new Error(
-          `eval.start returned ${started.runId}, expected ${runId}`,
+          `dynamicCode.admit returned ${admission.runId}, expected ${runId}`,
         );
       }
-      const cancel = await rpc.call(
-        "main",
-        mainRpcMethods["eval.cancel"],
-        [{ scopeKey: subKey, runId }],
-      );
-      const terminal = await rpc.call(
-        "main",
-        mainRpcMethods["eval.get"],
-        [{ scopeKey: subKey, runId }],
-      );
+      const cancel = await observer.cancel();
+      const terminal = await observer.get();
+      await observer.release();
       return { runId, cancel, terminal };
     } finally {
       if (activated) {
-        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
       }
     }
+  }
+
+  /**
+   * Prove that a run whose cell never yields and whose deadline passes is settled by that
+   * deadline, and that the next run of the same scope is admitted and answered. The node ends
+   * the spinning start call at the run's CPU limit; the kernel settles the run from its own
+   * deadline timer (docs/dolt-redesign.md §7.8). Pulled, never pushed: nothing but the run's
+   * committed row says how it ended.
+   */
+  async probeEvalDeadlineRecovery(): Promise<EvalDeadlineRecoveryProbe> {
+    const subKey = `system-test-deadline-${crypto.randomUUID()}`;
+    let activated = false;
+    const settle = async (
+      runId: string,
+      source: string,
+      timeoutMs?: number,
+    ): Promise<{ runId: string; terminal: { status: string; result?: unknown } }> => {
+      const { observer } = await startDynamicCodeRun(rpc, {
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: { kind: "inline", code: source },
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      });
+      activated = true;
+      const deadline = Date.now() + 90_000;
+      let terminal: { status: string; result?: unknown } = { status: "pending" };
+      while (Date.now() < deadline) {
+        terminal = await observer.await(2_000);
+        if (
+          terminal.status === "done" ||
+          terminal.status === "cancelled" ||
+          terminal.status === "approval-route-lost"
+        )
+          break;
+      }
+      await observer.release();
+      return { runId, terminal };
+    };
+    try {
+      const spun = await settle(
+        `system-test-deadline-${crypto.randomUUID()}`,
+        "while (true) {}",
+        3_000,
+      );
+      const next = await settle(
+        `system-test-deadline-next-${crypto.randomUUID()}`,
+        "return 40 + 2;",
+      );
+      return { spun, next };
+    } finally {
+      if (activated) {
+        await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
+      }
+    }
+  }
+
+  /**
+   * Prove that the product's conversation fork forks the agent's cell, not only the channel: a session answers once,
+   * the channel is forked at its head through its own `fork` RPC, and the cloned agent (its cell forked at the last
+   * closed turn, then adopted) is subscribed to the fork channel with its source's settings while the fork channel
+   * holds the answer given before the fork.
+   */
+  async probeConversationFork(session: HeadlessSession, firstMessageId: string): Promise<ConversationForkProbe> {
+    const channelId = session.channelId;
+    const agentTargetId = session.agentTargetId;
+    if (!channelId || !agentTargetId) throw new Error("Conversation fork probe needs a spawned agent and its channel");
+    const channel = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", channelId)) as {
+      kind?: unknown;
+      targetId?: unknown;
+    };
+    if (channel.kind !== "durable-object" || typeof channel.targetId !== "string")
+      throw new Error("channel service did not resolve to a Durable Object");
+    const forked = await rpc.call(channel.targetId, channelRpcMethods["fork"], [
+      {
+        operationId: `system-test-fork-${crypto.randomUUID()}`,
+        locus: { kind: "head" },
+        reason: "system test: the fork forks the agent's cell",
+        label: "fork probe",
+      },
+    ]);
+    const cloned = forked.clonedAgents[0];
+    if (!cloned) throw new Error("The fork cloned no agent");
+    const clonedTarget = `do:${cloned.source}:${cloned.className}:${cloned.objectKey}`;
+    const [sourceSettings, clonedSettings, canFork] = await Promise.all([
+      rpc.call(agentTargetId, forkProbeAgentMethods["getAgentSettings"], []),
+      rpc.call(clonedTarget, forkProbeAgentMethods["getAgentSettings"], []),
+      rpc.call(clonedTarget, forkProbeAgentMethods["canFork"], [forked.forkedChannelId]),
+    ]);
+    const forkService = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", forked.forkedChannelId)) as {
+      targetId?: unknown;
+    };
+    const replay = await rpc.call(String(forkService.targetId), channelRpcMethods["getReplayAfter"], [{ after: 0 }]);
+    const edited = await rpc.call(channel.targetId, channelRpcMethods["fork"], [
+      {
+        operationId: `system-test-edit-fork-${crypto.randomUUID()}`,
+        locus: { kind: "before-message", messageId: firstMessageId },
+        seed: {
+          blocks: [{ type: "text", content: "ALTERNATE: begin again with a different first message" }],
+          replaces: { messageId: firstMessageId },
+        },
+        reason: "system test: edit and fork",
+        label: "edit fork probe",
+      },
+    ]);
+    const editedAgent = edited.clonedAgents[0];
+    const editedTarget = editedAgent ? `do:${editedAgent.source}:${editedAgent.className}:${editedAgent.objectKey}` : "";
+    const editedService = (await resolveDurableObjectService(rpc, "vibestudio.channel.v1", edited.forkedChannelId)) as {
+      targetId?: unknown;
+    };
+    const [editedCanFork, editedReplay] = await Promise.all([
+      editedTarget
+        ? rpc.call(editedTarget, forkProbeAgentMethods["canFork"], [edited.forkedChannelId])
+        : Promise.resolve(undefined),
+      rpc.call(String(editedService.targetId), channelRpcMethods["getReplayAfter"], [{ after: 0 }]),
+    ]);
+    return {
+      edit: {
+        forkedChannelId: edited.forkedChannelId,
+        clonedAgentCount: edited.clonedAgents.length,
+        canFork: editedCanFork,
+        replayText: JSON.stringify(editedReplay),
+      },
+      fork: { forkedChannelId: forked.forkedChannelId, clonedAgentCount: forked.clonedAgents.length },
+      adopted: { canFork, modelMatches: JSON.stringify(sourceSettings.model) === JSON.stringify(clonedSettings.model) },
+      forkReplayText: JSON.stringify(replay),
+    };
   }
 
   /**
@@ -2549,30 +2724,24 @@ export class HeadlessRunner {
     const subKey = `system-test-events-${crypto.randomUUID()}`;
     let activated = false;
     try {
-      const started = await rpc.call("main", mainRpcMethods["eval.start"], [
-        {
-          scope: { key: subKey, lifecycle: "finite" },
-          runId,
-          source: {
-            kind: "inline",
-            code: 'console.log("SYSTEM_TEST_EVAL_EVENT"); return { eventProbe: true };',
-          },
+      const { admission, observer } = await startDynamicCodeRun(rpc, {
+        scope: { key: subKey, lifecycle: "finite" },
+        runId,
+        source: {
+          kind: "inline",
+          code: 'console.log("SYSTEM_TEST_EVAL_EVENT"); return { eventProbe: true };',
         },
-      ]);
+      });
       activated = true;
-      if (started.runId !== runId) {
+      if (admission.runId !== runId) {
         throw new Error(
-          `eval.start returned ${started.runId}, expected ${runId}`,
+          `dynamicCode.admit returned ${admission.runId}, expected ${runId}`,
         );
       }
       let terminal: { status: string; result?: unknown } | null = null;
       const settleDeadline = Date.now() + 30_000;
       while (Date.now() < settleDeadline) {
-        terminal = await rpc.call(
-          "main",
-          mainRpcMethods["eval.get"],
-          [{ scopeKey: subKey, runId }],
-        );
+        terminal = await observer.get();
         if (terminal.status === "done" || terminal.status === "cancelled")
           break;
         await new Promise((resolve) => setTimeout(resolve, 25));
@@ -2585,20 +2754,14 @@ export class HeadlessRunner {
           `eval run ${runId} did not settle before event pagination`,
         );
       }
-      const readPage = () =>
-        rpc.call("main", mainRpcMethods["eval.events"], [
-          { scopeKey: subKey, runId, after: 0, limit: 1 },
-        ]);
+      await observer.release();
+      const readPage = () => observer.events(0, 1);
       const firstPage = await readPage();
       const repeatedFirstPage = await readPage();
       const pages: EvalEventPagesProbe["pages"] = [];
       let after = 0;
       do {
-        const page = await rpc.call(
-          "main",
-          mainRpcMethods["eval.events"],
-          [{ scopeKey: subKey, runId, after, limit: 1 }],
-        );
+        const page = await observer.events(after, 1);
         pages.push(page);
         after = page.next;
         if (!page.hasMore) break;
@@ -2608,7 +2771,7 @@ export class HeadlessRunner {
       return { runId, firstPage, repeatedFirstPage, pages, terminal };
     } finally {
       if (activated)
-        await rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+        await rpc.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: subKey }]);
     }
   }
 

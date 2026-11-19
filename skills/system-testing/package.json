@@ -23,6 +23,33 @@
           },
           "tier": "gated",
           "evidence": "exact"
+        },
+        {
+          "capability": "userland:workers/missions/missions.edit#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic"
+        },
+        {
+          "capability": "userland:workers/missions/missions.run#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic"
+        },
+        {
+          "capability": "userland:workers/missions/missions.retire#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "critical",
+          "evidence": "bounded-dynamic"
         }
       ],
       "serviceRequests": [
@@ -161,7 +188,8 @@
     "./owned-operations-contract": "./owned-operations-contract.ts",
     "./owned-operations-worlds": "./owned-operations-worlds.ts",
     "./local-messaging": "./local-messaging/fixture.ts",
-    "./local-messaging-contract": "./local-messaging/contract.ts"
+    "./local-messaging-contract": "./local-messaging/contract.ts",
+    "./agent-cell-compaction": "./agent-cell-compaction.ts"
   },
   "dependencies": {
     "@workspace-skills/delivery-history-bindings": "workspace:*",
@@ -219,11 +247,11 @@
     "@workspace/model-catalog": "workspace:*",
     "@workspace/agentic-do": "workspace:*",
     "@workspace/pty-stream": "workspace:*",
+    "@vibestudio/rpc": "workspace:*",
     "@workspace-workers/local-messaging-fixture": "workspace:*",
     "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
-    "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*"

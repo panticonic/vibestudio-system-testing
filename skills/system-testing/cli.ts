@@ -8,6 +8,7 @@ import { allTests } from "./stages.js";
 import { TestRunner } from "./test-runner.js";
 import type {
   ReportClaimJudge,
+  TestExecutionResult,
   TestCase,
   TestSuiteResult,
   TestSuiteResultEntry,
@@ -45,7 +46,7 @@ export const SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT = 48 * 1024;
 
 /** Phase progress and live inspection are independent observations of one run.
  * A phase update must not erase the last inspection while its next refresh is
- * pending. Keep the combined checkpoint within EvalDO's durable wire budget. */
+ * pending. Keep the combined checkpoint within eval kernel's durable wire budget. */
 export function systemTestProgressCheckpoint(
   previous: Record<string, unknown> | null,
   progress: Record<string, unknown>,
@@ -77,6 +78,12 @@ export function systemTestProgressCheckpoint(
 }
 
 export interface SystemTestRunOptions {
+  /** Installed worker owns operations that require a durable code identity. */
+  runAgentCellCompaction?: (
+    signal: AbortSignal,
+    contextId: string,
+    turns: number,
+  ) => Promise<TestExecutionResult>;
   runId: string;
   contextId: string;
   names?: string[];
@@ -94,7 +101,7 @@ export interface SystemTestRunOptions {
   testTimeoutMs?: number;
   /** Durable orchestration heartbeat supplied by CLI/UI hosts. */
   onProgress?: (progress: SystemTestRunProgress) => void | Promise<void>;
-  /** EvalDO cancellation hook; lets a cancelled orchestration retire children before RPC abort. */
+  /** eval kernel cancellation hook; lets a cancelled orchestration retire children before RPC abort. */
   registerCancellationCleanup?: (
     cleanup: () => Promise<SystemTestRunRecord | void>,
   ) => void;
@@ -403,6 +410,9 @@ export async function runSystemTests(
     ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
   });
   const tester = new TestRunner(runner, {
+    ...(options.runAgentCellCompaction
+      ? { runAgentCellCompaction: options.runAgentCellCompaction }
+      : {}),
     testTimeoutMs,
     ...(options.claimJudge ? { claimJudge: options.claimJudge } : {}),
     onTestStart: (test) => {

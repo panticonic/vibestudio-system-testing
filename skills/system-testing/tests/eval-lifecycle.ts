@@ -1,3 +1,4 @@
+import type { AgentCellCompactionProbe } from "../agent-cell-compaction.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -8,6 +9,8 @@ import {
   type SystemTestFailure,
 } from "../structured-error.js";
 import { getToolCalls, getToolExecutions } from "./_helpers.js";
+import { evalOperationJournalSchema } from "@vibestudio/service-schemas/eval";
+import { NativePermissionInventoryObservationSchema } from "@vibestudio/service-schemas/permissions";
 import {
   completedScenarioEvidence,
   invocationReturnValue,
@@ -304,31 +307,24 @@ function exactPermissionsListIntent(value: unknown): boolean {
   );
 }
 
-function permissionsListResult(
+function completedPermissionInventory(
   call: ReturnType<typeof getToolCalls>[number],
 ): boolean {
-  const code = String(call.arguments?.["code"] ?? "");
-  if (
-    !/\bservices\.permissions\.list\s*\(|\brpc\.call\s*\(\s*["']main["']\s*,\s*(?:["']permissions\.list["']|mainRpcMethods\[\s*["']permissions\.list["']\s*\])/u.test(
-      code,
-    )
-  )
+  const payload = call.execution?.result;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
     return false;
-  const returned = invocationReturnValue(call);
-  if (!returned.present) return false;
-  if (Array.isArray(returned.value)) return true;
-  // Large permission inventories use the ordinary bounded-result contract.
-  // Requiring an unbounded array would reject the production transport itself.
-  return walkRecords([returned.value]).some(
-    (value) =>
-      value["truncated"] === true &&
-      value["scopeKey"] === "$lastLargeReturn" &&
-      value["scopeValueType"] === "string" &&
-      typeof value["originalChars"] === "number" &&
-      typeof value["limitChars"] === "number" &&
-      value["originalChars"] > value["limitChars"] &&
-      typeof value["preview"] === "string" &&
-      value["preview"].trimStart().startsWith("["),
+  const details = (payload as Record<string, unknown>)["details"];
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return false;
+  const journal = evalOperationJournalSchema.safeParse(
+    (details as Record<string, unknown>)["operationJournal"],
+  );
+  // Observe the protected operation itself. Guest code may alias the API,
+  // summarize its rows, or wrap an inventory large enough to be truncated.
+  return journal.success && journal.data.entries.some(
+    (entry) =>
+      entry["type"] === "permissions.inventory" &&
+      NativePermissionInventoryObservationSchema.safeParse(entry["receipt"]).success,
   );
 }
 
@@ -368,7 +364,7 @@ function validateExactAuthority(result: TestExecutionResult) {
   // Attenuation belongs to an admitted eval run. Discovering the contract and
   // processing an already-returned inventory are separate calls; this probe
   // checks every run that actually performs the protected permissions read.
-  const reads = successfulEvalCalls(result).filter(permissionsListResult);
+  const reads = successfulEvalCalls(result).filter(completedPermissionInventory);
   const exact =
     reads.length > 0 &&
     reads.every((call) => {
@@ -392,7 +388,7 @@ function validateExactAuthority(result: TestExecutionResult) {
     : {
         passed: false,
         reason:
-          "Protected permissions reads did not carry the exact read-only request allowlist and structured result",
+          "No native permission inventory was captured, or a protected read lacked the exact read-only request allowlist",
       };
 }
 
@@ -439,16 +435,16 @@ function validatePreauthorization(result: TestExecutionResult) {
   }
   // Authorization can prepare its own cell without executing the operation.
   // The actual read must follow it, or occur in that same authorized cell.
-  const read = calls.slice(calls.indexOf(call)).find(permissionsListResult);
+  const read = calls.slice(calls.indexOf(call)).find(completedPermissionInventory);
   const earlierRead = calls
     .slice(0, calls.indexOf(call))
-    .some(permissionsListResult);
+    .some(completedPermissionInventory);
   return read && !earlierRead
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "Preauthorized eval did not return the structured permissions result",
+          "No native permission inventory followed the exact preauthorization",
       };
 }
 
@@ -567,6 +563,72 @@ async function orchestrateCancellation(
   }
 }
 
+async function orchestrateDeadlineRecovery(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  try {
+    const probe = await context.runner.probeEvalDeadlineRecovery();
+    return {
+      messages: [],
+      duration: Date.now() - startedAt,
+      diagnostics: { evalDeadlineRecovery: probe },
+    };
+  } catch (cause) {
+    const failure = systemTestFailure("eval-deadline-recovery", cause);
+    return {
+      messages: [],
+      duration: Date.now() - startedAt,
+      error: failure.error.message,
+      failure,
+    };
+  }
+}
+
+function validateDeadlineRecovery(result: TestExecutionResult) {
+  if (result.error) return { passed: false, reason: result.error };
+  const probe = result.diagnostics?.["evalDeadlineRecovery"];
+  if (!probe || typeof probe !== "object" || Array.isArray(probe)) {
+    return {
+      passed: false,
+      reason: "The harness did not record deadline-recovery evidence",
+    };
+  }
+  const record = probe as {
+    spun?: { terminal?: { status?: unknown; result?: { failureCode?: unknown } } };
+    next?: {
+      terminal?: {
+        status?: unknown;
+        result?: { success?: unknown; returnValue?: unknown };
+      };
+    };
+  };
+  if (
+    record.spun?.terminal?.status !== "done" ||
+    record.spun.terminal.result?.failureCode !== "eval_deadline_exceeded"
+  ) {
+    return {
+      passed: false,
+      reason: `Expected the spinning run to settle at its deadline; observed ${JSON.stringify(
+        record.spun,
+      )}`,
+    };
+  }
+  if (
+    record.next?.terminal?.status !== "done" ||
+    record.next.terminal.result?.success !== true ||
+    record.next.terminal.result.returnValue !== 42
+  ) {
+    return {
+      passed: false,
+      reason: `Expected the next run of the scope to answer 42; observed ${JSON.stringify(
+        record.next,
+      )}`,
+    };
+  }
+  return { passed: true, reason: undefined };
+}
+
 async function orchestrateAgentReplay(
   context: TestOrchestrationContext,
 ): Promise<TestExecutionResult> {
@@ -666,6 +728,60 @@ async function orchestrateAgentReplay(
     ];
   }
   return execution;
+}
+
+async function orchestrateAgentCellCompaction(
+  context: TestOrchestrationContext,
+  turns = 65,
+): Promise<TestExecutionResult> {
+  if (!context.runAgentCellCompaction)
+    throw new Error(
+      "The compaction workload requires its durable runner owner",
+    );
+  const run = context.runAgentCellCompaction;
+  return context.runner.withCaseContext((contextId) => run(context.signal, contextId, turns));
+}
+
+function validateAgentCellCompaction(result: TestExecutionResult, turns = 65) {
+  const probe = result.diagnostics?.["agentCellCompaction"] as
+    | AgentCellCompactionProbe
+    | undefined;
+  if (
+    !probe ||
+    probe.turns !== turns ||
+    probe.validatedTurns !== turns ||
+    probe.modelCalls !== 0
+  )
+    return {
+      passed: false,
+      reason: `The harness did not join ${turns} actual model-free agent turns`,
+    };
+  const gc = probe.lastStorage?.compaction;
+  if (
+    !gc?.lastCollectedHead ||
+    !Number.isSafeInteger(gc.observedCommitsAtLastCollection) ||
+    (gc.observedCommitsAtLastCollection ?? 0) < 64
+  )
+    return {
+      passed: false,
+      reason:
+        "The actual agent did not report a scheduled collection past the default threshold",
+    };
+  if (probe.firstStorage?.compaction?.lastCollectedHead !== null)
+    return {
+      passed: false,
+      reason: "The fresh agent already had a collection before the workload",
+    };
+  if (!/^[0-9a-f]{64}$/u.test(probe.nativeReceiptDigest))
+    return { passed: false, reason: "Native result receipt chain is missing" };
+  const fork = probe.fork;
+  if (!fork || fork.clonedAgentCount !== 1 || !fork.adopted || !fork.modelPreserved ||
+      !fork.forkedContextId || !fork.forkedChannelId || !fork.clonedAgentTargetId ||
+      !Number.isSafeInteger(fork.sourceSequence) || fork.sourceSequence < 1 ||
+      !Number.isSafeInteger(fork.forkSequence) || fork.forkSequence < fork.sourceSequence ||
+      !Number.isFinite(fork.elapsedMs) || fork.elapsedMs < 0)
+    return { passed: false, reason: "The normal conversation fork did not retain its joined adoption and history evidence" };
+  return { passed: true, reason: undefined };
 }
 
 async function orchestrateLiveKernelContinuity(
@@ -947,6 +1063,23 @@ function validateRejectedCellScope(result: TestExecutionResult) {
       };
 }
 
+const agentCellAuthorityPolicy: NonNullable<TestCase['authorityPolicy']> = {
+      authority: [
+        // The fixture computes its one clone id before provisioning; lineage worlds need explicit retirement authority.
+        // This case-only decision still issues a confirmation bound to the exact protected invocation.
+        { ruleId: "owned-fork-retirement", capability: { kind: "exact", key: "context.boundary" }, resource: { kind: "prefix", prefix: "context/ctx-" }, tier: "critical", decision: "once" },
+        { ruleId: "owned-channel-service", capability: { kind: "exact", key: "workspace-service:channel" }, resource: { kind: "prefix", prefix: "do:workers/pubsub-channel:PubSubChannel:" }, tier: "gated", decision: "once" },
+        { ruleId: "owned-mission-service", capability: { kind: "exact", key: "workspace-service:missions" }, resource: { kind: "exact", key: "do:workers/missions:MissionsDO:workspace-missions" }, tier: "gated", decision: "once" },
+        ...(["edit", "run", "retire"] as const).map((action) => ({
+          ruleId: `owned-mission-${action}`,
+          capability: { kind: "prefix" as const, prefix: `userland:workers/missions/missions.${action}#` },
+          resource: { kind: "exact" as const, key: "mission:do:workers/missions:MissionsDO:workspace-missions" },
+          tier: action === "retire" ? "critical" as const : "gated" as const,
+          decision: "once" as const,
+        })),
+      ],
+    };
+
 export const evalLifecycleTests: TestCase[] = [
   {
     name: "eval-cell-local-imports-retained-handle",
@@ -1080,6 +1213,28 @@ export const evalLifecycleTests: TestCase[] = [
     validate: validateAgentReplay,
   },
   {
+    name: "agent-cell-compaction-soak",
+    authorityPolicy: agentCellAuthorityPolicy,
+    description: "The actual agent closes 65 model-free turns and compacts on its default schedule",
+    category: "eval-lifecycle",
+    prompt: "Harness-orchestrated model-free agent cell compaction check.",
+    orchestrate: orchestrateAgentCellCompaction,
+    validation: "harness",
+    validate: validateAgentCellCompaction,
+  },
+  {
+    name: "agent-cell-fork-benchmark",
+    description: "Measure a normal conversation fork after 10,000 actual model-free native turns",
+    category: "eval-lifecycle",
+    explicitOnly: true,
+    timeoutMs: 12 * 60 * 60 * 1000,
+    authorityPolicy: agentCellAuthorityPolicy,
+    prompt: "Harness-orchestrated native history and normal conversation fork measurement.",
+    orchestrate: (context) => orchestrateAgentCellCompaction(context, 10_000),
+    validation: "harness",
+    validate: (result) => validateAgentCellCompaction(result, 10_000),
+  },
+  {
     name: "eval-live-kernel-continuity",
     description:
       "A live scope object retains its methods across idle eval cells",
@@ -1117,5 +1272,15 @@ export const evalLifecycleTests: TestCase[] = [
     orchestrate: orchestrateCancellation,
     validation: "harness",
     validate: validateCancellation,
+  },
+  {
+    name: "eval-deadline-recovery",
+    description:
+      "A run whose cell never yields is settled by its own deadline, and the next run of the same scope is answered",
+    category: "eval-lifecycle",
+    prompt: "Harness-orchestrated eval deadline recovery check.",
+    orchestrate: orchestrateDeadlineRecovery,
+    validation: "harness",
+    validate: validateDeadlineRecovery,
   },
 ];
