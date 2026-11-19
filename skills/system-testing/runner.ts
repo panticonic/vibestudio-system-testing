@@ -889,18 +889,34 @@ export class HeadlessRunner {
     } finally {await world.cleanup();}
   }
 
-  async runManagedAutomation(caseId: string, qualification = false) {
+  private async withAutomationFixture<T>(
+    caseId: string,
+    run: (owner: string, input: { contextId: string; caseId: string }) => Promise<T>,
+  ): Promise<T> {
     const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
     const target = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? {testPolicy:policy} : {}]);
     try {
       const owner = await this.createFixtureWorker(target.contextId);
-      const input = { contextId: target.contextId, caseId };
-      if (qualification)
-        return { kind:"reference" as const, result: await rpc.call(owner,managedAutomationMethods.qualifyManagedAutomation,[input]) };
-      return { kind:"teacher" as const, result: await rpc.call(owner,managedAutomationMethods.runManagedAutomationTeacher,[{...input,executorModel:this.modelRef}]) };
+      return await run(owner, { contextId: target.contextId, caseId });
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{contextId:target.contextId,recursive:true}]);
     }
+  }
+
+  async runManagedAutomation(caseId: string, qualification = false) {
+    return this.withAutomationFixture(caseId, async (owner, input) => {
+      if (qualification)
+        return { kind:"reference" as const, result: await rpc.call(owner,managedAutomationMethods.qualifyManagedAutomation,[input]) };
+      return { kind:"teacher" as const, result: await rpc.call(owner,managedAutomationMethods.runManagedAutomationTeacher,[{...input,executorModel:this.modelRef}]) };
+    });
+  }
+
+  async runAutomationPlanning(caseId: string, qualification = false) {
+    return this.withAutomationFixture(caseId, async (owner, input) => {
+      if (qualification)
+        return { kind: "reference" as const, result: await rpc.call(owner, managedAutomationMethods.qualifyAutomationPlanning, [input]) };
+      return { kind: "teacher" as const, result: await rpc.call(owner, managedAutomationMethods.runAutomationPlanningTeacher, [{ ...input, executorModel: this.modelRef }]) };
+    });
   }
 
   async runPublicationRevision(caseId: string, qualification: boolean, signal: AbortSignal) {

@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedAutomationReceiver } from "../automation-lifecycle-contract.js";
-import { managedAutomationWorlds } from "../automation-lifecycle-worlds.js";
+import {
+  managedAutomationPlanningWorlds,
+  managedAutomationWorlds,
+} from "../automation-lifecycle-worlds.js";
 
 type Exercise = Awaited<
   ReturnType<ManagedAutomationReceiver["runManagedAutomationTeacher"]>
@@ -140,3 +143,105 @@ managedAutomationTests.push({
         };
   },
 });
+
+type PlanningExercise = Awaited<
+  ReturnType<ManagedAutomationReceiver["runAutomationPlanningTeacher"]>
+>;
+type PlanningQualification = Awaited<
+  ReturnType<ManagedAutomationReceiver["qualifyAutomationPlanning"]>
+>;
+
+managedAutomationTests.push(
+  ...managedAutomationPlanningWorlds.map(
+    (world): TestCase => ({
+      name: `automation-planning-live-${world.id}`,
+      category: "project-lifecycle",
+      description: "Prepare and recheck a plan using the live Missions service",
+      prompt: world.goal,
+      explicitOnly: true,
+      validation: "harness",
+      ...(world.planning === "changed"
+        ? { authorityPolicy: fixtureEditAuthority }
+        : {}),
+      async orchestrate({ runner, signal }) {
+        signal.throwIfAborted();
+        const started = Date.now();
+        const observed = await runner.runAutomationPlanning(world.id);
+        signal.throwIfAborted();
+        if (observed.kind !== "teacher")
+          throw new Error("Missing authored automation review");
+        const { teacher, ...fixture } = observed.result;
+        return {
+          messages: [],
+          duration: Date.now() - started,
+          provenance: {
+            channelId: null,
+            branchId: null,
+            agentEntityId: null,
+            agentTargetId: null,
+            contextId: fixture.contextId,
+          },
+          diagnostics: { natlangTeacher: teacher, automationPlanning: fixture },
+        };
+      },
+      validate(result) {
+        const teacher = result.diagnostics?.["natlangTeacher"] as
+          | PlanningExercise["teacher"]
+          | undefined;
+        const fixture = result.diagnostics?.["automationPlanning"] as
+          | Omit<PlanningExercise, "teacher">
+          | undefined;
+        return {
+          passed:
+            teacher?.trainingEligible === true &&
+            fixture?.verification.passed === true,
+          details: fixture?.verification.checks,
+        };
+      },
+    }),
+  ),
+  {
+    name: "automation-planning-managed-qualification",
+    category: "project-lifecycle",
+    description:
+      "Verify stable and changed definitions against live mission readback without a model",
+    prompt: managedAutomationPlanningWorlds[0]!.goal,
+    explicitOnly: true,
+    authorityPolicy: fixtureEditAuthority,
+    validation: "harness",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const observations: PlanningQualification[] = [];
+      for (const { id } of managedAutomationPlanningWorlds) {
+        signal.throwIfAborted();
+        const observed = await runner.runAutomationPlanning(id, true);
+        if (observed.kind !== "reference")
+          throw new Error("Qualification called a teacher");
+        observations.push(observed.result);
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { automationPlanningQualification: observations },
+      };
+    },
+    validate(result) {
+      const observations = result.diagnostics?.[
+        "automationPlanningQualification"
+      ] as PlanningQualification[] | undefined;
+      return {
+        passed:
+          observations?.length === managedAutomationPlanningWorlds.length &&
+          observations.every(
+            (entry, i) =>
+              entry.passed &&
+              entry.caseId === managedAutomationPlanningWorlds[i]?.id,
+          ),
+        details: observations?.map(({ caseId, checks }) => ({
+          caseId,
+          checks,
+        })),
+      };
+    },
+  },
+);

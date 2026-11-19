@@ -882,6 +882,51 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     } finally {await pauseManagedAutomationFixture(this.rpc,seed);}
   }
 
+  @rpc({website:{kind:"closed",reason:"Reviews an assigned native mission and rechecks its current state."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runAutomationPlanningTeacher(input:{caseId:string;contextId:string;executorModel:string}): ReturnType<ManagedAutomationReceiver["runAutomationPlanningTeacher"]> {
+    const owner = await this.integrationFixtureIdentity();
+    if (owner.contextId !== input.contextId) throw new Error("Automation review belongs to another context");
+    const seed = await seedManagedAutomation(this.rpc, input.caseId, true);
+    try {
+      return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+        executorModel: input.executorModel,
+        work: { kind: "domain", domain: "automation", operation: "reviewAssignedAutomation", input: { goal: "Review the assigned automation" } },
+        inputCode: "prepared.request",
+        bindingCode: this.managedAutomationPlanningBindings(input.contextId, seed),
+      }, runId)}
+        const verification=await prepared.verify(utilityValue.report);
+        utilityValue={teacher:utilityValue,contextId:actualContextId,verification};
+      `) as Awaited<ReturnType<ManagedAutomationReceiver["runAutomationPlanningTeacher"]>>;
+    } finally {
+      await pauseManagedAutomationFixture(this.rpc, seed);
+    }
+  }
+
+  @rpc({website:{kind:"closed",reason:"Verifies live planning snapshots and a real definition edit without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyAutomationPlanning(input:{caseId:string;contextId:string}): ReturnType<ManagedAutomationReceiver["qualifyAutomationPlanning"]> {
+    const owner = await this.integrationFixtureIdentity();
+    if (owner.contextId !== input.contextId) throw new Error("Automation review belongs to another context");
+    const seed = await seedManagedAutomation(this.rpc, input.caseId, true);
+    try {
+      return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+        [{ domain: "automation", operation: "reviewAssignedAutomation" }],
+        this.managedAutomationPlanningBindings(input.contextId, seed),
+      )) as Awaited<ReturnType<ManagedAutomationReceiver["qualifyAutomationPlanning"]>>;
+    } finally {
+      await pauseManagedAutomationFixture(this.rpc, seed);
+    }
+  }
+
+  private managedAutomationPlanningBindings(contextId:string, seed: Awaited<ReturnType<typeof seedManagedAutomation>>): string {
+    return `
+      import {rpc,contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedAutomationPlanning} from "@workspace-skills/system-testing/automation-lifecycle-managed";
+      if(actualContextId!==${JSON.stringify(contextId)}) throw new Error("Automation review belongs to another context");
+      const prepared=await prepareManagedAutomationPlanning(rpc,${JSON.stringify(seed)});
+      const assignedServices=prepared.services;
+    `;
+  }
+
   @rpc({website:{kind:"closed",reason:"Reviews an owned portable build and rendered panel without publication."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedPublicationTeacher(input: PublicationInput & {executorModel:string}): ReturnType<ManagedPublicationReceiver["runManagedPublicationTeacher"]> {
     return await this.runHarnessUtility("teacher",runId => `${domainTeacherCode({

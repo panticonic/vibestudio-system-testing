@@ -12,6 +12,7 @@ type World = {
     | "lost-before-effect"
     | "revision-after-effect"
     | "race-already";
+  planning?: "ready" | "changed";
   status: "applied" | "unchanged" | "held" | "reconciled" | "uncertain";
 };
 
@@ -154,6 +155,27 @@ export const managedAutomationWorlds: World[] = [
     action: "resume",
     initial: "paused",
     problem: "race-already",
+    status: "unchanged",
+  },
+];
+
+export const managedAutomationPlanningWorlds: readonly (World & {
+  planning: "ready" | "changed";
+})[] = [
+  {
+    id: "prepare-handoff-freeze",
+    goal: "Prepare a reversible pause for the assigned handoff monitor during the freeze. Leave the installed schedule in place for review.",
+    action: "pause",
+    initial: "active",
+    planning: "ready",
+    status: "unchanged",
+  },
+  {
+    id: "hold-resume-after-definition-edited",
+    goal: "Prepare a plan to resume the assigned release monitor. Hold the plan if the reviewed definition changed before handoff.",
+    action: "resume",
+    initial: "paused",
+    planning: "changed",
     status: "unchanged",
   },
 ];

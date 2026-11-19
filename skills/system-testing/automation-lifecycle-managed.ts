@@ -4,7 +4,15 @@ import {
   type MissionRpc,
 } from "@vibestudio/service-schemas/clients/missionsClient";
 import { bindAutomationLifecycle } from "@workspace-skills/automation-lifecycle-bindings";
-import { managedAutomationWorlds } from "./automation-lifecycle-worlds.js";
+import {
+  managedAutomationPlanningWorlds,
+  managedAutomationWorlds,
+} from "./automation-lifecycle-worlds.js";
+import type {
+  AutomationPlanningRequest,
+  AutomationPlanningReview,
+  AutomationPlanningSnapshot,
+} from "../automations/types.js";
 
 const defaultId = "workspace-updates";
 type Missions = ReturnType<typeof createMissionsClient>;
@@ -49,8 +57,15 @@ function reviewedEdit(expected: Mission, observed: Mission) {
   );
 }
 
-export async function seedManagedAutomation(rpc: MissionRpc, caseId: string) {
-  const world = managedAutomationWorlds.find((item) => item.id === caseId);
+export async function seedManagedAutomation(
+  rpc: MissionRpc,
+  caseId: string,
+  planning = false,
+) {
+  const worlds = planning
+    ? managedAutomationPlanningWorlds
+    : managedAutomationWorlds;
+  const world = worlds.find((item) => item.id === caseId);
   if (!world) throw new Error("Unknown managed automation lifecycle world");
   const missions = createMissionsClient(rpc);
   const original = await missions.getDefault(defaultId);
@@ -90,7 +105,8 @@ export async function pauseManagedAutomationFixture(
     !live ||
     (!sameDefinition(seed.start, live) &&
       !(
-        (seed.world.problem === "revised-before-review" ||
+        (seed.world.planning === "changed" ||
+          seed.world.problem === "revised-before-review" ||
           seed.world.problem === "revision-race" ||
           seed.world.problem === "revision-after-effect") &&
         reviewedEdit(seed.start, live)
@@ -357,4 +373,125 @@ export async function qualifyManagedAutomation(rpc: MissionRpc, seed: Seed) {
     revisionDigest: after?.revisionDigest ?? null,
   });
   return { verification, staleControllerGuard };
+}
+
+export async function prepareManagedAutomationPlanning(
+  rpc: MissionRpc,
+  seed: Seed,
+) {
+  const { world, original, start } = seed;
+  const status = world.planning;
+  if (!status) throw new Error("Unknown automation planning assignment");
+  const missions = createMissionsClient(rpc);
+  const request: AutomationPlanningRequest = {
+    goal: `${world.goal} The assigned mission is ${start.name}.`,
+    operationId: crypto.randomUUID(),
+    timezone: "UTC",
+    now: new Date().toISOString(),
+  };
+  const observations: AutomationPlanningSnapshot[] = [];
+  let reading = false;
+  async function readPlanningState(): Promise<AutomationPlanningSnapshot> {
+    const current = await missions.get(start.missionId);
+    if (!current || (current.state !== "active" && current.state !== "paused"))
+      throw new Error("The assigned manual mission is unavailable");
+    const history = await missions.listRuns(current.missionId, { limit: 1 });
+    if (history.items.length || history.nextCursor)
+      throw new Error("The assigned manual mission unexpectedly started a run");
+    return {
+      visible: [
+        {
+          id: current.missionId,
+          name: current.name,
+          state: current.state,
+          revisionDigest: current.revisionDigest,
+          latestRun: null,
+        },
+      ],
+    };
+  }
+  const services = {
+    automationPlanning: {
+      async inspect(operationId: string) {
+        if (
+          operationId !== request.operationId ||
+          observations.length >= 2 ||
+          reading
+        )
+          throw new Error(
+            "The read is outside the assigned automation planning window",
+          );
+        reading = true;
+        try {
+          const observation = await readPlanningState();
+          if (status === "changed" && observations.length === 0)
+            await missions.edit(start.missionId, {
+              charter: updatedCharter(start),
+            });
+          observations.push(structuredClone(observation));
+          return observation;
+        } finally {
+          reading = false;
+        }
+      },
+    },
+  };
+  const expectedPlan = {
+    kind: "control",
+    automationId: start.missionId,
+    action: world.action,
+  } as const;
+  async function verify(report: AutomationPlanningReview | null) {
+    const current = await missions.get(start.missionId);
+    const actual = await readPlanningState();
+    const protectedDefault = await missions.getDefault(defaultId);
+    const [before, after] = observations;
+    const checks = {
+      assignedPlan:
+        report?.status === status &&
+        isDeepStrictEqual(report.plan, expectedPlan),
+      snapshotReadback:
+        observations.length === 2 &&
+        before?.visible[0]?.revisionDigest === start.revisionDigest &&
+        isDeepStrictEqual(before, report?.before) &&
+        isDeepStrictEqual(after, report?.after) &&
+        isDeepStrictEqual(after, actual),
+      exactDefinition:
+        current !== null &&
+        (status === "changed"
+          ? reviewedEdit(start, current)
+          : sameDefinition(start, current)),
+      schedulingUntouched:
+        current !== null &&
+        current.state === start.state &&
+        current.runCount === start.runCount &&
+        current.lastRunAt === start.lastRunAt &&
+        current.nextRunAt === start.nextRunAt,
+      protectedDefault:
+        protectedDefault !== null &&
+        sameDefinition(original, protectedDefault) &&
+        original.state === protectedDefault.state,
+    };
+    return {
+      caseId: world.id,
+      request,
+      expectedPlan,
+      expectedStatus: status,
+      before,
+      after,
+      checks,
+      passed: Object.values(checks).every(Boolean),
+    };
+  }
+  async function qualify() {
+    const before = await services.automationPlanning.inspect(
+      request.operationId,
+    );
+    const after = await services.automationPlanning.inspect(
+      request.operationId,
+    );
+    return verify({ status, plan: expectedPlan, before, after });
+  }
+
+  return { request, services, verify, qualify };
 }
