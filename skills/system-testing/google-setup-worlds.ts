@@ -20,16 +20,56 @@ type Evidence =
   | ReturnType<typeof browser>
   | typeof reset;
 
-function journey(id: string, goal: string, evidence: Evidence[]) {
+type Compose = {
+  caseId: string;
+  action: "preserve-draft" | "reconcile-before-retry";
+};
+export const gmailContinuationWork = [
+  { kind: "domain", domain: "google", operation: "guideGoogleWorkspace" },
+  {
+    kind: "domain",
+    domain: "gmailReview",
+    operation: "planComposeContinuation",
+  },
+] as const;
+
+function journey(
+  id: string,
+  goal: string,
+  evidence: Evidence[],
+  compose?: Compose,
+) {
   return {
     id,
     goal,
     checks: evidence.map(([check]) => check),
     codes: evidence.map(([, code]) => code),
+    compose,
   };
 }
 
 export const managedGoogleSetupWorlds = [
+  journey(
+    "resume-saved-compose-after-reload",
+    "After reopening setup, check whether Gmail can launch. Then audit the retained compose history and recommend what to preserve while the account owner finishes setup. Cite the controls and the decisive compose event.",
+    [
+      [gate(true), "gmail-closed"],
+      [owners, "owner-routes"],
+    ],
+    { caseId: "audit-retained-draft-after-resave", action: "preserve-draft" },
+  ),
+  journey(
+    "hold-interrupted-send-pending-setup",
+    "Check Gmail's launch controls before resuming the interrupted compose card. Determine what must happen before retrying delivery and cite the exact setup and compose evidence.",
+    [
+      [viewport(390), "viewport-fits"],
+      [gate(false), "gmail-closed"],
+    ],
+    {
+      caseId: "reconcile-uncertain-delivery",
+      action: "reconcile-before-retry",
+    },
+  ),
   journey(
     "owner-handoff",
     "Prepare a handoff for a new workspace owner. Confirm the next account action, distinguish where accounts and permissions are managed, and verify that Gmail cannot launch yet.",

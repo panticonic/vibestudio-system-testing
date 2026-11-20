@@ -6,7 +6,11 @@ export type GoogleSetupInput = {
   contextId: string;
   panelId: string;
 };
-type Verification = { passed: boolean; checks: Record<string, boolean> };
+type Verification = {
+  passed: boolean;
+  checks: Record<string, boolean>;
+  compose?: { seed: { channelId: string } };
+};
 export interface ManagedGoogleSetupReceiver {
   runManagedGoogleSetupTeacher(
     input: GoogleSetupInput & { executorModel: string },

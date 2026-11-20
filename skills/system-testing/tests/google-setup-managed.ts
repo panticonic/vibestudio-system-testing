@@ -31,12 +31,21 @@ const settings = {
     },
   ]),
 };
+const composeUnits = [
+  "skills/gmail-workflow-review",
+  "skills/gmail-compose-history-bindings",
+];
 
 export const managedGoogleSetupTests: TestCase[] = managedGoogleSetupWorlds.map(
   (world) => ({
     ...settings,
+    ...(world.compose
+      ? { requiresUnits: [...settings.requiresUnits, ...composeUnits] }
+      : {}),
     name: `google-setup-live-${world.id}`,
-    description: "Review the actual Google setup state and welcome panel",
+    description: world.compose
+      ? "Use the real Gmail launch control and stored compose history to plan continuation"
+      : "Review the actual Google setup state and welcome panel",
     prompt: world.goal,
     async orchestrate(context) {
       const started = Date.now();
@@ -53,7 +62,7 @@ export const managedGoogleSetupTests: TestCase[] = managedGoogleSetupWorlds.map(
         duration: Date.now() - started,
         provenance: {
           contextId,
-          channelId: null,
+          channelId: verification.compose?.seed.channelId ?? null,
           branchId: null,
           agentEntityId: null,
           agentTargetId: null,
@@ -85,56 +94,76 @@ export const managedGoogleSetupTests: TestCase[] = managedGoogleSetupWorlds.map(
   }),
 );
 
-managedGoogleSetupTests.push({
-  ...settings,
-  name: "google-setup-managed-oracle-qualification",
-  description:
-    "Qualify the actual Google setup panel and account readiness without a model",
-  prompt:
-    "Verify ordered setup and browser checks and reject a different panel receipt.",
-  async orchestrate(context) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const world of managedGoogleSetupWorlds) {
-      try {
-        const run = await context.runner.runManagedGoogleSetup(
-          world.id,
-          true,
-          context.signal,
-        );
-        if (run.kind !== "reference")
-          throw new Error("Google setup qualification invoked a teacher");
-        checks.push(run.result);
-      } catch (cause) {
-        throw new Error(`Google setup qualification failed for ${world.id}`, {
-          cause,
-        });
-      }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { googleSetupQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["googleSetupQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedGoogleSetupWorlds.length &&
-      checks.every(
-        ({ verification, rejectedDifferentReceipt }) =>
-          verification.passed && rejectedDifferentReceipt,
-      )
-      ? {
-          passed: true,
-          details: { checkedCases: checks.length, modelCalls: 0 },
+function googleQualification(
+  worlds: typeof managedGoogleSetupWorlds,
+  compose: boolean,
+): TestCase {
+  return {
+    ...settings,
+    ...(compose
+      ? { requiresUnits: [...settings.requiresUnits, ...composeUnits] }
+      : {}),
+    name: compose
+      ? "google-setup-managed-compose-qualification"
+      : "google-setup-managed-oracle-qualification",
+    description:
+      "Qualify the actual Google setup panel and account readiness without a model",
+    prompt:
+      "Verify ordered setup and browser checks and reject a different panel receipt.",
+    async orchestrate(context) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const world of worlds) {
+        try {
+          const run = await context.runner.runManagedGoogleSetup(
+            world.id,
+            true,
+            context.signal,
+          );
+          if (run.kind !== "reference")
+            throw new Error("Google setup qualification invoked a teacher");
+          checks.push(run.result);
+        } catch (cause) {
+          throw new Error(`Google setup qualification failed for ${world.id}`, {
+            cause,
+          });
         }
-      : {
-          passed: false,
-          reason:
-            "The installed panel readback or evidence binding differed from the task.",
-          details: { checks },
-        };
-  },
-});
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { googleSetupQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["googleSetupQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verification, rejectedDifferentReceipt }) =>
+            verification.passed && rejectedDifferentReceipt,
+        )
+        ? {
+            passed: true,
+            details: { checkedCases: checks.length, modelCalls: 0 },
+          }
+        : {
+            passed: false,
+            reason:
+              "The installed panel readback or evidence binding differed from the task.",
+            details: { checks },
+          };
+    },
+  };
+}
+managedGoogleSetupTests.push(
+  googleQualification(
+    managedGoogleSetupWorlds.filter(({ compose }) => !compose),
+    false,
+  ),
+  googleQualification(
+    managedGoogleSetupWorlds.filter(({ compose }) => compose),
+    true,
+  ),
+);

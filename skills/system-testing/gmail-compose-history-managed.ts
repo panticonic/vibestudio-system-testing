@@ -140,15 +140,15 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
   function expectedReview(id: string): Review {
     return { status: world.review.status, findings: [{ code: world.review.code, evidenceIds: [id] }] };
   }
-  async function qualify() {
+  async function reference() {
     const receipt = await services.gmailComposeHistory.read(bound.request.operationId);
     await services.gmailComposeAudit.project(bound.request.operationId, world.review.kind);
-    return verify({
+    return {
       history: { receipt, decision: { action: world.action, reason: "Related native compose records agree." }, evidenceIds },
       review: expectedReview(receipt.events.at(-1)!.id),
-    });
+    };
   }
-  return { request: bound.request, services, qualify, verify };
+  return { request: bound.request, services, reference, qualify: async () => verify(await reference()), verify };
 }
 
 type Prepared = ReturnType<typeof prepareGmailComposeHistory>;

@@ -20,6 +20,7 @@ import type { PublicationRevisionReceiver } from "@workspace-skills/system-testi
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
 import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
+import { gmailContinuationWork, managedGoogleSetupWorlds } from "@workspace-skills/system-testing/google-setup-worlds";
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
 import type { BuildPerformanceInput, BuildPerformanceReceiver } from "@workspace-skills/system-testing/build-performance-managed";
@@ -1771,6 +1772,22 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Reviews the owned Google setup panel and account readiness."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedGoogleSetupTeacher(input: GoogleSetupInput & {executorModel:string}): ReturnType<ManagedGoogleSetupReceiver["runManagedGoogleSetupTeacher"]> {
+    const compose = managedGoogleSetupWorlds.find(({ id }) => id === input.caseId)?.compose;
+    if (compose) {
+      const bindings = await this.gmailContinuationBindings(input, compose.caseId);
+      return await this.runHarnessUtility("teacher", runId => `${composedTeacherCode({
+        executorModel: input.executorModel,
+        workflowRequest: {
+          goal: "Review setup and plan continuation of the retained compose card",
+          work: gmailContinuationWork.map((selector) => ({ ...selector, input: { goal: "Review assigned evidence" } })),
+        },
+        requiredOrder: gmailContinuationWork.map(({ operation }) => operation),
+        requestCode: "prepared.request",
+        bindingCode: bindings,
+      }, runId)}
+        utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+      `) as Awaited<ReturnType<ManagedGoogleSetupReceiver["runManagedGoogleSetupTeacher"]>>;
+    }
     return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
       executorModel:input.executorModel,
       work:{kind:"domain",domain:"google",operation:"guideGoogleWorkspace",input:{goal:"Review the assigned setup journey"}},
@@ -1784,6 +1801,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies the installed Google setup journey without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedGoogleSetup(input: GoogleSetupInput): ReturnType<ManagedGoogleSetupReceiver["qualifyManagedGoogleSetup"]> {
+    const compose = managedGoogleSetupWorlds.find(({ id }) => id === input.caseId)?.compose;
+    if (compose)
+      return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+        gmailContinuationWork,
+        await this.gmailContinuationBindings(input, compose.caseId),
+      )) as Awaited<ReturnType<ManagedGoogleSetupReceiver["qualifyManagedGoogleSetup"]>>;
     return await this.runHarnessUtility("teacher", `
       ${this.googleSetupBindings(input)}
       await natlang.describe(googleSetupSkill+"/guideGoogleWorkspace.nl");
@@ -1796,7 +1819,18 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedGoogleSetupReceiver["qualifyManagedGoogleSetup"]>>;
   }
 
-  private googleSetupBindings(input: GoogleSetupInput): string {
+  private async gmailContinuationBindings(input: GoogleSetupInput, composeCase: string): Promise<string> {
+    return `
+      ${this.googleSetupBindings(input, true)}
+      ${await this.gmailComposeBindings({ contextId:input.contextId, caseId:composeCase }, true)}
+      import {prepareGmailContinuation} from "@workspace-skills/system-testing/gmail-continuation-managed";
+      if(!world.compose || seed.caseId!==world.compose.caseId) throw new Error("Wrong compose continuation assignment");
+      const prepared=prepareGmailContinuation(setup,compose,world.compose.action);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  private googleSetupBindings(input: GoogleSetupInput, continuation = false): string {
     return `
       import {panelTree,contextId as actualContextId} from "@workspace/runtime";
       import {prepareGoogleSetupJourney} from "@workspace-skills/google-drive/live-setup-journey";
@@ -1808,8 +1842,8 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const panel=panelTree.get(input.panelId);
       const state=await panel.observe();
       if(state.source!==googleSetupPanel || state.contextId!==input.contextId || state.requestedRef!=="ctx:"+input.contextId || state.kind!=="workspace") throw new Error("Google setup panel belongs to another assignment");
-      const prepared=prepareGoogleSetupJourney(panel,actualContextId,world);
-      const assignedServices=prepared.services;
+      const ${continuation ? "setup" : "prepared"}=prepareGoogleSetupJourney(panel,actualContextId,world);
+      ${continuation ? "" : "const assignedServices=prepared.services;"}
     `;
   }
 
@@ -2605,19 +2639,19 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     )) as Awaited<ReturnType<GmailComposeHistoryReceiver["qualifyGmailComposeHistory"]>>;
   }
 
-  private async gmailComposeBindings(input: {contextId:string;caseId:string}): Promise<string> {
+  private async gmailComposeBindings(input: {contextId:string;caseId:string}, continuation = false): Promise<string> {
     const identity = await this.integrationFixtureIdentity();
     if (identity.contextId !== input.contextId) throw new Error("Compose history belongs to another context");
     const seed = await seedGmailComposeChannel(this.rpc,input,identity.ownerEntityId);
     return `
-      import {contextId as actualContextId} from "@workspace/runtime";
+      import {contextId as ${continuation ? "composeContextId" : "actualContextId"}} from "@workspace/runtime";
       import {bindGmailComposeHistory} from "@workspace-skills/gmail-compose-history-bindings";
       import {prepareGmailComposeHistory} from "@workspace-skills/system-testing/gmail-compose-history-managed";
       const seed=${JSON.stringify(seed)};
-      if(actualContextId!==seed.contextId) throw new Error("Compose history belongs to another context");
+      if(${continuation ? "composeContextId" : "actualContextId"}!==seed.contextId) throw new Error("Compose history belongs to another context");
       const bound=bindGmailComposeHistory({...seed,envelopeIds:seed.lineage.map(item=>item.id)});
-      const prepared=prepareGmailComposeHistory(seed,bound);
-      const assignedServices=prepared.services;
+      const ${continuation ? "compose" : "prepared"}=prepareGmailComposeHistory(seed,bound);
+      ${continuation ? "" : "const assignedServices=prepared.services;"}
     `;
   }
 
