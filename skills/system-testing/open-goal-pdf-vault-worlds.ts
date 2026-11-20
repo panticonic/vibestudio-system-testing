@@ -1,7 +1,8 @@
+import { addedPdfVaultCorrections } from "./open-goal-pdf-vault-expansion-worlds.js";
 import type { OpenPdfWorld } from "./open-goal-pdf-worlds.js";
 import type { OpenSpectroliteWorld } from "./open-goal-spectrolite-worlds.js";
 
-type Correction = {
+export type Correction = {
   id: string;
   sourceGroup: string;
   split?: "test";
@@ -9,6 +10,7 @@ type Correction = {
   pdf: Omit<OpenPdfWorld, "goal" | "id" | "sourceGroup" | "workspace" | "kind">;
   vault: Pick<OpenSpectroliteWorld, "openPath" | "files" | "draft" | "writablePath" | "expected">;
   concurrent?: { path: string; append: string };
+  holdReason?: { terms: string[]; reference: string };
 };
 const note = (title: string, body: string) => `---\ntitle: ${title}\n---\n\n# ${title}\n\n${body}\n`;
 const row = (text: string) => [text];
@@ -116,6 +118,7 @@ const correctionCases: readonly Correction[] = [
       ], note("Current receiving", "Drop-off is at the east desk.\n\nIntake closes at 16:40.\n\nRetain the claim stub.\n\nLocal reminder: attach a green label."), "Local reminder: attach a green label."),
     },
   },
+  ...addedPdfVaultCorrections,
 ];
 export type OpenPdfVaultWorld = Omit<Correction, "pdf" | "vault"> & {
   kind: "pdfVault";

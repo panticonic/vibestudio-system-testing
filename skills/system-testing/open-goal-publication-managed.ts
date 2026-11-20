@@ -286,16 +286,22 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
   async function qualify() {
     const available = await services.publicationGoal.discover();
     const choice = expected.choice;
+    const rejectsDestinationAlias = await services.publicationGoal.bind(available.revision, {
+      ...choice, targetId: `./${choice.targetId}`,
+    }) === null;
+    const rejectsStaleReview = await services.publicationGoal.bind("previous-launch-record", choice) === null;
     const request = await services.publicationGoal.bind(available.revision, choice);
     if (!request) throw new Error("The reference could not bind the current publication review");
     const comparison = request.revision ? await services.publicationRevision.compare(request.revision.operationId) : null;
     const observation = request.preflight ? await services.websiteReadback.observe() : null;
     const preflight = observation && choice.preflight ? { ...disposition(observation, choice.preflight),
       evidence: [observation.artifact.artifactDigest] } : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "publication", outcome: {
+    const verified = await verify({ status: "workspace-skill-reviewed", skill: "publication", outcome: {
       status: "reviewed", choice, preflight, revision: comparison ? { ...revisionOutcome(comparison), comparison,
         reason: "Compare the exact package and destination receipts." } : null,
     } });
+    const checks = { ...verified.checks, rejectsDestinationAlias, rejectsStaleReview };
+    return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
   }
 
   return { goal, services, verify, qualify };

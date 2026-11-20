@@ -245,7 +245,10 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
         report?.text?.digest === source?.digest && report?.text?.status === claims.status &&
         isDeepStrictEqual(report.text.readPages, expected.pages) && isDeepStrictEqual(report.text.remaining, []) &&
         wantedCitations.every(Boolean) && isDeepStrictEqual(report.text.citations, wantedCitations) &&
-        (claims.status !== "no-match" || textReads.every(receipt => receipt.pages.every(page => !page.lines.length))) :
+        (claims.status !== "no-match" || isDeepStrictEqual(
+          textReads.flatMap(receipt => receipt.pages.flatMap(page => page.lines.map(({ text }) => text))),
+          claims.noMatchLines ?? [],
+        )) :
         report?.text === null && textProbes.length === 0 && !textReads.length,
       layoutEvidence: reads.length === layouts.length && Array.isArray(report?.layouts) &&
         report.layouts.length === layouts.length && layouts.every(({ page, kind, order }, index) => {

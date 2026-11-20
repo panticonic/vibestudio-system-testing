@@ -1,3 +1,5 @@
+import { addedSpectroliteGoalWorlds } from "./open-goal-spectrolite-expansion-worlds.js";
+
 export const openSpectrolitePanel = "panels/spectrolite";
 export const openSpectroliteVault = "projects/default";
 
@@ -111,4 +113,5 @@ export const spectroliteGoalWorlds: readonly OpenSpectroliteWorld[] = [
       findings: [["document", "document-ready"], ["navigation", "navigation-ready"], ["preview", "preview-missing"]],
     },
   },
+  ...addedSpectroliteGoalWorlds,
 ];

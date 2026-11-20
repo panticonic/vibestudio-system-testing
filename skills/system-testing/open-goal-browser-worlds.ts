@@ -1,4 +1,6 @@
-type Control = { label: string; nextState: string };
+import { addedBrowserGoalWorlds } from "./open-goal-browser-expansion-worlds.js";
+
+type Control = { label: string; nextState: string; availableIn?: string[] };
 export type BrowserSeedRow = {
   label: string;
   state: string;
@@ -13,7 +15,7 @@ export type BrowserGoalWorld = {
   sourceGroup: string;
   split?: "test";
   rows: BrowserSeedRow[];
-  expected: { labels: string[]; changes?: { label: string; state: string }[] };
+  expected: { labels: string[]; changes?: { label: string; state: string; control?: string }[] };
 };
 
 export const browserGoalWorlds: readonly BrowserGoalWorld[] = [
@@ -90,4 +92,5 @@ export const browserGoalWorlds: readonly BrowserGoalWorld[] = [
     ],
     expected: { labels: ["Old station"], changes: [{ label: "Old station", state: "Held" }] },
   },
+  ...addedBrowserGoalWorlds,
 ];

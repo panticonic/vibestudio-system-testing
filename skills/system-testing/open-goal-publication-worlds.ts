@@ -1,3 +1,5 @@
+import { addedPublicationGoalWorlds } from "./open-goal-publication-expansion-worlds.js";
+
 type Intent = {
   provider: "vercel" | "cloudflare-pages";
   destination: string;
@@ -142,6 +144,7 @@ export const publicationGoalWorlds: readonly PublicationGoalWorld[] = [
     targets: [festivalLive, { ...festival, review: { intent: festival.intent, entryApproved: false } }],
     expected: { choice: scope(festival, "prepare"), preflight: { status: "blocked", blockers: ["public-paths"] } },
   },
+  ...addedPublicationGoalWorlds,
 ];
 
 export function publicationGoalLaunchFacts(world: PublicationGoalWorld) {

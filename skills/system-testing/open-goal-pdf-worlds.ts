@@ -4,11 +4,11 @@ type PdfExpectation = {
   document: string;
   pages: number[];
   missing?: number[];
-  text?: { status: "verified" | "no-match"; quotes: { page: number; text: string }[] };
+  text?: { status: "verified" | "no-match"; quotes: { page: number; text: string }[]; noMatchLines?: string[] };
   layouts?: PageLayout[];
   render: number[];
   action: "preserve-text" | "preserve-table-rows" | "read-columns-in-order" |
-    "provide-text-equivalent" | "recover-missing-pages" | "keep-page-specific-structure";
+    "provide-text-equivalent" | "recover-missing-pages" | "keep-page-specific-structure" | "needs-review";
   evidenceTerms: string[];
   ink?: number[];
 };
