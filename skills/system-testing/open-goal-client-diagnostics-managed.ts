@@ -224,7 +224,7 @@ export async function prepareOpenClientDiagnostics(
     ? await createOwnedHeadlessChannel(input.contextId, world.channel.title)
     : null;
   const sent =
-    lane && world.channel
+    lane && world.channel?.messages.length
       ? await withOwnedChannelClient(lane, input.contextId, async (client) => {
           const ids: string[] = [];
           for (const [index, text] of world.channel!.messages.entries())
