@@ -65,10 +65,11 @@ export const managedGoogleSetupWorlds = [
   ),
   journey(
     "hold-interrupted-send-pending-setup",
-    "Check Gmail's launch controls before resuming the interrupted compose card. Determine what must happen before retrying delivery and cite the exact setup and compose evidence.",
+    "Check Gmail's launch controls around a reload before resuming the interrupted compose card. Identify what must happen before retrying delivery. Cite the latest control and decisive compose event.",
     [
       [viewport(390), "viewport-fits"],
       [gate(false), "gmail-closed"],
+      [gate(true), "gmail-closed"],
     ],
     {
       caseId: "reconcile-uncertain-delivery",
