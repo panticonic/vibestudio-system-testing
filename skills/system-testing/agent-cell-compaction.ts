@@ -125,8 +125,9 @@ export async function readNativeTurnReceipt(
       after = row.id;
       const event = row.payload as AgenticEvent | undefined;
       if (event?.kind === "invocation.started") {
-        const { nativeSource: native, name } =
-          event.payload as AgenticEvent<"invocation.started">["payload"];
+        const payload = event.payload as AgenticEvent<"invocation.started">["payload"];
+        if (!("nativeSource" in payload)) continue;
+        const { nativeSource: native, name } = payload;
         if (native?.operation.kind !== "direct-tool" || native.operation.callId !== callId)
           continue;
         if (invocationId || native.owner.runtimeId !== input.executorId ||
