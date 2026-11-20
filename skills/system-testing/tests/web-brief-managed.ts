@@ -2,8 +2,9 @@ import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
-import { browserGoalWorlds, openGoalWorlds } from "../open-goal-worlds.js";
-import { PANEL_AUTOMATION_RESOURCE, panelControlAuthorityPolicy } from "../panel-authority.js";
+import { browserGoalWorlds, openGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
+import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
+import { nativeSuiteAuthority } from "./native-suite-managed.js";
 import {
   managedResearchIntakeWorlds,
   managedResearchHandoffWorlds,
@@ -72,11 +73,16 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const openGoalCases = [...openGoalWorlds, ...browserGoalWorlds].map(world => ({ world, qualification: false }));
-openGoalCases.push(...browserGoalWorlds.map(world => ({ world, qualification: true })));
+const openGoalCases = [...openGoalWorlds, ...browserGoalWorlds, ...suiteGoalWorlds].map(world => ({ world, qualification: false }));
+openGoalCases.push(...[...browserGoalWorlds, ...suiteGoalWorlds].map(world => ({ world, qualification: true })));
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
   ...settings,
-  requiresUnits: world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
+  requiresUnits: world.kind === "suite" ? ["extensions/test-runner", ...world.routes.map(route => route.target).filter(target => target !== "extensions/test-runner")] :
+    world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
+  ...(world.kind === "suite" && world.expected.choice.mode === "verify" ? world.expected.runtime === "native"
+    ? { authorityPolicy: nativeSuiteAuthority }
+    : { authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] }, resources: [PANEL_AUTOMATION_RESOURCE] }
+    : {}),
   ...(world.kind === "browser" ? {
     resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
@@ -85,6 +91,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
   description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
+    world.kind === "suite" ? "Select and verify a live declared workspace suite" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {

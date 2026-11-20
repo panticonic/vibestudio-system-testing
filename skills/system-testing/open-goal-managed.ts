@@ -5,6 +5,8 @@ import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestR
 import { openGoalWorlds } from "./open-goal-worlds.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
+import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
+import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 
 type Input = { contextId: string; caseId: string; panelId?: string; source?: string };
 type ResearchReport = {
@@ -18,6 +20,8 @@ type ResearchReport = {
 const normalize = (text: string) => text.replace(/\s+/gu, " ").trim();
 
 export async function prepareOpenGoal({ contextId, caseId, panelId, source }: Input) {
+  const suite = suiteGoalWorlds.find((item) => item.id === caseId);
+  if (suite) return prepareOpenGoalSuite({ contextId, caseId }, suite);
   const browser = browserGoalWorlds.find((item) => item.id === caseId);
   if (browser) {
     if (!panelId || !source) throw new Error("The open browser goal needs its owned panel");
@@ -210,6 +214,6 @@ async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: EditWor
 
 type Verification = Awaited<ReturnType<Awaited<ReturnType<typeof prepareOpenGoal>>["verify"]>>;
 export interface OpenGoalReceiver {
-  runOpenGoalTeacher(input: Input & { executorModel: string }): Promise<{ teacher: PanelTeacherResult; verification: Verification }>;
+  runOpenGoalTeacher(input: Input & { executorModel: string; qualification?: boolean }): Promise<{ teacher: PanelTeacherResult | null; verification: Verification }>;
 }
 export const openGoalMethods = createReceiverRpcMethods<OpenGoalReceiver>(["runOpenGoalTeacher"]);

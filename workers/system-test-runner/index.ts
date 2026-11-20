@@ -3665,16 +3665,22 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
-    return await this.runHarnessUtility("teacher", runId => `${openGoalTeacherCode({
-      executorModel: input.executorModel,
-      bindingCode: `
+    const bindingCode = `
         import {contextId as actualContextId} from "@workspace/runtime";
         import {prepareOpenGoal} from "@workspace-skills/system-testing/open-goal-managed";
         const input=${JSON.stringify(input)};
         if (input.contextId!==actualContextId) throw new Error("User goal belongs to another context");
         const prepared=await prepareOpenGoal(input);
         const assignedServices=prepared.services;
-      `,
+    `;
+    if (input.qualification) return await this.runHarnessUtility("teacher", `
+      ${bindingCode}
+      if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
+      const utilityValue={teacher:null,verification:await prepared.qualify()};
+    `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+    return await this.runHarnessUtility("teacher", runId => `${openGoalTeacherCode({
+      executorModel: input.executorModel,
+      bindingCode,
     }, runId)}
       utilityValue={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
     `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;

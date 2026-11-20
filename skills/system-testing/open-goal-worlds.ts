@@ -1,4 +1,5 @@
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
+export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 
 export const openGoalWorlds = [
   {

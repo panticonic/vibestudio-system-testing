@@ -12,7 +12,7 @@ type Teacher = Awaited<
 type Qualification = Awaited<
   ReturnType<ManagedNativeSuiteReceiver["qualifyManagedNativeSuite"]>
 >;
-const nativeAuthority: TestAuthorityPolicy = {
+export const nativeSuiteAuthority: TestAuthorityPolicy = {
   authority: [
     {
       ruleId: "assigned-native-suite",
@@ -46,7 +46,7 @@ export const managedNativeSuiteTests: TestCase[] = managedNativeSuiteWorlds.map(
     ...(world.mode === "inspect"
       ? {}
       : world.runtime === "native"
-        ? { authorityPolicy: nativeAuthority }
+        ? { authorityPolicy: nativeSuiteAuthority }
         : {
             authorityPolicy: workerdAuthority,
             resources: [PANEL_AUTOMATION_RESOURCE],
@@ -94,7 +94,7 @@ export const managedNativeSuiteTests: TestCase[] = managedNativeSuiteWorlds.map(
 managedNativeSuiteTests.push({
   ...settings,
   authorityPolicy: {
-    authority: [...nativeAuthority.authority, ...workerdAuthority.authority],
+    authority: [...nativeSuiteAuthority.authority, ...workerdAuthority.authority],
   },
   resources: [PANEL_AUTOMATION_RESOURCE],
   name: "native-suite-oracle-qualification",

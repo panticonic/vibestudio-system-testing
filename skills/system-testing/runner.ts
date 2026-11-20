@@ -2221,7 +2221,7 @@ export class HeadlessRunner {
     try {
       const owner = await this.createFixtureWorker(contextId);
       return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-        { contextId, caseId, executorModel: this.modelRef },
+        { contextId, caseId, executorModel: this.modelRef, ...(qualification ? { qualification } : {}) },
       ], { signal });
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
