@@ -1,5 +1,9 @@
 export const spectrolitePanel = "panels/spectrolite";
 export const spectroliteVault = "projects/default";
+export const spectroliteHandoffWork = [
+  { kind: "domain", domain: "spectrolite", operation: "reviewSpectrolite" },
+  { kind: "domain", domain: "spectrolite", operation: "planVaultHandoff" },
+] as const;
 type ReviewCheck =
   | "document"
   | "preview"
@@ -28,6 +32,7 @@ type Follow = {
   destination: string;
 };
 type Options = {
+  handoff?: "committed-review" | "draft-only";
   links?: Record<string, string>;
   follow?: Follow[];
   previewText?: string;
@@ -60,6 +65,7 @@ function scenario(
     previewText: options.previewText ?? null,
     follow: options.follow,
     draft: options.draft,
+    handoff: options.handoff,
   };
 }
 
@@ -673,6 +679,30 @@ function coeditedVault(
 }
 
 managedSpectroliteWorlds.push(
+  scenario(
+    "review-handoff-committed-checklist",
+    "Prepare a peer review handoff for the rendered dispatch checklist. Identify the exact committed revision a reviewer can reopen.",
+    "Dispatch Checklist.mdx",
+    "Dispatch checklist",
+    callout("Confirm the staging window with dispatch."),
+    [documentReady, previewReady, sameRevision],
+    {
+      previewText: "Confirm the staging window with dispatch.",
+      handoff: "committed-review",
+    },
+  ),
+  revisedNote(
+    "review-handoff-uncommitted-brief",
+    "The editor preview changed after the last commit. Plan a draft review for the visible brief and identify the exact revision the reviewer should inspect.",
+    {
+      path: "Morning Brief.mdx",
+      committed: ["Prior morning brief", callout("Confirm at seven.")],
+      working: ["Updated morning brief", callout("Confirm at eight.")],
+      staleText: "Confirm at seven.",
+    },
+    [changedRevision, previewReady, dirtyVault],
+    { previewText: "Confirm at eight.", handoff: "draft-only" },
+  ),
   revisedNote(
     "draft-evacuation-route",
     "Confirm the revised gate in the draft preview, check the cited muster plan, and report what the current vault state shows about publication.",

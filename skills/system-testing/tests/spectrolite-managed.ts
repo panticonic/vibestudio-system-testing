@@ -82,15 +82,23 @@ export const managedSpectroliteTests: TestCase[] = managedSpectroliteWorlds.map(
   }),
 );
 
-for (const draft of [false, true]) {
-  const worlds = managedSpectroliteWorlds.filter(
-    (world) => Boolean(world.draft) === draft,
-  );
+for (const [name, worlds] of [
+  [
+    "spectrolite-managed-oracle-qualification",
+    managedSpectroliteWorlds.filter((world) => !world.draft && !world.handoff),
+  ],
+  [
+    "spectrolite-managed-draft-qualification",
+    managedSpectroliteWorlds.filter((world) => world.draft && !world.handoff),
+  ],
+  [
+    "spectrolite-managed-handoff-qualification",
+    managedSpectroliteWorlds.filter((world) => world.handoff),
+  ],
+] as const) {
   managedSpectroliteTests.push({
     ...settings,
-    name: draft
-      ? "spectrolite-managed-draft-qualification"
-      : "spectrolite-managed-oracle-qualification",
+    name,
     description:
       "Qualify the actual Spectrolite editor and canonical document checks without a model",
     prompt:
