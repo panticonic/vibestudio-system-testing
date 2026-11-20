@@ -109,7 +109,8 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalHistoryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
+  openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
+  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
@@ -3690,7 +3691,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const personalArtifacts = openPersonalArtifactWorlds.find(({ id }) => id === input.caseId);
     const personalHistory = openPersonalHistoryWorlds.find(({ id }) => id === input.caseId);
     const googleHandoff = openGoalGoogleHandoffWorlds.find(({ id }) => id === input.caseId);
-    const prepare = googleHandoff
+    const personalAutomation = openPersonalAutomationWorlds.find(({ id }) => id === input.caseId);
+    const prepare = personalAutomation
+      ? `import {prepareOpenPersonalAutomation} from "@workspace-skills/open-personal-automation-runtime";
+         const prepared=await prepareOpenPersonalAutomation(input,${JSON.stringify(personalAutomation)});`
+      : googleHandoff
       ? `import {prepareOpenGoogleHandoffGoal} from "@workspace-skills/open-google-handoff-goal/managed";
          const candidate=await prepareOpenGoogleHandoffGoal(input,${JSON.stringify(googleHandoff)});
          const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="googleHandoff" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`

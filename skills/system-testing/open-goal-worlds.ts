@@ -14,6 +14,7 @@ export { openGoalGoogleHandoffWorlds } from "./open-goal-google-handoff-worlds.j
 export { openGoalCalendarWorlds } from "./open-goal-calendar-worlds.js";
 export { openPersonalArtifactWorlds, personalArtifactRequiresUnits } from "./open-goal-personal-artifacts-worlds.js";
 export { openPersonalHistoryWorlds, personalHistoryRequiresUnits } from "./open-goal-personal-history-worlds.js";
+export { openPersonalAutomationWorlds, personalAutomationAuthority, personalAutomationRequiresUnits } from "./open-goal-personal-automation-worlds.js";
 
 export const openGoalWorlds = [
   {
