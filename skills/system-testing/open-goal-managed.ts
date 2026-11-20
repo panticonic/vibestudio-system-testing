@@ -126,6 +126,7 @@ async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: EditWor
   const attempts: { path: string; version: string; status: string }[] = [];
   let changedVersion: string | undefined;
   let listed = false;
+  let revising = false;
   const services = {
     goalDiscovery: { search: async () => [], snapshotTime: () => Date.now() },
     web: {
@@ -148,24 +149,29 @@ async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: EditWor
       async revise(path: string, version: string, text: string) {
         const attempt = { path, version, status: "unavailable" };
         attempts.push(attempt);
-        if (path !== world.destination || typeof text !== "string" || text.length > 10_000)
+        if (revising || path !== world.destination || typeof text !== "string" || text.length > 10_000)
           return { status: attempt.status };
-        const target = `${directory}/${path}`;
-        const current = await readText(target);
-        if (!changedVersion) {
-          const changed = current + world.concurrentAddition;
-          await fs.writeFile(target, changed);
-          changedVersion = hash(changed);
-          attempt.status = "changed";
-          return { status: attempt.status };
+        revising = true;
+        try {
+          const target = `${directory}/${path}`;
+          const current = await readText(target);
+          if (!changedVersion) {
+            const changed = current + world.concurrentAddition;
+            await fs.writeFile(target, changed);
+            changedVersion = hash(changed);
+            attempt.status = "changed";
+            return { status: attempt.status };
+          }
+          if (version !== hash(current)) {
+            attempt.status = "changed";
+            return { status: attempt.status };
+          }
+          await fs.writeFile(target, text);
+          attempt.status = "written";
+          return { status: attempt.status, version: hash(text) };
+        } finally {
+          revising = false;
         }
-        if (version !== hash(current)) {
-          attempt.status = "changed";
-          return { status: attempt.status };
-        }
-        await fs.writeFile(target, text);
-        attempt.status = "written";
-        return { status: attempt.status, version: hash(text) };
       },
     },
   };
