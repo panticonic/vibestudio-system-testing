@@ -1747,7 +1747,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         let result;
         try {
           await prepared.seed();
-          const handoff=await prepareNewsHandoff({fs,rpc,vcs},prepared,{id:world.id,handoff:world.handoff});
+          const handoff=await prepareNewsHandoff({fs,rpc,vcs},prepared,{id:world.id,handoff:world.handoff,repair:world.repair});
           ${composedTeacherCode({
             executorModel: input.executorModel,
             workflowRequest: {
@@ -1789,7 +1789,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         let result;
         try {
           await prepared.seed();
-          const handoff=await prepareNewsHandoff({fs,rpc,vcs},prepared,{id:world.id,handoff:world.handoff});
+          const handoff=await prepareNewsHandoff({fs,rpc,vcs},prepared,{id:world.id,handoff:world.handoff,repair:world.repair});
           {
             ${domainTeacherQualificationCode(newsHandoffWork, "const assignedServices=handoff.services; const prepared=handoff;")}
             result=utilityValue;
