@@ -1,3 +1,4 @@
+import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
 import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
@@ -14,7 +15,7 @@ import {
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
   publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
 } from "../open-goal-worlds.js";
-import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
+import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, PANEL_RUNTIME_SUPERVISION_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
 import { newsAuthority } from "./news-managed.js";
 import { missionPlanningSettings } from "./mission-planning-managed.js";
@@ -91,7 +92,7 @@ const referenceGoals = [...openGoalWorlds, ...openGoalProgramRunWorlds, ...openG
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -158,6 +159,12 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "visualRecovery" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/panel-health", "skills/panel-health-runtime"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-visual-recovery", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]),
+    workspaceRepoFixture: { kind: "open-goal-panel-recovery", section: "panels", caseId: world.id },
+  } : {}),
   ...(world.kind === "ownedPreview" ? {
     requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "packages/integrations"],
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -201,6 +208,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
+    world.kind === "visualRecovery" ? "Diagnose and restore the selected live owned surface and verify the exact rendered result" :
     world.kind === "ownedPreview" ? "Publish to the authorized disposable preview and verify its exact hosted artifact" :
     world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
     world.kind === "pdfVault" ? "Ground a working vault correction in the original PDF and verify its revision" :

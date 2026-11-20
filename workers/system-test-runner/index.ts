@@ -113,7 +113,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3685,6 +3685,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
     const localDelivery = openLocalDeliveryWorlds.find(({ id }) => id === input.caseId);
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const visualRecovery = openGoalPanelRecoveryWorlds.some(({ id }) => id === input.caseId);
     const ownedPreview = openGoalOwnedPreviewWorlds.some(({ id }) => id === input.caseId);
     const publication = publicationGoalWorlds.some(({ id }) => id === input.caseId);
     const pdf = openGoalPdfWorlds.some(({ id }) => id === input.caseId);
@@ -3713,6 +3714,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
          const prepared=await prepareOpenProgramRun(input,${JSON.stringify(programRun)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)});`
+      : visualRecovery
+      ? `import {prepareOpenPanelRecovery} from "@workspace-skills/system-testing/open-goal-panel-recovery-managed";
+         if (!input.source || !input.recoveryPanels) throw new Error("Visual recovery needs its owned live surfaces");
+         const prepared=await prepareOpenPanelRecovery(input);`
       : diagnostics
       ? `import {prepareOpenSystemDiagnostics} from "@workspace-skills/open-system-diagnostics-runtime";
          const prepared=await prepareOpenSystemDiagnostics(input,${JSON.stringify(diagnostics)},${JSON.stringify(diagnosticsSeed)});`

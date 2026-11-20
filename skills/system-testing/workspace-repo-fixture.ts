@@ -1,3 +1,4 @@
+import { panelRecoverySource } from "./open-goal-panel-recovery-renderer.js";
 import { openGoalOwnedPreviewWorlds, ownedPreviewLaunchFacts } from "./open-goal-owned-preview-worlds.js";
 import { publicationGoalLaunchFacts, publicationGoalWorlds } from "./open-goal-publication-worlds.js";
 import { managedPublicationWorlds } from "./publication-preflight-worlds.js";
@@ -62,6 +63,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
   | { kind: "open-goal-publication-panel"; section: "panels"; caseId: string }
   | { kind: "open-goal-owned-preview-panel"; section: "panels"; caseId: string }
+  | { kind: "open-goal-panel-recovery"; section: "panels"; caseId: string }
   | { kind: "panel-health-preview"; section: "panels"; caseId: string }
   | { kind: "open-goal-browser-panel"; section: "panels"; caseId: string }
   | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
@@ -1342,6 +1344,15 @@ for (const label of copy.publicLabels) {
     return [
       { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
       { path: "index.tsx", content: openGoalBrowserPanelSource },
+    ];
+  }
+  if (fixture.kind === "open-goal-panel-recovery") {
+    const [manifest] = buildablePanelFiles(repoName);
+    const config = JSON.parse(manifest!.content);
+    config.dependencies["@workspace/react"] = "workspace:*";
+    return [
+      { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
+      { path: "index.tsx", content: panelRecoverySource },
     ];
   }
   if (fixture.kind === "panel-health-preview") {

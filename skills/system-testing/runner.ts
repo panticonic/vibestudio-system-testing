@@ -44,6 +44,7 @@ import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { openGoalMethods } from "./open-goal-managed.js";
 import type { NewsInput } from "./news-contract.js";
 import { newsGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds } from "./open-goal-worlds.js";
+import { openGoalPanelRecoveryWorlds } from "./open-goal-panel-recovery-worlds.js";
 import { openGoalOwnedPreviewWorlds } from "./open-goal-owned-preview-worlds.js";
 import { seedOpenPublicationGoal, seedPublicationRevision } from "./open-goal-publication-managed.js";
 import { openSpectrolitePanel, openSpectroliteVault } from "./open-goal-spectrolite-worlds.js";
@@ -2204,6 +2205,37 @@ export class HeadlessRunner {
     }
   }
   async runOpenGoal(caseId: string, signal: AbortSignal, qualification = false) {
+    const recovery = openGoalPanelRecoveryWorlds.find(({ id }) => id === caseId);
+    if (recovery) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "open-goal-panel-recovery" || fixture.caseId !== caseId || !fixture.repoName || !contextId)
+        throw new Error("Visual recovery needs the owned panel fixture.");
+      const source = `panels/${fixture.repoName}`;
+      const panels: { surfaceId: string; handle: Awaited<ReturnType<typeof this.openPanelClient>> }[] = [];
+      const failures: unknown[] = [];
+      try {
+        for (const surface of recovery.surfaces) {
+          const handle = await this.openPanelClient(source, {
+            contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+            stateArgs: { scene: surface, boot: surface.initial },
+          });
+          panels.push({ surfaceId: surface.id, handle });
+        }
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { contextId, caseId, source, executorModel: this.modelRef, qualification,
+            recoveryPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) },
+        ], { signal });
+      } catch (error) {
+        failures.push(error);
+        throw error;
+      } finally {
+        const retired = await Promise.allSettled(panels.map(({ handle }) => handle.archive()));
+        const cleanupFailures = retired.flatMap(item => item.status === "rejected" ? [item.reason] : []);
+        if (cleanupFailures.length)
+          throw new AggregateError([...failures, ...cleanupFailures], "Could not retire the visual recovery panels");
+      }
+    }
     const ownedPreview = openGoalOwnedPreviewWorlds.find(({ id }) => id === caseId);
     if (ownedPreview || publicationGoalWorlds.some(({ id }) => id === caseId)) {
       const fixture = this.workspaceRepoFixture;
