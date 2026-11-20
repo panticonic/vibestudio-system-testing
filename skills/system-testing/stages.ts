@@ -25,7 +25,7 @@ import { managedGitBridgeReviewTests } from "./tests/git-bridge-review-managed.j
 import { managedVcsDeliveryTests } from "./tests/vcs-delivery-managed.js";
 import { managedWebBriefTests } from "./tests/web-brief-managed.js";
 import { managedArchitectureBoundaryTests } from "./tests/architecture-boundary-managed.js";
-import { managedExtensionReleaseTests } from "./tests/extension-release-managed.js";
+import { managedExtensionReleaseTests, managedUnitDesignTests } from "./tests/extension-release-managed.js";
 import { managedAuthorityReviewTests } from "./tests/authority-review-managed.js";
 import { managedAgenticChangeTests } from "./tests/agentic-change-managed.js";
 import { managedGadReviewTests } from "./tests/gad-review-managed.js";
@@ -267,6 +267,7 @@ export function allTests(): TestCase[] {
   ...managedWebBriefTests,
   ...managedArchitectureBoundaryTests,
   ...managedExtensionReleaseTests,
+  ...managedUnitDesignTests,
   ...managedAuthorityReviewTests,
   ...managedAgenticChangeTests,
   ...managedGadReviewTests,

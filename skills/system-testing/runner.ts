@@ -3,6 +3,7 @@ import { managedNotificationMethods } from "./notification-lifecycle-managed.js"
 import { retainedTriageMethods } from "./retained-triage-managed.js";
 import { gitHubSetupMethods } from "./github-setup-managed.js";
 import { personalResumeMethods } from "./personal-resume-managed.js";
+import { managedUnitDesignMethods } from "./unit-design-managed.js";
 import { templateReleaseMethods } from "./template-release-managed.js";
 import { managedIntegrationReadinessMethods } from "./integration-readiness-managed.js";
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
@@ -1957,6 +1958,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedArchitectureBoundaryMethods.qualifyManagedArchitectureBoundary, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedArchitectureBoundaryMethods.runManagedArchitectureBoundaryTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedUnitDesign(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedUnitDesignMethods.qualifyManagedUnitDesign, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedUnitDesignMethods.runManagedUnitDesignTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

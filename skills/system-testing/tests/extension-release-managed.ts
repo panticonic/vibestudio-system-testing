@@ -1,6 +1,8 @@
 import type { TestCase } from "../types.js";
 import type { ManagedExtensionReleaseReceiver } from "../extension-release-managed.js";
 import { managedExtensionReleaseWorlds } from "../extension-release-worlds.js";
+import { managedUnitDesignWorlds } from "../unit-design-worlds.js";
+import type { ManagedUnitDesignReceiver } from "../unit-design-managed.js";
 
 type Teacher = Awaited<
   ReturnType<
@@ -17,6 +19,40 @@ const settings = {
   timeoutMs: 6 * 60_000,
   requiresUnits: ["skills/extensiondev"],
 };
+
+type DesignTeacher = Awaited<ReturnType<ManagedUnitDesignReceiver["runManagedUnitDesignTeacher"]>>;
+export const managedUnitDesignTests: TestCase[] = managedUnitDesignWorlds.flatMap(
+  (world) => [false, true].map((qualification): TestCase => ({
+    ...settings,
+    name: `unit-design-${qualification ? "oracle" : "live"}-${world.id}`,
+    description: "Review validation and publication of the assigned live extension manifest",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const run = await runner.runManagedUnitDesign(world.id, qualification, signal);
+      const duration = Date.now() - started;
+      if (run.kind === "reference") {
+        if (!qualification) throw new Error("Expected a captured unit design review");
+        return { messages: [], duration, diagnostics: { unitDesign: run.result } };
+      }
+      if (qualification) throw new Error("Qualification invoked a teacher");
+      const { teacher, verification, contextId } = run.result;
+      return {
+        messages: [], duration,
+        provenance: { contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+        diagnostics: { natlangTeacher: teacher, unitDesign: verification },
+      };
+    },
+    validate(result) {
+      const verification = result.diagnostics?.["unitDesign"] as DesignTeacher["verification"] | undefined;
+      const teacher = result.diagnostics?.["natlangTeacher"] as DesignTeacher["teacher"] | undefined;
+      return {
+        passed: verification?.passed === true && (qualification || teacher?.trainingEligible === true),
+        details: verification?.checks,
+      };
+    },
+  })),
+);
 
 export const managedExtensionReleaseTests: TestCase[] =
   managedExtensionReleaseWorlds.map((world) => ({

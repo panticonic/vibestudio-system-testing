@@ -5,6 +5,7 @@ import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/re
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
 import type { PersonalResumeReceiver } from "@workspace-skills/system-testing/personal-resume-managed";
+import type { ManagedUnitDesignReceiver } from "@workspace-skills/system-testing/unit-design-managed";
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
@@ -2599,6 +2600,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     }, runId)}
       utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
     `) as Awaited<ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews assigned working and published extension manifests."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedUnitDesignTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedUnitDesignReceiver["runManagedUnitDesignTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"unitDesign",operation:"reviewWorkspaceUnit",input:{goal:"Review the assigned extension design"}},
+      inputCode:"prepared.request",
+      bindingCode:this.unitDesignBindings(input),
+    },runId)}
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedUnitDesignReceiver["runManagedUnitDesignTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies assigned extension manifest validation without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedUnitDesign(input: {contextId:string;caseId:string}): ReturnType<ManagedUnitDesignReceiver["qualifyManagedUnitDesign"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"unitDesign",operation:"reviewWorkspaceUnit"}],this.unitDesignBindings(input),
+    )) as Awaited<ReturnType<ManagedUnitDesignReceiver["qualifyManagedUnitDesign"]>>;
+  }
+
+  private unitDesignBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedUnitDesign} from "@workspace-skills/system-testing/unit-design-managed";
+      const prepared=await prepareManagedUnitDesign(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Captures an assigned Personal repository handoff."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
