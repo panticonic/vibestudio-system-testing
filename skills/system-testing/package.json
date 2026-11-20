@@ -274,7 +274,6 @@
     "@workspace/integrations": "workspace:*",
     "@workspace-skills/automation-lifecycle-bindings": "workspace:*",
     "@workspace-skills/tendrils": "workspace:*",
-    "@workspace-skills/performance-build-bindings": "workspace:*",
     "@workspace-skills/scratch-handoff-bindings": "workspace:*",
     "@workspace/harness": "workspace:*",
     "@babel/parser": "^7.29.2",

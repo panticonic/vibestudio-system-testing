@@ -4,7 +4,7 @@ import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDir
 import type { BuildMetadataWire, BuildPerformanceProfileWire } from "@vibestudio/service-schemas/build";
 import type { VcsStateNodeRef } from "@vibestudio/service-schemas/vcs";
 import type { RuntimeFs, VcsClient } from "@workspace/runtime";
-import { observeBuildProfile } from "@workspace-skills/performance-build-bindings";
+import { observeBuildProfile } from "@workspace/testkit";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { BuildIncidentWorld } from "./open-goal-build-incidents-worlds.js";
 
