@@ -106,7 +106,7 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
-import { newsGoalWorlds, openGoalGoogleWorlds, spectroliteGoalWorlds } from "@workspace-skills/system-testing/open-goal-worlds";
+import { newsGoalWorlds, openGoalGoogleWorlds, openGoalPersonalWorlds, operatorGoalWorlds, spectroliteGoalWorlds } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
   createMainRpcCaller,
@@ -3669,7 +3669,15 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
-    const prepare = google
+    const personal = openGoalPersonalWorlds.find(({ id }) => id === input.caseId);
+    const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
+    const prepare = personal
+      ? `import {prepareOpenPersonalGoal} from "@workspace-skills/open-personal-goal/managed";
+         const prepared=await prepareOpenPersonalGoal(input,${JSON.stringify(personal)});`
+      : operator
+        ? `import {prepareOpenGoalOperator} from "@workspace-skills/system-testing/open-goal-operator-managed";
+           const prepared=await prepareOpenGoalOperator(input);`
+        : google
       ? `import {prepareOpenGoalDrive} from "@workspace-skills/google-drive/open-goal-drive";
          const prepared=await prepareOpenGoalDrive(input,${JSON.stringify(google)});`
       : news

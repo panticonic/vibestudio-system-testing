@@ -9,7 +9,7 @@ type Exercise = Awaited<
 type Qualification = Awaited<
   ReturnType<ManagedMissionPlanningReceiver["qualifyManagedMissionPlanning"]>
 >;
-const settings = {
+export const missionPlanningSettings = {
   category: "project-lifecycle",
   explicitOnly: true,
   validation: "harness" as const,
@@ -39,7 +39,7 @@ const settings = {
 
 export const managedMissionFacilityTests: TestCase[] = missionFacilityWorlds.flatMap(
   (world) => [false, true].map((qualification): TestCase => ({
-    ...settings,
+    ...missionPlanningSettings,
     timeoutMs: 6 * 60_000,
     name: `mission-facility-${qualification ? "oracle" : "live"}-${world.id}`,
     description: "Review live Mission Control planning evidence before execution",
@@ -73,7 +73,7 @@ export const managedMissionFacilityTests: TestCase[] = missionFacilityWorlds.fla
 
 export const managedMissionPlanningTests: TestCase[] =
   managedMissionPlanningWorlds.map(({ id, request }) => ({
-    ...settings,
+    ...missionPlanningSettings,
     name: `mission-planning-live-${id}`,
     description:
       "Reconcile dependencies, readiness, and project assignment of Mission Control cards",
@@ -126,7 +126,7 @@ export const managedMissionPlanningTests: TestCase[] =
   }));
 
 managedMissionPlanningTests.push({
-  ...settings,
+  ...missionPlanningSettings,
   name: "mission-planning-managed-oracle-qualification",
   timeoutMs: 15 * 60_000,
   description:

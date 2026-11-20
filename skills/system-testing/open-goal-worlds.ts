@@ -1,3 +1,5 @@
+export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
+export { operatorGoalWorlds, operatorGoalRequiresUnits } from "./open-goal-operator-worlds.js";
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 export { newsGoalWorlds, newsGoalRequiresUnits, openNewsChecks } from "./open-goal-news-worlds.js";

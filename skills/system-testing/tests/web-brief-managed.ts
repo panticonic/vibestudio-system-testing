@@ -2,10 +2,11 @@ import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
-import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalWorlds, spectroliteGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
+import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalPersonalWorlds, operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, spectroliteGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
 import { newsAuthority } from "./news-managed.js";
+import { missionPlanningSettings } from "./mission-planning-managed.js";
 import {
   managedResearchIntakeWorlds,
   managedResearchHandoffWorlds,
@@ -75,11 +76,13 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds.filter(({ kind }) => kind === "workspace-edit"),
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds];
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds, ...openGoalPersonalWorlds, ...operatorGoalWorlds];
 const openGoalCases = [...openGoalWorlds.filter(({ kind }) => kind !== "workspace-edit"), ...referenceGoals]
   .map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const templateSettings = {
+  personal: { ...missionPlanningSettings, requiresUnits: [...missionPlanningSettings.requiresUnits, "skills/open-user-goal", "skills/open-personal-goal"] },
+  operator: { requiresUnits: operatorGoalRequiresUnits },
   news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
   spectrolite: {
     requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
@@ -101,7 +104,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
-  ...(world.kind === "news" || world.kind === "spectrolite" || world.kind === "google"
+  ...(world.kind === "news" || world.kind === "spectrolite" || world.kind === "google" || world.kind === "personal" || world.kind === "operator"
     ? templateSettings[world.kind] : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
   description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
@@ -110,6 +113,8 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
     world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
     world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
+    world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
+    world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
