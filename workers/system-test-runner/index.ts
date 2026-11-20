@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -662,6 +662,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   private async runHarnessUtility(
     kind: "doctor" | "list" | "teacher",
     code: string | ((runId: string) => string),
+    approvals?: "pregranted-only",
   ): Promise<unknown> {
     const runId = `system-test-runner:${kind}:${crypto.randomUUID()}`;
     // A utility call owns a finite EvalDO for exactly one invocation. Startup
@@ -677,6 +678,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const result = await execute({
         runId,
         scope: { key: subKey, lifecycle: "finite" },
+        ...(approvals ? { authority: { effects: "read-write" as const, approvals } } : {}),
         source: {
           kind: "inline",
           code: `
@@ -3692,6 +3694,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
+    const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
     const newsEvidence = openNewsEvidenceWorlds.some(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
     const vaultKnowledge = openVaultKnowledgeWorlds.find(({ id }) => id === input.caseId);
@@ -3966,6 +3969,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         : google
       ? `import {prepareOpenGoalDrive} from "@workspace-skills/google-drive/open-goal-drive";
          const prepared=await prepareOpenGoalDrive(input,${JSON.stringify(google)});`
+      : apiReadiness
+      ? `import {prepareOpenApiReadiness} from "@workspace-skills/system-testing/open-goal-api-readiness-managed";
+         import {matchUrlBoundCredentialCandidates,findCredentialBinding} from "@vibestudio/credential-client/urlBoundSelection";
+         import {findMatchingUrlAudience} from "@vibestudio/credential-client/urlAudience";
+         import {credentialLifecycle} from "@vibestudio/credential-client/credentialStatus";
+         const prepared=await prepareOpenApiReadiness(input,{match:matchUrlBoundCredentialCandidates,binding:findCredentialBinding,
+           audience:findMatchingUrlAudience,lifecycle:credentialLifecycle});`
       : newsEvidence
       ? `import {prepareOpenNewsEvidence} from "@workspace-skills/system-testing/open-goal-news-evidence-managed";
          import {canonicalizeUrl,articleId,captureNewsReaderReadback} from "@workspace/feeds";
@@ -3997,13 +4007,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         console.info("[open-unit-rollout]", {
           caseId: input.caseId, contextId: input.contextId, phase: "utility.eval", event: "started",
         });
+      const approvals = apiReadiness ? "pregranted-only" as const : undefined;
       if (input.qualification) return await this.runHarnessUtility("teacher", `
         ${bindingCode}
         if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
         let utilityValue;
         try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
         finally { await prepared.close?.(); }
-      `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      `, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
       return await this.runHarnessUtility("teacher", runId => `
         ${bindingCode}
         let result;
@@ -4012,7 +4023,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
           result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
         } finally { await prepared.close?.(); }
         const utilityValue=result;
-      `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      `, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
     } catch (error) {
       operationError = error;
       throw error;
