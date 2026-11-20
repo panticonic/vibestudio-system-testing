@@ -14,6 +14,7 @@ export type RolloutPorts = TestPorts & Pick<WorkspaceRuntime, "vcs" | "blobstore
   build: { getBuildReport(source: string, ref: string): Promise<unknown> };
 };
 export type Revision = Awaited<ReturnType<WorkspaceRuntime["vcs"]["status"]>>["workingHead"];
+export type RolloutPhase = <T>(phase: string, run: () => Promise<T>) => Promise<T>;
 export type Edit = { path: string; before: string; after: string };
 export type Build = { stateHash: string; status: "ok" | "failed" | "skipped"; diagnostics: string[] };
 export type Check = {
@@ -82,9 +83,10 @@ export function repairReference(world: OpenUnitRolloutWorld) {
     : world.fixture.replacement ? withWorkerFetch(world.fixture.replacement) : null;
 }
 
-export async function seedRolloutUnits(ports: RolloutPorts, world: OpenUnitRolloutWorld): Promise<OwnedUnit[]> {
+export async function seedRolloutUnits(
+  ports: RolloutPorts, world: OpenUnitRolloutWorld, expectedWorkingHead: Revision, phase: RolloutPhase,
+): Promise<OwnedUnit[]> {
   const { contextId, vcs } = ports;
-  const open = await vcs.status({ contextId });
   const basename = `open-repair-${crypto.randomUUID().slice(0, 12)}`;
   const candidates = [false, true].map(alternate => {
     const kind = alternate ? "worker" : world.fixture.kind;
@@ -94,26 +96,25 @@ export async function seedRolloutUnits(ports: RolloutPorts, world: OpenUnitRollo
       entry: kind === "worker" ? "index.ts" : "index.tsx",
       mayEdit: !alternate && world.grant.edit, mayRunChecks: !alternate && world.grant.checks, mayCommit: !alternate && world.grant.commit } as const;
   }).sort((a, b) => compareUtf16CodeUnits(a.source, b.source));
-  const repositories = await Promise.all(candidates.map(async candidate => ({
+  const repositories = await phase("fixture.blobs", () => Promise.all(candidates.map(async candidate => ({
     repoPath: candidate.source,
     files: await Promise.all(Object.entries(candidate.files).sort(([a], [b]) => compareUtf16CodeUnits(a, b))
       .map(async ([path, text]) => ({ path, contentHash: (await ports.blobstore.putText(text)).digest, mode: 0o644 }))),
-  })));
-  const imported = await vcs.importSnapshot({
-    contextId, commandId: crypto.randomUUID(), expectedWorkingHead: open.workingHead,
+  }))));
+  const imported = await phase("fixture.import", () => vcs.importSnapshot({
+    contextId, commandId: crypto.randomUUID(), expectedWorkingHead,
     intentSummary: "Create two disposable workspace rollout units", message: "Create two disposable workspace rollout units",
     source: { kind: "generated", uri: `system-test://open-unit-rollout/${basename}`, snapshotRevision: `fixture:${hash(repositories)}` }, repositories,
-  });
-  const { workingHead } = await vcs.status({ contextId });
+  }));
+  const { workingHead } = await phase("fixture.import-readback", () => vcs.status({ contextId }));
   if (imported.importedRepositoryIds.length !== candidates.length || workingHead.kind !== "event" || workingHead.eventId !== imported.eventId)
     throw new Error("Scoped rollout units do not match their imported native state");
-  const units: OwnedUnit[] = await Promise.all(candidates.map(async candidate => {
+  return phase("fixture.resolve", () => Promise.all(candidates.map(async candidate => {
     const repository = await vcs.resolveRepository({ state: workingHead, repoPath: candidate.source });
     if (!repository || !imported.importedRepositoryIds.includes(repository.repositoryId))
       throw new Error("A disposable unit resolved outside the owned snapshot");
     return { ...candidate, id: crypto.randomUUID(), repositoryId: repository.repositoryId };
-  }));
-  return units;
+  })));
 }
 
 export async function readRepositorySource(ports: RolloutPorts, unit: OwnedUnit, state: Revision, path: string) {
@@ -129,16 +130,27 @@ function workerEngine(ports: RolloutPorts, unit: OwnedUnit): Engine {
     verifyTests: command => verifyUnit({ rpc: ports.rpc, openPanel: ports.openPanel,
       contextId: ports.contextId, operationPrefix: "open-unit-rollout" }, command),
   });
+  let successfulBuild: { revision: string; build: Build } | undefined;
+  const remember = (actual: Awaited<ReturnType<typeof service.unitRepair.observe>>) => {
+    const observation = { revision: actual.revision, build: summarize(actual.build) };
+    successfulBuild = observation.build.status === "ok" ? observation : undefined;
+    return observation;
+  };
   return {
     async observe() {
-      const actual = await service.unitRepair.observe();
-      return { revision: actual.revision, build: summarize(actual.build) };
+      successfulBuild = undefined;
+      return remember(await service.unitRepair.observe());
     },
     read: service.unitRepair.readSource,
-    apply: service.unitRepairEdit.apply,
+    async apply(revision, edits) {
+      successfulBuild = undefined;
+      return service.unitRepairEdit.apply(revision, edits);
+    },
     async check(revision) {
-      const initial = await service.unitRepairEdit.build(revision);
-      const build = summarize(initial.build);
+      // test rechecks the working head and its native receipt must name the observed build hash.
+      const { build } = successfulBuild?.revision === revision
+        ? successfulBuild
+        : remember(await service.unitRepairEdit.build(revision));
       if (build.status !== "ok") return { revision, build, check: null };
       const tested = await service.unitRepairEdit.test(revision);
       const evidence = tested.tests;

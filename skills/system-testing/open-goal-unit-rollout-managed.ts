@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
   createRolloutEngine, readRepositorySource, repairReference, seedRolloutUnits,
-  type Build, type Check, type Edit, type Engine, type OwnedUnit, type RolloutPorts,
+  type Build, type Check, type Edit, type Engine, type OwnedUnit, type RolloutPhase, type RolloutPorts,
 } from "./open-goal-unit-rollout-runtime.js";
 import type { OpenUnitRolloutWorld } from "./open-goal-unit-rollout-worlds.js";
 
@@ -20,12 +20,31 @@ type Race = { stage: "apply" | "commit"; before: string; after: string; changeId
 const revisionOf = (value: unknown) => JSON.stringify(value);
 const digest = (text: string) => sha256HexSyncText(text);
 
-export async function prepareOpenUnitRollout(input: { contextId: string; caseId: string }, world: OpenUnitRolloutWorld, ports: RolloutPorts) {
+export async function prepareOpenUnitRollout(
+  input: { contextId: string; caseId: string; qualification?: boolean },
+  world: OpenUnitRolloutWorld, ports: RolloutPorts,
+) {
   if (input.contextId !== ports.contextId || input.caseId !== world.id)
     throw new Error("Unit rollout does not belong to this owned context");
   const { contextId, vcs } = ports;
-  const before = await vcs.status({ contextId });
-  const units = await seedRolloutUnits(ports, world);
+  const phase: RolloutPhase = async (name, run) => {
+    if (!input.qualification) return run();
+    const started = Date.now();
+    const log = (event: "started" | "finished" | "failed") => console.info("[open-unit-rollout]", {
+      caseId: input.caseId, contextId, phase: name, event, elapsedMs: Date.now() - started,
+    });
+    log("started");
+    try {
+      const result = await run();
+      log("finished");
+      return result;
+    } catch (error) {
+      log("failed");
+      throw error;
+    }
+  };
+  const before = await phase("fixture.initial-head", () => vcs.status({ contextId }));
+  const units = await seedRolloutUnits(ports, world, before.workingHead, phase);
   const chosen = units.find(({ title }) => title === world.title);
   if (!chosen) throw new Error("A rollout goal has no installed target");
   const target: OwnedUnit = chosen;
@@ -37,22 +56,22 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
   };
   const state: { race: Race | null; commit: Extract<Commit, { status: "committed" }> | null } = { race: null, commit: null };
   const tail = () => vcs.status({ contextId });
-  const baseline = await tail();
+  const baseline = await phase("fixture.baseline-head", tail);
   const baselineEngine = createRolloutEngine(ports, target);
   let seededBuild: Awaited<ReturnType<Engine["observe"]>>;
   let seededCheck: Check | null = null;
   try {
-    seededBuild = await baselineEngine.observe();
+    seededBuild = await phase("initial.build", () => baselineEngine.observe());
     const initial = world.fixture.kind === "worker" ? world.fixture.initialBuild : "ok";
     if (seededBuild.revision !== revisionOf(baseline.workingHead) || seededBuild.build.status !== initial)
       throw new Error("Seeded source does not reproduce the intended native compiler state");
     const expectedCheck = world.fixture.kind === "worker" ? world.fixture.initialCheck : "failed";
     if (expectedCheck) {
-      seededCheck = await baselineEngine.check(seededBuild.revision);
+      seededCheck = await phase("initial.check", () => baselineEngine.check(seededBuild.revision));
       if (seededCheck.check?.status !== expectedCheck)
         throw new Error("Seeded source does not reproduce the intended native test outcome");
     }
-  } finally { await baselineEngine.close?.(); }
+  } finally { await phase("initial.cleanup", async () => baselineEngine.close?.()); }
   let discovered = false;
   let changing = false;
   const observations: Observation[] = [];
@@ -108,7 +127,7 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
       async inspect(id: string): Promise<Observation> {
         const unit = resolve(id);
         if (changing || state.commit) throw new Error("Observe the live candidate before local commit");
-        const native = await engine(unit).observe();
+        const native = await phase("candidate.observe", () => engine(unit).observe());
         const result = { unit: view(unit), editablePaths: [targetEntry(unit)], ...native };
         observations.push(result);
         return structuredClone(result);
@@ -150,7 +169,7 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
       async check(id: string, revision: string) {
         const unit = selected(id, revision);
         if (!view(unit).mayRunChecks || state.commit) throw new Error("Only run the current authorized complete unit check");
-        const observed = await engine(unit).check(revision);
+        const observed = await phase("candidate.check", () => engine(unit).check(revision));
         checks.push({ id, observed });
         return structuredClone(observed);
       },
@@ -192,9 +211,9 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
     let finalObservation: Awaited<ReturnType<Engine["observe"]>>;
     let verified: Check | null = null;
     try {
-      finalObservation = await independent.observe();
-      if (world.expected.check) verified = await independent.check(finalRevision);
-    } finally { await independent.close?.(); }
+      finalObservation = await phase("independent.build", () => independent.observe());
+      if (world.expected.check) verified = await phase("independent.check", () => independent.check(finalRevision));
+    } finally { await phase("independent.cleanup", async () => independent.close?.()); }
     const source = await readRepositorySource(ports, target, current.workingHead, target.entry);
     const protectedChecks = await Promise.all(units.flatMap(unit => Object.entries(unit.files)
       .filter(([path]) => unit !== target || path !== unit.entry)
@@ -253,7 +272,10 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
       let result: Check | null = null;
       try { await services.unitRolloutEdit.apply(id, observed.revision, [{ path: `${target.source}/package.json`, before: "", after: "ignored" }]); }
       catch { protectedPolicy = true; }
-      if (seededCheck && target.mayRunChecks) result = await services.unitRolloutVerify.check(id, observed.revision);
+      // The independent seed check attests the initial failure. The reference only needs
+      // a candidate receipt before editing when the original suite outcome is the goal.
+      if (seededCheck && target.mayRunChecks && !world.expected.repair)
+        result = await services.unitRolloutVerify.check(id, observed.revision);
       if (world.expected.repair) {
         const replacement = repairReference(world);
         if (replacement === null) throw new Error("Repair reference source is unavailable");
@@ -261,7 +283,8 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
           const [source] = await services.unitRolloutObserve.read(id, observed.revision, observed.editablePaths);
           if (!source) throw new Error("Reference repair could not read the production source");
           const content = state.race ? `${replacement}\n// ${state.race.text}\n` : replacement;
-          const applied = await services.unitRolloutEdit.apply(id, observed.revision, [{ path: source.path, before: source.text, after: content }]);
+          const applied = await phase("candidate.apply", () => services.unitRolloutEdit.apply(id, observed.revision,
+            [{ path: source.path, before: source.text, after: content }]));
           if (applied.status === "changed") { observed = await services.unitRolloutObserve.inspect(id); continue; }
           result = await services.unitRolloutVerify.check(id, applied.revision);
           break;
@@ -269,7 +292,8 @@ export async function prepareOpenUnitRollout(input: { contextId: string; caseId:
       }
       let release: Extract<Commit, { status: "committed" }> | null = null;
       if (target.mayCommit && result?.check?.status === "passed") {
-        const first = await services.unitRolloutCommit.commit(id, result.revision);
+        const verifiedRevision = result.revision;
+        const first = await phase("candidate.commit", () => services.unitRolloutCommit.commit(id, verifiedRevision));
         if (first.status === "committed") release = first;
         else {
           observed = await services.unitRolloutObserve.inspect(id);

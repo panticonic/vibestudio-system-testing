@@ -3831,6 +3831,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `;
     let operationError: unknown;
     try {
+      if (input.qualification && unitRollout)
+        console.info("[open-unit-rollout]", {
+          caseId: input.caseId, contextId: input.contextId, phase: "utility.eval", event: "started",
+        });
       if (input.qualification) return await this.runHarnessUtility("teacher", `
         ${bindingCode}
         if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
