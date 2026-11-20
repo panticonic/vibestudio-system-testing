@@ -1,6 +1,7 @@
 import type { TestCase } from "../types.js";
 import type { ManagedGrimoireReceiver } from "../grimoire-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "../grimoire-worlds.js";
+import { managedExamplesPortfolioWorlds } from "../examples-portfolio-worlds.js";
 import {
   PANEL_AUTOMATION_RESOURCE,
   panelControlAuthorityPolicy,
@@ -158,4 +159,126 @@ function gardenQualification(handoff: boolean): TestCase {
 managedGrimoireTests.push(
   gardenQualification(false),
   gardenQualification(true),
+);
+
+const portfolioSetup = {
+  ...setup,
+  timeoutMs: 6 * 60_000,
+  requiresUnits: [
+    ...setup.requiresUnits,
+    "workers/regency-realm",
+    "skills/examples-review-fixtures",
+  ],
+  authorityPolicy: {
+    ...setup.authorityPolicy,
+    authority: [
+      ...setup.authorityPolicy.authority,
+      {
+        ruleId: "read-portfolio-realm",
+        capability: {
+          kind: "exact" as const,
+          key: "workspace-service:regency",
+        },
+        resource: {
+          kind: "prefix" as const,
+          prefix: "do:workers/regency-realm:RegencyGameDO:natlang-realm-",
+        },
+        tier: "gated" as const,
+        decision: "task" as const,
+      },
+    ],
+  },
+};
+managedGrimoireTests.push(
+  ...managedExamplesPortfolioWorlds.map(
+    (world): TestCase => ({
+      ...portfolioSetup,
+      name: `examples-portfolio-live-${world.id}`,
+      description:
+        "Decide demo readiness from an installed garden and realm forecast",
+      prompt: world.goal,
+      async orchestrate({ runner, signal }) {
+        const started = Date.now();
+        const run = await runner.runManagedGrimoire(
+          world.garden,
+          false,
+          signal,
+          world.id,
+        );
+        if (run.kind !== "teacher")
+          throw new Error("Expected an authored portfolio");
+        const { contextId, teacher, verification } = run.result;
+        return {
+          messages: [],
+          duration: Date.now() - started,
+          provenance: {
+            contextId,
+            channelId: null,
+            branchId: null,
+            agentEntityId: null,
+            agentTargetId: null,
+          },
+          diagnostics: {
+            natlangTeacher: teacher,
+            managedExamplesPortfolio: { contextId, verification },
+          },
+        };
+      },
+      validate(result) {
+        const teacher = result.diagnostics?.["natlangTeacher"] as
+          | Teacher["teacher"]
+          | undefined;
+        const fixture = result.diagnostics?.["managedExamplesPortfolio"] as
+          | Omit<Teacher, "teacher">
+          | undefined;
+        return {
+          passed: Boolean(
+            teacher?.trainingEligible && fixture?.verification.passed,
+          ),
+          details: fixture?.verification.checks,
+        };
+      },
+    }),
+  ),
+  {
+    ...portfolioSetup,
+    name: "examples-portfolio-oracle-qualification",
+    description:
+      "Verify the live game evidence and readiness criteria without a model",
+    prompt: "Check the two games and reject an out-of-order readiness report.",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const checks = [];
+      for (const world of managedExamplesPortfolioWorlds) {
+        const run = await runner.runManagedGrimoire(
+          world.garden,
+          true,
+          signal,
+          world.id,
+        );
+        if (run.kind !== "reference")
+          throw new Error("Portfolio qualification invoked a teacher");
+        checks.push({ caseId: world.id, ...run.result });
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { examplesPortfolioQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["examplesPortfolioQualification"] as
+        | Qualification[]
+        | undefined;
+      return {
+        passed:
+          checks?.length === managedExamplesPortfolioWorlds.length &&
+          checks.every(
+            ({ verification, rejectedAlteredEvidence }) =>
+              verification.passed && rejectedAlteredEvidence,
+          ),
+        details: { checks },
+      };
+    },
+  },
 );

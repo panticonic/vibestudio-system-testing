@@ -128,6 +128,7 @@
     "./adventure-review-worlds": "./adventure-review-worlds.ts",
     "./regency-review-contract": "./regency-review-contract.ts",
     "./regency-review-worlds": "./regency-review-worlds.ts",
+    "./examples-portfolio-worlds": "./examples-portfolio-worlds.ts",
     "./channel-roster-contract": "./channel-roster-contract.ts",
     "./channel-roster-managed": "./channel-roster-managed.ts",
     "./mission-planning-contract": "./mission-planning-contract.ts",

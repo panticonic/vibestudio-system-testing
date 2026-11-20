@@ -1362,7 +1362,7 @@ export class HeadlessRunner {
     }
   }
 
-  async runManagedGrimoire(caseId: string, qualification: boolean, signal: AbortSignal) {
+  async runManagedGrimoire(caseId: string, qualification: boolean, signal: AbortSignal, portfolioCaseId?: string) {
     const world = managedGrimoireWorlds.find(({ id }) => id === caseId);
     if (!world) throw new Error("Unknown Grimoire case");
     const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
@@ -1413,7 +1413,7 @@ export class HeadlessRunner {
           }
         } finally { await page.close(); }
       }
-      const input = { contextId, garden, caseId, before };
+      const input = { contextId, garden, caseId, before, portfolioCaseId };
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedGrimoireMethods.qualifyManagedGrimoire, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedGrimoireMethods.runManagedGrimoireTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };

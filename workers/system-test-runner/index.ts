@@ -1637,6 +1637,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Reviews assigned Grimoire claims against the installed garden worker."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedGrimoireTeacher(input: GardenReviewInput & {executorModel:string}): ReturnType<ManagedGrimoireReceiver["runManagedGrimoireTeacher"]> {
+    if (input.portfolioCaseId) {
+      return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+        executorModel:input.executorModel,
+        work:{kind:"domain",domain:"examples",operation:"reviewExample",input:{goal:"Review the assigned live demos"}},
+        inputCode:"assignment.request",
+        bindingCode:this.examplesPortfolioBindings(input),
+      },runId)}
+        const verification=await prepared.verify(utilityValue.report);
+        utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+      `) as Awaited<ReturnType<ManagedGrimoireReceiver["runManagedGrimoireTeacher"]>>;
+    }
     if (managedGrimoireWorlds.find(({ id }) => id === input.caseId)?.handoff) {
       return await this.runHarnessUtility("teacher", runId => `${composedTeacherCode({
         executorModel: input.executorModel,
@@ -1664,6 +1675,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies real garden observations and negative evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedGrimoire(input: GardenReviewInput): ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]> {
+    if (input.portfolioCaseId) {
+      const work = [{kind:"domain",domain:"examples",operation:"reviewExample"}] as const;
+      return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+        work, this.examplesPortfolioBindings(input),
+      )) as Awaited<ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]>>;
+    }
     if (managedGrimoireWorlds.find(({ id }) => id === input.caseId)?.handoff) {
       return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
         grimoireHandoffWork, this.gardenReviewBindings(input, true),
@@ -1683,18 +1700,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]>>;
   }
 
-  private gardenReviewBindings(input: GardenReviewInput, handoff = false): string {
+  private ownedGardenBindings(input: GardenReviewInput): string {
     return `
       import {contextId as actualContextId} from "@workspace/runtime";
       import {prepareGardenReview} from "@workspace-skills/examples-review-fixtures/live-garden";
       import {managedGrimoireWorlds} from "@workspace-skills/system-testing/grimoire-worlds";
-      ${handoff ? 'import {prepareGrimoireHandoff} from "@workspace-skills/system-testing/grimoire-handoff-managed";' : ""}
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Garden belongs to another context");
       const world=managedGrimoireWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown Grimoire world");
       const garden=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.actions.map(action=>action.toLowerCase()));
+    `;
+  }
+
+  private gardenReviewBindings(input: GardenReviewInput, handoff = false): string {
+    return `
+      ${handoff ? 'import {prepareGrimoireHandoff} from "@workspace-skills/system-testing/grimoire-handoff-managed";' : ""}
+      ${this.ownedGardenBindings(input)}
       const prepared=${handoff ? "await prepareGrimoireHandoff(world,garden)" : "garden"};
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  private examplesPortfolioBindings(input: GardenReviewInput): string {
+    return `
+      import {preparePortfolioReview} from "@workspace-skills/examples-review-fixtures/live-portfolio";
+      import {prepareRealmReview} from "@workspace-skills/examples-review-fixtures/live-realm";
+      import {examplesPortfolioAssignment} from "@workspace-skills/system-testing/examples-portfolio-worlds";
+      ${this.ownedGardenBindings(input)}
+      const assignment=examplesPortfolioAssignment(input.portfolioCaseId);
+      if(assignment.garden.id!==input.caseId) throw new Error("A different garden was assigned to this portfolio");
+      const realm=prepareRealmReview(input.garden.replace(/^natlang-garden-/u,"natlang-realm-"),assignment.realm);
+      const prepared=preparePortfolioReview(assignment.request,garden,realm,assignment.world.expected);
       const assignedServices=prepared.services;
     `;
   }

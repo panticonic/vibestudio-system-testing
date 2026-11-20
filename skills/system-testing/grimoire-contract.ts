@@ -6,6 +6,7 @@ type GardenInput = { contextId: string; garden: string };
 export type GardenReviewInput = GardenInput & {
   caseId: string;
   before: unknown;
+  portfolioCaseId?: string;
 };
 type Verification =
   | {
