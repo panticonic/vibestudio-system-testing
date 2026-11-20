@@ -1,6 +1,8 @@
 import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
+import type { OpenGoalReceiver } from "../open-goal-managed.js";
+import { openGoalWorlds } from "../open-goal-worlds.js";
 import {
   managedResearchIntakeWorlds,
   managedResearchHandoffWorlds,
@@ -67,6 +69,34 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
     },
   }),
 );
+
+type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+managedWebBriefTests.push(...openGoalWorlds.map((world): TestCase => ({
+  ...settings,
+  requiresUnits: ["skills/web-research"],
+  name: `open-goal-${world.id}`,
+  description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
+    "Find and revise a workspace document while preserving a concurrent edit",
+  prompt: world.goal,
+  async orchestrate({ runner, signal }) {
+    const started = Date.now();
+    const { teacher, verification } = await runner.runOpenGoal(world.id, signal);
+    return {
+      messages: [],
+      duration: Date.now() - started,
+      provenance: {
+        contextId: verification.contextId,
+        channelId: null, branchId: null, agentEntityId: null, agentTargetId: null,
+      },
+      diagnostics: { natlangTeacher: teacher, openGoalVerification: verification },
+    };
+  },
+  validate(result) {
+    const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | undefined;
+    const proof = result.diagnostics?.["openGoalVerification"] as OpenGoalResult["verification"] | undefined;
+    return { passed: teacher?.trainingEligible === true && proof?.passed === true, details: proof?.checks };
+  },
+})));
 
 managedWebBriefTests.push({
   ...settings,

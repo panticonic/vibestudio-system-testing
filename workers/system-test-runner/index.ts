@@ -104,7 +104,8 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
   type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
 } from "@workspace-skills/system-testing/vcs-integration-fixture-contract";
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
-import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
+import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 
 import {
   createMainRpcCaller,
@@ -3660,6 +3661,23 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const prepared=${prepare}(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${openGoalTeacherCode({
+      executorModel: input.executorModel,
+      bindingCode: `
+        import {contextId as actualContextId} from "@workspace/runtime";
+        import {prepareOpenGoal} from "@workspace-skills/system-testing/open-goal-managed";
+        const input=${JSON.stringify(input)};
+        if (input.contextId!==actualContextId) throw new Error("User goal belongs to another context");
+        const prepared=await prepareOpenGoal(input);
+        const assignedServices=prepared.services;
+      `,
+    }, runId)}
+      utilityValue={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
   }
 
   @rpc({website:{kind:"closed",reason:"Hands off verified public research in an owned scratch context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

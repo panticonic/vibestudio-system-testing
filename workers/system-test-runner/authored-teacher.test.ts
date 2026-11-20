@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const options = { skill: "repairPanel" as const, serviceNames: ["assigned", "assignedEdit"], executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
@@ -38,6 +38,39 @@ describe("authored teacher capture eligibility", () => {
   });
   it("rejects inconsistent lineage", async () => { expect((await capture("done", "missing")).trainingEligible).toBe(false); });
   it("rejects another actual teacher", async () => { expect((await capture("done", "root", true)).trainingEligible).toBe(false); });
+});
+
+it("passes only the user goal and retains the skill selected by the model", async () => {
+  const goal = "Update the notice using the approved decision.";
+  const code = openGoalTeacherCode({
+    executorModel: "provider:teacher",
+    bindingCode: `const prepared={goal:${JSON.stringify(goal)}}, assignedServices={};`,
+  }, "run-one");
+  const rows = [{ callId: "root", parentCallId: null }, { callId: "edit", parentCallId: "root" }];
+  const report = { status: "edited", path: "notice.md" };
+  const result = await new AsyncFunction("natlang", code + "\nreturn utilityValue;")({
+    captureModelTurns() {},
+    load: async (path: string) => {
+      expect(path).toBe("skills/open-user-goal/runUserGoal.nl");
+      return async (...args: unknown[]) => {
+        expect(args).toEqual([goal]);
+        return report;
+      };
+    },
+    calls: async ({ after }: { after?: string }) => after ? [] : rows,
+    trace: async (id: string) => ({
+      callId: id,
+      summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
+      record: {
+        call_id: id,
+        parent_call_id: id === "root" ? null : "root",
+        definition: { name: id === "root" ? "runUserGoal" : "reviseWorkspaceDocument" },
+        outcome: "done",
+      },
+    }),
+  });
+  expect(result).toMatchObject({ report, trainingEligible: true, rootCallIds: ["root"] });
+  expect(result.calls).toHaveLength(2);
 });
 
 it.each([false, true])("qualifies a composed route with a domain assignment (%s) only after its prerequisite", async (domain) => {

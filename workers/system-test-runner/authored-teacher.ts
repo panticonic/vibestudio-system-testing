@@ -97,7 +97,16 @@ type ComposedTeacherOptions = {
   requiredOrder?: string[];
   heldAssignments?: Record<string, string>;
   requestCode?: string;
+  openGoal?: true;
 };
+
+export const openGoalProgram = "skills/open-user-goal/runUserGoal.nl";
+
+export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string}, runId: string) {
+  return captureWorkflow({
+    ...options, openGoal: true, workflowRequest: { goal: "", work: [] },
+  }, runId, false, "prepared.goal");
+}
 
 /** Keep the complete report for goals that require several skills. */
 export function composedTeacherCode<Options extends ComposedTeacherOptions>(
@@ -129,7 +138,7 @@ function captureWorkflow(
   const expectedAssignments = active.map(assignmentKey).sort();
   const expectedRemaining = held.map(([, reason]) => reason).sort();
   if (
-    !expected.length ||
+    (!options.openGoal && !expected.length) ||
     new Set(assigned).size !== assigned.length ||
     held.length !== assigned.length - expected.length ||
     expectedRemaining.some((reason) => !reason.trim()) ||
@@ -144,7 +153,7 @@ function captureWorkflow(
   return `
 ${options.bindingCode}
       natlang.captureModelTurns({executorModel:${JSON.stringify(options.executorModel)}});
-      const programPath="skills/vibestudio-workflows/runWorkflow.nl";
+      const programPath=${JSON.stringify(options.openGoal ? openGoalProgram : "skills/vibestudio-workflows/runWorkflow.nl")};
       const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
       const expectedRemaining=${JSON.stringify(expectedRemaining)};
       let report=null, executionError=null;
@@ -152,12 +161,13 @@ ${options.bindingCode}
         const root=await natlang.load(programPath,{services:assignedServices});
         ${requireMountedDomains(domains)}
         const workflow=await root(${requestCode});
+        ${options.openGoal ? "report=workflow;" : `
         const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
         if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) ||
            JSON.stringify([...workflow.remaining].sort())!==JSON.stringify(expectedRemaining) ||
            (requiredOrder && JSON.stringify(workflow.results.map(result=>result.kind==="domain"?result.operation:result.kind))!==JSON.stringify(requiredOrder)))
           throw new Error("The shared workflow did not return the required results and holds");
-        report=${single ? "workflow.results[0].report" : "workflow"};
+        report=${single ? "workflow.results[0].report" : "workflow"};`}
       } catch(error) {
         executionError={name:error instanceof Error?error.name:"ThrownValue",message:error instanceof Error?error.message:String(error)};
       }
@@ -187,10 +197,10 @@ ${options.bindingCode}
         } catch(error) {captureErrors.push("Cannot read record "+row.callId+": "+String(error));}
       }
       const rootRecord=calls.find(call=>call.callId===rootCallIds[0])?.record;
-      if(!rootRecord || rootRecord.definition.name!=="runWorkflow") captureErrors.push("Shared Vibestudio workflow root was not observed");
+      if(!rootRecord || rootRecord.definition.name!==${JSON.stringify(options.openGoal ? "runUserGoal" : "runWorkflow")}) captureErrors.push("The authored workflow root was not observed");
       if(rootRecord?.outcome!=="done") captureErrors.push("Assigned authored root did not complete successfully");
       const children=calls.filter(call=>call.record?.parent_call_id===rootCallIds[0]).map(call=>call.record);
-      if(JSON.stringify(children.map(record=>record.definition.name).sort())!==JSON.stringify(expectedSkills) || children.some(record=>record.outcome!=="done"))
+      if(!${Boolean(options.openGoal)} && (JSON.stringify(children.map(record=>record.definition.name).sort())!==JSON.stringify(expectedSkills) || children.some(record=>record.outcome!=="done")))
         captureErrors.push("The shared workflow did not record the completed assigned skills as direct children");
       if(requiredOrder) {
         const ordered=requiredOrder.map(name=>children.find(record=>record.definition.name===name));

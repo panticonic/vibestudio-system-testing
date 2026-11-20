@@ -41,6 +41,7 @@ import { managedGitBridgeReviewWorlds } from "./git-bridge-review-worlds.js";
 import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
+import { openGoalMethods } from "./open-goal-managed.js";
 import { managedResearchHandoffMethods } from "./research-handoff-managed.js";
 import { managedArchitectureBoundaryMethods } from "./architecture-boundary-managed.js";
 import { managedExtensionReleaseMethods } from "./extension-release-managed.js";
@@ -2183,6 +2184,19 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
+  async runOpenGoal(caseId: string, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+        { contextId, caseId, executorModel: this.modelRef },
+      ], { signal });
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
   async runManagedResearchIntake(caseId: string, qualification: boolean, signal: AbortSignal) {
     const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
