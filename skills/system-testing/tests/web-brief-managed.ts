@@ -12,7 +12,7 @@ import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/
 import {
   openWorkspaceShareWorlds, openWorkspaceShareRequiresUnits,
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
-  openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
+  openDesktopReadinessWorlds, openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
   browserGoalWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
@@ -115,7 +115,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openDesktopReadinessWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -136,6 +136,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  desktopReadiness: { requiresUnits: ["skills/open-user-goal", "skills/clientdev", "clients/desktop-browser", "packages/client-update-core"] },
   notificationState: { requiresUnits: ["skills/open-user-goal", "workers/notification-state-fixture"] },
   "deployed-interface": { requiresUnits: openDeployedInterfaceRequiresUnits },
   "workspace-share": { requiresUnits: openWorkspaceShareRequiresUnits },
@@ -382,6 +383,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "unit-rollout" ? "Diagnose and verify an owned workspace unit with controlled local source rollout" :
     world.kind === "owned-task" ? "Recover current owned card and attempt evidence with an independently confirmed local handoff" :
+    world.kind === "desktopReadiness" ? "Review current installed desktop authority, retained update offers and responsive window continuity" :
     world.kind === "notificationState" ? "Inspect, reconcile, and verify exact retained notification state under the current owned subscription" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :

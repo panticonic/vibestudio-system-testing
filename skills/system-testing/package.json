@@ -85,6 +85,7 @@
     "./tour-rehearsal-worlds": "./tour-rehearsal-worlds.ts",
     "./tour-rehearsal-managed": "./tour-rehearsal-managed.ts",
     "./open-goal-build-incidents-managed": "./open-goal-build-incidents-managed.ts",
+    "./open-goal-desktop-readiness-managed": "./open-goal-desktop-readiness-managed.ts",
     "./open-goal-notification-state-managed": "./open-goal-notification-state-managed.ts",
     "./open-goal-mobile-continuity-worlds": "./open-goal-mobile-continuity-worlds.ts",
     "./open-goal-workspace-share-managed": "./open-goal-workspace-share-managed.ts",
@@ -332,6 +333,10 @@
     "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
+    "@workspace/client-update-core": "workspace:*",
+    "@workspace-clients/desktop-browser": "workspace:*",
+    "@workspace-skills/clientdev": "workspace:*",
+
     "@workspace-skills/mobile-system-testing": "workspace:*",
     "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*",

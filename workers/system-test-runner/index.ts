@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openDesktopReadinessWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3764,7 +3764,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const agentCapability = openAgentCapabilityWorlds.find(({ id }) => id === input.caseId);
     const workspaceShare = openWorkspaceShareWorlds.find(({ id }) => id === input.caseId);
     const notificationState = openNotificationStateWorlds.find(({ id }) => id === input.caseId);
-    const prepare = notificationState
+    const desktopReadiness = openDesktopReadinessWorlds.find(({ id }) => id === input.caseId);
+    const prepare = desktopReadiness
+      ? `import {vcs,rpc} from "@workspace/runtime";
+         import {prepareDesktopReadiness} from "@workspace-skills/system-testing/open-goal-desktop-readiness-managed";
+         import * as updateModel from "@workspace/client-update-core";
+         import * as updateProjection from "@workspace-clients/desktop-browser/update-projection";
+         import * as layout from "@workspace-clients/desktop-browser/placement";
+         import {bindClientAdmission} from "@workspace-skills/clientdev/workflow";
+         const prepared=await prepareDesktopReadiness(input,${JSON.stringify(desktopReadiness)},
+           {contextId:actualContextId,vcs,rpc,desktop:{updateModel,updateProjection,layout,bindClientAdmission}});`
+      : notificationState
       ? `import {runtime,rpc} from "@workspace/runtime";
          import {prepareOpenNotificationState} from "@workspace-skills/system-testing/open-goal-notification-state-managed";
          const prepared=await prepareOpenNotificationState(input,${JSON.stringify(notificationState)},
