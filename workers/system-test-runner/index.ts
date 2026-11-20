@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3695,6 +3695,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
     const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
+    const regencyBriefing = openRegencyWorlds.some(({ id }) => id === input.caseId);
     const imageCandidate = openImageCandidateWorlds.some(({ id }) => id === input.caseId);
     const newsEvidence = openNewsEvidenceWorlds.some(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
@@ -3992,6 +3993,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {credentialLifecycle} from "@vibestudio/credential-client/credentialStatus";
          const prepared=await prepareOpenApiReadiness(input,{match:matchUrlBoundCredentialCandidates,binding:findCredentialBinding,
            audience:findMatchingUrlAudience,lifecycle:credentialLifecycle});`
+      : regencyBriefing
+      ? `import {prepareOpenRegency} from "@workspace-skills/system-testing/open-goal-regency-managed";
+         import {openRegencyInstalled} from "@workspace-skills/examples-review-fixtures/open-regency-owner";
+         const prepared=await prepareOpenRegency(input,openRegencyInstalled);`
       : imageCandidate
       ? `import {prepareOpenImageCandidate} from "@workspace-skills/system-testing/open-goal-image-candidate-managed";
          const prepared=await prepareOpenImageCandidate(input);`
