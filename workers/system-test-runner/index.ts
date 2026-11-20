@@ -117,7 +117,7 @@ import {
   openLocalPresentationWorlds, openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
-  dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3739,6 +3739,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
     }
     const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const personalWelcome = personalWelcomeWorlds.some(({ id }) => id === input.caseId);
     const dictationHandoff = dictationHandoffWorlds.some(({ id }) => id === input.caseId);
     const specialistHandoff = specialistHandoffWorlds.some(({ id }) => id === input.caseId);
     const providerHandoff = providerHandoffWorlds.some(({ id }) => id === input.caseId);
@@ -3759,6 +3760,18 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : adventure
       ? `import {prepareOpenAdventureGoal} from "@workspace-skills/open-adventure-journey-runtime";
          const prepared=await prepareOpenAdventureGoal(input,${JSON.stringify(adventure)});`
+      : personalWelcome
+      ? `import {prepareOpenPersonalWelcome} from "@workspace-skills/system-testing/open-goal-personal-welcome-managed";
+         import {onboardingCatalog} from "@workspace-skills/onboarding/catalog";
+         import {onboardingInteraction,projectSetupRoute} from "@workspace-skills/onboarding/routing";
+         import {DECK,sceneEyebrow} from "@workspace-panels/tour/deck";
+         import {bindExplorerTextProbe} from "@workspace-skills/explorer-probe-bindings";
+         const prepared=await prepareOpenPersonalWelcome(input,{
+           catalog:onboardingCatalog,
+           deck:DECK.map((scene,i)=>({...scene,position:i+1,eyebrow:sceneEyebrow(scene.id)})),
+           route:(id,action)=>projectSetupRoute(onboardingInteraction(id,action)),
+           bindProbe:bindExplorerTextProbe,
+         });`
       : dictationHandoff
       ? `import {prepareOpenDictationHandoff} from "@workspace-skills/system-testing/open-goal-dictation-managed";
          const prepared=await prepareOpenDictationHandoff(input);`

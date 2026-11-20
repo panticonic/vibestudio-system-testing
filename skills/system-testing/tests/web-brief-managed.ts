@@ -24,6 +24,7 @@ import {
   capabilityPlanRequiresUnits, capabilityPlanWorlds,
   openAssemblyRequiresUnits, openAssemblyWorlds,
   compoundRecoveryRequiresUnits, openCompoundRecoveryWorlds,
+  personalWelcomeRequiresUnits, personalWelcomeWorlds,
   dictationHandoffRequiresUnits, dictationHandoffWorlds,
   specialistHandoffRequiresUnits, specialistHandoffWorlds,
   providerHandoffRequiresUnits, providerHandoffWorlds,
@@ -110,7 +111,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -133,6 +134,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
 const templateSettings = {
   "deployed-interface": { requiresUnits: openDeployedInterfaceRequiresUnits },
   "local-width": { requiresUnits: openLocalWidthRequiresUnits },
+  "personal-welcome": { requiresUnits: personalWelcomeRequiresUnits },
   "dictation-handoff": { requiresUnits: dictationHandoffRequiresUnits },
   "adventure-journey": { requiresUnits: adventureGoalRequiresUnits, authorityPolicy: adventureGoalAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
   "specialist-handoff": { requiresUnits: specialistHandoffRequiresUnits },
@@ -328,6 +330,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "scheduled-recovery" ? "Recover an owned future schedule and verify exact retained decisions and local handoff" :
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
+    world.kind === "personal-welcome" ? "Resolve the current Personal welcome, first-run route, tour cue or local Explorer retry" :
     world.kind === "dictation-handoff" ? "Resolve retained offline dictation and its owned draft" :
     world.kind === "specialist-handoff" ? "Verify currently available specialist and original local integration evidence" :
     world.kind === "provider-handoff" ? "Resolve retained provider approval and original conversation evidence with a scoped handoff" :

@@ -17,6 +17,7 @@ export { openProblemReportWorlds, problemReportRequiresUnits } from "./open-goal
 export { openOwnedResearchWorlds } from "./open-goal-owned-research-worlds.js";
 export { openTerminalWorlds, openTerminalRequiresUnits } from "./open-goal-terminal-worlds.js";
 export { capabilityPlanWorlds, capabilityPlanRequiresUnits } from "./open-goal-capability-plan-worlds.js";
+export { personalWelcomeWorlds, personalWelcomeRequiresUnits } from "./open-goal-personal-welcome-worlds.js";
 export { dictationHandoffWorlds, dictationHandoffRequiresUnits } from "./open-goal-dictation-worlds.js";
 export { specialistHandoffWorlds, specialistHandoffRequiresUnits } from "./open-goal-specialist-worlds.js";
 export { providerHandoffWorlds, providerHandoffRequiresUnits } from "./open-goal-provider-handoff-worlds.js";
