@@ -16,6 +16,7 @@ import {
   openLocalDeliveryWorlds, localDeliveryRequiresUnits,
   openUnitRolloutWorlds, unitRolloutRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
+  capabilityPlanRequiresUnits, capabilityPlanWorlds,
   openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
@@ -96,7 +97,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -117,6 +118,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  "capability-plan": { requiresUnits: capabilityPlanRequiresUnits },
   "terminal-handoff": { requiresUnits: openTerminalRequiresUnits },
   "local-reconciliation": { requiresUnits: reconciliationRequiresUnits },
   "eval-handoff": { requiresUnits: evalHandoffRequiresUnits },
@@ -264,6 +266,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :
+    world.kind === "capability-plan" ? "Plan against current callable interfaces and load relevant installed knowledge" :
     world.kind === "terminal-handoff" ? "Work from live release checklist state and independently verified terminal receipts" :
     world.kind === "program-run" ? "Run authorized current programs with independent native output and signed receipts" :
     world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :
