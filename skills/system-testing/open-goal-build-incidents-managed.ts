@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDirs";
@@ -103,7 +104,7 @@ export async function prepareRetainedBuildIncident(
   const { fs, vcs, readBytes } = ports;
   const status = () => vcs.status({ contextId: input.contextId });
   const before = await status();
-  const outputEntries = async () => (await fs.readdir("/.tmp")).filter(name => scratchDirectory.test(name)).sort();
+  const outputEntries = async () => (await listOwnedScratchEntries(fs)).filter(name => scratchDirectory.test(name)).sort();
   const scratchBefore = await outputEntries();
   const nonce = crypto.randomUUID().slice(0, 14);
   const primary = "panels/retained-build-" + nonce;

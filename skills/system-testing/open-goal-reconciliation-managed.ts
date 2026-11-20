@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { VcsStateNodeRef } from "@vibestudio/service-schemas/vcs";
@@ -39,7 +40,7 @@ export async function prepareOpenReconciliation(
     return { id: actual.fileId, text: actual.content.text };
   };
   const before = await status();
-  const scratchBefore: string[] = await fs.readdir("/.tmp").catch(() => []);
+  const scratchBefore: string[] = await listOwnedScratchEntries(fs);
   const native = createWorkspaceIntegration({ vcs, contextId, source: fixture.source, files: world.files });
   const effects: Effect[] = [];
   const remember = <T>(service: string, method: string, args: unknown[], result: T) => {
@@ -215,7 +216,7 @@ export async function prepareOpenReconciliation(
     const stages = traces("scratchHandoffWrite", "stage");
     const src = new Map(await Promise.all(sourcePairs.map(async ({ relative, id }) =>
       [relative, { id, lines: quoted((await read(current.workingHead, fixture.repositoryId, relative)).text) }] as const)));
-    const dirs = (await fs.readdir("/.tmp").catch(() => [])).filter(name => stageName.test(name) && !scratchBefore.includes(name));
+    const dirs = (await listOwnedScratchEntries(fs)).filter(name => stageName.test(name) && !scratchBefore.includes(name));
     let artifact: EvidenceReceipt & { sha256: string } | null = null;
     let evidenceMatches = !dirs.length && handoff?.artifact === null;
     if (scenario.expected.handoff === "staged" && dirs.length === 1) {

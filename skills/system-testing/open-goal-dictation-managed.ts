@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
@@ -159,7 +160,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
   const noteDir = await ports.fs.mkdtemp("dictation-review");
   const notePath = `${noteDir}/scope.md`;
   await ports.fs.writeFile(notePath,"Only the named owned draft and any expressly authorized local alternative are in scope.");
-  const initialScratch = new Set(await ports.fs.readdir("/.tmp"));
+  const initialScratch = new Set(await listOwnedScratchEntries(ports.fs));
   const writer = bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What retained wording is verified?"],
     sources:[{id:"scope",path:notePath}]},ports.readBytes).scratchHandoffWrite;
   let listed: DictationThread[] | null = null;
@@ -230,7 +231,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const independent = exactDisposition(thread,latest);
     const exactDraft = expectedReview(independent.transcript);
     const after = await ports.status();
-    const scratch = (await ports.fs.readdir("/.tmp")).filter(name => name.startsWith("evidence-handoff-") && !initialScratch.has(name));
+    const scratch = (await listOwnedScratchEntries(ports.fs)).filter(name => name.startsWith("evidence-handoff-") && !initialScratch.has(name));
     const bytes = handoff ? await ports.readBytes(handoff.path,limit) : null;
     const artifact = bytes ? new TextDecoder("utf-8",{fatal:true}).decode(bytes) : null;
     const local = expected.action === "stage-correction" || expected.action === "stage-alternative";

@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -81,7 +82,7 @@ export async function planScratchHandoff(
     world,
     directory,
     initial,
-    outputEntries: (await fs.readdir("/.tmp")).filter((name) =>
+    outputEntries: (await listOwnedScratchEntries(fs)).filter((name) =>
       scratchName.test(name),
     ),
     request: { goal: world.goal, questions: [...world.questions], sources },
@@ -186,7 +187,7 @@ export async function verifyManagedScratchHandoff(
   const originalsUnchanged =
     sourceEntries.length === expectedIds.length &&
     received.every(({ id, text }) => text === world.sources[id]);
-  const added = (await fs.readdir("/.tmp")).filter(
+  const added = (await listOwnedScratchEntries(fs)).filter(
     (name) => scratchName.test(name) && !seeded.outputEntries.includes(name),
   );
   const missing = world.status === "source-unavailable" ? world.missing : [];

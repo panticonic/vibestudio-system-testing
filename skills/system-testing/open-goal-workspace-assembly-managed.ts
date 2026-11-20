@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -116,7 +117,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
   const notePath = `${dir}/brief.md`;
   await fs.writeFile(notePath, world.note);
   const readNote = async () => new TextDecoder("utf-8", { fatal: true }).decode(await readWorkspaceBytes(rpc, notePath, maxFile));
-  const priorHandoffs = new Set(await fs.readdir("/.tmp"));
+  const priorHandoffs = new Set(await listOwnedScratchEntries(fs));
   const handoff = bindScratchHandoff(fs, { goal: world.goal, questions: ["Which owned source and build evidence supports the local assembly?"],
     sources: [{ id: "assembly-brief", path: notePath }] }, (path, max) => readWorkspaceBytes(rpc, path, max)).scratchHandoffWrite;
 
@@ -284,7 +285,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
       const fresh = await Promise.all(receipt.buildKeys.map(buildMetadata));
       return isDeepStrictEqual(metadata, fresh) && isDeepStrictEqual(bindReport(id, report, fresh), receipt);
     }));
-    const newHandoffs = (await fs.readdir("/.tmp")).filter(name => name.startsWith("evidence-handoff-") && !priorHandoffs.has(name));
+    const newHandoffs = (await listOwnedScratchEntries(fs)).filter(name => name.startsWith("evidence-handoff-") && !priorHandoffs.has(name));
     const draftPath = staged?.path;
     const durableBytes = draftPath ? await readWorkspaceBytes(rpc, draftPath, maxArtifact) : null;
     const recoveredDrafts = durableBytes ? JSON.parse(new TextDecoder().decode(durableBytes))?.drafts : [];

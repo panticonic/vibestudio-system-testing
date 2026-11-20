@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -85,7 +86,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     goal: world.goal, questions: ["What does this owned terminal prove?"],
     sources: [{ id: "scope", path: memoPath ?? "/.tmp/terminal-scoped-observation" }],
   }, (path, max) => readWorkspaceBytes(rpc, path, max)).scratchHandoffWrite : null;
-  const originalHandoffs = new Set(grants.stage ? (await fs.readdir("/.tmp").catch(() => [])).filter(name => /^evidence-handoff-/u.test(name)) : []);
+  const originalHandoffs = new Set(grants.stage ? (await listOwnedScratchEntries(fs)).filter(name => /^evidence-handoff-/u.test(name)) : []);
 
   const events: TerminalEvent[] = [];
   const steps: string[] = [];
@@ -294,7 +295,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     const ids = (await list()).map(item => item.sessionId);
     const check = currentChecks();
     const initial = opened?.screen;
-    const handoffNames = grants.stage ? (await fs.readdir("/.tmp").catch(() => []))
+    const handoffNames = grants.stage ? (await listOwnedScratchEntries(fs))
       .filter(name => /^evidence-handoff-/u.test(name) && !originalHandoffs.has(name)) : [];
     const retained = staged ? await readWorkspaceBytes(rpc, staged.path, readbackLimit) : null;
     const expectedStaging = final.sequence.includes("stage");
