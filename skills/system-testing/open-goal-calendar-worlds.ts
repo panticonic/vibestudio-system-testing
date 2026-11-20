@@ -23,7 +23,7 @@ const handoff = "Leave a scheduling handoff in this workspace.";
 
 const scenarios: readonly World[] = [
   {
-    id: "open-goal-calendar-audio-handoff", sourceGroup: "launch-audio-room-allocation", split: "train",
+    id: "calendar-audio-handoff", sourceGroup: "launch-audio-room-allocation", split: "train",
     goal: "Our audio team wants the first confirmed review that actually fits in Studio Audio. The options are in Review Proposals. It’s fine to start as the previous booking ends. Save a recommendation in the workspace for the 09:00–12:00 UTC block on October 22, 2026.",
     window, catalogPageSize: 2, canStage: true,
     timelines: [decoy,
@@ -33,7 +33,7 @@ const scenarios: readonly World[] = [
       selection: ref("review", "later"), evidence: [ref("audio", "mix")], verify: ref("review", "later"), stage: true },
   },
   {
-    id: "open-goal-calendar-cancelled-hold", sourceGroup: "accessibility-room-cancellation", split: "train",
+    id: "calendar-cancelled-hold", sourceGroup: "accessibility-room-cancellation", split: "train",
     goal: "I heard a Quiet Room booking may have been cancelled. Work out the earliest Accessibility Review proposal we could use that morning, using the latest update if the provider shows the same booking twice. Record any cancellation that opens up the slot in a workspace handoff. Leave the team to make the booking. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [source("accessibility", "Accessibility Review", [[meeting("one", "Early review", "09:30", "10:00")], [meeting("two", "Late review", "11:00", "11:30")]]),
@@ -43,7 +43,7 @@ const scenarios: readonly World[] = [
       selection: ref("accessibility", "one"), evidence: [ref("quiet", "intro", revised)], verify: ref("accessibility", "one"), stage: true },
   },
   {
-    id: "open-goal-calendar-new-studio-conflict", sourceGroup: "press-review-last-minute-change", split: "train",
+    id: "calendar-new-studio-conflict", sourceGroup: "press-review-last-minute-change", split: "train",
     goal: "The producer schedule is moving and people are asking when the press review can happen. Use Press Review Options and check the Edit Suite and Producer Coverage. I need the earliest one that still works when you hand it over, with the blocker if the recommendation had to change. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [decoy, source("press", "Press Review Options", [[meeting("early", "Press readthrough", "09:30", "10:00"),
@@ -54,7 +54,7 @@ const scenarios: readonly World[] = [
       selection: ref("press", "late"), evidence: [ref("producer", "live")], verify: ref("press", "late"), stage: true },
   },
   {
-    id: "open-goal-calendar-latest-before-pickup", sourceGroup: "exhibit-courier-cutoff", split: "train",
+    id: "calendar-latest-before-pickup", sourceGroup: "exhibit-courier-cutoff", split: "train",
     goal: "Give the exhibit crew as much setup time as possible. From Checkout Proposals, use the latest checkout that finishes by 11:30 UTC and fits Loading Bay. If a reservation eliminates a candidate that otherwise meets those conditions, carry that reservation into the workspace handoff for the crew. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [decoy, source("checkout", "Checkout Proposals", [[meeting("optional", "Early checkout", "09:30", "09:45"),
@@ -65,7 +65,7 @@ const scenarios: readonly World[] = [
       evidence: [ref("bay", "dispatch")], verify: ref("checkout", "middle"), stage: true },
   },
   {
-    id: "open-goal-calendar-tentative-equipment", sourceGroup: "equipment-tentative-reservations", split: "train",
+    id: "calendar-tentative-equipment", sourceGroup: "equipment-tentative-reservations", split: "train",
     goal: "Can we finish the podcast without risking a double-booking? Find the earliest Podcast Retakes option that fits Microphone Ledger. Protect tentative equipment reservations while the team is still approving them and make a workspace handoff with the record if it changes our choice. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [source("retake", "Podcast Retakes", [[meeting("first", "Retake before review", "09:15", "09:35"),
@@ -75,7 +75,7 @@ const scenarios: readonly World[] = [
       evidence: [ref("microphone", "tentative")], verify: ref("retake", "alternate"), stage: true },
   },
   {
-    id: "open-goal-calendar-proposal-moved", sourceGroup: "screening-provider-stale-revision", split: "train",
+    id: "calendar-proposal-moved", sourceGroup: "screening-provider-stale-revision", split: "train",
     goal: "Can we use the earliest available option from Screening Proposals in Screening Room? Save a handoff only for a current proposal. If the reservation moved while you were looking it over, tell us its new time and leave the handoff untouched. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [source("screen", "Screening Proposals", [[meeting("screening", "Community screening", "09:30", "10:00")]], {
@@ -85,7 +85,7 @@ const scenarios: readonly World[] = [
       selection: null, evidence: [{ ...ref("screen", "screening"), source: "readback" }], verify: ref("screen", "screening"), stage: false },
   },
   {
-    id: "open-goal-calendar-incomplete-resource", sourceGroup: "archive-window-partial-provider-read", split: "train",
+    id: "calendar-incomplete-resource", sourceGroup: "archive-window-partial-provider-read", split: "train",
     goal: "Find an archive intake time from Intake Proposals when we have Courier Coverage. Save a handoff only if you can confirm that both calendars are known for the whole window. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [source("intake", "Intake Proposals", [[meeting("pickup", "Archive intake", "10:15", "10:45")]]),
@@ -93,7 +93,7 @@ const scenarios: readonly World[] = [
     expected: { scope: ["intake", "courier"], refresh: false, status: "incomplete", selection: null, evidence: [], stage: false },
   },
   {
-    id: "open-goal-calendar-maintenance-hold", sourceGroup: "rig-and-monitor-window-contention", split: "train",
+    id: "calendar-maintenance-hold", sourceGroup: "rig-and-monitor-window-contention", split: "train",
     goal: "Recover the maintenance decision. I need the earliest option from Maintenance Windows that fits Rig Access and Monitoring Coverage. If nothing fits, leave the next shift a written hold with the conflicts behind it. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [source("monitor", "Monitoring Coverage", [[meeting("drill", "On-call drill", "10:50", "11:30")]]), decoy,
@@ -104,7 +104,7 @@ const scenarios: readonly World[] = [
       selection: null, evidence: [ref("rig", "calibrate"), ref("monitor", "drill")], stage: true },
   },
   {
-    id: "open-goal-calendar-read-only-intake", sourceGroup: "inventory-read-only-scheduling-assessment", split: "train",
+    id: "calendar-read-only-intake", sourceGroup: "inventory-read-only-scheduling-assessment", split: "train",
     goal: "Tell me the earliest current option from Inventory Review Proposals when Warehouse Crew can make it. I only need an answer in this run. " + context,
     window, catalogPageSize: 2, canStage: false,
     timelines: [source("crew", "Warehouse Crew", [[meeting("departure", "Shift check", "09:15", "09:30")]]), decoy,
@@ -113,7 +113,7 @@ const scenarios: readonly World[] = [
       evidence: [], verify: ref("stock", "first"), stage: false },
   },
   {
-    id: "open-goal-calendar-all-day-closure", sourceGroup: "museum-rehearsal-full-day-access", split: "test",
+    id: "calendar-all-day-closure", sourceGroup: "museum-rehearsal-full-day-access", split: "test",
     goal: "Continue the rehearsal decision. Pick the earliest possible slot from Museum Rehearsal Proposals that fits Gallery Access. An all-day closure means the gallery is unavailable for that full local day. Leave a written hold for the museum team if nothing fits. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [decoy, source("gallery", "Gallery Access", [[{
@@ -125,7 +125,7 @@ const scenarios: readonly World[] = [
       selection: null, evidence: [ref("gallery", "closure")], stage: true },
   },
   {
-    id: "open-goal-calendar-offset-conflict", sourceGroup: "remote-translation-mixed-offsets", split: "test",
+    id: "calendar-offset-conflict", sourceGroup: "remote-translation-mixed-offsets", split: "test",
     goal: "Find the earliest remote Interpretation Proposals slot we can cover with the interpreter. The calendars can show different local times for the same instant. If something in Interpreter Coverage takes an earlier option off the table, include it in the handoff. " + context + " " + handoff,
     window, catalogPageSize: 2, canStage: true,
     timelines: [source("interp", "Interpretation Proposals", [[meeting("first", "EN/DE interpretation", "09:45", "10:15")],
@@ -138,7 +138,7 @@ const scenarios: readonly World[] = [
       selection: ref("interp", "second"), evidence: [ref("coverage", "standup")], verify: ref("interp", "second"), stage: true },
   },
   {
-    id: "open-goal-calendar-withdrawn-proposal", sourceGroup: "patient-transport-removed-provider-record", split: "test",
+    id: "calendar-withdrawn-proposal", sourceGroup: "patient-transport-removed-provider-record", split: "test",
     goal: "Our patient simulation team needs the first option from Simulation Transport Proposals when the Simulation Van is free. Save a workspace handoff if the proposal is still on the provider’s calendar. " + context,
     window, catalogPageSize: 2, canStage: true,
     timelines: [decoy, source("transport", "Simulation Transport Proposals", [[meeting("one", "Transport simulation", "09:30", "09:50")]],

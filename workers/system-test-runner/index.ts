@@ -108,8 +108,8 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  newsGoalWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalRecoveryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
+  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openGoalRecoveryWorlds, openPersonalArtifactWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
@@ -3686,7 +3686,16 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       gmailSeed = await seedOpenGmailComposes(this.rpc, input, identity.ownerEntityId, gmail.composes);
     }
     const pdfVault = openGoalPdfVaultWorlds.some(({ id }) => id === input.caseId);
-    const prepare = pdfVault
+    const calendar = openGoalCalendarWorlds.find(({ id }) => id === input.caseId);
+    const personalArtifacts = openPersonalArtifactWorlds.find(({ id }) => id === input.caseId);
+    const prepare = calendar
+      ? `import {prepareOpenCalendarGoal} from "@workspace-skills/open-calendar-goal/managed";
+         const candidate=await prepareOpenCalendarGoal(input,${JSON.stringify(calendar)});
+         const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="calendar" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+      : personalArtifacts
+      ? `import {prepareOpenPersonalArtifacts} from "@workspace-skills/open-personal-artifacts-runtime";
+         const prepared=await prepareOpenPersonalArtifacts(input,${JSON.stringify(personalArtifacts)});`
+      : pdfVault
       ? `import {prepareOpenPdfVaultGoal} from "@workspace-skills/system-testing/open-goal-pdf-vault-managed";
          import {prepareOpenSpectroliteGoal} from "@workspace-skills/spectrolite-review-fixtures/open-goal";
          if (!input.panelId) throw new Error("The PDF-backed correction needs its owned vault renderer");

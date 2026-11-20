@@ -10,6 +10,8 @@ export { newsGoalWorlds, newsGoalRequiresUnits, openNewsChecks } from "./open-go
 export { spectroliteGoalWorlds } from "./open-goal-spectrolite-worlds.js";
 export { openGoalGoogleWorlds } from "./open-goal-google-worlds.js";
 export { openGoalGmailWorlds } from "./open-goal-gmail-worlds.js";
+export { openGoalCalendarWorlds } from "./open-goal-calendar-worlds.js";
+export { openPersonalArtifactWorlds, personalArtifactRequiresUnits } from "./open-goal-personal-artifacts-worlds.js";
 
 export const openGoalWorlds = [
   {
