@@ -259,9 +259,25 @@ export async function probeAgentCellCompaction(
           signal,
         }));
       }
+      // Mission settlement and delivery of its transcript are owned by
+      // different cells. Join the matching channel receipt before reading
+      // its durable replay window.
+      const delivered = await session.waitUntil(() =>
+        session.messages.findLast(({ invocation }) => {
+          if (!invocation) return false;
+          const native = invocation.nativeSource;
+          const status = invocation.execution.status;
+          return native?.owner.runtimeId === executorId &&
+            native.owner.channelId === channelId &&
+            native.operation.kind === "direct-tool" &&
+            native.operation.callId === `automation:${admitted.runId}:eval` &&
+            status !== "pending" && status !== "running";
+        })?.invocation, { signal });
       const receipt = await readNativeTurnReceipt(wire, {
         after, channelTarget: channel.targetId, channelId, executorId, runId: admitted.runId, turn: n,
       });
+      if (receipt.invocationId !== delivered.id)
+        throw new Error(`Native turn ${n} replay did not match its delivered invocation`);
       after = receipt.after;
       const { invocationId, value } = receipt;
       if (seen.has(invocationId))
