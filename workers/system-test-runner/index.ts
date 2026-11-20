@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
+  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3676,6 +3676,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const evalHandoff = openGoalEvalHandoffWorlds.find(({ id }) => id === input.caseId);
     const programRun = openGoalProgramRunWorlds.find(({ id }) => id === input.caseId);
     const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
@@ -3710,7 +3711,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if (owner.contextId !== input.contextId) throw new Error("Automation goal belongs to another context");
       automationSeed = await seedOpenPersonalAutomation(this.rpc, personalAutomation);
     }
-    const prepare = programRun
+    const prepare = evalHandoff
+      ? `import {fs,rpc,vcs} from "@workspace/runtime";
+         import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
+         import {prepareOpenEvalHandoff,openEvalHandoffNative} from "@workspace-skills/system-testing/open-goal-eval-handoff-managed";
+         import {readWorkspaceBytes} from "@workspace-skills/system-testing/scratch-handoff-managed";
+         const prepared=await prepareOpenEvalHandoff(input,${JSON.stringify(evalHandoff)},
+           {contextId:actualContextId,fs,vcs,native:openEvalHandoffNative(createMainRpcCaller(rpc)),readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+      : programRun
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
          const prepared=await prepareOpenProgramRun(input,${JSON.stringify(programRun)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)});`
