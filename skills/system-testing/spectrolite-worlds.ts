@@ -32,7 +32,7 @@ type Follow = {
   destination: string;
 };
 type Options = {
-  handoff?: "committed-review" | "draft-only";
+  handoff?: "committed-review" | "draft-only" | "hold";
   links?: Record<string, string>;
   follow?: Follow[];
   previewText?: string;
@@ -702,6 +702,38 @@ managedSpectroliteWorlds.push(
     },
     [changedRevision, previewReady, dirtyVault],
     { previewText: "Confirm at eight.", handoff: "draft-only" },
+  ),
+  scenario(
+    "review-handoff-hold-plain-release",
+    "Prepare a peer review of the committed release note. Verify the rollback reference and whether the current editor has a rendered component. Hold the handoff if the preview evidence is missing.",
+    "Release Ledger.mdx",
+    "Release ledger",
+    "Use the owner listed in [[Rollback Roster]] before opening peer review.",
+    [documentReady, sameRevision, previewMissing],
+    {
+      links: {
+        "operations/Rollback Roster.mdx": note(
+          "Rollback roster",
+          "Confirm the current release owner.",
+        ),
+      },
+      handoff: "hold",
+    },
+  ),
+  revisedNote(
+    "review-handoff-hold-after-preview-removal",
+    "The editor was revised after the launch note was committed. Compare it with its accepted revision and decide whether the peer review can use its current preview. Cite the current editor and do not point reviewers at the retired action.",
+    {
+      path: "Launch Readiness.mdx",
+      committed: ["Launch readiness", callout("The previous slot is Tuesday.")],
+      working: [
+        "Launch readiness revised",
+        "The slot is awaiting a new owner decision.",
+      ],
+      staleText: "The previous slot is Tuesday.",
+    },
+    [changedRevision, previewMissing, dirtyVault],
+    { handoff: "hold" },
   ),
   revisedNote(
     "draft-evacuation-route",
