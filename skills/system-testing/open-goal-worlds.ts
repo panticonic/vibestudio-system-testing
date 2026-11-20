@@ -25,6 +25,7 @@ export { openGoalPdfWorlds } from "./open-goal-pdf-worlds.js";
 export { openGoalPanelRecoveryWorlds } from "./open-goal-panel-recovery-worlds.js";
 export { openGoalOwnedPreviewWorlds } from "./open-goal-owned-preview-worlds.js";
 export { publicationGoalWorlds } from "./open-goal-publication-worlds.js";
+export { openBuildIncidentWorlds, buildIncidentRequiresUnits } from "./open-goal-build-incidents-worlds.js";
 export { openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority } from "./open-goal-diagnostics-worlds.js";
 export { operatorGoalWorlds, operatorGoalRequiresUnits } from "./open-goal-operator-worlds.js";
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";

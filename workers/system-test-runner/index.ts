@@ -118,7 +118,7 @@ import {
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds,
   providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
-  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
+  openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3740,7 +3740,19 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
     const providerHandoff = providerHandoffWorlds.some(({ id }) => id === input.caseId);
     const problemReport = openProblemReportWorlds.some(({ id }) => id === input.caseId);
-    const prepare = providerHandoff
+    const buildIncident = openBuildIncidentWorlds.find(({ id }) => id === input.caseId);
+    const prepare = buildIncident
+      ? `import {fs,rpc,vcs,blobstore} from "@workspace/runtime";
+         import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
+         import {profileBuild} from "@workspace/testkit";
+         import {prepareRetainedBuildIncident} from "@workspace-skills/system-testing/open-goal-build-incidents-managed";
+         import {readWorkspaceBytes} from "@workspace-skills/system-testing/scratch-handoff-managed";
+         const prepared=await prepareRetainedBuildIncident(input,${JSON.stringify(buildIncident)},
+           {contextId:actualContextId,fs,vcs,blobstore,
+             profile:(source,ref)=>profileBuild(source,{ref,verifyCache:true}),
+             metadata:key=>rpc.call("main",mainRpcMethods["build.getBuildMetadata"],[key]),
+             readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+      : providerHandoff
       ? `import {prepareOpenProviderHandoff} from "@workspace-skills/system-testing/open-goal-provider-handoff-managed";
          const prepared=await prepareOpenProviderHandoff(input);`
       : problemReport
