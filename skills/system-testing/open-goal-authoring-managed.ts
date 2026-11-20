@@ -231,7 +231,7 @@ export async function prepareOpenAuthoringGoal(
           actual.status === disposition(receipt) && actual.status === world.expected.status &&
           isDeepStrictEqual(normalizedFindings(receipt.review), normalizedFindings(actual)) &&
           isDeepStrictEqual(reportMarkers(actual), world.expected.markers.map(([code, subject]) => `${code}:${subject}`).sort())
-        : outcome?.status === "unresolved",
+        : outcome?.status === "unresolved" && outcome.reason === world.expected.unresolvedReason,
       retainedAuthoringSources: recordedSources.every(Boolean) && after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead, before.workingHead),
       verifiedAuthoringHandoff: stageVerified,
       rejectedStaleAuthoringReceipt: wanted ? edited === Boolean(world.edit) && isDeepStrictEqual(confirmations, expectedConfirmations) : !edited,
@@ -253,7 +253,9 @@ export async function prepareOpenAuthoringGoal(
   }
 
   return { services, verify, async qualify() {
-    let outcome: AuthoringOpenOutcome = { status: "unresolved" };
+    let outcome: AuthoringOpenOutcome = {
+      status: "unresolved", reason: world.expected.unresolvedReason ?? "source-kept-changing",
+    };
     let rejectedStale: boolean = false;
     for (const attempt of [0, 1]) {
       await services.authoringDiscovery.list();

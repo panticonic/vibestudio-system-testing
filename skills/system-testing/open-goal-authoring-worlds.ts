@@ -1,4 +1,4 @@
-import type { AuthoringSource } from "@workspace-skills/open-authoring-goal/types";
+import type { AuthoringSource, MissingAuthoringRecord } from "@workspace-skills/open-authoring-goal/types";
 import type { AuthoringContract, AuthoringFinding, AuthoringReport } from "@workspace-skills/natlang-authoring/types";
 
 type Files = Record<string, string>;
@@ -21,6 +21,7 @@ export type OpenAuthoringWorld = {
     status: AuthoringReport["status"] | null;
     markers: Marker[];
     stage: boolean;
+    unresolvedReason: MissingAuthoringRecord | null;
   };
 };
 
@@ -67,7 +68,7 @@ function world(
   records: Source[],
   status: OpenAuthoringWorld["expected"]["status"],
   markers: Marker[],
-  options: { stage?: boolean; canStage?: boolean; baseline?: string | null; edit?: Edit; held?: true } = {},
+  options: { stage?: boolean; canStage?: boolean; baseline?: string | null; edit?: Edit; held?: true; holdReason?: MissingAuthoringRecord } = {},
 ): OpenAuthoringWorld {
   return {
     id: `authoring-${id}`, kind: "authoring", workspace: "examples", sourceGroup: `vibestudio:authoring:${id}`,
@@ -76,7 +77,7 @@ function world(
     expected: {
       candidate: status ? "candidate" : null,
       baseline: options.baseline === undefined ? "release" : options.baseline,
-      status, markers, stage: options.stage ?? false,
+      status, markers, stage: options.stage ?? false, unresolvedReason: options.holdReason ?? null,
     },
   };
 }
@@ -149,7 +150,7 @@ export const openGoalAuthoringWorlds: OpenAuthoringWorld[] = [
     candidate("Rehearsal route", "Launch candidate", "Compare with the approved accessibility release when retained.", rehearsal),
     released("Rehearsal route", "Winter experimental copy", "Experimental date only. Accessibility signoff pending.", rehearsal, "winter"),
     released("Theatre captions", "Approved accessibility release", "A separate product.", rehearsal, "captions"),
-  ], null, [], { baseline: null }),
+  ], null, [], { baseline: null, holdReason: "cannot-identify-approved-release" }),
   world("care-instructions-approval-selection", "For the textile guide, the branch with the extra examples should go forward only if it still implements the autumn compatibility release. Ignore the spring demonstration. Record the release review in scratch if the check actually passes.", [
     candidate("Textile care", "Examples candidate", "Approved compatibility target: autumn compatibility release.", { ...textiles, "review/formatExample.nl": narrowFunction("Format one textile care example") }),
     released("Textile care", "Spring demonstration", "A sample that returned an empty marker.", { ...textiles, "review.nl": narrowFunction("Review textile care instructions", "  text: string", "boolean") }, "spring"),
