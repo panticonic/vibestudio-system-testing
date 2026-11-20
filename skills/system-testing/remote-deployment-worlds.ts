@@ -7,6 +7,6 @@ export const managedDeploymentWorlds = [
   {
     id: "preserves-workspace-on-update",
     intent: "update",
-    goal: "Apply the assigned deployment update. Verify a new hub boot with the same server and workspace identities.",
+    goal: "Reapply the assigned server build. Verify a new hub boot with the same server and workspace identities.",
   },
 ] as const;
