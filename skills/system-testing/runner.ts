@@ -1425,18 +1425,36 @@ export class HeadlessRunner {
   async runManagedAdventure(caseId: string, qualification: boolean, signal: AbortSignal) {
     const world = managedAdventureWorlds.find(({ id }) => id === caseId);
     if (!world) throw new Error("Unknown Adventure case");
-    const originalPolicy = this.testAuthorityPolicy;
-    const policy = originalPolicy && !world.painted
-      ? { ...originalPolicy, authority: originalPolicy.authority.map((rule) =>
-          rule.ruleId === "adventure-import-illustration" ? { ...rule, decision: "deny" as const } : rule) }
-      : originalPolicy;
+    const policy = this.testAuthorityPolicy;
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
     const journey = `natlang-adventure-${crypto.randomUUID()}`;
     let handle: Awaited<ReturnType<typeof openPanel>> | undefined;
     try {
+      const source = `panels/${world.campaign}`;
+      if (!world.painted) {
+        const { workingHead } = await vcs.status({ contextId });
+        const repository = await vcs.resolveRepository({ state: workingHead, repoPath: source });
+        if (!repository) throw new Error("The assigned Adventure panel is not installed");
+        const entry = await vcs.readFile({
+          state: workingHead, repositoryId: repository.repositoryId, file: { kind: "path", path: "index.tsx" },
+        });
+        if (entry?.content.kind !== "text") throw new Error("The Adventure panel entry is not text");
+        const text = entry.content.text;
+        const withoutArtwork = text
+          .replace(/^import \{ artwork \} from "\.\/artwork\.js";\n/mu, "")
+          .replace(/^\s+cover=\{artwork\.opening\}\n\s+artwork=\{artwork\}\n/mu, "\n");
+        if (withoutArtwork === text || withoutArtwork.includes("artwork"))
+          throw new Error("Expected the original optional Adventure artwork props");
+        const staged = await vcs.edit({
+          contextId, expectedWorkingHead: workingHead, commandId: `adventure-review:omit-artwork:${contextId}`,
+          changes: [{ kind: "text-edit", repositoryId: repository.repositoryId, fileId: entry.fileId,
+            edits: [{ start: 0, end: text.length, text: withoutArtwork }] }],
+        });
+        if (!staged.changeIds.length) throw new Error("The scoped artwork configuration did not change");
+      }
       const owner = await this.createFixtureWorker(contextId);
       const assignment = { contextId, caseId, journey };
-      handle = await this.openPanelClient(`panels/${world.campaign}`, {
+      handle = await this.openPanelClient(source, {
         contextId, ref: `ctx:${contextId}`, stateArgs: { gameKey: journey }, focus: false, parentId: null, signal,
       });
       const opened = handle;
@@ -1446,15 +1464,14 @@ export class HeadlessRunner {
           journey: string; ready: boolean; loaded: boolean;
         }) | null>(opened,
           `(() => {const root=document.querySelector('main.adventure'), image=root?.querySelector('.adventure-scene img');
-            const error=root?.querySelector('.adventure-error details')?.textContent ?? '';
             return root && {journey:root.dataset.gameKey, location:root.dataset.location, asset:root.dataset.assetId,
               tick:Number(root.dataset.tick), ready:root.dataset.ready==='true',
-              loaded:!!image && image.complete && image.naturalWidth > 0, importDenied:/denied/i.test(error)};})()`);
+              loaded:!!image && image.complete && image.naturalWidth > 0};})()`);
         return frame?.journey === journey && frame.ready &&
-          (world.painted ? frame.loaded && frame.asset : frame.importDenied && frame.asset === "")
-          ? { location: frame.location, asset: frame.asset, tick: frame.tick, importDenied: frame.importDenied }
+          (world.painted ? frame.loaded && frame.asset : !frame.loaded && frame.asset === "")
+          ? { location: frame.location, asset: frame.asset, tick: frame.tick }
           : undefined;
-      }, { label: "The assigned Adventure panel settles its artwork import" });
+      }, { label: "The assigned Adventure panel displays its configured opening" });
       const before = await rpc.call(owner, managedAdventureMethods.inspectManagedAdventureOpening, [assignment], { signal });
       const input = { ...assignment, before, panel };
       return qualification

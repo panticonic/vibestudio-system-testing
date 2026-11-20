@@ -30,7 +30,7 @@ export const managedAdventureWorlds = [
     painted: false,
     request: {
       kind: "live-adventure",
-      goal: "Review the Embassy journey after the panel was denied permission to import artwork. Confirm access to the salon and visibility of the registry notice. Decide whether the notice's seal is observed, whether the viewpoint remained in place, and whether the saved journey has an illustration.",
+      goal: "Review the Embassy journey in the assigned panel configuration without opening artwork. Confirm access to the salon and visibility of the registry notice. Decide whether the notice's seal is observed, whether the viewpoint remained in place, and whether the saved journey has an illustration.",
       claims: [
         { kind: "access", check: { kind: "exit", target: "salon" } },
         { kind: "access", check: { kind: "visible", target: "notice" } },

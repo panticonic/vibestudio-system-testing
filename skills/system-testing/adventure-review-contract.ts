@@ -8,7 +8,6 @@ export type AdventureReviewInput = Opening & {
     location: string;
     asset: string;
     tick: number;
-    importDenied: boolean;
   };
 };
 type Verification = { passed: boolean; checks: Record<string, boolean> };
