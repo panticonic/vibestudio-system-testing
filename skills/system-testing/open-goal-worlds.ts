@@ -60,4 +60,20 @@ export const openGoalWorlds = [
     concurrentAddition: "\nThe exercises are intended for beginners.\n",
     expected: "# DNS tutorial\n\nThe reserved example domains are not available for registration or transfer.\n\nSet up the rest of the tutorial in a local environment.\n\nThe exercises are intended for beginners.\n",
   },
+  {
+    kind: "workspace-edit",
+    id: "correct-lending-renewal-instructions",
+    split: "test",
+    goal: "Bring the equipment lending instructions in line with the committee's signed decision on renewals. Preserve the collection instructions and anything added by the equipment desk.",
+    sourceGroup: "vibestudio:workspace-edit:lending-committee-decisions",
+    files: {
+      "equipment-lending.md": "# Equipment lending\n\nLoans cannot be renewed.\n\nCollect reserved items from the south desk.\n",
+      "signed-renewal-decision.md": "# Signed decision of the lending committee\n\nEach equipment loan may be renewed once if there are no waiting reservations.\n",
+      "staff-agenda.md": "# Staff discussion agenda\n\nUnapproved draft proposal: allow two renewals regardless of reservations.\n",
+    },
+    destination: "equipment-lending.md",
+    source: "signed-renewal-decision.md",
+    concurrentAddition: "\nBring the reservation receipt when you collect the item.\n",
+    expected: "# Equipment lending\n\nEach equipment loan may be renewed once if there are no waiting reservations.\n\nCollect reserved items from the south desk.\n\nBring the reservation receipt when you collect the item.\n",
+  },
 ] as const;
