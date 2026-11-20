@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
+import { WORKSPACE_PACKAGE_SCOPES, workspaceDependencyRefError } from "@vibestudio/workspace-contracts/sourceDirs";
 import type { BuildUnitCatalogEntry, WorkspaceTestPlan } from "@vibestudio/service-schemas/build";
 import { contextId, rpc, vcs, workers } from "@workspace/runtime";
 import type { InstalledPackageWorld as World } from "./open-goal-installed-package-worlds.js";
@@ -201,12 +202,23 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     const baselineValue = currentValue(currentBaseline.value, world.key);
     const workingValue = currentValue(local.value, world.key);
     const currentSuite = local.value.vibestudio.tests?.find(row => row.name === suiteRequest.suite);
+    let suiteBlockedBy: string | null = null;
+    for (const [dependency, spec] of Object.entries({
+      ...local.value.peerDependencies,
+      ...local.value.dependencies,
+    })) {
+      if (!WORKSPACE_PACKAGE_SCOPES.some(scope => dependency.startsWith(scope))) continue;
+      suiteBlockedBy = workspaceDependencyRefError(dependency, spec);
+      if (suiteBlockedBy) break;
+    }
     const observation = {
       operationId, target: world.name, source: world.source, mainRevision: start.mainEventId, workingRevision,
       name: local.value.name, baselineName: currentBaseline.value.name, workingDigest: local.digest, baselineDigest: currentBaseline.digest,
       receiver, catalog, baselineValue, workingValue, declaredReceiverMatches, scopeMatches,
       targetFieldMatches: isDeepStrictEqual(workingValue, baselineValue),
-      suiteRequest: declaredReceiverMatches && local.value.name === world.name && currentSuite ? suiteRequest : null,
+      suiteBlockedBy,
+      suiteRequest: declaredReceiverMatches && local.value.name === world.name && currentSuite && !suiteBlockedBy
+        ? suiteRequest : null,
     };
     return { start, local, observation, currentSuite };
   }
