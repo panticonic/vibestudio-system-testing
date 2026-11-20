@@ -20,6 +20,7 @@ import {
   openBuildIncidentWorlds, buildIncidentRequiresUnits,
   openDeployedInterfaceWorlds, openDeployedInterfaceRequiresUnits,
   openExtensionDossierWorlds, openExtensionDossierRequiresUnits,
+  openInstalledPackageWorlds, openInstalledPackageRequiresUnits,
   openLocalWidthWorlds, openLocalWidthRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
   capabilityPlanRequiresUnits, capabilityPlanWorlds,
@@ -112,7 +113,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -135,6 +136,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
 const templateSettings = {
   "deployed-interface": { requiresUnits: openDeployedInterfaceRequiresUnits },
   "extension-dossier": { requiresUnits: openExtensionDossierRequiresUnits },
+  "installed-package": { requiresUnits: openInstalledPackageRequiresUnits },
   "local-width": { requiresUnits: openLocalWidthRequiresUnits },
   "personal-welcome": { requiresUnits: personalWelcomeRequiresUnits },
   "dictation-handoff": { requiresUnits: dictationHandoffRequiresUnits },
@@ -356,6 +358,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "build-incident" ? "Reconcile a retained native build profile and exact source coordinates" :
     world.kind === "deployed-interface" ? "Review the exact installed interface, deployed claim, and approved local scope" :
     world.kind === "extension-dossier" ? "Compare extension releases and prepare a scoped local verification dossier" :
+    world.kind === "installed-package" ? "Verify the installed worker package and restore only its approved local field" :
     world.kind === "local-width" ? "Reconcile current local model readiness with retained execution width evidence" :
     world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :

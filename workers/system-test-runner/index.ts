@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3753,12 +3753,16 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
     const tendrilRoute = openTendrilRouteWorlds.find(({ id }) => id === input.caseId);
+    const installedPackage = openInstalledPackageWorlds.find(({ id }) => id === input.caseId);
     const assetIntegrity = openAssetIntegrityWorlds.find(({ id }) => id === input.caseId);
     const prepare = assetIntegrity
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {prepareOpenAssetIntegrity} from "@workspace-skills/system-testing/open-goal-asset-integrity-managed";
          const prepared=await prepareOpenAssetIntegrity(input,${JSON.stringify(assetIntegrity)},
            {contextId:actualContextId,fs,vcs,rpc});`
+      : installedPackage
+      ? `import {prepareInstalledPackage} from "@workspace-skills/system-testing/open-goal-installed-package-managed";
+         const prepared=await prepareInstalledPackage(input,${JSON.stringify(installedPackage)});`
       : tendrilRoute
       ? `import {prepareOpenTendrilRoute} from "@workspace-skills/system-testing/open-goal-tendril-route-managed";
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
