@@ -1429,6 +1429,7 @@ export const workerTests: TestCase[] = [
     description: "Create a worker instance",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Temporarily start a worker, confirm that it exists, and leave no instance behind.",
     validate: (result) => {
@@ -1466,6 +1467,7 @@ export const workerTests: TestCase[] = [
     description: "Create a worker and then destroy it",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Check that a harmless temporary worker can be started successfully, then leave no worker instance behind.",
     validate: (result) => {
@@ -1485,6 +1487,7 @@ export const workerTests: TestCase[] = [
     description: "Call a method on a Durable Object worker",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Start the provided disposable Durable Object worker with a non-secret probe value, call its harmless probe method, report the observed result, and leave no instance behind.",
     validate: (result) => {
@@ -1567,6 +1570,7 @@ export const workerTests: TestCase[] = [
       "A Durable Object's own storage persists data across separate calls",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Check whether a tiny disposable Durable Object preserves a couple of stored rows into a later call, then leave no Durable Object instance behind.",
     validate: requireSqlPersistenceEvidence,
