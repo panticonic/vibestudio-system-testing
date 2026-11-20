@@ -1,6 +1,8 @@
 import type { TestCase } from "../types.js";
 import type { ManagedTerminalCheckReceiver } from "../terminal-check-managed.js";
 import { managedTerminalCheckWorlds } from "../terminal-check-worlds.js";
+import { managedTerminalEvidenceWorlds } from "../terminal-evidence-worlds.js";
+import type { ManagedTerminalEvidenceReceiver } from "../terminal-evidence-managed.js";
 
 type Teacher = Awaited<
   ReturnType<ManagedTerminalCheckReceiver["runManagedTerminalCheckTeacher"]>
@@ -32,6 +34,40 @@ const settings = {
     ],
   },
 };
+
+type EvidenceCapture = Awaited<ReturnType<ManagedTerminalEvidenceReceiver["runManagedTerminalEvidenceTeacher"]>>;
+export const managedTerminalEvidenceTests: TestCase[] = managedTerminalEvidenceWorlds.flatMap(
+  (world) => [false, true].map((qualification): TestCase => ({
+    ...settings,
+    name: `terminal-evidence-${qualification ? "oracle" : "live"}-${world.id}`,
+    description: "Review provenance and completeness of a retained terminal result",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const run = await runner.runManagedTerminalEvidence(world.id, qualification, signal);
+      const duration = Date.now() - started;
+      if (run.kind === "reference") {
+        if (!qualification) throw new Error("Expected a captured terminal evidence review");
+        return { messages: [], duration, diagnostics: { terminalEvidence: run.result } };
+      }
+      if (qualification) throw new Error("Qualification invoked a teacher");
+      const { teacher, verification, contextId } = run.result;
+      return {
+        messages: [], duration,
+        provenance: { contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+        diagnostics: { natlangTeacher: teacher, terminalEvidence: verification },
+      };
+    },
+    validate(result) {
+      const verification = result.diagnostics?.["terminalEvidence"] as EvidenceCapture["verification"] | undefined;
+      const teacher = result.diagnostics?.["natlangTeacher"] as EvidenceCapture["teacher"] | undefined;
+      return {
+        passed: verification?.passed === true && (qualification || teacher?.trainingEligible === true),
+        details: verification?.checks,
+      };
+    },
+  })),
+);
 
 export const managedTerminalCheckTests: TestCase[] =
   managedTerminalCheckWorlds.map((world) => ({

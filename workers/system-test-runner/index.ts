@@ -9,6 +9,7 @@ import type { ManagedUnitDesignReceiver } from "@workspace-skills/system-testing
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
+import type { ManagedTerminalEvidenceReceiver } from "@workspace-skills/system-testing/terminal-evidence-managed";
 import type { ManagedProblemDraftReceiver } from "@workspace-skills/system-testing/problem-draft-managed";
 import type { ManagedClientAdmissionReceiver } from "@workspace-skills/system-testing/client-admission-contract";
 import { managedClientAdmissionWorlds } from "@workspace-skills/system-testing/client-admission-worlds";
@@ -2071,6 +2072,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       await natlang.load("skills/vibestudio-workflows/runWorkflow.nl",{services:assignedServices});
       const utilityValue=await prepared.qualify();
     `) as Awaited<ReturnType<ManagedTerminalCheckReceiver["qualifyManagedTerminalCheck"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews an assigned retained terminal operation."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedTerminalEvidenceTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedTerminalEvidenceReceiver["runManagedTerminalEvidenceTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"deviceAndTerminal",operation:"reviewDeviceAndTerminal",input:{goal:"Review the assigned terminal operation"}},
+      inputCode:"prepared.request",
+      bindingCode:this.managedTerminalEvidenceBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedTerminalEvidenceReceiver["runManagedTerminalEvidenceTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies terminal receipt provenance without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedTerminalEvidence(input: {contextId:string;caseId:string}): ReturnType<ManagedTerminalEvidenceReceiver["qualifyManagedTerminalEvidence"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"deviceAndTerminal",operation:"reviewDeviceAndTerminal"}],this.managedTerminalEvidenceBindings(input),
+    )) as Awaited<ReturnType<ManagedTerminalEvidenceReceiver["qualifyManagedTerminalEvidence"]>>;
+  }
+
+  private managedTerminalEvidenceBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedTerminalEvidence} from "@workspace-skills/system-testing/terminal-evidence-managed";
+      const prepared=await prepareManagedTerminalEvidence(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
+      const assignedServices=prepared.services;
+    `;
   }
 
   private managedTerminalCheckBindings(input: {contextId:string;caseId:string}): string {

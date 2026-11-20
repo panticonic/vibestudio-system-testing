@@ -7,6 +7,7 @@ import { managedUnitDesignMethods } from "./unit-design-managed.js";
 import { templateReleaseMethods } from "./template-release-managed.js";
 import { managedIntegrationReadinessMethods } from "./integration-readiness-managed.js";
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
+import { managedTerminalEvidenceMethods } from "./terminal-evidence-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
 import { managedClientAdmissionMethods } from "./client-admission-contract.js";
 import { pdfMediaMethods } from "./pdf-media-managed.js";
@@ -1480,6 +1481,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedIntegrationReadinessMethods.qualifyManagedIntegrationReadiness, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedIntegrationReadinessMethods.runManagedIntegrationReadinessTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedTerminalEvidence(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedTerminalEvidenceMethods.qualifyManagedTerminalEvidence, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedTerminalEvidenceMethods.runManagedTerminalEvidenceTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
