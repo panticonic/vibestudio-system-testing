@@ -276,6 +276,8 @@
   "devDependencies": {
     "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*",
+    "@workspace-skills/open-calendar-goal": "workspace:*",
+    "@workspace-skills/open-google-handoff-goal": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*"
   }
