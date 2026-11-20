@@ -95,9 +95,11 @@ export async function prepareOpenLocalDelivery(
   async function join(lane: Lane) {
     const { barrier } = await rpc.call(lane.channel.targetId, actor.joinFixtureDelivery, []);
     if (!barrier || typeof barrier !== "object" || Array.isArray(barrier) ||
-        barrier["channelId"] !== lane.key || typeof barrier["headSequence"] !== "number" || !barrier["headHash"])
+        !("channelId" in barrier) || barrier.channelId !== lane.key ||
+        !("headSequence" in barrier) || typeof barrier.headSequence !== "number" ||
+        !("headHash" in barrier) || typeof barrier.headHash !== "string" || !barrier.headHash)
       throw new Error("Owned delivery returned a foreign or incomplete joined boundary");
-    return { channelId: lane.key, after: lane.baseline, through: barrier["headSequence"], joined: true, barrier };
+    return { channelId: lane.key, after: lane.baseline, through: barrier.headSequence, joined: true, barrier };
   }
   async function roster(lane: Lane) {
     const output = await rpc.call(lane.channel.targetId, channelClientRpcMethods.getParticipants, []);
