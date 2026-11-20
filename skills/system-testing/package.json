@@ -294,6 +294,7 @@
     "@workspace-skills/browser-import-runtime": "workspace:*",
     "@workspace-skills/open-calendar-goal": "workspace:*",
     "@workspace-skills/open-google-handoff-goal": "workspace:*",
+    "@workspace-skills/google-drive": "workspace:*",
     "@workspace-skills/spectrolite-review-fixtures": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*"
