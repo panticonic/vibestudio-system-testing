@@ -152,3 +152,8 @@ export const capabilityPlanWorlds: CapabilityPlanWorld[] = worlds.map(world => (
   ...world,
   kind: "capability-plan",
 }));
+
+export const capabilityPlanRequiresUnits = [
+  "skills/open-user-goal", "skills/open-doc-plan", "skills/sandbox", "skills/scratch-handoff-bindings",
+  "skills/natlang-authoring", "skills/vibestudio-vcs", "skills/website-publishing", "skills/workspace-dev",
+];
