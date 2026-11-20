@@ -22,13 +22,13 @@ async function appendNative(lane: Lane, context: string, records: ProviderRecord
     return ids;
   });
 }
-async function readNative(lane: Lane): Promise<ConversationRead> {
-  const page = await rpc.call(lane.target, channelClientRpcMethods.getReplayAfter, [{ after: 0, limit: 30 }]);
+export async function readNative(lane: Lane, client = rpc): Promise<ConversationRead> {
+  const page = await client.call(lane.target, channelClientRpcMethods.getReplayAfter, [{ after: 0, limit: 30 }]);
   const through = page.ready.snapshotLastSeq;
   if (through === undefined || page.ready.hasMoreAfter) throw new Error("Owned provider conversation exceeded its retained frontier");
   const rows = page.logEvents.flatMap((envelope): EvidenceRow[] => {
     const event = envelope.payload as AgenticEvent<"message.completed"> | undefined;
-    if (event?.kind !== "message.completed" || !event.causality.messageId ||
+    if (event?.kind !== "message.completed" || !event.causality?.messageId ||
         !("role" in event.payload) || event.payload.role !== "user") return [];
     const text = (event.payload.blocks ?? []).flatMap(block => block.type === "text" ? [block.content] : []).join("");
     if (!envelope.senderId || encode.encode(text).length > 2048) throw new Error("Invalid bound provider message");
