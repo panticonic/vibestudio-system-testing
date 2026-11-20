@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { problemReports } from "@workspace/runtime";
 import { bindLocalProblemDraft } from "@workspace-skills/problem-reporting/workflow";
@@ -23,8 +24,11 @@ export async function prepareManagedProblemDraft(
   contextId: string,
   caseId: string,
 ) {
-  const world = managedProblemDraftWorlds.find(({ id }) => id === caseId);
-  if (!world) throw new Error("Unknown managed problem draft case");
+  const world = requireAssignedWorld(
+    managedProblemDraftWorlds,
+    caseId,
+    "Unknown managed problem draft case",
+  );
   const { account } = world;
   const opened =
     world.mode === "new"
@@ -109,7 +113,8 @@ export async function prepareManagedProblemDraft(
     const checks = {
       source:
         observations.length === 1 &&
-        isDeepStrictEqual(source?.review.account, account) &&
+        source !== undefined &&
+        isDeepStrictEqual(source.review.account, account) &&
         source.review.consent === "save" &&
         (baseline
           ? source.draft?.id === baseline.id &&

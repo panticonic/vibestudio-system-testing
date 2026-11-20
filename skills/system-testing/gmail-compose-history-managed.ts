@@ -116,7 +116,7 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
       ? { kind: "reconcile", id: latest.id, providerProof: "not-checked" }
       : {
         kind: "draft", id: latest.id, origin: "channel-readback",
-        beforeDraft: expected.slice(0, -1).findLast(({ state }) => state.draftId !== null)?.state.draftId ?? null,
+        beforeDraft: expected.slice(0, -1).reverse().find(({ state }) => state.draftId !== null)?.state.draftId ?? null,
         afterDraft: latest.state.draftId,
       };
     const checks = {

@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { rpc } from "@workspace/runtime";
@@ -17,8 +18,7 @@ type Report = {
 };
 
 export function prepareManagedDictation(contextId: string, caseId: string) {
-  const scenario = managedDictationWorlds.find(({ id }) => id === caseId);
-  if (!scenario) throw new Error("Unknown offline dictation case");
+  const scenario = requireAssignedWorld(managedDictationWorlds, caseId, "Unknown offline dictation case");
   const samples =
     scenario.samples === null
       ? null

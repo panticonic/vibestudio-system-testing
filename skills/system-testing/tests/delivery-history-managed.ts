@@ -115,7 +115,7 @@ function qualification(
         passed:
           outcomes?.length === worlds.length &&
           outcomes.every(({ passed }) => passed),
-        details: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })),
+        details: { cases: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })) },
       };
     },
   };

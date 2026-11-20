@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { randomBytes } from "node:crypto";
 import { contextId, extensions, vcs } from "@workspace/runtime";
@@ -25,11 +26,13 @@ const examplesSource =
 const baseSource = "git+https://github.com/panticonic/vibestudio-base.git";
 
 export async function prepareManagedTemplateCandidate(input: Input) {
-  const assignment = templateCandidateManagedWorlds.find(
-    ({ id }) => id === input.caseId,
-  );
-  if (!assignment || input.contextId !== contextId)
+  if (input.contextId !== contextId)
     throw new Error("Unknown native template candidate assignment");
+  const assignment = requireAssignedWorld(
+    templateCandidateManagedWorlds,
+    input.caseId,
+    "Unknown native template candidate assignment",
+  );
   const historical = "workspaceBaseline" in assignment;
   const staging = assignment.status === "validate-candidate";
   const baseline = await vcs.status({ contextId });

@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "../assigned-world.js";
 import type {WorkspaceRuntime} from "@workspace/runtime/hosted";
 import type {RuntimeEntityHandle} from "@vibestudio/shared/runtime/entitySpec";
 import {channelRpcMethods} from "@workspace-workers/pubsub-channel/contract";
@@ -8,8 +9,7 @@ import {localMessagingWorlds} from "./worlds.js";
 
 type Runtime=WorkspaceRuntime["runtime"];
 export async function createLocalMessagingFixture(options:{contextId:string;caseId:string;runtime:Pick<Runtime,"createEntity"|"retireEntity">;rpc:WorkspaceRuntime["rpc"]}) {
- const world=localMessagingWorlds.find(value=>value.id===options.caseId);
- if(!world)throw new Error("Select an authored local messaging world");
+ const world=requireAssignedWorld(localMessagingWorlds,options.caseId,"Select an authored local messaging world");
  const {runtime,rpc,contextId}=options,id=crypto.randomUUID(),issued:RuntimeEntityHandle[]=[];
  const channels=new Map<string,{id:string;targetId:string}>(),probes:Array<{slot:string;handle:RuntimeEntityHandle;participantId:string;revision:number}>=[];
  const baseline=new Map<string,number>();

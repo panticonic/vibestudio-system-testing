@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { bindAuthorityReview } from "@workspace-skills/capabilities/workflow";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -29,8 +30,11 @@ export function prepareManagedAuthorityReview(
   contextId: string,
   caseId: string,
 ) {
-  const world = managedAuthorityReviewWorlds.find(({ id }) => id === caseId);
-  if (!world) throw new Error("Unknown managed authority review");
+  const world = requireAssignedWorld(
+    managedAuthorityReviewWorlds,
+    caseId,
+    "Unknown managed authority review",
+  );
   const bound = bindAuthorityReview({
     ...world,
     operations: world.operations.map((operation) =>

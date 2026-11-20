@@ -57,7 +57,7 @@ managedAndroidPairTests.push({
     const outcomes = result.diagnostics?.["androidPair"] as Qualification[] | undefined;
     return {
       passed: outcomes?.length === androidPairWorlds.length && outcomes.every(({ passed }) => passed),
-      details: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })),
+      details: { cases: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })) },
     };
   },
 });

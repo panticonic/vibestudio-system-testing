@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { rpc } from "@workspace/runtime";
@@ -22,8 +23,11 @@ type Report = {
 };
 
 export function prepareManagedNativeSuite(contextId: string, caseId: string) {
-  const scenario = managedNativeSuiteWorlds.find(({ id }) => id === caseId);
-  if (!scenario) throw new Error("Unknown assigned suite verification");
+  const scenario = requireAssignedWorld(
+    managedNativeSuiteWorlds,
+    caseId,
+    "Unknown assigned suite verification",
+  );
   const { goal, target, suite, file, testName, mode, runtime } = scenario;
   const bound = bindSuiteReview({
     goal,
@@ -82,7 +86,7 @@ export function prepareManagedNativeSuite(contextId: string, caseId: string) {
           (mode === "verify" ? "run-assignment" : "report-plan"),
       execution:
         isDeepStrictEqual(report?.execution, executed) &&
-        (mode === "inspect"
+        (scenario.mode === "inspect"
           ? executed === null && report?.result === null
           : executed?.current === true &&
             executed.status === scenario.expectedStatus &&
@@ -103,7 +107,7 @@ export function prepareManagedNativeSuite(contextId: string, caseId: string) {
             (runtime === "native") ===
               executed.artifactKey.startsWith("native:") &&
             report?.result?.outcome === scenario.expectedOutcome &&
-            !!report.result.followUp.trim()),
+            !!report?.result?.followUp.trim()),
     };
     return {
       passed: Object.values(checks).every(Boolean),
@@ -150,7 +154,7 @@ export function prepareManagedNativeSuite(contextId: string, caseId: string) {
           next: mode === "verify" ? "run-assignment" : "report-plan",
         },
         execution,
-        result: mode === "verify"
+        result: scenario.mode === "verify"
           ? { outcome: scenario.expectedOutcome, followUp: "Inspect the typed run result." }
           : null,
       }),

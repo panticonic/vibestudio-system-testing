@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { web } from "@workspace/runtime";
@@ -29,8 +30,7 @@ type Brief = {
 const collapse = (value: string) => value.replace(/\s+/gu, " ").trim();
 
 export function prepareManagedWebBrief(contextId: string, caseId: string) {
-  const world = managedWebBriefWorlds.find(({ id }) => id === caseId);
-  if (!world) throw new Error("Unknown assigned web brief");
+  const world = requireAssignedWorld(managedWebBriefWorlds, caseId, "Unknown assigned web brief");
   const retrievedAt = Date.now();
   const retrieved = new Date(retrievedAt).toISOString().slice(0, 10);
   const bound = bindAssignedResearch({
@@ -231,8 +231,11 @@ export function prepareManagedResearchIntake(
   contextId: string,
   caseId: string,
 ) {
-  const world = managedResearchIntakeWorlds.find(({ id }) => id === caseId);
-  if (!world) throw new Error("Unknown assigned research intake");
+  const world = requireAssignedWorld(
+    managedResearchIntakeWorlds,
+    caseId,
+    "Unknown assigned research intake",
+  );
   const request = { goal: world.goal, operationId: crypto.randomUUID() };
   const { services } = bindAssignedResearch({
     goal: world.goal,

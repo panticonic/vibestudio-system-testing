@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, openPanel, panelTree, rpc } from "@workspace/runtime";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -32,10 +33,13 @@ import {
 type Input = { contextId: string; caseId: string };
 
 async function prepareHistory(input: Input) {
-  const world = [...deliveryHistoryWorlds, ...chatDeliveryWorlds, ...conversationHandoffWorlds].find(
-    ({ id }) => id === input.caseId,
+  if (input.contextId !== contextId)
+    throw new Error("Unknown delivery history assignment");
+  const world = requireAssignedWorld(
+    [...deliveryHistoryWorlds, ...chatDeliveryWorlds, ...conversationHandoffWorlds],
+    input.caseId,
+    "Unknown delivery history assignment",
   );
-  if (!world || input.contextId !== contextId) throw new Error("Unknown delivery history assignment");
   const source = await createOwnedHeadlessChannel(contextId, "Original delivery");
   const foreign = world.mode === "foreign";
   const missing = world.mode === "missing";
@@ -66,8 +70,9 @@ async function prepareHistory(input: Input) {
     observeConsumer: () => withOwnedChannelClient(selected, contextId, async (client) => {
       return client.waitUntil(() => {
         const rows = client.messages.filter(({ id }) => id === originalId);
-        if (rows.length)
-          return rows.map(({ id, senderId, content }) => ({ messageId: id, senderId: senderId ?? "", text: content }));
+        return rows.length
+          ? rows.map(({ id, senderId, content }) => ({ messageId: id, senderId: senderId ?? "", text: content }))
+          : undefined;
       }, { signal: AbortSignal.timeout(8_000) });
     }),
   });
@@ -89,10 +94,11 @@ async function prepareHistory(input: Input) {
     const rows = page.logEvents.flatMap((row) => {
       const event = row.payload as AgenticEvent<"message.completed"> | undefined;
       if (event?.kind !== "message.completed" || !event.causality?.messageId) return [];
+      const blocks = event.payload && "blocks" in event.payload ? event.payload.blocks : [];
       return [{
         messageId: event.causality.messageId, senderId: row.senderId,
         envelopeId: row.messageId, sequence: row.id,
-        text: (event.payload.blocks ?? []).map((block) => block.type === "text" ? block.content : "").join(""),
+        text: (blocks ?? []).map((block) => block.type === "text" ? block.content : "").join(""),
       }];
     });
     const canonical = rows[0];

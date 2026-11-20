@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -44,8 +45,11 @@ export function prepareExplorerProbe(
   assigned: ExplorerProbeInput,
   bound: { request: { goal: string; operationId: string }; services: Services },
 ) {
-  const world = explorerTextWorlds.find(({ id }) => id === assigned.caseId);
-  if (!world) throw new Error("Unknown workspace text probe");
+  const world = requireAssignedWorld(
+    explorerTextWorlds,
+    assigned.caseId,
+    "Unknown workspace text probe",
+  );
   let observed: Input | undefined;
   let actual: Receipt | undefined;
   const operations: string[] = [];

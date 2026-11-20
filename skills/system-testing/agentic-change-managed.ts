@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { bindAgenticChangePlan } from "@workspace-skills/agentic-development/workflow";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -42,8 +43,11 @@ export async function prepareManagedAgenticChange(
   contextId: string,
   caseId: string,
 ) {
-  const world = managedAgenticChangeWorlds.find(({ id }) => id === caseId);
-  if (!world) throw new Error("Unknown agentic change assignment");
+  const world = requireAssignedWorld(
+    managedAgenticChangeWorlds,
+    caseId,
+    "Unknown agentic change assignment",
+  );
   const { workingHead } = await vcs.status({ contextId });
   const revision =
     workingHead.kind === "event"

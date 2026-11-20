@@ -76,8 +76,8 @@ notificationTests.push(...notificationWorlds.map((world): TestCase => ({
     };
   },
   validate(result) {
-    const teacher = result.diagnostics?.natlangTeacher as { trainingEligible?: boolean } | undefined;
-    const fixture = result.diagnostics?.managedNotification as
+    const teacher = result.diagnostics?.["natlangTeacher"] as { trainingEligible?: boolean } | undefined;
+    const fixture = result.diagnostics?.["managedNotification"] as
       Omit<Awaited<ReturnType<ManagedNotificationReceiver["runManagedNotificationTeacher"]>>, "teacher"> | undefined;
     return {
       passed: teacher?.trainingEligible === true && fixture?.verification.passed === true,
@@ -101,14 +101,14 @@ notificationTests.push({
     return { messages: [], duration: Date.now() - started, diagnostics: { notificationQualification: cases } };
   },
   validate(result) {
-    const cases = result.diagnostics?.notificationQualification as
+    const cases = result.diagnostics?.["notificationQualification"] as
       Awaited<ReturnType<ManagedNotificationReceiver["qualifyManagedNotification"]>>[] | undefined;
     return {
       passed: cases?.length === notificationWorlds.length &&
         cases.every(({ verification, rejectedForeignId }, index) =>
           verification.caseId === notificationWorlds[index]?.id && verification.passed && rejectedForeignId
         ),
-      details: cases?.map(({ verification }) => verification.checks),
+      details: { cases: cases?.map(({ verification }) => verification.checks) },
     };
   },
 });

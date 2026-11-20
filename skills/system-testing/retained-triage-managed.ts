@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, rpc } from "@workspace/runtime";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -24,11 +25,13 @@ type Source = Input & {
 };
 
 export function prepareRetainedTriage(input: Source) {
-  const world = retainedTriageWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId || !input.released)
-    throw new Error(
-      "Expected a released run owned by the assigned triage context",
-    );
+  if (input.contextId !== contextId || !input.released)
+    throw new Error("Expected a released run owned by the assigned triage context");
+  const world = requireAssignedWorld(
+    retainedTriageWorlds,
+    input.caseId,
+    "Expected a released run owned by the assigned triage context",
+  );
   const request: RetainedFailureRequest = {
     goal: world.goal,
     operationId: crypto.randomUUID(),

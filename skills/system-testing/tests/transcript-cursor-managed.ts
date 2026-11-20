@@ -54,7 +54,7 @@ managedTranscriptCursorTests.push({
     const outcomes = result.diagnostics?.["transcriptCursor"] as Qualification[] | undefined;
     return {
       passed: outcomes?.length === transcriptCursorWorlds.length && outcomes.every(({ passed }) => passed),
-      details: outcomes?.map(({ caseId,checks }) => ({ caseId,checks })),
+      details: { cases: outcomes?.map(({ caseId,checks }) => ({ caseId,checks })) },
     };
   },
 });

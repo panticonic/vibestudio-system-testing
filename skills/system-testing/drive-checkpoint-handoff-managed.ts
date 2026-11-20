@@ -105,7 +105,7 @@ export async function prepareDriveCheckpointHandoff<
           results?.[1]?.report,
         )
       : null;
-    const source = seeded?.world.sources.checkpoint;
+    const source = seeded?.world.sources["checkpoint"];
     const checks = {
       exactCheckpoint: checkpoint.passed,
       exactHandoff: handoff?.passed === true,

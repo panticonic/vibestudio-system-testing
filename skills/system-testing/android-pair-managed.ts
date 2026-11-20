@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
@@ -17,8 +18,7 @@ export async function prepareManagedAndroidPair(
   phone: Phone,
   bind: typeof bindInstalledMobileScenario,
 ) {
-  const world = androidPairWorlds.find(({ id }) => id === input.caseId);
-  if (!world) throw new Error("Unknown Android pairing case");
+  const world = requireAssignedWorld(androidPairWorlds, input.caseId, "Unknown Android pairing case");
   const providers = (await phone.providers()).filter(({ platforms }) => platforms.includes("android"));
   if (providers.length !== 1)
     throw new Error("Connect exactly one desktop that can provision the Android emulator");

@@ -129,7 +129,7 @@ export function newsHandoffSchedule<T extends { kind: string }>(
 ): T | undefined {
   return repair
     ? observations?.[repair.index]
-    : observations?.findLast(({ kind }) => kind === "schedule");
+    : observations?.slice().reverse().find(({ kind }) => kind === "schedule");
 }
 
 function repair(

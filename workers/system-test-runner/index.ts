@@ -1840,7 +1840,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Checks the browser migration receipt and preview boundaries without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedBrowserImport(input: BrowserImportInput): ReturnType<ManagedBrowserImportReceiver["qualifyManagedBrowserImport"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      [{kind:"domain",domain:"browserImport",operation:"reviewBrowserImport"}], this.browserImportBindings(input),
+      [{domain:"browserImport",operation:"reviewBrowserImport"}], this.browserImportBindings(input),
     )) as Awaited<ReturnType<ManagedBrowserImportReceiver["qualifyManagedBrowserImport"]>>;
   }
 
@@ -1873,7 +1873,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Checks the Drive inventory gate and permission reads without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
   async qualifyManagedDriveSharing(input: DriveSharingInput): ReturnType<ManagedDriveSharingReceiver["qualifyManagedDriveSharing"]> {
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
-      [{kind:"domain",domain:"google",operation:"guideGoogleWorkspace"}], this.driveSharingBindings(input),
+      [{domain:"google",operation:"guideGoogleWorkspace"}], this.driveSharingBindings(input),
     )) as Awaited<ReturnType<ManagedDriveSharingReceiver["qualifyManagedDriveSharing"]>>;
   }
 
@@ -1928,7 +1928,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ${this.driveCheckpointBindings(input, handoff)}
       let result;
       try {
-        ${domainTeacherQualificationCode(handoff ? driveCheckpointHandoffWork : [{kind:"domain",domain:"google",operation:"guideGoogleWorkspace"}], "")}
+        ${domainTeacherQualificationCode(handoff ? driveCheckpointHandoffWork : [{domain:"google",operation:"guideGoogleWorkspace"}], "")}
         result=utilityValue;
       } finally { await checkpoint.close(); }
       const utilityValue=result;
@@ -2777,11 +2777,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   private androidAuditBindings(input: {contextId:string;caseId:string}): string {
     return `
       import {contextId as actualContextId} from "@workspace/runtime";
-      import {prepareManagedAndroidAudit} from "@workspace-skills/system-testing/android-audit-managed";
+      import {prepareManagedAndroidAudit} from "@workspace-skills/mobile-runtime-audit-bindings/managed";
+      import {androidAuditWorlds} from "@workspace-skills/system-testing/android-audit-worlds";
       import {listAndroidAuditDevices,bindAndroidRuntimeAudit} from "@workspace-skills/mobile-runtime-audit-bindings";
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Android audit belongs to another context");
-      const prepared=await prepareManagedAndroidAudit(input,listAndroidAuditDevices,bindAndroidRuntimeAudit);
+      const world=androidAuditWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown Android audit assignment");
+      const prepared=await prepareManagedAndroidAudit(input,world,listAndroidAuditDevices,bindAndroidRuntimeAudit);
       const assignedServices=prepared.services;
     `;
   }
@@ -3016,8 +3019,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {bindGitHubDiagnosis} from "@workspace-skills/github/diagnosis";
       import {listGitHubCredentials} from "@workspace-skills/github";
-      import {prepareManagedGitHubDiagnosis} from "@workspace-skills/system-testing/github-diagnosis-managed";
-      const prepared=await prepareManagedGitHubDiagnosis(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})},{
+      import {prepareManagedGitHubDiagnosis} from "@workspace-skills/github/diagnosis-managed";
+      import {managedGitHubDiagnosisWorlds} from "@workspace-skills/system-testing/github-diagnosis-worlds";
+      const input=${JSON.stringify({contextId:input.contextId,caseId:input.caseId})};
+      const world=managedGitHubDiagnosisWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown assigned github-diagnosis case");
+      const prepared=await prepareManagedGitHubDiagnosis(input,world,{
         bind:bindGitHubDiagnosis,countCredentials:async()=>(await listGitHubCredentials()).length,
       });
       const assignedServices=prepared.services;
@@ -3076,8 +3083,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {getGitHubOnboardingStatus,personalRepositoryWorkflowInput} from "@workspace-skills/github";
       import {composeOnboardingCapabilities,onboardingInteraction,resolveOnboardingSelection,personalSetupWorkflowInput} from "@workspace-skills/onboarding";
-      import {preparePersonalResume} from "@workspace-skills/system-testing/personal-resume-managed";
-      const prepared=await preparePersonalResume(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})},{
+      import {preparePersonalResume} from "@workspace-skills/github/resume-managed";
+      import {personalResumeWorlds} from "@workspace-skills/system-testing/personal-resume-worlds";
+      const input=${JSON.stringify({contextId:input.contextId,caseId:input.caseId})};
+      const world=personalResumeWorlds.find(({id})=>id===input.caseId);
+      if(!world) throw new Error("Unknown assigned personal-resume case");
+      const prepared=await preparePersonalResume(input,world,{
         async inspect(goal,repository,clean){
           return personalRepositoryWorkflowInput(goal,repository,clean?"clean":"dirty",await getGitHubOnboardingStatus());
         },

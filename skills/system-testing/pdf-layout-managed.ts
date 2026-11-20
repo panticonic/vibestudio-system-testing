@@ -92,10 +92,10 @@ export function prepareManagedPdfLayout(contextId: string, caseId: string) {
             ({ bounds }, column) =>
               bounds.length === 4 &&
               bounds[0] === 24 + column * 226 &&
-              bounds[1] < 34 + index * 20 &&
-              bounds[1] >= 16 + index * 20 &&
-              bounds[2] > 0 &&
-              bounds[3] > 0,
+              (bounds[1] ?? Number.NaN) < 34 + index * 20 &&
+              (bounds[1] ?? Number.NaN) >= 16 + index * 20 &&
+              (bounds[2] ?? Number.NaN) > 0 &&
+              (bounds[3] ?? Number.NaN) > 0,
           ),
         ),
       reading:

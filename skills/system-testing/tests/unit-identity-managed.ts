@@ -54,7 +54,7 @@ managedUnitIdentityTests.push({
     const results = result.diagnostics?.["unitIdentity"] as Qualification[] | undefined;
     return {
       passed: results?.length === unitIdentityWorlds.length && results.every(({ passed }) => passed),
-      details: results?.map(({ caseId, checks }) => ({ caseId, checks })),
+      details: { cases: results?.map(({ caseId, checks }) => ({ caseId, checks })) },
     };
   },
 });

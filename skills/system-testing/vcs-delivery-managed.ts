@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { vcs } from "@workspace/runtime";
 import { bindVcsDelivery } from "@workspace-skills/vcs-delivery-bindings";
@@ -24,8 +25,11 @@ export async function prepareManagedVcsDelivery(
   contextId: string,
   caseId: string,
 ) {
-  const scenario = managedVcsDeliveryWorlds.find(({ id }) => id === caseId);
-  if (!scenario) throw new Error("Unknown assigned semantic VCS delivery case");
+  const scenario = requireAssignedWorld(
+    managedVcsDeliveryWorlds,
+    caseId,
+    "Unknown assigned semantic VCS delivery case",
+  );
   const bound = bindVcsDelivery({
     goal: scenario.goal,
     repository: deliveryRepository,

@@ -146,10 +146,10 @@ managedWebBriefTests.push(
         };
       },
       validate(result) {
-        const capture = result.diagnostics?.natlangTeacher as
+        const capture = result.diagnostics?.["natlangTeacher"] as
           | IntakeTeacher["teacher"]
           | undefined;
-        const verification = result.diagnostics?.managedResearchIntake as
+        const verification = result.diagnostics?.["managedResearchIntake"] as
           | IntakeTeacher["verification"]
           | undefined;
         return {
@@ -183,7 +183,7 @@ managedWebBriefTests.push({
     };
   },
   validate(result) {
-    const checks = result.diagnostics?.researchIntakeQualification as
+    const checks = result.diagnostics?.["researchIntakeQualification"] as
       | IntakeCheck[]
       | undefined;
     return {
@@ -193,7 +193,7 @@ managedWebBriefTests.push({
           ({ verification, rejectedWrongOperation }) =>
             verification.passed && rejectedWrongOperation,
         ),
-      details: checks?.map(({ verification }) => verification.checks),
+      details: { cases: checks?.map(({ verification }) => verification.checks) },
     };
   },
 });

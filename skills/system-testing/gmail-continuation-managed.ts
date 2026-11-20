@@ -28,7 +28,7 @@ export function prepareGmailContinuation<SetupReport>(
   let served: { evidenceId: string; enabled: boolean } | undefined;
   async function launchEvidence() {
     const readback = setup.verify(null);
-    const gate = readback.receipts.findLast(
+    const gate = [...readback.receipts].reverse().find(
       ({ check }) => check.kind === "launch-gate",
     );
     if (

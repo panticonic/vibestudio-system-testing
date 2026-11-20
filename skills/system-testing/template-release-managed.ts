@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, extensions, vcs } from "@workspace/runtime";
 import {
@@ -21,9 +22,13 @@ const templateExtension = "@workspace-extensions/templates";
 type Input = { contextId: string; caseId: string };
 
 export async function prepareTemplateRelease(input: Input) {
-  const world = templateReleaseWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId)
+  if (input.contextId !== contextId)
     throw new Error("Unknown template release assignment");
+  const world = requireAssignedWorld(
+    templateReleaseWorlds,
+    input.caseId,
+    "Unknown template release assignment",
+  );
 
   const starting = await vcs.status({ contextId });
   const inspect = async (name: string) =>

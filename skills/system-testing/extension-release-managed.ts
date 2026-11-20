@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { extensions, vcs } from "@workspace/runtime";
 import { bindExtensionRelease } from "@workspace-skills/extensiondev/workflow";
@@ -27,8 +28,11 @@ export async function prepareManagedExtensionRelease(
   contextId: string,
   caseId: string,
 ) {
-  const world = managedExtensionReleaseWorlds.find(({ id }) => id === caseId);
-  if (!world) throw new Error("Unknown extension release case");
+  const world = requireAssignedWorld(
+    managedExtensionReleaseWorlds,
+    caseId,
+    "Unknown extension release case",
+  );
   const initial = await vcs.status({ contextId });
   const initialRuntime = await extensions.status(world.name);
   const staged = world.mode !== "published";

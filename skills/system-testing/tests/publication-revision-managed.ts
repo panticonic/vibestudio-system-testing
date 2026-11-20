@@ -55,7 +55,7 @@ managedPublicationRevisionTests.push({
     const outcomes = result.diagnostics?.["publicationRevision"] as Qualification[] | undefined;
     return {
       passed: outcomes?.length === publicationRevisionWorlds.length && outcomes.every(({ passed }) => passed),
-      details: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })),
+      details: { cases: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })) },
     };
   },
 });

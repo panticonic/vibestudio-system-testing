@@ -237,10 +237,9 @@ managedAutomationTests.push(
               entry.passed &&
               entry.caseId === managedAutomationPlanningWorlds[i]?.id,
           ),
-        details: observations?.map(({ caseId, checks }) => ({
-          caseId,
-          checks,
-        })),
+        details: {
+          cases: observations?.map(({ caseId, checks }) => ({ caseId, checks })),
+        },
       };
     },
   },

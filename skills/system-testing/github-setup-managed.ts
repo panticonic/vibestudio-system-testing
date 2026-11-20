@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, vcs } from "@workspace/runtime";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -37,9 +38,12 @@ type Ports = {
 };
 
 export async function prepareGitHubSetup(input: Input, ports: Ports) {
-  const world = githubSetupWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId)
-    throw new Error("Unknown GitHub setup assignment");
+  if (input.contextId !== contextId) throw new Error("Unknown GitHub setup assignment");
+  const world = requireAssignedWorld(
+    githubSetupWorlds,
+    input.caseId,
+    "Unknown GitHub setup assignment",
+  );
   const before = await vcs.status({ contextId });
   const beforeCount = await ports.countCredentials();
   if (beforeCount !== 0)

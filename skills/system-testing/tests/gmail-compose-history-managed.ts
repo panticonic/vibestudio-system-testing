@@ -54,7 +54,7 @@ managedGmailComposeHistoryTests.push({
     const checks = result.diagnostics?.["gmailComposeHistory"] as Qualification[] | undefined;
     return {
       passed: checks?.length === gmailComposeHistoryWorlds.length && checks.every(({ passed }) => passed),
-      details: checks?.map(({ seed, checks }) => ({ caseId: seed.caseId, checks })),
+      details: { cases: checks?.map(({ seed, checks }) => ({ caseId: seed.caseId, checks })) },
     };
   },
 });

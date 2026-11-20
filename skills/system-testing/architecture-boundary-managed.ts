@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { vcs } from "@workspace/runtime";
 import { bindArchitectureReview } from "@workspace-skills/architecture/workflow";
@@ -23,10 +24,11 @@ export async function prepareManagedArchitectureBoundary(
   contextId: string,
   caseId: string,
 ) {
-  const world = managedArchitectureBoundaryWorlds.find(
-    ({ id }) => id === caseId,
+  const world = requireAssignedWorld(
+    managedArchitectureBoundaryWorlds,
+    caseId,
+    "Unknown architecture boundary assignment",
   );
-  if (!world) throw new Error("Unknown architecture boundary assignment");
   const lane = world.creatorScoped
     ? await createOwnedHeadlessChannel(contextId, "Ownership review")
     : null;

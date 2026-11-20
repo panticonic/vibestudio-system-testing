@@ -99,7 +99,7 @@ export async function prepareTranscriptCase(input: Input) {
       checkpoint: report?.outcome === world.outcome && isDeepStrictEqual(report.next, next) &&
         isDeepStrictEqual(report.messages, pages.flatMap((page) => page.messages)),
       isolatedTail: "late" in world
-        ? appended.size === 1 && !!late && late.seq > frontier
+        ? frontier !== undefined && appended.size === 1 && !!late && late.seq > frontier
         : latest.ready.snapshotLastSeq === frontier,
     };
     return { ...input, request: bound.request, channelId: lane.key, saved, frontier,

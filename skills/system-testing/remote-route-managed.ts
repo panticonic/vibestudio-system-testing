@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, rpc } from "@workspace/runtime";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -20,9 +21,13 @@ async function readGateway() {
 }
 
 export async function prepareRemoteRoute(input: Input) {
-  const world = remoteRouteWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId)
+  if (input.contextId !== contextId)
     throw new Error("Unknown assigned workspace-route review");
+  const world = requireAssignedWorld(
+    remoteRouteWorlds,
+    input.caseId,
+    "Unknown assigned workspace-route review",
+  );
 
   const assignedGateway = await readGateway();
   const request = {
@@ -90,8 +95,12 @@ export async function prepareRemoteRoute(input: Input) {
 }
 
 export async function prepareCliContinuation(input: Input) {
-  const world = remoteRouteWorlds.find(({ id }) => id === input.caseId);
-  if (!world?.cli) throw new Error("Unknown assigned CLI continuation");
+  const world = requireAssignedWorld(
+    remoteRouteWorlds,
+    input.caseId,
+    "Unknown assigned CLI continuation",
+  );
+  if (!world.cli) throw new Error("Unknown assigned CLI continuation");
   const assigned = world.cli;
   const route = await prepareRemoteRoute(input);
   const otherContext = crypto.randomUUID();
@@ -209,15 +218,15 @@ export async function prepareCliContinuation(input: Input) {
 }
 
 type Verification =
-  | ReturnType<Awaited<ReturnType<typeof prepareRemoteRoute>>["verify"]>
-  | ReturnType<Awaited<ReturnType<typeof prepareCliContinuation>>["verify"]>;
+  | Awaited<ReturnType<Awaited<ReturnType<typeof prepareRemoteRoute>>["verify"]>>
+  | Awaited<ReturnType<Awaited<ReturnType<typeof prepareCliContinuation>>["verify"]>>;
 export interface RemoteRouteReceiver {
   runRemoteRouteTeacher(input: Input & { executorModel: string }): Promise<{
     contextId: string;
     teacher: PanelTeacherResult;
-    verification: Awaited<Verification>;
+    verification: Verification;
   }>;
-  qualifyRemoteRoute(input: Input): Verification;
+  qualifyRemoteRoute(input: Input): Promise<Verification>;
 }
 export const remoteRouteMethods = createReceiverRpcMethods<RemoteRouteReceiver>(
   ["runRemoteRouteTeacher", "qualifyRemoteRoute"],

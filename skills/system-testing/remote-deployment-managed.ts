@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId } from "@workspace/runtime";
 import type { RemoteDeploymentStages } from "@vibestudio/shared/deviceDriver";
@@ -10,9 +11,13 @@ type Input = { contextId: string; caseId: string };
 type Step = keyof RemoteDeploymentStages;
 
 export async function prepareManagedDeployment(input: Input) {
-  const world = managedDeploymentWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId)
+  if (input.contextId !== contextId)
     throw new Error("Unknown managed deployment assignment");
+  const world = requireAssignedWorld(
+    managedDeploymentWorlds,
+    input.caseId,
+    "Unknown managed deployment assignment",
+  );
   const terminal = await openClientDevice("terminal");
   const { operationId, initial } = await terminal.call(
     "remoteDeploymentBegin",

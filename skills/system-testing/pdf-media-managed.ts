@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -12,8 +13,7 @@ type Input = { contextId: string; caseId: string };
 const pdfExtension = "@workspace-extensions/pdf-ingest";
 
 export async function prepareManagedPdfMedia(input: Input) {
-  const world = pdfMediaWorlds.find(({ id }) => id === input.caseId);
-  if (!world) throw new Error("Unknown assigned PDF media case");
+  const world = requireAssignedWorld(pdfMediaWorlds, input.caseId, "Unknown assigned PDF media case");
   const bytes = new TextEncoder().encode(packetFromStreams(world.pages.map((line) =>
     line ? `BT /F1 12 Tf 24 170 Td (${line}) Tj ET\n` : "q Q\n",
   )));

@@ -54,7 +54,7 @@ managedPdfMediaTests.push({
     const outcomes = result.diagnostics?.["pdfMedia"] as Qualification[] | undefined;
     return {
       passed: outcomes?.length === pdfMediaWorlds.length && outcomes.every(({ passed }) => passed),
-      details: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })),
+      details: { cases: outcomes?.map(({ caseId, checks }) => ({ caseId, checks })) },
     };
   },
 });

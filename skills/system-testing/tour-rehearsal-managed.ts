@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
@@ -36,8 +37,7 @@ type Binding = {
 };
 
 export function prepareTourRehearsal(input: TourRehearsalInput, binding: Binding) {
-  const world = tourRehearsalWorlds.find(({ id }) => id === input.caseId);
-  if (!world) throw new Error("Unknown assigned rehearsal");
+  const world = requireAssignedWorld(tourRehearsalWorlds, input.caseId, "Unknown assigned rehearsal");
   const unmatched = "unmatched" in world ? [...world.unmatched] : [];
   const shouldVisit = unmatched.length === 0;
   const { request } = binding;

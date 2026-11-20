@@ -380,8 +380,9 @@ export async function prepareManagedAutomationPlanning(
   seed: Seed,
 ) {
   const { world, original, start } = seed;
-  const status = world.planning;
-  if (!status) throw new Error("Unknown automation planning assignment");
+  const planningStatus = world.planning;
+  if (!planningStatus) throw new Error("Unknown automation planning assignment");
+  const status = planningStatus;
   const missions = createMissionsClient(rpc);
   const request: AutomationPlanningRequest = {
     goal: `${world.goal} The assigned mission is ${start.name}.`,
@@ -449,7 +450,7 @@ export async function prepareManagedAutomationPlanning(
     const checks = {
       assignedPlan:
         report?.status === status &&
-        isDeepStrictEqual(report.plan, expectedPlan),
+        isDeepStrictEqual(report?.plan, expectedPlan),
       snapshotReadback:
         observations.length === 2 &&
         before?.visible[0]?.revisionDigest === start.revisionDigest &&

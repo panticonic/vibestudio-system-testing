@@ -1,3 +1,4 @@
+import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, rpc } from "@workspace/runtime";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -8,9 +9,13 @@ import { notificationWorlds } from "./notification-worlds.js";
 type Input = { contextId: string; caseId: string };
 
 export function prepareManagedNotification(input: Input) {
-  const world = notificationWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId)
+  if (input.contextId !== contextId)
     throw new Error("Unknown assigned notification lifecycle");
+  const world = requireAssignedWorld(
+    notificationWorlds,
+    input.caseId,
+    "Unknown assigned notification lifecycle",
+  );
   const request = { operationId: crypto.randomUUID(), goal: world.goal };
   let showStarted = false;
   let dismissing = false;
