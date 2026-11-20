@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { fs, gad, panelTree, vcs, type PanelHandle } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
-import { setViewport, waitFor } from "@workspace/testkit";
+import { waitFor } from "@workspace/testkit";
 import { bindPanelHealth } from "@workspace-skills/panel-health-runtime";
 import { bindChannelReview } from "@workspace-skills/gad-context/workflow";
 import type {
@@ -125,6 +125,7 @@ export async function prepareOpenClientDiagnostics(
   );
   const scenes = new Map(world.surfaces.map((scene) => [scene.id, scene]));
   const before = await vcs.status({ contextId: input.contextId });
+  const viewportSessions = new Map<string, Awaited<ReturnType<PanelHandle["cdp"]["session"]>>>();
   async function read(surfaceId: string) {
     const panel = slots.get(surfaceId);
     if (!panel) throw new Error("A foreign client cannot be inspected");
@@ -137,7 +138,8 @@ export async function prepareOpenClientDiagnostics(
     const original = await panel.observe();
     if (!scope(original))
       throw new Error("The client belongs to another workspace");
-    const session = await panel.cdp.session();
+    const retained = viewportSessions.get(surfaceId);
+    const session = retained ?? await panel.cdp.session();
     try {
       await session.page.waitForSelector(root);
       const dom = await session.page.evaluate<Dom | null>(capture);
@@ -173,7 +175,7 @@ export async function prepareOpenClientDiagnostics(
         panel,
       };
     } finally {
-      await session.close();
+      if (!retained) await session.close();
     }
   }
 
@@ -442,11 +444,19 @@ export async function prepareOpenClientDiagnostics(
               ![320, 390, 1280].includes(action.width)
             )
               return finish("denied");
-            await setViewport(panel, { width: action.width, height: 844 });
-            if ((await read(owned.id)).dom.width !== action.width)
-              throw new Error(
-                "Viewport readback does not match its assigned width",
-              );
+            const session = viewportSessions.get(owned.id) ?? await panel.cdp.session();
+            viewportSessions.set(owned.id, session);
+            // Device metrics belong to the debugger session. Keep that session
+            // through subsequent reads and the explicit viewport restoration.
+            const steady = await read(owned.id);
+            if (steady.revision !== live.revision) return finish("changed");
+            await session.page.setViewportSize({ width: action.width, height: 844 });
+            await waitFor(async () => {
+              const observed = await read(owned.id);
+              if (!isDeepStrictEqual(observed.generation, live.generation))
+                throw new Error("The owned viewport target was replaced");
+              return observed.dom.width === action.width || undefined;
+            }, { label: `read back owned viewport width ${action.width}` });
           } else if (action?.kind === "reload") {
             if (!owned.allowed.includes("reload") || !owned.reload)
               return finish("denied");
@@ -798,5 +808,13 @@ export async function prepareOpenClientDiagnostics(
     };
   }
 
-  return { services, verify, qualify };
+  async function close() {
+    try {
+      await Promise.all([...viewportSessions.values()].map(session => session.close()));
+    } finally {
+      viewportSessions.clear();
+    }
+  }
+
+  return { services, verify, qualify, close };
 }

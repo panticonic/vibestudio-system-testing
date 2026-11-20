@@ -84,6 +84,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
         return { path, mode: 0o644, contentHash: result.digest };
       })),
     })));
+    repositories.sort((left, right) => compare(left.repoPath, right.repoPath));
     const result = await vcs.importSnapshot({
       contextId: input.contextId, commandId: `assembly-${namespace}-${label}`, expectedWorkingHead: workingHead,
       intentSummary: "Prepare owned package planning evidence",
