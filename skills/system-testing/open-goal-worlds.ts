@@ -1,5 +1,6 @@
 export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";
+export { openGoalPdfWorlds } from "./open-goal-pdf-worlds.js";
 export { publicationGoalWorlds } from "./open-goal-publication-worlds.js";
 export { operatorGoalWorlds, operatorGoalRequiresUnits } from "./open-goal-operator-worlds.js";
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
@@ -14,6 +15,8 @@ export const openGoalWorlds = [
     id: "explain-reserved-example-domains",
     goal: "I'm writing a tutorial and want to use a domain name readers won't mistake for a real customer. Which domains are reserved for examples, and can I register them? Cite the authority.",
     required: [{ host: "iana.org", phrase: "not available for registration or transfer" }],
+    conclusions: [/\bexample\.com\b/iu, /\bexample\.net\b/iu, /\bexample\.org\b/iu, /(?:cannot (?:be )?register|not (?:available|eligible) for registration)/iu],
+    referenceAnswer: "Use example.com, example.net, or example.org. These domains are not available for registration or transfer.",
     sourceGroup: "vibestudio:web-research:public-reserved-domain-sources",
   },
   {
@@ -21,6 +24,8 @@ export const openGoalWorlds = [
     id: "check-special-use-subdomains",
     goal: "Does special-use designation apply just to the domain names in the registry or to their subdomains too? I need a sentence I can quote from the authority.",
     required: [{ host: "iana.org", phrase: "applies to both the listed domains and their subdomains" }],
+    conclusions: [/(?:appl(?:y|ies)|covers?|includes?).{0,100}subdomains/iu],
+    referenceAnswer: "The special-use designation applies to both the listed domains and their subdomains.",
     sourceGroup: "vibestudio:web-research:public-reserved-domain-sources",
   },
   {
@@ -60,6 +65,8 @@ export const openGoalWorlds = [
     sourceGroup: "vibestudio:workspace-edit:dns-tutorial-research",
     relatedSourceGroup: "vibestudio:web-research:public-reserved-domain-sources",
     required: [{ host: "iana.org", phrase: "not available for registration or transfer" }],
+    conclusions: [/(?:cannot (?:be )?register|not (?:available|eligible) for registration)/iu],
+    referenceAnswer: "Reserved example domains are not available for registration or transfer.",
     files: {
       "tutorial-draft.md": "# DNS tutorial\n\nYou can register the reserved example domains.\n\nSet up the rest of the tutorial in a local environment.\n",
       "editor-notes.md": "# Editorial notes\n\nThe tutorial uses reserved example domains for documentation. Keep the setup paragraph intact.\n",
@@ -86,4 +93,39 @@ export const openGoalWorlds = [
     concurrentAddition: "\nBring the reservation receipt when you collect the item.\n",
     expected: "# Equipment lending\n\nEach equipment loan may be renewed once if there are no waiting reservations.\n\nCollect reserved items from the south desk.\n\nBring the reservation receipt when you collect the item.\n",
   },
+  {
+    kind: "research",
+    id: "settle-decorative-thumbnail-alt-text",
+    split: "test",
+    goal: "Our book list has a decorative thumbnail next to every title. The thumbnail adds no information. Should I leave the alt attribute out or set it to an empty string? Give the HTML to use and cite W3C guidance.",
+    sourceGroup: "vibestudio:web-research:decorative-thumbnails",
+    required: [{ host: "w3.org", phrase: "so that they can be ignored by assistive technologies" }],
+    conclusions: [/alt\s*=\s*(?:""|'')/iu],
+    referenceAnswer: 'Include alt="" on each purely decorative thumbnail.',
+  },
+  {
+    kind: "research-and-edit",
+    id: "correct-catalog-accent-comparison-guide",
+    split: "test",
+    goal: "Customers can type the same accented book title with a single accented character or with an accent mark after the letter. Check the Unicode Consortium's guidance, then fix the comparison advice in our catalog import guide. Keep the advice about storing display titles.",
+    sourceGroup: "vibestudio:workspace-edit:unicode-catalog-import",
+    required: [{ host: "unicode.org", phrase: "compare canonical-equivalent unicode strings as equal" }],
+    conclusions: [/\bcanonical(?:ly)?[ -]equivalent\b/iu, /(?:compare|compari|equal)/iu],
+    referenceAnswer: "Compare canonically equivalent strings as equal by comparing normalized forms.",
+    files: {
+      "catalog-import.md": "# Catalog import\n\nCompare raw title bytes to decide whether two titles are canonically equivalent.\n\nKeep the original title for display.\n",
+      "editorial-notes.md": "# Catalog notes\n\nMatch the same title irrespective of the accent encoding. Keep display text as entered.\n",
+      "old-migration.md": "# Old migration\n\nDo not use the old title cleanup job.\n",
+    },
+    destination: "catalog-import.md",
+    source: "editorial-notes.md",
+    concurrentAddition: "\nLog the import batch number in the audit record.\n",
+    expected: "# Catalog import\n\nNormalize titles to the same Unicode normalization form before comparing for canonical equality.\n\nKeep the original title for display.\n\nLog the import batch number in the audit record.\n",
+  },
 ] as const;
+
+export type PublicResearchWorld = Extract<(typeof openGoalWorlds)[number], { kind: "research" | "research-and-edit" }>;
+
+export function publicSourceOrigins(world: PublicResearchWorld): string[] {
+  return [...new Set(world.required.flatMap(({ host }) => [`https://${host}`, `https://www.${host}`]))];
+}

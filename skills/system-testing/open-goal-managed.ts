@@ -2,7 +2,7 @@ import { fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
-import { openGoalWorlds } from "./open-goal-worlds.js";
+import { openGoalWorlds, publicSourceOrigins, type PublicResearchWorld } from "./open-goal-worlds.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
@@ -57,10 +57,9 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
 }
 
 type World = (typeof openGoalWorlds)[number];
-type ResearchWorld = Extract<World, { kind: "research" | "research-and-edit" }>;
-
-function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorld) {
-  const { goal, required } = world;
+function preparePublicResearch({ contextId, caseId }: Input, world: PublicResearchWorld) {
+  const { goal, required, conclusions, referenceAnswer } = world;
+  const origins = new Set(publicSourceOrigins(world));
   const allowed = new Set<string>();
   const pages = new Map<string, Awaited<ReturnType<typeof web.fetch>>>();
   const searches: { queries: string[]; urls: string[] }[] = [];
@@ -81,8 +80,9 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
     web: {
       async search({queries}: {queries: string[]}) { return search(queries); },
       async fetch(options: Parameters<typeof web.fetch>[0]) {
-        if ((options.session && options.session !== "public") || !allowed.has(options.url))
-          throw new Error("Use the public session and a URL discovered in the current search");
+        if ((options.session && options.session !== "public") || !allowed.has(options.url) ||
+            !origins.has(new URL(options.url).origin))
+          throw new Error("Use the public session and an authorized URL discovered in the current search");
         const page = await web.fetch({ ...options, session: "public" });
         pages.set(page.digest, page);
         fetched.push({ requested: options.url, url: page.url, digest: page.digest });
@@ -108,6 +108,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
         exact: read.bytes === page.size && sha256HexSyncText(read.text) === page.digest };
     }));
     const date = new Date(snapshotTime).toISOString().slice(0, 10);
+    const answer = normalize(result?.research?.statements?.map(({ text }) => text).join(" ") ?? "");
     const checks = {
       discoveredSources: searches.length > 0 && fetched.length > 0 && fetched.every(({ requested }) => allowed.has(requested)),
       exactPageReadback: cache.length > 0 && cache.every(({ exact }) => exact),
@@ -119,6 +120,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
       groundedCitations: citations.length > 0 && citations.every(({ url, quote, retrieved }) =>
         retrieved === date && normalize(quote).length >= 20 &&
         cache.some((page) => page.url === url && page.text.includes(normalize(quote)))),
+      supportedConclusion: conclusions.every((pattern) => pattern.test(answer)),
       requiredEvidence: required.every(({ host, phrase }) =>
         citations.some(({ url, quote }) => {
           const source = cache.find((page) => page.url === url);
@@ -145,7 +147,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
         const offset = text.toLowerCase().indexOf(phrase);
         if (offset < 0) continue;
         const quote = text.slice(offset, offset + phrase.length);
-        statements.push({ text: quote, cites: [{ url: page.url, quote, retrieved }] });
+        statements.push({ text: referenceAnswer, cites: [{ url: page.url, quote, retrieved }] });
         found = true;
         break;
       }

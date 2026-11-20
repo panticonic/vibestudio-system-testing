@@ -3,7 +3,7 @@ import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
-import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds, operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
+import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds, operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds, publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
 import { newsAuthority } from "./news-managed.js";
@@ -78,14 +78,14 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
-  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds];
+  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds, ...openGoalPdfWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
-const publicResearchAuthority: Pick<AgentExecutionTestPolicySpec, "authority"> = {
+const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
   authority: [
     "https://lite.duckduckgo.com", "https://html.duckduckgo.com",
     "https://api.tavily.com", "https://api.search.brave.com", "https://api.exa.ai",
-    "https://iana.org", "https://www.iana.org",
+    ...publicSourceOrigins(world),
   ].map((origin, index) => ({
     ruleId: `open-goal-public-origin-${index + 1}`,
     capability: { kind: "exact", key: "network.response.read" },
@@ -93,7 +93,7 @@ const publicResearchAuthority: Pick<AgentExecutionTestPolicySpec, "authority"> =
     tier: "gated",
     decision: "once",
   })),
-};
+});
 const templateSettings = {
   personal: { ...missionPlanningSettings, requiresUnits: [...missionPlanningSettings.requiresUnits, "skills/open-user-goal", "skills/open-personal-goal"] },
   operator: { requiresUnits: operatorGoalRequiresUnits },
@@ -105,13 +105,14 @@ const templateSettings = {
     resources: [PANEL_AUTOMATION_RESOURCE],
   },
   google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
+  pdf: { requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest"] },
 };
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
   ...settings,
   requiresUnits: world.kind === "suite" ? [...new Set(["skills/open-user-goal", "skills/native-suite-review", "extensions/test-runner", ...world.routes.map(route => route.target)])] :
     world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
   ...(world.kind === "research" || world.kind === "research-and-edit"
-    ? { authorityPolicy: publicResearchAuthority } : {}),
+    ? { authorityPolicy: publicResearchAuthority(world) } : {}),
   ...(world.kind === "suite" && world.execution ? world.execution.runtime === "native"
     ? { authorityPolicy: nativeSuiteAuthority }
     : { authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] }, resources: [PANEL_AUTOMATION_RESOURCE] }
@@ -145,6 +146,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
     world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
+    world.kind === "pdf" ? "Inspect the selected PDF using original text, geometry and retained raster evidence" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
