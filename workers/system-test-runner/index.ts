@@ -73,7 +73,7 @@ import { managedNewsWorlds, newsHandoffWork } from "@workspace-skills/system-tes
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import { managedSpectroliteWorlds, spectroliteHandoffWork } from "@workspace-skills/system-testing/spectrolite-worlds";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
-import type { AdventureReviewInput, ManagedAdventureReceiver } from "@workspace-skills/system-testing/adventure-review-contract";
+import type { AdventureReviewInput, ManagedAdventureReceiver, ProgrammedAdventureInput } from "@workspace-skills/system-testing/adventure-review-contract";
 import type { RegencyReviewInput, ManagedRegencyReceiver } from "@workspace-skills/system-testing/regency-review-contract";
 import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
@@ -1784,6 +1784,27 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
       work, this.adventureReviewBindings(input),
     )) as Awaited<ReturnType<ManagedAdventureReceiver["qualifyManagedAdventure"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures review of the original Adventure interaction and reload."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async captureProgrammedAdventure(input: ProgrammedAdventureInput & {executorModel:string}): ReturnType<ManagedAdventureReceiver["captureProgrammedAdventure"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"examples",operation:"reviewExample",input:{goal:"Review the programmed Adventure transition"}},
+      inputCode:"programmedAdventureWorld.request",
+      bindingCode:`
+        import {contextId as actualContextId} from "@workspace/runtime";
+        import {programmedAdventureWorld} from "@workspace-skills/system-testing/adventure-transition-world";
+        import {prepareProgrammedAdventure} from "@workspace-skills/examples-review-fixtures/live-programmed-adventure";
+        const input=${JSON.stringify(input)};
+        if(actualContextId!==input.contextId) throw new Error("Adventure belongs to another context");
+        const prepared=prepareProgrammedAdventure(input.journey,programmedAdventureWorld.request,input.before,input.frames);
+        const assignedServices=prepared.services;
+      `,
+    },runId)}
+      const verification=prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedAdventureReceiver["captureProgrammedAdventure"]>>;
   }
 
   private regencyReviewBindings(input: RegencyReviewInput): string {

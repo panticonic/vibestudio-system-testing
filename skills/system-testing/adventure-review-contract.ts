@@ -11,6 +11,19 @@ export type AdventureReviewInput = Opening & {
   };
 };
 type Verification = { passed: boolean; checks: Record<string, boolean> };
+type TransitionFrame = {
+  location: string;
+  asset: string;
+  tick: number;
+  narration: string;
+  light: string;
+};
+export type ProgrammedAdventureInput = {
+  contextId: string;
+  journey: string;
+  before: unknown;
+  frames: Record<"before" | "after" | "repaint" | "reload", TransitionFrame>;
+};
 export interface ManagedAdventureReceiver {
   inspectManagedAdventureOpening(input: Opening): Promise<unknown>;
   runManagedAdventureTeacher(
@@ -24,10 +37,18 @@ export interface ManagedAdventureReceiver {
     verification: Verification;
     rejectedAlteredEvidence: boolean;
   }>;
+  captureProgrammedAdventure(
+    input: ProgrammedAdventureInput & { executorModel: string },
+  ): Promise<{
+    contextId: string;
+    teacher: PanelTeacherResult;
+    verification: Verification;
+  }>;
 }
 export const managedAdventureMethods =
   createReceiverRpcMethods<ManagedAdventureReceiver>([
     "inspectManagedAdventureOpening",
     "runManagedAdventureTeacher",
     "qualifyManagedAdventure",
+    "captureProgrammedAdventure",
   ]);

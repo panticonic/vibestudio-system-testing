@@ -80,7 +80,7 @@ import { launchAgentIntoChannel } from "@workspace/agentic-core";
 import { managedSpectroliteMethods } from "./spectrolite-contract.js";
 import { managedSpectroliteWorlds, spectrolitePanel, spectroliteVault } from "./spectrolite-worlds.js";
 import { managedGrimoireMethods } from "./grimoire-contract.js";
-import { managedAdventureMethods, type AdventureReviewInput } from "./adventure-review-contract.js";
+import { managedAdventureMethods, type AdventureReviewInput, type ProgrammedAdventureInput } from "./adventure-review-contract.js";
 import { managedAdventureWorlds } from "./adventure-review-worlds.js";
 import { managedRegencyMethods } from "./regency-review-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
@@ -1496,6 +1496,22 @@ export class HeadlessRunner {
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
+  }
+
+  async readProgrammedAdventureOpening(journey: string, signal: AbortSignal) {
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (!contextId) throw new Error("Missing prepared Adventure context");
+    const owner = await this.fixtureForkOwner();
+    return rpc.call(owner, managedAdventureMethods.inspectManagedAdventureOpening,
+      [{ contextId, journey, caseId: "postal-painted-opening" }], { signal });
+  }
+
+  async captureProgrammedAdventure(input: Omit<ProgrammedAdventureInput, "contextId">, signal: AbortSignal) {
+    const contextId = this.workspaceRepoFixtureContextId;
+    if (!contextId) throw new Error("Missing prepared Adventure context");
+    const owner = await this.fixtureForkOwner();
+    return rpc.call(owner, managedAdventureMethods.captureProgrammedAdventure,
+      [{ ...input, contextId, executorModel: this.modelRef }], { signal });
   }
 
   async runManagedChecklist(caseId: string, qualification = false) {

@@ -126,6 +126,7 @@
     "./grimoire-handoff-managed": "./grimoire-handoff-managed.ts",
     "./adventure-review-contract": "./adventure-review-contract.ts",
     "./adventure-review-worlds": "./adventure-review-worlds.ts",
+    "./adventure-transition-world": "./adventure-transition-world.ts",
     "./regency-review-contract": "./regency-review-contract.ts",
     "./regency-review-worlds": "./regency-review-worlds.ts",
     "./examples-portfolio-worlds": "./examples-portfolio-worlds.ts",

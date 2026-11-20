@@ -2,6 +2,11 @@ import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import { blobstore } from "@workspace/runtime";
 import { setViewport } from "@workspace/testkit";
 import { adventureCampaignTests } from "./adventure-campaign-play.js";
+import { programmedAdventureWorld } from "../adventure-transition-world.js";
+import type {
+  ManagedAdventureReceiver,
+  ProgrammedAdventureInput,
+} from "../adventure-review-contract.js";
 import type {
   TestCase,
   TestExecutionResult,
@@ -11,6 +16,7 @@ import type {
 /** A real player intention requiring causal object composition, rather than an authored action button. */
 async function orchestrate(
   context: TestOrchestrationContext,
+  captureTeacher = false,
 ): Promise<TestExecutionResult> {
   const start = Date.now();
   const evidence: Record<string, any> = { builderObserved: false };
@@ -25,12 +31,15 @@ async function orchestrate(
   try {
     const contextId = context.runner.workspaceRepoFixtureContextId;
     if (!contextId) throw new Error("Missing test context");
+    const journey =
+      (captureTeacher ? "natlang-adventure-" : "adventure-code-") +
+      crypto.randomUUID();
     handle = await context.runner.openPanelClient("panels/dead-letter-office", {
       contextId,
       ref: "ctx:" + contextId,
       parentId: null,
       focus: false,
-      stateArgs: { gameKey: "adventure-code-" + crypto.randomUUID() },
+      stateArgs: { gameKey: journey },
     });
     const active = handle;
     const read = () =>
@@ -39,7 +48,7 @@ async function orchestrate(
         `(()=>{
       const r=document.querySelector('main.adventure');if(!r)return null;
       const t=r.querySelector('#adventure-intention'), i=r.querySelector('.adventure-scene img');
-      return {key:r.dataset.gameKey,ready:r.dataset.ready==='true',enabled:!!t&&!t.disabled,
+      return {key:r.dataset.gameKey,location:r.dataset.location,ready:r.dataset.ready==='true',enabled:!!t&&!t.disabled,
         pending:r.dataset.pending||'',scene:r.dataset.sceneStatus||'',fresh:r.dataset.sceneFresh,
         tick:Number(r.dataset.tick),asset:r.dataset.assetId||'',loaded:!!i&&i.complete&&i.naturalWidth>0,
         light:r.querySelector('[aria-label="Light condition"]')?.textContent||'',
@@ -70,6 +79,7 @@ async function orchestrate(
     );
     const session = await active.cdp.session();
     const page = session.page;
+    let before: unknown;
     try {
       await page
         .getByRole("button", { name: "The harbour lamp", exact: false })
@@ -77,6 +87,11 @@ async function orchestrate(
       evidence["before"] = await wait("shining lamp", (f) =>
         f.light.includes("shining"),
       );
+      if (captureTeacher)
+        before = await context.runner.readProgrammedAdventureOpening(
+          journey,
+          context.signal,
+        );
       await page
         .locator("#adventure-intention")
         .fill(
@@ -132,6 +147,49 @@ async function orchestrate(
     } finally {
       await reopened.close();
     }
+    if (captureTeacher) {
+      const frame = ({
+        location,
+        asset,
+        tick,
+        narration,
+        light,
+      }: ProgrammedAdventureInput["frames"]["before"]) => ({
+        location,
+        asset,
+        tick,
+        narration,
+        light,
+      });
+      const captured = await context.runner.captureProgrammedAdventure(
+        {
+          journey,
+          before,
+          frames: {
+            before: frame(evidence["before"]),
+            after: frame(evidence["after"]),
+            repaint: frame(evidence["painted"]),
+            reload: frame(evidence["reloaded"]),
+          },
+        },
+        context.signal,
+      );
+      result.provenance = {
+        contextId,
+        channelId: null,
+        branchId: null,
+        agentEntityId: null,
+        agentTargetId: null,
+      };
+      result.diagnostics = {
+        ...result.diagnostics,
+        natlangTeacher: captured.teacher,
+        managedProgrammedAdventure: {
+          contextId: captured.contextId,
+          verification: captured.verification,
+        },
+      };
+    }
   } catch (cause) {
     result.error = String(cause);
     if (handle)
@@ -178,7 +236,10 @@ export const adventureProgrammedInteractionTests: TestCase[] = [
           reason:
             "Existing manipulation mechanics required a builder round trip",
         };
-      if (e["reloaded"].tick !== e["after"].tick || e["reloaded"].key !== e["after"].key)
+      if (
+        e["reloaded"].tick !== e["after"].tick ||
+        e["reloaded"].key !== e["after"].key
+      )
         return {
           passed: false,
           reason: "Reload did not preserve the manipulation",
@@ -187,3 +248,39 @@ export const adventureProgrammedInteractionTests: TestCase[] = [
     },
   },
 ];
+
+const original = adventureProgrammedInteractionTests[0]!;
+type Capture = Awaited<
+  ReturnType<ManagedAdventureReceiver["captureProgrammedAdventure"]>
+>;
+adventureProgrammedInteractionTests.push({
+  ...original,
+  name: programmedAdventureWorld.id,
+  description:
+    "Review the live physical change, replacement artwork and durable Adventure reload in Natlang",
+  prompt: programmedAdventureWorld.request.goal,
+  explicitOnly: true,
+  timeoutMs: 24 * 60_000,
+  requiresUnits: [
+    "panels/dead-letter-office",
+    "workers/adventure-world",
+    "workers/adventure-agents",
+    "skills/examples-review",
+    "skills/examples-review-fixtures",
+  ],
+  orchestrate: (context) => orchestrate(context, true),
+  validate(execution) {
+    const originalResult = original.validate(execution);
+    if (!originalResult.passed) return originalResult;
+    const teacher = execution.diagnostics?.["natlangTeacher"] as
+      | Capture["teacher"]
+      | undefined;
+    const review = execution.diagnostics?.["managedProgrammedAdventure"] as
+      | Omit<Capture, "teacher">
+      | undefined;
+    return {
+      passed: Boolean(teacher?.trainingEligible && review?.verification.passed),
+      details: review?.verification.checks,
+    };
+  },
+});
