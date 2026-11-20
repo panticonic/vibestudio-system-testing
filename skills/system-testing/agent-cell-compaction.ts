@@ -6,7 +6,6 @@ import { systemTestFailure } from "./structured-error.js";
 import { withRpcAbortSignal } from "@vibestudio/rpc";
 import { hydrateStoredValueRefs, type AgenticEvent } from "@workspace/agentic-protocol";
 import { iterateChannelReplayAfterPages } from "@workspace/pubsub";
-import { createGadServiceClient, gadRpcMethods } from "@vibestudio/service-schemas/clients/gadServiceClient";
 import { createMissionsClient } from "@vibestudio/service-schemas/clients/missionsClient";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -100,12 +99,11 @@ function storageSample(value: unknown): StorageSample {
   };
 }
 
-/** Join the mission's channel receipt to the original stored result. */
+/** Read the mission's exact invocation result from durable channel replay. */
 export async function readNativeTurnReceipt(
   rpc: Pick<RpcClient, "call">,
   input: {
     channelTarget: string;
-    trajectoryTarget: string;
     channelId: string;
     executorId: string;
     runId: string;
@@ -115,7 +113,7 @@ export async function readNativeTurnReceipt(
 ) {
   let after = input.after;
   let invocationId: string | undefined;
-  let terminalEventId: string | undefined;
+  let completion: AgenticEvent<"invocation.completed"> | undefined;
   const callId = `automation:${input.runId}:eval`;
   for await (const page of iterateChannelReplayAfterPages(
     (request) => rpc.call(input.channelTarget, channelRpcMethods.getReplayAfter, [request]),
@@ -138,21 +136,14 @@ export async function readNativeTurnReceipt(
       }
       if (event?.kind === "invocation.completed" && invocationId &&
           event.causality?.invocationId === invocationId) {
-        if (terminalEventId) throw new Error(`Native turn ${input.turn} has duplicate completion events`);
-        terminalEventId = row.messageId;
+        if (completion) throw new Error(`Native turn ${input.turn} has duplicate completion events`);
+        completion = event as AgenticEvent<"invocation.completed">;
       }
     }
   }
-  if (!invocationId || !terminalEventId)
+  if (!invocationId || !completion)
     throw new Error(`Native turn ${input.turn} has no exact durable completion for ${input.runId}`);
-  const event = await rpc.call(input.trajectoryTarget, gadRpcMethods.getTrajectoryEvent, [
-    { eventId: terminalEventId },
-  ]);
-  if (event?.eventId !== terminalEventId || event.trajectoryId !== input.channelId ||
-      event.branchId !== "main" || event.kind !== "invocation.completed" ||
-      event.causality?.invocationId !== invocationId || !object(event.payload))
-    throw new Error(`Native turn ${input.turn} has no matching trajectory result`);
-  const result = await hydrateStoredValueRefs(event.payload["result"], {
+  const result = await hydrateStoredValueRefs(completion.payload.result, {
     getText: (digest) => rpc.call("main", mainRpcMethods["blobstore.getText"], [digest]),
   }, { strict: true });
   const details = object(result) ? result["details"] : null;
@@ -218,7 +209,6 @@ export async function probeAgentCellCompaction(
     const channel = await resolveDurableObjectService(wire, "vibestudio.channel.v1", channelId);
     if (channel.kind !== "durable-object")
       throw new Error("The compaction channel did not resolve to a Durable Object");
-    const { targetId: trajectoryTarget } = await createGadServiceClient(wire).resolve();
     const replay = await wire.call(channel.targetId, channelRpcMethods.getReplayAfter, [{ after: 0, limit: 1 }]);
     let after = replay.ready.snapshotLastSeq ?? 0;
     const code = `scope.__p4Turn = (scope.__p4Turn ?? 0) + 1; return { marker: "P4_NATIVE_TURN", turn: scope.__p4Turn, storage: (scope.__p4Turn === 1 || scope.__p4Turn === ${turns}) ? (await agent.describe()).storage : null };`;
@@ -270,7 +260,7 @@ export async function probeAgentCellCompaction(
         }));
       }
       const receipt = await readNativeTurnReceipt(wire, {
-        after, channelTarget: channel.targetId, trajectoryTarget, channelId, executorId, runId: admitted.runId, turn: n,
+        after, channelTarget: channel.targetId, channelId, executorId, runId: admitted.runId, turn: n,
       });
       after = receipt.after;
       const { invocationId, value } = receipt;

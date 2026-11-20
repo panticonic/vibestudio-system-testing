@@ -140,12 +140,14 @@ describe("native benchmark receipts", () => {
   const digest = "f".repeat(64);
   const invocationId = "invocation:exact";
   const input = {
-    channelTarget: "do:channel", trajectoryTarget: "do:trajectory",
+    channelTarget: "do:channel",
     channelId: "channel", executorId: "do:agent", runId: "run:one", turn: 12, after: 40,
   };
   const value = { marker: "P4_NATIVE_TURN", turn: input.turn, storage: null };
   const stored = JSON.stringify({ details: { returnValue: value } });
-  function fixture({ branch = "main", callId = "automation:run:one:eval" } = {}) {
+  function fixture({
+    callId = "automation:run:one:eval", completedInvocationId = invocationId,
+  } = {}) {
     const call = vi.fn(async (target: string, method: string, args: unknown[]) => {
       if (target === input.channelTarget && method === "getReplayAfter") {
         const { after } = args[0] as { after: number };
@@ -171,22 +173,12 @@ describe("native benchmark receipts", () => {
           logEvents: [{
             id: 42, messageId: "terminal",
             payload: {
-              kind: "invocation.completed", causality: { invocationId },
-              payload: { result: null },
+              kind: "invocation.completed", causality: { invocationId: completedInvocationId },
+              payload: {
+                result: { protocol: "vibestudio.blob-ref.v1", digest, size: stored.length, encoding: "json", originalBytes: stored.length },
+              },
             },
           }],
-        };
-      }
-      if (target === input.trajectoryTarget && method === "getTrajectoryEvent") {
-        expect(args).toEqual([{ eventId: "terminal" }]);
-        return {
-          eventId: "terminal", trajectoryId: input.channelId, branchId: branch,
-          seq: 42, prevEventHash: "previous", eventHash: "terminal",
-          kind: "invocation.completed", causality: { invocationId },
-          actor: { kind: "agent", id: input.executorId }, createdAt: "2026-11-20T14:00:00Z",
-          payload: {
-            result: { protocol: "vibestudio.blob-ref.v1", digest, size: stored.length, encoding: "json", originalBytes: stored.length },
-          },
         };
       }
       if (target === "main" && method === "blobstore.getText") {
@@ -198,16 +190,16 @@ describe("native benchmark receipts", () => {
     return schemaRpcMock({ call });
   }
 
-  it("joins a paged public completion to its canonical stored result", async () => {
+  it("reads a stored result from the exact paged channel completion", async () => {
     await expect(readNativeTurnReceipt(fixture(), input)).resolves.toEqual({
       after: 42, invocationId, value,
     });
   });
 
-  it("rejects a completion for a different run or trajectory", async () => {
+  it("rejects a completion for a different run or invocation", async () => {
     await expect(readNativeTurnReceipt(fixture({ callId: "automation:run:other:eval" }), input))
       .rejects.toThrow("has no exact durable completion");
-    await expect(readNativeTurnReceipt(fixture({ branch: "private-branch" }), input))
-      .rejects.toThrow("has no matching trajectory result");
+    await expect(readNativeTurnReceipt(fixture({ completedInvocationId: "invocation:foreign" }), input))
+      .rejects.toThrow("has no exact durable completion");
   });
 });
