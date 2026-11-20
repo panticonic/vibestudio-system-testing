@@ -117,7 +117,7 @@ import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds,
-  openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3682,6 +3682,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
     const assembly = openAssemblyWorlds.some(({ id }) => id === input.caseId);
     const capabilityPlan = capabilityPlanWorlds.some(({ id }) => id === input.caseId);
+    const ownedResearch = openOwnedResearchWorlds.some(({ id }) => id === input.caseId);
     const terminalHandoff = openTerminalWorlds.some(({ id }) => id === input.caseId);
     const evalHandoff = openGoalEvalHandoffWorlds.find(({ id }) => id === input.caseId);
     const programRun = openGoalProgramRunWorlds.find(({ id }) => id === input.caseId);
@@ -3736,7 +3737,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if (owner.contextId !== input.contextId) throw new Error("Scheduled recovery belongs to another context");
       scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
     }
-    const prepare = scheduledRecovery
+    const prepare = ownedResearch
+      ? `import {prepareOpenOwnedResearch} from "@workspace-skills/system-testing/open-goal-owned-research-managed";
+         const prepared=await prepareOpenOwnedResearch(input);`
+      : scheduledRecovery
       ? `import {prepareOwnedScheduledRecovery} from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
          const prepared=await prepareOwnedScheduledRecovery(input,${JSON.stringify(scheduledRecovery)},${JSON.stringify(scheduledSeed)});`
       : assembly

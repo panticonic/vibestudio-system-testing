@@ -12,6 +12,7 @@ export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";
 export { openGoalAuthoringWorlds, authoringRequiresUnits } from "./open-goal-authoring-worlds.js";
 export { openGoalProgramRunWorlds, programRunRequiresUnits } from "./open-goal-program-run-worlds.js";
+export { openOwnedResearchWorlds } from "./open-goal-owned-research-worlds.js";
 export { openTerminalWorlds, openTerminalRequiresUnits } from "./open-goal-terminal-worlds.js";
 export { capabilityPlanWorlds, capabilityPlanRequiresUnits } from "./open-goal-capability-plan-worlds.js";
 export { openAssemblyWorlds, openAssemblyRequiresUnits } from "./open-goal-workspace-assembly-worlds.js";

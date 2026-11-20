@@ -19,7 +19,7 @@ import {
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
   capabilityPlanRequiresUnits, capabilityPlanWorlds,
   openAssemblyRequiresUnits, openAssemblyWorlds,
-  openTerminalRequiresUnits, openTerminalWorlds,
+  openOwnedResearchWorlds, openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
   openScheduledRecoveryWorlds, scheduledRecoveryRequiresUnits,
@@ -100,7 +100,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -266,8 +266,18 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     ...(world.checks ? [{ ruleId: "verify-assigned-local-checks", capability: { kind: "prefix" as const, prefix: "userland:extensions/shell/native.shell.execute#" },
       resource: { kind: "exact" as const, key: "native.shell:extension:@workspace-extensions/shell" }, tier: "gated" as const, decision: "task" as const }] : []),
   ] } } : {}),
+  ...(world.kind === "owned-research" || world.kind === "owned-research-and-edit" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/web-research", "extensions/shell"],
+    authorityPolicy: { authority: [{
+      ruleId: "start-owned-loopback-research-fixture",
+      capability: { kind: "prefix" as const, prefix: "userland:extensions/shell/native.shell.execute#" },
+      resource: { kind: "exact" as const, key: "native.shell:extension:@workspace-extensions/shell" },
+      tier: "gated" as const, decision: "task" as const,
+    }] },
+  } : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
-  description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
+  description: world.kind === "owned-research" || world.kind === "owned-research-and-edit" ? "Discover exact held evidence from the owned public-session HTTP fixture" :
+    world.kind === "research" ? "Answer a user question by discovering public evidence" :
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
