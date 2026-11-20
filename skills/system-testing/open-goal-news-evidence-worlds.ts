@@ -47,13 +47,13 @@ const worlds:Authored[]=[
   },
   {
     id:"news-evidence-analyst-lane-scope",desk:"Court desk",topic:"Hearing order",views:["saved","archive"],
-    goal:"We are reviewing the Hearing order from an analyst fork. Confirm the original archived evidence, and tell me whether that analyst owns any manual newsroom briefing lane.",
+    goal:"We are reviewing the Hearing order from an analyst fork. Compare the saved order with the archive and confirm the original evidence. Then tell me whether that analyst owns any manual newsroom briefing lane.",
     cadence:{mode:"analyst"},edition:{declared:1},articles:[primary("court","/court/order","The hearing moved to 10:00.",{saved:true})],
     expected:expect("grounded-development","report","The original court order is grounded. An analyst fork has no newsroom schedule or manual briefing lane.",[/analyst/iu,/lane|schedule|briefing/iu],"analyst-schedule-unavailable"),
   },
   {
     id:"news-evidence-foreign-similar-outlet",desk:"Garden desk",topic:"Seed library",views:["archive","saved"],privateNote:true,
-    goal:"Resolve the Seed library article against the exact reader. Another edition's similarly titled article may be on screen. Only stage a private note grounded in our original.",
+    goal:"Resolve the Seed library article against the exact reader. Compare the archive and saved copy. Another edition's similarly titled article may be on screen. Only stage a private note grounded in our original.",
     edition:{declared:1},articles:[primary("match","/garden/library","The library lends seeds in April.",{saved:true}),
       primary("foreign","/garden/foreign","The foreign edition lends tools.",{foreign:true}),
       primary("lookalike","/garden/sibling","Another desk uses a different seed exchange.",{otherTopic:true})],
@@ -96,7 +96,7 @@ const worlds:Authored[]=[
   },
   {
     id:"news-evidence-timezone-copied-slot",desk:"Culture desk",topic:"Museum hours",views:["archive","saved"],privateNote:true,
-    goal:"Stage a private Museum hours note from the original authority, and say whether the saved briefing's 08:15 Berlin expectation matches the current owner timezone. Keep the schedule untouched.",
+    goal:"Check the original authority in the archive and the saved copy before staging a private Museum hours note. Say whether the saved briefing's 08:15 Berlin expectation matches the current owner timezone. Keep the schedule untouched.",
     cadence:{briefing:{at:"08:15",timezone:"Europe/Paris"}},intent:{kind:"daily",at:"08:15",timezone:"Europe/Berlin"},
     edition:{declared:1},articles:[primary("museum","/culture/hours","The museum opens on Mondays.",{saved:true})],
     expected:expect("grounded-development","stage","The museum source is verified. The current 08:15 owner uses Paris rather than the copied Berlin timezone.",[/berlin|paris/iu,/timezone|schedule/iu],"briefing-mismatch"),
@@ -109,13 +109,13 @@ const worlds:Authored[]=[
   },
   {
     id:"news-evidence-collecting-is-provisional",desk:"Health desk",topic:"Clinic outreach",views:["inbox","backlog"],focus:"publication",privateNote:true,
-    goal:"Can we prepare the Clinic outreach handoff yet? The newsroom is collecting sources and some rows are still untriaged. Require a completed edition before writing the note.",
+    goal:"Can we prepare the Clinic outreach handoff yet? The newsroom is collecting sources. Check the inbox and untriaged backlog, then require a completed edition before writing the note.",
     edition:{phase:"collecting",declared:1},articles:[primary("outreach","/clinic/notice","Outreach starts with a pilot.",{backlog:true})],
     expected:expect("collecting-candidates","hold","The briefing is still collecting and its candidate content is provisional.",[/collect/iu,/provisional|candidate/iu]),
   },
   {
     id:"news-evidence-cadence-updated-separately",desk:"Coast desk",topic:"Tide gate inspection",views:["saved","archive"],
-    goal:"The Tide gate inspection piece is saved. Check the actual original and whether the owner now polls every 45 minutes after a schedule update. Keep delivery and poll untouched.",
+    goal:"Review the saved Tide gate inspection piece and its archive original and whether the owner now polls every 45 minutes after a schedule update. Keep delivery and poll untouched.",
     cadence:{poll:90},latestCadence:{poll:45},intent:{kind:"poll",intervalMs:45*60_000},
     edition:{declared:1},articles:[primary("gate","/coast/inspection","Inspect the tide gate Tuesday.",{saved:true})],
     expected:expect("grounded-development","report","The original inspection report is confirmed and the current poll is 45 minutes.",[/inspection|original/iu,/45|poll/iu],"poll-confirmed"),
@@ -148,7 +148,7 @@ const worlds:Authored[]=[
   {
     id:"news-evidence-held-staged-owner-follow-up",split:"test",desk:"Harbor desk",topic:"Dock repair notice",views:["saved","archive"],focus:"continuity",
     privateNote:true,cadence:{paused:true},intent:{kind:"pause"},
-    goal:"Make a private cross-shift note if the Dock repair notice adds a new source-grounded instruction to its archived repair report. Confirm that the owner still has automatic delivery paused.",
+    goal:"Compare the saved Dock repair notice with the archived repair report. Make a private cross-shift note only if the saved instruction is new and source-grounded. Confirm that the owner still has automatic delivery paused.",
     edition:{previous:["old"],claims:[{id:"old",text:"The dock is under repair."},{id:"new",text:"Use the eastern ramp."}]},
     articles:[primary("archive","/harbor/repair","The dock is under repair.",{supports:["old"]})],
     lateArticles:[primary("ramp","/harbor/redirect","Use the eastern ramp during repair.",{saved:true})],

@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -182,7 +183,7 @@ export async function prepareOpenNewsEvidence(input:{contextId:string;caseId:str
   const dir=await ports.fs.mkdtemp("news-evidence");
   const policyPath=`${dir}/scope.md`;
   await ports.fs.writeFile(policyPath,"Use only the assigned reader's original private evidence. Preserve publication, schedule, and reader state.");
-  const baseFiles=new Set(await ports.fs.readdir("/.tmp"));
+  const baseFiles=new Set(await listOwnedScratchEntries(ports.fs));
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which original evidence supports this private note?"],
     sources:[{id:"scope",path:policyPath}]},ports.readBytes).scratchHandoffWrite;
 
@@ -195,6 +196,15 @@ export async function prepareOpenNewsEvidence(input:{contextId:string;caseId:str
   const sources:{message:string;value:SourceReadback|null}[]=[];
   const scopedArticles=(current:NewsEvidenceSnapshot,selected=topic)=>of<SourceRecord>(current,"article").filter(({record})=>
     record.topic===selected&&record.reader===scope.reader&&record.contextId===scope.contextId);
+  function readerProjection(current:NewsEvidenceSnapshot):NewsEvidenceSnapshot {
+    const admitted=authority(scope,current).reason==="verified-reader";
+    return {...current,rows:current.rows.filter(({record})=>{
+      if(record.kind==="edition")return admitted&&record.topic===topic;
+      if(record.kind==="article")return admitted&&record.topic===topic&&
+        record.reader===scope.reader&&record.contextId===scope.contextId;
+      return true;
+    })};
+  }
   const currentEdition=(current:NewsEvidenceSnapshot)=>of<Edition>(current,"edition").findLast(row=>row.record.topic===topic)?.record;
   const viewOf=(kind:ReaderSelection["kind"]):ReaderSelection=>kind==="archive"?{kind,query:world.topic}:{kind};
   function exactSchedule(current:NewsEvidenceSnapshot):ScheduleWitness {
@@ -270,9 +280,10 @@ export async function prepareOpenNewsEvidence(input:{contextId:string;caseId:str
       busy=true;
       try {
         const current=await ports.read(lane);
-        snapshots.push(current);
+        const scoped=readerProjection(current);
+        snapshots.push(scoped);
         if(snapshots.length===1&&later.length)await append(later);
-        return structuredClone(current);
+        return structuredClone(scoped);
       } finally {busy=false;}
     }},
     newsEvidenceReader:{async read(channelId:string,selection:ReaderSelection){
@@ -337,13 +348,14 @@ export async function prepareOpenNewsEvidence(input:{contextId:string;caseId:str
       message:row.messageId,value:await cached(row),
     }))):[];
     const status=await ports.status();
-    const files=(await ports.fs.readdir("/.tmp")).filter(name=>name.startsWith("evidence-handoff-")&&!baseFiles.has(name));
+    const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!baseFiles.has(name));
     const written=handoff?await ports.readBytes(handoff.path,max):null;
     const artifact=written?new TextDecoder("utf-8",{fatal:true}).decode(written):null;
     const foreign=crypto.randomUUID();
     const plan=outcome?.plan;
     const checks={
-      exactNewsFrontiers:listed&&snapshots.length===2&&isDeepStrictEqual(snapshots[0],initial)&&isDeepStrictEqual(snapshots[1],latest)&&
+      exactNewsFrontiers:listed&&snapshots.length===2&&isDeepStrictEqual(snapshots[0],readerProjection(initial))&&
+        isDeepStrictEqual(snapshots[1],readerProjection(latest))&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.messageId)))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
       exactNewsAuthority:!!plan&&plan.readerMessage===independent.boundary.message&&plan.channelId===scope.channelId&&plan.topic===topic&&

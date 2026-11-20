@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3692,6 +3692,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
+    const newsEvidence = openNewsEvidenceWorlds.some(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
     const vaultKnowledge = openVaultKnowledgeWorlds.find(({ id }) => id === input.caseId);
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
@@ -3949,6 +3950,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         : google
       ? `import {prepareOpenGoalDrive} from "@workspace-skills/google-drive/open-goal-drive";
          const prepared=await prepareOpenGoalDrive(input,${JSON.stringify(google)});`
+      : newsEvidence
+      ? `import {prepareOpenNewsEvidence} from "@workspace-skills/system-testing/open-goal-news-evidence-managed";
+         import {canonicalizeUrl,articleId,captureNewsReaderReadback} from "@workspace/feeds";
+         const prepared=await prepareOpenNewsEvidence(input,{canonicalizeUrl,articleId,capture:captureNewsReaderReadback});`
       : news
         ? `import {prepareOpenGoalNews} from "@workspace/news-live-evidence/open-goal";
            if (input.news?.contextId!==input.contextId || input.news.caseId!==input.caseId)
