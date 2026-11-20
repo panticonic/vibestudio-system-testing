@@ -10,6 +10,11 @@ const targetRow = {
   mimeType: sheet,
   modifiedTime: cutoff,
 };
+const planningNotes = {
+  ...targetRow,
+  id: "release_roster_planning",
+  name: "Release roster planning notes",
+};
 const alias = {
   id: "roster_alias",
   name: "Release roster",
@@ -76,7 +81,7 @@ const permissionPages = [
 const inventory = {
   kind: "inventory" as const,
   folderId,
-  goal: "Find the assigned Release roster among the current spreadsheets in this shared folder.",
+  goal: "Find the current Release roster used for the delivery handoff. Leave out release planning notes even when they are current spreadsheets.",
   media: [sheet],
   modifiedSince: cutoff,
 };
@@ -98,13 +103,17 @@ export const managedDriveSharingWorlds = [
     folderPages: [
       {
         cursor: null,
-        response: { files: [alias, outdated], nextPageToken: "folder-tail" },
+        response: {
+          files: [alias, outdated, planningNotes],
+          nextPageToken: "folder-tail",
+        },
       },
       { cursor: "folder-tail", response: { files: [targetRow] } },
     ],
     permissionPages,
     expected: {
       gate: "audited",
+      eligibleIds: [planningNotes.id, target],
       inventoryIds: [target],
       ids: [
         "internal_writer",
@@ -120,9 +129,16 @@ export const managedDriveSharingWorlds = [
     driveId,
     inventory,
     sharing,
-    folderPages: [{ cursor: null, response: { files: [alias, outdated] } }],
+    folderPages: [
+      { cursor: null, response: { files: [alias, outdated, planningNotes] } },
+    ],
     permissionPages: [],
-    expected: { gate: "target-unconfirmed", inventoryIds: [], ids: [] },
+    expected: {
+      gate: "target-unconfirmed",
+      eligibleIds: [planningNotes.id],
+      inventoryIds: [],
+      ids: [],
+    },
   },
   {
     id: "roster-confirmation-with-unavailable-tail",
@@ -133,11 +149,44 @@ export const managedDriveSharingWorlds = [
     folderPages: [
       {
         cursor: null,
-        response: { files: [targetRow], nextPageToken: "folder-tail" },
+        response: {
+          files: [planningNotes, targetRow],
+          nextPageToken: "folder-tail",
+        },
       },
       { cursor: "folder-tail", response: null },
     ],
     permissionPages: [],
-    expected: { gate: "inventory-partial", inventoryIds: [target], ids: [] },
+    expected: {
+      gate: "inventory-partial",
+      eligibleIds: [planningNotes.id, target],
+      inventoryIds: [target],
+      ids: [],
+    },
+  },
+  {
+    id: "roster-with-incomplete-search-flag",
+    goal: "Confirm which spreadsheet is the delivery roster and determine whether its direct access can be reviewed. Drive finished pagination but flagged the search as incomplete. Retain the verified roster ID and report the coverage limit.",
+    driveId,
+    inventory,
+    sharing,
+    folderPages: [
+      {
+        cursor: null,
+        response: {
+          files: [planningNotes],
+          nextPageToken: "folder-tail",
+          incompleteSearch: true,
+        },
+      },
+      { cursor: "folder-tail", response: { files: [targetRow] } },
+    ],
+    permissionPages: [],
+    expected: {
+      gate: "inventory-partial",
+      eligibleIds: [planningNotes.id, target],
+      inventoryIds: [target],
+      ids: [],
+    },
   },
 ] as const;
