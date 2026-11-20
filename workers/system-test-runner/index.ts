@@ -93,7 +93,7 @@ import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/syste
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
 import {
   pauseManagedAutomationFixture,
-  retireOpenPersonalAutomation,
+  pauseOpenPersonalAutomation,
   seedManagedAutomation,
   seedOpenPersonalAutomation,
 } from "@workspace-skills/system-testing/automation-lifecycle-managed";
@@ -3794,6 +3794,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         ${prepare}
         const assignedServices=prepared.services;
     `;
+    let operationError: unknown;
     try {
       if (input.qualification) return await this.runHarnessUtility("teacher", `
         ${bindingCode}
@@ -3811,8 +3812,19 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         } finally { await prepared.close?.(); }
         const utilityValue=result;
       `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+    } catch (error) {
+      operationError = error;
+      throw error;
     } finally {
-      if (automationSeed) await retireOpenPersonalAutomation(this.rpc, automationSeed.items);
+      if (automationSeed) {
+        try {
+          await pauseOpenPersonalAutomation(this.rpc, automationSeed.items);
+        } catch (cleanup) {
+          if (operationError !== undefined)
+            throw new AggregateError([operationError, cleanup], `Automation verification failed (${operationError}); cleanup also failed (${cleanup})`);
+          throw cleanup;
+        }
+      }
     }
   }
 

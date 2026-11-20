@@ -21,19 +21,27 @@ type Mission = NonNullable<Awaited<ReturnType<Missions["get"]>>>;
 
 type OpenAutomationSeedItem = { key: string; record: Mission; suffix: string };
 
-export async function retireOpenPersonalAutomation(
+export async function pauseOpenPersonalAutomation(
   rpc: MissionRpc,
   items: readonly OpenAutomationSeedItem[],
 ) {
   const missions = createMissionsClient(rpc);
   const outcomes = await Promise.allSettled(
-    items.map(({ record }) => missions.retire(record.missionId)),
+    items.map(async ({ record }) => {
+      const live = await missions.get(record.missionId);
+      if (!live || live.owner.userId !== record.owner.userId || live.charter.trigger.kind !== "manual")
+        throw new Error("Owned manual monitor identity changed before cleanup");
+      if (live.state === "active")
+        await missions.transitionAtRevision(live.missionId, "pause", live.revisionDigest);
+      else if (live.state !== "paused")
+        throw new Error(`Owned manual monitor has unexpected cleanup state ${live.state}`);
+    }),
   );
   const errors = outcomes.flatMap((outcome) =>
     outcome.status === "rejected" ? [outcome.reason] : [],
   );
   if (errors.length)
-    throw new AggregateError(errors, "Could not retire all owned manual monitors");
+    throw new AggregateError(errors, `Could not pause all owned manual monitors (${errors.map(String).join(", ")})`);
 }
 
 /** Authority plan creation runs with the installed system-test worker's durable identity. */
@@ -67,9 +75,9 @@ export async function seedOpenPersonalAutomation(rpc: MissionRpc, world: Persona
     return { defaultMonitor, items };
   } catch (error) {
     try {
-      await retireOpenPersonalAutomation(rpc, items);
+      await pauseOpenPersonalAutomation(rpc, items);
     } catch (cleanup) {
-      throw new AggregateError([error, cleanup], "Owned manual monitor setup and cleanup failed");
+      throw new AggregateError([error, cleanup], `Owned manual monitor setup failed (${error}); cleanup also failed (${cleanup})`);
     }
     throw error;
   }
