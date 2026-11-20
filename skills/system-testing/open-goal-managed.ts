@@ -34,13 +34,24 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
   const research = preparePublicResearch({ contextId, caseId }, world);
   if (world.kind === "research") return research;
   const workspace = await prepareWorkspaceGoal({ contextId, caseId }, world);
+  const combine = (
+    edit: Awaited<ReturnType<typeof workspace.verify>>,
+    publicEvidence: Awaited<ReturnType<typeof research.verify>>,
+  ) => ({
+    ...edit, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
+    checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed,
+  });
   return {
     goal: world.goal,
     services: { ...research.services, goalWorkspace: workspace.services.goalWorkspace },
     async verify(value: unknown) {
       const [edit, publicEvidence] = await Promise.all([workspace.verify(value), research.verify(value)]);
-      return { ...edit, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
-        checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed };
+      return combine(edit, publicEvidence);
+    },
+    async qualify() {
+      const publicEvidence = await research.qualify();
+      if (!publicEvidence.passed) throw new Error("The authority did not support the reference edit");
+      return combine(await workspace.qualify(), publicEvidence);
     },
   };
 }
@@ -118,7 +129,32 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
     };
     return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, checks };
   }
-  return { goal, services, verify };
+  async function qualify() {
+    const statements = [];
+    const retrieved = new Date(snapshotTime).toISOString().slice(0, 10);
+    for (const { host, phrase } of required) {
+      const result = await services.goalDiscovery.search([`site:${host} "${phrase}"`]);
+      const candidates = new Set(result.flatMap(({ sources }) => sources.map(({ url }) => url)));
+      let found = false;
+      for (const url of [...candidates].slice(0, 5)) {
+        const hostname = new URL(url).hostname;
+        if (hostname !== host && !hostname.endsWith("." + host)) continue;
+        const page = await services.web.fetch({ url });
+        const read = await services.web.read({ digest: page.digest, offset: 0, limit: page.size });
+        const text = normalize(read.text);
+        const offset = text.toLowerCase().indexOf(phrase);
+        if (offset < 0) continue;
+        const quote = text.slice(offset, offset + phrase.length);
+        statements.push({ text: quote, cites: [{ url: page.url, quote, retrieved }] });
+        found = true;
+        break;
+      }
+      if (!found) throw new Error(`The reference public search did not yield evidence from ${host} for "${phrase}"`);
+    }
+    return verify({ status: world.kind === "research" ? "answered" : "edited",
+      research: { status: "answered", question: goal, statements } });
+  }
+  return { goal, services, verify, qualify };
 }
 
 type EditWorld = Extract<World, { kind: "workspace-edit" | "research-and-edit" }>;

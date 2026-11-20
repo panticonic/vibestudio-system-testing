@@ -104,6 +104,7 @@
     "./web-brief-managed": "./web-brief-managed.ts",
     "./open-goal-managed": "./open-goal-managed.ts",
     "./open-goal-operator-managed": "./open-goal-operator-managed.ts",
+    "./open-goal-recovery-managed": "./open-goal-recovery-managed.ts",
     "./open-goal-worlds": "./open-goal-worlds.ts",
     "./web-brief-worlds": "./web-brief-worlds.ts",
     "./architecture-boundary-managed": "./architecture-boundary-managed.ts",
@@ -207,6 +208,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/open-session-recovery": "workspace:*",
     "@workspace-skills/template-candidate-bindings": "workspace:*",
     "@workspace-skills/delivery-history-bindings": "workspace:*",
     "@workspace-skills/publication-revision-bindings": "workspace:*",
