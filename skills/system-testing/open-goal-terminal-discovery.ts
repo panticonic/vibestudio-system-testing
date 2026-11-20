@@ -18,6 +18,8 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
   let loads = 0;
   let installed: RecoverySkill[] | null = null;
   const hits = new Set<string>();
+  const searchReceipts: { query: string; result: { id: string; qualifiedName: string; description: string }[] }[] = [];
+  const loadReceipts: { dirPath: string; focus: string[]; result: RecoveryKnowledge }[] = [];
   const routes = new Map<string, RecoveryRoute>();
   const knowledge = new Map<string, RecoveryKnowledge>();
 
@@ -43,6 +45,7 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
     return {
       routes: [...routes.values()],
       installed: installed !== null,
+      searchReceipts, loadReceipts,
       knowledge: [...knowledge.values()].map(({ skillPath, sha256 }) => ({ skillPath, sha256 })),
     };
   }
@@ -51,10 +54,12 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
       admit();
       if (++searches > maxCalls || typeof query !== "string" || !query.trim() || !bounded(query, 120)) return [];
       const rows = await rpc.call("main", mainRpcMethods["docs.search"], [query, { surface: "service", limit: 8 }]);
-      return rows.map(row => {
+      const result = rows.map(row => {
         hits.add(row.id);
         return { id: row.id, qualifiedName: row.qualifiedName, description: row.description?.slice(0, 280) ?? "" };
       });
+      searchReceipts.push({ query, result });
+      return result;
     },
     async open(id: string) {
       admit();
@@ -80,6 +85,7 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
       if (!passages.length) return null;
       const receipt = { skillPath: skill.skillPath, sha256: sha256HexSyncText(raw), passages };
       knowledge.set(receipt.skillPath, receipt);
+      loadReceipts.push({ dirPath, focus: [...focus], result: receipt });
       return receipt;
     },
   };

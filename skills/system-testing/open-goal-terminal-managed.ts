@@ -356,7 +356,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
       rejectedForeignAction: negative,
     };
     return { caseId: input.caseId, contextId: input.contextId, goal: world!.goal, checks,
-      passed: Object.values(checks).every(value => value === true), initial, events: structuredClone(events),
+      passed: Object.values(checks).every(value => value === true), initial, opened, events: structuredClone(events),
       observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText };
   }
 
