@@ -6,7 +6,7 @@ import type {
   rpc as RuntimeRpc,
 } from "@workspace/runtime";
 import { packageWebsite } from "@workspace/integrations/website";
-import { createWebsiteReadback } from "@workspace-skills/publish-preflight-bindings";
+import { createWebsiteReadback, type PublicationNext } from "@workspace-skills/publish-preflight-bindings";
 import { managedPublicationWorlds } from "./publication-preflight-worlds.js";
 
 type Rpc = Pick<typeof RuntimeRpc, "call" | "stream">;
@@ -16,7 +16,15 @@ type Report = {
   blockers: string[];
   evidence: string[];
   visual?: string;
+  next?: PublicationNext;
 };
+
+function disposition(blockers: string[]) {
+  if (!blockers.length) return "ready-for-review";
+  return blockers.every((blocker) => blocker === "awaiting-provider" || blocker === "verify-public")
+    ? "waiting"
+    : "blocked";
+}
 
 export async function prepareManagedPublication(
   rpc: Rpc,
@@ -58,10 +66,30 @@ export async function prepareManagedPublication(
   const approvedPaths = [".nojekyll", "index.html", "vibestudio-build.json"];
   if (!world.denyEntry) approvedPaths.push(artifact.entryArtifact);
   const intent = {
-    provider: "vercel",
+    provider: world.journalPhase === "destination-ready" ? "cloudflare-pages" : "vercel",
     destination: "managed-review/preview",
     environment: "preview" as const,
   };
+  const journalIntent = {
+    ...intent,
+    operationId: `managed-publication-${selected.contextId}`,
+    artifactDigest: world.staleJournalArtifact ? `sha256:${"0".repeat(64)}` : artifact.artifactDigest,
+  };
+  const readJournal = () => rpc.call("main", mainRpcMethods["credentials.beginWebsitePublication"], [journalIntent]);
+  let seededReceipt: Awaited<ReturnType<typeof readJournal>> | null = null;
+  if (world.journalPhase) {
+    // Seed historical receipts through the real host journal in this disposable
+    // instance. No credential lookup, provider request or public fetch is used.
+    seededReceipt = await readJournal();
+    if (world.journalPhase !== "prepared") {
+      seededReceipt = await rpc.call("main", mainRpcMethods["credentials.recordWebsitePublication"], [
+        journalIntent,
+        world.journalPhase === "submitted"
+          ? { phase: "submitted", deploymentId: "disposable-deployment" }
+          : { phase: world.journalPhase },
+      ]);
+    }
+  }
   const request = {
     goal: selected.goal,
     audience: world.audience,
@@ -110,7 +138,7 @@ export async function prepareManagedPublication(
         { id: "caption", text: world.requiredCaption },
         ...(world.labels ?? []).map(({ id, text }) => ({ id, text })),
       ],
-      operationId: world.checkExisting ? "unissued-managed-review" : null,
+      operationId: world.checkExisting ? journalIntent.operationId : null,
     },
     {
       async readPackage() {
@@ -122,7 +150,7 @@ export async function prepareManagedPublication(
         return { snapshot, panel: await panel.observe() };
       },
       async readPublication() {
-        return null;
+        return seededReceipt ? { receipt: await readJournal(), readyUrl: null, verified: null } : null;
       },
     },
   );
@@ -135,6 +163,8 @@ export async function prepareManagedPublication(
     request,
     service,
     reads: () => reads,
+    seededReceipt,
+    readJournal,
   };
 }
 
@@ -154,6 +184,7 @@ export async function verifyManagedPublication(
   const built = await packageWebsite(rpc, latest.source, prepared.ref);
   const report = value as Report | null;
   const expected = world.expectedBlockers;
+  const journalReadback = prepared.seededReceipt ? await prepared.readJournal() : null;
   const checks = {
     protectedHeadUnchanged:
       before.mainEventId === current.mainEventId &&
@@ -177,10 +208,16 @@ export async function verifyManagedPublication(
       built.files.some(({ path }) => path === built.entryArtifact) &&
       built.files.some(({ path }) => path === "index.html"),
     singleReadback: prepared.reads() === 1,
+    exactJournalReadback:
+      isDeepStrictEqual(journalReadback, prepared.seededReceipt) &&
+      journalReadback?.phase === world.journalPhase,
     verifiedDisposition:
-      report?.status === (expected.length ? "blocked" : "ready-for-review") &&
+      report?.status === disposition(expected) &&
       Array.isArray(report.blockers) &&
       isDeepStrictEqual([...report.blockers].sort(), [...expected].sort()) &&
+      report.next === world.expectedNext &&
+      (!world.journalPhase || world.staleJournalArtifact ||
+        report.evidence?.some((item) => item.includes(world.journalPhase!))) &&
       (!world.expectedVisual || report.visual === world.expectedVisual) &&
       (expected.includes("different-request") ||
         report.evidence?.some((item) =>
@@ -196,6 +233,8 @@ export async function verifyManagedPublication(
     publicPaths: artifact.files.map(({ path }) => path),
     panelAttempt: latest.attemptId,
     visual: report?.visual ?? null,
+    next: report?.next ?? null,
+    journalPhase: journalReadback?.phase ?? null,
   };
 }
 
@@ -206,7 +245,7 @@ export async function qualifyManagedPublication(
   prepared: Prepared,
 ) {
   const observed = await prepared.service.observe();
-  const { artifact, presentation, matchesRequest } = observed;
+  const { artifact, presentation, publication, matchesRequest } = observed;
   const blockers = !matchesRequest
     ? ["different-request"]
     : [
@@ -219,13 +258,23 @@ export async function qualifyManagedPublication(
           : presentation.missedProbes.length
             ? ["missing-presentation"]
             : []),
-        ...(prepared.world.checkExisting ? ["missing-publication"] : []),
+        ...(prepared.world.checkExisting
+          ? !publication ? ["missing-publication"]
+            : !publication.matchesIntent || !publication.matchesOperation || !publication.matchesArtifact
+              ? ["different-publication"] : ["awaiting-provider"]
+          : []),
       ];
+  const next = !prepared.world.checkExisting ? undefined
+    : blockers.some((blocker) => blocker !== "missing-publication" && blocker !== "awaiting-provider")
+      ? "hold-review"
+      : !publication ? "recover-receipt"
+      : publication.phase === "submitted" ? "watch-provider" : "resume-operation";
   const reference = {
-    status: blockers.length ? "blocked" : "ready-for-review",
+    status: disposition(blockers),
     blockers,
-    evidence: [artifact.artifactDigest],
+    evidence: [artifact.artifactDigest, ...(publication ? [publication.phase] : [])],
     visual: prepared.world.expectedVisual,
+    next,
   };
   const accepted = await verifyManagedPublication(
     rpc,

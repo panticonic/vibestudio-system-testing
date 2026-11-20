@@ -1,3 +1,5 @@
+import type { PublicationNext } from "@workspace-skills/publish-preflight-bindings";
+
 type World = {
   id: string;
   goal: string;
@@ -13,6 +15,9 @@ type World = {
   approvalMismatch?: "provider" | "environment";
   deliveredPackage?: "without-html" | "changed-manifest";
   checkExisting?: boolean;
+  journalPhase?: "prepared" | "destination-ready" | "uploaded" | "submitted";
+  staleJournalArtifact?: true;
+  expectedNext?: PublicationNext;
 };
 
 export const managedPublicationWorlds: World[] = [
@@ -193,6 +198,7 @@ export const managedPublicationWorlds: World[] = [
     expectedBlockers: ["missing-publication"],
     expectedVisual: "Timeline",
     checkExisting: true,
+    expectedNext: "recover-receipt",
   },
   {
     id: "progress-and-audience-blocker",
@@ -211,7 +217,49 @@ export const managedPublicationWorlds: World[] = [
     expectedBlockers: ["missing-presentation", "missing-publication"],
     expectedVisual: "Checklist",
     checkExisting: true,
+    expectedNext: "hold-review",
   },
+  ...([
+    {
+      id: "resume-after-destination-setup",
+      title: "Library open day",
+      goal: "Use the last journaled phase to plan how to continue this preview after losing the previous response.",
+      journalPhase: "destination-ready",
+      expectedNext: "resume-operation",
+      expectedBlockers: ["awaiting-provider"],
+    },
+    {
+      id: "resume-after-upload",
+      title: "Campus walking map",
+      goal: "Recover the exact publication after a disconnected session. Identify the completed phase and what to do next without repeating completed work.",
+      journalPhase: "uploaded",
+      expectedNext: "resume-operation",
+      expectedBlockers: ["awaiting-provider"],
+    },
+    {
+      id: "watch-after-submission",
+      title: "Course registration calendar",
+      goal: "Recover publication progress after losing the response. Use the recorded deployment and explain what evidence is still needed.",
+      journalPhase: "submitted",
+      expectedNext: "watch-provider",
+      expectedBlockers: ["awaiting-provider"],
+    },
+    {
+      id: "hold-foreign-artifact-journal",
+      title: "Holiday opening times",
+      goal: "Check that the publication can be resumed for this exact package. Hold the operation if the receipt names a different artifact.",
+      journalPhase: "uploaded",
+      staleJournalArtifact: true,
+      expectedNext: "hold-review",
+      expectedBlockers: ["different-publication"],
+    },
+  ] satisfies Pick<World, "id" | "title" | "goal" | "journalPhase" | "staleJournalArtifact" | "expectedNext" | "expectedBlockers">[]).map((world): World => ({
+    ...world,
+    caption: "Schedule is shown in local time",
+    requiredCaption: "Schedule is shown in local time",
+    audience: "Readers planning a visit",
+    checkExisting: true,
+  })),
   {
     id: "preview-with-timezone-and-cutoff",
     title: "Application window",

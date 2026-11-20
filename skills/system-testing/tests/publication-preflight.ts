@@ -28,6 +28,13 @@ function makeCase(
     resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy(
       "inspect-publication-review-panel",
+      world.journalPhase ? [{
+        ruleId: "seed-disposable-publication-journal",
+        capability: { kind: "exact", key: "website.publish" },
+        resource: { kind: "prefix", prefix: "managed-publication-" },
+        tier: "critical",
+        decision: "once",
+      }] : [],
     ),
     workspaceRepoFixture: {
       kind: "publication-preflight-panel",

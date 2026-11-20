@@ -996,15 +996,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Checks real website packaging and panel reception without a model or deployment."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedPublication(input: PublicationInput): ReturnType<ManagedPublicationReceiver["qualifyManagedPublication"]> {
-    return await this.runHarnessUtility("teacher",`
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{ domain: "publication", operation: "preflightPublication" }], `
       import {rpc,vcs,panelTree,contextId as actualContextId} from "@workspace/runtime";
       import {prepareManagedPublication,qualifyManagedPublication} from "@workspace-skills/system-testing/publication-preflight-managed";
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Publication qualification belongs to another context");
       const panel=panelTree.get(input.panelId);
-      const prepared=await prepareManagedPublication(rpc,vcs,panel,input);
-      const utilityValue=await qualifyManagedPublication(rpc,vcs,panel,prepared);
-    `) as Awaited<ReturnType<ManagedPublicationReceiver["qualifyManagedPublication"]>>;
+      const review=await prepareManagedPublication(rpc,vcs,panel,input);
+      const assignedServices={websiteReadback:review.service};
+      const prepared={qualify:()=>qualifyManagedPublication(rpc,vcs,panel,review)};
+    `)) as Awaited<ReturnType<ManagedPublicationReceiver["qualifyManagedPublication"]>>;
   }
 
   @rpc({website:{kind:"closed",reason:"Runs one local PDF extraction assignment in its owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
