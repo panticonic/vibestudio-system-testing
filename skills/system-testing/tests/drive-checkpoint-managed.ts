@@ -15,13 +15,22 @@ const settings = {
   timeoutMs: 5 * 60_000,
   requiresUnits: ["skills/google-drive", "packages/google-workspace"],
 };
+const handoffSettings = {
+  ...settings,
+  requiresUnits: [
+    ...settings.requiresUnits,
+    "skills/scratch-handoff",
+    "skills/scratch-handoff-bindings",
+  ],
+};
 
 export const managedDriveCheckpointTests: TestCase[] =
   managedDriveCheckpointWorlds.map((world) => ({
-    ...settings,
+    ...(world.handoff ? handoffSettings : settings),
     name: `drive-checkpoint-live-${world.id}`,
-    description:
-      "Continue a bounded Drive feed and verify the durable checkpoint in a real workspace",
+    description: world.handoff
+      ? "Stage the retained Drive checkpoint and write disposition for the next shift"
+      : "Continue a bounded Drive feed and verify the durable checkpoint in a real workspace",
     prompt: world.goal,
     async orchestrate({ runner, signal }) {
       const started = Date.now();
@@ -65,39 +74,52 @@ export const managedDriveCheckpointTests: TestCase[] =
     },
   }));
 
-managedDriveCheckpointTests.push({
-  ...settings,
-  name: "drive-checkpoint-oracle-qualification",
-  description:
-    "Check full, unavailable and concurrently changed feeds without a model",
-  prompt: "Verify the observed Drive continuation and retained checkpoint.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks = [];
-    for (const { id } of managedDriveCheckpointWorlds) {
-      const run = await runner.runManagedDriveCheckpoint(id, true, signal);
-      if (run.kind !== "reference")
-        throw new Error("Drive qualification invoked a teacher");
-      checks.push({ caseId: id, ...run.result });
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { driveCheckpointQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["driveCheckpointQualification"] as
-      | Qualification[]
-      | undefined;
-    return {
-      passed:
-        checks?.length === managedDriveCheckpointWorlds.length &&
-        checks.every(
-          ({ verification, earlyRejected }) =>
-            verification.passed && earlyRejected,
-        ),
-      details: { checks },
-    };
-  },
-});
+function checkpointQualification(handoff: boolean): TestCase {
+  const worlds = managedDriveCheckpointWorlds.filter(
+    (world) => world.handoff === handoff,
+  );
+  return {
+    ...(handoff ? handoffSettings : settings),
+    name: handoff
+      ? "drive-checkpoint-handoff-qualification"
+      : "drive-checkpoint-oracle-qualification",
+    description: handoff
+      ? "Check the verified Drive checkpoint handoff in the live workspace"
+      : "Check full, unavailable and concurrently changed feeds without a model",
+    prompt: "Verify the observed Drive continuation and retained checkpoint.",
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const checks = [];
+      for (const { id } of worlds) {
+        const run = await runner.runManagedDriveCheckpoint(id, true, signal);
+        if (run.kind !== "reference")
+          throw new Error("Drive qualification invoked a teacher");
+        checks.push({ caseId: id, ...run.result });
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { driveCheckpointQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["driveCheckpointQualification"] as
+        | Qualification[]
+        | undefined;
+      return {
+        passed:
+          checks?.length === worlds.length &&
+          checks.every(
+            ({ verification, earlyRejected }) =>
+              verification.passed && earlyRejected,
+          ),
+        details: { checks },
+      };
+    },
+  };
+}
+
+managedDriveCheckpointTests.push(
+  checkpointQualification(false),
+  checkpointQualification(true),
+);

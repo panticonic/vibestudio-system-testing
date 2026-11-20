@@ -76,6 +76,7 @@ import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skil
 import type { AdventureReviewInput, ManagedAdventureReceiver, ProgrammedAdventureInput } from "@workspace-skills/system-testing/adventure-review-contract";
 import type { RegencyReviewInput, ManagedRegencyReceiver } from "@workspace-skills/system-testing/regency-review-contract";
 import type { DriveCheckpointInput, ManagedDriveCheckpointReceiver } from "@workspace-skills/system-testing/drive-checkpoint-contract";
+import { driveCheckpointHandoffWork, managedDriveCheckpointWorlds } from "@workspace-skills/system-testing/drive-checkpoint-worlds";
 import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
@@ -1808,47 +1809,60 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedAdventureReceiver["captureProgrammedAdventure"]>>;
   }
 
-  private driveCheckpointBindings(input: DriveCheckpointInput): string {
+  private driveCheckpointBindings(input: DriveCheckpointInput, handoff: boolean): string {
     return `
       import {contextId as actualContextId} from "@workspace/runtime";
       import {managedDriveCheckpointWorlds} from "@workspace-skills/system-testing/drive-checkpoint-worlds";
       import {prepareDriveCheckpoint} from "@workspace-skills/google-drive/live-drive-checkpoint";
+      ${handoff ? 'import {prepareDriveCheckpointHandoff} from "@workspace-skills/system-testing/drive-checkpoint-handoff-managed";' : ""}
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Drive checkpoint belongs to another context");
       const world=managedDriveCheckpointWorlds.find(item=>item.id===input.caseId);
       if(!world) throw new Error("Unknown assigned Drive checkpoint case");
-      const prepared=await prepareDriveCheckpoint(world);
+      const checkpoint=await prepareDriveCheckpoint(world);
+      const prepared=${handoff ? "await prepareDriveCheckpointHandoff(checkpoint,world.id)" : "checkpoint"};
       const assignedServices=prepared.services;
     `;
   }
 
   @rpc({website:{kind:"closed",reason:"Runs a caller-owned Drive checkpoint review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedDriveCheckpointTeacher(input: DriveCheckpointInput & {executorModel:string}): ReturnType<ManagedDriveCheckpointReceiver["runManagedDriveCheckpointTeacher"]> {
+    const handoff = managedDriveCheckpointWorlds.find(({ id }) => id === input.caseId)?.handoff === true;
     return await this.runHarnessUtility("teacher", runId => `
-      ${this.driveCheckpointBindings(input)}
+      ${this.driveCheckpointBindings(input, handoff)}
       let result;
       try {
-        ${domainTeacherCode({
+        ${handoff ? composedTeacherCode({
+          executorModel: input.executorModel,
+          workflowRequest: {
+            goal: "Review and hand off the assigned Drive checkpoint",
+            work: driveCheckpointHandoffWork.map(selector => ({ ...selector, input: { goal: "Review checkpoint evidence" } })),
+          },
+          requiredOrder: driveCheckpointHandoffWork.map(({ operation }) => operation),
+          requestCode: "prepared.request",
+          bindingCode: "",
+        }, runId) : domainTeacherCode({
           executorModel:input.executorModel,
           work:{kind:"domain",domain:"google",operation:"guideGoogleWorkspace",input:{goal:"Review the assigned checkpoint"}},
           inputCode:"prepared.request",
           bindingCode:"",
         },runId)}
         result={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
-      } finally { await prepared.close(); }
+      } finally { await checkpoint.close(); }
       const utilityValue=result;
     `) as Awaited<ReturnType<ManagedDriveCheckpointReceiver["runManagedDriveCheckpointTeacher"]>>;
   }
 
   @rpc({website:{kind:"closed",reason:"Checks the Drive transport and checkpoint readback without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedDriveCheckpoint(input: DriveCheckpointInput): ReturnType<ManagedDriveCheckpointReceiver["qualifyManagedDriveCheckpoint"]> {
+    const handoff = managedDriveCheckpointWorlds.find(({ id }) => id === input.caseId)?.handoff === true;
     return await this.runHarnessUtility("teacher", `
-      ${this.driveCheckpointBindings(input)}
+      ${this.driveCheckpointBindings(input, handoff)}
       let result;
       try {
-        ${domainTeacherQualificationCode([{kind:"domain",domain:"google",operation:"guideGoogleWorkspace"}], "")}
+        ${domainTeacherQualificationCode(handoff ? driveCheckpointHandoffWork : [{kind:"domain",domain:"google",operation:"guideGoogleWorkspace"}], "")}
         result=utilityValue;
-      } finally { await prepared.close(); }
+      } finally { await checkpoint.close(); }
       const utilityValue=result;
     `) as Awaited<ReturnType<ManagedDriveCheckpointReceiver["qualifyManagedDriveCheckpoint"]>>;
   }
