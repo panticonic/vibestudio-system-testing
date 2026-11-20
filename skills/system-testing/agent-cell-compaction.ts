@@ -102,7 +102,7 @@ function storageSample(value: unknown): StorageSample {
 
 /** Join the mission's channel receipt to the original stored result. */
 export async function readNativeTurnReceipt(
-  rpc: RpcClient,
+  rpc: Pick<RpcClient, "call">,
   input: {
     channelTarget: string;
     trajectoryTarget: string;
@@ -125,11 +125,12 @@ export async function readNativeTurnReceipt(
       after = row.id;
       const event = row.payload as AgenticEvent | undefined;
       if (event?.kind === "invocation.started") {
-        const native = event.payload.nativeSource;
+        const { nativeSource: native, name } =
+          event.payload as AgenticEvent<"invocation.started">["payload"];
         if (native?.operation.kind !== "direct-tool" || native.operation.callId !== callId)
           continue;
         if (invocationId || native.owner.runtimeId !== input.executorId ||
-            native.owner.channelId !== input.channelId || event.payload.name !== "eval" ||
+            native.owner.channelId !== input.channelId || name !== "eval" ||
             !event.causality?.invocationId)
           throw new Error(`Native turn ${input.turn} has a duplicate or foreign invocation`);
         invocationId = event.causality.invocationId;
