@@ -128,7 +128,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const candidates = rows.filter(row=>row.metadata["handle"] === handle || row.participantId === expected);
     if (!candidates.length) return {state:"absent",participantId:null};
     const [match] = candidates;
-    return candidates.length === 1 && match?.participantId === expected &&
+    return candidates.length === 1 && match && match.participantId === expected &&
       match.metadata["handle"] === handle && match.metadata["type"] === "agent"
       ? {state:"member",participantId:match.participantId} : {state:"conflict",participantId:null};
   }
@@ -263,7 +263,9 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
               !historyShape(history,verified.artifact,result) || artifactReads.length !== 1 ||
               !isDeepStrictEqual(artifactReads[0]!.value,verified.artifact) || (await ports.read(lane)).through !== plan.through) return null;
           const content = artifactText(plan,history);
-          if (bytes(content) > maximum) return null;
+          const current = await ports.status();
+          if (bytes(content) > maximum || current.mainEventId !== before.mainEventId ||
+              !isDeepStrictEqual(current.workingHead,before.workingHead)) return null;
           const resultReceipt = await stage.stage(content);
           if (!resultReceipt) return null;
           handoff = {...resultReceipt,sha256:sha256HexSyncText(content)};

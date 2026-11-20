@@ -117,7 +117,7 @@ import {
   openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
-  dictationHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3740,6 +3740,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     }
     const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
     const dictationHandoff = dictationHandoffWorlds.some(({ id }) => id === input.caseId);
+    const specialistHandoff = specialistHandoffWorlds.some(({ id }) => id === input.caseId);
     const providerHandoff = providerHandoffWorlds.some(({ id }) => id === input.caseId);
     const problemReport = openProblemReportWorlds.some(({ id }) => id === input.caseId);
     const buildIncident = openBuildIncidentWorlds.find(({ id }) => id === input.caseId);
@@ -3768,6 +3769,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
              profile:(source,ref)=>profileBuild(source,{ref,verifyCache:true}),
              metadata:key=>rpc.call("main",mainRpcMethods["build.getBuildMetadata"],[key]),
              readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+      : specialistHandoff
+      ? `import {prepareOpenSpecialistHandoff} from "@workspace-skills/system-testing/open-goal-specialist-managed";
+         const prepared=await prepareOpenSpecialistHandoff(input);`
       : providerHandoff
       ? `import {prepareOpenProviderHandoff} from "@workspace-skills/system-testing/open-goal-provider-handoff-managed";
          const prepared=await prepareOpenProviderHandoff(input);`
