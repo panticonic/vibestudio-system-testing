@@ -11,6 +11,20 @@ const available = { state: "available", categories } as const;
 const blocked = { state: "blocked", categories } as const;
 const partial = { phase: "partial", resumable: true, progress } as const;
 
+const approvedTotals = [
+  { category: "bookmarks", total: 1 },
+  { category: "history", total: 0 },
+] as const;
+const approvedPreview = {
+  status: "previewed",
+  totals: approvedTotals,
+  warningCount: 0,
+} as const;
+const importedProgress = [
+  { category: "bookmarks", stored: 1, skipped: 0, errors: 0 },
+  { category: "history", stored: 0, skipped: 0, errors: 0 },
+] as const;
+
 export const managedBrowserImportWorlds = [
   {
     id: "preview-with-zero-history",
@@ -81,5 +95,47 @@ export const managedBrowserImportWorlds = [
     job: { phase: "cancelled", resumable: true, progress },
     reads: ["history"],
     expected: { next: "keep-results", source: null, totals: [], progress },
+  },
+  {
+    id: "execute-approved-public-source",
+    goal: "Import my approved Firefox bookmarks and history selection after confirming the preview. Report the counts stored by the completed operation.",
+    kind: "execute",
+    categories,
+    source: available,
+    dropSourceBeforePreview: false,
+    preview: approvedPreview,
+    job: { phase: "complete", resumable: false, progress: importedProgress },
+    execution: {
+      approvedPreview,
+      start: "started",
+      bookmarks: [
+        { title: "Release guide", url: "https://migration.example.test/guide" },
+      ],
+    },
+    reads: ["source", "preview", "start", "history"],
+    expected: {
+      next: "keep-results",
+      source: available,
+      totals: approvedTotals,
+      progress: importedProgress,
+    },
+  },
+  {
+    id: "execute-import-held-for-preview-drift",
+    goal: "Run the approved migration only if the source still matches the preview I approved. Explain what changed before requesting a fresh approval.",
+    kind: "execute",
+    categories,
+    source: available,
+    dropSourceBeforePreview: false,
+    preview: { ...approvedPreview, totals },
+    job: null,
+    execution: { approvedPreview, start: null, bookmarks: [] },
+    reads: ["source", "preview"],
+    expected: {
+      next: "use-inspector",
+      source: available,
+      totals,
+      progress: [],
+    },
   },
 ] as const;
