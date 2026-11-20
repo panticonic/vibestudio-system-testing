@@ -69,7 +69,10 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
   const entries = new Map(world.pages.map(page => [url(page.id), { page, index: words(`${page.title} ${page.summary}`) }]));
   const discovered = new Set<string>();
   const pages = new Map<string, Page>();
-  const searches: { queries: string[]; urls: string[] }[] = [];
+  type SearchRows = { query: string; text: string; sources: { url: string; title: string; snippet: string }[] }[];
+  const searches: { queries: string[]; urls: string[]; result: SearchRows }[] = [];
+  const fetchReceipts: { args: [Parameters<NativeWeb["fetch"]>[0]]; result: Page }[] = [];
+  const cacheReceipts: { args: [Parameters<NativeWeb["read"]>[0]]; result: Read }[] = [];
   const attempted: { requested: string; url: string | null; digest: string | null }[] = [];
   const reads: { digest: string; offset: number; bytes: number }[] = [];
   let readCount = 0;
@@ -90,7 +93,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       });
       return { query, text: sources.map(source => `${source.title}. ${source.snippet}`).join("\n"), sources };
     });
-    searches.push({ queries: [...queries], urls: rows.flatMap(row => row.sources.map(source => source.url)) });
+    searches.push({ queries: [...queries], urls: rows.flatMap(row => row.sources.map(source => source.url)), result: rows });
     return rows;
   }
   const services = {
@@ -111,6 +114,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
         pages.set(page.digest, page);
         effect.url = page.url;
         effect.digest = page.digest;
+        fetchReceipts.push({ args: [options], result: page });
         return page;
       },
       async read(input: Parameters<NativeWeb["read"]>[0]) {
@@ -120,6 +124,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
           throw new Error("Read only a bounded range of observed owned evidence");
         const actual = await ports.web.read(input);
         reads.push({ digest: actual.digest, offset: actual.offset, bytes: actual.bytes });
+        cacheReceipts.push({ args: [input], result: actual });
         return actual;
       },
     },
@@ -165,7 +170,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     };
     return { contextId: input.contextId, caseId: input.caseId, goal: world!.goal, checks,
       passed: Object.values(checks).every(Boolean), origin: endpoint.origin, searches, attempted, reads,
-      fetched: [...pages.values()], readback, document };
+      fetched: [...pages.values()], fetchReceipts, cacheReceipts, readback, document };
   }
 
   async function qualify() {

@@ -171,7 +171,7 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
   }
   const hash = sha256HexSyncText;
   const reads: { path: string; version: string }[] = [];
-  const attempts: { path: string; version: string; status: string }[] = [];
+  const attempts: { path: string; version: string; text: string; status: string }[] = [];
   let changedVersion: string | undefined;
   let listed = false;
   let revising = false;
@@ -195,7 +195,7 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
         return { path, version, text };
       },
       async revise(path: string, version: string, text: string) {
-        const attempt = { path, version, status: "unavailable" };
+        const attempt = { path, version, text, status: "unavailable" };
         attempts.push(attempt);
         if (revising || path !== world.destination || typeof text !== "string" || text.length > 10_000)
           return { status: attempt.status };
