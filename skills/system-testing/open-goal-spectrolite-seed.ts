@@ -7,7 +7,7 @@ export async function seedOpenSpectroliteGoal({ contextId, caseId }: { contextId
   return seedSpectroliteScene(contextId, world);
 }
 
-export async function seedSpectroliteScene(contextId: string, world: OpenSpectroliteWorld) {
+export async function seedSpectroliteScene(contextId: string, world: Pick<OpenSpectroliteWorld, "openPath" | "files"> & { draft?: Record<string, string | null> }) {
   const { workingHead } = await vcs.status({ contextId });
   const repository = await vcs.resolveRepository({ state: workingHead, repoPath: openSpectroliteVault });
   if (!repository) throw new Error("The owned Spectrolite vault is absent");
@@ -27,6 +27,7 @@ export async function seedSpectroliteScene(contextId: string, world: OpenSpectro
     const changes = await Promise.all(Object.entries(world.draft).map(async ([path, text]) => {
       const file = await vcs.readFile({ state, repositoryId, file: { kind: "path", path } });
       if (!file || file.content.kind !== "text") throw new Error(`Missing committed source ${path}`);
+      if (text === null) return {kind:"file-delete" as const,repositoryId,fileId:file.fileId};
       return { kind: "text-edit" as const, repositoryId, fileId: file.fileId,
         edits: [{ start: 0, end: file.content.text.length, text }] };
     }));

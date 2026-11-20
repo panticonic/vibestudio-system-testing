@@ -1,3 +1,4 @@
+import { openVaultKnowledgeWorlds } from "../open-goal-vault-knowledge-worlds.js";
 import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
 import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
@@ -91,7 +92,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds];
@@ -135,6 +136,11 @@ const templateSettings = {
   spectrolite: {
     requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-spectrolite"),
+    resources: [PANEL_AUTOMATION_RESOURCE],
+  },
+  vaultWork: {
+    requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-vault-knowledge"),
     resources: [PANEL_AUTOMATION_RESOURCE],
   },
   google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
@@ -202,6 +208,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
+    world.kind === "vaultWork" ? "Resolve long-form knowledge work against the current native vault" :
     world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
     world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
     world.kind === "gmail" ? "Recover Gmail compose and delivery state from retained records and current provider readback" :

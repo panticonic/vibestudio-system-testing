@@ -115,7 +115,7 @@ import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goa
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
-  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
+  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
@@ -3681,6 +3681,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
+    const vaultKnowledge = openVaultKnowledgeWorlds.find(({ id }) => id === input.caseId);
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
     const personal = openGoalPersonalWorlds.find(({ id }) => id === input.caseId);
     const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
@@ -3802,6 +3803,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
            if (input.news?.contextId!==input.contextId || input.news.caseId!==input.caseId)
              throw new Error("News goal needs its owned participant");
            const prepared=await prepareOpenGoalNews(input.news,${JSON.stringify(news)});`
+        : vaultKnowledge
+          ? `import {prepareVaultKnowledge} from "@workspace-skills/spectrolite-review-fixtures/knowledge-managed";
+             if (!input.panelId) throw new Error("Open vault knowledge needs its owned renderer");
+             const prepared=await prepareVaultKnowledge(input,${JSON.stringify(vaultKnowledge)});`
         : spectrolite
           ? `import {prepareOpenSpectroliteGoal} from "@workspace-skills/spectrolite-review-fixtures/open-goal";
              const prepared=await prepareOpenSpectroliteGoal(input,${JSON.stringify(spectrolite)});`

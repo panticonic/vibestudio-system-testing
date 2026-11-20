@@ -48,6 +48,7 @@ import { openGoalPanelRecoveryWorlds } from "./open-goal-panel-recovery-worlds.j
 import { openGoalOwnedPreviewWorlds } from "./open-goal-owned-preview-worlds.js";
 import { seedOpenPublicationGoal, seedPublicationRevision } from "./open-goal-publication-managed.js";
 import { openSpectrolitePanel, openSpectroliteVault } from "./open-goal-spectrolite-worlds.js";
+import { openVaultKnowledgeWorlds } from "./open-goal-vault-knowledge-worlds.js";
 import { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
 import { seedOpenSpectroliteGoal, seedSpectroliteScene } from "./open-goal-spectrolite-seed.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
@@ -2298,8 +2299,10 @@ export class HeadlessRunner {
         { ...request, contextId, panelId },
       ], { signal });
       const correction = openGoalPdfVaultWorlds.find(({ id }) => id === caseId);
-      if (!correction && !spectroliteGoalWorlds.some(({ id }) => id === caseId)) return await execute();
+      const knowledge = openVaultKnowledgeWorlds.find(({ id }) => id === caseId);
+      if (!correction && !knowledge && !spectroliteGoalWorlds.some(({ id }) => id === caseId)) return await execute();
       const { openPath } = correction ? await seedSpectroliteScene(contextId, correction.vault)
+        : knowledge ? await seedSpectroliteScene(contextId, knowledge)
         : await seedOpenSpectroliteGoal({ contextId, caseId });
       const panel = await this.openPanelClient(openSpectrolitePanel, {
         contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
