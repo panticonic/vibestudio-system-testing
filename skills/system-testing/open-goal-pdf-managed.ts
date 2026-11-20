@@ -171,7 +171,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
         const page = await extensions.invoke(extensionName, "renderPage", [
           source.bytes, { pageNumber, scale: 1 },
         ]) as RenderedPage;
-        const raster = await inspectPdfRaster(page.data);
+        const raster = inspectPdfRaster(page.data);
         if (page.pageNumber !== pageNumber || page.width !== raster.width || page.height !== raster.height ||
             page.mimeType !== "image/png" || !page.artifactId || page.digest !== raster.imageDigest)
           throw new Error("The rendered PDF receipt does not match its page or retained PNG.");
@@ -213,7 +213,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const [documents, after] = await Promise.all([readDocuments(), vcs.status({ contextId })]);
     const retained = await Promise.all([...renders.values()].map(async receipt => {
       const artifact = await extensions.invoke(extensionName, "readArtifact", [receipt.artifactId]) as RasterArtifact;
-      const raster = await inspectPdfRaster(artifact.data);
+      const raster = inspectPdfRaster(artifact.data);
       return { ...raster, artifactId: artifact.artifactId, mimeType: artifact.mimeType,
         digest: artifact.digest, pageNumber: receipt.pageNumber };
     }));
