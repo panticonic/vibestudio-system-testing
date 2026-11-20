@@ -3,6 +3,7 @@ import type { WorkspaceRepoFixturePort } from "./workspace-repo-fixture.js";
 import {
   expectedIntegratedFile,
   workspaceIntegrationSeeds,
+  type IntegrationFileSeed,
 } from "./vcs-integration-worlds.js";
 import type { IntegrationOracleFixture } from "./vcs-integration-oracle.js";
 
@@ -16,6 +17,11 @@ type FixtureClient = Pick<
   | "readFile"
   | "compare"
 >;
+export type WorkspaceIntegrationAssignment = {
+  files: readonly IntegrationFileSeed[];
+  companion: { title: string; window: "open" | "pending" | "closed"; note: string };
+};
+
 /** Owned real semantic contexts; existing fixture lifecycle authority, without pushing fixture source to main. */
 export async function prepareWorkspaceIntegration(
   port: Pick<WorkspaceRepoFixturePort, "createContext" | "destroyContext"> & {
@@ -26,6 +32,7 @@ export async function prepareWorkspaceIntegration(
   },
   seed: string,
   worldId: string,
+  assignment?: WorkspaceIntegrationAssignment,
 ) {
   const contexts: string[] = [];
   const cleanup = async () => {
@@ -52,10 +59,15 @@ export async function prepareWorkspaceIntegration(
     const suffix = seed.replace(/[^a-z0-9]/giu, "").toLowerCase();
     if (!suffix) throw new Error("Supply a nonempty fixture seed");
     const repoPath = `projects/integration-${suffix}-${crypto.randomUUID()}`;
-    const seeds = workspaceIntegrationSeeds(worldId, seed).map((file) => ({
+    const seeds = (assignment?.files ?? workspaceIntegrationSeeds(worldId, seed)).map((file) => ({
       ...file,
       text: JSON.stringify(file.baseline) + "\n",
     }));
+    const companionPath = repoPath + "-approval";
+    const companionFile = "review-window.json";
+    const companionText = assignment ? JSON.stringify(assignment.companion) + "\n" : null;
+    const canaryFile = "prior-signoff.json";
+    const canaryText = JSON.stringify({ title: "Prior signoff", class: "retained", active: false }) + "\n";
     const created = await port.vcs.edit({
       contextId: target.contextId,
       commandId: crypto.randomUUID(),
@@ -71,6 +83,14 @@ export async function prepareWorkspaceIntegration(
             mode: 0o644,
           })),
         },
+        ...(companionText === null ? [] : [{
+          kind: "repository-create" as const,
+          repoPath: companionPath,
+          files: [
+            { path: companionFile, content: { kind: "text" as const, text: companionText }, mode: 0o644 },
+            { path: canaryFile, content: { kind: "text" as const, text: canaryText }, mode: 0o644 },
+          ],
+        }]),
       ],
     });
     const committed = await port.vcs.commit({
@@ -85,6 +105,11 @@ export async function prepareWorkspaceIntegration(
     });
     if (!repository)
       throw new Error("Created repository absent from local baseline");
+    const companion = assignment && await port.vcs.resolveRepository({
+      state: committed.event,
+      repoPath: companionPath,
+    });
+    if (assignment && !companion) throw new Error("Protected approval repository is absent");
     const files = await Promise.all(
       seeds.map(async (seed) => {
         const file = await port.vcs.readFile({
@@ -181,6 +206,10 @@ export async function prepareWorkspaceIntegration(
       ownerEntityId: sourceContext.ownerEntityId,
       initialComparison: comparison,
       repoPath,
+      ...(companion ? { companion: {
+        repositoryId: companion.repositoryId, repoPath: companionPath,
+        path: companionFile, canaryPath: canaryFile, canaryText,
+      } } : {}),
       files: files.map(({ path }) => ({
         repositoryId: repository.repositoryId,
         path,
