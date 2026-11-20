@@ -2,6 +2,25 @@ const example = "https://example.com/";
 const help = "https://www.iana.org/help/example-domains";
 const registry = "https://www.iana.org/assignments/special-use-domain-names";
 
+export const managedResearchIntakeWorlds = [
+  {
+    id: "documentation-evidence",
+    goal: "Review the assigned Example Domain page for the stated purpose of the domain. Cite the original wording.",
+    sources: [example],
+    check: "research",
+    disposition: "supported",
+    quotePattern: "documentation examples",
+  },
+  {
+    id: "different-evidence-boundaries",
+    goal: "Compare the purpose given on the Example Domain page with IANA's registration-availability rule. Decide whether these two passages make comparable claims about the same measure.",
+    sources: [example, help],
+    check: "comparison",
+    disposition: "incomparable",
+    quotePattern: null,
+  },
+] as const;
+
 export const managedWebBriefWorlds = [
   {
     id: "documentation-and-reservations",

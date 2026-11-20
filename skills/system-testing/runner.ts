@@ -1905,6 +1905,19 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
+  async runManagedResearchIntake(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedWebBriefMethods.qualifyManagedResearchIntake, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedWebBriefMethods.runManagedResearchIntakeTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
 
   async runManagedArchitectureBoundary(caseId: string, qualification: boolean, signal: AbortSignal) {
     const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);

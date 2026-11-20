@@ -4,7 +4,10 @@ import { web } from "@workspace/runtime";
 import { bindAssignedResearch } from "@workspace-skills/web-research-bindings";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
-import { managedWebBriefWorlds } from "./web-brief-worlds.js";
+import {
+  managedResearchIntakeWorlds,
+  managedWebBriefWorlds,
+} from "./web-brief-worlds.js";
 
 type Services = ReturnType<typeof bindAssignedResearch>["services"];
 type Page = Awaited<ReturnType<Services["web"]["fetch"]>>;
@@ -223,6 +226,191 @@ export function prepareManagedWebBrief(contextId: string, caseId: string) {
 
 type Prepared = ReturnType<typeof prepareManagedWebBrief>;
 type Input = { contextId: string; caseId: string };
+
+export function prepareManagedResearchIntake(
+  contextId: string,
+  caseId: string,
+) {
+  const world = managedResearchIntakeWorlds.find(({ id }) => id === caseId);
+  if (!world) throw new Error("Unknown assigned research intake");
+  const request = { goal: world.goal, operationId: crypto.randomUUID() };
+  const { services } = bindAssignedResearch({
+    goal: world.goal,
+    sources: [...world.sources],
+    retrievedAt: Date.now(),
+  });
+  let started = false;
+  let projection: Awaited<ReturnType<typeof read>> | undefined;
+  async function collect() {
+    const pages = [];
+    for (const requestedUrl of world!.sources) {
+      const page = await services.web.fetch({
+        url: requestedUrl,
+        session: "public",
+      });
+      const entire = await web.read({
+        digest: page.digest,
+        offset: 0,
+        limit: page.size,
+      });
+      if (
+        page.session !== "public" ||
+        entire.offset !== 0 ||
+        entire.bytes !== page.size ||
+        entire.nextOffset !== page.size ||
+        !entire.text.startsWith(page.head) ||
+        sha256HexSyncText(entire.text) !== page.digest
+      )
+        throw new Error(
+          "Research source did not match the actual cached bytes",
+        );
+      const reads =
+        page.truncated && page.head.length < 9000
+          ? [
+              await services.web.read({
+                digest: page.digest,
+                offset: page.headBytes,
+                limit: 9000 - page.head.length,
+              }),
+            ]
+          : [];
+      pages.push({
+        id: `source-${pages.length + 1}`,
+        requestedUrl,
+        finalUrl: page.url,
+        title: page.title,
+        authority: "primary",
+        outcome: "fetched",
+        session: page.session,
+        browserApproved: false,
+        digest: page.digest,
+        size: page.size,
+        head: page.head,
+        headBytes: page.headBytes,
+        truncated: page.truncated,
+        reads,
+        publicationDate: null,
+        eventDate: null,
+      });
+    }
+    return {
+      goal: world!.goal,
+      checks: [world!.check],
+      suppliedUrls: [...world!.sources],
+      search: [],
+      pages,
+      integration: null,
+    };
+  }
+  async function read(
+    operationId: string,
+  ): Promise<Awaited<ReturnType<typeof collect>>> {
+    if (operationId !== request.operationId || started)
+      throw new Error("Read only the assigned research evidence once");
+    started = true;
+    projection = await collect();
+    return structuredClone(projection);
+  }
+  type IntakeReport = {
+    findings?: {
+      check: string;
+      disposition: string;
+      evidenceIds: string[];
+      citations: {
+        sourceId: string;
+        url: string;
+        quote: string;
+        date: string | null;
+      }[];
+      detail: string;
+    }[];
+  };
+  function verify(report: IntakeReport | null) {
+    const finding = report?.findings?.[0];
+    const first = projection?.pages[0];
+    const cite = finding?.citations?.[0];
+    const visible = collapse(first?.head + (first?.reads[0]?.text ?? ""));
+    const checks = {
+      exactAcquisition:
+        projection?.pages.length === world!.sources.length &&
+        isDeepStrictEqual(
+          projection.pages.map(({ requestedUrl }) => requestedUrl),
+          world!.sources,
+        ),
+      evidenceDisposition:
+        report?.findings?.length === 1 &&
+        finding?.check === world!.check &&
+        finding.disposition === world!.disposition &&
+        typeof finding.detail === "string" &&
+        Boolean(finding.detail.trim()) &&
+        isDeepStrictEqual(
+          finding.evidenceIds,
+          projection?.pages.map(({ id }) => id),
+        ),
+      exactCitation: world!.quotePattern
+        ? finding?.citations?.length === 1 &&
+          cite?.sourceId === first?.id &&
+          cite?.url === first?.finalUrl &&
+          cite?.date === null &&
+          typeof cite.quote === "string" &&
+          visible.includes(collapse(cite.quote)) &&
+          collapse(cite.quote).toLowerCase().includes(world!.quotePattern)
+        : finding?.citations?.length === 0,
+    };
+    return {
+      contextId,
+      caseId,
+      request,
+      projection,
+      checks,
+      passed: Object.values(checks).every(Boolean),
+    };
+  }
+  return {
+    request,
+    services: { assignedResearchIntake: { read } },
+    verify,
+    async qualify() {
+      const rejectedWrongOperation = await read("foreign-operation").then(
+        () => false,
+        () => true,
+      );
+      const receipts = await read(request.operationId);
+      const first = receipts.pages[0]!;
+      const text = collapse(first.head + (first.reads[0]?.text ?? ""));
+      const start = world.quotePattern
+        ? text.toLowerCase().indexOf(world.quotePattern)
+        : -1;
+      const citations =
+        world.quotePattern && start >= 0
+          ? [
+              {
+                sourceId: first.id,
+                url: first.finalUrl,
+                quote: text.slice(start, start + world.quotePattern.length),
+                date: null,
+              },
+            ]
+          : [];
+      return {
+        verification: verify({
+          findings: [
+            {
+              check: world.check,
+              disposition: world.disposition,
+              evidenceIds: receipts.pages.map(({ id }) => id),
+              citations,
+              detail: world.goal,
+            },
+          ],
+        }),
+        rejectedWrongOperation,
+      };
+    },
+  };
+}
+
+type Intake = ReturnType<typeof prepareManagedResearchIntake>;
 export interface ManagedWebBriefReceiver {
   runManagedWebBriefTeacher(input: Input & { executorModel: string }): Promise<{
     contextId: string;
@@ -230,9 +418,19 @@ export interface ManagedWebBriefReceiver {
     verification: Awaited<ReturnType<Prepared["verify"]>>;
   }>;
   qualifyManagedWebBrief(input: Input): ReturnType<Prepared["qualify"]>;
+  runManagedResearchIntakeTeacher(
+    input: Input & { executorModel: string },
+  ): Promise<{
+    contextId: string;
+    teacher: PanelTeacherResult;
+    verification: ReturnType<Intake["verify"]>;
+  }>;
+  qualifyManagedResearchIntake(input: Input): ReturnType<Intake["qualify"]>;
 }
 export const managedWebBriefMethods =
   createReceiverRpcMethods<ManagedWebBriefReceiver>([
     "runManagedWebBriefTeacher",
     "qualifyManagedWebBrief",
+    "runManagedResearchIntakeTeacher",
+    "qualifyManagedResearchIntake",
   ]);

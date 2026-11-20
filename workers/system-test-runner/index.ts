@@ -172,6 +172,7 @@ const managedDomainWork = {
   GitBridgeReview: {kind:"domain",domain:"gitBridge",operation:"reviewGitBridge",input:{goal:"Review the assigned Git Bridge repository"}},
   VcsDelivery: {kind:"domain",domain:"vcsDelivery",operation:"reviewVcsDelivery",input:{goal:"Review the assigned semantic VCS delivery"}},
   WebBrief: {kind:"domain",domain:"webResearch",operation:"writeAssignedBrief",input:{goal:"Write the assigned web brief"}},
+  ResearchIntake: {kind:"domain",domain:"research",operation:"reviewLiveResearchIntake",input:{goal:"Review the assigned public evidence"}},
   ArchitectureBoundary: {kind:"domain",domain:"architecture",operation:"reviewArchitectureBoundary",input:{goal:"Review the assigned architecture boundary"}},
   ProblemDraft: {kind:"domain",domain:"problems",operation:"saveProblemDraft",input:{goal:"Save the assigned local report"}},
   ClientAdmission: {kind:"domain",domain:"clientDevelopment",operation:"reviewClientAdmission",input:{goal:"Review the assigned System client"}},
@@ -2991,13 +2992,31 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     )) as Awaited<ReturnType<ManagedWebBriefReceiver["qualifyManagedWebBrief"]>>;
   }
 
-  private managedWebBriefBindings(input: {contextId:string;caseId:string}): string {
+  @rpc({website:{kind:"closed",reason:"Reviews receipts from assigned public evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedResearchIntakeTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedWebBriefReceiver["runManagedResearchIntakeTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,work:managedDomainWork.ResearchIntake,
+      inputCode:"prepared.request",bindingCode:this.managedWebBriefBindings(input,true),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedWebBriefReceiver["runManagedResearchIntakeTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies assigned research receipt reads without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedResearchIntake(input: {contextId:string;caseId:string}): ReturnType<ManagedWebBriefReceiver["qualifyManagedResearchIntake"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [managedDomainWork.ResearchIntake],this.managedWebBriefBindings(input,true),
+    )) as Awaited<ReturnType<ManagedWebBriefReceiver["qualifyManagedResearchIntake"]>>;
+  }
+
+  private managedWebBriefBindings(input: {contextId:string;caseId:string}, intake=false): string {
+    const prepare=intake?"prepareManagedResearchIntake":"prepareManagedWebBrief";
     return `
       import {contextId as actualContextId} from "@workspace/runtime";
-      import {prepareManagedWebBrief} from "@workspace-skills/system-testing/web-brief-managed";
+      import {${prepare}} from "@workspace-skills/system-testing/web-brief-managed";
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Web brief belongs to another context");
-      const prepared=prepareManagedWebBrief(actualContextId,input.caseId);
+      const prepared=${prepare}(actualContextId,input.caseId);
       const assignedServices=prepared.services;
     `;
   }

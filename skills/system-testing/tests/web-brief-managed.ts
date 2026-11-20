@@ -1,6 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
-import { managedWebBriefWorlds } from "../web-brief-worlds.js";
+import {
+  managedResearchIntakeWorlds,
+  managedWebBriefWorlds,
+} from "../web-brief-worlds.js";
 
 type Teacher = Awaited<
   ReturnType<ManagedWebBriefReceiver["runManagedWebBriefTeacher"]>
@@ -14,6 +17,10 @@ const settings = {
   validation: "harness" as const,
   timeoutMs: 6 * 60_000,
   requiresUnits: ["skills/web-research"],
+};
+const intakeSettings = {
+  ...settings,
+  requiresUnits: ["skills/web-research", "skills/research-intake"],
 };
 
 export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
@@ -94,6 +101,99 @@ managedWebBriefTests.push({
             rejectedForeignDigest,
         ),
       details: { checks },
+    };
+  },
+});
+
+type IntakeTeacher = Awaited<
+  ReturnType<ManagedWebBriefReceiver["runManagedResearchIntakeTeacher"]>
+>;
+type IntakeCheck = Awaited<
+  ReturnType<ManagedWebBriefReceiver["qualifyManagedResearchIntake"]>
+>;
+managedWebBriefTests.push(
+  ...managedResearchIntakeWorlds.map(
+    (world): TestCase => ({
+      ...intakeSettings,
+      name: `research-intake-live-${world.id}`,
+      description:
+        "Review acquired public research evidence from verified cache receipts",
+      prompt: world.goal,
+      async orchestrate({ runner, signal }) {
+        const started = Date.now();
+        const run = await runner.runManagedResearchIntake(
+          world.id,
+          false,
+          signal,
+        );
+        if (run.kind !== "teacher")
+          throw new Error("Expected a live research intake capture");
+        const { contextId, teacher, verification } = run.result;
+        return {
+          messages: [],
+          duration: Date.now() - started,
+          provenance: {
+            contextId,
+            channelId: null,
+            branchId: null,
+            agentEntityId: null,
+            agentTargetId: null,
+          },
+          diagnostics: {
+            natlangTeacher: teacher,
+            managedResearchIntake: verification,
+          },
+        };
+      },
+      validate(result) {
+        const capture = result.diagnostics?.natlangTeacher as
+          | IntakeTeacher["teacher"]
+          | undefined;
+        const verification = result.diagnostics?.managedResearchIntake as
+          | IntakeTeacher["verification"]
+          | undefined;
+        return {
+          passed:
+            capture?.trainingEligible === true && verification?.passed === true,
+          details: verification?.checks,
+        };
+      },
+    }),
+  ),
+);
+managedWebBriefTests.push({
+  ...intakeSettings,
+  name: "research-intake-oracle-qualification",
+  description:
+    "Qualify assigned live research receipts and scoped cache reads with no model",
+  prompt: "Check the live source receipts before research interpretation.",
+  async orchestrate({ runner, signal }) {
+    const started = Date.now();
+    const checks: IntakeCheck[] = [];
+    for (const { id } of managedResearchIntakeWorlds) {
+      const run = await runner.runManagedResearchIntake(id, true, signal);
+      if (run.kind !== "reference")
+        throw new Error("Research intake qualification invoked a teacher");
+      checks.push(run.result);
+    }
+    return {
+      messages: [],
+      duration: Date.now() - started,
+      diagnostics: { researchIntakeQualification: checks },
+    };
+  },
+  validate(result) {
+    const checks = result.diagnostics?.researchIntakeQualification as
+      | IntakeCheck[]
+      | undefined;
+    return {
+      passed:
+        checks?.length === managedResearchIntakeWorlds.length &&
+        checks.every(
+          ({ verification, rejectedWrongOperation }) =>
+            verification.passed && rejectedWrongOperation,
+        ),
+      details: checks?.map(({ verification }) => verification.checks),
     };
   },
 });
