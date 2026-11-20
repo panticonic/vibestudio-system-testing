@@ -106,6 +106,7 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
+import { newsGoalWorlds, openGoalGoogleWorlds, spectroliteGoalWorlds } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
   createMainRpcCaller,
@@ -3665,24 +3666,44 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
+    const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
+    const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
+    const prepare = google
+      ? `import {prepareOpenGoalDrive} from "@workspace-skills/google-drive/open-goal-drive";
+         const prepared=await prepareOpenGoalDrive(input,${JSON.stringify(google)});`
+      : news
+        ? `import {prepareOpenGoalNews} from "@workspace/news-live-evidence/open-goal";
+           if (input.news?.contextId!==input.contextId || input.news.caseId!==input.caseId)
+             throw new Error("News goal needs its owned participant");
+           const prepared=await prepareOpenGoalNews(input.news,${JSON.stringify(news)});`
+        : spectrolite
+          ? `import {prepareOpenSpectroliteGoal} from "@workspace-skills/spectrolite-review-fixtures/open-goal";
+             const prepared=await prepareOpenSpectroliteGoal(input,${JSON.stringify(spectrolite)});`
+          : `import {prepareOpenGoal} from "@workspace-skills/system-testing/open-goal-managed";
+             const prepared=await prepareOpenGoal(input);`;
     const bindingCode = `
         import {contextId as actualContextId} from "@workspace/runtime";
-        import {prepareOpenGoal} from "@workspace-skills/system-testing/open-goal-managed";
         const input=${JSON.stringify(input)};
         if (input.contextId!==actualContextId) throw new Error("User goal belongs to another context");
-        const prepared=await prepareOpenGoal(input);
+        ${prepare}
         const assignedServices=prepared.services;
     `;
     if (input.qualification) return await this.runHarnessUtility("teacher", `
       ${bindingCode}
       if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
-      const utilityValue={teacher:null,verification:await prepared.qualify()};
+      let utilityValue;
+      try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
+      finally { await prepared.close?.(); }
     `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-    return await this.runHarnessUtility("teacher", runId => `${openGoalTeacherCode({
-      executorModel: input.executorModel,
-      bindingCode,
-    }, runId)}
-      utilityValue={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    return await this.runHarnessUtility("teacher", runId => `
+      ${bindingCode}
+      let result;
+      try {
+        ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "" }, runId)}
+        result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+      } finally { await prepared.close?.(); }
+      const utilityValue=result;
     `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
   }
 

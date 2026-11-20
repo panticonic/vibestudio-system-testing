@@ -68,3 +68,25 @@ it("retains a genuine no-match receipt and rejects an invented success", async (
   } });
   expect(forged.checks.checkedSuiteReceipt).toBe(false);
 });
+
+it("keeps the oracle's filter private while enforcing the workspace's execution grant", async () => {
+  const world = suiteGoalWorlds[1]!;
+  const prepared = prepareOpenGoalSuite({ contextId: "owned", caseId: world.id }, world);
+  const { goalSuite, testSuitePlanRead, testSuiteVerificationRun } = prepared.services;
+  await goalSuite.discover();
+  const choice = world.expected.choice;
+  expect(await goalSuite.prepare({ ...choice, routeId: "adventure" })).toBeNull();
+  expect(await goalSuite.prepare({ ...choice, file: "other.test.ts" })).toBeNull();
+  const otherFilter = { ...choice, testName: "another allowed test" };
+  const request = await goalSuite.prepare(otherFilter);
+  expect(request?.testName).toBe(otherFilter.testName);
+  const plan = await testSuitePlanRead.resolve(request!.operationId);
+  const result = await testSuiteVerificationRun.run(request!.operationId, plan.stateHash);
+  const proof = await prepared.verify({ status: "suite-reviewed", selection: otherFilter, review: {
+    plan, decision: { route: { runtime: "native", nativeApproval: true }, next: "run-assignment" },
+    execution: result, result: { outcome: "verified" },
+  } });
+  expect(hooks.nativeRuns).toBe(1);
+  expect(proof.checks.selectedAuthorizedSuite).toBe(false);
+  expect(proof.passed).toBe(false);
+});

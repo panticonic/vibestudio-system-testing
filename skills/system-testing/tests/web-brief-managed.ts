@@ -2,9 +2,10 @@ import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
-import { browserGoalWorlds, openGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
+import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalWorlds, spectroliteGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
+import { newsAuthority } from "./news-managed.js";
 import {
   managedResearchIntakeWorlds,
   managedResearchHandoffWorlds,
@@ -73,13 +74,25 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const openGoalCases = [...openGoalWorlds, ...browserGoalWorlds, ...suiteGoalWorlds].map(world => ({ world, qualification: false }));
-openGoalCases.push(...[...browserGoalWorlds, ...suiteGoalWorlds].map(world => ({ world, qualification: true })));
+const referenceGoals = [...openGoalWorlds.filter(({ kind }) => kind === "workspace-edit"),
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds];
+const openGoalCases = [...openGoalWorlds.filter(({ kind }) => kind !== "workspace-edit"), ...referenceGoals]
+  .map(world => ({ world, qualification: false }));
+openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
+const templateSettings = {
+  news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
+  spectrolite: {
+    requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-spectrolite"),
+    resources: [PANEL_AUTOMATION_RESOURCE],
+  },
+  google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
+};
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
   ...settings,
-  requiresUnits: world.kind === "suite" ? ["extensions/test-runner", ...world.routes.map(route => route.target).filter(target => target !== "extensions/test-runner")] :
+  requiresUnits: world.kind === "suite" ? [...new Set(["skills/open-user-goal", "skills/native-suite-review", "extensions/test-runner", ...world.routes.map(route => route.target)])] :
     world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
-  ...(world.kind === "suite" && world.expected.choice.mode === "verify" ? world.expected.runtime === "native"
+  ...(world.kind === "suite" && world.execution ? world.execution.runtime === "native"
     ? { authorityPolicy: nativeSuiteAuthority }
     : { authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] }, resources: [PANEL_AUTOMATION_RESOURCE] }
     : {}),
@@ -88,10 +101,15 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "news" || world.kind === "spectrolite" || world.kind === "google"
+    ? templateSettings[world.kind] : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
   description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
+    world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
+    world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
+    world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {

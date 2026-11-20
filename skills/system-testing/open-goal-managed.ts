@@ -7,6 +7,7 @@ import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
+import type { NewsInput } from "./news-contract.js";
 
 type Input = { contextId: string; caseId: string; panelId?: string; source?: string };
 type ResearchReport = {
@@ -209,11 +210,36 @@ async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: EditWor
     return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal: world.goal,
       reads, attempts, contents, checks };
   }
-  return { goal: world.goal, services, verify };
+
+  async function qualify() {
+    const workspace = services.goalWorkspace;
+    await workspace.list();
+    const initial = await workspace.read(world.destination);
+    if (!initial || !await workspace.read(world.source))
+      throw new Error("The target and authority documents must be readable");
+    const first = await workspace.revise(world.destination, initial.version, world.expected);
+    if (first.status !== "changed") throw new Error("The concurrent edit was not observed");
+    const fresh = await workspace.read(world.destination);
+    if (!fresh || fresh.version === initial.version) throw new Error("No fresh document revision was available");
+    const write = await workspace.revise(world.destination, fresh.version, world.expected);
+    if (write.status !== "written" || !("version" in write)) throw new Error("The reference edit was not stored");
+    const readback = await workspace.read(world.destination);
+    if (readback?.version !== write.version) throw new Error("The stored document revision changed");
+    return verify({ status: "edited", path: world.destination, version: write.version });
+  }
+  return { goal: world.goal, services, verify, qualify };
 }
 
 type Verification = Awaited<ReturnType<Awaited<ReturnType<typeof prepareOpenGoal>>["verify"]>>;
+export type OpenGoalDomainVerification = {
+  caseId: string;
+  contextId: string;
+  goal: string;
+  passed: boolean;
+  checks: Record<string, boolean>;
+};
 export interface OpenGoalReceiver {
-  runOpenGoalTeacher(input: Input & { executorModel: string; qualification?: boolean }): Promise<{ teacher: PanelTeacherResult | null; verification: Verification }>;
+  runOpenGoalTeacher(input: Input & { executorModel: string; qualification?: boolean; news?: NewsInput }):
+    Promise<{ teacher: PanelTeacherResult | null; verification: Verification | OpenGoalDomainVerification }>;
 }
 export const openGoalMethods = createReceiverRpcMethods<OpenGoalReceiver>(["runOpenGoalTeacher"]);

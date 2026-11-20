@@ -42,6 +42,10 @@ import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { openGoalMethods } from "./open-goal-managed.js";
+import type { NewsInput } from "./news-contract.js";
+import { newsGoalWorlds, spectroliteGoalWorlds } from "./open-goal-worlds.js";
+import { openSpectrolitePanel, openSpectroliteVault } from "./open-goal-spectrolite-worlds.js";
+import { seedOpenSpectroliteGoal } from "./open-goal-spectrolite-seed.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { managedResearchHandoffMethods } from "./research-handoff-managed.js";
@@ -1129,6 +1133,18 @@ export class HeadlessRunner {
   async runManagedNews(caseId: string, qualification: boolean, signal: AbortSignal) {
     const world = managedNewsWorlds.find(({ id }) => id === caseId);
     if (!world) throw new Error("Unknown News case");
+    return this.withOwnedNews(caseId, signal, async (owner, input) => qualification
+      ? { kind: "reference" as const, result: await rpc.call(owner, managedNewsMethods.qualifyManagedNews, [input], { signal }) }
+      : { kind: "teacher" as const, result: await rpc.call(owner, managedNewsMethods.runManagedNewsTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) },
+    world.panel ? (world.setup.length ? "Your inbox is ready" : "Add source") : undefined);
+  }
+
+  private async withOwnedNews<T>(
+    caseId: string,
+    signal: AbortSignal,
+    run: (owner: string, input: NewsInput) => Promise<T>,
+    panelReadyText?: string,
+  ): Promise<T> {
     const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
     const channelId = `natlang-news-${crypto.randomUUID()}`;
@@ -1152,15 +1168,13 @@ export class HeadlessRunner {
       const { participantId } = subscription;
       if (!participantId) throw new Error("News agent did not join its owned channel");
       const input = { ...cleanup, participantId };
-      const result = qualification
-        ? { kind: "reference" as const, result: await rpc.call(owner, managedNewsMethods.qualifyManagedNews, [input], { signal }) }
-        : { kind: "teacher" as const, result: await rpc.call(owner, managedNewsMethods.runManagedNewsTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
-      if (world.panel) {
+      const result = await run(owner, input);
+      if (panelReadyText) {
         panel = await this.openPanelClient(newsPanel, {
           contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
           stateArgs: {channelName: channelId, agentKey},
         });
-        await waitForText(panel, world.setup.length ? "Your inbox is ready" : "Add source");
+        await waitForText(panel, panelReadyText);
         const state = await panel.stateArgs.get<{ channelName?: string; agentKey?: string }>();
         if (state.channelName !== channelId || state.agentKey !== agentKey)
           throw new Error("News panel did not present the assigned reader");
@@ -2187,6 +2201,11 @@ export class HeadlessRunner {
     }
   }
   async runOpenGoal(caseId: string, signal: AbortSignal, qualification = false) {
+    if (newsGoalWorlds.some(({ id }) => id === caseId))
+      return this.withOwnedNews(caseId, signal, (owner, news) =>
+        rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+          { contextId: news.contextId, caseId, news, executorModel: this.modelRef, qualification },
+        ], { signal }));
     const browser = browserGoalWorlds.find((world) => world.id === caseId);
     if (browser) {
       const fixture = this.workspaceRepoFixture;
@@ -2220,9 +2239,17 @@ export class HeadlessRunner {
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
     try {
       const owner = await this.createFixtureWorker(contextId);
-      return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-        { contextId, caseId, executorModel: this.modelRef, ...(qualification ? { qualification } : {}) },
+      const execute = (panelId?: string) => rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+        { contextId, caseId, panelId, executorModel: this.modelRef, qualification },
       ], { signal });
+      if (!spectroliteGoalWorlds.some(({ id }) => id === caseId)) return await execute();
+      const { openPath } = await seedOpenSpectroliteGoal({ contextId, caseId });
+      const panel = await this.openPanelClient(openSpectrolitePanel, {
+        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+        stateArgs: { repoRoot: openSpectroliteVault, openPath },
+      });
+      try { return await execute(panel.id); }
+      finally { await panel.archive(); }
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
