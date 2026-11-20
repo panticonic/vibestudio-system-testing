@@ -3,7 +3,7 @@ import type { FailureClass, Signal, SignalSource } from "../types.js";
 
 const DECISIVE: Record<FailureClass, SignalSource[]> = {
   validator: ["validator-error", "validation", "final-message"],
-  harness: ["fixture", "orchestration", "phase", "session-error"],
+  harness: ["fixture", "phase", "session-error", "orchestration"],
   infrastructure: [
     "tool-failure",
     "phase",

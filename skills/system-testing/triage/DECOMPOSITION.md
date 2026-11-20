@@ -25,3 +25,20 @@ packets built in the exact `FailureDiagnostic` shape from the defect stories of 
 cancelling an Iroh stream, a device driver that never settled an approval wait, a validator that rejected "thirty seconds" for
 "30s", and the like). Replace or extend them with retained packets when runs exist; a retained packet must have home paths and
 credentials removed first. Each class has stories in every split. Gate: class accuracy of at least 0.85 on validation and on the locked test split. Only 5 of the 28 records reach the model (`MEANING_ONLY` in `classify.test.ts`); the typed rules are tested exactly.
+
+## Triage an assigned retained failure
+
+The caller assigns a run and a test within that run. The review checks the
+identity returned by the retained record reader before classifying it. It
+returns the existing triage decision with the exact run and test identifiers.
+
+| Responsibility | Implementation |
+| --- | --- |
+| Read the assigned retained diagnostic | `readRetainedFailure` calls a read-only service scoped to one assignment. |
+| Establish that the diagnostic belongs to the requested run and test | `matchesAssignment` checks those exact identifiers before diagnosis. |
+| Diagnose the matching record | `reviewRetainedFailure` calls the existing `reviewSystemTest` and `triageFailure` tree. Typed failure signals decide the layer when possible, with the existing language judgment for ambiguous outcomes. |
+
+
+Typed phase and session evidence take precedence when selecting the harness
+diagnosis. Routine timestamps, context and build coordinates stay available
+in the diagnostic record and do not serve as failure signals.

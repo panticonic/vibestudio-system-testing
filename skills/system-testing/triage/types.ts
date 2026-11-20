@@ -163,3 +163,20 @@ export type TestReviewReport =
         | "verified";
       basis: string | null;
     };
+
+export type RetainedFailureRequest = {
+  goal: string;
+  operationId: string;
+  runId: string;
+  testName: string;
+};
+export type RetainedFailurePacket = {
+  runId: string;
+  failure: Failure;
+};
+export type RetainedFailureReview = {
+  runId: string;
+  testName: string;
+  status: "triaged" | "unavailable";
+  triage: Triage | null;
+};

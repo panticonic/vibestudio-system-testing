@@ -1,5 +1,6 @@
 /** Read the facts triage judges from one failure record. Exact work: fields in, redacted bounded signals out. */
 import type { Failure, Signal } from "../types.js";
+import orchestrationSignals from "./orchestrationSignals.js";
 
 const LIMIT = 300;
 
@@ -71,7 +72,7 @@ export default function signals(failure: Failure): Signal[] {
     });
   for (const violation of failure.channelDeliveryLatency?.violations ?? [])
     out.push({ source: "latency", text: clip(violation) });
-  for (const [key, value] of Object.entries(failure.orchestration ?? {}))
+  for (const [key, value] of orchestrationSignals(failure.orchestration))
     out.push({ source: "orchestration", text: clip(`${key}: ${value}`) });
   if (failure.validationReason)
     out.push({ source: "validation", text: clip(failure.validationReason) });

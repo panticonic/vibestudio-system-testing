@@ -1,3 +1,5 @@
+import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
+import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
@@ -262,6 +264,18 @@ export async function readSystemTestRecordBlob(
   }
   serialized += decoder.decode();
   return JSON.parse(serialized);
+}
+
+function systemTestEvaluation(config: SystemTestRunConfig, recordOwner: string) {
+  return {
+    runId: systemTestEvalRunId(config.runId),
+    scope: { key: config.runId, lifecycle: "finite" as const },
+    source: {
+      kind: "inline" as const,
+      code: systemTestEvalCode(config, recordOwner),
+      syntax: "typescript" as const,
+    },
+  };
 }
 
 function systemTestEvalCode(
@@ -2306,6 +2320,56 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `;
   }
 
+  @rpc({website:{kind:"closed",reason:"Triages the failed diagnostic from one owned fixture run."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runRetainedTriageTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<RetainedTriageReceiver["runRetainedTriageTeacher"]> {
+    const bindingCode = await this.retainedTriageBindings(input);
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"testReview",operation:"reviewRetainedFailure",input:{goal:"Triage the assigned retained diagnostic"}},
+      inputCode: "prepared.request",
+      bindingCode,
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<RetainedTriageReceiver["runRetainedTriageTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies retained triage after releasing the actual fixture run."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyRetainedTriage(input: {contextId:string;caseId:string}): ReturnType<RetainedTriageReceiver["qualifyRetainedTriage"]> {
+    const bindingCode = await this.retainedTriageBindings(input);
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"testReview",operation:"reviewRetainedFailure"}], bindingCode,
+    )) as Awaited<ReturnType<RetainedTriageReceiver["qualifyRetainedTriage"]>>;
+  }
+
+  private async retainedTriageBindings(input: {contextId:string;caseId:string}): Promise<string> {
+    const world = retainedTriageWorlds.find(({id})=>id===input.caseId);
+    const owner = await this.integrationFixtureIdentity();
+    if (!world || owner.contextId!==input.contextId || !this.caller?.userId || this.caller.userId==="system")
+      throw new Error("Retained triage requires the assigned case and authenticated fixture owner");
+    const runId = `retained-triage-${crypto.randomUUID()}`;
+    let released = false;
+    try {
+      const result = await createEvalExecutor(createMainRpcCaller(this.rpc))(
+        systemTestEvaluation({runId,contextId:input.contextId,names:[world.testName],concurrency:1},this.rpcSelfId),
+      );
+      if (!result.success)
+        throw new Error(result.error ? formatRpcFailure(deserializeRpcFailure(result.error)) : "The retained triage fixture execution failed");
+      const summary = (await this.getSystemTestRunResult(runId)).summary;
+      if (summary.total !== 1 || summary.failedTests.length !== 1 || summary.failedTests[0] !== world.testName)
+        throw new Error("The retained triage fixture did not persist the assigned failed test");
+      released = (await this.releaseSystemTestRunExecution(runId)).released;
+      if (!released) throw new Error("The retained triage fixture did not release the source execution");
+    } finally {
+      if (!released) await this.rpc.call("main",mainRpcMethods["eval.dispose"],[{scopeKey:runId}]);
+    }
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareRetainedTriage} from "@workspace-skills/system-testing/retained-triage-managed";
+      const prepared=prepareRetainedTriage(${JSON.stringify({contextId:input.contextId,caseId:input.caseId,runId,runnerTargetId:this.rpcSelfId,released})});
+      const assignedServices=prepared.services;
+    `;
+  }
+
   @rpc({website:{kind:"closed",reason:"Reviews the assigned Personal GitHub connection without verifying it."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
   async runGitHubSetupTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]> {
     return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
@@ -3237,15 +3301,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     if (!this.caller?.userId || this.caller.userId === "system") {
       throw new Error("System tests require an authenticated human initiator");
     }
-    const handle = createEvalRunHandle(createMainRpcCaller(this.rpc), {
-      runId: systemTestEvalRunId(config.runId),
-      scope: { key: config.runId, lifecycle: "finite" },
-      source: {
-        kind: "inline",
-        code: systemTestEvalCode(config, this.rpcSelfId),
-        syntax: "typescript",
-      },
-    });
+    const handle = createEvalRunHandle(
+      createMainRpcCaller(this.rpc),
+      systemTestEvaluation(config, this.rpcSelfId),
+    );
     await handle.start();
     return { runId: options.runId };
   }

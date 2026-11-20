@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import classify from "./triageFailure/classify.js";
 import evidence from "./triageFailure/evidence.js";
 import signals from "./triageFailure/signals.js";
 import type { Failure } from "./types.js";
@@ -89,5 +90,41 @@ describe("evidence", () => {
       "final-message",
     ]);
     expect(evidence("harness", read)).toHaveLength(3);
+  });
+});
+
+describe("retained orchestration context", () => {
+  it("keeps the failing phase ahead of diagnostic counters and never treats run coordinates as a cause", () => {
+    const bookkeeping = {
+      generatedAt: "now",
+      contextId: "owned",
+      channelId: "chat",
+      buildProvenance: "base",
+      durableWork: "operations",
+      agentHealth: "inactive",
+      diagnosticCollectionFailure: "collector unavailable",
+    };
+    const record = failure({
+      failure: {
+        phase: "orchestration",
+        error: { name: "Error", message: "Assigned mount refused" },
+      },
+      orchestration: {
+        ...bookkeeping,
+        stage: "opening mount",
+        state: "stopped",
+        resource: "assigned",
+      },
+    });
+    expect(classify(record)).toBe("harness");
+    expect(evidence("harness", signals(record))[0]).toEqual({
+      source: "phase",
+      text: "orchestration: Error: Assigned mount refused",
+    });
+    const contextOnly = failure({ orchestration: bookkeeping });
+    expect(classify(contextOnly)).toBeNull();
+    expect(
+      signals(contextOnly).every((signal) => signal.source !== "orchestration"),
+    ).toBe(true);
   });
 });

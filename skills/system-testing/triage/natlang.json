@@ -8,10 +8,13 @@
     "services.d.ts",
     "triageFailure.nl",
     "triageFailure",
+    "reviewRetainedFailure.nl",
+    "reviewRetainedFailure",
     "reviewSystemTest.nl",
     "reviewSystemTest"
   ],
   "serviceScopes": {
+    "retainedTestFailure": ["reviewRetainedFailure/readRetainedFailure.nl"],
     "systemTests": [
       "triageFailure.nl/**",
       "reviewSystemTest/inspectRun/readAssignedRun.nl"

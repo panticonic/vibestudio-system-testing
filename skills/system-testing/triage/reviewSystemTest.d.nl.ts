@@ -150,5 +150,21 @@ type TestReviewReport = | { kind: "triage"; class: FailureClass; evidence: Signa
         | "verified";
       basis: string | null;
     };
-declare const fn: NatlangFunction<[request: TestReviewRequest], TestReviewReport> & { readonly inspectRun: NatlangFunction<[request: TestPacketInput], RunReview> & { readonly evaluateLifecycle: NatlangFunction<[request: TestPacketInput], "resolve-infrastructure"|"wait-owned-run"|"join-cleanup"|"ready">; readonly evaluateOutcome: NatlangFunction<[request: TestPacketInput], "obtain-failure-packet"|"triage-retained"|"verified">; readonly readAssignedRun: NatlangFunction<[target: string, runId: string, testName: string], {kind:"read-run";runId:string;retained:boolean}> }; readonly reviewMobile: NatlangFunction<[request: TestMobileInput], TestReviewReport> & { readonly driveReceipt: NatlangFunction<[request: TestMobileInput], "attach-driver"|"foreground-only"|"exercise-postcondition"|"verified">; readonly installedTarget: NatlangFunction<[request: TestMobileInput], "open-tooling-workspace"|"build-unit"|"ready"> }; readonly reviewScenario: NatlangFunction<[request: TestAuthorInput], TestReviewReport> & { readonly checkIsolation: NatlangFunction<[request: TestAuthorInput], string[]>; readonly checkOutcome: NatlangFunction<[request: TestAuthorInput], string[]> }; readonly triageFailure: NatlangFunction<[failure: Failure], Triage> & { readonly classify: ((failure: Failure) => FailureClass | null) & {  }; readonly deliveredOutcome: NatlangFunction<[message: string, complaint: string], boolean>; readonly evidence: ((failureClass: FailureClass, signals: readonly Signal[]) => Signal[]) & {  }; readonly run: ((runnerTargetId: string, runId: string) => Promise<{ test: string; triage: Triage }[]>) & {  }; readonly signals: ((failure: Failure) => Signal[]) & {  }; readonly triage: ((failure: Failure) => Promise<Triage>) & {  } } };
+type RetainedFailureRequest = {
+  goal: string;
+  operationId: string;
+  runId: string;
+  testName: string;
+};
+type RetainedFailurePacket = {
+  runId: string;
+  failure: Failure;
+};
+type RetainedFailureReview = {
+  runId: string;
+  testName: string;
+  status: "triaged" | "unavailable";
+  triage: Triage | null;
+};
+declare const fn: NatlangFunction<[request: TestReviewRequest], TestReviewReport> & { readonly inspectRun: NatlangFunction<[request: TestPacketInput], RunReview> & { readonly evaluateLifecycle: NatlangFunction<[request: TestPacketInput], "resolve-infrastructure"|"wait-owned-run"|"join-cleanup"|"ready">; readonly evaluateOutcome: NatlangFunction<[request: TestPacketInput], "obtain-failure-packet"|"triage-retained"|"verified">; readonly readAssignedRun: NatlangFunction<[target: string, runId: string, testName: string], {kind:"read-run";runId:string;retained:boolean}> }; readonly reviewMobile: NatlangFunction<[request: TestMobileInput], TestReviewReport> & { readonly driveReceipt: NatlangFunction<[request: TestMobileInput], "attach-driver"|"foreground-only"|"exercise-postcondition"|"verified">; readonly installedTarget: NatlangFunction<[request: TestMobileInput], "open-tooling-workspace"|"build-unit"|"ready"> }; readonly reviewScenario: NatlangFunction<[request: TestAuthorInput], TestReviewReport> & { readonly checkIsolation: NatlangFunction<[request: TestAuthorInput], string[]>; readonly checkOutcome: NatlangFunction<[request: TestAuthorInput], string[]> }; readonly triageFailure: NatlangFunction<[failure: Failure], Triage> & { readonly classify: ((failure: Failure) => FailureClass | null) & {  }; readonly deliveredOutcome: NatlangFunction<[message: string, complaint: string], boolean>; readonly evidence: ((failureClass: FailureClass, signals: readonly Signal[]) => Signal[]) & {  }; readonly orchestrationSignals: ((orchestration: Failure["orchestration"]) => [string, string][]) & {  }; readonly run: ((runnerTargetId: string, runId: string) => Promise<{ test: string; triage: Triage }[]>) & {  }; readonly signals: ((failure: Failure) => Signal[]) & {  }; readonly triage: ((failure: Failure) => Promise<Triage>) & {  } } };
 export default fn;

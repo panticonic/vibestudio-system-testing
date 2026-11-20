@@ -57,6 +57,8 @@
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
     "./log-cursor-worlds": "./log-cursor-worlds.ts",
     "./publication-revision-managed": "./publication-revision-managed.ts",
+    "./retained-triage-managed": "./retained-triage-managed.ts",
+    "./retained-triage-worlds": "./retained-triage-worlds.ts",
     "./github-setup-managed": "./github-setup-managed.ts",
     "./template-release-managed": "./template-release-managed.ts",
     "./transcript-cursor-managed": "./transcript-cursor-managed.ts",

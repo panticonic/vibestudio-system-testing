@@ -107,6 +107,10 @@ Use one stable, unique instance ID for the whole investigation.
    A natlang program receives the same read as `systemTests.inspect(runnerTargetId, runId, testName?)`
    from `@workspace/natlang-services`.
 
+   For a caller-owned run and test, the [Natlang retained failure review](triage/reviewRetainedFailure.nl)
+   checks that the bounded diagnostic belongs to the assignment, then returns
+   the existing triage verdict and its quoted evidence.
+
 5. Classify the root cause as infrastructure, documentation, harness, or
    validator, and fix it in that layer. Do not over-specify the test prompt to
    work around a platform or documentation defect.

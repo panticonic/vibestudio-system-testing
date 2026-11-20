@@ -1,5 +1,6 @@
 /** The layer a record's typed fields decide by themselves, or null when only its meaning can. Exact reading, in rule order. */
 import type { Failure, FailureClass } from "../types.js";
+import orchestrationSignals from "./orchestrationSignals.js";
 
 const HARNESS_PHASES =
   /^(?:workspace-fixture|fixture|device-driver|test-authority|orchestration)/;
@@ -15,7 +16,7 @@ export default function classify(failure: Failure): FailureClass | null {
   if (
     HARNESS_PHASES.test(phase) ||
     failure.workspaceRepoFixture?.creationScopeError ||
-    failure.orchestration
+    orchestrationSignals(failure.orchestration).length > 0
   )
     return "harness";
   if (

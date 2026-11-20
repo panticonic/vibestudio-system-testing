@@ -85,6 +85,7 @@ import { messagingTests } from "./tests/messaging.js";
 import { natlangSkillsWave0Tests } from "./tests/natlang-skills-wave0.js";
 import { natlangSkillsWave1Tests } from "./tests/natlang-skills-wave1.js";
 import { natlangSkillsWave2Tests } from "./tests/natlang-skills-wave2.js";
+import { retainedTriageTests } from "./tests/retained-triage.js";
 import { skillTests } from "./tests/skills.js";
 import { agentCapabilityTests } from "./tests/agent-capabilities.js";
 import { rpcTests } from "./tests/rpc-communication.js";
@@ -182,6 +183,7 @@ export {
   selfDevelopmentTests,
   serverLogTests,
   skillTests,
+  retainedTriageTests,
   smokeTests,
   templateTests,
   terminalChatTests,
@@ -305,6 +307,7 @@ export function allTests(): TestCase[] {
     ...natlangSkillsWave1Tests,
     ...natlangSkillsWave2Tests,
     ...skillTests,
+    ...retainedTriageTests,
     ...agentCapabilityTests,
     ...rpcTests,
     ...edgeCaseTests,
