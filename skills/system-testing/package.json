@@ -87,6 +87,7 @@
     "./open-goal-build-incidents-managed": "./open-goal-build-incidents-managed.ts",
     "./open-goal-local-presentation-managed": "./open-goal-local-presentation-managed.ts",
     "./open-goal-deployed-interface-managed": "./open-goal-deployed-interface-managed.ts",
+    "./open-goal-extension-dossier-managed": "./open-goal-extension-dossier-managed.ts",
     "./open-goal-local-width-managed": "./open-goal-local-width-managed.ts",
     "./build-performance-managed": "./build-performance-managed.ts",
     "./log-handoff-managed": "./log-handoff-managed.ts",

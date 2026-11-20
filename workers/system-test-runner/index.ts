@@ -117,6 +117,7 @@ import {
   openLocalPresentationWorlds, openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
+  openExtensionDossierWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3749,7 +3750,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const adventure = openAdventureJourneyWorlds.find(({ id }) => id === input.caseId);
     const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
-    const prepare = deployedInterface
+    const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
+    const prepare = extensionDossier
+      ? `import {prepareExtensionDossier} from "@workspace-skills/system-testing/open-goal-extension-dossier-managed";
+         const prepared=await prepareExtensionDossier(input,${JSON.stringify(extensionDossier)});`
+      : deployedInterface
       ? `import {prepareDeployedInterfaceGoal} from "@workspace-skills/system-testing/open-goal-deployed-interface-managed";
          if(input.contextId!==actualContextId)throw new Error("Interface review belongs to another context");
          const prepared=await prepareDeployedInterfaceGoal(input,${JSON.stringify(deployedInterface)});`
