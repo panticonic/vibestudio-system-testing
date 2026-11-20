@@ -78,39 +78,35 @@ export const managedBrowserImportTests: TestCase[] =
     },
   }));
 
-managedBrowserImportTests.push({
-  ...settings,
-  name: "browser-import-oracle-qualification",
-  description: "Qualify the assigned browser migration reads without a model",
-  prompt:
-    "Check migration preview boundaries and persisted public import receipts.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks = [];
-    for (const { id } of managedBrowserImportWorlds) {
-      const run = await runner.runManagedBrowserImport(id, true, signal);
-      if (run.kind !== "reference")
-        throw new Error("browser import qualification invoked a teacher");
-      checks.push({ caseId: id, ...run.result });
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { driveSharingQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["driveSharingQualification"] as
-      | Qualification[]
-      | undefined;
-    return {
-      passed:
-        checks?.length === managedBrowserImportWorlds.length &&
-        checks.every(
-          ({ verification, rejectedExtraRead }) =>
-            verification.passed && rejectedExtraRead,
-        ),
-      details: { checks },
-    };
-  },
-});
+managedBrowserImportTests.push(
+  ...managedBrowserImportWorlds.map(
+    ({ id, goal }): TestCase => ({
+      ...settings,
+      name: `browser-import-oracle-qualification-${id}`,
+      description: "Qualify the assigned migration reads without a model",
+      prompt: goal,
+      async orchestrate({ runner, signal }) {
+        const started = Date.now();
+        const run = await runner.runManagedBrowserImport(id, true, signal);
+        if (run.kind !== "reference")
+          throw new Error("Browser import qualification invoked a teacher");
+        return {
+          messages: [],
+          duration: Date.now() - started,
+          diagnostics: { browserImportQualification: run.result },
+        };
+      },
+      validate(result) {
+        const qualification = result.diagnostics?.[
+          "browserImportQualification"
+        ] as Qualification | undefined;
+        return {
+          passed:
+            qualification?.verification.passed === true &&
+            qualification.rejectedExtraRead === true,
+          details: qualification,
+        };
+      },
+    }),
+  ),
+);
