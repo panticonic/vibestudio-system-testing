@@ -1,5 +1,6 @@
 import { openVaultKnowledgeWorlds } from "../open-goal-vault-knowledge-worlds.js";
 import { openGoalGoogleSetupWorlds, googleSetupRequiresUnits } from "../open-goal-google-setup-worlds.js";
+import { openClientDiagnosticsWorlds, clientDiagnosticsRequiresUnits } from "../open-goal-client-diagnostics-worlds.js";
 import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
 import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
@@ -99,7 +100,7 @@ const referenceGoals = [...openGoalWorlds, ...openOwnedTaskWorlds, ...openTermin
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -196,6 +197,20 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     ]),
     workspaceRepoFixture: { kind: "open-goal-google-setup", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "clientDiagnostics" ? {
+    requiresUnits: clientDiagnosticsRequiresUnits,
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-owned-client-diagnostics", world.surfaces.some(scene => scene.reload) ? [
+      PANEL_RUNTIME_SUPERVISION_AUTHORITY,
+      {
+        ruleId: "reload-owned-client-diagnostic",
+        capability: { kind: "exact", key: "runtime.supervision.manage" },
+        resource: { kind: "prefix", prefix: "restart:panel:panel:" },
+        tier: "gated", decision: "once",
+      },
+    ] : []),
+    workspaceRepoFixture: { kind: "open-goal-client-diagnostics", section: "panels", caseId: world.id },
+  } : {}),
   ...(world.kind === "visualRecovery" ? {
     requiresUnits: ["skills/open-user-goal", "skills/panel-health", "skills/panel-health-runtime"],
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -259,6 +274,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "owned-task" ? "Recover current owned card and attempt evidence with an independently confirmed local handoff" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
+    world.kind === "clientDiagnostics" ? "Diagnose the owned client and its durable conversation with exact readback" :
     world.kind === "visualRecovery" ? "Diagnose and restore the selected live owned surface and verify the exact rendered result" :
     world.kind === "ownedPreview" ? "Publish to the authorized disposable preview and verify its exact hosted artifact" :
     world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :

@@ -116,7 +116,7 @@ import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
-  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds,
+  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
@@ -3690,6 +3690,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
     const localDelivery = openLocalDeliveryWorlds.find(({ id }) => id === input.caseId);
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const clientDiagnostics = openClientDiagnosticsWorlds.find(({ id }) => id === input.caseId);
     const visualRecovery = openGoalPanelRecoveryWorlds.some(({ id }) => id === input.caseId);
     const ownedPreview = openGoalOwnedPreviewWorlds.some(({ id }) => id === input.caseId);
     const publication = publicationGoalWorlds.some(({ id }) => id === input.caseId);
@@ -3755,6 +3756,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {prepareOpenGoogleSetup} from "@workspace-skills/google-drive/open-google-setup-managed";
          if (!input.source || !input.panelId) throw new Error("Google setup needs its assigned welcome panel");
          const prepared=await prepareOpenGoogleSetup(panelTree.get(input.panelId),actualContextId,input.source,${JSON.stringify(googleSetup)});`
+      : clientDiagnostics
+      ? `import {prepareOpenClientDiagnostics} from "@workspace-skills/system-testing/open-goal-client-diagnostics-managed";
+         if (!input.source || !input.clientPanels) throw new Error("Client diagnostics needs its owned local panels");
+         const prepared=await prepareOpenClientDiagnostics(input,${JSON.stringify(clientDiagnostics)});`
       : visualRecovery
       ? `import {prepareOpenPanelRecovery} from "@workspace-skills/system-testing/open-goal-panel-recovery-managed";
          if (!input.source || !input.recoveryPanels) throw new Error("Visual recovery needs its owned live surfaces");

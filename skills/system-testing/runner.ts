@@ -1,4 +1,5 @@
 import { openGoalGoogleSetupWorlds } from "./open-goal-google-setup-worlds.js";
+import { openClientDiagnosticsWorlds } from "./open-goal-client-diagnostics-worlds.js";
 import { managedDeploymentMethods } from "./remote-deployment-managed.js";
 import { remoteCommissionMethods } from "./remote-commission-managed.js";
 import { approvalTransitionMethods } from "./approval-transition-managed.js";
@@ -2229,6 +2230,38 @@ export class HeadlessRunner {
       }
     }
 
+    const clients = openClientDiagnosticsWorlds.find(({ id }) => id === caseId);
+    if (clients) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "open-goal-client-diagnostics" || fixture.caseId !== caseId || !fixture.repoName || !contextId)
+        throw new Error("Client diagnostics needs its owned workspace renderer fixture.");
+      const source = `panels/${fixture.repoName}`;
+      const panels: { surfaceId: string; handle: Awaited<ReturnType<typeof this.openPanelClient>> }[] = [];
+      const failures: unknown[] = [];
+      try {
+        for (const scene of clients.surfaces) {
+          const handle = await this.openPanelClient(source, {
+            contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+            stateArgs: { scene, boot: scene.initial },
+          });
+          panels.push({ surfaceId: scene.id, handle });
+          await setViewport(handle, { width: 1280, height: 844 });
+        }
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { contextId, caseId, goal, source, executorModel: this.modelRef, qualification,
+            clientPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) },
+        ], { signal });
+      } catch (error) {
+        failures.push(error);
+        throw error;
+      } finally {
+        const retired = await Promise.allSettled(panels.map(({ handle }) => handle.archive()));
+        const cleanupFailures = retired.flatMap(item => item.status === "rejected" ? [item.reason] : []);
+        if (cleanupFailures.length)
+          throw new AggregateError([...failures, ...cleanupFailures], "Could not retire the owned clients");
+      }
+    }
     const recovery = openGoalPanelRecoveryWorlds.find(({ id }) => id === caseId);
     if (recovery) {
       const fixture = this.workspaceRepoFixture;

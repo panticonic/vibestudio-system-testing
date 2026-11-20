@@ -1,3 +1,4 @@
+export { openClientDiagnosticsWorlds, clientDiagnosticsRequiresUnits } from "./open-goal-client-diagnostics-worlds.js";
 export { openBrowserMigrationWorlds, browserMigrationRequiresUnits } from "./open-goal-browser-migration-worlds.js";
 export { openReconciliationWorlds, reconciliationRequiresUnits } from "./open-goal-reconciliation-worlds.js";
 export { openVaultKnowledgeWorlds } from "./open-goal-vault-knowledge-worlds.js";
