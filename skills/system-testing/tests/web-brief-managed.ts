@@ -5,7 +5,7 @@ import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
   browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGmailWorlds,
-  openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
+  openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
 } from "../open-goal-worlds.js";
@@ -84,7 +84,7 @@ type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>
 const referenceGoals = [...openGoalWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
-  ...openGoalPdfWorlds, ...openGoalGmailWorlds];
+  ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -112,6 +112,12 @@ const templateSettings = {
   },
   google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
   gmail: { requiresUnits: ["skills/open-user-goal", "skills/open-gmail-goal", "skills/gmail-compose-history-bindings", "packages/gmail", "workers/pubsub-channel"] },
+  pdfVault: {
+    requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest",
+      "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-pdf-vault"),
+    resources: [PANEL_AUTOMATION_RESOURCE],
+  },
   pdf: { requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest"] },
 };
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
@@ -154,6 +160,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
     world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
+    world.kind === "pdfVault" ? "Ground a working vault correction in the original PDF and verify its revision" :
     world.kind === "pdf" ? "Inspect the selected PDF using original text, geometry and retained raster evidence" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,

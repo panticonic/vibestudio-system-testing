@@ -108,7 +108,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  newsGoalWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds,
+  newsGoalWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openGoalRecoveryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3685,7 +3685,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if (identity.contextId !== input.contextId) throw new Error("Gmail goal belongs to another context");
       gmailSeed = await seedOpenGmailComposes(this.rpc, input, identity.ownerEntityId, gmail.composes);
     }
-    const prepare = gmail
+    const pdfVault = openGoalPdfVaultWorlds.some(({ id }) => id === input.caseId);
+    const prepare = pdfVault
+      ? `import {prepareOpenPdfVaultGoal} from "@workspace-skills/system-testing/open-goal-pdf-vault-managed";
+         import {prepareOpenSpectroliteGoal} from "@workspace-skills/spectrolite-review-fixtures/open-goal";
+         if (!input.panelId) throw new Error("The PDF-backed correction needs its owned vault renderer");
+         const prepared=await prepareOpenPdfVaultGoal(input,prepareOpenSpectroliteGoal);`
+      : gmail
       ? `import {prepareOpenGmailGoal} from "@workspace-skills/open-gmail-goal/managed";
          const prepared=await prepareOpenGmailGoal(input,${JSON.stringify(gmail)},${JSON.stringify(gmailSeed)});`
       : pdf

@@ -1,9 +1,13 @@
 import { vcs } from "@workspace/runtime";
-import { openSpectroliteVault, spectroliteGoalWorlds } from "./open-goal-spectrolite-worlds.js";
+import { openSpectroliteVault, spectroliteGoalWorlds, type OpenSpectroliteWorld } from "./open-goal-spectrolite-worlds.js";
 
 export async function seedOpenSpectroliteGoal({ contextId, caseId }: { contextId: string; caseId: string }) {
   const world = spectroliteGoalWorlds.find(({ id }) => id === caseId);
   if (!world) throw new Error("Unknown Spectrolite goal");
+  return seedSpectroliteScene(contextId, world);
+}
+
+export async function seedSpectroliteScene(contextId: string, world: OpenSpectroliteWorld) {
   const { workingHead } = await vcs.status({ contextId });
   const repository = await vcs.resolveRepository({ state: workingHead, repoPath: openSpectroliteVault });
   if (!repository) throw new Error("The owned Spectrolite vault is absent");

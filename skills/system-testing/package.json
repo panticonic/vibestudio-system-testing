@@ -105,6 +105,7 @@
     "./open-goal-managed": "./open-goal-managed.ts",
     "./open-goal-operator-managed": "./open-goal-operator-managed.ts",
     "./open-goal-recovery-managed": "./open-goal-recovery-managed.ts",
+    "./open-goal-pdf-vault-managed": "./open-goal-pdf-vault-managed.ts",
     "./open-goal-pdf-managed": "./open-goal-pdf-managed.ts",
     "./open-goal-gmail-seed": "./open-goal-gmail-seed.ts",
     "./open-goal-publication-managed": "./open-goal-publication-managed.ts",

@@ -63,7 +63,11 @@ const wrap = (outcome: PdfGoalReport) => ({ status: "workspace-skill-reviewed", 
 export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: string; caseId: string }) {
   const world = openGoalPdfWorlds.find(({ id }) => id === caseId);
   if (!world) throw new Error("Unknown open PDF goal.");
-  const { goal, expected } = world;
+  return prepareOpenPdfInspection(contextId, world);
+}
+
+export async function prepareOpenPdfInspection(contextId: string, world: OpenPdfWorld) {
+  const { id: caseId, goal, expected } = world;
   const before = await vcs.status({ contextId });
   const directory = await fs.mkdtemp("open-pdf-goal");
   const sources = Object.entries(world.documents).map(([name, sheets]) => ({ name, packet: encodePdf(sheets), pages: sheets.length }));
@@ -178,7 +182,31 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
     },
   };
 
-  async function verify(value: unknown) {
+  async function attestCitations(value: unknown, indices: number[]) {
+    const report = value as PdfGoalReport | null;
+    if (report?.status !== "inspected" || !binding?.text || !source || !selection ||
+        report.text?.status !== "verified" || report.text.digest !== source.digest ||
+        !isDeepStrictEqual(report.text.readPages, binding.text.pages) ||
+        !isDeepStrictEqual(report.document, binding.document) ||
+        !isDeepStrictEqual(report.selection, selection) || report.missingPages?.length ||
+        binding.missingPages.length || !Array.isArray(indices) || !indices.every(Number.isSafeInteger) ||
+        !validPages(indices.map(index => index + 1)) || !indices.length)
+      return null;
+    const retained = await readWorkspaceBytes(rpc, `${directory}/${source.name}`, 64 * 1024);
+    if (sha256Hex(retained) !== source.digest) return null;
+    const citations = [];
+    for (const index of indices) {
+      const citation = report.text.citations?.[index];
+      const span = citation && textReads.find(receipt => receipt.digest === source?.digest &&
+        receipt.pages.some(page => page.number === citation.page))?.pages.find(page => page.number === citation.page)?.lines[citation.line];
+      if (!span || span.text !== citation.quote || !isDeepStrictEqual(span.bounds, citation.bounds) ||
+          span.source !== citation.source || span.confidence !== citation.confidence) return null;
+      citations.push({ page: citation.page, line: citation.line, quote: citation.quote });
+    }
+    return { document: source.name, digest: source.digest, citations };
+  }
+
+  async function verify(value: unknown, { allowWorkingHeadChange = false } = {}) {
     const wrapper = value as Partial<ReturnType<typeof wrap>> | null;
     const report = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "pdf" &&
       wrapper.outcome?.status === "inspected" ? wrapper.outcome : null;
@@ -238,13 +266,13 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
         }),
       groundedRecommendation: report?.recommendation?.action === expected.action &&
         expected.evidenceTerms.every(term => rationale.includes(term.toLowerCase())),
-      protectedHeads: before.mainEventId === after.mainEventId && isDeepStrictEqual(before.workingHead, after.workingHead),
+      protectedHeads: before.mainEventId === after.mainEventId && (allowWorkingHeadChange || isDeepStrictEqual(before.workingHead, after.workingHead)),
     };
     return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, selection, documents: snapshot, revision, binding,
       observations: { layouts: reads, text: textReads, textProbes, rendered: retained } };
   }
 
-  async function qualify() {
+  async function reference() {
     const available = await services.pdfGoalDocuments.discover();
     const choice = {
       document: expected.document, pages: expected.pages,
@@ -290,8 +318,8 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
       recommendation: { action: "needs-review", rationale: "Unverified." } };
     const negative = await verify(wrap(wrong));
     const checks = { ...verified.checks, aliasRejected, rejectsUnverifiedReport: !negative.passed };
-    return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
+    return { outcome, verification: { ...verified, checks, passed: Object.values(checks).every(Boolean) } };
   }
 
-  return { goal, services, verify, qualify };
+  return { goal, services, verify, attestCitations, reference, qualify: async () => (await reference()).verification };
 }
