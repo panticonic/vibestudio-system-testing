@@ -1,6 +1,6 @@
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
-import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
+import { compareUtf16CodeUnits, sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import type { RuntimeFs, VcsClient, rpc as RuntimeRpc } from "@workspace/runtime";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
@@ -19,8 +19,7 @@ const maxArtifact = 32 * 1024;
 const maxFile = 4096;
 const encode = new TextEncoder();
 const normalizeHash = (hash: string | null | undefined) => hash?.replace(/^state:/u, "");
-const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
-const sorted = (values: string[]) => [...values].sort(compare);
+const sorted = (values: string[]) => [...values].sort(compareUtf16CodeUnits);
 const contentKeys = (files: Record<string, string>) => Object.fromEntries(Object.entries(files)
   .map(([path, text]) => [path, sha256HexSyncText(text)]));
 
@@ -79,13 +78,13 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
     const repositories = await Promise.all(units.map(async ({ unit, files }) => ({
       repoPath: unit.repoPath,
       ...(repositoryIds.has(unit.id) ? { repositoryId: repositoryIds.get(unit.id)! } : {}),
-      files: await Promise.all(Object.entries(files).sort(([a], [b]) => compare(a, b)).map(async ([path, text]) => {
+      files: await Promise.all(Object.entries(files).sort(([a], [b]) => compareUtf16CodeUnits(a, b)).map(async ([path, text]) => {
         const result = await rpc.call("main", mainRpcMethods["blobstore.putText"], [text]);
         if (result.digest !== sha256HexSyncText(text)) throw new Error("The fixture blob changed source bytes");
         return { path, mode: 0o644, contentHash: result.digest };
       })),
     })));
-    repositories.sort((left, right) => compare(left.repoPath, right.repoPath));
+    repositories.sort((left, right) => compareUtf16CodeUnits(left.repoPath, right.repoPath));
     const result = await vcs.importSnapshot({
       contextId: input.contextId, commandId: `assembly-${namespace}-${label}`, expectedWorkingHead: workingHead,
       intentSummary: "Prepare owned package planning evidence",
@@ -164,7 +163,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
     }));
     const manifest = files.find(file => file?.path === "package.json");
     if (!manifest || files.some(file => file === null) || JSON.parse(manifest.text)?.name !== unit.packageName) return null;
-    return { unit, head, files: files.filter(file => file !== null).sort((a, b) => compare(a.path, b.path)), manifestSha: manifest.contentHash };
+    return { unit, head, files: files.filter(file => file !== null).sort((a, b) => compareUtf16CodeUnits(a.path, b.path)), manifestSha: manifest.contentHash };
   }
   function bindReport(unit: string, report: NativeBuild["report"], metadata: NativeBuild["metadata"]): AssemblyBuildReceipt {
     const keys = sorted([...new Set(report.builds.flatMap(record => record.buildKey ? [record.buildKey] : []))]);

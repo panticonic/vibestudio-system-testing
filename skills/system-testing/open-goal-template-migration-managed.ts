@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import {
+  compareUtf16CodeUnits,
   sha256HexSyncText,
   stableSha256Hex,
 } from "@vibestudio/content-addressing";
@@ -101,16 +102,19 @@ export async function prepareOpenTemplateMigration(
 
   async function seed(workingHead: State, label: string) {
     const files = await Promise.all(
-      [...contents].map(async ([id, text]) => {
-        const blob = await rpc.call(
-          "main",
-          mainRpcMethods["blobstore.putText"],
-          [text],
-        );
-        if (blob.digest !== sha256HexSyncText(text))
-          throw new Error("Template dossier blob changed");
-        return { path: id + ".md", mode: 0o644, contentHash: blob.digest };
-      }),
+      [...contents]
+        .map(([id, text]) => ({ path: id + ".md", text }))
+        .sort((left, right) => compareUtf16CodeUnits(left.path, right.path))
+        .map(async ({ path, text }) => {
+          const blob = await rpc.call(
+            "main",
+            mainRpcMethods["blobstore.putText"],
+            [text],
+          );
+          if (blob.digest !== sha256HexSyncText(text))
+            throw new Error("Template dossier blob changed");
+          return { path, mode: 0o644, contentHash: blob.digest };
+        }),
     );
     const created = await vcs.importSnapshot({
       contextId,

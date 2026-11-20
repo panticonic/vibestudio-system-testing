@@ -122,6 +122,7 @@ export async function prepareRetainedBuildIncident(
       path, contentHash: (await ports.blobstore.putText(content)).digest, mode: 0o644,
     }))),
   })));
+  repositories.sort((left, right) => compareUtf16CodeUnits(left.repoPath, right.repoPath));
   const imported = await vcs.importSnapshot({ contextId: input.contextId, commandId: crypto.randomUUID(),
     expectedWorkingHead: before.workingHead, intentSummary: "Seed disposable build profile owners",
     message: "Seed disposable build profile owners", source: { kind: "generated", uri: "system-test://retained-build/" + nonce,
