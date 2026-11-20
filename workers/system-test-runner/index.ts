@@ -74,6 +74,7 @@ import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-sk
 import { managedSpectroliteWorlds, spectroliteHandoffWork } from "@workspace-skills/system-testing/spectrolite-worlds";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
 import type { AdventureReviewInput, ManagedAdventureReceiver } from "@workspace-skills/system-testing/adventure-review-contract";
+import type { RegencyReviewInput, ManagedRegencyReceiver } from "@workspace-skills/system-testing/regency-review-contract";
 import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
@@ -1746,6 +1747,41 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
       work, this.adventureReviewBindings(input),
     )) as Awaited<ReturnType<ManagedAdventureReceiver["qualifyManagedAdventure"]>>;
+  }
+
+  private regencyReviewBindings(input: RegencyReviewInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {managedRegencyWorlds} from "@workspace-skills/system-testing/regency-review-worlds";
+      import {prepareRealmReview} from "@workspace-skills/examples-review-fixtures/live-realm";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Regency belongs to another context");
+      const world=managedRegencyWorlds.find(item=>item.id===input.caseId);
+      if(!world) throw new Error("Unknown assigned Regency review");
+      const prepared=prepareRealmReview(input.realm,world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the Regency opening and its forecast through Natlang."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async runManagedRegencyTeacher(input: RegencyReviewInput & {executorModel:string}): ReturnType<ManagedRegencyReceiver["runManagedRegencyTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"examples",operation:"reviewExample",input:{goal:"Review the assigned realm settlement"}},
+      inputCode:"world.request",
+      bindingCode:this.regencyReviewBindings(input),
+    },runId)}
+      const verification=await prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedRegencyReceiver["runManagedRegencyTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the saved realm and forecast without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyManagedRegency(input: RegencyReviewInput): ReturnType<ManagedRegencyReceiver["qualifyManagedRegency"]> {
+    const work = [{kind:"domain", domain:"examples", operation:"reviewExample"}] as const;
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      work, this.regencyReviewBindings(input),
+    )) as Awaited<ReturnType<ManagedRegencyReceiver["qualifyManagedRegency"]>>;
   }
 
   @rpc({website:{kind:"closed",reason:"Reviews owned Spectrolite document and actual preview evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

@@ -50,6 +50,7 @@ import { managedNewsTests } from "./tests/news-managed.js";
 import { managedSpectroliteTests } from "./tests/spectrolite-managed.js";
 import { managedGrimoireTests } from "./tests/grimoire-managed.js";
 import { managedAdventureReviewTests } from "./tests/adventure-review-managed.js";
+import { managedRegencyReviewTests } from "./tests/regency-review-managed.js";
 import { managedChecklistTests } from "./tests/checklist-managed.js";
 import { managedSetupTests } from "./tests/onboarding-managed.js";
 import { managedMemoryTests } from "./tests/verified-memory.js";
@@ -289,6 +290,7 @@ export function allTests(): TestCase[] {
   ...managedChecklistTests,
   ...managedGrimoireTests,
   ...managedAdventureReviewTests,
+  ...managedRegencyReviewTests,
   ...managedSpectroliteTests,
     ...managedGoogleSetupTests,
     ...managedLocalComparisonTests,

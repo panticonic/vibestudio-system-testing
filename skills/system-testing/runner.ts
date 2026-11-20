@@ -82,6 +82,7 @@ import { managedSpectroliteWorlds, spectrolitePanel, spectroliteVault } from "./
 import { managedGrimoireMethods } from "./grimoire-contract.js";
 import { managedAdventureMethods, type AdventureReviewInput } from "./adventure-review-contract.js";
 import { managedAdventureWorlds } from "./adventure-review-worlds.js";
+import { managedRegencyMethods } from "./regency-review-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
@@ -1480,6 +1481,20 @@ export class HeadlessRunner {
     } finally {
       try { await handle?.archive(); }
       finally { await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]); }
+    }
+  }
+
+  async runManagedRegency(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = this.testAuthorityPolicy;
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId, realm: `natlang-realm-${crypto.randomUUID()}` };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedRegencyMethods.qualifyManagedRegency, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedRegencyMethods.runManagedRegencyTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 

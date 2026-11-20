@@ -126,6 +126,8 @@
     "./grimoire-handoff-managed": "./grimoire-handoff-managed.ts",
     "./adventure-review-contract": "./adventure-review-contract.ts",
     "./adventure-review-worlds": "./adventure-review-worlds.ts",
+    "./regency-review-contract": "./regency-review-contract.ts",
+    "./regency-review-worlds": "./regency-review-worlds.ts",
     "./channel-roster-contract": "./channel-roster-contract.ts",
     "./channel-roster-managed": "./channel-roster-managed.ts",
     "./mission-planning-contract": "./mission-planning-contract.ts",
