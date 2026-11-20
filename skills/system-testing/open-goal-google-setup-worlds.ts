@@ -17,7 +17,7 @@ function checkpoint(
   id: string,
   phase: Checkpoint["phase"],
   coverage: Checkpoint["coverage"] = "none",
-  warning: Checkpoint["warning"] = null,
+  warning: Checkpoint["warning"] = "none",
   durable = phase === "verified" && warning !== "session-only",
 ): Checkpoint {
   return { profileId, id, phase, coverage, durable, warning };
