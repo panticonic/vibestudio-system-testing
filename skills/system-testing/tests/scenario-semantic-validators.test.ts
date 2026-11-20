@@ -1221,6 +1221,20 @@ describe("filesystem semantic validators", () => {
     ).toBe(true);
   });
 
+  it("accepts separate absence checks for the removed root and child", () => {
+    const validator = scenario(filesystemTests, "remove");
+    const verify = (childGone: boolean) => validator.validate(
+      execution("I checked the root and its child after removing the tree.", [
+        {
+          code: "await fs.mkdir(child); await fs.rm(root, { recursive: true }); return { rootGone: !await fs.exists(root), childGone: !await fs.exists(child) };",
+          returnValue: { rootGone: true, childGone },
+        },
+      ]),
+    );
+    expect(verify(true).passed).toBe(true);
+    expect(verify(false).passed).toBe(false);
+  });
+
   it("accepts a concrete symbolic-link observation without a synthetic supported field", () => {
     const validator = scenario(filesystemTests, "symlinks");
     expect(
