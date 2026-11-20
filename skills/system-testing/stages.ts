@@ -47,6 +47,7 @@ import { managedLogAuditTests } from "./tests/log-audit-managed.js";
 import { managedLocalComparisonTests } from "./tests/local-model-comparison-managed.js";
 import { managedGoogleSetupTests } from "./tests/google-setup-managed.js";
 import { managedDriveCheckpointTests } from "./tests/drive-checkpoint-managed.js";
+import { managedBrowserImportTests } from "./tests/browser-import-managed.js";
 import { managedDriveSharingTests } from "./tests/drive-sharing-managed.js";
 import { managedNewsTests } from "./tests/news-managed.js";
 import { managedSpectroliteTests } from "./tests/spectrolite-managed.js";
@@ -296,6 +297,7 @@ export function allTests(): TestCase[] {
   ...managedSpectroliteTests,
     ...managedGoogleSetupTests,
     ...managedDriveCheckpointTests,
+    ...managedBrowserImportTests,
     ...managedDriveSharingTests,
     ...managedLocalComparisonTests,
     ...managedLogAuditTests,

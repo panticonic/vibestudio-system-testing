@@ -130,6 +130,8 @@
     "./drive-checkpoint-contract": "./drive-checkpoint-contract.ts",
     "./drive-checkpoint-worlds": "./drive-checkpoint-worlds.ts",
     "./drive-checkpoint-handoff-managed": "./drive-checkpoint-handoff-managed.ts",
+    "./browser-import-contract": "./browser-import-contract.ts",
+    "./browser-import-worlds": "./browser-import-worlds.ts",
     "./drive-sharing-contract": "./drive-sharing-contract.ts",
     "./drive-sharing-worlds": "./drive-sharing-worlds.ts",
     "./regency-review-contract": "./regency-review-contract.ts",

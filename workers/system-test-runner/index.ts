@@ -76,6 +76,7 @@ import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skil
 import type { AdventureReviewInput, ManagedAdventureReceiver, ProgrammedAdventureInput } from "@workspace-skills/system-testing/adventure-review-contract";
 import type { RegencyReviewInput, ManagedRegencyReceiver } from "@workspace-skills/system-testing/regency-review-contract";
 import type { DriveCheckpointInput, ManagedDriveCheckpointReceiver } from "@workspace-skills/system-testing/drive-checkpoint-contract";
+import type { BrowserImportInput, ManagedBrowserImportReceiver } from "@workspace-skills/system-testing/browser-import-contract";
 import type { DriveSharingInput, ManagedDriveSharingReceiver } from "@workspace-skills/system-testing/drive-sharing-contract";
 import { driveCheckpointHandoffWork, managedDriveCheckpointWorlds } from "@workspace-skills/system-testing/drive-checkpoint-worlds";
 import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
@@ -1808,6 +1809,39 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const verification=prepared.verify(utilityValue.report);
       utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
     `) as Awaited<ReturnType<ManagedAdventureReceiver["captureProgrammedAdventure"]>>;
+  }
+
+  private browserImportBindings(input: BrowserImportInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {managedBrowserImportWorlds} from "@workspace-skills/system-testing/browser-import-worlds";
+      import {prepareManagedBrowserImport} from "@workspace-skills/browser-import-runtime/managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Browser migration belongs to another context");
+      const world=managedBrowserImportWorlds.find(item=>item.id===input.caseId);
+      if(!world) throw new Error("Unknown assigned Browser migration case");
+      const prepared=await prepareManagedBrowserImport(world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the caller-owned browser migration assignment."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedBrowserImportTeacher(input: BrowserImportInput & {executorModel:string}): ReturnType<ManagedBrowserImportReceiver["runManagedBrowserImportTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"browserImport",operation:"reviewBrowserImport",input:{goal:"Review the assigned Browser migration"}},
+      inputCode:"prepared.request",
+      bindingCode:this.browserImportBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedBrowserImportReceiver["runManagedBrowserImportTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks the browser migration receipt and preview boundaries without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedBrowserImport(input: BrowserImportInput): ReturnType<ManagedBrowserImportReceiver["qualifyManagedBrowserImport"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{kind:"domain",domain:"browserImport",operation:"reviewBrowserImport"}], this.browserImportBindings(input),
+    )) as Awaited<ReturnType<ManagedBrowserImportReceiver["qualifyManagedBrowserImport"]>>;
   }
 
   private driveSharingBindings(input: DriveSharingInput): string {
