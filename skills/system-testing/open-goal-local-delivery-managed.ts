@@ -290,9 +290,12 @@ export async function prepareOpenLocalDelivery(
       independentlyJoinedLocalDelivery: nativeProofs.every(proof => proof.passed),
       preservedOwnedLocalRosters: lanes.every((lane, index) => {
         const current = rosterReadbacks[index]?.entries ?? [];
-        const owned = new Set([lane.sender.id, ...lane.probes.map(({ participantId }) => participantId)]);
-        return current.length === owned.size && current.every(entry => owned.has(entry.participantId) && entry.kind === "agent") &&
-          lane.probes.every(probe => current.some(entry => entry.participantId === probe.participantId && `@${entry.handle}` === probe.ref));
+        // Addressed AgentWorkerBase subscriptions register as observers. The
+        // probes join the channel directly as passive agents.
+        const expected = new Map([[lane.sender.id, { handle: "fixture-sender", kind: "observer" }],
+          ...lane.probes.map(({ participantId, ref }) => [participantId, { handle: ref.slice(1), kind: "agent" }] as const)]);
+        return current.length === expected.size && new Set(current.map(entry => entry.participantId)).size === expected.size &&
+          current.every(({ participantId, handle, kind }) => isDeepStrictEqual({ handle, kind }, expected.get(participantId)));
       }),
       verifiedOriginalLocalReceipts: Array.isArray(outcome?.evidence) && wanted.length === world.expected.evidence.length &&
         wanted.every(item => item.acknowledged) && isDeepStrictEqual(sorted(outcome.evidence), sorted(wanted)),
