@@ -248,6 +248,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         }),
       loadedInstalledKnowledge: valid && plan.knowledge.length === expectedKnow.length && freshKnowledge.every(Boolean),
       reconciledPlanningEvidence: valid && corrected &&
+        (assignment.decision?.claims.every(claim => claim.test(plan.rationale)) ?? true) &&
         plan.memoDisposition === (assignment.memoDisposition ?? "none") &&
         isDeepStrictEqual(plan.overview, currentOverview) && isDeepStrictEqual(overview, currentOverview),
       respectedNegativeScope: valid && negative && exactNegative &&
@@ -302,6 +303,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       throw new Error(`Reference blocker is visible: ${missing.name}`);
     const plan: CapabilityPlan = {
       status: missing ? "hold" : "ready", steps, knowledge, missing: missing ? [missing] : [],
+      rationale: assignment.decision?.reference ?? "Use the observed callable contracts and stop when a required dependency is unavailable.",
       memoDisposition: assignment.memoDisposition ?? "none",
       overview: assignment.inventory ? await services.docPlanCatalog.overview() : null,
     };
@@ -312,7 +314,8 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
 }
 
 function validPlanShape(plan: CapabilityPlan | undefined): plan is CapabilityPlan {
-  return !!plan && Array.isArray(plan.steps) && plan.steps.length <= 6 &&
+  return !!plan && typeof plan.rationale === "string" && Boolean(plan.rationale.trim()) &&
+    boundedText(plan.rationale, 600) && Array.isArray(plan.steps) && plan.steps.length <= 6 &&
     plan.steps.every(step => step && typeof step.id === "string" && typeof step.sha256 === "string" &&
       Array.isArray(step.argumentNames) && typeof step.purpose === "string" &&
       step.purpose.trim() && boundedText(step.purpose, 240)) &&
