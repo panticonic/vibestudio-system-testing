@@ -108,7 +108,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3677,6 +3677,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const personal = openGoalPersonalWorlds.find(({ id }) => id === input.caseId);
     const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const ownedPreview = openGoalOwnedPreviewWorlds.some(({ id }) => id === input.caseId);
     const publication = publicationGoalWorlds.some(({ id }) => id === input.caseId);
     const pdf = openGoalPdfWorlds.some(({ id }) => id === input.caseId);
     const gmail = openGoalGmailWorlds.find(({ id }) => id === input.caseId);
@@ -3695,6 +3696,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const prepare = personalAutomation
       ? `import {prepareOpenPersonalAutomation} from "@workspace-skills/open-personal-automation-runtime";
          const prepared=await prepareOpenPersonalAutomation(input,${JSON.stringify(personalAutomation)});`
+      : ownedPreview
+      ? `import {prepareOpenOwnedPreviewGoal} from "@workspace-skills/system-testing/open-goal-owned-preview-managed";
+         if (!input.panelId || !input.source) throw new Error("An owned preview needs its original renderer");
+         const prepared=await prepareOpenOwnedPreviewGoal(input);`
       : googleHandoff
       ? `import {prepareOpenGoogleHandoffGoal} from "@workspace-skills/open-google-handoff-goal/managed";
          const candidate=await prepareOpenGoogleHandoffGoal(input,${JSON.stringify(googleHandoff)});

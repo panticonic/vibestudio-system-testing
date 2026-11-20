@@ -1,3 +1,4 @@
+import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
@@ -88,7 +89,7 @@ const referenceGoals = [...openGoalWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -151,6 +152,16 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "ownedPreview" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "packages/integrations"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-owned-preview", [{
+      ruleId: "approve-the-disposable-preview-operation",
+      capability: { kind: "exact", key: "website.publish" },
+      resource: { kind: "prefix", prefix: "managed-preview-" }, tier: "critical", decision: "once",
+    }]),
+    workspaceRepoFixture: { kind: "open-goal-owned-preview-panel", section: "panels", caseId: world.id },
+  } : {}),
   ...(world.kind === "publication" ? {
     requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "skills/publication-revision-bindings"],
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -180,6 +191,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
+    world.kind === "ownedPreview" ? "Publish to the authorized disposable preview and verify its exact hosted artifact" :
     world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
     world.kind === "pdfVault" ? "Ground a working vault correction in the original PDF and verify its revision" :
     world.kind === "pdf" ? "Inspect the selected PDF using original text, geometry and retained raster evidence" :

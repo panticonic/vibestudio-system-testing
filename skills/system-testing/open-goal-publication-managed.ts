@@ -28,8 +28,14 @@ function findWorld(caseId: string) {
 /** Prepare an actual workspace revision before the candidate renderer opens. */
 export async function seedOpenPublicationGoal(input: Input): Promise<`state:${string}` | undefined> {
   const world = findWorld(input.caseId);
+  return seedPublicationRevision(input, world);
+}
+
+export async function seedPublicationRevision(
+  { source, contextId }: Pick<Input, "source" | "contextId">,
+  world: { caption: string; revisedCaption?: string },
+): Promise<`state:${string}` | undefined> {
   if (!world.revisedCaption) return undefined;
-  const { source, contextId } = input;
   const prior = await packageWebsite(rpc, source, contextRef(contextId));
   const hash = prior.privateReceipt.sourceStateHash;
   if (!hash?.startsWith("state:")) throw new Error("The prior website package has no immutable source state");

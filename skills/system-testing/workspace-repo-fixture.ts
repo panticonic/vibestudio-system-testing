@@ -1,3 +1,4 @@
+import { openGoalOwnedPreviewWorlds, ownedPreviewLaunchFacts } from "./open-goal-owned-preview-worlds.js";
 import { publicationGoalLaunchFacts, publicationGoalWorlds } from "./open-goal-publication-worlds.js";
 import { managedPublicationWorlds } from "./publication-preflight-worlds.js";
 import { unitRepairSeedFiles, type UnitRepairFault } from "./unit-repair-oracle.js";
@@ -60,6 +61,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
   | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
   | { kind: "open-goal-publication-panel"; section: "panels"; caseId: string }
+  | { kind: "open-goal-owned-preview-panel"; section: "panels"; caseId: string }
   | { kind: "panel-health-preview"; section: "panels"; caseId: string }
   | { kind: "open-goal-browser-panel"; section: "panels"; caseId: string }
   | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
@@ -1288,19 +1290,24 @@ function repositorySeedFiles(
   if (fixture.kind === "optimizable-panel") {
     return buildablePanelFiles(repoName, { repeatedStatusLabels: 512 });
   }
-  if (fixture.kind === "publication-preflight-panel" || fixture.kind === "open-goal-publication-panel") {
+  if (fixture.kind === "publication-preflight-panel" || fixture.kind === "open-goal-publication-panel" ||
+      fixture.kind === "open-goal-owned-preview-panel") {
+    const ownedPreview = fixture.kind === "open-goal-owned-preview-panel"
+      ? openGoalOwnedPreviewWorlds.find(({ id }) => id === fixture.caseId)
+      : undefined;
     const openWorld = fixture.kind === "open-goal-publication-panel"
       ? publicationGoalWorlds.find(({ id }) => id === fixture.caseId)
       : undefined;
-    const world = openWorld ?? managedPublicationWorlds.find(({ id }) => id === fixture.caseId);
+    const world = ownedPreview ?? openWorld ?? managedPublicationWorlds.find(({ id }) => id === fixture.caseId);
     if (!world) throw new Error("Unknown publication preflight panel fixture");
     const [manifest] = buildablePanelFiles(repoName);
     const config = JSON.parse(manifest!.content);
     config.vibestudio.website = { entry: "website.ts", title: world.title };
     return [
       { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
-      ...(openWorld ? [{
-        path: "launch-review.json", content: JSON.stringify(publicationGoalLaunchFacts(openWorld), null, 2) + "\n",
+      ...(ownedPreview || openWorld ? [{
+        path: "launch-review.json",
+        content: JSON.stringify(ownedPreview ? ownedPreviewLaunchFacts(ownedPreview) : publicationGoalLaunchFacts(openWorld!), null, 2) + "\n",
       }] : []),
       { path: "copy.ts", content: `export const copy = ${JSON.stringify({
         title: world.title,

@@ -108,6 +108,7 @@
     "./open-goal-pdf-vault-managed": "./open-goal-pdf-vault-managed.ts",
     "./open-goal-pdf-managed": "./open-goal-pdf-managed.ts",
     "./open-goal-gmail-seed": "./open-goal-gmail-seed.ts",
+    "./open-goal-owned-preview-managed": "./open-goal-owned-preview-managed.ts",
     "./open-goal-publication-managed": "./open-goal-publication-managed.ts",
     "./open-goal-worlds": "./open-goal-worlds.ts",
     "./web-brief-worlds": "./web-brief-worlds.ts",
