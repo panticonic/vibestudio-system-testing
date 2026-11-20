@@ -1,3 +1,5 @@
+import type { ManagedTemplateCandidateReceiver } from "../template-candidate-managed.js";
+import { templateCandidateManagedWorlds } from "../template-candidate-worlds.js";
 import type { TemplateReleaseReceiver } from "../template-release-managed.js";
 import { templateReleasePart, templateReleaseWorlds } from "../template-release-worlds.js";
 import type { TestCase, TestExecutionResult } from "../types.js";
@@ -211,6 +213,57 @@ templateTests.push(...templateReleaseWorlds.map((world): TestCase => ({
   },
   validate(result) {
     const outcome = result.diagnostics?.["templateRelease"] as Qualification | undefined;
+    return {
+      passed: outcome?.caseId === world.id && outcome.passed === true,
+      details: outcome?.checks,
+    };
+  },
+})));
+
+type TemplateCandidate = Awaited<ReturnType<ManagedTemplateCandidateReceiver["runTemplateCandidateTeacher"]>>;
+type CandidateQualification = Awaited<ReturnType<ManagedTemplateCandidateReceiver["qualifyTemplateCandidate"]>>;
+const templateCandidateSettings = {
+  category: "templates",
+  explicitOnly: true,
+  validation: "harness" as const,
+  requiresUnits: ["extensions/templates", "skills/template-candidate"],
+};
+
+templateTests.push(...templateCandidateManagedWorlds.map((world): TestCase => ({
+  ...templateCandidateSettings,
+  name: `template-candidate-live-${world.id}`,
+  description: "Review VibeStudio's live template update offer",
+  prompt: world.goal,
+  async orchestrate({ runner, signal }) {
+    const start = Date.now();
+    const result = await runner.runTemplateCandidate(world.id, false, signal);
+    if (result.kind !== "teacher") throw new Error("Expected a template review capture");
+    const { teacher, ...fixture } = result.value;
+    return {
+      messages: [], duration: Date.now() - start,
+      provenance: { contextId: fixture.contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+      diagnostics: { natlangTeacher: teacher, templateCandidateManaged: fixture },
+    };
+  },
+  validate(result) {
+    const teacher = result.diagnostics?.["natlangTeacher"] as TemplateCandidate["teacher"] | undefined;
+    const fixture = result.diagnostics?.["templateCandidateManaged"] as Omit<TemplateCandidate, "teacher"> | undefined;
+    return { passed: teacher?.trainingEligible === true && fixture?.verification.passed === true, details: fixture?.verification.checks };
+  },
+})));
+templateTests.push(...templateCandidateManagedWorlds.map((world): TestCase => ({
+  ...templateCandidateSettings,
+  name: `template-candidate-oracle-qualification-${world.id}`,
+  description: "Verify one native template update hold without model calls",
+  prompt: world.goal,
+  async orchestrate({ runner, signal }) {
+    const start = Date.now();
+    const result = await runner.runTemplateCandidate(world.id, true, signal);
+    if (result.kind !== "reference") throw new Error("Template qualification invoked a model");
+    return { messages: [], duration: Date.now() - start, diagnostics: { templateCandidateManaged: result.value } };
+  },
+  validate(result) {
+    const outcome = result.diagnostics?.["templateCandidateManaged"] as CandidateQualification | undefined;
     return {
       passed: outcome?.caseId === world.id && outcome.passed === true,
       details: outcome?.checks,

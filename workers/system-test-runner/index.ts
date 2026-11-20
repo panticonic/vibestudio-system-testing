@@ -7,6 +7,7 @@ import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/githu
 import type { ManagedGitHubDiagnosisReceiver } from "@workspace-skills/system-testing/github-diagnosis-managed";
 import type { PersonalResumeReceiver } from "@workspace-skills/system-testing/personal-resume-managed";
 import type { ManagedUnitDesignReceiver } from "@workspace-skills/system-testing/unit-design-managed";
+import type { ManagedTemplateCandidateReceiver } from "@workspace-skills/system-testing/template-candidate-managed";
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
@@ -2782,6 +2783,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {contextId as actualContextId} from "@workspace/runtime";
       import {prepareTemplateRelease} from "@workspace-skills/system-testing/template-release-managed";
       const prepared=await prepareTemplateRelease(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the assigned native template update offer."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async runTemplateCandidateTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedTemplateCandidateReceiver["runTemplateCandidateTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"templateCandidate",operation:"stageTemplateCandidate",input:{goal:"Review the assigned template update"}},
+      inputCode: "prepared.request",
+      bindingCode: this.templateCandidateBindings(input),
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedTemplateCandidateReceiver["runTemplateCandidateTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks live template update and protected-main receipts without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyTemplateCandidate(input: {contextId:string;caseId:string}): ReturnType<ManagedTemplateCandidateReceiver["qualifyTemplateCandidate"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"templateCandidate",operation:"stageTemplateCandidate"}], this.templateCandidateBindings(input),
+    )) as Awaited<ReturnType<ManagedTemplateCandidateReceiver["qualifyTemplateCandidate"]>>;
+  }
+
+  private templateCandidateBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedTemplateCandidate} from "@workspace-skills/system-testing/template-candidate-managed";
+      const prepared=await prepareManagedTemplateCandidate(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
       const assignedServices=prepared.services;
     `;
   }

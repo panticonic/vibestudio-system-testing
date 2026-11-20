@@ -68,6 +68,7 @@
     "./mission-facility-worlds": "./mission-facility-worlds.ts",
     "./unit-design-managed": "./unit-design-managed.ts",
     "./terminal-evidence-managed": "./terminal-evidence-managed.ts",
+    "./template-candidate-managed": "./template-candidate-managed.ts",
     "./template-release-managed": "./template-release-managed.ts",
     "./transcript-cursor-managed": "./transcript-cursor-managed.ts",
     "./unit-identity-managed": "./unit-identity-managed.ts",
@@ -181,6 +182,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/template-candidate-bindings": "workspace:*",
     "@workspace-skills/delivery-history-bindings": "workspace:*",
     "@workspace-skills/publication-revision-bindings": "workspace:*",
     "@workspace-skills/session-cursor-bindings": "workspace:*",

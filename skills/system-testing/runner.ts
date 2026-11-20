@@ -5,6 +5,7 @@ import { gitHubSetupMethods } from "./github-setup-managed.js";
 import { managedGitHubDiagnosisMethods } from "./github-diagnosis-managed.js";
 import { personalResumeMethods } from "./personal-resume-managed.js";
 import { managedUnitDesignMethods } from "./unit-design-managed.js";
+import { templateCandidateMethods } from "./template-candidate-managed.js";
 import { templateReleaseMethods } from "./template-release-managed.js";
 import { managedIntegrationReadinessMethods } from "./integration-readiness-managed.js";
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
@@ -1767,6 +1768,20 @@ export class HeadlessRunner {
       if (qualification)
         return { kind: "reference" as const, value: await rpc.call(owner, templateReleaseMethods.qualifyTemplateRelease, [input], { signal }) };
       return { kind: "teacher" as const, value: await rpc.call(owner, templateReleaseMethods.runTemplateReleaseTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runTemplateCandidate(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      if (qualification)
+        return { kind: "reference" as const, value: await rpc.call(owner, templateCandidateMethods.qualifyTemplateCandidate, [input], { signal }) };
+      return { kind: "teacher" as const, value: await rpc.call(owner, templateCandidateMethods.runTemplateCandidateTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
