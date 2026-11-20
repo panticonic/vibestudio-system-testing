@@ -16,9 +16,15 @@ export interface ManagedMissionPlanningReceiver {
     rejectsStale: boolean;
     rejectsWrongReceipt: boolean;
   }>;
+  runManagedMissionFacilityTeacher(
+    input: MissionPlanningInput & { executorModel: string },
+  ): Promise<{ contextId: string; teacher: PanelTeacherResult; verification: Verification }>;
+  qualifyManagedMissionFacility(input: MissionPlanningInput): Promise<Verification>;
 }
 export const managedMissionPlanningMethods =
   createReceiverRpcMethods<ManagedMissionPlanningReceiver>([
     "runManagedMissionPlanningTeacher",
     "qualifyManagedMissionPlanning",
+    "runManagedMissionFacilityTeacher",
+    "qualifyManagedMissionFacility",
   ]);

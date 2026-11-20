@@ -64,6 +64,7 @@
     "./retained-triage-worlds": "./retained-triage-worlds.ts",
     "./github-setup-managed": "./github-setup-managed.ts",
     "./personal-resume-managed": "./personal-resume-managed.ts",
+    "./mission-facility-worlds": "./mission-facility-worlds.ts",
     "./template-release-managed": "./template-release-managed.ts",
     "./transcript-cursor-managed": "./transcript-cursor-managed.ts",
     "./unit-identity-managed": "./unit-identity-managed.ts",

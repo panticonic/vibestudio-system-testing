@@ -1,6 +1,7 @@
 import type { TestCase } from "../types.js";
 import type { ManagedMissionPlanningReceiver } from "../mission-planning-contract.js";
 import { managedMissionPlanningWorlds } from "../mission-planning-worlds.js";
+import { missionFacilityWorlds } from "../mission-facility-worlds.js";
 
 type Exercise = Awaited<
   ReturnType<ManagedMissionPlanningReceiver["runManagedMissionPlanningTeacher"]>
@@ -35,6 +36,40 @@ const settings = {
     ],
   },
 };
+
+export const managedMissionFacilityTests: TestCase[] = missionFacilityWorlds.flatMap(
+  (world) => [false, true].map((qualification): TestCase => ({
+    ...settings,
+    timeoutMs: 6 * 60_000,
+    name: `mission-facility-${qualification ? "oracle" : "live"}-${world.id}`,
+    description: "Review live Mission Control planning evidence before execution",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const run = await runner.runManagedMissionFacility(world.id, qualification, signal);
+      const duration = Date.now() - started;
+      if (run.kind === "reference") {
+        if (!qualification) throw new Error("Expected a captured Mission Control workflow");
+        return { messages: [], duration, diagnostics: { missionFacility: run.result } };
+      }
+      if (qualification) throw new Error("Qualification invoked a teacher");
+      const { teacher, verification, contextId } = run.result;
+      return {
+        messages: [], duration,
+        provenance: { contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+        diagnostics: { natlangTeacher: teacher, missionFacility: verification },
+      };
+    },
+    validate(result) {
+      const verification = result.diagnostics?.["missionFacility"] as Exercise["verification"] | undefined;
+      const teacher = result.diagnostics?.["natlangTeacher"] as Exercise["teacher"] | undefined;
+      return {
+        passed: verification?.passed === true && (qualification || teacher?.trainingEligible === true),
+        details: verification?.checks,
+      };
+    },
+  })),
+);
 
 export const managedMissionPlanningTests: TestCase[] =
   managedMissionPlanningWorlds.map(({ id, request }) => ({

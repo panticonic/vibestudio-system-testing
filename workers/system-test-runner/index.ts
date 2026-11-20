@@ -1340,6 +1340,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedMissionPlanningReceiver["qualifyManagedMissionPlanning"]>>;
   }
 
+  @rpc({website:{kind:"closed",reason:"Reviews one owned live Mission Control card."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedMissionFacilityTeacher(input: MissionPlanningInput & {executorModel:string}): ReturnType<ManagedMissionPlanningReceiver["runManagedMissionFacilityTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"personalFacility",operation:"reviewPersonalFacility",input:{goal:"Review the assigned Mission Control card"}},
+      inputCode:"prepared.request",
+      bindingCode:this.missionFacilityBindings(input),
+    },runId)}
+      utilityValue={teacher:utilityValue,contextId:actualContextId,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedMissionPlanningReceiver["runManagedMissionFacilityTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies live card revision and prerequisite checks without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedMissionFacility(input: MissionPlanningInput): ReturnType<ManagedMissionPlanningReceiver["qualifyManagedMissionFacility"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"personalFacility",operation:"reviewPersonalFacility"}],this.missionFacilityBindings(input),
+    )) as Awaited<ReturnType<ManagedMissionPlanningReceiver["qualifyManagedMissionFacility"]>>;
+  }
+
+  private missionFacilityBindings(input: MissionPlanningInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedMissionFacility} from "@workspace-skills/mission-planning-runtime/managed";
+      import {missionFacilityWorlds} from "@workspace-skills/system-testing/mission-facility-worlds";
+      const input=${JSON.stringify({contextId:input.contextId,caseId:input.caseId})};
+      const world=missionFacilityWorlds.find(({id})=>id===input.caseId);
+      if(!world || actualContextId!==input.contextId) throw new Error("Unknown Mission Control review assignment");
+      const prepared=await prepareManagedMissionFacility(world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
   private missionPlanningBindings(input: MissionPlanningInput): string {
     return `
       import {contextId as actualContextId} from "@workspace/runtime";

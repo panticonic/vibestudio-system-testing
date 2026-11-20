@@ -34,7 +34,7 @@ import { managedTestkitCleanupTests } from "./tests/testkit-cleanup-managed.js";
 import { managedSessionReplayTests } from "./tests/session-replay-managed.js";
 import { managedPanelHealthTests } from "./tests/panel-health-managed.js";
 import { managedChannelRosterTests } from "./tests/channel-roster-managed.js";
-import { managedMissionPlanningTests } from "./tests/mission-planning-managed.js";
+import { managedMissionFacilityTests, managedMissionPlanningTests } from "./tests/mission-planning-managed.js";
 import { managedBrowserHandoffTests } from "./tests/browser-handoff-managed.js";
 import { managedProvenanceHistoryTests } from "./tests/provenance-history-managed.js";
 import { managedRuntimeProgramTests } from "./tests/runtime-program-managed.js";
@@ -327,6 +327,7 @@ export function allTests(): TestCase[] {
     ...managedBrowserLibraryTests,
     ...managedBrowserHandoffTests,
     ...managedMissionPlanningTests,
+    ...managedMissionFacilityTests,
     ...managedChannelRosterTests,
     ...serverLogTests,
     ...problemReportingTests,

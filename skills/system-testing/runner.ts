@@ -1030,6 +1030,20 @@ export class HeadlessRunner {
     }
   }
 
+  async runManagedMissionFacility(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedMissionPlanningMethods.qualifyManagedMissionFacility, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedMissionPlanningMethods.runManagedMissionFacilityTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
   async runManagedChannelRoster(caseId: string, qualification: boolean, signal: AbortSignal) {
     if (!managedChannelRosterWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown channel roster case");
     const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
