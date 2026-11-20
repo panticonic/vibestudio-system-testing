@@ -1,3 +1,4 @@
+import { openGoalGoogleSetupWorlds } from "./open-goal-google-setup-worlds.js";
 import { managedDeploymentMethods } from "./remote-deployment-managed.js";
 import { remoteCommissionMethods } from "./remote-commission-managed.js";
 import { approvalTransitionMethods } from "./approval-transition-managed.js";
@@ -2207,6 +2208,27 @@ export class HeadlessRunner {
   }
   async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false) {
     const request = { caseId, goal, executorModel: this.modelRef, qualification };
+    const setup = openGoalGoogleSetupWorlds.find(({ id }) => id === caseId);
+    if (setup) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "open-goal-google-setup" || fixture.caseId !== caseId || !fixture.repoName || !contextId)
+        throw new Error("Google setup needs its owned welcome profile");
+      const source = `panels/${fixture.repoName}`;
+      const panel = await this.openPanelClient(source, {
+        contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+        stateArgs: { setup: setup.profile },
+      });
+      try {
+        await setViewport(panel, { width: 1280, height: 844 });
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { ...request, contextId, source, panelId: panel.id },
+        ], { signal });
+      } finally {
+        await panel.archive();
+      }
+    }
+
     const recovery = openGoalPanelRecoveryWorlds.find(({ id }) => id === caseId);
     if (recovery) {
       const fixture = this.workspaceRepoFixture;

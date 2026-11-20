@@ -1,4 +1,5 @@
 import { openVaultKnowledgeWorlds } from "../open-goal-vault-knowledge-worlds.js";
+import { openGoalGoogleSetupWorlds, googleSetupRequiresUnits } from "../open-goal-google-setup-worlds.js";
 import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
 import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
@@ -97,7 +98,7 @@ const referenceGoals = [...openGoalWorlds, ...openTerminalWorlds, ...openReconci
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -179,6 +180,20 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] },
   } : {}),
+  ...(world.kind === "googleSetup" ? {
+    requiresUnits: googleSetupRequiresUnits,
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-google-setup", [
+      PANEL_RUNTIME_SUPERVISION_AUTHORITY,
+      {
+        ruleId: "reload-owned-google-setup",
+        capability: { kind: "exact", key: "runtime.supervision.manage" },
+        resource: { kind: "prefix", prefix: "restart:panel:panel:" },
+        tier: "gated", decision: "once",
+      },
+    ]),
+    workspaceRepoFixture: { kind: "open-goal-google-setup", section: "panels", caseId: world.id },
+  } : {}),
   ...(world.kind === "visualRecovery" ? {
     requiresUnits: ["skills/open-user-goal", "skills/panel-health", "skills/panel-health-runtime"],
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -221,6 +236,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
     world.kind === "vaultWork" ? "Resolve long-form knowledge work against the current native vault" :
     world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
+    world.kind === "googleSetup" ? "Assess the exact Google onboarding gate and current owner route" :
     world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
     world.kind === "gmail" ? "Recover Gmail compose and delivery state from retained records and current provider readback" :
     world.kind === "calendar" ? "Reconcile live calendar windows, confirm a current decision, and verify its handoff" :

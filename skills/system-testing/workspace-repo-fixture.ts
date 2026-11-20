@@ -1,3 +1,4 @@
+import { openGoogleSetupRenderer } from "./open-goal-google-setup-renderer.js";
 import { panelRecoverySource } from "./open-goal-panel-recovery-renderer.js";
 import { openGoalOwnedPreviewWorlds, ownedPreviewLaunchFacts } from "./open-goal-owned-preview-worlds.js";
 import { publicationGoalLaunchFacts, publicationGoalWorlds } from "./open-goal-publication-worlds.js";
@@ -63,6 +64,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
   | { kind: "open-goal-publication-panel"; section: "panels"; caseId: string }
   | { kind: "open-goal-owned-preview-panel"; section: "panels"; caseId: string }
+  | { kind: "open-goal-google-setup"; section: "panels"; caseId: string }
   | { kind: "open-goal-panel-recovery"; section: "panels"; caseId: string }
   | { kind: "panel-health-preview"; section: "panels"; caseId: string }
   | { kind: "open-goal-browser-panel"; section: "panels"; caseId: string }
@@ -1344,6 +1346,16 @@ for (const label of copy.publicLabels) {
     return [
       { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
       { path: "index.tsx", content: openGoalBrowserPanelSource },
+    ];
+  }
+  if (fixture.kind === "open-goal-google-setup") {
+    const [manifest] = buildablePanelFiles(repoName);
+    const config = JSON.parse(manifest!.content);
+    config.dependencies["@workspace-panels/welcome"] = "workspace:*";
+    config.dependencies["@workspace-skills/google-drive"] = "workspace:*";
+    return [
+      { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
+      { path: "index.tsx", content: openGoogleSetupRenderer },
     ];
   }
   if (fixture.kind === "open-goal-panel-recovery") {

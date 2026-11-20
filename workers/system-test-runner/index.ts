@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openTerminalWorlds, openUnitRolloutWorlds,
+  openTerminalWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3682,6 +3682,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const programRun = openGoalProgramRunWorlds.find(({ id }) => id === input.caseId);
     const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
+    const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
     const vaultKnowledge = openVaultKnowledgeWorlds.find(({ id }) => id === input.caseId);
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
@@ -3742,6 +3743,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
          const prepared=await prepareOpenProgramRun(input,${JSON.stringify(programRun)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)});`
+      : googleSetup
+      ? `import {panelTree} from "@workspace/runtime";
+         import {prepareOpenGoogleSetup} from "@workspace-skills/google-drive/open-google-setup-managed";
+         if (!input.source || !input.panelId) throw new Error("Google setup needs its assigned welcome panel");
+         const prepared=await prepareOpenGoogleSetup(panelTree.get(input.panelId),actualContextId,input.source,${JSON.stringify(googleSetup)});`
       : visualRecovery
       ? `import {prepareOpenPanelRecovery} from "@workspace-skills/system-testing/open-goal-panel-recovery-managed";
          if (!input.source || !input.recoveryPanels) throw new Error("Visual recovery needs its owned live surfaces");
