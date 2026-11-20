@@ -9,28 +9,13 @@ type Qualification = Awaited<
   ReturnType<ManagedBrowserImportReceiver["qualifyManagedBrowserImport"]>
 >;
 const settings = {
-  authorityPolicy: {
-    authority: [
-      {
-        ruleId: "owned-browser-import-store-write",
-        capability: {
-          kind: "prefix" as const,
-          prefix: "userland:workers/browser-data/browser-data.write#",
-        },
-        resource: {
-          kind: "prefix" as const,
-          prefix:
-            "browser-data:do:workers/browser-data:BrowserDataDO:browser-import-fixture-",
-        },
-        tier: "gated" as const,
-        decision: "once" as const,
-      },
-    ],
-  },
   category: "project-lifecycle",
   explicitOnly: true,
   validation: "harness" as const,
-  requiresUnits: ["skills/browser-import-runtime", "workers/browser-data"],
+  requiresUnits: [
+    "skills/browser-import-runtime",
+    "workers/browser-import-fixture",
+  ],
 };
 
 export const managedBrowserImportTests: TestCase[] =
