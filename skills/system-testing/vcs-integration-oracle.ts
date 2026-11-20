@@ -114,7 +114,8 @@ export async function verifyWorkspaceIntegration(
             entry.coordinate.kind === "file" &&
             entry.coordinate.id === file.fileId &&
             (entry.resolution === "composed" ||
-              entry.resolution === "current") &&
+              entry.resolution === "current" ||
+              entry.resolution === "convergent") &&
             file.sourceChangeIds.length > 0 &&
             file.sourceChangeIds.every((id) =>
               entry.accountedSourceChangeIds.includes(id),
@@ -127,7 +128,7 @@ export async function verifyWorkspaceIntegration(
   for (const file of fixture.files)
     if (!accountedFiles.has(file.fileId))
       reasons.push(
-        `No reachable composed/current decision accounts for ${file.path}`,
+        `No reachable composed, current, or convergent decision accounts for ${file.path}`,
       );
 
   const final = await vcs.status({ contextId: fixture.contextId });

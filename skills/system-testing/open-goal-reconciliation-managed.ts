@@ -280,6 +280,7 @@ export async function prepareOpenReconciliation(
     return {
       contextId, caseId: input.caseId, goal: scenario.goal, passed: Object.values(checks).every(Boolean), checks,
       effects, window, race, release, mergeHead, artifact, nativeHead: token(current.workingHead), archiveRecheck,
+      integrationOracle: result ? { passed: result.passed, reasons: result.reasons, verificationPaths: result.verificationPaths } : null,
     };
   }
 
