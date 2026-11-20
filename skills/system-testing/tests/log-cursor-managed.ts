@@ -70,39 +70,31 @@ export const managedLogCursorTests: TestCase[] = managedLogCursorWorlds.map(
   }),
 );
 
-managedLogCursorTests.push({
-  ...settings,
-  name: "log-cursor-oracle-qualification",
-  description:
-    "Qualify live boot, coverage and record group evidence without model calls",
-  prompt: "Check the assigned cursor against the current host log.",
-  async orchestrate({ runner, signal }) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const { id } of managedLogCursorWorlds) {
-      const run = await runner.runManagedLogCursor(id, true, signal);
+managedLogCursorTests.push(
+  ...managedLogCursorWorlds.map((world): TestCase => ({
+    ...settings,
+    name: `log-cursor-oracle-${world.id}`,
+    description: "Qualify one saved cursor against live logs without model calls",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const run = await runner.runManagedLogCursor(world.id, true, signal);
       if (run.kind !== "reference")
         throw new Error("Log cursor qualification invoked a teacher");
-      checks.push(run.result);
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { logCursorQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["logCursorQualification"] as
-      | Qualification[]
-      | undefined;
-    return {
-      passed:
-        checks?.length === managedLogCursorWorlds.length &&
-        checks.every(
-          ({ verification, rejectsForeignCursor }) =>
-            verification.passed && rejectsForeignCursor,
-        ),
-      details: { checks },
-    };
-  },
-});
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { logCursorQualification: run.result },
+      };
+    },
+    validate(result) {
+      const check = result.diagnostics?.["logCursorQualification"] as
+        | Qualification
+        | undefined;
+      return {
+        passed: Boolean(check?.verification.passed && check.rejectsForeignCursor),
+        details: { check },
+      };
+    },
+  })),
+);
