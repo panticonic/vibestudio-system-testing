@@ -27,10 +27,9 @@ const settings = {
       },
     ],
   },
-  category: "oauth",
+  category: "project-lifecycle",
   explicitOnly: true,
   validation: "harness" as const,
-  timeoutMs: 5 * 60_000,
   requiresUnits: ["skills/browser-import-runtime", "workers/browser-data"],
 };
 
