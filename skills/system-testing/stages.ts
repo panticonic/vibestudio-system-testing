@@ -17,6 +17,7 @@ import { managedAndroidPairTests } from "./tests/android-pair-managed.js";
 import { managedAndroidInstallTests } from "./tests/android-install-managed.js";
 import { managedAndroidAuditTests } from "./tests/android-audit-managed.js";
 import { managedDeliveryHistoryTests } from "./tests/delivery-history-managed.js";
+import { managedPersonalResumeTests } from "./tests/personal-resume.js";
 import { managedPdfLayoutTests } from "./tests/pdf-layout-managed.js";
 import { managedDictationTests } from "./tests/offline-dictation-managed.js";
 import { managedNativeSuiteTests } from "./tests/native-suite-managed.js";
@@ -293,6 +294,7 @@ export function allTests(): TestCase[] {
   ...managedAndroidInstallTests,
   ...managedAndroidAuditTests,
   ...managedDeliveryHistoryTests,
+  ...managedPersonalResumeTests,
   ...localMessagingTests,
     ...workspaceIntegrationTests,
     ...workerTests,

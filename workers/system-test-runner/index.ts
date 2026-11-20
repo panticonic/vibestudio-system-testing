@@ -4,6 +4,7 @@ import { cliContinuationWork, remoteRouteWorlds } from "@workspace-skills/system
 import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
+import type { PersonalResumeReceiver } from "@workspace-skills/system-testing/personal-resume-managed";
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
@@ -2566,6 +2567,49 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     }, runId)}
       utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
     `) as Awaited<ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures an assigned Personal repository handoff."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runPersonalResumeTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<PersonalResumeReceiver["runPersonalResumeTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"personal",operation:"runPersonalWorkflow",input:{goal:"Resume the assigned repository"}},
+      inputCode:"prepared.request",
+      bindingCode:this.personalResumeBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<PersonalResumeReceiver["runPersonalResumeTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies repository and GitHub owner reads without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyPersonalResume(input: {contextId:string;caseId:string}): ReturnType<PersonalResumeReceiver["qualifyPersonalResume"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"personal",operation:"runPersonalWorkflow"}],this.personalResumeBindings(input),
+    )) as Awaited<ReturnType<PersonalResumeReceiver["qualifyPersonalResume"]>>;
+  }
+
+  private personalResumeBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {getGitHubOnboardingStatus,personalRepositoryWorkflowInput} from "@workspace-skills/github";
+      import {composeOnboardingCapabilities,onboardingInteraction,resolveOnboardingSelection,personalSetupWorkflowInput} from "@workspace-skills/onboarding";
+      import {preparePersonalResume} from "@workspace-skills/system-testing/personal-resume-managed";
+      const prepared=await preparePersonalResume(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})},{
+        async inspect(goal,repository,clean){
+          return personalRepositoryWorkflowInput(goal,repository,clean?"clean":"dirty",await getGitHubOnboardingStatus());
+        },
+        async resolve(goal,action){
+          const capabilityId="connection.github";
+          const overview=await composeOnboardingCapabilities();
+          const selection=resolveOnboardingSelection(onboardingInteraction(capabilityId,action),overview.catalog);
+          return personalSetupWorkflowInput(goal,"selection",{
+            catalog:overview.catalog.filter(row=>row.id===capabilityId),
+            snapshot:overview.snapshot.filter(row=>row.id===capabilityId),
+          },selection);
+        },
+      });
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Checks live Personal GitHub setup routing without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
