@@ -8,11 +8,12 @@ import { bindTerminalChecks } from "@workspace-skills/terminal/workflow";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type {
   ChecklistChange, Grants, ItemKey, NativeExit, Screen, TerminalEvent, TerminalHandoff,
-  TerminalStart, TerminalSummary, TerminalTransition,
+  TerminalDiscovery, TerminalStart, TerminalSummary, TerminalTransition,
 } from "@workspace-skills/open-terminal-operator/types";
 import { attachTerminalScreen, type AttachedTerminalScreen } from "./tests/_terminal-screen.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { checklistSource } from "./checklist-worlds.js";
+import { bindTerminalDiscovery } from "./open-goal-terminal-discovery.js";
 import { openTerminalWorlds } from "./open-goal-terminal-worlds.js";
 
 type Assignment = ReturnType<typeof bindTerminalChecks>;
@@ -20,7 +21,7 @@ type CheckPlan = Awaited<ReturnType<Assignment["services"]["terminalCheckRead"][
 type CheckResult = Awaited<ReturnType<Assignment["services"]["terminalCheckRun"]["execute"]>>;
 type CheckStatus = "unavailable" | "timed-out" | "output-truncated" | "passed" | "failed";
 type CheckReport = { assignmentReceipt: string; outcomes: { result: CheckResult; status: string }[]; held: string[] };
-type Report = { initial: Screen; events: TerminalEvent[]; checkReport: CheckReport | null; handoff: TerminalHandoff | null; summary: TerminalSummary };
+type Report = { initial: Screen; events: TerminalEvent[]; checkReport: CheckReport | null; discovery: TerminalDiscovery | null; handoff: TerminalHandoff | null; summary: TerminalSummary };
 const firstSize = { cols: 80, rows: 24 };
 const sizes = { small: { cols: 62, rows: 18 }, wide: { cols: 100, rows: 32 } };
 const keys = ["1", "2", "3"] as const;
@@ -102,6 +103,12 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   let closed = false;
   let busy = false;
 
+  const discovery = bindTerminalDiscovery(rpc, () => {
+    if (!world.discovery || !opened || retired || staged || closed)
+      throw new Error("Live discovery needs the granted open terminal scope");
+    if (!steps.includes("discover")) steps.push("discover");
+  });
+
   async function onlyOne<T>(work: () => Promise<T>) {
     if (busy || closed || steps.length >= 12) throw new Error("Terminal operations must be bounded and serial");
     busy = true;
@@ -177,10 +184,12 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   }
   function artifactText() {
     return JSON.stringify({ schema: "vibestudio.owned-terminal-handoff/1", contextId: input.contextId,
-      goal: world!.goal, initial: opened?.screen, events, checks: currentChecks(), note: opened?.note ?? null });
+      goal: world!.goal, initial: opened?.screen, events, checks: currentChecks(),
+      ...(world!.discovery ? { discovery: discovery.evidence() } : {}), note: opened?.note ?? null });
   }
 
   const services = {
+    ...(world.discovery ? { openTerminalDiscovery: discovery.services } : {}),
     openTerminalRead: {
       open: () => onlyOne(async () => {
         if (session || opened) throw new Error("Open the assigned checklist once");
@@ -192,7 +201,8 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
           if (latest.checked.includes(item)) throw new Error("The new checklist was not initially empty");
           latest = await write({ item, checked: true, input: "key" }, latest);
         }
-        opened = { screen: latest, grants, note: await memo(), checkOperationId: assignment?.request.operationId ?? null };
+        opened = { screen: latest, grants, note: await memo(), checkOperationId: assignment?.request.operationId ?? null,
+          discoveryAvailable: !!world.discovery };
         return structuredClone(opened);
       }),
     },
@@ -331,6 +341,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
             (event.operation === "quit" ? event.exit.code === 0 && event.exit.signal === null :
               event.exit.signal !== null || (event.exit.code !== null && event.exit.code !== 0));
         }),
+      exactTerminalDiscovery: await discovery.verify(outcome?.discovery ?? null, world!.discovery),
       exactNativeChecks: (world!.checks ? !!nativeChecks : check === null) && isDeepStrictEqual(outcome?.checkReport, check),
       verifiedLocalHandoff: expectedStaging ? !!staged && !!retained && retained.length === staged.bytes &&
         handoffNames.length === 1 && staged.path === `/.tmp/${handoffNames[0]}/handoff.json` &&
@@ -346,7 +357,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     };
     return { caseId: input.caseId, contextId: input.contextId, goal: world!.goal, checks,
       passed: Object.values(checks).every(value => value === true), initial, events: structuredClone(events),
-      observedExit: structuredClone(observations), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText };
+      observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText };
   }
 
   async function rejectBadInput() {
@@ -362,11 +373,15 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   async function qualify() {
     const opening = await services.openTerminalRead.open();
     let negative = await rejectBadInput();
+    let found: TerminalDiscovery | null = null;
     for (const step of world!.expected.sequence) {
       const [operation, item, value, route] = step.split(":");
       if (operation === "change") {
         if (!await services.openTerminalInput.change({ item: item as ItemKey, checked: value === "on", input: route === "mouse" ? "mouse" : "key" }))
           throw new Error(`Reference edit refused: ${step}`);
+      } else if (operation === "discover") {
+        if (!world!.discovery) throw new Error("Reference discovery is not granted");
+        found = await discovery.qualify(world!.discovery);
       } else if (operation === "check") {
         if (!assignment || !services.terminalCheckRead || !services.terminalCheckRun) throw new Error("Reference suite was not assigned");
         const plan = await services.terminalCheckRead.observe(assignment.request.operationId);
@@ -385,7 +400,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     }
     await close();
     const checks = currentChecks();
-    const report = { initial: opening.screen, events, checkReport: checks, handoff: staged,
+    const report = { initial: opening.screen, events, checkReport: checks, discovery: found, handoff: staged,
       summary: { disposition: world!.expected.disposition, explanation: world!.expected.explanation } };
     const proof = await verifyOutcome(report, negative);
     const altered = await verifyOutcome({ ...report, initial: { ...opening.screen, ptyId: "other-pty" } }, negative);
