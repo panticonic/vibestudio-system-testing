@@ -188,14 +188,25 @@ export async function prepareReleaseReviewHandoff(
     const earlyReadDenied =
       (await services.scratchHandoffRead.read("extension")) === null;
     await services.extensionReleaseRead.source(extension.request.operationId);
+    const sourceOnlyReadDenied =
+      (await services.scratchHandoffRead.read("extension")) === null;
     await services.extensionReleaseRead.runtime(extension.request.operationId);
     const earlyWriteDenied =
       (await services.scratchHandoffWrite.stage("{}")) === null;
-    for (const { id } of authority.request.operations)
+    let partialAuthorityReadDenied = true;
+    const operations = authority.request.operations;
+    for (const [index, { id }] of operations.entries()) {
       await services.assignedAuthorityRead.preflight(id);
+      if (index + 1 < operations.length)
+        partialAuthorityReadDenied =
+          (await services.scratchHandoffRead.read("authority")) === null &&
+          partialAuthorityReadDenied;
+    }
     const materialized = await services.scratchHandoffRead.read("extension");
     if (!materialized || !transferred)
       throw new Error("Verified evidence did not reach scratch");
+    const partialScratchWriteDenied =
+      (await services.scratchHandoffWrite.stage("{}")) === null;
     const diary = await referenceScratchHandoff(transferred.seeded, services);
     const verification = await verify({
       results: [
@@ -210,6 +221,9 @@ export async function prepareReleaseReviewHandoff(
       earlyReadDenied,
       earlyWriteDenied,
       earlyAuthorityDenied,
+      sourceOnlyReadDenied,
+      partialAuthorityReadDenied,
+      partialScratchWriteDenied,
     };
   }
 

@@ -57,4 +57,33 @@ export const managedAuthorityReviewWorlds = [
     ceiling: [],
     outside: ["guide"],
   },
+  {
+    id: "git-bridge-migration-origins",
+    goal: "Dry-run the working-status read, two Git migration guide paths and a separate incident console. Check that the guide paths share an authorized origin and that the incident console requires a separate grant. Leave the links unopened.",
+    operations: [
+      status,
+      external(
+        "migration-guide",
+        "Migration guide",
+        "https://git-migration.example/guide",
+      ),
+      external(
+        "migration-checklist",
+        "Migration checklist",
+        "https://git-migration.example/checklist",
+      ),
+      external(
+        "incident-console",
+        "Incident console",
+        "https://git-incident.example/console",
+      ),
+    ],
+    ceiling: [
+      {
+        capability: "external.open",
+        resourceKey: "https://git-migration.example",
+      },
+    ],
+    outside: ["incident-console"],
+  },
 ];

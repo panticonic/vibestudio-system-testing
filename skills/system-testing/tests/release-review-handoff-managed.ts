@@ -106,11 +106,17 @@ managedReleaseReviewHandoffTests.push({
             earlyReadDenied,
             earlyWriteDenied,
             earlyAuthorityDenied,
+            sourceOnlyReadDenied,
+            partialAuthorityReadDenied,
+            partialScratchWriteDenied,
           }) =>
             verification.passed &&
             earlyReadDenied &&
             earlyWriteDenied &&
-            earlyAuthorityDenied,
+            earlyAuthorityDenied &&
+            sourceOnlyReadDenied &&
+            partialAuthorityReadDenied &&
+            partialScratchWriteDenied,
         ),
       details: { checks },
     };

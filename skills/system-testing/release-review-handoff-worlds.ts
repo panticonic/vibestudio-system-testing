@@ -27,4 +27,10 @@ export const managedReleaseReviewHandoffWorlds = [
     authority: "open-status-with-empty-ceiling",
     goal: "Determine whether a code-only PDF extension candidate is active. Then dry-run the permitted working-status read and hand off the exact semantic and authority findings for the next operator.",
   },
+  {
+    id: "active-git-bridge-migration-handoff",
+    extension: "read-approved-git-bridge",
+    authority: "git-bridge-migration-origins",
+    goal: "Prepare the Git migration handoff. Establish whether the published Git Bridge review method is exposed by the active host process. Then dry-run the working-status read and the three assigned migration links, account for their distinct origins, and stage a handoff listing what the next operator must hold. Preserve the active runtime and leave all links unopened.",
+  },
 ] as const;
