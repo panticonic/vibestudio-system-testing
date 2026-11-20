@@ -229,8 +229,19 @@ const templateCandidateSettings = {
   requiresUnits: ["extensions/templates", "skills/template-candidate"],
 };
 
+const templatePreparationAuthority = {
+  authority: [{
+    ruleId: "assigned-template-candidate-preparation",
+    capability: { kind: "prefix" as const, prefix: "userland:extensions/templates/workspace.templates.update#" },
+    resource: { kind: "exact" as const, key: "workspace.templates:extension:@workspace-extensions/templates" },
+    tier: "gated" as const,
+    decision: "once" as const,
+  }],
+};
+
 templateTests.push(...templateCandidateManagedWorlds.map((world): TestCase => ({
   ...templateCandidateSettings,
+  ...(world.status === "validate-candidate" ? { authorityPolicy: templatePreparationAuthority } : {}),
   name: `template-candidate-live-${world.id}`,
   description: "Review VibeStudio's live template update offer",
   prompt: world.goal,
@@ -253,8 +264,9 @@ templateTests.push(...templateCandidateManagedWorlds.map((world): TestCase => ({
 })));
 templateTests.push(...templateCandidateManagedWorlds.map((world): TestCase => ({
   ...templateCandidateSettings,
+  ...(world.status === "validate-candidate" ? { authorityPolicy: templatePreparationAuthority } : {}),
   name: `template-candidate-oracle-qualification-${world.id}`,
-  description: "Verify one native template update hold without model calls",
+  description: "Verify the authorized native template workflow without model calls",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
     const start = Date.now();

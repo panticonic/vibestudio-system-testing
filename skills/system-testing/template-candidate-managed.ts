@@ -13,11 +13,15 @@ import type {
   CandidateOffer,
   CandidateReport,
   CandidateRequest,
+  CandidateState,
+  StageReceipt,
 } from "../template-candidate/types.js";
 import { templateCandidateManagedWorlds } from "./template-candidate-worlds.js";
 
 type Input = { contextId: string; caseId: string };
 const unit = "@workspace-extensions/templates";
+const examplesSource =
+  "git+https://github.com/panticonic/vibestudio-template-examples.git";
 const baseSource = "git+https://github.com/panticonic/vibestudio-base.git";
 
 export async function prepareManagedTemplateCandidate(input: Input) {
@@ -26,21 +30,23 @@ export async function prepareManagedTemplateCandidate(input: Input) {
   );
   if (!assignment || input.contextId !== contextId)
     throw new Error("Unknown native template candidate assignment");
+  const historical = "workspaceBaseline" in assignment;
+  const staging = assignment.status === "validate-candidate";
   const baseline = await vcs.status({ contextId });
   const discovery = templateUpdateStatusSchema.parse(
     await extensions.invoke(unit, "checkUpdates", []),
   );
   const before = discovery.checks.find(
-    ({ source }) => source.url === baseSource,
+    ({ source }) => source.url === (historical ? examplesSource : baseSource),
   );
   if (
     !before?.target ||
-    before.status !== "current" ||
-    before.source.commit !== before.target.commit ||
+    before.status !== (historical ? "available" : "current") ||
+    (before.source.commit !== before.target.commit) !== historical ||
     before.target.url !== before.source.url
   ) {
     throw new Error(
-      "The local Base checkpoint did not match the installed template",
+      "The local template discovery did not establish the assigned exact offer",
     );
   }
 
@@ -94,8 +100,8 @@ export async function prepareManagedTemplateCandidate(input: Input) {
     request,
   );
   const reads: (CandidateOffer | null)[] = [];
-  let preparations = 0;
-  let reviews = 0;
+  const preparations: StageReceipt[] = [];
+  const reviews: (CandidateState | null)[] = [];
   const services = {
     templateOffer: {
       async read() {
@@ -106,30 +112,54 @@ export async function prepareManagedTemplateCandidate(input: Input) {
     },
     templateCandidatePrepare: {
       async prepare() {
-        preparations++;
-        return bound.templateCandidatePrepare.prepare();
+        const receipt = await bound.templateCandidatePrepare.prepare();
+        preparations.push(structuredClone(receipt));
+        return receipt;
       },
     },
     templateCandidateReview: {
       async read() {
-        reviews++;
-        return bound.templateCandidateReview.read();
+        const state = await bound.templateCandidateReview.read();
+        reviews.push(structuredClone(state));
+        return state;
       },
     },
   };
-  const reference: CandidateReport = {
-    status: assignment.status,
-    offer: expected,
-    operationId: null,
-    candidate: null,
-  };
+  function reference(): CandidateReport {
+    return {
+      status: assignment.status,
+      offer: expected,
+      operationId: staging ? request.commandId : null,
+      candidate: staging ? (reviews[0]?.review ?? null) : null,
+    };
+  }
 
   async function verify(report: CandidateReport | null) {
     const after = await vcs.status({ contextId });
+    const receipt = preparations[0];
+    const observedReview = reviews[0];
+    const candidate = observedReview?.review;
     const checks = {
       observed: reads.length === 1 && isDeepStrictEqual(reads[0], expected),
-      report: isDeepStrictEqual(report, reference),
-      held: preparations === 0 && reviews === 0,
+      report: isDeepStrictEqual(report, reference()),
+      lifecycle: staging
+        ? preparations.length === 1 &&
+          reviews.length === 1 &&
+          receipt?.outcome === "acknowledged" &&
+          !!candidate &&
+          isDeepStrictEqual(receipt.review, candidate) &&
+          candidate.contextId !== contextId &&
+          candidate.state === "review" &&
+          candidate.operationId === request.commandId &&
+          candidate.incomingCommit === request.incomingCommit &&
+          candidate.mainEventId === baseline.mainEventId &&
+          observedReview.mainEventId === baseline.mainEventId &&
+          candidate.conflicts.length === 0 &&
+          candidate.repositories.some(
+            ({ repoPath, kind }) =>
+              repoPath === "workers/grimoire-world" && kind === "changed",
+          )
+        : preparations.length === 0 && reviews.length === 0,
       unchanged:
         baseline.mainEventId === after.mainEventId &&
         isDeepStrictEqual(baseline.workingHead, after.workingHead),
@@ -138,6 +168,9 @@ export async function prepareManagedTemplateCandidate(input: Input) {
       ...input,
       request,
       observed: reads[0] ?? null,
+      ...(staging
+        ? { receipt, observedReview, protectedMainEventId: after.mainEventId }
+        : {}),
       checks,
       passed: Object.values(checks).every(Boolean),
     };
@@ -149,7 +182,12 @@ export async function prepareManagedTemplateCandidate(input: Input) {
     verify,
     async qualify() {
       await services.templateOffer.read();
-      const verification = await verify(reference);
+      if (staging) {
+        await services.templateCandidatePrepare.prepare();
+        await services.templateCandidateReview.read();
+        return verify(reference());
+      }
+      const verification = await verify(reference());
       const denied = await bound.templateCandidatePrepare.prepare();
       return {
         ...verification,
