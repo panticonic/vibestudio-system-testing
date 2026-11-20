@@ -40,37 +40,46 @@ describe("authored teacher capture eligibility", () => {
   it("rejects another actual teacher", async () => { expect((await capture("done", "root", true)).trainingEligible).toBe(false); });
 });
 
-it("passes only the user goal and retains the skill selected by the model", async () => {
-  const goal = "Update the notice using the approved decision.";
-  const code = openGoalTeacherCode({
-    executorModel: "provider:teacher",
-    bindingCode: `const prepared={goal:${JSON.stringify(goal)}}, assignedServices={};`,
-  }, "run-one");
-  const rows = [{ callId: "root", parentCallId: null }, { callId: "edit", parentCallId: "root" }];
-  const report = { status: "edited", path: "notice.md" };
-  const result = await new AsyncFunction("natlang", code + "\nreturn utilityValue;")({
-    captureModelTurns() {},
-    load: async (path: string) => {
-      expect(path).toBe("skills/open-user-goal/runUserGoal.nl");
-      return async (...args: unknown[]) => {
-        expect(args).toEqual([goal]);
-        return report;
-      };
-    },
-    calls: async ({ after }: { after?: string }) => after ? [] : rows,
-    trace: async (id: string) => ({
-      callId: id,
-      summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
-      record: {
-        call_id: id,
-        parent_call_id: id === "root" ? null : "root",
-        definition: { name: id === "root" ? "runUserGoal" : "reviseWorkspaceDocument" },
-        outcome: "done",
+it.each([undefined, "Private fixture goal"] as const)(
+  "passes only the catalog goal when the adapter supplies %s",
+  async (adapterGoal) => {
+    const goal = 'Update the notice titled "Approved decision".\nKeep the footer intact.';
+    const code = openGoalTeacherCode({
+      executorModel: "provider:teacher",
+      goal,
+      bindingCode: `const prepared=${JSON.stringify({ goal: adapterGoal })}, assignedServices={};`,
+    }, "run-one");
+    const rows = [{ callId: "root", parentCallId: null }, { callId: "edit", parentCallId: "root" }];
+    const report = { status: "edited", path: "notice.md" };
+    const result = await new AsyncFunction("natlang", code + "\nreturn utilityValue;")({
+      captureModelTurns() {},
+      load: async (path: string) => {
+        expect(path).toBe("skills/open-user-goal/runUserGoal.nl");
+        return async (...args: unknown[]) => {
+          expect(args).toEqual([goal]);
+          return report;
+        };
       },
-    }),
-  });
-  expect(result).toMatchObject({ report, trainingEligible: true, rootCallIds: ["root"] });
-  expect(result.calls).toHaveLength(2);
+      calls: async ({ after }: { after?: string }) => after ? [] : rows,
+      trace: async (id: string) => ({
+        callId: id,
+        summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
+        record: {
+          call_id: id,
+          parent_call_id: id === "root" ? null : "root",
+          definition: { name: id === "root" ? "runUserGoal" : "reviseWorkspaceDocument" },
+          outcome: "done",
+        },
+      }),
+    });
+    expect(result).toMatchObject({ report, trainingEligible: true, rootCallIds: ["root"] });
+    expect(result.calls).toHaveLength(2);
+  },
+);
+
+it("rejects an absent catalog goal before generating teacher code", () => {
+  expect(() => openGoalTeacherCode({ executorModel: "provider:teacher", bindingCode: "", goal: " " }, "run-one"))
+    .toThrow("needs the catalog's user goal");
 });
 
 it.each([false, true])("qualifies a composed route with a domain assignment (%s) only after its prerequisite", async (domain) => {

@@ -42,6 +42,14 @@ import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { openGoalMethods } from "./open-goal-managed.js";
+import type { NewsInput } from "./news-contract.js";
+import { newsGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds } from "./open-goal-worlds.js";
+import { openGoalPanelRecoveryWorlds } from "./open-goal-panel-recovery-worlds.js";
+import { openGoalOwnedPreviewWorlds } from "./open-goal-owned-preview-worlds.js";
+import { seedOpenPublicationGoal, seedPublicationRevision } from "./open-goal-publication-managed.js";
+import { openSpectrolitePanel, openSpectroliteVault } from "./open-goal-spectrolite-worlds.js";
+import { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
+import { seedOpenSpectroliteGoal, seedSpectroliteScene } from "./open-goal-spectrolite-seed.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { managedResearchHandoffMethods } from "./research-handoff-managed.js";
@@ -1187,6 +1195,18 @@ export class HeadlessRunner {
   async runManagedNews(caseId: string, qualification: boolean, signal: AbortSignal) {
     const world = managedNewsWorlds.find(({ id }) => id === caseId);
     if (!world) throw new Error("Unknown News case");
+    return this.withOwnedNews(caseId, signal, async (owner, input) => qualification
+      ? { kind: "reference" as const, result: await rpc.call(owner, managedNewsMethods.qualifyManagedNews, [input], { signal }) }
+      : { kind: "teacher" as const, result: await rpc.call(owner, managedNewsMethods.runManagedNewsTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) },
+    world.panel ? (world.setup.length ? "Your inbox is ready" : "Add source") : undefined);
+  }
+
+  private async withOwnedNews<T>(
+    caseId: string,
+    signal: AbortSignal,
+    run: (owner: string, input: NewsInput) => Promise<T>,
+    panelReadyText?: string,
+  ): Promise<T> {
     const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
     const channelId = `natlang-news-${crypto.randomUUID()}`;
@@ -1210,15 +1230,13 @@ export class HeadlessRunner {
       const { participantId } = subscription;
       if (!participantId) throw new Error("News agent did not join its owned channel");
       const input = { ...cleanup, participantId };
-      const result = qualification
-        ? { kind: "reference" as const, result: await rpc.call(owner, managedNewsMethods.qualifyManagedNews, [input], { signal }) }
-        : { kind: "teacher" as const, result: await rpc.call(owner, managedNewsMethods.runManagedNewsTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
-      if (world.panel) {
+      const result = await run(owner, input);
+      if (panelReadyText) {
         panel = await this.openPanelClient(newsPanel, {
           contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
           stateArgs: {channelName: channelId, agentKey},
         });
-        await waitForText(panel, world.setup.length ? "Your inbox is ready" : "Add source");
+        await waitForText(panel, panelReadyText);
         const state = await panel.stateArgs.get<{ channelName?: string; agentKey?: string }>();
         if (state.channelName !== channelId || state.agentKey !== agentKey)
           throw new Error("News panel did not present the assigned reader");
@@ -2244,7 +2262,63 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
-  async runOpenGoal(caseId: string, signal: AbortSignal, qualification = false) {
+  async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false) {
+    const request = { caseId, goal, executorModel: this.modelRef, qualification };
+    const recovery = openGoalPanelRecoveryWorlds.find(({ id }) => id === caseId);
+    if (recovery) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "open-goal-panel-recovery" || fixture.caseId !== caseId || !fixture.repoName || !contextId)
+        throw new Error("Visual recovery needs the owned panel fixture.");
+      const source = `panels/${fixture.repoName}`;
+      const panels: { surfaceId: string; handle: Awaited<ReturnType<typeof this.openPanelClient>> }[] = [];
+      const failures: unknown[] = [];
+      try {
+        for (const surface of recovery.surfaces) {
+          const handle = await this.openPanelClient(source, {
+            contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+            stateArgs: { scene: surface, boot: surface.initial },
+          });
+          panels.push({ surfaceId: surface.id, handle });
+        }
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { ...request, contextId, source,
+            recoveryPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) },
+        ], { signal });
+      } catch (error) {
+        failures.push(error);
+        throw error;
+      } finally {
+        const retired = await Promise.allSettled(panels.map(({ handle }) => handle.archive()));
+        const cleanupFailures = retired.flatMap(item => item.status === "rejected" ? [item.reason] : []);
+        if (cleanupFailures.length)
+          throw new AggregateError([...failures, ...cleanupFailures], "Could not retire the visual recovery panels");
+      }
+    }
+    const ownedPreview = openGoalOwnedPreviewWorlds.find(({ id }) => id === caseId);
+    if (ownedPreview || publicationGoalWorlds.some(({ id }) => id === caseId)) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== (ownedPreview ? "open-goal-owned-preview-panel" : "open-goal-publication-panel") || fixture.caseId !== caseId ||
+          !fixture.repoName || !contextId)
+        throw new Error("The publishing goal needs its owned website fixture");
+      const source = `panels/${fixture.repoName}`;
+      const reviewedRef = ownedPreview ? await seedPublicationRevision({ contextId, source }, ownedPreview)
+        : await seedOpenPublicationGoal({ contextId, caseId, source });
+      const panel = await this.openPanelClient(source, {
+        contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+      });
+      try {
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { ...request, contextId, panelId: panel.id, source, reviewedRef },
+        ], { signal });
+      } finally { await panel.archive(); }
+    }
+    if (newsGoalWorlds.some(({ id }) => id === caseId))
+      return this.withOwnedNews(caseId, signal, (owner, news) =>
+        rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+          { ...request, contextId: news.contextId, news },
+        ], { signal }));
     const browser = browserGoalWorlds.find((world) => world.id === caseId);
     if (browser) {
       const fixture = this.workspaceRepoFixture;
@@ -2261,7 +2335,7 @@ export class HeadlessRunner {
         const result = qualification
           ? { teacher: null, verification: await prepareBrowserGoal(panel, { contextId, caseId, source }, browser).qualify() }
           : await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-            { contextId, caseId, source, panelId: panel.id, executorModel: this.modelRef },
+            { ...request, contextId, source, panelId: panel.id },
           ], { signal });
         const after = await vcs.status({ contextId });
         const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
@@ -2278,9 +2352,19 @@ export class HeadlessRunner {
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
     try {
       const owner = await this.createFixtureWorker(contextId);
-      return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-        { contextId, caseId, executorModel: this.modelRef, ...(qualification ? { qualification } : {}) },
+      const execute = (panelId?: string) => rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+        { ...request, contextId, panelId },
       ], { signal });
+      const correction = openGoalPdfVaultWorlds.find(({ id }) => id === caseId);
+      if (!correction && !spectroliteGoalWorlds.some(({ id }) => id === caseId)) return await execute();
+      const { openPath } = correction ? await seedSpectroliteScene(contextId, correction.vault)
+        : await seedOpenSpectroliteGoal({ contextId, caseId });
+      const panel = await this.openPanelClient(openSpectrolitePanel, {
+        contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+        stateArgs: { repoRoot: openSpectroliteVault, openPath },
+      });
+      try { return await execute(panel.id); }
+      finally { await panel.archive(); }
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

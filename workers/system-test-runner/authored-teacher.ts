@@ -102,10 +102,13 @@ type ComposedTeacherOptions = {
 
 export const openGoalProgram = "skills/open-user-goal/runUserGoal.nl";
 
-export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string}, runId: string) {
+export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string; goal: string}, runId: string) {
+  if (typeof options.goal !== "string" || !options.goal.trim()) {
+    throw new Error("An open-goal teacher needs the catalog's user goal");
+  }
   return captureWorkflow({
     ...options, openGoal: true, workflowRequest: { goal: "", work: [] },
-  }, runId, false, "prepared.goal");
+  }, runId, false, JSON.stringify(options.goal));
 }
 
 /** Keep the complete report for goals that require several skills. */

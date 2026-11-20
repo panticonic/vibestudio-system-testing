@@ -1,4 +1,4 @@
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { parseWorkspaceConfigContentWithId } from "@vibestudio/workspace/configParser";
 import type { VcsClient } from "@workspace/runtime";
 import YAML from "yaml";
@@ -209,7 +209,7 @@ export async function publishAtomicPanelStoreFixture(input: {
   const store = async (files: Record<string, string>) =>
     Promise.all(
       Object.entries(files)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => compareUtf16CodeUnits(left, right))
         .map(async ([path, content]) => ({
           path,
           contentHash: (await input.blobstore.putText(content)).digest,
@@ -223,7 +223,7 @@ export async function publishAtomicPanelStoreFixture(input: {
       repositoryId: meta.repositoryId,
       repoPath: "meta",
       files: [...metaFiles]
-        .sort((left, right) => left.path.localeCompare(right.path))
+        .sort((left, right) => compareUtf16CodeUnits(left.path, right.path))
         .map((file) =>
           file.path === "vibestudio.yml"
             ? {
@@ -238,7 +238,7 @@ export async function publishAtomicPanelStoreFixture(input: {
               },
         ),
     },
-  ].sort((left, right) => left.repoPath.localeCompare(right.repoPath));
+  ].sort((left, right) => compareUtf16CodeUnits(left.repoPath, right.repoPath));
   const source = {
     kind: "generated" as const,
     uri: "system-test://atomic-panel-store-install-clearance",

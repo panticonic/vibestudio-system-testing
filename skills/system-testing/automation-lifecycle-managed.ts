@@ -4,6 +4,7 @@ import {
   type MissionRpc,
 } from "@vibestudio/service-schemas/clients/missionsClient";
 import { bindAutomationLifecycle } from "@workspace-skills/automation-lifecycle-bindings";
+import type { PersonalAutomationWorld } from "./open-goal-personal-automation-worlds.js";
 import {
   managedAutomationPlanningWorlds,
   managedAutomationWorlds,
@@ -17,6 +18,70 @@ import type {
 const defaultId = "workspace-updates";
 type Missions = ReturnType<typeof createMissionsClient>;
 type Mission = NonNullable<Awaited<ReturnType<Missions["get"]>>>;
+
+type OpenAutomationSeedItem = { key: string; record: Mission; suffix: string };
+
+export async function pauseOpenPersonalAutomation(
+  rpc: MissionRpc,
+  items: readonly OpenAutomationSeedItem[],
+) {
+  const missions = createMissionsClient(rpc);
+  const outcomes = await Promise.allSettled(
+    items.map(async ({ record }) => {
+      const live = await missions.get(record.missionId);
+      if (!live || live.owner.userId !== record.owner.userId || live.charter.trigger.kind !== "manual")
+        throw new Error("Owned manual monitor identity changed before cleanup");
+      if (live.state === "active")
+        await missions.transitionAtRevision(live.missionId, "pause", live.revisionDigest);
+      else if (live.state !== "paused")
+        throw new Error(`Owned manual monitor has unexpected cleanup state ${live.state}`);
+    }),
+  );
+  const errors = outcomes.flatMap((outcome) =>
+    outcome.status === "rejected" ? [outcome.reason] : [],
+  );
+  if (errors.length)
+    throw new AggregateError(errors, `Could not pause all owned manual monitors (${errors.map(String).join(", ")})`);
+}
+
+/** Authority plan creation runs with the installed system-test worker's durable identity. */
+export async function seedOpenPersonalAutomation(rpc: MissionRpc, world: PersonalAutomationWorld) {
+  const missions = createMissionsClient(rpc);
+  const defaultMonitor = await missions.getDefault(defaultId);
+  if (!defaultMonitor)
+    throw new Error("Workspace update monitor could not be verified");
+  const namespace = crypto.randomUUID().slice(0, 12);
+  const items: OpenAutomationSeedItem[] = [];
+  try {
+    for (const spec of world.monitors) {
+      const suffix = ` [${namespace}-${spec.key}]`;
+      const record = await missions.launch({
+        name: spec.name + suffix,
+        charter: {
+          ...defaultMonitor.charter,
+          summary: JSON.stringify({
+            team: spec.team,
+            needs: spec.needs ?? [],
+            permitted: spec.permitted ?? ["pause", "resume"],
+          }),
+          trigger: { kind: "manual" },
+        },
+      });
+      const item = { key: spec.key, record, suffix };
+      items.push(item);
+      if (spec.initial === "paused")
+        item.record = await missions.transitionAtRevision(record.missionId, "pause", record.revisionDigest);
+    }
+    return { defaultMonitor, items };
+  } catch (error) {
+    try {
+      await pauseOpenPersonalAutomation(rpc, items);
+    } catch (cleanup) {
+      throw new AggregateError([error, cleanup], `Owned manual monitor setup failed (${error}); cleanup also failed (${cleanup})`);
+    }
+    throw error;
+  }
+}
 
 function changedDigest(digest: string) {
   return (digest.startsWith("a") ? "b" : "a") + digest.slice(1);

@@ -1,4 +1,4 @@
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
 import type {
   blobstore as RuntimeBlobstore,
   memory as RuntimeMemory,
@@ -44,11 +44,13 @@ export async function prepareManagedMemory(
     const message =
       revision.indexed === false ? revision.note : `${query} ${revision.note}`;
     const files = await Promise.all(
-      revision.files.map(async ({ path, text }) => ({
-        path,
-        contentHash: (await ports.blobstore.putText(text)).digest,
-        mode: 0o644,
-      })),
+      [...revision.files]
+        .sort((left, right) => compareUtf16CodeUnits(left.path, right.path))
+        .map(async ({ path, text }) => ({
+          path,
+          contentHash: (await ports.blobstore.putText(text)).digest,
+          mode: 0o644,
+        })),
     );
     const result = await ports.vcs.importSnapshot({
       contextId,

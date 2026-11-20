@@ -10,7 +10,7 @@ type Ports = {
 };
 type Diagnostic = "result-type" | "missing-import" | "other";
 
-function classifyCompile(error: unknown): Diagnostic {
+export function classifyCompile(error: unknown): Diagnostic {
   const typed = error as { message?: string; errorData?: { reason?: string } };
   if (
     typed?.errorData?.reason !== "does-not-compile" ||

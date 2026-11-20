@@ -2,13 +2,14 @@ import { fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
-import { openGoalWorlds } from "./open-goal-worlds.js";
+import { openGoalWorlds, publicSourceOrigins, type PublicResearchWorld } from "./open-goal-worlds.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
+import type { NewsInput } from "./news-contract.js";
 
-type Input = { contextId: string; caseId: string; panelId?: string; source?: string };
+type Input = { contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[] };
 type ResearchReport = {
   status: string;
   research?: {
@@ -33,22 +34,32 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
   const research = preparePublicResearch({ contextId, caseId }, world);
   if (world.kind === "research") return research;
   const workspace = await prepareWorkspaceGoal({ contextId, caseId }, world);
+  const combine = (
+    edit: Awaited<ReturnType<typeof workspace.verify>>,
+    publicEvidence: Awaited<ReturnType<typeof research.verify>>,
+  ) => ({
+    ...edit, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
+    checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed,
+  });
   return {
     goal: world.goal,
     services: { ...research.services, goalWorkspace: workspace.services.goalWorkspace },
     async verify(value: unknown) {
       const [edit, publicEvidence] = await Promise.all([workspace.verify(value), research.verify(value)]);
-      return { ...edit, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
-        checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed };
+      return combine(edit, publicEvidence);
+    },
+    async qualify() {
+      const publicEvidence = await research.qualify();
+      if (!publicEvidence.passed) throw new Error("The authority did not support the reference edit");
+      return combine(await workspace.qualify(), publicEvidence);
     },
   };
 }
 
 type World = (typeof openGoalWorlds)[number];
-type ResearchWorld = Extract<World, { kind: "research" | "research-and-edit" }>;
-
-function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorld) {
-  const { goal, required } = world;
+function preparePublicResearch({ contextId, caseId }: Input, world: PublicResearchWorld) {
+  const { goal, required, conclusions, referenceAnswer } = world;
+  const origins = new Set(publicSourceOrigins(world));
   const allowed = new Set<string>();
   const pages = new Map<string, Awaited<ReturnType<typeof web.fetch>>>();
   const searches: { queries: string[]; urls: string[] }[] = [];
@@ -69,8 +80,9 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
     web: {
       async search({queries}: {queries: string[]}) { return search(queries); },
       async fetch(options: Parameters<typeof web.fetch>[0]) {
-        if ((options.session && options.session !== "public") || !allowed.has(options.url))
-          throw new Error("Use the public session and a URL discovered in the current search");
+        if ((options.session && options.session !== "public") || !allowed.has(options.url) ||
+            !origins.has(new URL(options.url).origin))
+          throw new Error("Use the public session and an authorized URL discovered in the current search");
         const page = await web.fetch({ ...options, session: "public" });
         pages.set(page.digest, page);
         fetched.push({ requested: options.url, url: page.url, digest: page.digest });
@@ -96,6 +108,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
         exact: read.bytes === page.size && sha256HexSyncText(read.text) === page.digest };
     }));
     const date = new Date(snapshotTime).toISOString().slice(0, 10);
+    const answer = normalize(result?.research?.statements?.map(({ text }) => text).join(" ") ?? "");
     const checks = {
       discoveredSources: searches.length > 0 && fetched.length > 0 && fetched.every(({ requested }) => allowed.has(requested)),
       exactPageReadback: cache.length > 0 && cache.every(({ exact }) => exact),
@@ -107,6 +120,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
       groundedCitations: citations.length > 0 && citations.every(({ url, quote, retrieved }) =>
         retrieved === date && normalize(quote).length >= 20 &&
         cache.some((page) => page.url === url && page.text.includes(normalize(quote)))),
+      supportedConclusion: conclusions.every((pattern) => pattern.test(answer)),
       requiredEvidence: required.every(({ host, phrase }) =>
         citations.some(({ url, quote }) => {
           const source = cache.find((page) => page.url === url);
@@ -117,7 +131,32 @@ function preparePublicResearch({ contextId, caseId }: Input, world: ResearchWorl
     };
     return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, checks };
   }
-  return { goal, services, verify };
+  async function qualify() {
+    const statements = [];
+    const retrieved = new Date(snapshotTime).toISOString().slice(0, 10);
+    for (const { host, phrase } of required) {
+      const result = await services.goalDiscovery.search([`site:${host} "${phrase}"`]);
+      const candidates = new Set(result.flatMap(({ sources }) => sources.map(({ url }) => url)));
+      let found = false;
+      for (const url of [...candidates].slice(0, 5)) {
+        const hostname = new URL(url).hostname;
+        if (hostname !== host && !hostname.endsWith("." + host)) continue;
+        const page = await services.web.fetch({ url });
+        const read = await services.web.read({ digest: page.digest, offset: 0, limit: page.size });
+        const text = normalize(read.text);
+        const offset = text.toLowerCase().indexOf(phrase);
+        if (offset < 0) continue;
+        const quote = text.slice(offset, offset + phrase.length);
+        statements.push({ text: referenceAnswer, cites: [{ url: page.url, quote, retrieved }] });
+        found = true;
+        break;
+      }
+      if (!found) throw new Error(`The reference public search did not yield evidence from ${host} for "${phrase}"`);
+    }
+    return verify({ status: world.kind === "research" ? "answered" : "edited",
+      research: { status: "answered", question: goal, statements } });
+  }
+  return { goal, services, verify, qualify };
 }
 
 type EditWorld = Extract<World, { kind: "workspace-edit" | "research-and-edit" }>;
@@ -209,11 +248,36 @@ async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: EditWor
     return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal: world.goal,
       reads, attempts, contents, checks };
   }
-  return { goal: world.goal, services, verify };
+
+  async function qualify() {
+    const workspace = services.goalWorkspace;
+    await workspace.list();
+    const initial = await workspace.read(world.destination);
+    if (!initial || !await workspace.read(world.source))
+      throw new Error("The target and authority documents must be readable");
+    const first = await workspace.revise(world.destination, initial.version, world.expected);
+    if (first.status !== "changed") throw new Error("The concurrent edit was not observed");
+    const fresh = await workspace.read(world.destination);
+    if (!fresh || fresh.version === initial.version) throw new Error("No fresh document revision was available");
+    const write = await workspace.revise(world.destination, fresh.version, world.expected);
+    if (write.status !== "written" || !("version" in write)) throw new Error("The reference edit was not stored");
+    const readback = await workspace.read(world.destination);
+    if (readback?.version !== write.version) throw new Error("The stored document revision changed");
+    return verify({ status: "edited", path: world.destination, version: write.version });
+  }
+  return { goal: world.goal, services, verify, qualify };
 }
 
 type Verification = Awaited<ReturnType<Awaited<ReturnType<typeof prepareOpenGoal>>["verify"]>>;
+export type OpenGoalDomainVerification = {
+  caseId: string;
+  contextId: string;
+  goal: string;
+  passed: boolean;
+  checks: Record<string, boolean>;
+};
 export interface OpenGoalReceiver {
-  runOpenGoalTeacher(input: Input & { executorModel: string; qualification?: boolean }): Promise<{ teacher: PanelTeacherResult | null; verification: Verification }>;
+  runOpenGoalTeacher(input: Input & { goal: string; executorModel: string; qualification?: boolean; news?: NewsInput }):
+    Promise<{ teacher: PanelTeacherResult | null; verification: Verification | OpenGoalDomainVerification }>;
 }
 export const openGoalMethods = createReceiverRpcMethods<OpenGoalReceiver>(["runOpenGoalTeacher"]);

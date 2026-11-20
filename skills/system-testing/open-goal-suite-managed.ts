@@ -12,7 +12,7 @@ type Review = { plan: Plan; decision: { route: { runtime: string; nativeApproval
 type Report = { status: string; selection: SuiteSelection; review: Review };
 
 export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string; caseId: string }, world: SuiteGoalWorld) {
-  const { goal, expected } = world;
+  const { goal, expected, execution } = world;
   const ref = `ctx:${contextId}`;
   const resolve = (target: string, suite: string) =>
     rpc.call("main", mainRpcMethods["build.resolveTestSuite"], [target, ref, suite]);
@@ -40,7 +40,9 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
       async prepare(choice) {
         const route = routes.find(row => row.id === choice?.routeId);
         if (!route || binding || !["inspect", "verify"].includes(choice.mode) ||
-            (choice.mode === "verify" && !isDeepStrictEqual(choice, expected.choice)) ||
+            (choice.mode === "verify" &&
+              !(execution?.routeId === route.id && execution.file === choice.file &&
+                execution.runtime === route.runtime)) ||
             (choice.mode === "inspect" && (choice.file !== null || choice.testName !== null))) return null;
         const current = await resolve(route.target, route.suite);
         if (current.stateHash !== route.stateHash || current.runtime !== route.runtime) return null;

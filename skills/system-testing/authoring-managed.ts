@@ -81,6 +81,36 @@ function compilerIssues(path: string, error: unknown): CompilerIssue[] {
       ];
 }
 
+export async function readAuthoringProgram(
+  describe: Ports["describe"],
+  directory: string,
+  role: ProgramRole,
+  revision: string,
+): Promise<ProgramReadback> {
+  try {
+    const shape = await describe(directory);
+    return {
+      role,
+      revision,
+      state: "compiled",
+      functions: shape.functions.map(({ source, params, returns }) => ({
+        source,
+        parameters: params,
+        returns,
+      })),
+      services: [...shape.services],
+      serviceScopes: structuredClone(shape.serviceScopes),
+    };
+  } catch (error) {
+    return {
+      role,
+      revision,
+      state: "rejected",
+      diagnostics: compilerIssues(directory, error),
+    };
+  }
+}
+
 export async function prepareManagedAuthoring(ports: Ports, caseId: string) {
   const world = managedAuthoringWorlds.find(({ id }) => id === caseId);
   if (!world) throw new Error("Unknown managed Natlang authoring case");
@@ -111,29 +141,9 @@ export async function prepareManagedAuthoring(ports: Ports, caseId: string) {
         throw new Error(
           "The assigned source changed before compiler inspection.",
         );
-      let readback: ProgramReadback;
-      try {
-        const shape = await ports.describe(seed.directory);
-        readback = {
-          role,
-          revision,
-          state: "compiled",
-          functions: shape.functions.map(({ source, params, returns }) => ({
-            source,
-            parameters: params,
-            returns,
-          })),
-          services: [...shape.services],
-          serviceScopes: structuredClone(shape.serviceScopes),
-        };
-      } catch (error) {
-        readback = {
-          role,
-          revision,
-          state: "rejected",
-          diagnostics: compilerIssues(seed.directory, error),
-        };
-      }
+      const readback = await readAuthoringProgram(
+        ports.describe, seed.directory, role, revision,
+      );
       reads.push(readback);
       return structuredClone(readback);
     },
@@ -156,7 +166,9 @@ const location = (issue: CompilerIssue) =>
 const same = (left: unknown, right: unknown) =>
   JSON.stringify(left) === JSON.stringify(right);
 
-export function reviewCompilerReadbacks(prepared: Prepared): AuthoringReport {
+export function reviewCompilerReadbacks(
+  prepared: Pick<Prepared, "reads" | "request">,
+): AuthoringReport {
   const [candidate, baseline] = prepared.reads;
   if (!candidate) throw new Error("Candidate compiler evidence is missing");
   const report = {

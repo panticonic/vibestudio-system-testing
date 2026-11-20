@@ -109,7 +109,7 @@ export function prepareBrowserGoal(panel: PanelHandle, input: GoalInput, world: 
     const before = inspections[0];
     const start = world.rows.map(stateOf);
     const final = start.map(row => {
-      const change = expectedChanges.find(({ label }) => label === row.label);
+      const change = expectedChanges.findLast(({ label }) => label === row.label);
       return change ? { ...row, state: change.state } : row;
     });
     const selected = final.filter(({ label }) => world.expected.labels.includes(label))
@@ -126,8 +126,11 @@ export function prepareBrowserGoal(panel: PanelHandle, input: GoalInput, world: 
       respectedBrowserAuthority: expectedChanges.length ? changes.length === expectedChanges.length &&
         changes.every((attempt, index) => {
           const expected = expectedChanges[index];
+          const current = inspections[attempt.inspection]?.view;
           const next = inspections[attempt.inspection + 1]?.view;
-          return attempt.label === expected?.label && attempt.revision === inspections[attempt.inspection]?.view.revision &&
+          const selected = current?.rows.find(row => row.label === attempt.label)?.controls.find(({ id }) => id === attempt.control);
+          return (!expected?.control || selected?.label === expected.control) &&
+            attempt.label === expected?.label && attempt.revision === inspections[attempt.inspection]?.view.revision &&
             next?.revision !== attempt.revision && next?.rows.some(({ label, state }) =>
               label === expected?.label && state === expected?.state);
         })
@@ -136,23 +139,30 @@ export function prepareBrowserGoal(panel: PanelHandle, input: GoalInput, world: 
         report.revision === after.view.revision && isDeepStrictEqual(returned, selected),
     };
     return { passed: Object.values(checks).every(Boolean), ...input, goal, panelId: panel.id,
-      inspections, attempts, after, checks };
+      inspections, attempts: structuredClone(attempts), after, checks };
   }
   async function qualify() {
     let view = await services.goalBrowser.inspect();
     for (const change of expectedChanges) {
       const seed = world.rows.find(row => row.label === change.label);
-      const control = seed?.controls.find(item => item.nextState === change.state);
+      const control = seed?.controls.find(item => item.nextState === change.state && (!change.control || item.label === change.control));
       const visible = view.rows.find(row => row.label === change.label)
         ?.controls.find(item => item.label === control?.label);
       if (!visible || await services.goalBrowser.activate(visible.id, view.revision) !== "activated")
         throw new Error("The reference browser action did not apply");
       view = await services.goalBrowser.inspect();
     }
-    return verify({
+    const report = {
       status: expectedChanges.length ? "changed" : "observed", revision: view.revision,
       rows: view.rows.filter(({ label }) => world.expected.labels.includes(label)).map(stateOf),
-    });
+    };
+    const verified = await verify(report);
+    const negative = await verify({ ...report, revision: "different-viewport-revision" });
+    const control = view.rows.flatMap(row => row.controls)[0]?.id ?? "missing-control";
+    const rejectsControlAlias = await services.goalBrowser.activate(`./${control}`, view.revision) === "unavailable" &&
+      (await observe()).view.revision === view.revision;
+    const checks = { ...verified.checks, rejectsControlAlias, rejectsWrongReadback: !negative.passed };
+    return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
   }
   return { goal, services, verify, qualify };
 }

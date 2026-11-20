@@ -30,6 +30,7 @@ import type { PublicationRevisionReceiver } from "@workspace-skills/system-testi
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
 import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
+import { seedOpenGmailComposes } from "@workspace-skills/system-testing/open-goal-gmail-seed";
 import { gmailContinuationWork, managedGoogleSetupWorlds } from "@workspace-skills/system-testing/google-setup-worlds";
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
@@ -90,7 +91,12 @@ import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
-import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace-skills/system-testing/automation-lifecycle-managed";
+import {
+  pauseManagedAutomationFixture,
+  pauseOpenPersonalAutomation,
+  seedManagedAutomation,
+  seedOpenPersonalAutomation,
+} from "@workspace-skills/system-testing/automation-lifecycle-managed";
 import type { ManagedAutomationReceiver } from "@workspace-skills/system-testing/automation-lifecycle-contract";
 import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type ScratchHandoffInput, type ScratchHandoffTeacherInput, type ScratchHandoffReceiver } from "@workspace-skills/system-testing/scratch-handoff-contract";
 import { managedScratchWorlds } from "@workspace-skills/system-testing/scratch-handoff-worlds";
@@ -106,6 +112,11 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
+import {
+  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
+  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
+} from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
   createMainRpcCaller,
@@ -3692,25 +3703,168 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const evalHandoff = openGoalEvalHandoffWorlds.find(({ id }) => id === input.caseId);
+    const programRun = openGoalProgramRunWorlds.find(({ id }) => id === input.caseId);
+    const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
+    const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
+    const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
+    const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
+    const personal = openGoalPersonalWorlds.find(({ id }) => id === input.caseId);
+    const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
+    const localDelivery = openLocalDeliveryWorlds.find(({ id }) => id === input.caseId);
+    const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const visualRecovery = openGoalPanelRecoveryWorlds.some(({ id }) => id === input.caseId);
+    const ownedPreview = openGoalOwnedPreviewWorlds.some(({ id }) => id === input.caseId);
+    const publication = publicationGoalWorlds.some(({ id }) => id === input.caseId);
+    const pdf = openGoalPdfWorlds.some(({ id }) => id === input.caseId);
+    const gmail = openGoalGmailWorlds.find(({ id }) => id === input.caseId);
+    let gmailSeed;
+    if (gmail) {
+      const identity = await this.integrationFixtureIdentity();
+      if (identity.contextId !== input.contextId) throw new Error("Gmail goal belongs to another context");
+      gmailSeed = await seedOpenGmailComposes(this.rpc, input, identity.ownerEntityId, gmail.composes);
+    }
+    const pdfVault = openGoalPdfVaultWorlds.some(({ id }) => id === input.caseId);
+    const calendar = openGoalCalendarWorlds.find(({ id }) => id === input.caseId);
+    const personalArtifacts = openPersonalArtifactWorlds.find(({ id }) => id === input.caseId);
+    const browserMigration = openBrowserMigrationWorlds.find(({ id }) => id === input.caseId);
+    const personalHistory = openPersonalHistoryWorlds.find(({ id }) => id === input.caseId);
+    const googleHandoff = openGoalGoogleHandoffWorlds.find(({ id }) => id === input.caseId);
+    const personalAutomation = openPersonalAutomationWorlds.find(({ id }) => id === input.caseId);
+    const diagnostics = openDiagnosticWorlds.find(({ id }) => id === input.caseId);
+    const diagnosticsSeed = diagnostics ? await this.seedAssignedHostLog(input.contextId, diagnostics.lines) : null;
+    let automationSeed: Awaited<ReturnType<typeof seedOpenPersonalAutomation>> | undefined;
+    if (personalAutomation) {
+      const owner = await this.integrationFixtureIdentity();
+      if (owner.contextId !== input.contextId) throw new Error("Automation goal belongs to another context");
+      automationSeed = await seedOpenPersonalAutomation(this.rpc, personalAutomation);
+    }
+    const prepare = evalHandoff
+      ? `import {fs,rpc,vcs} from "@workspace/runtime";
+         import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
+         import {prepareOpenEvalHandoff,openEvalHandoffNative} from "@workspace-skills/system-testing/open-goal-eval-handoff-managed";
+         import {readWorkspaceBytes} from "@workspace-skills/system-testing/scratch-handoff-managed";
+         const prepared=await prepareOpenEvalHandoff(input,${JSON.stringify(evalHandoff)},
+           {contextId:actualContextId,fs,vcs,native:openEvalHandoffNative(createMainRpcCaller(rpc)),readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+      : programRun
+      ? `import {fs,vcs} from "@workspace/runtime";
+         import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
+         const prepared=await prepareOpenProgramRun(input,${JSON.stringify(programRun)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)});`
+      : visualRecovery
+      ? `import {prepareOpenPanelRecovery} from "@workspace-skills/system-testing/open-goal-panel-recovery-managed";
+         if (!input.source || !input.recoveryPanels) throw new Error("Visual recovery needs its owned live surfaces");
+         const prepared=await prepareOpenPanelRecovery(input);`
+      : diagnostics
+      ? `import {prepareOpenSystemDiagnostics} from "@workspace-skills/open-system-diagnostics-runtime";
+         const prepared=await prepareOpenSystemDiagnostics(input,${JSON.stringify(diagnostics)},${JSON.stringify(diagnosticsSeed)});`
+      : authoring
+      ? `import {fs,vcs} from "@workspace/runtime";
+         import {prepareOpenAuthoringGoal} from "@workspace-skills/system-testing/open-goal-authoring-managed";
+         const prepared=await prepareOpenAuthoringGoal(input,${JSON.stringify(authoring)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path)});`
+      : personalAutomation
+      ? `import {prepareOpenPersonalAutomation} from "@workspace-skills/open-personal-automation-runtime";
+         const prepared=await prepareOpenPersonalAutomation(input,${JSON.stringify(personalAutomation)},${JSON.stringify(automationSeed)});`
+      : ownedPreview
+      ? `import {prepareOpenOwnedPreviewGoal} from "@workspace-skills/system-testing/open-goal-owned-preview-managed";
+         if (!input.panelId || !input.source) throw new Error("An owned preview needs its original renderer");
+         const prepared=await prepareOpenOwnedPreviewGoal(input);`
+      : googleHandoff
+      ? `import {prepareOpenGoogleHandoffGoal} from "@workspace-skills/open-google-handoff-goal/managed";
+         const candidate=await prepareOpenGoogleHandoffGoal(input,${JSON.stringify(googleHandoff)});
+         const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="googleHandoff" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+      : browserMigration
+      ? `import {prepareOpenBrowserMigration} from "@workspace-skills/browser-import-runtime/open-migration-managed";
+         const prepared=await prepareOpenBrowserMigration(${JSON.stringify(browserMigration)});`
+      : personalHistory
+      ? `import {prepareOpenPersonalHistory} from "@workspace-skills/open-personal-history-runtime";
+         const prepared=await prepareOpenPersonalHistory(input,${JSON.stringify(personalHistory)});`
+      : calendar
+      ? `import {prepareOpenCalendarGoal} from "@workspace-skills/open-calendar-goal/managed";
+         const candidate=await prepareOpenCalendarGoal(input,${JSON.stringify(calendar)});
+         const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="calendar" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+      : personalArtifacts
+      ? `import {prepareOpenPersonalArtifacts} from "@workspace-skills/open-personal-artifacts-runtime";
+         const prepared=await prepareOpenPersonalArtifacts(input,${JSON.stringify(personalArtifacts)});`
+      : pdfVault
+      ? `import {prepareOpenPdfVaultGoal} from "@workspace-skills/system-testing/open-goal-pdf-vault-managed";
+         import {prepareOpenSpectroliteGoal} from "@workspace-skills/spectrolite-review-fixtures/open-goal";
+         if (!input.panelId) throw new Error("The PDF-backed correction needs its owned vault renderer");
+         const prepared=await prepareOpenPdfVaultGoal(input,prepareOpenSpectroliteGoal);`
+      : gmail
+      ? `import {prepareOpenGmailGoal} from "@workspace-skills/open-gmail-goal/managed";
+         const prepared=await prepareOpenGmailGoal(input,${JSON.stringify(gmail)},${JSON.stringify(gmailSeed)});`
+      : pdf
+      ? `import {prepareOpenPdfGoal} from "@workspace-skills/system-testing/open-goal-pdf-managed";
+         const prepared=await prepareOpenPdfGoal(input);`
+      : publication
+      ? `import {prepareOpenPublicationGoal} from "@workspace-skills/system-testing/open-goal-publication-managed";
+         if (!input.panelId || !input.source) throw new Error("The publishing goal needs its owned renderer");
+         const prepared=await prepareOpenPublicationGoal(input);`
+      : localDelivery
+      ? `import {runtime,rpc} from "@workspace/runtime";
+         import {prepareOpenLocalDelivery} from "@workspace-skills/system-testing/open-goal-local-delivery-managed";
+         const prepared=await prepareOpenLocalDelivery(input,${JSON.stringify(localDelivery)},{runtime,rpc});`
+      : recovery
+      ? `import {prepareOpenRecoveryGoal} from "@workspace-skills/system-testing/open-goal-recovery-managed";
+         const prepared=await prepareOpenRecoveryGoal(input,${JSON.stringify(recovery)});`
+      : personal
+      ? `import {prepareOpenPersonalGoal} from "@workspace-skills/open-personal-goal/managed";
+         const prepared=await prepareOpenPersonalGoal(input,${JSON.stringify(personal)});`
+      : operator
+        ? `import {prepareOpenGoalOperator} from "@workspace-skills/system-testing/open-goal-operator-managed";
+           const prepared=await prepareOpenGoalOperator(input);`
+        : google
+      ? `import {prepareOpenGoalDrive} from "@workspace-skills/google-drive/open-goal-drive";
+         const prepared=await prepareOpenGoalDrive(input,${JSON.stringify(google)});`
+      : news
+        ? `import {prepareOpenGoalNews} from "@workspace/news-live-evidence/open-goal";
+           if (input.news?.contextId!==input.contextId || input.news.caseId!==input.caseId)
+             throw new Error("News goal needs its owned participant");
+           const prepared=await prepareOpenGoalNews(input.news,${JSON.stringify(news)});`
+        : spectrolite
+          ? `import {prepareOpenSpectroliteGoal} from "@workspace-skills/spectrolite-review-fixtures/open-goal";
+             const prepared=await prepareOpenSpectroliteGoal(input,${JSON.stringify(spectrolite)});`
+          : `import {prepareOpenGoal} from "@workspace-skills/system-testing/open-goal-managed";
+             const prepared=await prepareOpenGoal(input);`;
     const bindingCode = `
         import {contextId as actualContextId} from "@workspace/runtime";
-        import {prepareOpenGoal} from "@workspace-skills/system-testing/open-goal-managed";
         const input=${JSON.stringify(input)};
         if (input.contextId!==actualContextId) throw new Error("User goal belongs to another context");
-        const prepared=await prepareOpenGoal(input);
+        ${prepare}
         const assignedServices=prepared.services;
     `;
-    if (input.qualification) return await this.runHarnessUtility("teacher", `
-      ${bindingCode}
-      if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
-      const utilityValue={teacher:null,verification:await prepared.qualify()};
-    `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-    return await this.runHarnessUtility("teacher", runId => `${openGoalTeacherCode({
-      executorModel: input.executorModel,
-      bindingCode,
-    }, runId)}
-      utilityValue={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
-    `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+    let operationError: unknown;
+    try {
+      if (input.qualification) return await this.runHarnessUtility("teacher", `
+        ${bindingCode}
+        if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
+        let utilityValue;
+        try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
+        finally { await prepared.close?.(); }
+      `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      return await this.runHarnessUtility("teacher", runId => `
+        ${bindingCode}
+        let result;
+        try {
+          ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "", goal: input.goal }, runId)}
+          result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+        } finally { await prepared.close?.(); }
+        const utilityValue=result;
+      `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+    } catch (error) {
+      operationError = error;
+      throw error;
+    } finally {
+      if (automationSeed) {
+        try {
+          await pauseOpenPersonalAutomation(this.rpc, automationSeed.items);
+        } catch (cleanup) {
+          if (operationError !== undefined)
+            throw new AggregateError([operationError, cleanup], `Automation verification failed (${operationError}); cleanup also failed (${cleanup})`);
+          throw cleanup;
+        }
+      }
+    }
   }
 
   @rpc({website:{kind:"closed",reason:"Hands off verified public research in an owned scratch context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

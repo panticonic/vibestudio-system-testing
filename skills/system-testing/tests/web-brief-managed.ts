@@ -1,10 +1,26 @@
+import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
+import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
-import { browserGoalWorlds, openGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
-import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
+import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
+import {
+  browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
+  evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
+  operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
+  openLocalDeliveryWorlds, localDeliveryRequiresUnits,
+  openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
+  openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
+  personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
+  openBrowserMigrationWorlds, browserMigrationRequiresUnits,
+  publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
+} from "../open-goal-worlds.js";
+import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, PANEL_RUNTIME_SUPERVISION_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
+import { newsAuthority } from "./news-managed.js";
+import { missionPlanningSettings } from "./mission-planning-managed.js";
+import { browserLibrarySettings } from "./browser-library-managed.js";
 import {
   managedResearchIntakeWorlds,
   managedResearchHandoffWorlds,
@@ -73,13 +89,71 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const openGoalCases = [...openGoalWorlds, ...browserGoalWorlds, ...suiteGoalWorlds].map(world => ({ world, qualification: false }));
-openGoalCases.push(...[...browserGoalWorlds, ...suiteGoalWorlds].map(world => ({ world, qualification: true })));
+const referenceGoals = [...openGoalWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
+  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
+  ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds];
+const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
+openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
+const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
+  authority: [
+    "https://lite.duckduckgo.com", "https://html.duckduckgo.com",
+    "https://api.tavily.com", "https://api.search.brave.com", "https://api.exa.ai",
+    ...publicSourceOrigins(world),
+  ].map((origin, index) => ({
+    ruleId: `open-goal-public-origin-${index + 1}`,
+    capability: { kind: "exact", key: "network.response.read" },
+    resource: { kind: "exact", key: origin },
+    tier: "gated",
+    decision: "once",
+  })),
+});
+const templateSettings = {
+  "eval-handoff": { requiresUnits: evalHandoffRequiresUnits },
+  "program-run": { requiresUnits: programRunRequiresUnits },
+  authoring: { requiresUnits: authoringRequiresUnits },
+  personal: { ...missionPlanningSettings, requiresUnits: [...missionPlanningSettings.requiresUnits, "skills/open-user-goal", "skills/open-personal-goal"] },
+  "personal-artifacts": {
+    requiresUnits: personalArtifactRequiresUnits,
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-personal-artifacts", browserLibrarySettings.authorityPolicy.authority),
+    resources: [PANEL_AUTOMATION_RESOURCE],
+  },
+  "personal-history": { requiresUnits: personalHistoryRequiresUnits },
+  browserMigration: { requiresUnits: browserMigrationRequiresUnits },
+  "personal-automation": {
+    requiresUnits: personalAutomationRequiresUnits,
+    authorityPolicy: { authority: personalAutomationAuthority },
+  },
+  operator: { requiresUnits: operatorGoalRequiresUnits },
+  "system-diagnostics": { requiresUnits: openDiagnosticRequiresUnits, authorityPolicy: openDiagnosticAuthority },
+  "local-delivery": { requiresUnits: localDeliveryRequiresUnits },
+  recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
+  news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
+  spectrolite: {
+    requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-spectrolite"),
+    resources: [PANEL_AUTOMATION_RESOURCE],
+  },
+  google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
+  calendar: { requiresUnits: ["skills/open-user-goal", "skills/open-calendar-goal", "packages/google-workspace"] },
+  "google-handoff": { requiresUnits: ["skills/open-user-goal", "skills/open-google-handoff-goal", "packages/google-workspace", "packages/gmail"] },
+  gmail: { requiresUnits: ["skills/open-user-goal", "skills/open-gmail-goal", "skills/gmail-compose-history-bindings", "packages/gmail", "workers/pubsub-channel"] },
+  pdfVault: {
+    requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest",
+      "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-pdf-vault"),
+    resources: [PANEL_AUTOMATION_RESOURCE],
+  },
+  pdf: { requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest"] },
+};
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
   ...settings,
-  requiresUnits: world.kind === "suite" ? ["extensions/test-runner", ...world.routes.map(route => route.target).filter(target => target !== "extensions/test-runner")] :
+  requiresUnits: world.kind === "suite" ? [...new Set(["skills/open-user-goal", "skills/native-suite-review", "extensions/test-runner", ...world.routes.map(route => route.target)])] :
     world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
-  ...(world.kind === "suite" && world.expected.choice.mode === "verify" ? world.expected.runtime === "native"
+  ...(world.kind === "research" || world.kind === "research-and-edit"
+    ? { authorityPolicy: publicResearchAuthority(world) } : {}),
+  ...(world.kind === "suite" && world.execution ? world.execution.runtime === "native"
     ? { authorityPolicy: nativeSuiteAuthority }
     : { authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] }, resources: [PANEL_AUTOMATION_RESOURCE] }
     : {}),
@@ -88,15 +162,71 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "browserMigration" && world.collection ? {
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] },
+  } : {}),
+  ...(world.kind === "visualRecovery" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/panel-health", "skills/panel-health-runtime"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-visual-recovery", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]),
+    workspaceRepoFixture: { kind: "open-goal-panel-recovery", section: "panels", caseId: world.id },
+  } : {}),
+  ...(world.kind === "ownedPreview" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "packages/integrations"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-owned-preview", [{
+      ruleId: "approve-the-disposable-preview-operation",
+      capability: { kind: "exact", key: "website.publish" },
+      resource: { kind: "prefix", prefix: "managed-preview-" }, tier: "critical", decision: "once",
+    }]),
+    workspaceRepoFixture: { kind: "open-goal-owned-preview-panel", section: "panels", caseId: world.id },
+  } : {}),
+  ...(world.kind === "publication" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "skills/publication-revision-bindings"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-publication", world.targets.some(target => target.journal) ? [{
+      ruleId: "seed-disposable-publication-journal",
+      capability: { kind: "exact", key: "website.publish" },
+      resource: { kind: "prefix", prefix: "managed-publication-" },
+      tier: "critical", decision: "once",
+    }] : []),
+    workspaceRepoFixture: { kind: "open-goal-publication-panel", section: "panels", caseId: world.id },
+  } : {}),
+  ...(world.kind in templateSettings
+    ? templateSettings[world.kind as keyof typeof templateSettings] : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
   description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
+    world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
+    world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
+    world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
+    world.kind === "gmail" ? "Recover Gmail compose and delivery state from retained records and current provider readback" :
+    world.kind === "calendar" ? "Reconcile live calendar windows, confirm a current decision, and verify its handoff" :
+    world.kind === "google-handoff" ? "Reconcile retained Gmail decisions with the current linked Drive assets" :
+    world.kind === "personal-artifacts" ? "Resolve current browser library and collection state within an owned workspace" :
+    world.kind === "browserMigration" ? "Review live browser import authority, owner receipts, and collection handoff" :
+    world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :
+    world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
+    world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
+    world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :
+    world.kind === "program-run" ? "Run authorized current programs with independent native output and signed receipts" :
+    world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :
+    world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
+    world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
+    world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
+    world.kind === "recovery" ? "Recover current work from retained session evidence" :
+    world.kind === "visualRecovery" ? "Diagnose and restore the selected live owned surface and verify the exact rendered result" :
+    world.kind === "ownedPreview" ? "Publish to the authorized disposable preview and verify its exact hosted artifact" :
+    world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
+    world.kind === "pdfVault" ? "Ground a working vault correction in the original PDF and verify its revision" :
+    world.kind === "pdf" ? "Inspect the selected PDF using original text, geometry and retained raster evidence" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
     const started = Date.now();
-    const { teacher, verification } = await runner.runOpenGoal(world.id, signal, qualification);
+    const { teacher, verification } = await runner.runOpenGoal(world, signal, qualification);
     return {
       messages: [],
       duration: Date.now() - started,
@@ -111,7 +241,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | null | undefined;
     const proof = result.diagnostics?.["openGoalVerification"] as OpenGoalResult["verification"] | undefined;
     return { passed: (qualification ? teacher === null : teacher?.trainingEligible === true) &&
-      proof?.passed === true, details: proof?.checks };
+      proof?.passed === true && proof.goal === world.goal, details: proof?.checks };
   },
 })));
 

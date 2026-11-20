@@ -1,4 +1,4 @@
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { buildProjectManifest } from "@workspace-skills/workspace-dev/project-manifest";
 import type { VcsClient } from "@workspace/runtime";
 
@@ -106,7 +106,7 @@ export async function importImagePanelFixture(input: {
   const status = await input.vcs.status({ contextId: input.contextId });
   const files = await Promise.all(
     Object.entries(imagePanelFixtureFiles(input.name))
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([left], [right]) => compareUtf16CodeUnits(left, right))
       .map(async ([path, text]) => ({
         path,
         contentHash: (await input.blobstore.putText(text)).digest,

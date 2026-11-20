@@ -12,18 +12,7 @@ type Teacher = Awaited<
 type Qualification = Awaited<
   ReturnType<ManagedNewsReceiver["qualifyManagedNews"]>
 >;
-const settings = {
-  category: "project-lifecycle",
-  explicitOnly: true,
-  validation: "harness" as const,
-  requiresUnits: [
-    newsPanel,
-    newsWorker,
-    "skills/news-workflows",
-    "packages/news-live-evidence",
-  ],
-  resources: [PANEL_AUTOMATION_RESOURCE],
-  authorityPolicy: panelControlAuthorityPolicy("inspect-owned-news-reader", [
+export const newsAuthority = panelControlAuthorityPolicy("inspect-owned-news-reader", [
     {
       ruleId: "news-missions",
       capability: { kind: "exact", key: "workspace-service:missions" },
@@ -57,7 +46,19 @@ const settings = {
       tier: "critical",
       decision: "once",
     },
-  ]),
+  ]);
+const settings = {
+  category: "project-lifecycle",
+  explicitOnly: true,
+  validation: "harness" as const,
+  requiresUnits: [
+    newsPanel,
+    newsWorker,
+    "skills/news-workflows",
+    "packages/news-live-evidence",
+  ],
+  resources: [PANEL_AUTOMATION_RESOURCE],
+  authorityPolicy: newsAuthority,
 };
 
 const scratchUnits = [
