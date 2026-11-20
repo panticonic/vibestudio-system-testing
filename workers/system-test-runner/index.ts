@@ -45,6 +45,8 @@ import type { ManagedNativeSuiteReceiver } from "@workspace-skills/system-testin
 import type { ManagedGitBridgeReviewReceiver } from "@workspace-skills/system-testing/git-bridge-review-managed";
 import type { ManagedVcsDeliveryReceiver } from "@workspace-skills/system-testing/vcs-delivery-managed";
 import type { ManagedWebBriefReceiver } from "@workspace-skills/system-testing/web-brief-managed";
+import type { ManagedResearchHandoffReceiver } from "@workspace-skills/system-testing/research-handoff-managed";
+import { researchHandoffWork } from "@workspace-skills/system-testing/web-brief-worlds";
 import type { ManagedArchitectureBoundaryReceiver } from "@workspace-skills/system-testing/architecture-boundary-managed";
 import type { ManagedExtensionReleaseReceiver } from "@workspace-skills/system-testing/extension-release-managed";
 import type { ManagedAuthorityReviewReceiver } from "@workspace-skills/system-testing/authority-review-managed";
@@ -3656,6 +3658,37 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Web brief belongs to another context");
       const prepared=${prepare}(actualContextId,input.caseId);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Hands off verified public research in an owned scratch context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedResearchHandoffTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedResearchHandoffReceiver["runManagedResearchHandoffTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${composedTeacherCode({
+      executorModel:input.executorModel,
+      workflowRequest:{goal:"Prepare an evidence handoff",work:researchHandoffWork.map(work=>({...work,input:{goal:"Complete assigned work"}}))},
+      requiredOrder:researchHandoffWork.map(({operation})=>operation),
+      requestCode:"prepared.request",
+      bindingCode:this.managedResearchHandoffBindings(input),
+    },runId)}
+      utilityValue={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedResearchHandoffReceiver["runManagedResearchHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies public research and the native scratch handoff without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedResearchHandoff(input: {contextId:string;caseId:string}): ReturnType<ManagedResearchHandoffReceiver["qualifyManagedResearchHandoff"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      researchHandoffWork,this.managedResearchHandoffBindings(input),
+    )) as Awaited<ReturnType<ManagedResearchHandoffReceiver["qualifyManagedResearchHandoff"]>>;
+  }
+
+  private managedResearchHandoffBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedResearchHandoff} from "@workspace-skills/system-testing/research-handoff-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Research handoff belongs to another context");
+      const prepared=await prepareManagedResearchHandoff(input);
       const assignedServices=prepared.services;
     `;
   }

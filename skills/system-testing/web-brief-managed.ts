@@ -369,44 +369,50 @@ export function prepareManagedResearchIntake(
       passed: Object.values(checks).every(Boolean),
     };
   }
+  function reference() {
+    const receipts = projection;
+    if (!receipts) return null;
+    const first = receipts.pages[0]!;
+    const text = collapse(first.head + (first.reads[0]?.text ?? ""));
+    const start = world.quotePattern
+      ? text.toLowerCase().indexOf(world.quotePattern)
+      : -1;
+    const citations =
+      world.quotePattern && start >= 0
+        ? [
+            {
+              sourceId: first.id,
+              url: first.finalUrl,
+              quote: text.slice(start, start + world.quotePattern.length),
+              date: null,
+            },
+          ]
+        : [];
+    return {
+      findings: [
+        {
+          check: world.check,
+          disposition: world.disposition,
+          evidenceIds: receipts.pages.map(({ id }) => id),
+          citations,
+          detail: world.goal,
+        },
+      ],
+    };
+  }
   return {
     request,
     services: { assignedResearchIntake: { read } },
     verify,
+    reference,
     async qualify() {
       const rejectedWrongOperation = await read("foreign-operation").then(
         () => false,
         () => true,
       );
-      const receipts = await read(request.operationId);
-      const first = receipts.pages[0]!;
-      const text = collapse(first.head + (first.reads[0]?.text ?? ""));
-      const start = world.quotePattern
-        ? text.toLowerCase().indexOf(world.quotePattern)
-        : -1;
-      const citations =
-        world.quotePattern && start >= 0
-          ? [
-              {
-                sourceId: first.id,
-                url: first.finalUrl,
-                quote: text.slice(start, start + world.quotePattern.length),
-                date: null,
-              },
-            ]
-          : [];
+      await read(request.operationId);
       return {
-        verification: verify({
-          findings: [
-            {
-              check: world.check,
-              disposition: world.disposition,
-              evidenceIds: receipts.pages.map(({ id }) => id),
-              citations,
-              detail: world.goal,
-            },
-          ],
-        }),
+        verification: verify(reference()),
         rejectedWrongOperation,
       };
     },

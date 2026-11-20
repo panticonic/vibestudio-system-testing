@@ -1,7 +1,9 @@
 import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
+import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import {
   managedResearchIntakeWorlds,
+  managedResearchHandoffWorlds,
   managedWebBriefWorlds,
 } from "../web-brief-worlds.js";
 
@@ -104,6 +106,46 @@ managedWebBriefTests.push({
     };
   },
 });
+
+type HandoffTeacher = Awaited<ReturnType<ManagedResearchHandoffReceiver["runManagedResearchHandoffTeacher"]>>;
+type HandoffQualification = Awaited<ReturnType<ManagedResearchHandoffReceiver["qualifyManagedResearchHandoff"]>>;
+managedWebBriefTests.push(...managedResearchHandoffWorlds.flatMap((world) =>
+  [false, true].map((qualification): TestCase => ({
+    ...intakeSettings,
+    requiresUnits: [...intakeSettings.requiresUnits, "skills/scratch-handoff"],
+    name: `research-handoff-${qualification ? "oracle" : "live"}-${world.id}`,
+    description: "Transfer verified public research into an independently checked scratch handoff",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const run = await runner.runManagedResearchHandoff(world.id, qualification, signal);
+      const diagnostics = run.kind === "reference"
+        ? { researchHandoffQualification: run.result }
+        : { natlangTeacher: run.result.teacher, managedResearchHandoff: run.result.verification };
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        provenance: {
+          contextId: run.result.verification.contextId,
+          channelId: null, branchId: null, agentEntityId: null, agentTargetId: null,
+        },
+        diagnostics,
+      };
+    },
+    validate(result) {
+      if (qualification) {
+        const proof = result.diagnostics?.["researchHandoffQualification"] as HandoffQualification | undefined;
+        return {
+          passed: proof?.verification.passed === true && proof.earlyReadDenied && proof.earlyWriteDenied,
+          details: proof?.verification.checks,
+        };
+      }
+      const proof = result.diagnostics?.["managedResearchHandoff"] as HandoffTeacher["verification"] | undefined;
+      const teacher = result.diagnostics?.["natlangTeacher"] as HandoffTeacher["teacher"] | undefined;
+      return { passed: teacher?.trainingEligible === true && proof?.passed === true, details: proof?.checks };
+    },
+  }))
+));
 
 type IntakeTeacher = Awaited<
   ReturnType<ManagedWebBriefReceiver["runManagedResearchIntakeTeacher"]>

@@ -21,6 +21,28 @@ export const managedResearchIntakeWorlds = [
   },
 ] as const;
 
+export const managedResearchHandoffWorlds = [
+  {
+    id: "stage-source-grounded-purpose",
+    intake: "documentation-evidence",
+    goal: "Review the assigned public evidence, then stage a scratch artifact for the next reviewer quoting the exact source that establishes its stated purpose.",
+    question: "What purpose does the source give for the domain?",
+    status: "staged",
+  },
+  {
+    id: "hold-incomparable-registration-claim",
+    intake: "different-evidence-boundaries",
+    goal: "Review the assigned public evidence, then decide whether a scratch handoff can substantiate the claim that both sources report the same registration-availability measure. Keep the question open and withhold the artifact if the evidence cannot support it.",
+    question: "What source lines substantiate the claim that both documents report the same registration-availability measure?",
+    status: "unanswered",
+  },
+] as const;
+
+export const researchHandoffWork = [
+  { kind: "domain", domain: "research", operation: "reviewLiveResearchIntake" },
+  { kind: "domain", domain: "scratchHandoff", operation: "assembleHandoff" },
+] as const;
+
 export const managedWebBriefWorlds = [
   {
     id: "documentation-and-reservations",
