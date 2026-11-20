@@ -117,7 +117,7 @@ import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds,
-  openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3737,7 +3737,16 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if (owner.contextId !== input.contextId) throw new Error("Scheduled recovery belongs to another context");
       scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
     }
-    const prepare = ownedResearch
+    const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const prepare = compoundRecovery
+      ? `import {fs,rpc,vcs} from "@workspace/runtime";
+         import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
+         import {openEvalHandoffNative} from "@workspace-skills/system-testing/open-goal-eval-handoff-managed";
+         import {prepareCompoundRecoveryHandoff} from "@workspace-skills/system-testing/open-goal-compound-recovery-managed";
+         import {readWorkspaceBytes} from "@workspace-skills/system-testing/scratch-handoff-managed";
+         const prepared=await prepareCompoundRecoveryHandoff(input,${JSON.stringify(compoundRecovery)},
+           {contextId:actualContextId,fs,vcs,native:openEvalHandoffNative(createMainRpcCaller(rpc)),readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+      : ownedResearch
       ? `import {prepareOpenOwnedResearch} from "@workspace-skills/system-testing/open-goal-owned-research-managed";
          const prepared=await prepareOpenOwnedResearch(input);`
       : scheduledRecovery
