@@ -20,6 +20,7 @@ import {
   capabilityPlanRequiresUnits, capabilityPlanWorlds,
   openAssemblyRequiresUnits, openAssemblyWorlds,
   compoundRecoveryRequiresUnits, openCompoundRecoveryWorlds,
+  providerHandoffRequiresUnits, providerHandoffWorlds,
   openProblemReportWorlds, problemReportRequiresUnits,
   openOwnedResearchWorlds, openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
@@ -102,7 +103,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -123,6 +124,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  "provider-handoff": { requiresUnits: providerHandoffRequiresUnits },
   "problem-report": { requiresUnits: problemReportRequiresUnits },
   "capability-plan": { requiresUnits: capabilityPlanRequiresUnits },
   "workspace-assembly": { requiresUnits: openAssemblyRequiresUnits },
@@ -299,6 +301,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "scheduled-recovery" ? "Recover an owned future schedule and verify exact retained decisions and local handoff" :
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
+    world.kind === "provider-handoff" ? "Resolve retained provider approval and original conversation evidence with a scoped handoff" :
     world.kind === "problem-report" ? "Verify a scoped local incident draft and retain surrounding reports" :
     world.kind === "compound-recovery" ? "Join independently verified native recovery with a current local operating note" :
     world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :

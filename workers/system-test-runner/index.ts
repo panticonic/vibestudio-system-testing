@@ -117,7 +117,7 @@ import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds,
-  openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3738,8 +3738,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
     }
     const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const providerHandoff = providerHandoffWorlds.some(({ id }) => id === input.caseId);
     const problemReport = openProblemReportWorlds.some(({ id }) => id === input.caseId);
-    const prepare = problemReport
+    const prepare = providerHandoff
+      ? `import {prepareOpenProviderHandoff} from "@workspace-skills/system-testing/open-goal-provider-handoff-managed";
+         const prepared=await prepareOpenProviderHandoff(input);`
+      : problemReport
       ? `import {prepareOpenProblemReport} from "@workspace-skills/system-testing/open-goal-problem-report-managed";
          const prepared=await prepareOpenProblemReport(input);`
       : compoundRecovery
