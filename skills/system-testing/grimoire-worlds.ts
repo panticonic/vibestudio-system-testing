@@ -2,6 +2,9 @@ export const grimoirePanel = "panels/grimoire";
 type Resident = "Sol" | "Pip";
 type GardenAction = Resident | "linger";
 type Decision = "supported" | "contradicted" | "not-observed";
+type Handoff = {
+  questions: [string, string, string];
+};
 type Claim =
   | {
       kind: "habitat";
@@ -47,6 +50,7 @@ function garden(
   goal: string,
   actions: GardenAction[],
   checks: [Claim, Decision][],
+  handoff?: Handoff,
 ) {
   return {
     id,
@@ -57,10 +61,38 @@ function garden(
       claims: checks.map(([claim]) => claim),
     },
     expected: checks.map(([, decision]) => decision),
+    handoff,
   };
 }
 const linger = (count: number): GardenAction[] =>
   Array.from({ length: count }, () => "linger");
+export const grimoireHandoffWork = [
+  { kind: "domain", domain: "examples", operation: "reviewExample" },
+  { kind: "domain", domain: "scratchHandoff", operation: "assembleHandoff" },
+] as const;
+
+export function projectGardenHandoff(
+  claims: readonly Claim[],
+  components: readonly {
+    decision: string;
+    finding: string;
+    evidenceIds: readonly string[];
+  }[],
+) {
+  return (
+    components
+      .map(({ decision, finding, evidenceIds }, index) =>
+        JSON.stringify({
+          claim: claims[index],
+          decision,
+          finding,
+          evidenceIds,
+        }),
+      )
+      .join("\n") + "\n"
+  );
+}
+
 export const managedGrimoireWorlds = [
   garden(
     "sol-after-visit",
@@ -298,5 +330,39 @@ export const managedGrimoireWorlds = [
       [residentChange("attachment-grew", "sol"), "contradicted"],
       [habitat("is-home", "meadow", "pip"), "supported"],
     ],
+  ),
+  garden(
+    "dawn-care-handoff",
+    "Prepare a caretaker changeover after two visits to Pip across dawn and one visit to Sol. Verify each resident's recognition and that the garden reached the following day. Save the supported and contradicted findings with exact evidence.",
+    ["Pip", "Sol", ...linger(2), "Pip"],
+    [
+      [residentChange("recognized", "pip"), "supported"],
+      [residentChange("recognized", "sol"), "contradicted"],
+      [change("day-advanced"), "supported"],
+    ],
+    {
+      questions: [
+        "Did Pip recognize the caretaker after dawn?",
+        "Did Sol recognize the caretaker?",
+        "Does the saved garden show that a day advanced?",
+      ],
+    },
+  ),
+  garden(
+    "discovery-with-missing-habitat-handoff",
+    "Prepare a caretaker handoff from the quiet garden after the discovery. Establish whether the discovery occurred, whether Sol relocated and whether the named hidden cave was observed. Preserve the distinction between a contradicted claim and a missing observation.",
+    linger(9),
+    [
+      [change("new-discovery"), "supported"],
+      [residentChange("relocated", "sol"), "contradicted"],
+      [habitat("settled", "hidden-cave", "sol"), "not-observed"],
+    ],
+    {
+      questions: [
+        "Was a new discovery recorded?",
+        "Did Sol relocate after the discovery?",
+        "What does the saved garden establish about the assigned hidden cave?",
+      ],
+    },
   ),
 ];

@@ -123,6 +123,7 @@
     "./spectrolite-contract": "./spectrolite-contract.ts",
     "./grimoire-worlds": "./grimoire-worlds.ts",
     "./grimoire-contract": "./grimoire-contract.ts",
+    "./grimoire-handoff-managed": "./grimoire-handoff-managed.ts",
     "./channel-roster-contract": "./channel-roster-contract.ts",
     "./channel-roster-managed": "./channel-roster-managed.ts",
     "./mission-planning-contract": "./mission-planning-contract.ts",

@@ -35,13 +35,23 @@ const setup = {
     },
   ]),
 };
+const handoffSetup = {
+  ...setup,
+  timeoutMs: 6 * 60_000,
+  requiresUnits: [
+    ...setup.requiresUnits,
+    "skills/scratch-handoff",
+    "skills/scratch-handoff-bindings",
+  ],
+};
 
 export const managedGrimoireTests: TestCase[] = managedGrimoireWorlds.map(
   (world) => ({
-    ...setup,
+    ...(world.handoff ? handoffSetup : setup),
     name: `grimoire-live-${world.id}`,
-    description:
-      "Review multiple claims using the installed garden, live resident visits and persisted readback",
+    description: world.handoff
+      ? "Turn verified garden claims into an exact evidence handoff for the next caretaker"
+      : "Review multiple claims using the installed garden, live resident visits and persisted readback",
     prompt: world.request.goal,
     async orchestrate(context) {
       const started = Date.now();
@@ -90,48 +100,62 @@ export const managedGrimoireTests: TestCase[] = managedGrimoireWorlds.map(
   }),
 );
 
-managedGrimoireTests.push({
-  ...setup,
-  name: "grimoire-managed-oracle-qualification",
-  description: "Qualify the installed Grimoire garden workflow without a model",
-  prompt: "Verify the real garden readback and reject substituted evidence.",
-  async orchestrate(context) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const world of managedGrimoireWorlds) {
-      const run = await context.runner.runManagedGrimoire(
-        world.id,
-        true,
-        context.signal,
-      );
-      if (run.kind !== "reference")
-        throw new Error("Garden qualification invoked a teacher");
-      checks.push(run.result);
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { grimoireQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["grimoireQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedGrimoireWorlds.length &&
-      checks.every(
-        ({ verification, rejectedAlteredEvidence }) =>
-          verification.passed && rejectedAlteredEvidence,
-      )
-      ? {
-          passed: true,
-          details: { checkedCases: checks.length, modelCalls: 0 },
-        }
-      : {
-          passed: false,
-          reason:
-            "The persisted garden or independent verification differed from the assigned observation.",
-          details: { checks },
-        };
-  },
-});
+function gardenQualification(handoff: boolean): TestCase {
+  const worlds = managedGrimoireWorlds.filter(
+    (world) => Boolean(world.handoff) === handoff,
+  );
+  return {
+    ...(handoff ? handoffSetup : setup),
+    name: handoff
+      ? "grimoire-managed-handoff-qualification"
+      : "grimoire-managed-oracle-qualification",
+    description: handoff
+      ? "Qualify the dependency between garden claims and the staged evidence handoff"
+      : "Qualify the installed Grimoire garden workflow without a model",
+    prompt: "Verify the real garden readback and reject substituted evidence.",
+    async orchestrate(context) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const world of worlds) {
+        const run = await context.runner.runManagedGrimoire(
+          world.id,
+          true,
+          context.signal,
+        );
+        if (run.kind !== "reference")
+          throw new Error("Garden qualification invoked a teacher");
+        checks.push(run.result);
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { grimoireQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["grimoireQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verification, rejectedAlteredEvidence }) =>
+            verification.passed && rejectedAlteredEvidence,
+        )
+        ? {
+            passed: true,
+            details: { checkedCases: checks.length, modelCalls: 0 },
+          }
+        : {
+            passed: false,
+            reason:
+              "The persisted garden or independent verification differed from the assigned observation.",
+            details: { checks },
+          };
+    },
+  };
+}
+
+managedGrimoireTests.push(
+  gardenQualification(false),
+  gardenQualification(true),
+);

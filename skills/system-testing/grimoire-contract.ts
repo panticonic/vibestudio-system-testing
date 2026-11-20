@@ -1,16 +1,21 @@
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
+import type { prepareGrimoireHandoff } from "./grimoire-handoff-managed.js";
 
 type GardenInput = { contextId: string; garden: string };
 export type GardenReviewInput = GardenInput & {
   caseId: string;
   before: unknown;
 };
-type Verification = {
-  garden: string;
-  passed: boolean;
-  checks: Record<string, boolean>;
-};
+type Verification =
+  | {
+      garden: string;
+      passed: boolean;
+      checks: Record<string, boolean>;
+    }
+  | Awaited<
+      ReturnType<Awaited<ReturnType<typeof prepareGrimoireHandoff>>["verify"]>
+    >;
 export interface ManagedGrimoireReceiver {
   inspectOwnedGarden(input: GardenInput): Promise<unknown>;
   runManagedGrimoireTeacher(

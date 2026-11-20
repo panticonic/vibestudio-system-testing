@@ -73,6 +73,7 @@ import { managedNewsWorlds, newsHandoffWork } from "@workspace-skills/system-tes
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import { managedSpectroliteWorlds, spectroliteHandoffWork } from "@workspace-skills/system-testing/spectrolite-worlds";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
+import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
 import type { VerifiedMemoryReceiver, VerifiedMemoryInput } from "@workspace-skills/system-testing/verified-memory-contract";
@@ -1634,6 +1635,20 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Reviews assigned Grimoire claims against the installed garden worker."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedGrimoireTeacher(input: GardenReviewInput & {executorModel:string}): ReturnType<ManagedGrimoireReceiver["runManagedGrimoireTeacher"]> {
+    if (managedGrimoireWorlds.find(({ id }) => id === input.caseId)?.handoff) {
+      return await this.runHarnessUtility("teacher", runId => `${composedTeacherCode({
+        executorModel: input.executorModel,
+        workflowRequest: {
+          goal: "Stage a handoff from the committed garden",
+          work: grimoireHandoffWork.map(selector => ({ ...selector, input: { goal: "Review or stage garden evidence" } })),
+        },
+        requiredOrder: grimoireHandoffWork.map(({ operation }) => operation),
+        requestCode: "prepared.request",
+        bindingCode: this.gardenReviewBindings(input, true),
+      }, runId)}
+        utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+      `) as Awaited<ReturnType<ManagedGrimoireReceiver["runManagedGrimoireTeacher"]>>;
+    }
     return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
       executorModel:input.executorModel,
       work:{kind:"domain",domain:"examples",operation:"reviewExample",input:{goal:"Review the assigned garden"}},
@@ -1647,6 +1662,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies real garden observations and negative evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedGrimoire(input: GardenReviewInput): ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]> {
+    if (managedGrimoireWorlds.find(({ id }) => id === input.caseId)?.handoff) {
+      return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+        grimoireHandoffWork, this.gardenReviewBindings(input, true),
+      )) as Awaited<ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]>>;
+    }
     return await this.runHarnessUtility("teacher", `
       ${this.gardenReviewBindings(input)}
       await natlang.describe("skills/examples-review/reviewExample.nl");
@@ -1661,16 +1681,18 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedGrimoireReceiver["qualifyManagedGrimoire"]>>;
   }
 
-  private gardenReviewBindings(input: GardenReviewInput): string {
+  private gardenReviewBindings(input: GardenReviewInput, handoff = false): string {
     return `
       import {contextId as actualContextId} from "@workspace/runtime";
       import {prepareGardenReview} from "@workspace-skills/examples-review-fixtures/live-garden";
       import {managedGrimoireWorlds} from "@workspace-skills/system-testing/grimoire-worlds";
+      ${handoff ? 'import {prepareGrimoireHandoff} from "@workspace-skills/system-testing/grimoire-handoff-managed";' : ""}
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Garden belongs to another context");
       const world=managedGrimoireWorlds.find(world=>world.id===input.caseId);
       if(!world) throw new Error("Unknown Grimoire world");
-      const prepared=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.actions.map(action=>action.toLowerCase()));
+      const garden=prepareGardenReview(input.garden,input.before,world.request.claims,world.expected,world.actions.map(action=>action.toLowerCase()));
+      const prepared=${handoff ? "await prepareGrimoireHandoff(world,garden)" : "garden"};
       const assignedServices=prepared.services;
     `;
   }
