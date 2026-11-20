@@ -105,17 +105,18 @@ export function prepareManagedLogHandoff(input: Input, seed: Seed) {
       const read = (side: "earlier" | "later") => services.serverLog.query({
         sinceSeq: request[side].after, untilSeq: request[side].through, tag: request.tag, limit: 301,
       });
-      await read("earlier");
-      await read("later");
-      let rejectsForeignWindow = false;
-      try {
-        await services.serverLog.query({ sinceSeq: seed.start, untilSeq: end, tag: request.tag, limit: 301 });
-      } catch (error) {
-        rejectsForeignWindow = error instanceof Error && error.message.includes("assigned host-log windows");
+      const [stats] = await Promise.all([services.serverLog.stats(), read("earlier"), read("later")]);
+      if (stats.oldestSeq === null || stats.oldestSeq > seed.start + 1 || stats.latestSeq < end) {
+        throw new Error("The seeded host-log windows are no longer retained.");
       }
+      const unassigned = await Promise.allSettled([
+        services.serverLog.query({ sinceSeq: seed.start, untilSeq: end, tag: request.tag, limit: 301 }),
+        services.serverLog.tail(),
+      ]);
       return {
         verification: verify({ status: world.status, earlier: expectedBrief("earlier"), later: expectedBrief("later") }),
-        rejectsForeignWindow,
+        rejectsForeignWindow: unassigned.every((result) => result.status === "rejected" &&
+          result.reason instanceof Error && result.reason.message.includes("assigned host-log windows")),
       };
     },
   };
