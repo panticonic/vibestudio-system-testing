@@ -1,0 +1,38 @@
+{
+  "name": "@workspace-workers/notification-state-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./contract": "./contract.ts"
+  },
+  "vibestudio": {
+    "kind": "worker",
+    "entry": "index.ts",
+    "agentVisible": false,
+    "title": "Owned notification state fixture",
+    "durable": {
+      "classes": [
+        {
+          "className": "NotificationStateFixtureDO"
+        }
+      ]
+    },
+    "authority": {
+      "requests": [],
+      "provides": [],
+      "serviceRequests": []
+    }
+  },
+  "devDependencies": {
+    "@vibestudio/durable": "workspace:*",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@vibestudio/shared": "workspace:*",
+    "@vibestudio/shell-core": "workspace:*",
+    "@workspace/runtime": "workspace:*",
+    "@workspace-workers/workspace-source": "workspace:*"
+  }
+}
