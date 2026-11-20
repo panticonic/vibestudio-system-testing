@@ -80,6 +80,8 @@ import { launchAgentIntoChannel } from "@workspace/agentic-core";
 import { managedSpectroliteMethods } from "./spectrolite-contract.js";
 import { managedSpectroliteWorlds, spectrolitePanel, spectroliteVault } from "./spectrolite-worlds.js";
 import { managedGrimoireMethods } from "./grimoire-contract.js";
+import { managedAdventureMethods, type AdventureReviewInput } from "./adventure-review-contract.js";
+import { managedAdventureWorlds } from "./adventure-review-worlds.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
@@ -1414,6 +1416,46 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedGrimoireMethods.qualifyManagedGrimoire, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedGrimoireMethods.runManagedGrimoireTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      try { await handle?.archive(); }
+      finally { await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]); }
+    }
+  }
+
+  async runManagedAdventure(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const world = managedAdventureWorlds.find(({ id }) => id === caseId);
+    if (!world) throw new Error("Unknown Adventure case");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    const journey = `natlang-adventure-${crypto.randomUUID()}`;
+    let handle: Awaited<ReturnType<typeof openPanel>> | undefined;
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const assignment = { contextId, caseId, journey };
+      const before = await rpc.call(owner, managedAdventureMethods.seedManagedAdventure, [assignment], { signal });
+      let panel: AdventureReviewInput["panel"] = null;
+      if (world.painted) {
+        handle = await this.openPanelClient(`panels/${world.campaign}`, {
+          contextId, ref: `ctx:${contextId}`, stateArgs: { gameKey: journey }, focus: false, parentId: null, signal,
+        });
+        const opened = handle;
+        panel = await waitFor(async () => {
+          signal.throwIfAborted();
+          const frame = await this.evalInPanelClient<{
+            journey: string; location: string; asset: string; tick: number; loaded: boolean;
+          } | null>(opened,
+            `(() => {const root=document.querySelector('main.adventure'), image=root?.querySelector('.adventure-scene img');
+              return root && {journey:root.dataset.gameKey, location:root.dataset.location, asset:root.dataset.assetId,
+                tick:Number(root.dataset.tick), loaded:!!image && image.complete && image.naturalWidth > 0};})()`);
+          return frame?.journey === journey && frame.loaded && frame.asset
+            ? { location: frame.location, asset: frame.asset, tick: frame.tick }
+            : undefined;
+        }, { label: "The assigned Adventure panel displays its saved opening artwork" });
+      }
+      const input = { ...assignment, before, panel };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedAdventureMethods.qualifyManagedAdventure, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedAdventureMethods.runManagedAdventureTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       try { await handle?.archive(); }
       finally { await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]); }

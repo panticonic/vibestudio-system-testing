@@ -73,6 +73,7 @@ import { managedNewsWorlds, newsHandoffWork } from "@workspace-skills/system-tes
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import { managedSpectroliteWorlds, spectroliteHandoffWork } from "@workspace-skills/system-testing/spectrolite-worlds";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
+import type { AdventureReviewInput, ManagedAdventureReceiver } from "@workspace-skills/system-testing/adventure-review-contract";
 import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
 import type { ManagedSetupReceiver, SetupInput } from "@workspace-skills/system-testing/onboarding-contract";
@@ -1695,6 +1696,56 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const prepared=${handoff ? "await prepareGrimoireHandoff(world,garden)" : "garden"};
       const assignedServices=prepared.services;
     `;
+  }
+
+  private adventureAssignment(input: { contextId: string; caseId: string }): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {managedAdventureWorlds} from "@workspace-skills/system-testing/adventure-review-worlds";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Adventure belongs to another context");
+      const world=managedAdventureWorlds.find(item=>item.id===input.caseId);
+      if(!world) throw new Error("Unknown assigned Adventure opening");
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Initializes an owned Adventure opening for the system test."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async seedManagedAdventure(input: Parameters<ManagedAdventureReceiver["seedManagedAdventure"]>[0]) {
+    return await this.runHarnessUtility("teacher", `
+      ${this.adventureAssignment(input)}
+      import {seedAdventure} from "@workspace-skills/examples-review-fixtures/live-adventure";
+      const utilityValue=await seedAdventure(input.journey,world.campaign);
+    `);
+  }
+
+  private adventureReviewBindings(input: AdventureReviewInput): string {
+    return `
+      ${this.adventureAssignment(input)}
+      import {prepareAdventureReview} from "@workspace-skills/examples-review-fixtures/live-adventure";
+      const prepared=prepareAdventureReview(input.journey,input.before,input.panel,world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews saved Adventure access and illustration with Natlang."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedAdventureTeacher(input: AdventureReviewInput & {executorModel:string}): ReturnType<ManagedAdventureReceiver["runManagedAdventureTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"examples",operation:"reviewExample",input:{goal:"Review the assigned Adventure opening"}},
+      inputCode:"world.request",
+      bindingCode:this.adventureReviewBindings(input),
+    },runId)}
+      const verification=await prepared.verify(utilityValue.report);
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
+    `) as Awaited<ReturnType<ManagedAdventureReceiver["runManagedAdventureTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks the saved Adventure and rejects unrelated evidence without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyManagedAdventure(input: AdventureReviewInput): ReturnType<ManagedAdventureReceiver["qualifyManagedAdventure"]> {
+    const work = [{kind:"domain", domain:"examples", operation:"reviewExample"}] as const;
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      work, this.adventureReviewBindings(input),
+    )) as Awaited<ReturnType<ManagedAdventureReceiver["qualifyManagedAdventure"]>>;
   }
 
   @rpc({website:{kind:"closed",reason:"Reviews owned Spectrolite document and actual preview evidence."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
