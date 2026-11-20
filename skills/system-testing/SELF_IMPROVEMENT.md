@@ -277,8 +277,8 @@ Do not restate either rule in a scenario prompt or case policy.
 
 The abort signal of the originating VCS call also controls the wait for
 protected-ref authority. When an eval deadline fires, authority acquisition,
-semantic publication, and the held EvalDO request must unwind together. If the
-tool reports a timeout while the EvalDO keeps running, inspect this signal chain
+semantic publication, and the held eval kernel request must unwind together. If the
+tool reports a timeout while the eval kernel keeps running, inspect this signal chain
 instead of raising either deadline.
 
 Unit and config review has no separate decision path. The protected-main gate

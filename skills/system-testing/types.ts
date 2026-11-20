@@ -290,6 +290,12 @@ export type ReportClaimJudge = (
 ) => Promise<{ satisfied: boolean; verdicts: ReportClaimVerdict[] }>;
 
 export interface TestOrchestrationContext {
+  /** Installed worker owns operations that require a durable code identity. */
+  runAgentCellCompaction?: (
+    signal: AbortSignal,
+    contextId: string,
+    turns: number,
+  ) => Promise<TestExecutionResult>;
   runner: HeadlessRunner;
   /** The test owns this cancellation boundary. Awaited orchestration work must
    * settle on abort and finish its owned cleanup before returning. */

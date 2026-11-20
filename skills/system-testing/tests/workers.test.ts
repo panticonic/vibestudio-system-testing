@@ -1704,24 +1704,31 @@ describe("worker test validators", () => {
       test("installed-workspace-service-consumer").validate(publicId).passed,
     ).toBe(true);
 
-    const unrelatedTarget = structuredClone(result);
-    const unrelatedEval = unrelatedTarget.messages.find(
+    const retainedHandle = structuredClone(result);
+    const retainedEval = retainedHandle.messages.find(
       (message) =>
         message.kind === "message" && message.invocation?.id === "call-eval",
     );
-    if (unrelatedEval?.kind === "message" && unrelatedEval.invocation) {
-      unrelatedEval.invocation.arguments = {
+    if (retainedEval?.kind === "message" && retainedEval.invocation) {
+      retainedEval.invocation.arguments = {
         code: [
           probeMethodsImport,
           'const handle = await workers.create("workers/probe", { key: "installed-probe" });',
-          "const observed = await rpc.call(other.id, fixtureWorkerRpcMethods.consumeTestkitService, []);",
-          "await workers.destroy(handle);",
+          "scope.workerHandle = handle;",
+          "const observed = await rpc.call(scope.workerHandle.targetId, fixtureWorkerRpcMethods.consumeTestkitService, []);",
+          "await workers.destroy(scope.workerHandle);",
         ].join("\n"),
       };
     }
     expect(
-      test("installed-workspace-service-consumer").validate(unrelatedTarget)
+      test("installed-workspace-service-consumer").validate(retainedHandle)
         .passed,
+    ).toBe(true);
+
+    const unobserved = structuredClone(retainedHandle);
+    editJournal(unobserved, (entries) => { entries.length = 0; });
+    expect(
+      test("installed-workspace-service-consumer").validate(unobserved).passed,
     ).toBe(false);
 
     const wildcard = structuredClone(result);
@@ -1742,11 +1749,11 @@ describe("worker test validators", () => {
 });
 
 describe("independent runtime retirement observation", () => {
-  it("accepts cross-eval cleanup only when the real fixture inventory is empty", () => {
+  it("keeps local declarations scoped to each eval during cross-eval cleanup", () => {
     const first = attachJournal(
       execution(
         "Created.",
-        'scope.handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } }); return { createdId: scope.handle.id };',
+        'const handle = await workers.createDurableObject("workers/probe", "FixtureWorkerDO", { key: "probe", stateArgs: { probe: "ready" } }); scope.handle = handle; return { createdId: handle.id };',
         { createdId: "worker-entity-probe" },
       ),
       doCallEntries({ probe: "ready" }).slice(0, 2),
@@ -1763,7 +1770,7 @@ describe("independent runtime retirement observation", () => {
     const second = attachJournal(
       execution(
         "The probe was ready and its instance was retired.",
-        `${probeMethodsImport} const observed = await rpc.call(scope.handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); await workers.destroy(scope.handle); return { observed, destroyedId: scope.handle.id };`,
+        `${probeMethodsImport} const handle = scope.handle; const observed = await rpc.call(handle.targetId, fixtureWorkerRpcMethods.inspectProbe, []); await workers.destroy(handle); return { observed, destroyedId: handle.id };`,
         { observed: { probe: "ready" }, destroyedId: "worker-entity-probe" },
       ),
       secondEntries,
@@ -1778,6 +1785,15 @@ describe("independent runtime retirement observation", () => {
       second.messages.splice(1, 0, firstCall);
     }
     expect(test("call-do-method").validate(second).passed).toBe(true);
+    const invalidCell = structuredClone(second);
+    const invalidCreation = invalidCell.messages.find(
+      (message) => message.invocation?.id === "create-call",
+    );
+    if (invalidCreation?.invocation?.arguments) {
+      invalidCreation.invocation.arguments["code"] =
+        String(invalidCreation.invocation.arguments["code"]) + " const handle = null;";
+    }
+    expect(test("call-do-method").validate(invalidCell).passed).toBe(false);
     const missingStateArgs = structuredClone(second);
     const diagnosis = missingStateArgs.messages.find(
       (message) =>

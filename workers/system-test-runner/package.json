@@ -144,6 +144,30 @@
           },
           "tier": "gated",
           "evidence": "exact"
+        },
+        {
+          "capability": "userland:workers/missions/missions.run#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic",
+          "packages": [
+            "@workspace-skills/system-testing"
+          ]
+        },
+        {
+          "capability": "userland:workers/missions/missions.retire#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "critical",
+          "evidence": "bounded-dynamic",
+          "packages": [
+            "@workspace-skills/system-testing"
+          ]
         }
       ]
     }

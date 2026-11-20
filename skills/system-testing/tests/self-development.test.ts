@@ -89,10 +89,14 @@ function validate(name: string, value: unknown) {
     operations.push(
       {
         service: "attachedHosts",
-        method: "eval.start",
+        method: "dynamicCode.admit",
         result: evidence.started,
       },
-      { service: "attachedHosts", method: "eval.get", result: evidence.result },
+      {
+        service: "attachedHosts",
+        method: "dynamicCode.release",
+        result: evidence.result,
+      },
     );
   }
   if (name === "self-development-child-approval") {
@@ -405,15 +409,18 @@ describe("self-development semantic validators", () => {
           childGenerationId: generation,
         },
       },
-      started: { runId: "eval-run" },
+      started: {
+        runId: "eval-run",
+        runDigest: digest("e"),
+        hostId: "do:workers/session:SessionDO:one",
+        nonce: "n",
+        start: { runId: "eval-run" },
+      },
       result: {
         developmentRunId: "run",
         attachedHostSessionId: "attached",
         evalRunId: "eval-run",
-        evalSnapshot: {
-          status: "done",
-          result: { success: true, returnValue: 42 },
-        },
+        release: { released: true },
       },
     };
     expect(validate("self-development-child-eval", value).passed).toBe(true);

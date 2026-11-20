@@ -1334,25 +1334,8 @@ function requireInstalledWorkspaceServiceConsumerEvidence(
     };
   }
 
-  const createdHandles = [
-    ...base.evidence.evalCode.matchAll(
-      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+(?:workers\.create|runtime\.createEntity)\s*\(/gu,
-    ),
-  ].map((match) => match[1]!);
-  const calledCreatedTarget = createdHandles.some((handle) => {
-    const escaped = handle.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    return new RegExp(
-      `\\brpc\\.call(?:<[^>]*>)?\\s*\\(\\s*${escaped}\\.(?:id|targetId)\\s*,`,
-      "u",
-    ).test(base.evidence.evalCode);
-  });
-  if (createdHandles.length === 0 || !calledCreatedTarget) {
-    return {
-      passed: false,
-      reason:
-        "The proof did not execute and call the context-built installed unit",
-    };
-  }
+  // Native lifecycle and RPC receipts join the actual target across cells,
+  // including handles retained in scope or accessed through another binding.
   const repoName =
     result.diagnostics?.["workspaceRepoFixture"] &&
     typeof result.diagnostics["workspaceRepoFixture"] === "object" &&
@@ -1510,7 +1493,17 @@ export const workerTests: TestCase[] = [
         ["runtime.createEntity", "rpc.call", "runtime.retireEntity"],
       ]);
       if (!base.passed) return base;
-      if (!hasDurableObjectProbeStateArgs(base.evidence.evalCode)) {
+      // Each eval has its own lexical scope. Joining cells before parsing
+      // makes valid repeated local declarations look like a syntax error.
+      if (
+        !base.evidence.calls.some(
+          (call) =>
+            call.name === "eval" &&
+            call.execution?.status === "complete" &&
+            call.execution.isError !== true &&
+            hasDurableObjectProbeStateArgs(String(call.arguments?.["code"] ?? "")),
+        )
+      ) {
         return {
           passed: false,
           reason:

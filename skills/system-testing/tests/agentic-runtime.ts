@@ -1,7 +1,11 @@
 import {
   BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
   type TestCase,
+  type TestExecutionResult,
+  type TestOrchestrationContext,
 } from "../types.js";
+import type { ConversationForkProbe } from "../runner.js";
+import { systemTestFailure, type SystemTestFailure } from "../structured-error.js";
 import { invocationReturnValue, walkRecords } from "./_scenario-evidence.js";
 import { PANEL_AUTOMATION_RESOURCE } from "../panel-authority.js";
 import { orchestratePanelGoal } from "./_panel-tree-invariant.js";
@@ -285,7 +289,148 @@ function atomicPatchBuildVerification(
   return noIncompleteInvocations(result);
 }
 
+async function orchestrateConversationFork(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await context.runner.spawn();
+  let error: string | undefined;
+  let failure: SystemTestFailure | undefined;
+  let probe: ConversationForkProbe | undefined;
+  try {
+    const inputMessageId = await session.send(
+      "Reply with exactly the single word MARIGOLD and nothing else. Do not call any tool.",
+    );
+    await session.waitForInput(inputMessageId, { signal: context.signal });
+    probe = await context.runner.probeConversationFork(session, inputMessageId);
+  } catch (cause) {
+    failure = systemTestFailure("conversation-fork", cause);
+    error = failure.error.message;
+  }
+  const execution: TestExecutionResult = {
+    messages: [...session.messages],
+    duration: Date.now() - startedAt,
+    snapshot: session.snapshot(),
+    diagnostics: { ...(probe ? { conversationFork: probe } : {}) },
+    ...(error ? { error } : {}),
+    ...(failure ? { failure } : {}),
+  };
+  try {
+    await session.close();
+  } catch (cause) {
+    execution.cleanupErrors = [`close: ${String(cause)}`];
+    execution.cleanupFailures = [systemTestFailure("conversation-fork-close", cause)];
+  }
+  return execution;
+}
+
+function validateConversationFork(result: TestExecutionResult) {
+  if (result.error) return { passed: false, reason: result.error };
+  const probe = result.diagnostics?.["conversationFork"] as ConversationForkProbe | undefined;
+  if (!probe) return { passed: false, reason: "The harness recorded no conversation fork evidence" };
+  if (probe.fork.clonedAgentCount !== 1)
+    return { passed: false, reason: `Expected the fork to clone one agent; it cloned ${probe.fork.clonedAgentCount}` };
+  const canFork = probe.adopted.canFork as { ok?: unknown } | undefined;
+  if (canFork?.ok !== true)
+    return { passed: false, reason: `The cloned agent did not adopt the fork channel: ${JSON.stringify(probe.adopted.canFork)}` };
+  if (!probe.adopted.modelMatches)
+    return { passed: false, reason: "The cloned agent did not keep its source's settings" };
+  if (!probe.forkReplayText.includes("MARIGOLD"))
+    return { passed: false, reason: "The fork channel does not hold the answer given before the fork" };
+  const editCanFork = probe.edit.canFork as { ok?: unknown } | undefined;
+  if (probe.edit.clonedAgentCount !== 1 || editCanFork?.ok !== true)
+    return { passed: false, reason: `The edit-and-fork did not clone and adopt the agent: ${JSON.stringify(probe.edit)}` };
+  if (!probe.edit.replayText.includes("ALTERNATE") || probe.edit.replayText.includes("MARIGOLD"))
+    return { passed: false, reason: "The edit-and-fork channel must hold the replacement and not the replaced message or its answer" };
+  return { passed: true, reason: undefined };
+}
+
+const FORK_CODE_WORD = "PELICAN-7";
+
+async function orchestrateSubagentFork(
+  context: TestOrchestrationContext,
+): Promise<TestExecutionResult> {
+  const startedAt = Date.now();
+  const session = await context.runner.spawn();
+  let error: string | undefined;
+  let failure: SystemTestFailure | undefined;
+  try {
+    // A closed turn: the code word is part of the conversation the cell commits.
+    await context.sendAndWait(
+      session,
+      `Remember this code word for later: ${FORK_CODE_WORD}. Reply with the single word OK and nothing else. Do not call any tool.`,
+      "teach the code word",
+    );
+    await context.sendAndWait(
+      session,
+      "Launch exactly one collaborator in fork mode (mode: fork, so it inherits this conversation). Ask it only: what code word was I given earlier? Do not tell it the word. Then report its answer exactly.",
+      "ask a forked collaborator",
+    );
+  } catch (cause) {
+    failure = systemTestFailure("subagent-fork-inherits-context", cause);
+    error = failure.error.message;
+  }
+  const execution: TestExecutionResult = {
+    messages: [...session.messages],
+    duration: Date.now() - startedAt,
+    snapshot: session.snapshot(),
+    ...(error ? { error } : {}),
+    ...(failure ? { failure } : {}),
+  };
+  try {
+    await session.close();
+  } catch (cause) {
+    execution.cleanupErrors = [`close: ${String(cause)}`];
+    execution.cleanupFailures = [
+      systemTestFailure("subagent-fork-inherits-context-close", cause),
+    ];
+  }
+  return execution;
+}
+
+function validateSubagentFork(result: TestExecutionResult) {
+  if (result.error) return { passed: false, reason: result.error };
+  const launches = getToolCalls(result).filter(
+    (call) =>
+      call.name === "spawn_subagent" &&
+      call.execution?.status === "complete" &&
+      call.execution.isError !== true,
+  );
+  const fork = launches.find((call) => call.arguments?.["mode"] === "fork");
+  if (!fork)
+    return { passed: false, reason: "The parent launched no collaborator in fork mode" };
+  // The word was never given to the collaborator: it can only have come from the cell it was forked from.
+  if (String(fork.arguments?.["task"] ?? "").includes("PELICAN"))
+    return { passed: false, reason: "The collaborator's task named the code word, so the fork proves nothing" };
+  if (!findLastAgentMessage(result).includes(FORK_CODE_WORD))
+    return {
+      passed: false,
+      reason: `The parent's report does not carry the code word only the forked collaborator could know: ${FORK_CODE_WORD}`,
+    };
+  return { passed: true, reason: undefined };
+}
+
 export const agenticRuntimeTests: TestCase[] = [
+  {
+    name: "subagent-fork-inherits-context",
+    description:
+      "A subagent launched in fork mode is a fork of its parent's cell: it knows what the parent was told in an earlier turn",
+    category: "agentic-runtime",
+    prompt: "Harness-orchestrated forked collaborator check.",
+    orchestrate: orchestrateSubagentFork,
+    validation: "harness",
+    validate: validateSubagentFork,
+  },
+  {
+    name: "conversation-fork-adopts-agent-cell",
+    description:
+      "The product's conversation fork forks the agent's cell: the cloned agent adopts the fork channel with its source's settings",
+    category: "agentic-runtime",
+    prompt: "Harness-orchestrated conversation fork check.",
+    orchestrate: orchestrateConversationFork,
+    validation: "harness",
+    validate: validateConversationFork,
+  },
   {
     name: "state-args-immediate-snapshot",
     description: "Panel state changes are immediately observable",
