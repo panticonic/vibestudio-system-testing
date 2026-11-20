@@ -1,3 +1,4 @@
+import { remoteCommissionTests } from "./tests/remote-commission-managed.js";
 import { managedApprovalTransitionTests } from "./tests/approval-transition-managed.js";
 import { managedIntegrationReadinessTests } from "./tests/integration-readiness-managed.js";
 import { managedTerminalCheckTests, managedTerminalEvidenceTests } from "./tests/terminal-check-managed.js";
@@ -273,6 +274,7 @@ export function allTests(): TestCase[] {
   ...managedUnitDesignTests,
   ...managedAuthorityReviewTests,
   ...managedApprovalTransitionTests,
+  ...remoteCommissionTests,
   ...managedAgenticChangeTests,
   ...managedGadReviewTests,
   ...managedTerminalCheckTests,

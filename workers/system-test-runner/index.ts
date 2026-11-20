@@ -1,3 +1,4 @@
+import type { RemoteCommissionReceiver } from "@workspace-skills/system-testing/remote-commission-managed";
 import type { ManagedApprovalTransitionReceiver } from "@workspace-skills/system-testing/approval-transition-managed";
 import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remote-route-managed";
 import type { ManagedNotificationReceiver } from "@workspace-skills/system-testing/notification-lifecycle-managed";
@@ -2487,6 +2488,35 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const prepared=await prepareManagedAndroidAudit(input,listAndroidAuditDevices,bindAndroidRuntimeAudit);
       const assignedServices=prepared.services;
     `;
+  }
+
+  private remoteCommissionBindings({ contextId }: {contextId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareRemoteCommission} from "@workspace-skills/system-testing/remote-commission-managed";
+      const prepared=await prepareRemoteCommission({contextId:${JSON.stringify(contextId)}});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Drives the disposable terminal profile through approved commissioning."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runRemoteCommissionTeacher(input: {contextId:string;executorModel:string}): ReturnType<RemoteCommissionReceiver["runRemoteCommissionTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"remoteAccess",operation:"commissionRemoteWorkspace",input:{goal:"Open the assigned workspace"}},
+      inputCode: "prepared.request",
+      goalCode: "prepared.goal",
+      bindingCode: this.remoteCommissionBindings(input),
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<RemoteCommissionReceiver["runRemoteCommissionTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the assigned hub and terminal path without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyRemoteCommission(input: {contextId:string}): ReturnType<RemoteCommissionReceiver["qualifyRemoteCommission"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"remoteAccess",operation:"commissionRemoteWorkspace"}], this.remoteCommissionBindings(input),
+    )) as Awaited<ReturnType<RemoteCommissionReceiver["qualifyRemoteCommission"]>>;
   }
 
   @rpc({website:{kind:"closed",reason:"Verifies the assigned live gateway identity."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})

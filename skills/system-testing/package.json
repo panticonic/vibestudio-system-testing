@@ -47,6 +47,7 @@
     }
   },
   "exports": {
+    "./remote-commission-managed": "./remote-commission-managed.ts",
     "./approval-transition-managed": "./approval-transition-managed.ts",
     "./integration-readiness-managed": "./integration-readiness-managed.ts",
     "./terminal-check-managed": "./terminal-check-managed.ts",

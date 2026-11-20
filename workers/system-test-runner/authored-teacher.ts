@@ -72,6 +72,7 @@ export function domainTeacherCode<Work extends DomainAssignment>(
     work: Work;
     bindingCode: string;
     inputCode: string;
+    goalCode?: string;
   },
   runId: string,
 ): string {
@@ -83,7 +84,7 @@ export function domainTeacherCode<Work extends DomainAssignment>(
     },
     runId,
     true,
-    `{goal:${options.inputCode}.goal,work:[{
+    `{goal:${options.goalCode ?? options.inputCode + ".goal"},work:[{
     kind:"domain",domain:${JSON.stringify(options.work.domain)},operation:${JSON.stringify(options.work.operation)},input:${options.inputCode}
   }]}`,
   );
