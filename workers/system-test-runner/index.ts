@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
+  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3712,7 +3712,15 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       if (owner.contextId !== input.contextId) throw new Error("Automation goal belongs to another context");
       automationSeed = await seedOpenPersonalAutomation(this.rpc, personalAutomation);
     }
-    const prepare = evalHandoff
+    const reconciliation = openReconciliationWorlds.find(({ id }) => id === input.caseId);
+    const reconciliationSeed = reconciliation && await this.seedWorkspaceIntegration(
+      { seed: reconciliation.id, worldId: reconciliation.id }, reconciliation.assignment,
+    );
+    const prepare = reconciliationSeed
+      ? `import {fs,rpc,vcs} from "@workspace/runtime";
+         import {prepareOpenReconciliation} from "@workspace-skills/system-testing/open-goal-reconciliation-managed";
+         const prepared=await prepareOpenReconciliation(input,${JSON.stringify(reconciliation)},${JSON.stringify(reconciliationSeed.stored)},{fs,rpc,vcs});`
+      : evalHandoff
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
          import {prepareOpenEvalHandoff,openEvalHandoffNative} from "@workspace-skills/system-testing/open-goal-eval-handoff-managed";
@@ -4233,8 +4241,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     return JSON.parse(row.value) as OwnedIntegrationWorld;
   }
 
-  @rpc({website:{kind:"closed",reason:"Harness seeds its owned local VCS exercise without publishing."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
-  async prepareWorkspaceIntegrationFixture(input:IntegrationFixtureInput) {
+  private async seedWorkspaceIntegration(
+    input: IntegrationFixtureInput, assignment?: Parameters<typeof prepareWorkspaceIntegration>[3],
+  ) {
     const {contextId,ownerEntityId}=await this.integrationFixtureIdentity();
     const vcs=createVcsClient(this.rpc,contextId);
     const world=await prepareWorkspaceIntegration({vcs,createContext:async()=>({contextId}),
@@ -4245,10 +4254,15 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         const child=await this.rpc.call("main",mainRpcMethods["runtime.createSubagentContext"],[{parentContextId,ownerEntityId,targetKey:`integration-source:${ownerEntityId}:${crypto.randomUUID()}`}]);
         return {...child,ownerEntityId};
       },
-    },input.seed,input.worldId);
+    },input.seed,input.worldId,assignment);
     const {cleanup,...stored}=world;
+    return {stored,before:(await vcs.status()).workingHead};
+  }
+
+  @rpc({website:{kind:"closed",reason:"Harness seeds its owned local VCS exercise without publishing."}, requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async prepareWorkspaceIntegrationFixture(input:IntegrationFixtureInput) {
+    const {stored,before}=await this.seedWorkspaceIntegration(input);
     this.sql.exec("INSERT OR REPLACE INTO state(key,value) VALUES (?,?)", "__integration_fixture",JSON.stringify(stored));
-    const before=(await vcs.status()).workingHead;
     return {...stored,before};
   }
 

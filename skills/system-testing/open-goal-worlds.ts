@@ -1,4 +1,5 @@
 export { openBrowserMigrationWorlds, browserMigrationRequiresUnits } from "./open-goal-browser-migration-worlds.js";
+export { openReconciliationWorlds, reconciliationRequiresUnits } from "./open-goal-reconciliation-worlds.js";
 export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
 export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal-local-delivery-worlds.js";
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";

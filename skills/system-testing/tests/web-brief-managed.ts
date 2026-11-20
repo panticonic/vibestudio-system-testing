@@ -11,6 +11,7 @@ import {
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openLocalDeliveryWorlds, localDeliveryRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
+  openReconciliationWorlds, reconciliationRequiresUnits,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
   openBrowserMigrationWorlds, browserMigrationRequiresUnits,
@@ -89,7 +90,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -110,6 +111,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  "local-reconciliation": { requiresUnits: reconciliationRequiresUnits },
   "eval-handoff": { requiresUnits: evalHandoffRequiresUnits },
   "program-run": { requiresUnits: programRunRequiresUnits },
   authoring: { requiresUnits: authoringRequiresUnits },
@@ -213,6 +215,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :
     world.kind === "program-run" ? "Run authorized current programs with independent native output and signed receipts" :
     world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :
+    world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :
     world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
