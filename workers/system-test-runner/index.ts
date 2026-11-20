@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openLocalPresentationWorlds, openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3751,7 +3751,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
-    const prepare = extensionDossier
+    const tendrilRoute = openTendrilRouteWorlds.find(({ id }) => id === input.caseId);
+    const prepare = tendrilRoute
+      ? `import {prepareOpenTendrilRoute} from "@workspace-skills/system-testing/open-goal-tendril-route-managed";
+         const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
+      : extensionDossier
       ? `import {prepareExtensionDossier} from "@workspace-skills/system-testing/open-goal-extension-dossier-managed";
          const prepared=await prepareExtensionDossier(input,${JSON.stringify(extensionDossier)});`
       : deployedInterface
