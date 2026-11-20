@@ -12,6 +12,7 @@ import {
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openLocalDeliveryWorlds, localDeliveryRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
+  openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
@@ -91,7 +92,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -112,6 +113,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  "terminal-handoff": { requiresUnits: openTerminalRequiresUnits },
   "local-reconciliation": { requiresUnits: reconciliationRequiresUnits },
   "eval-handoff": { requiresUnits: evalHandoffRequiresUnits },
   "program-run": { requiresUnits: programRunRequiresUnits },
@@ -203,6 +205,12 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   } : {}),
   ...(world.kind in templateSettings
     ? templateSettings[world.kind as keyof typeof templateSettings] : {}),
+  ...(world.kind === "terminal-handoff" ? { authorityPolicy: { authority: [
+    { ruleId: "launch-assigned-release-checklist", capability: { kind: "exact" as const, key: "terminal-apps.run" },
+      resource: { kind: "exact" as const, key: "terminal-app:terminal-apps/release-checklist" }, tier: "gated" as const, decision: "task" as const },
+    ...(world.checks ? [{ ruleId: "verify-assigned-local-checks", capability: { kind: "prefix" as const, prefix: "userland:extensions/shell/native.shell.execute#" },
+      resource: { kind: "exact" as const, key: "native.shell:extension:@workspace-extensions/shell" }, tier: "gated" as const, decision: "task" as const }] : []),
+  ] } } : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
   description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
@@ -220,6 +228,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :
+    world.kind === "terminal-handoff" ? "Work from live release checklist state and independently verified terminal receipts" :
     world.kind === "program-run" ? "Run authorized current programs with independent native output and signed receipts" :
     world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :
     world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :

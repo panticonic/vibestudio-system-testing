@@ -114,6 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openTerminalWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3676,6 +3677,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const terminalHandoff = openTerminalWorlds.some(({ id }) => id === input.caseId);
     const evalHandoff = openGoalEvalHandoffWorlds.find(({ id }) => id === input.caseId);
     const programRun = openGoalProgramRunWorlds.find(({ id }) => id === input.caseId);
     const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
@@ -3717,7 +3719,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const reconciliationSeed = reconciliation && await this.seedWorkspaceIntegration(
       { seed: reconciliation.id, worldId: reconciliation.id }, reconciliation.assignment,
     );
-    const prepare = reconciliationSeed
+    const prepare = terminalHandoff
+      ? `import {prepareOpenTerminalGoal} from "@workspace-skills/system-testing/open-goal-terminal-managed";
+         const prepared=await prepareOpenTerminalGoal({contextId:input.contextId,caseId:input.caseId});`
+      : reconciliationSeed
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {prepareOpenReconciliation} from "@workspace-skills/system-testing/open-goal-reconciliation-managed";
          const prepared=await prepareOpenReconciliation(input,${JSON.stringify(reconciliation)},${JSON.stringify(reconciliationSeed.stored)},{fs,rpc,vcs});`

@@ -6,6 +6,7 @@ export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";
 export { openGoalAuthoringWorlds, authoringRequiresUnits } from "./open-goal-authoring-worlds.js";
 export { openGoalProgramRunWorlds, programRunRequiresUnits } from "./open-goal-program-run-worlds.js";
+export { openTerminalWorlds, openTerminalRequiresUnits } from "./open-goal-terminal-worlds.js";
 export { openGoalEvalHandoffWorlds, evalHandoffRequiresUnits } from "./open-goal-eval-handoff-worlds.js";
 export { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
 export { openGoalPdfWorlds } from "./open-goal-pdf-worlds.js";
