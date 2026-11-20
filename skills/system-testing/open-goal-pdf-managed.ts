@@ -92,7 +92,7 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
   let binding: PdfGoalBinding | undefined;
   let intake: ReturnType<typeof createPdfIntakeBindings> | undefined;
   let visual: PdfGoalBinding["visual"];
-  let intakeProbes = 0;
+  const textProbes: Awaited<ReturnType<ReturnType<typeof createPdfIntakeBindings>["pdfIntakeProbe"]["probe"]>>[] = [];
   const textReads: BatchReceipt[] = [];
   const layoutBindings = new Map<string, Layout>();
   const layoutReads = new Map<string, PdfLayoutPage>();
@@ -139,7 +139,7 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
       async probe(...args: Parameters<ReturnType<typeof createPdfIntakeBindings>["pdfIntakeProbe"]["probe"]>) {
         if (!intake) throw new Error("Bind the selected local PDF before probing its text.");
         const receipt = await intake.pdfIntakeProbe.probe(...args);
-        intakeProbes++;
+        textProbes.push(structuredClone(receipt));
         return receipt;
       },
     },
@@ -209,14 +209,14 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
         isDeepStrictEqual(selection.renderPages, expected.render) &&
         isDeepStrictEqual(report?.selection, selection) && isDeepStrictEqual(report?.document, binding?.document) &&
         isDeepStrictEqual(report?.missingPages, expected.missing ?? []),
-      textEvidence: claims ? intakeProbes === 1 &&
+      textEvidence: claims ? textProbes.length === 1 &&
         isDeepStrictEqual(readPages, expected.pages) &&
         textReads.every(receipt => receipt.digest === source?.digest) &&
         report?.text?.digest === source?.digest && report?.text?.status === claims.status &&
         isDeepStrictEqual(report.text.readPages, expected.pages) && isDeepStrictEqual(report.text.remaining, []) &&
         wantedCitations.every(Boolean) && isDeepStrictEqual(report.text.citations, wantedCitations) &&
         (claims.status !== "no-match" || textReads.every(receipt => receipt.pages.every(page => !page.lines.length))) :
-        report?.text === null && intakeProbes === 0 && !textReads.length,
+        report?.text === null && textProbes.length === 0 && !textReads.length,
       layoutEvidence: reads.length === layouts.length && Array.isArray(report?.layouts) &&
         report.layouts.length === layouts.length && layouts.every(({ page, kind, order }, index) => {
           const raw = reads.find(item => item.pageNumber === page);
@@ -240,8 +240,8 @@ export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: str
         expected.evidenceTerms.every(term => rationale.includes(term.toLowerCase())),
       protectedHeads: before.mainEventId === after.mainEventId && isDeepStrictEqual(before.workingHead, after.workingHead),
     };
-    return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, selection, documents: snapshot,
-      observations: { layouts: reads, text: textReads, rendered: retained } };
+    return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, selection, documents: snapshot, revision, binding,
+      observations: { layouts: reads, text: textReads, textProbes, rendered: retained } };
   }
 
   async function qualify() {
