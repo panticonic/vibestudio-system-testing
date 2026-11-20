@@ -83,6 +83,7 @@ import { managedGrimoireMethods } from "./grimoire-contract.js";
 import { managedAdventureMethods, type AdventureReviewInput, type ProgrammedAdventureInput } from "./adventure-review-contract.js";
 import { managedAdventureWorlds } from "./adventure-review-worlds.js";
 import { managedRegencyMethods } from "./regency-review-contract.js";
+import { managedDriveCheckpointMethods } from "./drive-checkpoint-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
@@ -1481,6 +1482,20 @@ export class HeadlessRunner {
     } finally {
       try { await handle?.archive(); }
       finally { await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]); }
+    }
+  }
+
+  async runManagedDriveCheckpoint(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = this.testAuthorityPolicy;
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedDriveCheckpointMethods.qualifyManagedDriveCheckpoint, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedDriveCheckpointMethods.runManagedDriveCheckpointTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
 
