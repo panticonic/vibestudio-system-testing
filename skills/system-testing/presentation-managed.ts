@@ -8,7 +8,7 @@ import type {
   PresentationWorld,
 } from "./presentation-worlds.js";
 
-const catalogSelectors = {
+export const catalogSelectors = {
   Chart: ".vs-r-chart-svg",
   Compare: ".vs-r-compare",
   Timeline: ".vs-r-timeline",
@@ -108,6 +108,7 @@ export async function observePresentation(
   contextId: string,
   source: string,
   signal: AbortSignal,
+  previewRevision?: string,
 ) {
   const before = await panel.observe();
   const session = await panel.cdp.session();
@@ -119,6 +120,7 @@ export async function observePresentation(
   try {
     signal.throwIfAborted();
     const selectors = JSON.stringify(prepared.map(({ selector }) => selector));
+    const expectedRevision = JSON.stringify(previewRevision ?? null);
     const probes = JSON.stringify(
       prepared.flatMap(({ id, interaction }) =>
         interaction
@@ -141,6 +143,7 @@ export async function observePresentation(
     );
     rendered = await session.page.evaluate<{
       ids: string[];
+      revision: string | null;
       texts: string[];
       rendered: boolean[];
       errors: number;
@@ -148,6 +151,7 @@ export async function observePresentation(
     }>(
       `(async () => {
         const selectors = ${selectors};
+        const expectedRevision = ${expectedRevision};
         const probes = ${probes};
         const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const click = async (control) => {
@@ -191,6 +195,7 @@ export async function observePresentation(
           const views = Array.from(document.querySelectorAll("[data-presentation-view]"));
           const errors = document.querySelectorAll('[data-ui-render="failed"], [data-ui-feedback-category]').length;
           return {
+            revision: document.querySelector("[data-presentation-preview]")?.getAttribute("data-presentation-revision") ?? null,
             ids: views.map((view) => view.getAttribute("data-presentation-view")),
             texts: views.map((view) => view.textContent),
             rendered: views.map((view, i) => !!selectors[i] && !!view.querySelector(selectors[i])),
@@ -200,7 +205,8 @@ export async function observePresentation(
         const observed = await new Promise((resolve) => {
           const check = () => {
             const preview = document.querySelector("[data-presentation-preview]");
-            if (!preview || preview.querySelector('[data-ui-render="pending"]')) return;
+            if (!preview || expectedRevision !== null && preview.getAttribute("data-presentation-revision") !== expectedRevision ||
+                preview.querySelector('[data-ui-render="pending"]')) return;
             const current = read();
             observer.disconnect();
             resolve(current);

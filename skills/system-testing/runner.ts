@@ -109,6 +109,7 @@ import { managedAuthoringMethods } from "./authoring-contract.js";
 import { managedPresentationMethods } from "./presentation-contract.js";
 import { managedPresentationWorlds } from "./presentation-worlds.js";
 import { checkPresentation, observePresentation, referencePresentation } from "./presentation-managed.js";
+import { openLocalPresentationWorlds } from "./open-goal-local-presentation-worlds.js";
 import { managedPdfMethods } from "./pdf-intake-contract.js";
 import { managedPublicationMethods } from "./publication-preflight-contract.js";
 import { managedAutomationMethods } from "./automation-lifecycle-contract.js";
@@ -2209,6 +2210,24 @@ export class HeadlessRunner {
   }
   async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false) {
     const request = { caseId, goal, executorModel: this.modelRef, qualification };
+    if (openLocalPresentationWorlds.some(({ id }) => id === caseId)) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "presentation-preview-panel" || fixture.caseId !== caseId || !fixture.repoName || !contextId)
+        throw new Error("Local presentation requires its owned presentation preview");
+      const source = `panels/${fixture.repoName}`;
+      const panel = await this.openPanelClient(source, {
+        contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+      });
+      try {
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { ...request, contextId, source, panelId: panel.id },
+        ], { signal });
+      } finally {
+        await panel.archive();
+      }
+    }
+
     const setup = openGoalGoogleSetupWorlds.find(({ id }) => id === caseId);
     if (setup) {
       const fixture = this.workspaceRepoFixture;

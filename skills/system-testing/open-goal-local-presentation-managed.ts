@@ -1,0 +1,478 @@
+import { isDeepStrictEqual } from "node:util";
+import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import {
+  contextId as runtimeContext,
+  fs,
+  panelTree,
+  vcs,
+  type PanelHandle,
+} from "@workspace/runtime";
+import { renderComponent } from "@workspace-skills/visualize/render";
+import type { PresentationReport } from "@workspace-skills/visualize/types";
+import {
+  catalogSelectors,
+  checkPresentation,
+  observePresentation,
+  referencePresentation,
+} from "./presentation-managed.js";
+import type {
+  LocalPresentationWorld,
+  RecordSeed,
+} from "./open-goal-local-presentation-worlds.js";
+
+type Assignment = {
+  contextId: string;
+  caseId: string;
+  panelId: string;
+  source: string;
+};
+type Files = Pick<typeof fs, "mkdtemp" | "readFile" | "writeFile" | "rm">;
+type Head = () => Promise<
+  Pick<Awaited<ReturnType<typeof vcs.status>>, "mainEventId" | "workingHead">
+>;
+type Prepared = NonNullable<ReturnType<typeof checkPresentation>>;
+type PreviewState = {
+  views?: { id: string; mdx: string }[];
+  previewRevision?: string;
+};
+type Source = RecordSeed & { revision: string };
+type Receipt = {
+  source: string;
+  revision: string;
+  viewIds: string[];
+  mdxDigests: string[];
+};
+type Preview =
+  | { status: "visible"; receipt: Receipt }
+  | { status: "changed"; revision: string }
+  | { status: "unavailable"; reason: string };
+type Journal = {
+  service: "presentationRecords";
+  method: string;
+  args: unknown[];
+  result: unknown;
+};
+type Outcome =
+  | { status: "visible"; receipt: Receipt; notes: string[] }
+  | { status: "held"; reason: string; revision: string | null };
+type Ports = {
+  contextId: string | null;
+  files: Files;
+  getPanel: (id: string) => PanelHandle;
+  head: Head;
+  observe: typeof observePresentation;
+};
+
+function defaultPorts(): Ports {
+  return {
+    contextId: runtimeContext,
+    files: fs,
+    getPanel: (id) => panelTree.get(id),
+    head: async () => {
+      const { mainEventId, workingHead } = await vcs.status();
+      return { mainEventId, workingHead };
+    },
+    observe: observePresentation,
+  };
+}
+
+function selectedViews(report: PresentationReport): Prepared | null {
+  if (
+    !report ||
+    !Array.isArray(report.views) ||
+    report.views.length > 12 ||
+    new Set(report.views.map((view) => view?.id)).size !== report.views.length
+  )
+    return null;
+  const views: Prepared = [];
+  for (const view of report.views) {
+    if (!view || typeof view.id !== "string" || !view.id) return null;
+    if (view.status !== "ready") continue;
+    try {
+      const rendered = renderComponent(view.rendered);
+      if (rendered.mdx !== view.rendered.mdx || rendered.mdx.length > 8_192)
+        return null;
+      views.push({
+        id: view.id,
+        mdx: rendered.mdx,
+        selector: catalogSelectors[rendered.component],
+        labels: [],
+      });
+    } catch {
+      return null;
+    }
+  }
+  return views;
+}
+
+export async function prepareOpenLocalPresentation(
+  input: Assignment,
+  world: LocalPresentationWorld,
+  ports = defaultPorts(),
+) {
+  if (
+    ports.contextId !== input.contextId ||
+    input.caseId !== world.id ||
+    !input.panelId
+  )
+    throw new Error(
+      "Local presentation belongs to a different fixture context",
+    );
+  const panel = ports.getPanel(input.panelId);
+  const initialHead = await ports.head();
+  const checkPanel = async () => {
+    const bind = await panel.observe();
+    if (
+      bind.kind !== "workspace" ||
+      bind.phase !== "ready" ||
+      bind.contextId !== input.contextId ||
+      bind.source !== input.source ||
+      bind.requestedRef !== "ctx:" + input.contextId ||
+      !bind.attemptId ||
+      !bind.buildKey
+    )
+      throw new Error(
+        "Local presentation renderer is outside the owned preview",
+      );
+    return { attemptId: bind.attemptId, buildKey: bind.buildKey };
+  };
+  const initialPanel = await checkPanel();
+  const directory = await ports.files.mkdtemp("local-presentation");
+  const close = () =>
+    ports.files.rm(directory, { recursive: true, force: true });
+  const seeds = new Map(world.sources.map((source) => [source.id, source]));
+  const path = (id: string) => {
+    if (!seeds.has(id))
+      throw new Error("Source record is outside the owned catalogue");
+    return directory + "/" + id + ".json";
+  };
+  const write = (record: RecordSeed) =>
+    ports.files.writeFile(path(record.id), JSON.stringify(record));
+  try {
+    for (const entry of seeds.values()) await write(entry);
+  } catch (error) {
+    await close();
+    throw error;
+  }
+  async function read(id: string): Promise<Source> {
+    const raw = String(await ports.files.readFile(path(id), "utf8"));
+    const record = JSON.parse(raw) as RecordSeed;
+    if (record.id !== id)
+      throw new Error("Retained record identity differs from its owned path");
+    return { ...record, revision: sha256HexSyncText(raw) };
+  }
+  const journal: Journal[] = [];
+  const reads = new Map<string, Source>();
+  let listed = false;
+  let raced = false;
+  let writing = false;
+  let saved: {
+    preview: Receipt;
+    report: PresentationReport;
+  } | null = null;
+  const effect = <T>(method: string, args: unknown[], result: T): T => {
+    journal.push(
+      structuredClone({ service: "presentationRecords", method, args, result }),
+    );
+    return structuredClone(result);
+  };
+  const services = {
+    presentationRecords: {
+      async discover() {
+        listed = true;
+        const records = await Promise.all([...seeds.keys()].map(read));
+        return effect(
+          "discover",
+          [],
+          records.map(({ id, title, desk, period, status }) => ({
+            id,
+            title,
+            desk,
+            period,
+            status,
+          })),
+        );
+      },
+      async read(id: string) {
+        if (!listed) throw new Error("Discover the owned catalogue first");
+        const record = await read(id);
+        reads.set(id, record);
+        return effect("read", [id], record);
+      },
+      async preview(
+        id: string,
+        revision: string,
+        report: PresentationReport,
+      ): Promise<Preview> {
+        if (writing || saved)
+          throw new Error("Only one preview may reach the owned renderer");
+        const basis = reads.get(id);
+        if (!basis?.previewAllowed || basis.revision !== revision)
+          throw new Error(
+            "Preview requires a previously observed and authorized local source revision",
+          );
+        writing = true;
+        const finish = (result: Preview) =>
+          effect("preview", [id, revision, report], result);
+        try {
+          const current = await read(id);
+          if (current.revision !== revision)
+            return finish({ status: "changed", revision: current.revision });
+          if (!raced && world.coedit?.id === id) {
+            const { revision: _revision, ...contents } = current;
+            await write({ ...contents, sections: world.coedit.sections });
+            raced = true;
+            return finish({
+              status: "changed",
+              revision: (await read(id)).revision,
+            });
+          }
+          const selected = selectedViews(report);
+          if (
+            !selected?.length ||
+            !selected.every((view) =>
+              basis.sections.some((section) => section.id === view.id),
+            )
+          )
+            return finish({
+              status: "unavailable",
+              reason:
+                "No canonical renderable view of the retained record was available.",
+            });
+          const owned = await checkPanel();
+          if (!isDeepStrictEqual(owned, initialPanel))
+            throw new Error("Preview renderer was replaced");
+          await panel.stateArgs.patch({
+            previewRevision: revision,
+            views: selected.map(({ id, mdx }) => ({ id, mdx })),
+          });
+          const display = await ports.observe(
+            panel,
+            selected,
+            input.contextId,
+            input.source,
+            AbortSignal.timeout(12_000),
+            revision,
+          );
+          if (
+            !display.passed ||
+            display.panelAttempt !== owned.attemptId ||
+            display.buildKey !== owned.buildKey
+          )
+            throw new Error(
+              "Canonical preview did not render at the requested owned revision",
+            );
+          const after = await read(id);
+          if (after.revision !== revision) {
+            await panel.stateArgs.patch({ previewRevision: null, views: [] });
+            return finish({ status: "changed", revision: after.revision });
+          }
+          const receipt = {
+            source: id,
+            revision,
+            viewIds: selected.map(({ id }) => id),
+            mdxDigests: selected.map(({ mdx }) => sha256HexSyncText(mdx)),
+          };
+          saved = {
+            preview: receipt,
+            report: structuredClone(report),
+          };
+          return finish({ status: "visible", receipt });
+        } finally {
+          writing = false;
+        }
+      },
+    },
+  };
+
+  async function verify(report: unknown) {
+    const resolved = report as {
+      status?: string;
+      skill?: string;
+      outcome?: Outcome;
+    } | null;
+    const outcome = resolved?.outcome;
+    const { target, requirements, holds, notes } = world.expected;
+    const currentRecords = await Promise.all([...seeds.keys()].map(read));
+    const current =
+      currentRecords.find((record) => record.id === target) ?? null;
+    const changes = journal.filter(
+      (row) =>
+        row.method === "preview" &&
+        (row.result as Preview).status === "changed",
+    );
+    const attempts = journal.filter((row) => row.method === "preview");
+    const previewState = await panel.stateArgs.get<PreviewState>();
+    const rendering =
+      saved && requirements
+        ? checkPresentation(requirements, saved.report)
+        : null;
+    const observe = (views: Prepared, revision?: string) =>
+      ports.observe(
+        panel,
+        views,
+        input.contextId,
+        input.source,
+        AbortSignal.timeout(12_000),
+        revision,
+      );
+    const display =
+      holds && !saved
+        ? await observe([])
+        : rendering?.length && current && saved
+          ? await observe(rendering, current.revision)
+          : null;
+    const matchedScope =
+      resolved?.status === "workspace-skill-reviewed" &&
+      resolved.skill === "localPresentation";
+    const notesText =
+      outcome?.status === "visible" && Array.isArray(outcome.notes)
+        ? outcome.notes.join(" ").toLowerCase()
+        : "";
+    const checks = {
+      discoveredPresentationRecords:
+        listed && currentRecords.every((record) => reads.has(record.id)),
+      retainedSourceIntegrity: currentRecords.every(
+        ({ revision, ...value }) => {
+          const seed = seeds.get(value.id)!;
+          return isDeepStrictEqual(
+            value,
+            world.coedit?.id === value.id
+              ? { ...seed, sections: world.coedit.sections }
+              : seed,
+          );
+        },
+      ),
+      joinedCurrentPresentationRevision:
+        (world.coedit
+          ? raced &&
+            changes.length === 1 &&
+            current?.revision !== changes[0]?.args[1] &&
+            (changes[0]?.result as { revision?: string }).revision ===
+              current?.revision &&
+            reads.get(current!.id)?.revision === current?.revision
+          : changes.length === 0) &&
+        (holds
+          ? attempts.length === (world.coedit ? 1 : 0)
+          : saved?.preview.source === current?.id &&
+            saved?.preview.revision === current?.revision),
+      matchedPresentationDisposition: Boolean(
+        matchedScope &&
+        (holds
+          ? outcome?.status === "held" &&
+            outcome.revision === (current?.revision ?? null) &&
+            typeof outcome.reason === "string" &&
+            holds.every((term) => outcome.reason.toLowerCase().includes(term))
+          : outcome?.status === "visible" &&
+            isDeepStrictEqual(outcome.receipt, saved?.preview) &&
+            Array.isArray(outcome.notes) &&
+            outcome.notes.length === (notes.length ? 1 : 0) &&
+            notes.every((note) => notesText.includes(note))),
+      ),
+      independentlyVerifiedPresentationDom: Boolean(
+        display?.passed &&
+        display.panelAttempt === initialPanel.attemptId &&
+        display.buildKey === initialPanel.buildKey &&
+        (holds
+          ? !saved &&
+            display.rendered.revision === null &&
+            !previewState.previewRevision &&
+            !previewState.views?.length
+          : rendering?.length &&
+            isDeepStrictEqual(display.mdxDigests, saved?.preview.mdxDigests) &&
+            display.rendered.revision === current?.revision &&
+            previewState.previewRevision === current?.revision &&
+            isDeepStrictEqual(
+              previewState.views,
+              rendering.map(({ id, mdx }) => ({ id, mdx })),
+            )),
+      ),
+      protectedPresentationHeadUnchanged:
+        isDeepStrictEqual(await ports.head(), initialHead) &&
+        isDeepStrictEqual(await checkPanel(), initialPanel),
+    };
+    return {
+      contextId: input.contextId,
+      caseId: input.caseId,
+      goal: world.goal,
+      passed: Object.values(checks).every(Boolean),
+      checks,
+      current,
+      journal,
+      report: saved?.report ?? null,
+      preview: saved?.preview ?? null,
+      display,
+    };
+  }
+
+  async function qualify() {
+    await services.presentationRecords.discover();
+    let rejectedAlias = false;
+    try {
+      await services.presentationRecords.read("unassigned-copy");
+    } catch {
+      rejectedAlias = true;
+    }
+    const records = await Promise.all(
+      [...seeds.keys()].map(services.presentationRecords.read),
+    );
+    const { target, requirements, holds, notes } = world.expected;
+    let current = records.find((record) => record.id === target);
+    const original = current;
+    let rejectedWrongRevision = false;
+    if (current) {
+      try {
+        await services.presentationRecords.preview(
+          current.id,
+          "retired-revision",
+          { views: [], omitted: [] },
+        );
+      } catch {
+        rejectedWrongRevision = true;
+      }
+    }
+    let preview: Preview | null = null;
+    if (current && requirements) {
+      // The first preview with a coedit only reaches the revision check.
+      const reference = referencePresentation(requirements);
+      preview = await services.presentationRecords.preview(
+        current.id,
+        current.revision,
+        reference,
+      );
+      if (preview.status === "changed") {
+        current = await services.presentationRecords.read(current.id);
+        if (!holds)
+          preview = await services.presentationRecords.preview(
+            current.id,
+            current.revision,
+            reference,
+          );
+      }
+    }
+    const outcome = holds
+      ? {
+          status: "held",
+          reason: holds.join(" "),
+          revision: current?.revision ?? null,
+        }
+      : {
+          status: "visible",
+          receipt: preview?.status === "visible" ? preview.receipt : null,
+          notes: notes.length ? [notes.join(" ")] : [],
+        };
+    const proof = await verify({
+      status: "workspace-skill-reviewed",
+      skill: "localPresentation",
+      outcome,
+    });
+    const rejectedForeignPresentation =
+      rejectedAlias && (!original || rejectedWrongRevision);
+    return {
+      ...proof,
+      passed: proof.passed && rejectedForeignPresentation,
+      checks: { ...proof.checks, rejectedForeignPresentation },
+    };
+  }
+  return { goal: world.goal, services, verify, qualify, close };
+}

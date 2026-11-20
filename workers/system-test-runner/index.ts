@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openLocalPresentationWorlds, openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
@@ -3746,7 +3746,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const buildIncident = openBuildIncidentWorlds.find(({ id }) => id === input.caseId);
     const localWidth = openLocalWidthWorlds.find(({ id }) => id === input.caseId);
     const adventure = openAdventureJourneyWorlds.find(({ id }) => id === input.caseId);
-    const prepare = adventure
+    const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
+    const prepare = presentation
+      ? `import {prepareOpenLocalPresentation} from "@workspace-skills/system-testing/open-goal-local-presentation-managed";
+         if (!input.panelId || !input.source) throw new Error("Local presentation requires its owned renderer");
+         const prepared=await prepareOpenLocalPresentation(input,${JSON.stringify(presentation)});`
+      : adventure
       ? `import {prepareOpenAdventureGoal} from "@workspace-skills/open-adventure-journey-runtime";
          const prepared=await prepareOpenAdventureGoal(input,${JSON.stringify(adventure)});`
       : dictationHandoff

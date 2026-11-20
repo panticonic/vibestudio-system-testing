@@ -1425,8 +1425,8 @@ export default function PanelHealthPreview() {
       { path: "index.tsx", content: `import { MessageContent } from "@workspace/agentic-chat/presentation";
 import { useStateArgs } from "@workspace/react/hooks";
 export default function PresentationPreview() {
-  const { views = [] } = useStateArgs<{ views?: { id: string; mdx: string }[] }>();
-  return <main data-presentation-preview="true">
+  const { views = [], previewRevision } = useStateArgs<{ views?: { id: string; mdx: string }[]; previewRevision?: string }>();
+  return <main data-presentation-preview="true" data-presentation-revision={previewRevision}>
     {views.map(({ id, mdx }) => <article key={id} data-presentation-view={id}>
       <MessageContent content={mdx} isStreaming={false} />
     </article>)}

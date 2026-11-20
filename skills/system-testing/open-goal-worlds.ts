@@ -165,4 +165,5 @@ export function publicSourceOrigins(world: PublicResearchWorld): string[] {
 }
 
 export { openTemplateMigrationWorlds, openTemplateMigrationRequiresUnits } from "./open-goal-template-migration-worlds.js";
+export { openLocalPresentationWorlds } from "./open-goal-local-presentation-worlds.js";
 export { openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority } from "./open-goal-adventure-worlds.js";
