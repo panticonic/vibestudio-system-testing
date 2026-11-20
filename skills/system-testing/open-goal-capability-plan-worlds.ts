@@ -89,11 +89,12 @@ const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
   },
   {
     id: "plan-installed-knowledge-discovery",
-    decision: { reference: "Choose from the current installed index and pass the canonical directory path of that entry to the read call. Use the verified ambient context.",
-      claims: [/directory|dirPath|canonical/iu, /context|workspace/iu] },
+    decision: { reference: "Choose from the current installed index and pass the canonical directory path of that entry to the read call. In this context use Testkit for the direct assertion and System Testing when a model must judge.",
+      claims: [/directory|dirPath|canonical/iu, /direct|determinist|assert/iu, /model|system.testing/iu] },
     sourceGroup: "vibestudio:catalog:ambient-skill-index-lookup",
-    goal: "We are writing an internal workspace assistant that has to choose a repo-installed skill and then read the exact guide without guessing its location. How should it enumerate installed skills and fetch the selected Markdown in this context? Include the live call IDs and their parameter names.",
+    goal: "A, B, and C button labels can be asserted directly, but our second acceptance criterion requires a model to interpret an operator's request. Find the installed Testkit guidance and plan which runner serves each criterion. Identify the current live calls that enumerate installed skills and retrieve a selected exact guide, with their parameter names. Do not run either test.",
     steps: ["workspace.listSkills", "workspace.readSkill"],
+    knowledge: [{ dirPath: "packages/testkit", focus: ["deterministic", "asserted directly", "interpret instructions"], supports: /can be asserted directly|model must/iu }],
   },
   {
     id: "hold-archive-verifier-plan",
@@ -188,5 +189,5 @@ export const capabilityPlanWorlds: CapabilityPlanWorld[] = worlds.map(world => (
 
 export const capabilityPlanRequiresUnits = [
   "skills/open-user-goal", "skills/open-doc-plan", "skills/sandbox", "skills/scratch-handoff-bindings",
-  "skills/natlang-authoring", "skills/vibestudio-vcs", "skills/website-publishing", "skills/workspace-dev",
+  "skills/natlang-authoring", "skills/vibestudio-vcs", "skills/website-publishing", "skills/workspace-dev", "packages/testkit",
 ];

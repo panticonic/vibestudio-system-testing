@@ -24,7 +24,6 @@ const encoder = new TextEncoder();
 const workspaceText = new TextDecoder("utf-8", { fatal: true });
 const folderName = /^evidence-handoff-[a-f0-9]{32}$/u;
 const methodName = /^[a-z][\w-]*\.[a-z][\w-]*$/iu;
-const skillPathPattern = /^skills\/[\w-]+$/u;
 const maxSkillBytes = 160 * 1024;
 const reportBytes = 16 * 1024;
 const capabilityId = (name: string) => `service:${name}`;
@@ -156,7 +155,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     docPlanSkills: {
       async load(dirPath: string, focus: string[]) {
         const row = installed?.slice(0, 128).find(skill => skill.dirPath === dirPath);
-        if (!row || !skillPathPattern.test(dirPath) || !Array.isArray(focus) || !focus.length ||
+        if (!row || row.skillPath !== `${dirPath}/SKILL.md` || !Array.isArray(focus) || !focus.length ||
             focus.length > 6 || focus.some(term => typeof term !== "string" || !boundedText(term, 80)) ||
             ++loadCalls > 4) return null;
         const raw = await readSkill(dirPath);
