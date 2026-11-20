@@ -1425,33 +1425,37 @@ export class HeadlessRunner {
   async runManagedAdventure(caseId: string, qualification: boolean, signal: AbortSignal) {
     const world = managedAdventureWorlds.find(({ id }) => id === caseId);
     if (!world) throw new Error("Unknown Adventure case");
-    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const originalPolicy = this.testAuthorityPolicy;
+    const policy = originalPolicy && !world.painted
+      ? { ...originalPolicy, authority: originalPolicy.authority.map((rule) =>
+          rule.ruleId === "adventure-import-illustration" ? { ...rule, decision: "deny" as const } : rule) }
+      : originalPolicy;
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
     const journey = `natlang-adventure-${crypto.randomUUID()}`;
     let handle: Awaited<ReturnType<typeof openPanel>> | undefined;
     try {
       const owner = await this.createFixtureWorker(contextId);
       const assignment = { contextId, caseId, journey };
-      const before = await rpc.call(owner, managedAdventureMethods.seedManagedAdventure, [assignment], { signal });
-      let panel: AdventureReviewInput["panel"] = null;
-      if (world.painted) {
-        handle = await this.openPanelClient(`panels/${world.campaign}`, {
-          contextId, ref: `ctx:${contextId}`, stateArgs: { gameKey: journey }, focus: false, parentId: null, signal,
-        });
-        const opened = handle;
-        panel = await waitFor(async () => {
-          signal.throwIfAborted();
-          const frame = await this.evalInPanelClient<{
-            journey: string; location: string; asset: string; tick: number; loaded: boolean;
-          } | null>(opened,
-            `(() => {const root=document.querySelector('main.adventure'), image=root?.querySelector('.adventure-scene img');
-              return root && {journey:root.dataset.gameKey, location:root.dataset.location, asset:root.dataset.assetId,
-                tick:Number(root.dataset.tick), loaded:!!image && image.complete && image.naturalWidth > 0};})()`);
-          return frame?.journey === journey && frame.loaded && frame.asset
-            ? { location: frame.location, asset: frame.asset, tick: frame.tick }
-            : undefined;
-        }, { label: "The assigned Adventure panel displays its saved opening artwork" });
-      }
+      handle = await this.openPanelClient(`panels/${world.campaign}`, {
+        contextId, ref: `ctx:${contextId}`, stateArgs: { gameKey: journey }, focus: false, parentId: null, signal,
+      });
+      const opened = handle;
+      const panel = await waitFor(async () => {
+        signal.throwIfAborted();
+        const frame = await this.evalInPanelClient<(AdventureReviewInput["panel"] & {
+          journey: string; ready: boolean; loaded: boolean;
+        }) | null>(opened,
+          `(() => {const root=document.querySelector('main.adventure'), image=root?.querySelector('.adventure-scene img');
+            const error=root?.querySelector('.adventure-error details')?.textContent ?? '';
+            return root && {journey:root.dataset.gameKey, location:root.dataset.location, asset:root.dataset.assetId,
+              tick:Number(root.dataset.tick), ready:root.dataset.ready==='true',
+              loaded:!!image && image.complete && image.naturalWidth > 0, importDenied:/denied/i.test(error)};})()`);
+        return frame?.journey === journey && frame.ready &&
+          (world.painted ? frame.loaded && frame.asset : frame.importDenied && frame.asset === "")
+          ? { location: frame.location, asset: frame.asset, tick: frame.tick, importDenied: frame.importDenied }
+          : undefined;
+      }, { label: "The assigned Adventure panel settles its artwork import" });
+      const before = await rpc.call(owner, managedAdventureMethods.inspectManagedAdventureOpening, [assignment], { signal });
       const input = { ...assignment, before, panel };
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedAdventureMethods.qualifyManagedAdventure, [input], { signal }) }

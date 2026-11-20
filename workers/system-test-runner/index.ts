@@ -1709,12 +1709,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `;
   }
 
-  @rpc({website:{kind:"closed",reason:"Initializes an owned Adventure opening for the system test."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
-  async seedManagedAdventure(input: Parameters<ManagedAdventureReceiver["seedManagedAdventure"]>[0]) {
+  @rpc({website:{kind:"closed",reason:"Reads an owned Adventure opening for the system test."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async inspectManagedAdventureOpening(input: Parameters<ManagedAdventureReceiver["inspectManagedAdventureOpening"]>[0]) {
     return await this.runHarnessUtility("teacher", `
       ${this.adventureAssignment(input)}
-      import {seedAdventure} from "@workspace-skills/examples-review-fixtures/live-adventure";
-      const utilityValue=await seedAdventure(input.journey,world.campaign);
+      import {inspectAdventureOpening} from "@workspace-skills/examples-review-fixtures/live-adventure";
+      const utilityValue=await inspectAdventureOpening(input.journey);
     `);
   }
 

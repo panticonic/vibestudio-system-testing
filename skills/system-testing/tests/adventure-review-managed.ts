@@ -28,7 +28,7 @@ const settings = {
       decision: "task",
     },
     {
-      ruleId: "read-opening-illustration",
+      ruleId: "adventure-import-illustration",
       capability: { kind: "exact", key: "workspace-service:images" },
       resource: { kind: "exact", key: "do:workers/images:ImagesDO:workspace" },
       tier: "gated",

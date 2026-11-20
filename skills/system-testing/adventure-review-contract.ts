@@ -4,11 +4,16 @@ import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestR
 type Opening = { contextId: string; caseId: string; journey: string };
 export type AdventureReviewInput = Opening & {
   before: unknown;
-  panel: { location: string; asset: string; tick: number } | null;
+  panel: {
+    location: string;
+    asset: string;
+    tick: number;
+    importDenied: boolean;
+  };
 };
 type Verification = { passed: boolean; checks: Record<string, boolean> };
 export interface ManagedAdventureReceiver {
-  seedManagedAdventure(input: Opening): Promise<unknown>;
+  inspectManagedAdventureOpening(input: Opening): Promise<unknown>;
   runManagedAdventureTeacher(
     input: AdventureReviewInput & { executorModel: string },
   ): Promise<{
@@ -23,7 +28,7 @@ export interface ManagedAdventureReceiver {
 }
 export const managedAdventureMethods =
   createReceiverRpcMethods<ManagedAdventureReceiver>([
-    "seedManagedAdventure",
+    "inspectManagedAdventureOpening",
     "runManagedAdventureTeacher",
     "qualifyManagedAdventure",
   ]);
