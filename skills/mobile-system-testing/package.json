@@ -5,11 +5,18 @@
   "type": "module",
   "exports": {
     ".": "./system-tests.ts",
+    "./open-continuity": "./open-continuity.ts",
+    "./continuity": "./continuity.ts",
     "./bindings": "./bindings.ts",
     "./live-bindings": "./live-bindings.ts"
   },
   "dependencies": {
     "@workspace-skills/system-testing": "workspace:*",
+    "@workspace-clients/mobile-browser": "workspace:*",
+    "@vibestudio/content-addressing": "workspace:*",
+    "@vibestudio/rn-client-api": "workspace:*",
+    "@vibestudio/shared": "workspace:*",
+    "@vibestudio/rpc": "workspace:*",
     "@workspace/runtime": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",

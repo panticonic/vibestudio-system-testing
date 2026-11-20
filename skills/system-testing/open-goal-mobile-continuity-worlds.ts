@@ -1,0 +1,346 @@
+import type {
+  CacheCase,
+  RouteCase,
+  TransportCase,
+} from "@workspace-skills/mobile-system-testing/continuity";
+
+export type BuildCase =
+  | "exact"
+  | "abi"
+  | "capability"
+  | "old-build"
+  | "invalid-artifact"
+  | "wrong-package"
+  | "offline";
+export type FailureCase =
+  | "none"
+  | "transport"
+  | "application"
+  | "authorization";
+type Next = "resume" | "rebuild-shell" | "reacquire-route" | "hold";
+type Options = {
+  cache?: CacheCase;
+  transport?: TransportCase;
+  routes?: RouteCase;
+  build?: BuildCase;
+  failure?: FailureCase;
+  held?: boolean;
+};
+function review(
+  id: string,
+  group: string,
+  workspace: string,
+  title: string,
+  goal: string,
+  action: Next,
+  terms: string[],
+  options: Options = {},
+) {
+  return {
+    id: "mobile-continuity-" + id,
+    kind: "mobileContinuity",
+    workspace: "system",
+    sourceGroup: "vibestudio:mobile-continuity:" + group,
+    ...(options.held
+      ? {
+          split: "test" as const,
+          relatedSourceGroup:
+            "vibestudio:mobile-continuity:wetland-field-units",
+        }
+      : {}),
+    goal,
+    profile: { title, workspace },
+    fixture: {
+      cache: options.cache ?? "exact",
+      transport: options.transport ?? "warm",
+      routes: options.routes ?? "owned",
+      build: options.build ?? "exact",
+      failure: options.failure ?? "none",
+    },
+    expected: { action, terms },
+  } as const;
+}
+const test = { held: true } as const;
+export const openMobileContinuityWorlds = [
+  review(
+    "handover-warm-shell",
+    "press-morning",
+    "Pressroom",
+    "Night Reader",
+    "Check the current Night Reader record from the Pressroom. I need to know whether its same-device startup and retained route let the browser resume after a brief link interruption. Use only the local record.",
+    "resume",
+    ["resubscrib"],
+  ),
+  review(
+    "cold-shell-cache-is-hint",
+    "bay-cargo",
+    "Bay Dispatch",
+    "Cargo Handset",
+    "The Cargo Handset's dashboard is still visible after the Bay Dispatch server rebooted. Tell the next shift whether the old view proves the live shell recovered or whether startup needs to run again.",
+    "rebuild-shell",
+    ["cold"],
+    { transport: "cold", routes: "empty" },
+  ),
+  review(
+    "orphaned-route-not-takeover",
+    "light-rehearsal",
+    "Rehearsal Studio",
+    "Light Console",
+    "The Rehearsal Studio's Light Console has no lease in the replay, even though its current browser is still mounted. Tell me the safe next route step without taking over any other client's device.",
+    "reacquire-route",
+    ["lease"],
+    { routes: "empty" },
+  ),
+  review(
+    "live-other-client-owns-overview",
+    "line-check",
+    "Label Printing",
+    "Line Check",
+    "Our Label Printing Line Check overview appears to have moved to another client. Inspect the current handset's retained state and tell me whether I can keep using that overview without taking it back.",
+    "hold",
+    ["foreign"],
+    { routes: "foreign" },
+  ),
+  review(
+    "mobile-owner-during-replacement",
+    "stage-cues",
+    "Stage Operations",
+    "Cue Reader",
+    "The Stage Operations Cue Reader saw two lease rows for the overview while its renderer changed. Confirm whether its own current route really survived; do not discard it based on the other row alone.",
+    "resume",
+    ["lease"],
+    { routes: "overlap" },
+  ),
+  review(
+    "missing-notes-with-overview-retained",
+    "pool-ticket",
+    "Pool Desk",
+    "Ticket Tablet",
+    "The Pool Desk's Ticket Tablet still owns its overview, but closing its shift requires the notes route. Can we recover that route without replacing the healthy overview?",
+    "reacquire-route",
+    ["notes"],
+    { routes: "mixed" },
+  ),
+  review(
+    "late-release-prior-runtime",
+    "parts-desk",
+    "Parts Desk",
+    "Shelf Reader",
+    "Read the retained Shelf Reader evidence from the Parts Desk. A release arrived after we switched renderers. Check whose runtime it names before deciding whether the current one can continue.",
+    "resume",
+    ["prior"],
+    { routes: "old-runtime" },
+  ),
+  review(
+    "release-same-current-connection",
+    "sample-audit",
+    "Sample Archive",
+    "Tray Mobile",
+    "Can the Sample Archive's Tray Mobile hand over its current overview unchanged? Confirm whether the release was for this exact current route before telling someone to rely on it.",
+    "hold",
+    ["release"],
+    { routes: "current-release" },
+  ),
+  review(
+    "release-older-connection-same-runtime",
+    "spindle-controls",
+    "Machine Setup",
+    "Dial Companion",
+    "An old connection closed after Dial Companion renewed its Machine Setup route. Does this release still invalidate the current browser view for the same renderer?",
+    "resume",
+    ["connection"],
+    { routes: "old-connection" },
+  ),
+  review(
+    "same-device-label-wrong-cache-device",
+    "market-shift",
+    "Market Hall",
+    "Information Handset",
+    "The Market Hall Information Handset has a same-name startup file. Check whether it belongs to this device before reusing the old home panel.",
+    "rebuild-shell",
+    ["device"],
+    { cache: "other-device" },
+  ),
+  review(
+    "workspace-cache-isolation",
+    "prep-station",
+    "Learning Kitchen",
+    "Prep Tablet",
+    "After a user switched into Learning Kitchen, can Prep Tablet use the cache left by a different workspace on the same account? Check whether it needs a scoped startup instead.",
+    "rebuild-shell",
+    ["workspace"],
+    { cache: "other-workspace" },
+  ),
+  review(
+    "same-user-server-cache-isolation",
+    "projector-kit",
+    "Screening Room",
+    "Projection Mobile",
+    "Screening Room's Projection Mobile still has an older pairing provider snapshot. Confirm whether the cached panel belongs to the authenticated server used for today's review.",
+    "rebuild-shell",
+    ["server"],
+    { cache: "other-server" },
+  ),
+  review(
+    "schema-expired-with-valid-auth",
+    "rehearsal-scores",
+    "String Section",
+    "Score Companion",
+    "Can the String Section reuse its Score Companion startup cache on this release? Check how the current client handles an older format and explain whether the view needs rebuilding.",
+    "rebuild-shell",
+    ["schema"],
+    { cache: "old-schema" },
+  ),
+  review(
+    "matching-bad-cache-fail-closed",
+    "cold-store-board",
+    "Freezer Desk",
+    "Tray Scanner",
+    "The Freezer Desk has the right current Tray Scanner device but a damaged startup record. Reconcile that local evidence with the warm connection before recommending a restore.",
+    "rebuild-shell",
+    ["cache"],
+    { cache: "invalid-tree" },
+  ),
+  review(
+    "host-abi-declared-versus-retained-build",
+    "musical-round",
+    "Sheet Music",
+    "Library Reader",
+    "Library Reader's Sheet Music fixture has an apparently successful browser build but the wrong host ABI. Decide whether this is enough to hand the companion back as usable. Do not install anything.",
+    "hold",
+    ["abi"],
+    { build: "abi" },
+  ),
+  review(
+    "required-grant-missing",
+    "tool-calibration",
+    "Calibration Office",
+    "Tool Reader",
+    "Review Calibration Office's Tool Reader after it reconnects. Its retained build record omits a required host grant. Can the local evidence support resuming the workflow?",
+    "hold",
+    ["capabil"],
+    { build: "capability" },
+  ),
+  review(
+    "wrong-mobile-package-same-workspace",
+    "visitors-map",
+    "Visitor Services",
+    "Visitor Mobile",
+    "Check the Visitor Services current Visitor Mobile record. Its package looks like the public app rather than the assigned internal companion. Hold if the prepared evidence is for a different package.",
+    "hold",
+    ["package"],
+    { build: "wrong-package" },
+  ),
+  review(
+    "revoked-device-trust",
+    "sets-entrance",
+    "Costume Desk",
+    "Fitting Companion",
+    "The Costume Desk owner withdrew the Fitting Companion's device trust while its startup page was cached. Can anyone use the retained connection to resume? Read the local lifecycle evidence and stop at the actual trust boundary.",
+    "hold",
+    ["revok"],
+    { transport: "revoked" },
+  ),
+  review(
+    "transport-error-upstream-transient",
+    "soundboard-monitor",
+    "Audio Mixing",
+    "Level Meter",
+    "Audio Mixing wants to know if Level Meter can continue after a structured connection loss. Classify the retained failure and see whether the same workspace actually recovered.",
+    "resume",
+    ["transient"],
+    { failure: "transport" },
+  ),
+  review(
+    "auth-error-despite-transport-looking-code",
+    "picklist",
+    "Library Sorting",
+    "Pickup Companion",
+    "Pickup Companion's current Library Sorting log calls an error connection-lost, but the failure came from authorization. Does that authorize an automatic transport retry?",
+    "hold",
+    ["authoriz"],
+    { failure: "authorization" },
+  ),
+  review(
+    "retired-build-even-with-valid-grants",
+    "chamber-repair",
+    "Pressure Chamber",
+    "Chamber Display",
+    "Pressure Chamber's Chamber Display reports the right package and grants, but the approved local build is newer. Decide whether this retained build proves the companion can continue for the current shift.",
+    "hold",
+    ["build"],
+    { build: "old-build" },
+  ),
+  review(
+    "offline-device-even-with-cache",
+    "supply-cart",
+    "Sterile Station",
+    "Supply Cart Companion",
+    "The Sterile Station profile has a complete startup record but lists Supply Cart Companion as offline. Can the local replay prove current device readiness? Leave the handset alone.",
+    "hold",
+    ["offline"],
+    { build: "offline" },
+  ),
+  review(
+    "held-no-trust-from-other-server",
+    "wetland-river-bank",
+    "River Ops",
+    "Gauge Companion",
+    "Gauge Companion appears paired for River Ops, yet the replacement transport authenticated as another server. Hold if the current evidence cannot prove continuity with the original server.",
+    "hold",
+    ["server"],
+    { ...test, transport: "server-swap" },
+  ),
+  review(
+    "held-no-hub-authority",
+    "wetland-reed-beds",
+    "Reed Trials",
+    "Survey Reader",
+    "The Reed Trials' Survey Reader attempts to recover without its stable account control pipe. Does the fixture support a usable workspace route? Do not try a new pairing.",
+    "hold",
+    ["hub"],
+    { ...test, transport: "no-hub" },
+  ),
+  review(
+    "held-ordinary-close-does-not-revoke",
+    "wetland-navigation-chart",
+    "Estuary Route",
+    "Marker Reader",
+    "The Estuary Route Marker Reader's old connection ended normally. Compare its replacement and startup evidence so the local owner knows whether they need a fresh trust grant.",
+    "resume",
+    ["reconnect"],
+    { ...test, transport: "ordinary-close" },
+  ),
+  review(
+    "held-retired-callback-cannot-request-cold",
+    "wetland-cable-service",
+    "Sensor Cabinet",
+    "Cable Companion",
+    "The Sensor Cabinet's Cable Companion got an old cold-recovery callback after its replacement connected. Verify which callback counts before asking the operator to rebuild the currently healthy shell.",
+    "resume",
+    ["retir"],
+    { ...test, transport: "retired-callback" },
+  ),
+  review(
+    "held-fixture-is-not-hardware",
+    "wetland-rugged-devices",
+    "Wet Lab Inventory",
+    "Rain Tablet",
+    "The Rain Tablet continuity rehearsal had two callers racing to open the same Wet Lab Inventory session. Confirm what the fixture can show, and hold the hardware-ready sign-off until we actually have the Android device.",
+    "hold",
+    ["hardware"],
+    { ...test, transport: "shared-open" },
+  ),
+  review(
+    "held-current-build-missing-artifact-identity",
+    "wetland-water-levels",
+    "Barrier Desk",
+    "Gate Reader",
+    "Barrier Desk's Gate Reader has no valid integrity value for its retained Android browser bundle. Check the existing build and reconnect evidence, and hold the app handover if the retained launch record is invalid.",
+    "hold",
+    ["artifact"],
+    { ...test, build: "invalid-artifact" },
+  ),
+];
+export type OpenMobileContinuityWorld =
+  (typeof openMobileContinuityWorlds)[number];
