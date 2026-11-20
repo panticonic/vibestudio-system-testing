@@ -3766,8 +3766,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : mobileContinuity
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenMobileContinuity} from "@workspace-skills/mobile-system-testing/open-continuity";
+         import * as continuity from "@workspace-clients/mobile-browser/continuity";
          const prepared=await prepareOpenMobileContinuity(input,${JSON.stringify(mobileContinuity)},
-           {contextId:actualContextId,fs,vcs});`
+           {contextId:actualContextId,fs,vcs,continuity});`
       : assetIntegrity
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {prepareOpenAssetIntegrity} from "@workspace-skills/system-testing/open-goal-asset-integrity-managed";

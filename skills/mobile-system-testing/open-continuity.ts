@@ -12,6 +12,7 @@ import {
   observeFixtureCache,
   observeFixtureRoutes,
   observeFixtureTransport,
+  type NativeMobileContinuity,
 } from "./continuity.js";
 import type {
   BuildCase,
@@ -52,6 +53,7 @@ type Ports = {
   contextId: string | null;
   fs: Pick<RuntimeFs, "readFile" | "writeFile" | "mkdtemp" | "rm" | "readdir">;
   vcs: Pick<VcsClient, "status">;
+  continuity: NativeMobileContinuity;
 };
 type Effect = {
   service: "mobileContinuity";
@@ -351,15 +353,20 @@ export async function prepareOpenMobileContinuity(
     const { profile, replay } = record;
     const [build, cache, transport] = await Promise.all([
       observeBuild(record, config),
-      observeFixtureCache(profile, replay.cache),
-      observeFixtureTransport(profile, replay.transport, failureFor(replay)),
+      observeFixtureCache(profile, replay.cache, ports.continuity),
+      observeFixtureTransport(
+        profile,
+        replay.transport,
+        failureFor(replay),
+        ports.continuity,
+      ),
     ]);
     return {
       build,
       cache: { id: id + "/cache", ...cache },
       routes: {
         id: id + "/routes",
-        ...observeFixtureRoutes(profile, replay.routes),
+        ...observeFixtureRoutes(profile, replay.routes, ports.continuity),
       },
       transport: {
         id: id + "/transport",
@@ -455,7 +462,11 @@ export async function prepareOpenMobileContinuity(
         const { profile, replay } = await observed(id);
         return log("cache", [id], {
           id: id + "/cache",
-          ...(await observeFixtureCache(profile, replay.cache)),
+          ...(await observeFixtureCache(
+            profile,
+            replay.cache,
+            ports.continuity,
+          )),
         });
       },
       async transport(id: string) {
@@ -467,6 +478,7 @@ export async function prepareOpenMobileContinuity(
             profile,
             replay.transport,
             failure,
+            ports.continuity,
           )),
           failureKind: failure?.errorKind ?? null,
         });
@@ -475,7 +487,7 @@ export async function prepareOpenMobileContinuity(
         const { profile, replay } = await observed(id);
         return log("routes", [id], {
           id: id + "/routes",
-          ...observeFixtureRoutes(profile, replay.routes),
+          ...observeFixtureRoutes(profile, replay.routes, ports.continuity),
         });
       },
     },

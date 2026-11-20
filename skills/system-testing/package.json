@@ -325,6 +325,7 @@
     "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
+    "@workspace-skills/mobile-system-testing": "workspace:*",
     "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "@workspace-skills/browser-import-runtime": "workspace:*",

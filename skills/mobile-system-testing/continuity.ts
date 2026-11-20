@@ -6,16 +6,9 @@ import type {
   PanelRuntimeLease,
   RuntimeLeaseSnapshot,
 } from "@vibestudio/shared/panel/panelLease";
-import {
-  MobileRpcClient,
-  ClientTrustRevokedError,
-  isTransientMobileTransportFailure,
-  reconcileTrackedRuntimeLeases,
-  trackedRuntimeLeaseWasLost,
-  loadMobileShellStartupSnapshot,
-  saveMobileShellStartupSnapshot,
-  type MobileShellStartupSnapshot,
-} from "@workspace-clients/mobile-browser/continuity";
+import type * as MobileBrowser from "@workspace-clients/mobile-browser/continuity";
+
+export type NativeMobileContinuity = typeof MobileBrowser;
 
 export type CacheCase =
   | "exact"
@@ -46,7 +39,13 @@ export type RouteCase =
 export type Scope = { device: string; server: string; workspace: string };
 type Closed = { reason: "trust-revoked" | "server-closed"; message: string };
 
-export async function observeFixtureCache(scope: Scope, fixture: CacheCase) {
+export async function observeFixtureCache(
+  scope: Scope,
+  fixture: CacheCase,
+  continuity: NativeMobileContinuity,
+) {
+  const { loadMobileShellStartupSnapshot, saveMobileShellStartupSnapshot } =
+    continuity;
   const values = new Map<string, string>();
   const removed: string[] = [];
   const storage = {
@@ -59,7 +58,7 @@ export async function observeFixtureCache(scope: Scope, fixture: CacheCase) {
       values.delete(key);
     },
   };
-  const snapshot: MobileShellStartupSnapshot = {
+  const snapshot: MobileBrowser.MobileShellStartupSnapshot = {
     schemaVersion: 3,
     serverEndpointId: scope.server,
     deviceId: scope.device,
@@ -111,7 +110,13 @@ export async function observeFixtureTransport(
   scope: Scope,
   fixture: TransportCase,
   failure: unknown,
+  continuity: NativeMobileContinuity,
 ) {
+  const {
+    MobileRpcClient,
+    ClientTrustRevokedError,
+    isTransientMobileTransportFailure,
+  } = continuity;
   const caller = "shell:" + scope.device;
   const recovered: string[] = [];
   const recoveries: Array<(kind: RecoveryKind) => void | Promise<void>> = [];
@@ -213,7 +218,13 @@ export async function observeFixtureTransport(
   return result;
 }
 
-export function observeFixtureRoutes(scope: Scope, fixture: RouteCase) {
+export function observeFixtureRoutes(
+  scope: Scope,
+  fixture: RouteCase,
+  continuity: NativeMobileContinuity,
+) {
+  const { reconcileTrackedRuntimeLeases, trackedRuntimeLeaseWasLost } =
+    continuity;
   const clientSessionId = "session:" + scope.device;
   const slot = "panel:tree/overview";
   const note = "panel:tree/notes";
