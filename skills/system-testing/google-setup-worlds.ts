@@ -20,9 +20,14 @@ type Evidence =
   | ReturnType<typeof browser>
   | typeof reset;
 
+export type GmailContinuationAction =
+  | "preserve-draft"
+  | "reconcile-before-retry"
+  | "review-before-action";
+
 type Compose = {
   caseId: string;
-  action: "preserve-draft" | "reconcile-before-retry";
+  action: GmailContinuationAction;
 };
 export const gmailContinuationWork = [
   { kind: "domain", domain: "google", operation: "guideGoogleWorkspace" },
@@ -69,6 +74,26 @@ export const managedGoogleSetupWorlds = [
       caseId: "reconcile-uncertain-delivery",
       action: "reconcile-before-retry",
     },
+  ),
+  journey(
+    "hold-conflicting-draft-after-gate-reload",
+    "Compare the Gmail launch control before and after reopening Google setup. Then audit the retained draft identity and decide how to hand it back to the owner. Cite the latest control and decisive compose event.",
+    [
+      [gate(false), "gmail-closed"],
+      [gate(true), "gmail-closed"],
+      [owners, "owner-routes"],
+    ],
+    { caseId: "hold-draft-identity-change", action: "review-before-action" },
+  ),
+  journey(
+    "hold-recipient-cleared-during-setup",
+    "Check the Gmail-only setup at phone width and review the retained card after its recipient was cleared. Determine what needs review while launch is held. Cite the live control and latest compose transition.",
+    [
+      [viewport(320), "viewport-fits"],
+      scope("gmail"),
+      [gate(false), "gmail-closed"],
+    ],
+    { caseId: "hold-draft-missing-recipient", action: "review-before-action" },
   ),
   journey(
     "owner-handoff",

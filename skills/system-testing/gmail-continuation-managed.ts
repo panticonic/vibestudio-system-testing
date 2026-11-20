@@ -1,6 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import type { prepareGmailComposeHistory } from "./gmail-compose-history-managed.js";
-import { gmailContinuationWork } from "./google-setup-worlds.js";
+import {
+  gmailContinuationWork,
+  type GmailContinuationAction,
+} from "./google-setup-worlds.js";
 
 type Setup<Report> = {
   request: { goal: string };
@@ -16,17 +19,16 @@ type Setup<Report> = {
   };
 };
 type Compose = ReturnType<typeof prepareGmailComposeHistory>;
-type Action = "preserve-draft" | "reconcile-before-retry";
 
 export function prepareGmailContinuation<SetupReport>(
   setup: Setup<SetupReport>,
   compose: Compose,
-  action: Action,
+  action: GmailContinuationAction,
 ) {
   let served: { evidenceId: string; enabled: boolean } | undefined;
   async function launchEvidence() {
     const readback = setup.verify(null);
-    const gate = readback.receipts.find(
+    const gate = readback.receipts.findLast(
       ({ check }) => check.kind === "launch-gate",
     );
     if (
