@@ -294,6 +294,16 @@
     "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
+    "@workspace-extensions/pdf-ingest": "workspace:*",
+    "@workspace-skills/automations": "workspace:*",
+    "@workspace-skills/conversation-evidence-review": "workspace:*",
+    "@workspace-skills/device-and-terminal-review": "workspace:*",
+    "@workspace-skills/media-and-import-review": "workspace:*",
+    "@workspace-skills/mobile-system-testing": "workspace:*",
+    "@workspace-skills/session-test-review": "workspace:*",
+    "@workspace-skills/template-candidate": "workspace:*",
+    "@workspace-skills/templates": "workspace:*",
+    "@workspace-skills/workspace-unit-design": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*"

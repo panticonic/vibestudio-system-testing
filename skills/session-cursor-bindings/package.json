@@ -9,5 +9,8 @@
     "@workspace/agentic-protocol": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "@workspace/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@workspace-skills/session-test-review": "workspace:*"
   }
 }
