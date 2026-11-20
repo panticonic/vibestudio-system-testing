@@ -1,4 +1,5 @@
 import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remote-route-managed";
+import { cliContinuationWork, remoteRouteWorlds } from "@workspace-skills/system-testing/remote-route-worlds";
 import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
@@ -2419,6 +2420,20 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Verifies the assigned live gateway identity."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
   async runRemoteRouteTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<RemoteRouteReceiver["runRemoteRouteTeacher"]> {
+    if (remoteRouteWorlds.find(({id})=>id===input.caseId)?.cli) {
+      return await this.runHarnessUtility("teacher",runId=>`${composedTeacherCode({
+        executorModel:input.executorModel,
+        workflowRequest:{
+          goal:"Verify the gateway and plan the assigned CLI continuation",
+          work:cliContinuationWork.map(selector=>({...selector,input:{goal:"Verify the assigned CLI context"}})),
+        },
+        requiredOrder:cliContinuationWork.map(({operation})=>operation),
+        requestCode:"prepared.request",
+        bindingCode:this.remoteRouteBindings(input,true),
+      },runId)}
+        utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+      `) as Awaited<ReturnType<RemoteRouteReceiver["runRemoteRouteTeacher"]>>;
+    }
     return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
       executorModel: input.executorModel,
       work: {kind:"domain",domain:"remoteAccess",operation:"reviewRemoteRoute",input:{goal:"Review the assigned workspace gateway"}},
@@ -2431,16 +2446,21 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Qualifies the actual gateway identity review without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
   async qualifyRemoteRoute(input: {contextId:string;caseId:string}): ReturnType<RemoteRouteReceiver["qualifyRemoteRoute"]> {
+    if (remoteRouteWorlds.find(({id})=>id===input.caseId)?.cli)
+      return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+        cliContinuationWork, this.remoteRouteBindings(input,true),
+      )) as Awaited<ReturnType<RemoteRouteReceiver["qualifyRemoteRoute"]>>;
     return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
       [{domain:"remoteAccess",operation:"reviewRemoteRoute"}], this.remoteRouteBindings(input),
     )) as Awaited<ReturnType<RemoteRouteReceiver["qualifyRemoteRoute"]>>;
   }
 
-  private remoteRouteBindings(input: {contextId:string;caseId:string}): string {
+  private remoteRouteBindings(input: {contextId:string;caseId:string}, continuation=false): string {
+    const prepare=continuation?"prepareCliContinuation":"prepareRemoteRoute";
     return `
       import {contextId as actualContextId} from "@workspace/runtime";
-      import {prepareRemoteRoute} from "@workspace-skills/system-testing/remote-route-managed";
-      const prepared=await prepareRemoteRoute(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
+      import {${prepare}} from "@workspace-skills/system-testing/remote-route-managed";
+      const prepared=await ${prepare}(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
       const assignedServices=prepared.services;
     `;
   }

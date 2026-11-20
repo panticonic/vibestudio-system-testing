@@ -20,8 +20,9 @@ export const remoteRouteTests = remoteRouteWorlds.flatMap(
     {
       ...settings,
       name: `remote-route-live-${world.id}`,
-      description:
-        "Review a real workspace gateway against the assigned remote identity",
+      description: world.cli
+        ? "Verify the live gateway and plan continuation for the assigned CLI invocation"
+        : "Review a real workspace gateway against the assigned remote identity",
       prompt: world.goal,
       async orchestrate({ runner, signal }) {
         const start = Date.now();
