@@ -13,6 +13,7 @@ import {
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
+  openBrowserMigrationWorlds, browserMigrationRequiresUnits,
   publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
 } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, PANEL_RUNTIME_SUPERVISION_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
@@ -92,7 +93,7 @@ const referenceGoals = [...openGoalWorlds, ...openGoalEvalHandoffWorlds, ...open
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -119,6 +120,7 @@ const templateSettings = {
     resources: [PANEL_AUTOMATION_RESOURCE],
   },
   "personal-history": { requiresUnits: personalHistoryRequiresUnits },
+  browserMigration: { requiresUnits: browserMigrationRequiresUnits },
   "personal-automation": {
     requiresUnits: personalAutomationRequiresUnits,
     authorityPolicy: { authority: personalAutomationAuthority },
@@ -160,6 +162,10 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "browserMigration" && world.collection ? {
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] },
+  } : {}),
   ...(world.kind === "visualRecovery" ? {
     requiresUnits: ["skills/open-user-goal", "skills/panel-health", "skills/panel-health-runtime"],
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -200,6 +206,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "calendar" ? "Reconcile live calendar windows, confirm a current decision, and verify its handoff" :
     world.kind === "google-handoff" ? "Reconcile retained Gmail decisions with the current linked Drive assets" :
     world.kind === "personal-artifacts" ? "Resolve current browser library and collection state within an owned workspace" :
+    world.kind === "browserMigration" ? "Review live browser import authority, owner receipts, and collection handoff" :
     world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :

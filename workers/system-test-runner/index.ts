@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
+  openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3700,6 +3700,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const pdfVault = openGoalPdfVaultWorlds.some(({ id }) => id === input.caseId);
     const calendar = openGoalCalendarWorlds.find(({ id }) => id === input.caseId);
     const personalArtifacts = openPersonalArtifactWorlds.find(({ id }) => id === input.caseId);
+    const browserMigration = openBrowserMigrationWorlds.find(({ id }) => id === input.caseId);
     const personalHistory = openPersonalHistoryWorlds.find(({ id }) => id === input.caseId);
     const googleHandoff = openGoalGoogleHandoffWorlds.find(({ id }) => id === input.caseId);
     const personalAutomation = openPersonalAutomationWorlds.find(({ id }) => id === input.caseId);
@@ -3744,6 +3745,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {prepareOpenGoogleHandoffGoal} from "@workspace-skills/open-google-handoff-goal/managed";
          const candidate=await prepareOpenGoogleHandoffGoal(input,${JSON.stringify(googleHandoff)});
          const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="googleHandoff" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+      : browserMigration
+      ? `import {prepareOpenBrowserMigration} from "@workspace-skills/browser-import-runtime/open-migration-managed";
+         const prepared=await prepareOpenBrowserMigration(${JSON.stringify(browserMigration)});`
       : personalHistory
       ? `import {prepareOpenPersonalHistory} from "@workspace-skills/open-personal-history-runtime";
          const prepared=await prepareOpenPersonalHistory(input,${JSON.stringify(personalHistory)});`
