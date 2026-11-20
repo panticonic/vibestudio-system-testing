@@ -60,11 +60,19 @@ const settings = {
   ]),
 };
 
+const scratchUnits = [
+  "skills/scratch-handoff",
+  "skills/scratch-handoff-bindings",
+];
 export const managedNewsTests: TestCase[] = managedNewsWorlds.map((world) => ({
   ...settings,
+  ...(world.handoff
+    ? { requiresUnits: [...settings.requiresUnits, ...scratchUnits] }
+    : {}),
   name: `news-live-${world.id}`,
-  description:
-    "Review the installed News worker and its actual schedule owners",
+  description: world.handoff
+    ? "Review the installed News worker and stage a handoff from the verified schedule settings"
+    : "Review the installed News worker and its actual schedule owners",
   prompt: world.goal,
   async orchestrate(context) {
     const started = Date.now();
@@ -112,53 +120,77 @@ export const managedNewsTests: TestCase[] = managedNewsWorlds.map((world) => ({
   },
 }));
 
-managedNewsTests.push({
-  ...settings,
-  name: "news-managed-oracle-qualification",
-  description: "Qualify the installed News and Missions owners without a model",
-  prompt:
-    "Verify the actual reader and schedule fixtures, rejecting unrelated evidence.",
-  async orchestrate(context) {
-    const started = Date.now();
-    const checks: Qualification[] = [];
-    for (const world of managedNewsWorlds) {
-      try {
-        const run = await context.runner.runManagedNews(
-          world.id,
-          true,
-          context.signal,
-        );
-        if (run.kind !== "reference")
-          throw new Error("News qualification invoked a teacher");
-        checks.push(run.result);
-      } catch (cause) {
-        throw new Error(`News qualification failed for ${world.id}`, { cause });
-      }
-    }
-    return {
-      messages: [],
-      duration: Date.now() - started,
-      diagnostics: { newsQualification: checks },
-    };
-  },
-  validate(result) {
-    const checks = result.diagnostics?.["newsQualification"] as
-      | Qualification[]
-      | undefined;
-    return checks?.length === managedNewsWorlds.length &&
-      checks.every(
-        ({ verification, rejectedDifferentEvidence }) =>
-          verification.passed && rejectedDifferentEvidence,
-      )
-      ? {
-          passed: true,
-          details: { checkedCases: checks.length, modelCalls: 0 },
+function newsQualification(
+  worlds: typeof managedNewsWorlds,
+  handoff: boolean,
+): TestCase {
+  return {
+    ...settings,
+    ...(handoff
+      ? { requiresUnits: [...settings.requiresUnits, ...scratchUnits] }
+      : {}),
+    name: handoff
+      ? "news-managed-handoff-qualification"
+      : "news-managed-oracle-qualification",
+    description:
+      "Qualify the installed News and Missions owners without a model",
+    prompt:
+      "Verify the actual reader and schedule fixtures, rejecting unrelated evidence.",
+    async orchestrate(context) {
+      const started = Date.now();
+      const checks: Qualification[] = [];
+      for (const world of worlds) {
+        try {
+          const run = await context.runner.runManagedNews(
+            world.id,
+            true,
+            context.signal,
+          );
+          if (run.kind !== "reference")
+            throw new Error("News qualification invoked a teacher");
+          checks.push(run.result);
+        } catch (cause) {
+          throw new Error(`News qualification failed for ${world.id}`, {
+            cause,
+          });
         }
-      : {
-          passed: false,
-          reason:
-            "The installed News or Missions evidence differed from the assignment.",
-          details: { checks },
-        };
-  },
-});
+      }
+      return {
+        messages: [],
+        duration: Date.now() - started,
+        diagnostics: { newsQualification: checks },
+      };
+    },
+    validate(result) {
+      const checks = result.diagnostics?.["newsQualification"] as
+        | Qualification[]
+        | undefined;
+      return checks?.length === worlds.length &&
+        checks.every(
+          ({ verification, rejectedDifferentEvidence }) =>
+            verification.passed && rejectedDifferentEvidence,
+        )
+        ? {
+            passed: true,
+            details: { checkedCases: checks.length, modelCalls: 0 },
+          }
+        : {
+            passed: false,
+            reason:
+              "The installed News or Missions evidence differed from the assignment.",
+            details: { checks },
+          };
+    },
+  };
+}
+
+managedNewsTests.push(
+  newsQualification(
+    managedNewsWorlds.filter(({ handoff }) => !handoff),
+    false,
+  ),
+  newsQualification(
+    managedNewsWorlds.filter(({ handoff }) => handoff),
+    true,
+  ),
+);

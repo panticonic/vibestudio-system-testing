@@ -56,6 +56,7 @@ import { hostWorkerdLogTag, managedLogAuditWorlds } from "@workspace-skills/syst
 import type { LocalComparisonInput, ManagedLocalComparisonReceiver } from "@workspace-skills/system-testing/local-model-comparison-contract";
 import type { GoogleSetupInput, ManagedGoogleSetupReceiver } from "@workspace-skills/system-testing/google-setup-contract";
 import type { NewsInput, ManagedNewsReceiver } from "@workspace-skills/system-testing/news-contract";
+import { managedNewsWorlds, newsHandoffWork } from "@workspace-skills/system-testing/news-worlds";
 import type { SpectroliteInput, ManagedSpectroliteReceiver } from "@workspace-skills/system-testing/spectrolite-contract";
 import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skills/system-testing/grimoire-contract";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
@@ -1671,6 +1672,29 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Reviews the owned News participant and its exact schedule owners."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runManagedNewsTeacher(input: NewsInput & {executorModel:string}): ReturnType<ManagedNewsReceiver["runManagedNewsTeacher"]> {
+    if (managedNewsWorlds.find(({ id }) => id === input.caseId)?.handoff) {
+      return await this.runHarnessUtility("teacher", runId => `
+        ${this.newsBindings(input)}
+        if (!world.handoff) throw new Error("Missing News handoff assignment");
+        let result;
+        try {
+          await prepared.seed();
+          const handoff=await prepareNewsHandoff({fs,rpc,vcs},prepared,{id:world.id,handoff:world.handoff});
+          ${composedTeacherCode({
+            executorModel: input.executorModel,
+            workflowRequest: {
+              goal: "Stage a handoff from the verified News settings",
+              work: newsHandoffWork.map((selector) => ({ ...selector, input: { goal: "Collect or stage assigned News evidence" } })),
+            },
+            requiredOrder: newsHandoffWork.map(({ operation }) => operation),
+            requestCode: "handoff.request",
+            bindingCode: "const assignedServices=handoff.services;",
+          }, runId)}
+          result={contextId:actualContextId,teacher:utilityValue,verification:await handoff.verify(utilityValue.report)};
+        } finally { await prepared.close(); }
+        const utilityValue=result;
+      `) as Awaited<ReturnType<ManagedNewsReceiver["runManagedNewsTeacher"]>>;
+    }
     return await this.runHarnessUtility("teacher", runId => `
       ${this.newsBindings(input)}
       let teacher;
@@ -1690,6 +1714,22 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Checks installed reader and schedule state without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyManagedNews(input: NewsInput): ReturnType<ManagedNewsReceiver["qualifyManagedNews"]> {
+    if (managedNewsWorlds.find(({ id }) => id === input.caseId)?.handoff) {
+      return await this.runHarnessUtility("teacher", `
+        ${this.newsBindings(input)}
+        if (!world.handoff) throw new Error("Missing News handoff assignment");
+        let result;
+        try {
+          await prepared.seed();
+          const handoff=await prepareNewsHandoff({fs,rpc,vcs},prepared,{id:world.id,handoff:world.handoff});
+          {
+            ${domainTeacherQualificationCode(newsHandoffWork, "const assignedServices=handoff.services; const prepared=handoff;")}
+            result=utilityValue;
+          }
+        } finally { await prepared.close(); }
+        const utilityValue=result;
+      `) as Awaited<ReturnType<ManagedNewsReceiver["qualifyManagedNews"]>>;
+    }
     return await this.runHarnessUtility("teacher", `
       ${this.newsBindings(input)}
       let report;
@@ -1717,9 +1757,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   private newsBindings(input: NewsInput): string {
     return `
-      import {contextId as actualContextId} from "@workspace/runtime";
+      import {contextId as actualContextId,fs,rpc,vcs} from "@workspace/runtime";
       import {prepareLiveNews} from "@workspace/news-live-evidence/live";
       import {managedNewsWorlds} from "@workspace-skills/system-testing/news-worlds";
+      import {prepareNewsHandoff} from "@workspace-skills/system-testing/news-handoff-managed";
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("News review belongs to another context");
       const world=managedNewsWorlds.find(world=>world.id===input.caseId);

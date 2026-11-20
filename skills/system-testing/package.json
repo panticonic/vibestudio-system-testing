@@ -92,6 +92,7 @@
     "./phone-setup-managed": "./phone-setup-managed.ts",
     "./news-worlds": "./news-worlds.ts",
     "./news-contract": "./news-contract.ts",
+    "./news-handoff-managed": "./news-handoff-managed.ts",
     "./provenance-history-contract": "./provenance-history-contract.ts",
     "./provenance-history-managed": "./provenance-history-managed.ts",
     "./runtime-program-contract": "./runtime-program-contract.ts",

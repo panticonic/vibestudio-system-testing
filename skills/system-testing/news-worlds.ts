@@ -62,6 +62,26 @@ function scenario(
 
 type Assignment = Parameters<typeof scenario>[3];
 type Repair = { index: number; before: string; write: boolean };
+export type NewsCadenceHandoff = {
+  source: string;
+};
+export const newsHandoffWork = [
+  { kind: "domain", domain: "news", operation: "reviewNews" },
+  { kind: "domain", domain: "scratchHandoff", operation: "assembleHandoff" },
+] as const;
+export function newsCadenceSource(
+  pollMs: number,
+  at: string,
+  timezone: string,
+  paused: boolean,
+) {
+  return [
+    `Feed polling interval: ${pollMs / 60_000} minutes.`,
+    `Daily briefing: ${at} ${timezone}.`,
+    `Automatic briefing: ${paused ? "paused" : "active"}.`,
+    "",
+  ].join("\n");
+}
 function repair(
   id: string,
   goal: string,
@@ -112,7 +132,46 @@ const manualReady: Assignment[number] = [
 
 export const managedNewsWorlds: (ReturnType<typeof scenario> & {
   repair?: Repair;
+  handoff?: NewsCadenceHandoff;
 })[] = [
+  {
+    ...scenario(
+      "handoff-stale-feed-cadence",
+      "Check whether the old 30-minute feed poll is still installed. Stage a scratch handoff with the actual poll rate and the paused Berlin briefing schedule. Leave both schedules alone.",
+      [
+        pause(true),
+        schedule({
+          pollIntervalMs: 5_400_000,
+          briefingAt: "07:45",
+          timezone: "Europe/Berlin",
+        }),
+      ],
+      [
+        [timing("poll", 30), "attention", "poll-mismatch"],
+        dailyReady("07:45", "Europe/Berlin"),
+        pauseReady,
+      ],
+    ),
+    handoff: {
+      source: newsCadenceSource(5_400_000, "07:45", "Europe/Berlin", true),
+    },
+  },
+  {
+    ...repair(
+      "handoff-after-feed-change",
+      "Change feed checks to twenty minutes and leave the paused briefing in its Chicago slot. Stage a scratch handoff from the verified post-change mission settings.",
+      [
+        pause(true),
+        schedule({ briefingAt: "08:30", timezone: "America/Chicago" }),
+      ],
+      [dailyReady("08:30", "America/Chicago"), pollReady(20), pauseReady],
+      1,
+      "poll-mismatch",
+    ),
+    handoff: {
+      source: newsCadenceSource(1_200_000, "08:30", "America/Chicago", true),
+    },
+  },
   scenario(
     "before-preferences",
     "Distinguish initial preference setup from a settled empty inbox.",
