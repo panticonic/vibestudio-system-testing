@@ -324,6 +324,7 @@ export async function prepareOpenClientDiagnostics(
           contextId: input.contextId,
           source: input.source,
           markerIds: ["version", "message"],
+          session: viewportSessions.get(surfaceId),
         }).panelHealth.observe();
         const stable = await read(surfaceId);
         if (
