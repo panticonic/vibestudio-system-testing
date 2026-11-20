@@ -9,6 +9,7 @@ import type {
 import { bindManagedScratchHandoff, readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { verifyWorkspaceIntegration } from "./vcs-integration-oracle.js";
 import type { OwnedIntegrationWorld } from "./vcs-integration-fixture-contract.js";
+import { seedReconciliationArchive } from "./reconciliation-archive.js";
 import type { ReconciliationWorld } from "./open-goal-reconciliation-worlds.js";
 
 type Ports = { fs: RuntimeFs; rpc: Pick<typeof RuntimeRpc, "call">; vcs: VcsClient };
@@ -66,6 +67,11 @@ export async function prepareOpenReconciliation(
   let race: { kind: "peer-edit" | "close-window"; before: string; after: string; changeIds: string[] } | null = null;
   let mergeHead: string | null = null;
   const assignedPaths = new Set(world.files.map(item => item.workspacePath));
+  const readNative = async (state: VcsStateNodeRef, setting: string) =>
+    (await read(state, fixture.repositoryId, setting)).text;
+  const archive = scenario.archive ? await seedReconciliationArchive(scenario.archive.entries, {
+    baseline: fixture.commonSeedEvent, local: before.workingHead, incoming,
+  }, fs, rpc, readNative) : null;
   const initialFiles = await Promise.all(world.files.map(async item => (await read(before.workingHead, item.repositoryId, item.path)).text));
   const journal = await Promise.all(world.files.map(async item => ({
     path: item.workspacePath,
@@ -95,6 +101,19 @@ export async function prepareOpenReconciliation(
   };
 
   const services = {
+    reconciliationArchive: {
+      async list() {
+        return remember("reconciliationArchive", "list", [], archive?.list() ?? []);
+      },
+      async read(id: string) {
+        return remember("reconciliationArchive", "read", [id], await archive?.read(id) ?? null);
+      },
+      async readCurrent(id: string, head: string) {
+        const { workingHead } = await status();
+        const observed = archive && token(workingHead) === head ? await archive.current(id, workingHead) : null;
+        return remember("reconciliationArchive", "readCurrent", [id, head], observed);
+      },
+    },
     reconciliationWindow: {
       async read() {
         return remember("reconciliationWindow", "read", [], await readWindow((await status()).workingHead));
@@ -122,7 +141,7 @@ export async function prepareOpenReconciliation(
           return path ? [{ path, id: fileId, options: item.resolutions }] : [];
         }));
         return remember("reconciliationNative", "observe", [], {
-          head: actual.head, source: actual.source, choices,
+          head: actual.head, source: actual.source, baseline: token(fixture.commonSeedEvent), choices,
           window: await readWindow(JSON.parse(actual.head) as VcsStateNodeRef),
           files: journal.map(row => ({ ...row, local: actual.files.find(item => item.path === row.path)?.text ?? "" })),
         });
@@ -225,7 +244,15 @@ export async function prepareOpenReconciliation(
     const closedAtEdit = scenario.race?.kind === "close-window" && scenario.race.at === "apply";
     const observedStaleWrite = observedRace && traces("reconciliationNative", "apply").some(entry =>
       entry.args[0] === observedRace.before && isDeepStrictEqual(entry.result, { status: "changed", head: observedRace.after }));
+    const archiveRecheck = archive && scenario.archive
+      ? await archive.verify(scenario.archive.selected, outcome?.archive, current.workingHead) : null;
+    const checkedArchive = archiveRecheck
+      ? archiveRecheck.passed && traces("reconciliationArchive", "list").length > 0 &&
+        traces("reconciliationArchive", "readCurrent").some(entry =>
+          entry.args[0] === archiveRecheck.sourceId && entry.args[1] === integration?.head && entry.result !== null)
+      : !scenario.archive;
     const checks = {
+      recoveredRetainedReconciliation: checkedArchive,
       observedOwnedIntegration: traces("reconciliationWindow", "read").length > 0 &&
         traces("reconciliationNative", "observe").length > 0 && originalSourceUntouched,
       verifiedNativeIntegration: expectedStatus === "integrated"
@@ -252,7 +279,7 @@ export async function prepareOpenReconciliation(
     };
     return {
       contextId, caseId: input.caseId, goal: scenario.goal, passed: Object.values(checks).every(Boolean), checks,
-      effects, window, race, release, mergeHead, artifact, nativeHead: token(current.workingHead),
+      effects, window, race, release, mergeHead, artifact, nativeHead: token(current.workingHead), archiveRecheck,
     };
   }
 
@@ -264,6 +291,8 @@ export async function prepareOpenReconciliation(
       await services.reconciliationNative.apply(view.head, [{ path: companion.repoPath + "/" + companion.path, before: "", after: "" }]);
     } catch { foreignDenied = true; }
     const stale = await services.reconciliationNative.merge("foreign-head", []);
+    const snapshots = scenario.archive ? await Promise.all((await services.reconciliationArchive.list()).map(card =>
+      services.reconciliationArchive.read(card.id))) : [];
     let progress: IntegrationResult = { status: "held", head: view.head, reason: scenario.expected.reason.join(" ") };
     const testRetiredWindow = scenario.race?.kind === "close-window" && scenario.race.at === "apply";
     if (scenario.expected.status === "integrated" || testRetiredWindow) {
@@ -293,6 +322,12 @@ export async function prepareOpenReconciliation(
         break;
       }
     }
+    const historicalId = scenario.archive ? archive?.referenceId(scenario.archive.selected) : null;
+    const older = snapshots.find(entry => entry?.id === historicalId);
+    const current = older && await services.reconciliationArchive.readCurrent(older.id, progress.head);
+    const comparison = older && current ? {
+      prior: older, current, relation: current.exists && isDeepStrictEqual(current.value, older.value) ? "matches" : "changed",
+    } : null;
     let artifact: EvidenceReceipt | null = null;
     if (scenario.evidence.length && progress.status === "integrated") {
       const assignment = await services.reconciliationWindow.release(progress.head);
@@ -308,7 +343,7 @@ export async function prepareOpenReconciliation(
     }
     const handoff = { status: artifact ? "staged" : scenario.evidence.length ? "held" : "none", artifact };
     const window = await services.reconciliationWindow.read();
-    const result = await verify({ status: "workspace-skill-reviewed", skill: "localReconciliation", outcome: { integration: progress, handoff, window } });
+    const result = await verify({ status: "workspace-skill-reviewed", skill: "localReconciliation", outcome: { integration: progress, handoff, window, archive: comparison } });
     const scope = foreignDenied && stale.status === "changed";
     return { ...result, passed: result.passed && scope, checks: { ...result.checks, rejectedInvalidIntegrationScope: scope } };
   }

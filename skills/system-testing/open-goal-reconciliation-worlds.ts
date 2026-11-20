@@ -1,4 +1,5 @@
 import type { IntegrationFileSeed } from "./vcs-integration-worlds.js";
+import type { ArchiveAssignment } from "./reconciliation-archive.js";
 import type { WorkspaceIntegrationAssignment } from "./vcs-integration-fixture.js";
 
 type EvidenceQuestion = { question: string; path: string; keys: string[] };
@@ -12,6 +13,7 @@ export type ReconciliationWorld = {
   goal: string;
   assignment: WorkspaceIntegrationAssignment;
   evidence: EvidenceQuestion[];
+  archive?: { selected: number; entries: ArchiveAssignment[] };
   expected: Expected;
   race?: { kind: "peer-edit"; path: string; field: string; text: string } | { kind: "close-window"; at: "apply" | "handoff"; note: string };
 };
@@ -28,13 +30,14 @@ const blocked = (...reason: string[]): Expected => ({ status: "held", handoff: "
 
 function world(id: string, title: string, goal: string, files: IntegrationFileSeed[], expected: Expected, options: {
   window?: WorkspaceIntegrationAssignment["companion"]["window"]; note?: string; race?: ReconciliationWorld["race"];
-  evidence?: EvidenceQuestion[]; held?: boolean;
+  evidence?: EvidenceQuestion[]; held?: boolean; archive?: ReconciliationWorld["archive"];
 } = {}): ReconciliationWorld {
   return {
     id: "reconcile-" + id, kind: "local-reconciliation", workspace: "system",
     sourceGroup: "vibestudio:local-reconciliation:" + id, ...(options.held ? { split: "test" } : {}), goal,
     assignment: { files, companion: { title, window: options.window ?? "open", note: options.note ?? "Local review permitted." } },
     expected, evidence: options.evidence ?? [], ...(options.race ? { race: options.race } : {}),
+    ...(options.archive ? { archive: options.archive } : {}),
   };
 }
 
@@ -128,4 +131,55 @@ export const openReconciliationWorlds = [
       { captionOwner: "gallery", fallback: "silence" }, { fallback: "transcribed" }, { fallback: "incoming" })],
     reviewed("held"), { held: true, evidence: [quote("Who owns captions and which fallback won?", "captions.json", "captionOwner", "fallback"),
       quote("Who is the retaining language reviewer?", "captions.json", "languageReviewer")] }),
+
+  world("recover-old-desk-threshold", "North concourse roster",
+    "Find the roster note for the threshold the North desk was actually using, even if an earlier proposal has the same title. The incoming manager approved the new threshold. Settle it, keep our review label and leave the next crew evidence of the setting now in force. Tell me whether the desk note still agrees.",
+    [file("roster.json", { threshold: 2, label: "first", digestRequired: true }, { threshold: 5, label: "north-review" }, { threshold: 9 }, { threshold: "incoming" })],
+    reviewed("staged"), { evidence: [quote("What threshold is now in force?", "roster.json", "threshold", "label")],
+      archive: { selected: 1, entries: [
+        { title: "North desk threshold", origin: "baseline", setting: "roster.json", key: "threshold" },
+        { title: "North desk threshold", origin: "local", setting: "roster.json", key: "threshold" },
+      ] } }),
+  world("recover-route-label-before-review", "Festival street access",
+    "The review desk has frozen today's festival street changes. Check the prior street note recording the still-used route label and tell me whether it still matches. Keep the route and any prior notes where they are.",
+    [file("streets.json", { route: "west", closure: "off" }, { route: "south service lane" }, { closure: "south" })],
+    blocked("closed"), { window: "closed", note: "Permit desk ended the street access window.",
+      archive: { selected: 0, entries: [
+        { title: "Street route reference", origin: "local", setting: "streets.json", key: "route" },
+        { title: "Street route reference", origin: "baseline", setting: "streets.json", key: "route" },
+      ] } }),
+  world("recover-after-desk-revision", "Conservation storage roster",
+    "One earlier note names the conservator who owned the current storage desk. Find it, settle the new backlog method, and keep the desk's latest owner if it changes during the review. Record a new local receipt with the actual method and owner. Say whether the recovered note is still current.",
+    [file("storage.json", { handling: "manual", owner: "weekday", seal: true }, { owner: "late shift" }, { handling: "priority" })],
+    reviewed("staged"), { evidence: [quote("Who owns the currently reviewed handling?", "storage.json", "handling", "owner")],
+      race: { kind: "peer-edit", path: "storage.json", field: "owner", text: "fortnight conservator" },
+      archive: { selected: 1, entries: [
+        { title: "Storage desk owner note", origin: "baseline", setting: "storage.json", key: "owner" },
+        { title: "Storage desk owner note", origin: "local", setting: "storage.json", key: "owner" },
+      ] } }),
+  world("recover-record-when-handoff-window-retires", "Collections last-call",
+    "Find the earlier collections note from the incoming plan for the last-call interval and compare it with what we settle. Keep the staff page rule and take the approved incoming cadence. Set aside a new note if the window still permits it.",
+    [file("collections.json", { minutes: 30, page: "team" }, { page: "staff" }, { minutes: 15 })],
+    reviewed("held"), { evidence: [quote("How often is last call and who receives it?", "collections.json", "minutes", "page")],
+      race: { kind: "close-window", at: "handoff", note: "The collections reviewer retired the new-note window." },
+      archive: { selected: 0, entries: [
+        { title: "Collections cadence", origin: "incoming", setting: "collections.json", key: "minutes" },
+        { title: "Collections cadence", origin: "baseline", setting: "collections.json", key: "minutes" },
+      ] } }),
+  world("held-recover-mountain-counter", "Mountain counter handoff",
+    "Use the proposed mountain visitor limit, but keep the counter crew's log name. Recover the note for the active crew rather than the old log, tell me whether its name is still correct, and leave a verified local handoff.",
+    [file("counter.json", { limit: 40, log: "old-lodge" }, { log: "ridge-watch" }, { limit: 28 })],
+    reviewed("staged"), { held: true, evidence: [quote("Which limit and log apply?", "counter.json", "limit", "log")],
+      archive: { selected: 1, entries: [
+        { title: "Mountain log reference", origin: "baseline", setting: "counter.json", key: "log" },
+        { title: "Mountain log reference", origin: "local", setting: "counter.json", key: "log" },
+      ] } }),
+  world("held-recover-heat-setpoint-after-window", "Greenhouse off-hours",
+    "Compare the greenhouse's earlier default-temperature note against the current off-hours setpoint. Only adopt the proposed vent plan while the review is available, and leave the older note in place.",
+    [file("heat.json", { setpoint: 17, vent: "off" }, { setpoint: 19 }, { vent: "automatic" })],
+    blocked("closed"), { held: true, window: "closed", note: "Greenhouse manager closed off-hours review.",
+      archive: { selected: 0, entries: [
+        { title: "Greenhouse temperature", origin: "baseline", setting: "heat.json", key: "setpoint" },
+        { title: "Greenhouse temperature", origin: "local", setting: "heat.json", key: "setpoint" },
+      ] } }),
 ];
