@@ -5,6 +5,7 @@ export { openVaultKnowledgeWorlds } from "./open-goal-vault-knowledge-worlds.js"
 export { openGoalGoogleSetupWorlds, googleSetupRequiresUnits } from "./open-goal-google-setup-worlds.js";
 export { openOwnedTaskWorlds, ownedTaskRequiresUnits } from "./open-goal-owned-task-worlds.js";
 export { openGoalGitHubWorlds, githubOpenRequiresUnits, githubOpenAuthority } from "./open-goal-github-worlds.js";
+export { openScheduledRecoveryWorlds, scheduledRecoveryRequiresUnits } from "./open-goal-scheduled-recovery-worlds.js";
 export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
 export { openUnitRolloutWorlds, unitRolloutRequiresUnits } from "./open-goal-unit-rollout-worlds.js";
 export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal-local-delivery-worlds.js";

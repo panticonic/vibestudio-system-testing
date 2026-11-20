@@ -106,6 +106,7 @@
     "./open-goal-operator-managed": "./open-goal-operator-managed.ts",
     "./open-goal-unit-rollout-managed": "./open-goal-unit-rollout-managed.ts",
     "./open-goal-owned-task-managed": "./open-goal-owned-task-managed.ts",
+    "./open-goal-scheduled-recovery-managed": "./open-goal-scheduled-recovery-managed.ts",
     "./open-goal-local-delivery-managed": "./open-goal-local-delivery-managed.ts",
     "./open-goal-recovery-managed": "./open-goal-recovery-managed.ts",
     "./open-goal-authoring-managed": "./open-goal-authoring-managed.ts",
@@ -225,6 +226,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/open-owned-scheduled-recovery": "workspace:*",
     "@workspace-skills/open-session-recovery": "workspace:*",
     "@workspace-skills/template-candidate-bindings": "workspace:*",
     "@workspace-skills/delivery-history-bindings": "workspace:*",

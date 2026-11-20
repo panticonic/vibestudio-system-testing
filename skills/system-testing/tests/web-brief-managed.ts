@@ -22,6 +22,7 @@ import {
   openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
+  openScheduledRecoveryWorlds, scheduledRecoveryRequiresUnits,
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
   openBrowserMigrationWorlds, browserMigrationRequiresUnits,
   publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
@@ -99,7 +100,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -136,6 +137,10 @@ const templateSettings = {
   "personal-history": { requiresUnits: personalHistoryRequiresUnits },
   browserMigration: { requiresUnits: browserMigrationRequiresUnits },
   githubWork: { requiresUnits: githubOpenRequiresUnits, authorityPolicy: { authority: githubOpenAuthority } },
+  "scheduled-recovery": {
+    requiresUnits: scheduledRecoveryRequiresUnits,
+    authorityPolicy: { authority: [personalAutomationAuthority[0]] },
+  },
   "personal-automation": {
     requiresUnits: personalAutomationRequiresUnits,
     authorityPolicy: { authority: personalAutomationAuthority },
@@ -277,6 +282,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "browserMigration" ? "Review live browser import authority, owner receipts, and collection handoff" :
     world.kind === "githubWork" ? "Review the owned local Git checkout and current GitHub owner authority" :
     world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :
+    world.kind === "scheduled-recovery" ? "Recover an owned future schedule and verify exact retained decisions and local handoff" :
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :

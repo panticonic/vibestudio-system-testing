@@ -91,6 +91,7 @@ import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
+import { closeOwnedScheduledRecovery, seedOwnedScheduledRecovery } from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
 import {
   pauseManagedAutomationFixture,
   pauseOpenPersonalAutomation,
@@ -114,7 +115,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  capabilityPlanWorlds, openGoalGitHubWorlds,
+  openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds,
   openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
@@ -3728,7 +3729,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     );
     const unitRollout = openUnitRolloutWorlds.find(({ id }) => id === input.caseId);
     const ownedTask = openOwnedTaskWorlds.find(({ id }) => id === input.caseId);
-    const prepare = assembly
+    const scheduledRecovery = openScheduledRecoveryWorlds.find(({ id }) => id === input.caseId);
+    let scheduledSeed: Awaited<ReturnType<typeof seedOwnedScheduledRecovery>> | undefined;
+    if (scheduledRecovery) {
+      const owner = await this.integrationFixtureIdentity();
+      if (owner.contextId !== input.contextId) throw new Error("Scheduled recovery belongs to another context");
+      scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
+    }
+    const prepare = scheduledRecovery
+      ? `import {prepareOwnedScheduledRecovery} from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
+         const prepared=await prepareOwnedScheduledRecovery(input,${JSON.stringify(scheduledRecovery)},${JSON.stringify(scheduledSeed)});`
+      : assembly
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {prepareOpenWorkspaceAssembly} from "@workspace-skills/system-testing/open-goal-workspace-assembly-managed";
          const prepared=await prepareOpenWorkspaceAssembly(input,{contextId:actualContextId,fs,rpc,vcs});`
@@ -3889,6 +3900,15 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       operationError = error;
       throw error;
     } finally {
+      if (scheduledSeed) {
+        try {
+          await closeOwnedScheduledRecovery(this.rpc, scheduledSeed.items);
+        } catch (cleanup) {
+          if (operationError !== undefined)
+            throw new AggregateError([operationError, cleanup], "Scheduled recovery and cleanup both failed");
+          throw cleanup;
+        }
+      }
       if (automationSeed) {
         try {
           await pauseOpenPersonalAutomation(this.rpc, automationSeed.items);
