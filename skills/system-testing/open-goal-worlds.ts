@@ -2,6 +2,7 @@ export { openBrowserMigrationWorlds, browserMigrationRequiresUnits } from "./ope
 export { openReconciliationWorlds, reconciliationRequiresUnits } from "./open-goal-reconciliation-worlds.js";
 export { openVaultKnowledgeWorlds } from "./open-goal-vault-knowledge-worlds.js";
 export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
+export { openUnitRolloutWorlds, unitRolloutRequiresUnits } from "./open-goal-unit-rollout-worlds.js";
 export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal-local-delivery-worlds.js";
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";
 export { openGoalAuthoringWorlds, authoringRequiresUnits } from "./open-goal-authoring-worlds.js";

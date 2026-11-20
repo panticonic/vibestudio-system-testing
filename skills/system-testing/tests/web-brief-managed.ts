@@ -11,6 +11,7 @@ import {
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openLocalDeliveryWorlds, localDeliveryRequiresUnits,
+  openUnitRolloutWorlds, unitRolloutRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
   openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
@@ -94,7 +95,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
-  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...publicationGoalWorlds,
+  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
@@ -133,6 +134,8 @@ const templateSettings = {
   operator: { requiresUnits: operatorGoalRequiresUnits },
   "system-diagnostics": { requiresUnits: openDiagnosticRequiresUnits, authorityPolicy: openDiagnosticAuthority },
   "local-delivery": { requiresUnits: localDeliveryRequiresUnits },
+  "unit-rollout": { requiresUnits: unitRolloutRequiresUnits, resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-unit-rollout", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]) },
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
   spectrolite: {
@@ -234,6 +237,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :
     world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
+    world.kind === "unit-rollout" ? "Diagnose and verify an owned workspace unit with controlled local source rollout" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
     world.kind === "visualRecovery" ? "Diagnose and restore the selected live owned surface and verify the exact rendered result" :

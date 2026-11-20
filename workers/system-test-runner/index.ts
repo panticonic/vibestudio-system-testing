@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openTerminalWorlds,
+  openTerminalWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3719,7 +3719,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const reconciliationSeed = reconciliation && await this.seedWorkspaceIntegration(
       { seed: reconciliation.id, worldId: reconciliation.id }, reconciliation.assignment,
     );
-    const prepare = terminalHandoff
+    const unitRollout = openUnitRolloutWorlds.find(({ id }) => id === input.caseId);
+    const prepare = unitRollout
+      ? `import {vcs,blobstore,openPanel,rpc} from "@workspace/runtime";
+         import {prepareOpenUnitRollout} from "@workspace-skills/system-testing/open-goal-unit-rollout-managed";
+         const prepared=await prepareOpenUnitRollout(input,${JSON.stringify(unitRollout)},{contextId:actualContextId,vcs,blobstore,openPanel,rpc,build:services.build});`
+      : terminalHandoff
       ? `import {prepareOpenTerminalGoal} from "@workspace-skills/system-testing/open-goal-terminal-managed";
          const prepared=await prepareOpenTerminalGoal({contextId:input.contextId,caseId:input.caseId});`
       : reconciliationSeed
