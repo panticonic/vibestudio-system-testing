@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@workspace-skills/system-testing": "workspace:*",
-    "@workspace-clients/mobile-browser": "workspace:*",
     "@vibestudio/content-addressing": "workspace:*",
     "@vibestudio/rn-client-api": "workspace:*",
     "@vibestudio/shared": "workspace:*",
@@ -21,5 +20,8 @@
     "@workspace-skills/phone-setup": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
     "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@workspace-clients/mobile-browser": "workspace:*"
   }
 }
