@@ -1,3 +1,4 @@
+import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
 import type { ManagedIntegrationReadinessReceiver } from "@workspace-skills/system-testing/integration-readiness-managed";
 import type { ManagedTerminalCheckReceiver } from "@workspace-skills/system-testing/terminal-check-managed";
@@ -2301,6 +2302,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Android audit belongs to another context");
       const prepared=await prepareManagedAndroidAudit(input,listAndroidAuditDevices,bindAndroidRuntimeAudit);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the assigned Personal GitHub connection without verifying it."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async runGitHubSetupTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"github",operation:"reviewGitHubSetup",input:{goal:"Review the assigned GitHub connection"}},
+      inputCode: "prepared.request",
+      bindingCode: this.gitHubSetupBindings(input),
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks live Personal GitHub setup routing without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyGitHubSetup(input: {contextId:string;caseId:string}): ReturnType<GitHubSetupReceiver["qualifyGitHubSetup"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"github",operation:"reviewGitHubSetup"}], this.gitHubSetupBindings(input),
+    )) as Awaited<ReturnType<GitHubSetupReceiver["qualifyGitHubSetup"]>>;
+  }
+
+  private gitHubSetupBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {listGitHubCredentials} from "@workspace-skills/github";
+      import {bindGitHubSetupReview} from "@workspace-skills/github/setup-review";
+      import {prepareGitHubSetup} from "@workspace-skills/system-testing/github-setup-managed";
+      const prepared=await prepareGitHubSetup(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})},{
+        bind:bindGitHubSetupReview,countCredentials:async ()=>(await listGitHubCredentials()).length,
+      });
       const assignedServices=prepared.services;
     `;
   }

@@ -1,3 +1,5 @@
+import type { GitHubSetupReceiver } from "../github-setup-managed.js";
+import { githubSetupWorlds } from "../github-setup-worlds.js";
 import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
@@ -360,3 +362,54 @@ export const skillTests: TestCase[] = [
     },
   },
 ];
+
+
+type GitHubSetupCapture = Awaited<ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]>>;
+type GitHubSetupQualification = Awaited<ReturnType<GitHubSetupReceiver["qualifyGitHubSetup"]>>;
+const githubSetupSettings = {
+  category: "skills",
+  explicitOnly: true,
+  validation: "harness" as const,
+  requiresUnits: ["skills/github"],
+};
+
+skillTests.push(...githubSetupWorlds.flatMap((world): TestCase[] => [
+  {
+    ...githubSetupSettings,
+    name: `github-setup-live-${world.id}`,
+    description: "Choose the access level and handoff from the actual Personal connection status",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const start = Date.now();
+      const result = await runner.runGitHubSetup(world.id, false, signal);
+      if (result.kind !== "teacher") throw new Error("Expected a GitHub setup capture");
+      const { teacher, ...fixture } = result.value;
+      return {
+        messages: [], duration: Date.now() - start,
+        provenance: { contextId: fixture.contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+        diagnostics: { natlangTeacher: teacher, githubSetup: fixture },
+      };
+    },
+    validate(result) {
+      const teacher = result.diagnostics?.["natlangTeacher"] as GitHubSetupCapture["teacher"] | undefined;
+      const fixture = result.diagnostics?.["githubSetup"] as Omit<GitHubSetupCapture, "teacher"> | undefined;
+      return { passed: teacher?.trainingEligible === true && fixture?.verification.passed === true, details: fixture?.verification.checks };
+    },
+  },
+  {
+    ...githubSetupSettings,
+    name: `github-setup-oracle-qualification-${world.id}`,
+    description: "Verify one Personal GitHub setup route from the live credential inventory",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const start = Date.now();
+      const result = await runner.runGitHubSetup(world.id, true, signal);
+      if (result.kind !== "reference") throw new Error("GitHub setup qualification invoked a model");
+      return { messages: [], duration: Date.now() - start, diagnostics: { githubSetup: result.value } };
+    },
+    validate(result) {
+      const qualification = result.diagnostics?.["githubSetup"] as GitHubSetupQualification | undefined;
+      return { passed: qualification?.caseId === world.id && qualification.passed === true, details: qualification?.checks };
+    },
+  },
+]));
