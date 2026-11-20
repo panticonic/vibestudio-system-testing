@@ -7,7 +7,8 @@ import {
   browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
-  openPersonalArtifactWorlds, personalArtifactRequiresUnits, publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
+  openPersonalArtifactWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits, personalHistoryRequiresUnits,
+  publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
 } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
@@ -85,7 +86,8 @@ type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>
 const referenceGoals = [...openGoalWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
-  ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds, ...openPersonalArtifactWorlds];
+  ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -108,6 +110,7 @@ const templateSettings = {
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-personal-artifacts", browserLibrarySettings.authorityPolicy.authority),
     resources: [PANEL_AUTOMATION_RESOURCE],
   },
+  "personal-history": { requiresUnits: personalHistoryRequiresUnits },
   operator: { requiresUnits: operatorGoalRequiresUnits },
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
@@ -165,6 +168,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "gmail" ? "Recover Gmail compose and delivery state from retained records and current provider readback" :
     world.kind === "calendar" ? "Reconcile live calendar windows, confirm a current decision, and verify its handoff" :
     world.kind === "personal-artifacts" ? "Resolve current browser library and collection state within an owned workspace" :
+    world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :

@@ -109,7 +109,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalRecoveryWorlds, openPersonalArtifactWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
+  openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalHistoryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
@@ -3688,7 +3688,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const pdfVault = openGoalPdfVaultWorlds.some(({ id }) => id === input.caseId);
     const calendar = openGoalCalendarWorlds.find(({ id }) => id === input.caseId);
     const personalArtifacts = openPersonalArtifactWorlds.find(({ id }) => id === input.caseId);
-    const prepare = calendar
+    const personalHistory = openPersonalHistoryWorlds.find(({ id }) => id === input.caseId);
+    const prepare = personalHistory
+      ? `import {prepareOpenPersonalHistory} from "@workspace-skills/open-personal-history-runtime";
+         const prepared=await prepareOpenPersonalHistory(input,${JSON.stringify(personalHistory)});`
+      : calendar
       ? `import {prepareOpenCalendarGoal} from "@workspace-skills/open-calendar-goal/managed";
          const candidate=await prepareOpenCalendarGoal(input,${JSON.stringify(calendar)});
          const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="calendar" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
