@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { createMissionsClient, type MissionRpc } from "@vibestudio/service-schemas/clients/missionsClient";
-import { missionRevisionDigest } from "@vibestudio/automation/mission";
+import { MISSION_REVISION_CHANGED, missionRevisionDigest } from "@vibestudio/automation/mission";
 import { AGENTIC_EVENT_PAYLOAD_KIND, type AgenticEvent } from "@workspace/agentic-protocol";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import { contextId as activeContext, rpc } from "@workspace/runtime";
@@ -229,6 +229,7 @@ export async function prepareOwnedScheduledRecovery(
   const readLanes = new Set<string>();
   let discovered = false;
   let raced = false;
+  let nativeRevisionConflict = false;
   let committed = false;
   let currentChange = false;
   let sent: { attempt: Submission; messageId: string; text: string } | undefined;
@@ -291,11 +292,6 @@ export async function prepareOwnedScheduledRecovery(
           if (!isDeepStrictEqual(snapshot(primary, live), schedule)) return finish("changed");
           if (!await dependencyReady(record)) return finish("held");
           if (changeMatches(schedule, change)) return finish("unchanged");
-          if (!raced && world.interruption === "schedule-revision") {
-            raced = true;
-            await missions.edit(live.missionId, { charter: { ...live.charter, summary: peerRevisionSummary } },
-              { idempotencyKey: "peer-" + authorization.messageId });
-          }
           if (!raced && world.interruption === "dependency") {
             raced = true;
             const peer = await readOwned(missions, prerequisite);
@@ -305,11 +301,28 @@ export async function prepareOwnedScheduledRecovery(
           live = await readOwned(missions, primary);
           if (!isDeepStrictEqual(snapshot(primary, live), schedule)) return finish("changed");
           if (committed) throw new Error("An owned change already committed");
-          if (change.kind === "pause" || change.kind === "resume") {
-            live = await missions.transitionAtRevision(live.missionId, change.kind, live.revisionDigest);
-          } else {
-            live = await missions.edit(live.missionId, { charter: { ...live.charter, trigger: revisedTrigger(live, change) } },
-              { idempotencyKey: "owner-" + authorization.messageId });
+          if (!raced && world.interruption === "schedule-revision") {
+            await missions.edit(live.missionId, {
+              charter: { ...live.charter, summary: peerRevisionSummary },
+              expectedRevision: schedule.revision,
+            }, { idempotencyKey: "peer-" + authorization.messageId });
+            raced = true;
+          }
+          try {
+            if (change.kind === "pause" || change.kind === "resume") {
+              live = await missions.transitionAtRevision(live.missionId, change.kind, schedule.digest);
+            } else {
+              live = await missions.edit(live.missionId, {
+                charter: { ...live.charter, trigger: revisedTrigger(live, change) },
+                expectedRevision: schedule.revision,
+              }, { idempotencyKey: "owner-" + authorization.messageId });
+            }
+          } catch (error) {
+            if (!error || typeof error !== "object" || !("code" in error) ||
+                error.code !== MISSION_REVISION_CHANGED) throw error;
+            nativeRevisionConflict = true;
+            live = await readOwned(missions, primary);
+            return finish("changed");
           }
           committed = true;
           return finish("applied");
@@ -431,7 +444,9 @@ export async function prepareOwnedScheduledRecovery(
       protectedPeersAndDefault: isDeepStrictEqual(stable(byKey.get("neighbor")!), stable(neighbor.record)) &&
         isDeepStrictEqual(stable(byKey.get("prerequisite")!), wantedPrerequisite) && isDeepStrictEqual(sameDefault, originalDefault),
       neverAdmittedFixtureRuns: nativeRuns.every(runs => runs.items.length === 0),
-      honoredCurrentRevisionAndDependencies: raced === expectedRace && (!expectedRace || successors.some(
+      honoredCurrentRevisionAndDependencies: raced === expectedRace &&
+        nativeRevisionConflict === (world.interruption === "schedule-revision") &&
+        (!expectedRace || successors.some(
         entry => entry.status === (world.interruption === "dependency" ? "held" : "changed"))) &&
         (!originals[world.expected.entry ?? -1]?.record.prerequisite || observed.has(prerequisite.record.missionId)) &&
         (world.interruption !== "dependency" || observed.get(prerequisite.record.missionId)?.state === "paused"),
