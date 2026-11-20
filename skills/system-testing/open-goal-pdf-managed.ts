@@ -3,7 +3,6 @@ import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { extensions, fs, rpc, vcs } from "@workspace/runtime";
 import { createPdfIntakeBindings } from "@workspace-skills/pdf-intake-bindings";
 import { bindPdfLayout } from "@workspace-skills/pdf-intake-bindings/layout";
-import { inspectPdfRaster } from "@workspace-skills/pdf-intake-bindings/render";
 import type {
   BatchReceipt, PdfGoalBinding, PdfGoalFile, PdfGoalRender, PdfGoalReport, PdfGoalSelection,
   PdfIntakeReport, PdfIntakeRequest, PdfLayoutPage, PdfLayoutReport,
@@ -17,6 +16,10 @@ type Engine = Parameters<typeof createPdfIntakeBindings>[0];
 type Layout = ReturnType<typeof bindPdfLayout>;
 type RasterArtifact = { artifactId: string; digest: string; mimeType: string; data: Uint8Array };
 type RenderedPage = RasterArtifact & { pageNumber: number; width: number; height: number };
+type RetainedRaster = Omit<PdfGoalRender, "documentDigest" | "pageNumber"> & Pick<RasterArtifact, "digest" | "mimeType">;
+async function inspectRasterArtifact(artifactId: string): Promise<RetainedRaster> {
+  return await extensions.invoke(extensionName, "inspectRasterArtifact", [artifactId]) as RetainedRaster;
+}
 const engine: Engine = {
   async probe(data, options) {
     return await extensions.invoke(extensionName, "probe", [data, options]) as Awaited<ReturnType<Engine["probe"]>>;
@@ -171,9 +174,10 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
         const page = await extensions.invoke(extensionName, "renderPage", [
           source.bytes, { pageNumber, scale: 1 },
         ]) as RenderedPage;
-        const raster = inspectPdfRaster(page.data);
+        const { artifactId, digest, mimeType, ...raster } = await inspectRasterArtifact(page.artifactId);
         if (page.pageNumber !== pageNumber || page.width !== raster.width || page.height !== raster.height ||
-            page.mimeType !== "image/png" || !page.artifactId || page.digest !== raster.imageDigest)
+            mimeType !== page.mimeType || artifactId !== page.artifactId || page.digest !== digest ||
+            page.digest !== raster.imageDigest || page.digest !== sha256Hex(page.data))
           throw new Error("The rendered PDF receipt does not match its page or retained PNG.");
         const result = { documentDigest: source.digest, pageNumber, artifactId: page.artifactId, ...raster };
         renders.set(pageNumber, result);
@@ -212,10 +216,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
       wrapper.outcome?.status === "inspected" ? wrapper.outcome : null;
     const [documents, after] = await Promise.all([readDocuments(), vcs.status({ contextId })]);
     const retained = await Promise.all([...renders.values()].map(async receipt => {
-      const artifact = await extensions.invoke(extensionName, "readArtifact", [receipt.artifactId]) as RasterArtifact;
-      const raster = inspectPdfRaster(artifact.data);
-      return { ...raster, artifactId: artifact.artifactId, mimeType: artifact.mimeType,
-        digest: artifact.digest, pageNumber: receipt.pageNumber };
+      const raster = await inspectRasterArtifact(receipt.artifactId);
+      return { ...raster, pageNumber: receipt.pageNumber };
     }));
     const reads = [...layoutReads.values()];
     const layouts = expected.layouts ?? [];
