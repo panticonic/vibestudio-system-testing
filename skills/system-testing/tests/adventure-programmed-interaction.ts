@@ -141,8 +141,13 @@ async function orchestrate(
       await reopened
         .getByRole("button", { name: "The harbour lamp", exact: false })
         .click();
-      evidence["reloaded"] = await wait("persistent covering", (f) =>
-        f.light.includes("blocked by a covering"),
+      evidence["reloaded"] = await wait(
+        "persistent covering and painted scene",
+        (f) =>
+          f.light.includes("blocked by a covering") &&
+          f.loaded &&
+          f.fresh === "true" &&
+          f.asset === evidence["painted"].asset,
       );
     } finally {
       await reopened.close();
