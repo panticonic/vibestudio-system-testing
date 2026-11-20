@@ -1,3 +1,5 @@
+import type { TemplateReleaseReceiver } from "../template-release-managed.js";
+import { templateReleasePart, templateReleaseWorlds } from "../template-release-worlds.js";
 import type { TestCase, TestExecutionResult } from "../types.js";
 import {
   completedScenarioEvidence,
@@ -16,7 +18,7 @@ import { findLastAgentMessage } from "./_helpers.js";
  * deleted part from leaving a test that fails for a reason ("the plan did not
  * select it") that says nothing about the part being gone.
  */
-export const AUTHORED_PART = "packages/template-management";
+export const AUTHORED_PART = templateReleasePart;
 const AUTHORED_PART_PROSE = "template management library";
 
 function invokedTemplateOperation(code: string, operation: string): boolean {
@@ -163,3 +165,55 @@ export const templateTests: TestCase[] = [
     validate: templateAuthoringPrepared,
   },
 ];
+
+
+type TemplateRelease = Awaited<ReturnType<TemplateReleaseReceiver["runTemplateReleaseTeacher"]>>;
+type Qualification = Awaited<ReturnType<TemplateReleaseReceiver["qualifyTemplateRelease"]>>;
+const templateReleaseSettings = {
+  category: "templates",
+  explicitOnly: true,
+  validation: "harness" as const,
+  requiresUnits: ["extensions/templates", AUTHORED_PART],
+};
+
+templateTests.push(...templateReleaseWorlds.map((world): TestCase => ({
+  ...templateReleaseSettings,
+  name: `template-release-live-${world.id}`,
+  description: "Review VibeStudio's native template authoring receipt",
+  prompt: world.goal,
+  async orchestrate({ runner, signal }) {
+    const start = Date.now();
+    const result = await runner.runTemplateRelease(world.id, false, signal);
+    if (result.kind !== "teacher") throw new Error("Expected a template review capture");
+    const { teacher, ...fixture } = result.value;
+    return {
+      messages: [], duration: Date.now() - start,
+      provenance: { contextId: fixture.contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+      diagnostics: { natlangTeacher: teacher, templateRelease: fixture },
+    };
+  },
+  validate(result) {
+    const teacher = result.diagnostics?.["natlangTeacher"] as TemplateRelease["teacher"] | undefined;
+    const fixture = result.diagnostics?.["templateRelease"] as Omit<TemplateRelease, "teacher"> | undefined;
+    return { passed: teacher?.trainingEligible === true && fixture?.verification.passed === true, details: fixture?.verification.checks };
+  },
+})));
+templateTests.push(...templateReleaseWorlds.map((world): TestCase => ({
+  ...templateReleaseSettings,
+  name: `template-release-oracle-qualification-${world.id}`,
+  description: "Verify one exact protected-main template receipt without model calls",
+  prompt: world.goal,
+  async orchestrate({ runner, signal }) {
+    const start = Date.now();
+    const result = await runner.runTemplateRelease(world.id, true, signal);
+    if (result.kind !== "reference") throw new Error("Template qualification invoked a model");
+    return { messages: [], duration: Date.now() - start, diagnostics: { templateRelease: result.value } };
+  },
+  validate(result) {
+    const outcome = result.diagnostics?.["templateRelease"] as Qualification | undefined;
+    return {
+      passed: outcome?.caseId === world.id && outcome.passed === true,
+      details: outcome?.checks,
+    };
+  },
+})));

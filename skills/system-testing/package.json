@@ -57,6 +57,7 @@
     "./release-review-handoff-contract": "./release-review-handoff-contract.ts",
     "./log-cursor-worlds": "./log-cursor-worlds.ts",
     "./publication-revision-managed": "./publication-revision-managed.ts",
+    "./template-release-managed": "./template-release-managed.ts",
     "./transcript-cursor-managed": "./transcript-cursor-managed.ts",
     "./unit-identity-managed": "./unit-identity-managed.ts",
     "./gmail-compose-history-managed": "./gmail-compose-history-managed.ts",

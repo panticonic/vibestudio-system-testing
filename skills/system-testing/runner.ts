@@ -1,3 +1,4 @@
+import { templateReleaseMethods } from "./template-release-managed.js";
 import { managedIntegrationReadinessMethods } from "./integration-readiness-managed.js";
 import { managedTerminalCheckMethods } from "./terminal-check-managed.js";
 import { managedProblemDraftMethods } from "./problem-draft-managed.js";
@@ -1631,6 +1632,20 @@ export class HeadlessRunner {
       if (qualification)
         return { kind: "reference" as const, value: await rpc.call(owner, androidAuditMethods.qualifyAndroidAudit, [input], { signal }) };
       return { kind: "teacher" as const, value: await rpc.call(owner, androidAuditMethods.runAndroidAuditTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runTemplateRelease(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      if (qualification)
+        return { kind: "reference" as const, value: await rpc.call(owner, templateReleaseMethods.qualifyTemplateRelease, [input], { signal }) };
+      return { kind: "teacher" as const, value: await rpc.call(owner, templateReleaseMethods.runTemplateReleaseTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
