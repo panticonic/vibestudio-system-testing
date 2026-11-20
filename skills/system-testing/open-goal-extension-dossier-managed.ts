@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -169,7 +170,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
   const scopeBytes = JSON.stringify(scope);
   await files.writeFile(scopePath, scopeBytes);
   const getScope = async (): Promise<Owner> => JSON.parse(decoder.decode(await readBytes(scopePath, 24 * 1024)));
-  const preexisting = (await files.readdir("/.tmp")).filter(name => scratchNames.test(name));
+  const preexisting = (await listOwnedScratchEntries(files)).filter(name => scratchNames.test(name));
   const scratch = bindScratchHandoff(files, { goal: world.goal, sources: [{ id: "retained-owner-scope", path: scopePath }],
     questions: ["Which local release review can be preserved under this exact owner scope?"] }, readBytes);
 
@@ -302,7 +303,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     const outcome = envelope?.outcome;
     const found = await currentAssignment();
     const [review, active, after, afterOutputs, originalScope] = await Promise.all([
-      readBound(), currentHistory(found.owner), client.status({contextId: ownerContext}), files.readdir("/.tmp"), readBytes(scopePath, 24 * 1024),
+      readBound(), currentHistory(found.owner), client.status({contextId: ownerContext}), listOwnedScratchEntries(files), readBytes(scopePath, 24 * 1024),
     ]);
     const compared = await currentCandidate(review);
     const decision = decisionFor(found, review, compared, active);

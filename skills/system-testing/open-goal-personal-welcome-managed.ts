@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
@@ -149,7 +150,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
   const scratch = await ports.fs.mkdtemp("welcome-review");
   const note = `${scratch}/scope.md`;
   await ports.fs.writeFile(note,"Review only this owned first-run conversation and any expressly authorized local diagnostic.");
-  const beforeFiles = new Set(await ports.fs.readdir("/.tmp"));
+  const beforeFiles = new Set(await listOwnedScratchEntries(ports.fs));
   const writer = bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which current Personal next step is supported?"],
     sources:[{id:"scope",path:note}]},ports.readBytes).scratchHandoffWrite;
 
@@ -318,7 +319,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const plan=outcome?.plan;
     const checked=outcome?.reviews;
     const status=await ports.status();
-    const files=(await ports.fs.readdir("/.tmp")).filter(name=>name.startsWith("evidence-handoff-")&&!beforeFiles.has(name));
+    const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!beforeFiles.has(name));
     const data=handoff?await ports.readBytes(handoff.path,maximum):null;
     const artifact=data?new TextDecoder("utf-8",{fatal:true}).decode(data):null;
     const foreign=crypto.randomUUID();

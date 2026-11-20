@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { BuildMetadataWire } from "@vibestudio/service-schemas/build";
@@ -62,7 +63,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
   const lane = scope?.creator ? await ports.createOwnedChannel() : null;
   const initial = await vcs.status({ contextId: input.contextId });
   const head = JSON.stringify(initial.workingHead);
-  const priorOutputs = (await fs.readdir("/.tmp")).filter(name => outputName.test(name));
+  const priorOutputs = (await listOwnedScratchEntries(fs)).filter(name => outputName.test(name));
   const bound = scope ? ports.architecture({ ...scope, contextId: input.contextId, goal: world.goal,
     ...(lane ? { objectKey: lane.key } : {}) }) : null;
   const subjects: Subject[] = [world.target, ...world.alternatives].map(entry => ({ ...entry, id: crypto.randomUUID() }))
@@ -247,7 +248,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     const architecture = boundaryResult();
     const decision = decisionFor(current, review, architecture);
     const after = await vcs.status({ contextId: input.contextId });
-    const afterOutputs = (await fs.readdir("/.tmp")).filter(name => outputName.test(name));
+    const afterOutputs = (await listOwnedScratchEntries(fs)).filter(name => outputName.test(name));
     const added = afterOutputs.filter(name => !priorOutputs.includes(name));
     const methods = (service: string) => effects.filter(effect => effect.service === service).map(effect => effect.method);
     const stageCalls = methods("interfaceReviewHandoff");

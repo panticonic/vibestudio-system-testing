@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -161,7 +162,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
   const scratch = await ports.fs.mkdtemp("specialist-review");
   const note = `${scratch}/scope.md`;
   await ports.fs.writeFile(note,"The assigned specialist evidence may only inform this local integration review.");
-  const beforeFiles = new Set(await ports.fs.readdir("/.tmp"));
+  const beforeFiles = new Set(await listOwnedScratchEntries(ports.fs));
   const stage = bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What original specialist work is verified?"],
     sources:[{id:"scope",path:note}]},ports.readBytes).scratchHandoffWrite;
   let busy = false;
@@ -286,7 +287,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const plan = outcome?.plan;
     const member = membershipReads[0];
     const after = await ports.status();
-    const files = (await ports.fs.readdir("/.tmp")).filter(name=>name.startsWith("evidence-handoff-") && !beforeFiles.has(name));
+    const files = (await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-") && !beforeFiles.has(name));
     const written = handoff ? await ports.readBytes(handoff.path,maximum) : null;
     const artifact = written ? new TextDecoder("utf-8",{fatal:true}).decode(written) : null;
     const foreign = crypto.randomUUID();
