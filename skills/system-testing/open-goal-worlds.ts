@@ -174,6 +174,7 @@ export function publicSourceOrigins(world: PublicResearchWorld): string[] {
 export { openTemplateMigrationWorlds, openTemplateMigrationRequiresUnits } from "./open-goal-template-migration-worlds.js";
 export { openNotificationStateWorlds } from "./open-goal-notification-state-worlds.js";
 export { openMobileContinuityWorlds } from "./open-goal-mobile-continuity-worlds.js";
+export { openWorkspaceShareWorlds, openWorkspaceShareRequiresUnits } from "./open-goal-workspace-share-worlds.js";
 export { openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits } from "./open-goal-agent-capability-worlds.js";
 export { openAssetIntegrityWorlds } from "./open-goal-asset-integrity-worlds.js";
 export { openTendrilRouteWorlds } from "./open-goal-tendril-route-worlds.js";

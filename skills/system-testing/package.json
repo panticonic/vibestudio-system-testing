@@ -87,6 +87,7 @@
     "./open-goal-build-incidents-managed": "./open-goal-build-incidents-managed.ts",
     "./open-goal-notification-state-managed": "./open-goal-notification-state-managed.ts",
     "./open-goal-mobile-continuity-worlds": "./open-goal-mobile-continuity-worlds.ts",
+    "./open-goal-workspace-share-managed": "./open-goal-workspace-share-managed.ts",
     "./open-goal-agent-capability-managed": "./open-goal-agent-capability-managed.ts",
     "./open-goal-asset-integrity-managed": "./open-goal-asset-integrity-managed.ts",
     "./open-goal-tendril-route-managed": "./open-goal-tendril-route-managed.ts",
