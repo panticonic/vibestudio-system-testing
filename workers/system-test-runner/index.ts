@@ -76,6 +76,7 @@ import type { GardenReviewInput, ManagedGrimoireReceiver } from "@workspace-skil
 import type { AdventureReviewInput, ManagedAdventureReceiver, ProgrammedAdventureInput } from "@workspace-skills/system-testing/adventure-review-contract";
 import type { RegencyReviewInput, ManagedRegencyReceiver } from "@workspace-skills/system-testing/regency-review-contract";
 import type { DriveCheckpointInput, ManagedDriveCheckpointReceiver } from "@workspace-skills/system-testing/drive-checkpoint-contract";
+import type { DriveSharingInput, ManagedDriveSharingReceiver } from "@workspace-skills/system-testing/drive-sharing-contract";
 import { driveCheckpointHandoffWork, managedDriveCheckpointWorlds } from "@workspace-skills/system-testing/drive-checkpoint-worlds";
 import { grimoireHandoffWork, managedGrimoireWorlds } from "@workspace-skills/system-testing/grimoire-worlds";
 import type { ChecklistInput, ManagedChecklistReceiver } from "@workspace-skills/system-testing/checklist-contract";
@@ -1807,6 +1808,39 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const verification=prepared.verify(utilityValue.report);
       utilityValue={contextId:actualContextId,teacher:utilityValue,verification};
     `) as Awaited<ReturnType<ManagedAdventureReceiver["captureProgrammedAdventure"]>>;
+  }
+
+  private driveSharingBindings(input: DriveSharingInput): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {managedDriveSharingWorlds} from "@workspace-skills/system-testing/drive-sharing-worlds";
+      import {prepareDriveSharing} from "@workspace-skills/google-drive/live-drive-sharing";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Drive sharing belongs to another context");
+      const world=managedDriveSharingWorlds.find(item=>item.id===input.caseId);
+      if(!world) throw new Error("Unknown assigned Drive sharing case");
+      const prepared=prepareDriveSharing(world);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs the caller-owned Drive inventory and sharing review."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async runManagedDriveSharingTeacher(input: DriveSharingInput & {executorModel:string}): ReturnType<ManagedDriveSharingReceiver["runManagedDriveSharingTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"google",operation:"guideGoogleWorkspace",input:{goal:"Review the assigned Drive sharing"}},
+      inputCode:"prepared.request",
+      bindingCode:this.driveSharingBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedDriveSharingReceiver["runManagedDriveSharingTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Checks the Drive inventory gate and permission reads without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyManagedDriveSharing(input: DriveSharingInput): ReturnType<ManagedDriveSharingReceiver["qualifyManagedDriveSharing"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{kind:"domain",domain:"google",operation:"guideGoogleWorkspace"}], this.driveSharingBindings(input),
+    )) as Awaited<ReturnType<ManagedDriveSharingReceiver["qualifyManagedDriveSharing"]>>;
   }
 
   private driveCheckpointBindings(input: DriveCheckpointInput, handoff: boolean): string {
