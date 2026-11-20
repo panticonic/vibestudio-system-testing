@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
+import { readNativeTurnReceipt } from "../agent-cell-compaction.js";
 import { evalLifecycleTests } from "./eval-lifecycle.js";
 
 const test = evalLifecycleTests.find(
@@ -131,4 +133,81 @@ it.each(["adoption", "model", "history", "measurement"])("rejects missing fork %
   if (kind === "history") probe.fork.forkSequence = 99;
   if (kind === "measurement") probe.fork.elapsedMs = NaN;
   expect(await validate(probe)).toMatchObject({ passed: false });
+});
+
+
+describe("native benchmark receipts", () => {
+  const digest = "f".repeat(64);
+  const invocationId = "invocation:exact";
+  const input = {
+    channelTarget: "do:channel", trajectoryTarget: "do:trajectory",
+    channelId: "channel", executorId: "do:agent", runId: "run:one", turn: 12, after: 40,
+  };
+  const value = { marker: "P4_NATIVE_TURN", turn: input.turn, storage: null };
+  const stored = JSON.stringify({ details: { returnValue: value } });
+  function fixture({ branch = "main", callId = "automation:run:one:eval" } = {}) {
+    const call = vi.fn(async (target: string, method: string, args: unknown[]) => {
+      if (target === input.channelTarget && method === "getReplayAfter") {
+        const { after } = args[0] as { after: number };
+        if (after === 40) return {
+          ready: { snapshotLastSeq: 42, hasMoreAfter: true, replayToId: 41 },
+          logEvents: [{
+            id: 41, messageId: "start",
+            payload: {
+              kind: "invocation.started", causality: { invocationId },
+              payload: {
+                name: "eval",
+                nativeSource: {
+                  owner: { runtimeId: input.executorId, channelId: input.channelId },
+                  operation: { kind: "direct-tool", callId },
+                },
+              },
+            },
+          }],
+        };
+        expect(args).toEqual([{ after: 41, limit: 32, throughSeq: 42 }]);
+        return {
+          ready: { snapshotLastSeq: 42, hasMoreAfter: false },
+          logEvents: [{
+            id: 42, messageId: "terminal",
+            payload: {
+              kind: "invocation.completed", causality: { invocationId },
+              payload: { result: null },
+            },
+          }],
+        };
+      }
+      if (target === input.trajectoryTarget && method === "getTrajectoryEvent") {
+        expect(args).toEqual([{ eventId: "terminal" }]);
+        return {
+          eventId: "terminal", trajectoryId: input.channelId, branchId: branch,
+          seq: 42, prevEventHash: "previous", eventHash: "terminal",
+          kind: "invocation.completed", causality: { invocationId },
+          actor: { kind: "agent", id: input.executorId }, createdAt: "2026-11-20T14:00:00Z",
+          payload: {
+            result: { protocol: "vibestudio.blob-ref.v1", digest, size: stored.length, encoding: "json", originalBytes: stored.length },
+          },
+        };
+      }
+      if (target === "main" && method === "blobstore.getText") {
+        expect(args).toEqual([digest]);
+        return stored;
+      }
+      throw new Error(`Unexpected benchmark read ${target} ${method}`);
+    });
+    return schemaRpcMock({ call });
+  }
+
+  it("joins a paged public completion to its canonical stored result", async () => {
+    await expect(readNativeTurnReceipt(fixture(), input)).resolves.toEqual({
+      after: 42, invocationId, value,
+    });
+  });
+
+  it("rejects a completion for a different run or trajectory", async () => {
+    await expect(readNativeTurnReceipt(fixture({ callId: "automation:run:other:eval" }), input))
+      .rejects.toThrow("has no exact durable completion");
+    await expect(readNativeTurnReceipt(fixture({ branch: "private-branch" }), input))
+      .rejects.toThrow("has no matching trajectory result");
+  });
 });

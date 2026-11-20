@@ -4,6 +4,9 @@ import type { ResidentSessionRegistrar } from "@vibestudio/shared/residentSessio
 import type { TestExecutionResult } from "./types.js";
 import { systemTestFailure } from "./structured-error.js";
 import { withRpcAbortSignal } from "@vibestudio/rpc";
+import { hydrateStoredValueRefs, type AgenticEvent } from "@workspace/agentic-protocol";
+import { iterateChannelReplayAfterPages } from "@workspace/pubsub";
+import { createGadServiceClient, gadRpcMethods } from "@vibestudio/service-schemas/clients/gadServiceClient";
 import { createMissionsClient } from "@vibestudio/service-schemas/clients/missionsClient";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -97,6 +100,66 @@ function storageSample(value: unknown): StorageSample {
   };
 }
 
+/** Join the mission's channel receipt to the original stored result. */
+export async function readNativeTurnReceipt(
+  rpc: RpcClient,
+  input: {
+    channelTarget: string;
+    trajectoryTarget: string;
+    channelId: string;
+    executorId: string;
+    runId: string;
+    turn: number;
+    after: number;
+  },
+) {
+  let after = input.after;
+  let invocationId: string | undefined;
+  let terminalEventId: string | undefined;
+  const callId = `automation:${input.runId}:eval`;
+  for await (const page of iterateChannelReplayAfterPages(
+    (request) => rpc.call(input.channelTarget, channelRpcMethods.getReplayAfter, [request]),
+    { after, limit: 32 },
+  )) {
+    for (const row of page.logEvents) {
+      after = row.id;
+      const event = row.payload as AgenticEvent | undefined;
+      if (event?.kind === "invocation.started") {
+        const native = event.payload.nativeSource;
+        if (native?.operation.kind !== "direct-tool" || native.operation.callId !== callId)
+          continue;
+        if (invocationId || native.owner.runtimeId !== input.executorId ||
+            native.owner.channelId !== input.channelId || event.payload.name !== "eval" ||
+            !event.causality?.invocationId)
+          throw new Error(`Native turn ${input.turn} has a duplicate or foreign invocation`);
+        invocationId = event.causality.invocationId;
+      }
+      if (event?.kind === "invocation.completed" && invocationId &&
+          event.causality?.invocationId === invocationId) {
+        if (terminalEventId) throw new Error(`Native turn ${input.turn} has duplicate completion events`);
+        terminalEventId = row.messageId;
+      }
+    }
+  }
+  if (!invocationId || !terminalEventId)
+    throw new Error(`Native turn ${input.turn} has no exact durable completion for ${input.runId}`);
+  const event = await rpc.call(input.trajectoryTarget, gadRpcMethods.getTrajectoryEvent, [
+    { eventId: terminalEventId },
+  ]);
+  if (event?.eventId !== terminalEventId || event.trajectoryId !== input.channelId ||
+      event.branchId !== "main" || event.kind !== "invocation.completed" ||
+      event.causality?.invocationId !== invocationId || !object(event.payload))
+    throw new Error(`Native turn ${input.turn} has no matching trajectory result`);
+  const result = await hydrateStoredValueRefs(event.payload["result"], {
+    getText: (digest) => rpc.call("main", mainRpcMethods["blobstore.getText"], [digest]),
+  }, { strict: true });
+  const details = object(result) ? result["details"] : null;
+  const value = object(details) ? details["returnValue"] : null;
+  if (!object(value) || value["marker"] !== "P4_NATIVE_TURN" || value["turn"] !== input.turn)
+    throw new Error(`Native turn ${input.turn} has an invalid return value`);
+  return { after, invocationId, value };
+}
+
 /** The caller owns the headless session. This operation owns and retires its manual mission. */
 export async function probeAgentCellCompaction(
   session: HeadlessSession,
@@ -150,6 +213,12 @@ export async function probeAgentCellCompaction(
       !/^state:[0-9a-f]{64}$/u.test(sourceRef)
     )
       throw new Error("The agent build has no exact immutable source state");
+    const channel = await resolveDurableObjectService(wire, "vibestudio.channel.v1", channelId);
+    if (channel.kind !== "durable-object")
+      throw new Error("The compaction channel did not resolve to a Durable Object");
+    const { targetId: trajectoryTarget } = await createGadServiceClient(wire).resolve();
+    const replay = await wire.call(channel.targetId, channelRpcMethods.getReplayAfter, [{ after: 0, limit: 1 }]);
+    let after = replay.ready.snapshotLastSeq ?? 0;
     const code = `scope.__p4Turn = (scope.__p4Turn ?? 0) + 1; return { marker: "P4_NATIVE_TURN", turn: scope.__p4Turn, storage: (scope.__p4Turn === 1 || scope.__p4Turn === ${turns}) ? (await agent.describe()).storage : null };`;
     launchAttempted = true;
     mission = await missions.launch({
@@ -198,58 +267,22 @@ export async function probeAgentCellCompaction(
           signal,
         }));
       }
-      const invocation = await session.waitUntil(
-        () => {
-          const messages = session.messages;
-          let inspected = 0;
-          for (
-            let index = messages.length - 1;
-            index >= 0 && inspected < 12;
-            index--
-          ) {
-            const candidate = messages[index]?.invocation;
-            if (!candidate) continue;
-            inspected++;
-            if (
-              candidate.name !== "eval" ||
-              candidate.execution.status !== "complete" ||
-              !object(candidate.execution.result)
-            )
-              continue;
-            const details = candidate.execution.result["details"];
-            if (
-              object(details) &&
-              object(details["returnValue"]) &&
-              details["returnValue"]["turn"] === n
-            )
-              return candidate;
-          }
-          return undefined;
-        },
-        { signal },
-      );
-      if (
-        seen.has(invocation.id) ||
-        invocation.nativeSource?.owner.runtimeId !== executorId
-      )
-        throw new Error(
-          "The native result has a duplicate or foreign invocation identity",
-        );
-      seen.add(invocation.id);
-      const details = (invocation.execution.result as Record<string, unknown>)[
-        "details"
-      ] as Record<string, unknown>;
-      const value = details["returnValue"] as Record<string, unknown>;
-      if (value["marker"] !== "P4_NATIVE_TURN")
-        throw new Error("The actual eval lost its marker");
+      const receipt = await readNativeTurnReceipt(wire, {
+        after, channelTarget: channel.targetId, trajectoryTarget, channelId, executorId, runId: admitted.runId, turn: n,
+      });
+      after = receipt.after;
+      const { invocationId, value } = receipt;
+      if (seen.has(invocationId))
+        throw new Error(`Native turn ${n} repeated a previous invocation`);
+      seen.add(invocationId);
       if (n === 1) {
         firstStorage = storageSample(value["storage"]);
-        firstInvocationId = invocation.id;
+        firstInvocationId = invocationId;
       }
       if (n === turns) lastStorage = storageSample(value["storage"]);
-      lastInvocationId = invocation.id;
+      lastInvocationId = invocationId;
       digest = sha256HexSyncText(
-        `${digest}\n${admitted.runId}\n${invocation.id}\n${n}`,
+        `${digest}\n${admitted.runId}\n${invocationId}\n${n}`,
       );
       durations.push(Date.now() - turnStartedAt);
       if (n === 1 || n % 64 === 0 || n === turns) {
