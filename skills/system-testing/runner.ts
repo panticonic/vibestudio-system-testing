@@ -101,7 +101,7 @@ import { integrationHandoffMethods } from "./integration-handoff-contract.js";
 import { integrationHandoffWorlds } from "./integration-handoff-worlds.js";
 import { scratchHandoffRpcMethods } from "./scratch-handoff-contract.js";
 import {localMessagingRpcMethods,type LocalMessagingInput} from "./local-messaging/contract.js";
-import {ownedOperationsRpcMethods, type OwnedOperationsInput} from "./owned-operations-contract.js";
+import {ownedOperationsRpcMethods, type OwnedOperationsInput, type OwnedOperationsResult} from "./owned-operations-contract.js";
 import {contentProjectRpcMethods, type ContentProjectInput} from "./content-project-contract.js";
 import { resolveDurableObjectService } from "@vibestudio/service-schemas/clients/durableObjectServiceClient";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
@@ -816,11 +816,14 @@ export class HeadlessRunner {
     }
   }
 
-  async runOwnedOperations(caseId: OwnedOperationsInput["caseId"]) {
+  async runOwnedOperations(caseId: OwnedOperationsInput["caseId"]): Promise<OwnedOperationsResult>;
+  async runOwnedOperations(caseId: OwnedOperationsInput["caseId"], qualification: true): Promise<Omit<OwnedOperationsResult, "teacher">>;
+  async runOwnedOperations(caseId: OwnedOperationsInput["caseId"], qualification = false) {
     const policy=fixtureContextAuthority(this.testAuthorityPolicy,[]);
     const target=await rpc.call("main",mainRpcMethods["runtime.createContext"],[policy?{testPolicy:policy}:{}]);
     try {
       const owner=await this.createFixtureWorker(target.contextId);
+      if (qualification) return await rpc.call(owner,ownedOperationsRpcMethods.qualifyHeldReleaseDossier,[{contextId:target.contextId,caseId}]);
       return await rpc.call(owner,ownedOperationsRpcMethods.runOwnedOperationsTeacher,[{contextId:target.contextId,caseId,executorModel:this.modelRef}]);
     } finally {await rpc.call("main",mainRpcMethods["runtime.destroyContext"],[{contextId:target.contextId,recursive:true}]);}
   }

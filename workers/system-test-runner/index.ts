@@ -94,8 +94,8 @@ import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type Scrat
 import { managedScratchWorlds } from "@workspace-skills/system-testing/scratch-handoff-worlds";
 import {localMessagingInputSchema,localMessagingQualificationSchema,type LocalMessagingInput,type LocalMessagingQualification,type LocalMessagingResult} from "@workspace-skills/system-testing/local-messaging-contract";
 import {localMessagingQualificationCode,localMessagingTeacherCode} from "./local-messaging-teacher.js";
-import {ownedOperationsInputSchema,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
-import {ownedOperationsTeacherCode} from "./owned-operations-teacher.js";
+import {ownedDossierQualificationInput,ownedOperationsInputSchema,type OwnedDossierQualificationInput,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
+import {ownedOperationsTeacherCode, qualifyHeldReleaseDossierCode} from "./owned-operations-teacher.js";
 import { contentProjectTeacherInputSchema, contentProjectInputSchema, type ContentProjectTeacherInput, type ContentProjectInput, type ContentProjectResult, type ContentProjectReceiver } from "@workspace-skills/system-testing/content-project-contract";
 import { createVcsClient } from "@workspace/runtime/vcs-client";
 import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
@@ -772,6 +772,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runOwnedOperationsTeacher(input:OwnedOperationsInput):Promise<OwnedOperationsResult> {
     const selected=ownedOperationsInputSchema.parse(input);
     return await this.runHarnessUtility("teacher",runId=>ownedOperationsTeacherCode(selected,runId)) as OwnedOperationsResult;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Verify a held release dossier using live worker and VCS readbacks."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyHeldReleaseDossier(input:OwnedDossierQualificationInput):Promise<Omit<OwnedOperationsResult,"teacher">> {
+    const selected=ownedDossierQualificationInput.parse(input);
+    return await this.runHarnessUtility("teacher",qualifyHeldReleaseDossierCode(selected)) as Omit<OwnedOperationsResult,"teacher">;
   }
 
   @rpc({website:{kind:"closed",reason:"Runs the authored content-project workflow in one owned context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

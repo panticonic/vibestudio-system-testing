@@ -1,7 +1,7 @@
 import {ownedContentDependencyCode} from "./owned-operations-dependency.js";
 import { describe, expect, it } from "vitest";
 import { parse } from "@babel/parser";
-import { ownedOperationsTeacherCode } from "./owned-operations-teacher.js";
+import { ownedOperationsTeacherCode, qualifyHeldReleaseDossierCode } from "./owned-operations-teacher.js";
 import { ownedOperationsInputSchema } from "@workspace-skills/system-testing/owned-operations-contract";
 import { ownedOperationsWorlds, ownedOperationsComposedWorlds } from "@workspace-skills/system-testing/owned-operations-worlds";
 describe("owned operational scenario boundary", () => {
@@ -20,13 +20,19 @@ describe("owned operational scenario boundary", () => {
 });
 
 describe("composed operations and content prerequisite",()=>{
- it("binds both real skill services and reversed typed work without private expected inputs",()=>{
-  const world=ownedOperationsComposedWorlds[0]!;
+ it.each(ownedOperationsComposedWorlds)("binds both real skill services and typed work for $id",world=>{
   const code=ownedOperationsTeacherCode({contextId:"owned-context",caseId:world.id,executorModel:"provider:teacher"},"joint-run");
   expect(()=>parse(code,{sourceType:"module",allowAwaitOutsideFunction:true,plugins:["typescript"]})).not.toThrow();
   expect(code).toContain("const assignedServices={ownedOperations:dependency.service,projectWorkspace:project,projectWorkspaceEdit:project}");
   expect(code).toContain("verifyContentProject(vcs");
   expect(code).toContain(JSON.stringify({goal:world.goal,work:[{kind:"deliverProject",input:world.content},{kind:"operate",input:world.operations.request}]}));
+  expect(code).toContain(`expectedRemaining=${JSON.stringify(world.heldReason ? [world.heldReason] : [])}`);
+  if (world.heldReason) {
+    const qualification = qualifyHeldReleaseDossierCode({contextId:"owned-context",caseId:world.id});
+    expect(()=>parse(qualification,{sourceType:"module",allowAwaitOutsideFunction:true,plugins:["typescript"]})).not.toThrow();
+    expect(qualification).not.toContain("captureModelTurns");
+    expect(qualification).toContain("await service.restart(handle)");
+  }
  });
  it("blocks early effects, stale reads and wrong outcomes; admits only ready read, cleanup, then exact effect order",async()=>{
   const expected={decision:"ready",roles:{release:{decisions:["blocked","ready"],evidenceIds:["gate"]}}};

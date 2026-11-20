@@ -5,8 +5,13 @@ import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestR
 import type { createOwnedOperations, verifyOwnedOperations } from "@workspace/natlang-services";
 export const ownedOperationsInputSchema = z.object({ contextId: z.string().min(1), caseId: z.enum([...ownedOperationsWorlds,...ownedOperationsComposedWorlds].map(world => world.id) as [string, ...string[]]), executorModel: z.string().regex(/^[^:]+:.+$/u) }).strict();
 export type OwnedOperationsInput = z.infer<typeof ownedOperationsInputSchema>;
+export const ownedDossierQualificationInput = ownedOperationsInputSchema.pick({ contextId: true, caseId: true });
+export type OwnedDossierQualificationInput = z.infer<typeof ownedDossierQualificationInput>;
 export type OwnedOperationsAudit = ReturnType<ReturnType<typeof createOwnedOperations>["audit"]>;
 export type OwnedOperationsVerification = ReturnType<typeof verifyOwnedOperations>;
 export type OwnedOperationsResult = { teacher: PanelTeacherResult & { trainingEligible: boolean; captureErrors: string[]; executionError: unknown }; world: { kind: "owned-operations"; contextId: string; caseId: string; request: unknown }; verification: OwnedOperationsVerification; audit: OwnedOperationsAudit; cleanupErrors: string[]; composition?: {world:unknown;contentWorld:unknown;verification:{passed:boolean;checks:Record<string,boolean>};contentVerification:unknown;dependencyAudit:unknown} };
-export interface OwnedOperationsReceiver { runOwnedOperationsTeacher(input: OwnedOperationsInput): Promise<OwnedOperationsResult>; }
-export const ownedOperationsRpcMethods = createReceiverRpcMethods<OwnedOperationsReceiver>(["runOwnedOperationsTeacher"]);
+export interface OwnedOperationsReceiver {
+  runOwnedOperationsTeacher(input: OwnedOperationsInput): Promise<OwnedOperationsResult>;
+  qualifyHeldReleaseDossier(input: OwnedDossierQualificationInput): Promise<Omit<OwnedOperationsResult, "teacher">>;
+}
+export const ownedOperationsRpcMethods = createReceiverRpcMethods<OwnedOperationsReceiver>(["runOwnedOperationsTeacher", "qualifyHeldReleaseDossier"]);

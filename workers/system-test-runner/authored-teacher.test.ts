@@ -162,3 +162,44 @@ it("uses the same mounted operation check during model-free qualification", asyn
   await expect(run("reviewAuthority")).resolves.toEqual({passed:true});
   await expect(run("planAuthorityReview")).rejects.toThrow("no mounted callable capabilities/reviewAuthority");
 });
+
+it("captures a completed prerequisite and explicit hold without admitting the dependent call", async () => {
+  const reason = "Release dossier held for security-signoff.";
+  const generated = composedTeacherCode({
+    executorModel: "provider:teacher",
+    workflowRequest: { goal: "Commit the dossier only after a ready release", work: [
+      { kind: "deliverProject", input: { goal: "Prepare a dossier" } },
+      { kind: "operate", input: { goal: "Check current release gates" } },
+    ] },
+    bindingCode: "const assignedServices = {};",
+    requiredOrder: ["operate"],
+    heldAssignments: { deliverProject: reason },
+  }, "hold-run");
+  const execute = new AsyncFunction("natlang", generated + "\nreturn utilityValue;");
+  const run = (remaining: string[], children: string[]) => execute({
+    captureModelTurns() {},
+    load: async () => async () => ({
+      results: [{ kind: "operate", report: { decision: "blocked" } }],
+      remaining,
+    }),
+    calls: async ({ after }: { after?: string }) => after ? [] : [
+      { callId: "runWorkflow", parentCallId: null },
+      ...children.map((callId) => ({ callId, parentCallId: "runWorkflow" })),
+    ],
+    trace: async (callId: string) => ({
+      callId,
+      summary: { run_id: "hold-run", owner_key: "owner", owner_kind: "test" },
+      record: {
+        call_id: callId,
+        parent_call_id: callId === "runWorkflow" ? null : "runWorkflow",
+        definition: { name: callId },
+        outcome: "done",
+        started_at: "2026-11-20T12:00:00Z",
+        ended_at: "2026-11-20T12:00:01Z",
+      },
+    }),
+  });
+  expect((await run([reason], ["operate"])).trainingEligible).toBe(true);
+  expect((await run([], ["operate"])).trainingEligible).toBe(false);
+  expect((await run([reason], ["operate", "deliverProject"])).trainingEligible).toBe(false);
+});

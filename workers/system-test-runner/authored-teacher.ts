@@ -95,6 +95,7 @@ type ComposedTeacherOptions = {
   workflowRequest: { goal: string; work: Assignment[] };
   bindingCode: string;
   requiredOrder?: string[];
+  heldAssignments?: Record<string, string>;
   requestCode?: string;
 };
 
@@ -115,38 +116,47 @@ function captureWorkflow(
   const domains = options.workflowRequest.work
     .filter((item): item is DomainAssignment => item.kind === "domain")
     .map(({ domain, operation }) => ({ domain, operation }));
-  const expected = options.workflowRequest.work
+  const assigned = options.workflowRequest.work
     .map((item) => (item.kind === "domain" ? item.operation : item.kind))
     .sort();
-  const expectedAssignments = options.workflowRequest.work
-    .map((item) =>
-      item.kind === "domain" ? item.domain + "/" + item.operation : item.kind,
-    )
-    .sort();
+  const assignmentKey = (item: Assignment) =>
+    item.kind === "domain" ? item.domain + "/" + item.operation : item.kind;
+  const held = Object.entries(options.heldAssignments ?? {});
+  const active = options.workflowRequest.work.filter(
+    (item) => !held.some(([name]) => name === assignmentKey(item)),
+  );
+  const expected = active.map((item) => item.kind === "domain" ? item.operation : item.kind).sort();
+  const expectedAssignments = active.map(assignmentKey).sort();
+  const expectedRemaining = held.map(([, reason]) => reason).sort();
   if (
     !expected.length ||
-    new Set(expected).size !== expected.length ||
+    new Set(assigned).size !== assigned.length ||
+    held.length !== assigned.length - expected.length ||
+    expectedRemaining.some((reason) => !reason.trim()) ||
+    new Set(expectedRemaining).size !== expectedRemaining.length ||
     (options.requiredOrder &&
       JSON.stringify([...options.requiredOrder].sort()) !==
         JSON.stringify(expected))
   )
     throw new Error(
-      "Declare one assignment per required skill and order only those skills",
+      "Declare unique assignments and holds, and order only the skills that must run",
     );
   return `
 ${options.bindingCode}
       natlang.captureModelTurns({executorModel:${JSON.stringify(options.executorModel)}});
       const programPath="skills/vibestudio-workflows/runWorkflow.nl";
       const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
+      const expectedRemaining=${JSON.stringify(expectedRemaining)};
       let report=null, executionError=null;
       try {
         const root=await natlang.load(programPath,{services:assignedServices});
         ${requireMountedDomains(domains)}
         const workflow=await root(${requestCode});
         const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
-        if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) || workflow.remaining.length!==0 ||
+        if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) ||
+           JSON.stringify([...workflow.remaining].sort())!==JSON.stringify(expectedRemaining) ||
            (requiredOrder && JSON.stringify(workflow.results.map(result=>result.kind==="domain"?result.operation:result.kind))!==JSON.stringify(requiredOrder)))
-          throw new Error("The shared workflow did not return the assigned skills' completed results");
+          throw new Error("The shared workflow did not return the required results and holds");
         report=${single ? "workflow.results[0].report" : "workflow"};
       } catch(error) {
         executionError={name:error instanceof Error?error.name:"ThrownValue",message:error instanceof Error?error.message:String(error)};
