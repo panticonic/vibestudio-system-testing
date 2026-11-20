@@ -105,6 +105,7 @@
     "./open-goal-managed": "./open-goal-managed.ts",
     "./open-goal-operator-managed": "./open-goal-operator-managed.ts",
     "./open-goal-recovery-managed": "./open-goal-recovery-managed.ts",
+    "./open-goal-publication-managed": "./open-goal-publication-managed.ts",
     "./open-goal-worlds": "./open-goal-worlds.ts",
     "./web-brief-worlds": "./web-brief-worlds.ts",
     "./architecture-boundary-managed": "./architecture-boundary-managed.ts",

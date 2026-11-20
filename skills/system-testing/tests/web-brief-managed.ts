@@ -3,7 +3,7 @@ import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
-import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds, operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, spectroliteGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
+import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds, operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, suiteGoalWorlds } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
 import { newsAuthority } from "./news-managed.js";
@@ -77,7 +77,8 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds, ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds];
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
+  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority: Pick<AgentExecutionTestPolicySpec, "authority"> = {
@@ -120,6 +121,17 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
     workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "publication" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "skills/publication-revision-bindings"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-publication", world.targets.some(target => target.journal) ? [{
+      ruleId: "seed-disposable-publication-journal",
+      capability: { kind: "exact", key: "website.publish" },
+      resource: { kind: "prefix", prefix: "managed-publication-" },
+      tier: "critical", decision: "once",
+    }] : []),
+    workspaceRepoFixture: { kind: "open-goal-publication-panel", section: "panels", caseId: world.id },
+  } : {}),
   ...(world.kind in templateSettings
     ? templateSettings[world.kind as keyof typeof templateSettings] : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
@@ -132,6 +144,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
+    world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {

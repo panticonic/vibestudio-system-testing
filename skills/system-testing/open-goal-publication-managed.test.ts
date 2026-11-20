@@ -123,3 +123,14 @@ it("uses both the current preview and the immutable older package for a compound
   expect(proof.observations.revision?.reviewed.artifactDigest).toBe(proof.artifact.prior);
   expect(proof.artifact.prior).not.toBe(proof.artifact.current);
 });
+
+
+it.each(publicationGoalWorlds.map(({ id }) => id))("checks the reference outcome for %s", async (caseId) => {
+  const prepared = await prepare(caseId);
+  const proof = await prepared.qualify();
+  expect(proof.checks).toEqual(expect.objectContaining({
+    choseExactReview: true, boundWebsiteReadback: true, exactPreflight: true, exactRevision: true,
+    localJournalUnchanged: true, protectedHeads: true,
+  }));
+  expect(proof.passed).toBe(true);
+});

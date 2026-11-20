@@ -43,7 +43,8 @@ import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-wor
 import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { openGoalMethods } from "./open-goal-managed.js";
 import type { NewsInput } from "./news-contract.js";
-import { newsGoalWorlds, spectroliteGoalWorlds } from "./open-goal-worlds.js";
+import { newsGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds } from "./open-goal-worlds.js";
+import { seedOpenPublicationGoal } from "./open-goal-publication-managed.js";
 import { openSpectrolitePanel, openSpectroliteVault } from "./open-goal-spectrolite-worlds.js";
 import { seedOpenSpectroliteGoal } from "./open-goal-spectrolite-seed.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
@@ -2201,6 +2202,23 @@ export class HeadlessRunner {
     }
   }
   async runOpenGoal(caseId: string, signal: AbortSignal, qualification = false) {
+    if (publicationGoalWorlds.some(({ id }) => id === caseId)) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "open-goal-publication-panel" || fixture.caseId !== caseId ||
+          !fixture.repoName || !contextId)
+        throw new Error("The publishing goal needs its owned website fixture");
+      const source = `panels/${fixture.repoName}`;
+      const reviewedRef = await seedOpenPublicationGoal({ contextId, caseId, source });
+      const panel = await this.openPanelClient(source, {
+        contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
+      });
+      try {
+        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+          { contextId, caseId, panelId: panel.id, source, reviewedRef, executorModel: this.modelRef, qualification },
+        ], { signal });
+      } finally { await panel.archive(); }
+    }
     if (newsGoalWorlds.some(({ id }) => id === caseId))
       return this.withOwnedNews(caseId, signal, (owner, news) =>
         rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [

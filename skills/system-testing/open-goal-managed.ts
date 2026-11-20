@@ -9,7 +9,7 @@ import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import type { NewsInput } from "./news-contract.js";
 
-type Input = { contextId: string; caseId: string; panelId?: string; source?: string };
+type Input = { contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}` };
 type ResearchReport = {
   status: string;
   research?: {
