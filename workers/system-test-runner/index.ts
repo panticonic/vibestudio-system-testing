@@ -1,3 +1,4 @@
+import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remote-route-managed";
 import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
@@ -2316,6 +2317,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Android audit belongs to another context");
       const prepared=await prepareManagedAndroidAudit(input,listAndroidAuditDevices,bindAndroidRuntimeAudit);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Verifies the assigned live gateway identity."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async runRemoteRouteTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<RemoteRouteReceiver["runRemoteRouteTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"remoteAccess",operation:"reviewRemoteRoute",input:{goal:"Review the assigned workspace gateway"}},
+      inputCode: "prepared.request",
+      bindingCode: this.remoteRouteBindings(input),
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<RemoteRouteReceiver["runRemoteRouteTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the actual gateway identity review without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyRemoteRoute(input: {contextId:string;caseId:string}): ReturnType<RemoteRouteReceiver["qualifyRemoteRoute"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"remoteAccess",operation:"reviewRemoteRoute"}], this.remoteRouteBindings(input),
+    )) as Awaited<ReturnType<RemoteRouteReceiver["qualifyRemoteRoute"]>>;
+  }
+
+  private remoteRouteBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareRemoteRoute} from "@workspace-skills/system-testing/remote-route-managed";
+      const prepared=await prepareRemoteRoute(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
       const assignedServices=prepared.services;
     `;
   }
