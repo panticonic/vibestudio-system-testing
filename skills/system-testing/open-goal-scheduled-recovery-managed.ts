@@ -1,12 +1,12 @@
 import { isDeepStrictEqual } from "node:util";
 import { createMissionsClient, type MissionRpc } from "@vibestudio/service-schemas/clients/missionsClient";
 import { MISSION_REVISION_CHANGED, missionRevisionDigest } from "@vibestudio/automation/mission";
-import { AGENTIC_EVENT_PAYLOAD_KIND, type AgenticEvent } from "@workspace/agentic-protocol";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import { contextId as activeContext, rpc } from "@workspace/runtime";
 import type { Change, DecisionRecord, Lane, Receipt, Resolution, Schedule, ScheduledOutcome, Submission } from
   "@workspace-skills/open-owned-scheduled-recovery/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
+import { readScheduledLaneReceipts } from "./scheduled-recovery-replay.js";
 import type { ScheduledRecoveryWorld } from "./open-goal-scheduled-recovery-worlds.js";
 
 type Missions = ReturnType<typeof createMissionsClient>;
@@ -108,19 +108,7 @@ export async function seedOwnedScheduledRecovery(rpc: MissionRpc, world: Schedul
 
 async function replay(input: { contextId: string }, native: NativeChannel, transport = rpc): Promise<Receipt[]> {
   const page = await transport.call(native.target, channelClientRpcMethods.getReplayAfter, [{ after: 0, limit: 100 }]);
-  if (page.mode !== "after" || page.ready.contextId !== input.contextId || page.ready.hasMoreAfter ||
-      page.ready.snapshotLastSeq === undefined)
-    throw new Error("Could not attest the complete retained local lane");
-  return page.logEvents.flatMap(entry => {
-    if (entry.type !== AGENTIC_EVENT_PAYLOAD_KIND) return [];
-    const event = entry.payload as AgenticEvent<"message.completed"> | undefined;
-    if (event?.kind !== "message.completed" || !("role" in event.payload) || event.payload.role !== "user") return [];
-    const messageId = event.causality?.messageId;
-    if (!messageId || entry.senderId !== transport.selfId)
-      throw new Error("Unexpected retained message author or missing message identity");
-    const text = (event.payload.blocks ?? []).flatMap(block => block.type === "text" ? [block.content] : []).join("");
-    return [{ messageId, text, lane: native.key, sender: entry.senderId, sequence: entry.id }];
-  });
+  return readScheduledLaneReceipts(page, input.contextId, native.key, transport.selfId);
 }
 
 function changeMatches(schedule: Schedule, change: Change) {
