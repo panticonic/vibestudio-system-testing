@@ -118,7 +118,7 @@ import {
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
-  openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
+  openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3742,7 +3742,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const providerHandoff = providerHandoffWorlds.some(({ id }) => id === input.caseId);
     const problemReport = openProblemReportWorlds.some(({ id }) => id === input.caseId);
     const buildIncident = openBuildIncidentWorlds.find(({ id }) => id === input.caseId);
-    const prepare = buildIncident
+    const localWidth = openLocalWidthWorlds.find(({ id }) => id === input.caseId);
+    const prepare = localWidth
+      ? `import {fs,rpc,vcs} from "@workspace/runtime";
+         import {prepareLocalWidthGoal} from "@workspace-skills/system-testing/open-goal-local-width-managed";
+         import {readWorkspaceBytes} from "@workspace-skills/system-testing/scratch-handoff-managed";
+         const prepared=await prepareLocalWidthGoal(input,${JSON.stringify(localWidth)},
+           {contextId:actualContextId,fs,vcs,readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+      : buildIncident
       ? `import {fs,rpc,vcs,blobstore} from "@workspace/runtime";
          import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
          import {profileBuild} from "@workspace/testkit";

@@ -17,6 +17,7 @@ import {
   openLocalDeliveryWorlds, localDeliveryRequiresUnits,
   openUnitRolloutWorlds, unitRolloutRequiresUnits,
   openBuildIncidentWorlds, buildIncidentRequiresUnits,
+  openLocalWidthWorlds, openLocalWidthRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
   capabilityPlanRequiresUnits, capabilityPlanWorlds,
   openAssemblyRequiresUnits, openAssemblyWorlds,
@@ -105,7 +106,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -126,6 +127,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  "local-width": { requiresUnits: openLocalWidthRequiresUnits },
   "provider-handoff": { requiresUnits: providerHandoffRequiresUnits },
   "problem-report": { requiresUnits: problemReportRequiresUnits },
   "capability-plan": { requiresUnits: capabilityPlanRequiresUnits },
@@ -323,6 +325,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :
     world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :
     world.kind === "build-incident" ? "Reconcile a retained native build profile and exact source coordinates" :
+    world.kind === "local-width" ? "Reconcile current local model readiness with retained execution width evidence" :
     world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "unit-rollout" ? "Diagnose and verify an owned workspace unit with controlled local source rollout" :
