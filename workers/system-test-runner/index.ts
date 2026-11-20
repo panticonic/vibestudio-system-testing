@@ -30,6 +30,7 @@ import type { PublicationRevisionReceiver } from "@workspace-skills/system-testi
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
 import { seedGmailComposeChannel, type GmailComposeHistoryReceiver } from "@workspace-skills/system-testing/gmail-compose-history-managed";
+import { seedOpenGmailComposes } from "@workspace-skills/system-testing/open-goal-gmail-seed";
 import { gmailContinuationWork, managedGoogleSetupWorlds } from "@workspace-skills/system-testing/google-setup-worlds";
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
@@ -106,7 +107,10 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
-import { newsGoalWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds } from "@workspace-skills/system-testing/open-goal-worlds";
+import {
+  newsGoalWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds,
+  openGoalRecoveryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
+} from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
   createMainRpcCaller,
@@ -3674,7 +3678,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
     const publication = publicationGoalWorlds.some(({ id }) => id === input.caseId);
     const pdf = openGoalPdfWorlds.some(({ id }) => id === input.caseId);
-    const prepare = pdf
+    const gmail = openGoalGmailWorlds.find(({ id }) => id === input.caseId);
+    let gmailSeed;
+    if (gmail) {
+      const identity = await this.integrationFixtureIdentity();
+      if (identity.contextId !== input.contextId) throw new Error("Gmail goal belongs to another context");
+      gmailSeed = await seedOpenGmailComposes(this.rpc, input, identity.ownerEntityId, gmail.composes);
+    }
+    const prepare = gmail
+      ? `import {prepareOpenGmailGoal} from "@workspace-skills/open-gmail-goal/managed";
+         const prepared=await prepareOpenGmailGoal(input,${JSON.stringify(gmail)},${JSON.stringify(gmailSeed)});`
+      : pdf
       ? `import {prepareOpenPdfGoal} from "@workspace-skills/system-testing/open-goal-pdf-managed";
          const prepared=await prepareOpenPdfGoal(input);`
       : publication

@@ -3,7 +3,12 @@ import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
-import { browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds, operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds, publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld } from "../open-goal-worlds.js";
+import {
+  browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalGmailWorlds,
+  openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
+  operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
+  publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
+} from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
 import { newsAuthority } from "./news-managed.js";
@@ -78,7 +83,8 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
-  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds, ...openGoalPdfWorlds];
+  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
+  ...openGoalPdfWorlds, ...openGoalGmailWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -105,6 +111,7 @@ const templateSettings = {
     resources: [PANEL_AUTOMATION_RESOURCE],
   },
   google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
+  gmail: { requiresUnits: ["skills/open-user-goal", "skills/open-gmail-goal", "skills/gmail-compose-history-bindings", "packages/gmail", "workers/pubsub-channel"] },
   pdf: { requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest"] },
 };
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
@@ -142,6 +149,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
     world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
     world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
+    world.kind === "gmail" ? "Recover Gmail compose and delivery state from retained records and current provider readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :

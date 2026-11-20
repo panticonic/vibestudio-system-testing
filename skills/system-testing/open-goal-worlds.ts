@@ -8,6 +8,7 @@ export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 export { newsGoalWorlds, newsGoalRequiresUnits, openNewsChecks } from "./open-goal-news-worlds.js";
 export { spectroliteGoalWorlds } from "./open-goal-spectrolite-worlds.js";
 export { openGoalGoogleWorlds } from "./open-goal-google-worlds.js";
+export { openGoalGmailWorlds } from "./open-goal-gmail-worlds.js";
 
 export const openGoalWorlds = [
   {
