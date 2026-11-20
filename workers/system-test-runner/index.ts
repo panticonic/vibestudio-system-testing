@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  capabilityPlanWorlds,
+  capabilityPlanWorlds, openGoalGitHubWorlds,
   openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3685,6 +3685,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
+    const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
     const vaultKnowledge = openVaultKnowledgeWorlds.find(({ id }) => id === input.caseId);
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
@@ -3766,6 +3767,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {prepareOpenClientDiagnostics} from "@workspace-skills/system-testing/open-goal-client-diagnostics-managed";
          if (!input.source || !input.clientPanels) throw new Error("Client diagnostics needs its owned local panels");
          const prepared=await prepareOpenClientDiagnostics(input,${JSON.stringify(clientDiagnostics)});`
+      : githubWork
+      ? `import {prepareOpenGitHub} from "@workspace-skills/github/open-github-managed";
+         const prepared=await prepareOpenGitHub(${JSON.stringify(githubWork)});`
       : visualRecovery
       ? `import {prepareOpenPanelRecovery} from "@workspace-skills/system-testing/open-goal-panel-recovery-managed";
          if (!input.source || !input.recoveryPanels) throw new Error("Visual recovery needs its owned live surfaces");

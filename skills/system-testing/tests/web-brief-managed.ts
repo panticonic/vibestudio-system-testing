@@ -1,6 +1,7 @@
 import { openVaultKnowledgeWorlds } from "../open-goal-vault-knowledge-worlds.js";
 import { openGoalGoogleSetupWorlds, googleSetupRequiresUnits } from "../open-goal-google-setup-worlds.js";
 import { openClientDiagnosticsWorlds, clientDiagnosticsRequiresUnits } from "../open-goal-client-diagnostics-worlds.js";
+import { openGoalGitHubWorlds, githubOpenRequiresUnits, githubOpenAuthority } from "../open-goal-github-worlds.js";
 import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
 import { openGoalOwnedPreviewWorlds } from "../open-goal-owned-preview-worlds.js";
 import type { TestCase } from "../types.js";
@@ -101,7 +102,7 @@ const referenceGoals = [...openGoalWorlds, ...capabilityPlanWorlds, ...openOwned
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -132,6 +133,7 @@ const templateSettings = {
   },
   "personal-history": { requiresUnits: personalHistoryRequiresUnits },
   browserMigration: { requiresUnits: browserMigrationRequiresUnits },
+  githubWork: { requiresUnits: githubOpenRequiresUnits, authorityPolicy: { authority: githubOpenAuthority } },
   "personal-automation": {
     requiresUnits: personalAutomationRequiresUnits,
     authorityPolicy: { authority: personalAutomationAuthority },
@@ -271,6 +273,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "google-handoff" ? "Reconcile retained Gmail decisions with the current linked Drive assets" :
     world.kind === "personal-artifacts" ? "Resolve current browser library and collection state within an owned workspace" :
     world.kind === "browserMigration" ? "Review live browser import authority, owner receipts, and collection handoff" :
+    world.kind === "githubWork" ? "Review the owned local Git checkout and current GitHub owner authority" :
     world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
