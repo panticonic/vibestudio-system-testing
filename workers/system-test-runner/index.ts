@@ -30,6 +30,8 @@ import { gmailContinuationWork, managedGoogleSetupWorlds } from "@workspace-skil
 import type { ExplorerProbeInput, ExplorerProbeReceiver } from "@workspace-skills/system-testing/explorer-probe-managed";
 import type { TourRehearsalInput, TourRehearsalReceiver } from "@workspace-skills/system-testing/tour-rehearsal-managed";
 import type { BuildPerformanceInput, BuildPerformanceReceiver } from "@workspace-skills/system-testing/build-performance-managed";
+import type { ManagedLogHandoffReceiver } from "@workspace-skills/system-testing/log-handoff-managed";
+import { managedLogHandoffWorlds } from "@workspace-skills/system-testing/log-handoff-worlds";
 import type { ManagedLogCursorReceiver } from "@workspace-skills/system-testing/log-cursor-managed";
 import { managedLogCursorWorlds } from "@workspace-skills/system-testing/log-cursor-worlds";
 import { evalRecoveryProbeCode, type ManagedEvalRecoveryReceiver } from "@workspace-skills/system-testing/eval-recovery-managed";
@@ -168,6 +170,7 @@ export type {
 } from "@vibestudio/service-schemas/systemTestRunner";
 
 const managedDomainWork = {
+  LogHandoff: {kind:"domain",domain:"serverLogs",operation:"reviewHostLogHandoff",input:{goal:"Compare the assigned host-log windows"}},
   LogCursor: {kind:"domain",domain:"serverLogs",operation:"reviewLogCursor",input:{goal:"Review the assigned saved log cursor"}},
   EvalRecovery: {kind:"domain",domain:"evalRecovery",operation:"reviewEvalRecovery",input:{goal:"Review the assigned eval attempt"}},
   PdfLayout: {kind:"domain",domain:"pdfIntake",operation:"reviewPdfLayout",input:{goal:"Review the assigned PDF layout"}},
@@ -3042,6 +3045,43 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const input=${JSON.stringify(input)};
       if(actualContextId!==input.contextId) throw new Error("Host log cursor review belongs to another context");
       const prepared=prepareManagedLogCursor(input,${JSON.stringify(seed)},bindServerLogCursor);
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Captures the assigned host log handoff."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedLogHandoffTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedLogHandoffReceiver["runManagedLogHandoffTeacher"]> {
+    const bindings=await this.managedLogHandoffBindings(input);
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:managedDomainWork.LogHandoff,
+      inputCode:"prepared.request",
+      bindingCode:bindings,
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedLogHandoffReceiver["runManagedLogHandoffTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies host log handoff without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedLogHandoff(input: {contextId:string;caseId:string}): ReturnType<ManagedLogHandoffReceiver["qualifyManagedLogHandoff"]> {
+    const bindings=await this.managedLogHandoffBindings(input);
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [managedDomainWork.LogHandoff],
+      bindings,
+    )) as Awaited<ReturnType<ManagedLogHandoffReceiver["qualifyManagedLogHandoff"]>>;
+  }
+
+  private async managedLogHandoffBindings(input: {contextId:string;caseId:string}): Promise<string> {
+    const world=managedLogHandoffWorlds.find(({id})=>id===input.caseId);
+    if (!world) throw new Error("Unknown assigned host-log handoff");
+    const lines=[...world.earlier,...world.later].flatMap(({line,repeat})=>Array<string>(repeat).fill(line));
+    const seed=await this.seedAssignedHostLog(input.contextId, lines);
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedLogHandoff} from "@workspace-skills/system-testing/log-handoff-managed";
+      const input=${JSON.stringify(input)};
+      if(actualContextId!==input.contextId) throw new Error("Host log handoff belongs to another context");
+      const prepared=prepareManagedLogHandoff(input,${JSON.stringify(seed)});
       const assignedServices=prepared.services;
     `;
   }

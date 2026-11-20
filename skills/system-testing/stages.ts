@@ -10,6 +10,7 @@ import { managedGmailComposeHistoryTests } from "./tests/gmail-compose-history-m
 import { managedExplorerProbeTests } from "./tests/explorer-probe-managed.js";
 import { managedTourRehearsalTests } from "./tests/tour-rehearsal-managed.js";
 import { managedBuildPerformanceTests } from "./tests/build-performance-managed.js";
+import { managedLogHandoffTests } from "./tests/log-handoff-managed.js";
 import { managedLogCursorTests } from "./tests/log-cursor-managed.js";
 import { managedEvalRecoveryTests } from "./tests/eval-recovery-managed.js";
 import { managedPdfMediaTests } from "./tests/pdf-media-managed.js";
@@ -251,6 +252,7 @@ export function allTests(): TestCase[] {
   ...managedClientAdmissionTests,
   ...managedReleaseReviewHandoffTests,
   ...managedLogCursorTests,
+  ...managedLogHandoffTests,
   ...managedBuildPerformanceTests,
   ...managedTourRehearsalTests,
   ...managedExplorerProbeTests,

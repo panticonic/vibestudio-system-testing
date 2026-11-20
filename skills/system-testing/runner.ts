@@ -25,6 +25,7 @@ import { explorerProbeMethods } from "./explorer-probe-managed.js";
 import { tourRehearsalMethods } from "./tour-rehearsal-managed.js";
 import { tourRehearsalWorlds } from "./tour-rehearsal-worlds.js";
 import { buildPerformanceMethods } from "./build-performance-managed.js";
+import { managedLogHandoffMethods } from "./log-handoff-managed.js";
 import { managedLogCursorMethods } from "./log-cursor-managed.js";
 import { managedEvalRecoveryMethods } from "./eval-recovery-managed.js";
 import { managedPdfLayoutMethods } from "./pdf-layout-managed.js";
@@ -1891,6 +1892,20 @@ export class HeadlessRunner {
       return qualification
         ? { kind: "reference" as const, result: await rpc.call(owner, managedLogCursorMethods.qualifyManagedLogCursor, [input], { signal }) }
         : { kind: "teacher" as const, result: await rpc.call(owner, managedLogCursorMethods.runManagedLogCursorTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedLogHandoff(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedLogHandoffMethods.qualifyManagedLogHandoff, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedLogHandoffMethods.runManagedLogHandoffTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

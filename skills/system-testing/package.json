@@ -78,6 +78,8 @@
     "./tour-rehearsal-worlds": "./tour-rehearsal-worlds.ts",
     "./tour-rehearsal-managed": "./tour-rehearsal-managed.ts",
     "./build-performance-managed": "./build-performance-managed.ts",
+    "./log-handoff-managed": "./log-handoff-managed.ts",
+    "./log-handoff-worlds": "./log-handoff-worlds.ts",
     "./log-cursor-managed": "./log-cursor-managed.ts",
     "./eval-recovery-managed": "./eval-recovery-managed.ts",
     "./pdf-media-managed": "./pdf-media-managed.ts",
