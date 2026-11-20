@@ -23,6 +23,7 @@ import {
   compoundRecoveryRequiresUnits, openCompoundRecoveryWorlds,
   providerHandoffRequiresUnits, providerHandoffWorlds,
   openProblemReportWorlds, problemReportRequiresUnits,
+  openTemplateMigrationRequiresUnits, openTemplateMigrationWorlds,
   openOwnedResearchWorlds, openTerminalRequiresUnits, openTerminalWorlds,
   openReconciliationWorlds, reconciliationRequiresUnits,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
@@ -104,7 +105,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -129,6 +130,7 @@ const templateSettings = {
   "problem-report": { requiresUnits: problemReportRequiresUnits },
   "capability-plan": { requiresUnits: capabilityPlanRequiresUnits },
   "workspace-assembly": { requiresUnits: openAssemblyRequiresUnits },
+  templateMigration: { requiresUnits: openTemplateMigrationRequiresUnits },
   "terminal-handoff": { requiresUnits: openTerminalRequiresUnits },
   "local-reconciliation": { requiresUnits: reconciliationRequiresUnits },
   "compound-recovery": { requiresUnits: compoundRecoveryRequiresUnits },
@@ -268,6 +270,12 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   } : {}),
   ...(world.kind in templateSettings
     ? templateSettings[world.kind as keyof typeof templateSettings] : {}),
+  ...(world.kind === "templateMigration" && world.authority ? { authorityPolicy: { authority: [{
+    ruleId: "prepare-owned-template-migration",
+    capability: { kind: "prefix" as const, prefix: "userland:extensions/templates/workspace.templates.update#" },
+    resource: { kind: "exact" as const, key: "workspace.templates:extension:@workspace-extensions/templates" },
+    tier: "gated" as const, decision: "once" as const,
+  }] } } : {}),
   ...(world.kind === "terminal-handoff" ? { authorityPolicy: { authority: [
     { ruleId: "launch-assigned-release-checklist", capability: { kind: "exact" as const, key: "terminal-apps.run" },
       resource: { kind: "exact" as const, key: "terminal-app:terminal-apps/release-checklist" }, tier: "gated" as const, decision: "task" as const },
@@ -309,6 +317,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "eval-handoff" ? "Recover original EvalDO receipts and authorized workspace handoffs" :
     world.kind === "capability-plan" ? "Plan against current callable interfaces and load relevant installed knowledge" :
     world.kind === "workspace-assembly" ? "Resolve a package assembly and verify the exact revision and local build evidence" :
+    world.kind === "templateMigration" ? "Review an exact template migration against the protected installation and local evidence" :
     world.kind === "terminal-handoff" ? "Work from live release checklist state and independently verified terminal receipts" :
     world.kind === "program-run" ? "Run authorized current programs with independent native output and signed receipts" :
     world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :

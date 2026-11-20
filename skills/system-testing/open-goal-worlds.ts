@@ -160,3 +160,5 @@ export type PublicResearchWorld = Extract<(typeof openGoalWorlds)[number], { kin
 export function publicSourceOrigins(world: PublicResearchWorld): string[] {
   return [...new Set(world.required.flatMap(({ host }) => [`https://${host}`, `https://www.${host}`]))];
 }
+
+export { openTemplateMigrationWorlds, openTemplateMigrationRequiresUnits } from "./open-goal-template-migration-worlds.js";

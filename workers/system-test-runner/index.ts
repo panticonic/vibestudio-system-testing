@@ -116,7 +116,7 @@ import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goa
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
-  openAssemblyWorlds,
+  openAssemblyWorlds, openTemplateMigrationWorlds,
   providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3681,6 +3681,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
     const assembly = openAssemblyWorlds.some(({ id }) => id === input.caseId);
+    const templateMigration = openTemplateMigrationWorlds.some(({ id }) => id === input.caseId);
     const capabilityPlan = capabilityPlanWorlds.some(({ id }) => id === input.caseId);
     const ownedResearch = openOwnedResearchWorlds.some(({ id }) => id === input.caseId);
     const terminalHandoff = openTerminalWorlds.some(({ id }) => id === input.caseId);
@@ -3772,6 +3773,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : scheduledRecovery
       ? `import {prepareOwnedScheduledRecovery} from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
          const prepared=await prepareOwnedScheduledRecovery(input,${JSON.stringify(scheduledRecovery)},${JSON.stringify(scheduledSeed)});`
+      : templateMigration
+      ? `import {extensions,fs,rpc,vcs} from "@workspace/runtime";
+         import {templateUpdateReviewSchema, templateUpdateStatusSchema} from "@vibestudio/service-schemas/templates";
+         import {prepareOpenTemplateMigration} from "@workspace-skills/system-testing/open-goal-template-migration-managed";
+         const unit="@workspace-extensions/templates";
+         const readStatus=async method=>templateUpdateStatusSchema.parse(await extensions.invoke(unit,method,[]));
+         const candidate=async (method,params)=>templateUpdateReviewSchema.parse(await extensions.invoke(unit,method,[params]));
+         const prepared=await prepareOpenTemplateMigration(input,{contextId:actualContextId,fs,rpc,vcs,templates:{
+           updateStatus:()=>readStatus("updateStatus"), checkUpdates:()=>readStatus("checkUpdates"),
+           prepareUpdate:params=>candidate("prepareUpdate",params), reviewUpdate:params=>candidate("reviewUpdate",params),
+         }});`
       : assembly
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {prepareOpenWorkspaceAssembly} from "@workspace-skills/system-testing/open-goal-workspace-assembly-managed";

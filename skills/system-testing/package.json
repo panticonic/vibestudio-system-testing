@@ -119,6 +119,7 @@
     "./open-goal-capability-plan-managed": "./open-goal-capability-plan-managed.ts",
     "./open-goal-provider-handoff-managed": "./open-goal-provider-handoff-managed.ts",
     "./open-goal-workspace-assembly-managed": "./open-goal-workspace-assembly-managed.ts",
+    "./open-goal-template-migration-managed": "./open-goal-template-migration-managed.ts",
     "./open-goal-eval-handoff-managed": "./open-goal-eval-handoff-managed.ts",
     "./open-goal-pdf-vault-managed": "./open-goal-pdf-vault-managed.ts",
     "./open-goal-pdf-managed": "./open-goal-pdf-managed.ts",
