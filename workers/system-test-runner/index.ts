@@ -91,7 +91,12 @@ import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
-import { pauseManagedAutomationFixture, seedManagedAutomation } from "@workspace-skills/system-testing/automation-lifecycle-managed";
+import {
+  pauseManagedAutomationFixture,
+  retireOpenPersonalAutomation,
+  seedManagedAutomation,
+  seedOpenPersonalAutomation,
+} from "@workspace-skills/system-testing/automation-lifecycle-managed";
 import type { ManagedAutomationReceiver } from "@workspace-skills/system-testing/automation-lifecycle-contract";
 import { scratchHandoffInputSchema, scratchHandoffTeacherInputSchema, type ScratchHandoffInput, type ScratchHandoffTeacherInput, type ScratchHandoffReceiver } from "@workspace-skills/system-testing/scratch-handoff-contract";
 import { managedScratchWorlds } from "@workspace-skills/system-testing/scratch-handoff-worlds";
@@ -3698,6 +3703,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const personalAutomation = openPersonalAutomationWorlds.find(({ id }) => id === input.caseId);
     const diagnostics = openDiagnosticWorlds.find(({ id }) => id === input.caseId);
     const diagnosticsSeed = diagnostics ? await this.seedAssignedHostLog(input.contextId, diagnostics.lines) : null;
+    let automationSeed: Awaited<ReturnType<typeof seedOpenPersonalAutomation>> | undefined;
+    if (personalAutomation) {
+      const owner = await this.integrationFixtureIdentity();
+      if (owner.contextId !== input.contextId) throw new Error("Automation goal belongs to another context");
+      automationSeed = await seedOpenPersonalAutomation(this.rpc, personalAutomation);
+    }
     const prepare = programRun
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
@@ -3711,7 +3722,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          const prepared=await prepareOpenAuthoringGoal(input,${JSON.stringify(authoring)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path)});`
       : personalAutomation
       ? `import {prepareOpenPersonalAutomation} from "@workspace-skills/open-personal-automation-runtime";
-         const prepared=await prepareOpenPersonalAutomation(input,${JSON.stringify(personalAutomation)});`
+         const prepared=await prepareOpenPersonalAutomation(input,${JSON.stringify(personalAutomation)},${JSON.stringify(automationSeed)});`
       : ownedPreview
       ? `import {prepareOpenOwnedPreviewGoal} from "@workspace-skills/system-testing/open-goal-owned-preview-managed";
          if (!input.panelId || !input.source) throw new Error("An owned preview needs its original renderer");
@@ -3778,22 +3789,26 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         ${prepare}
         const assignedServices=prepared.services;
     `;
-    if (input.qualification) return await this.runHarnessUtility("teacher", `
-      ${bindingCode}
-      if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
-      let utilityValue;
-      try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
-      finally { await prepared.close?.(); }
-    `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-    return await this.runHarnessUtility("teacher", runId => `
-      ${bindingCode}
-      let result;
-      try {
-        ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "" }, runId)}
-        result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
-      } finally { await prepared.close?.(); }
-      const utilityValue=result;
-    `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+    try {
+      if (input.qualification) return await this.runHarnessUtility("teacher", `
+        ${bindingCode}
+        if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
+        let utilityValue;
+        try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
+        finally { await prepared.close?.(); }
+      `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      return await this.runHarnessUtility("teacher", runId => `
+        ${bindingCode}
+        let result;
+        try {
+          ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "" }, runId)}
+          result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+        } finally { await prepared.close?.(); }
+        const utilityValue=result;
+      `) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+    } finally {
+      if (automationSeed) await retireOpenPersonalAutomation(this.rpc, automationSeed.items);
+    }
   }
 
   @rpc({website:{kind:"closed",reason:"Hands off verified public research in an owned scratch context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
