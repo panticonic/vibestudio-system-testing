@@ -7,7 +7,7 @@ export type CapabilityPlanWorld = {
   sourceGroup: string;
   split?: "test";
   memo?: { title: string; text: string };
-  decision?: { reference: string; claims: RegExp[] };
+  decision: { reference: string; claims: RegExp[] };
   memoDisposition?: "current" | "stale" | "conflicting";
   steps: string[];
   knowledge?: SkillEvidence[];
@@ -72,12 +72,16 @@ const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
   },
   {
     id: "plan-call-contract-introspection",
+    decision: { reference: "Open the ID to determine whether it is currently visible, then fetch just the typed argument and return schema for that same ID.",
+      claims: [/visible|exist|available/iu, /schema/iu, /same (?:ID|entry)|that (?:ID|entry)|capability ID/iu] },
     sourceGroup: "vibestudio:catalog:typed-docs-introspection",
     goal: "Our SDK generator needs a read-only plan for checking whether a capability ID exists, followed by fetching only its JSON Schema. Identify the two live catalog calls the generator should use in order and show their exact argument names. Please don't generate files.",
     steps: ["docs.describe", "docs.getSchema"],
   },
   {
     id: "plan-visible-service-inventory",
+    decision: { reference: "Use the role-filtered service list for the number of services and the surface inventory for entry counts. The two totals measure different things.",
+      claims: [/service/iu, /surface/iu, /role|caller|visible/iu] },
     sourceGroup: "vibestudio:catalog:role-visible-service-inventory",
     goal: "I'm updating an onboarding note about the role we're currently using. Report the actual number of visible RPC services and the current per-surface entry counts. Include representative service names and identify the two catalog calls that would refresh those two different counts. No copy to the repo.",
     steps: ["docs.listServices", "docs.listSurfaces"],
@@ -85,12 +89,16 @@ const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
   },
   {
     id: "plan-installed-knowledge-discovery",
+    decision: { reference: "Choose from the current installed index and pass the canonical directory path of that entry to the read call. Use the verified ambient context.",
+      claims: [/directory|dirPath|canonical/iu, /context|workspace/iu] },
     sourceGroup: "vibestudio:catalog:ambient-skill-index-lookup",
     goal: "We are writing an internal workspace assistant that has to choose a repo-installed skill and then read the exact guide without guessing its location. How should it enumerate installed skills and fetch the selected Markdown in this context? Include the live call IDs and their parameter names.",
     steps: ["workspace.listSkills", "workspace.readSkill"],
   },
   {
     id: "hold-archive-verifier-plan",
+    decision: { reference: "The exact verifier shiftArchive.verifyPackedNote returned no description for this role. The checklist depends on it, so hold the plan.",
+      claims: [/verifyPackedNote/iu, /role|caller|workspace/iu, /hold|block|unavailable|absent/iu] },
     sourceGroup: "vibestudio:catalog:required-obsolete-archive-verifier",
     goal: "A migration acceptance checklist explicitly requires shiftArchive.verifyPackedNote. Check whether that exact method is available in this workspace role. If it isn't, stop and give us the blocker instead of substituting a different verifier. No changes or handoff.",
     steps: [],
@@ -98,6 +106,8 @@ const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
   },
   {
     id: "hold-required-installed-runbook",
+    decision: { reference: "The required facilities-release-approver skill is absent from the installed workspace index. The onboarding plan depends on it and must wait.",
+      claims: [/facilities-release-approver/iu, /installed|index|inventory/iu, /absent|missing|unavailable|depend|wait/iu] },
     sourceGroup: "vibestudio:catalog:missing-local-facilities-runbook",
     goal: "The city onboarding contract requires an installed skill called facilities-release-approver. Check this workspace's installed inventory. If the required guide is absent, tell me you can't finalize the plan. Don't reuse a similarly named skill and don't make files.",
     steps: [],
@@ -152,6 +162,8 @@ const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
   },
   {
     id: "hold-held-exact-credential-attestation",
+    decision: { reference: "A bounded byte read is supported. The exact printRoom.attestAccessibleCopy method is unavailable for this role, so the resulting plan is held.",
+      claims: [/byte/iu, /attestAccessibleCopy/iu, /hold|held|unavailable|block/iu] },
     sourceGroup: "vibestudio:catalog:held-unsupported-print-room-attestation",
     split: "test",
     goal: "Our print-room acceptance process requires printRoom.attestAccessibleCopy after an operator inspects the bytes. Identify the live read-only byte inspection call first, then check that precise attestation method. If it is unavailable in this role, give us a held plan with the supported part and the blocker. No file read or upload now.",

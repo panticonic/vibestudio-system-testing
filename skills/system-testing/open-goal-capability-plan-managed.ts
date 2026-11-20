@@ -248,7 +248,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         }),
       loadedInstalledKnowledge: valid && plan.knowledge.length === expectedKnow.length && freshKnowledge.every(Boolean),
       reconciledPlanningEvidence: valid && corrected &&
-        (assignment.decision?.claims.every(claim => claim.test(plan.rationale)) ?? true) &&
+        assignment.decision.claims.every(claim => claim.test(plan.rationale)) &&
         plan.memoDisposition === (assignment.memoDisposition ?? "none") &&
         isDeepStrictEqual(plan.overview, currentOverview) && isDeepStrictEqual(overview, currentOverview),
       respectedNegativeScope: valid && negative && exactNegative &&
@@ -303,7 +303,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       throw new Error(`Reference blocker is visible: ${missing.name}`);
     const plan: CapabilityPlan = {
       status: missing ? "hold" : "ready", steps, knowledge, missing: missing ? [missing] : [],
-      rationale: assignment.decision?.reference ?? "Use the observed callable contracts and stop when a required dependency is unavailable.",
+      rationale: assignment.decision.reference,
       memoDisposition: assignment.memoDisposition ?? "none",
       overview: assignment.inventory ? await services.docPlanCatalog.overview() : null,
     };
