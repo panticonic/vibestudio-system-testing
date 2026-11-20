@@ -2,6 +2,7 @@ export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
 export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal-local-delivery-worlds.js";
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";
 export { openGoalAuthoringWorlds, authoringRequiresUnits } from "./open-goal-authoring-worlds.js";
+export { openGoalProgramRunWorlds, programRunRequiresUnits } from "./open-goal-program-run-worlds.js";
 export { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
 export { openGoalPdfWorlds } from "./open-goal-pdf-worlds.js";
 export { openGoalOwnedPreviewWorlds } from "./open-goal-owned-preview-worlds.js";

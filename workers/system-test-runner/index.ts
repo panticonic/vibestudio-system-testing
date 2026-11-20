@@ -109,7 +109,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
+  openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3671,6 +3671,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const programRun = openGoalProgramRunWorlds.find(({ id }) => id === input.caseId);
     const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
@@ -3697,7 +3698,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const personalAutomation = openPersonalAutomationWorlds.find(({ id }) => id === input.caseId);
     const diagnostics = openDiagnosticWorlds.find(({ id }) => id === input.caseId);
     const diagnosticsSeed = diagnostics ? await this.seedAssignedHostLog(input.contextId, diagnostics.lines) : null;
-    const prepare = diagnostics
+    const prepare = programRun
+      ? `import {fs,vcs} from "@workspace/runtime";
+         import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
+         const prepared=await prepareOpenProgramRun(input,${JSON.stringify(programRun)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path),load:path=>natlang.load(path)});`
+      : diagnostics
       ? `import {prepareOpenSystemDiagnostics} from "@workspace-skills/open-system-diagnostics-runtime";
          const prepared=await prepareOpenSystemDiagnostics(input,${JSON.stringify(diagnostics)},${JSON.stringify(diagnosticsSeed)});`
       : authoring
