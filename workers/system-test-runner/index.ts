@@ -1,4 +1,5 @@
 import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remote-route-managed";
+import type { ManagedNotificationReceiver } from "@workspace-skills/system-testing/notification-lifecycle-managed";
 import { cliContinuationWork, remoteRouteWorlds } from "@workspace-skills/system-testing/remote-route-worlds";
 import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
@@ -2462,6 +2463,45 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {${prepare}} from "@workspace-skills/system-testing/remote-route-managed";
       const prepared=await ${prepare}(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
       const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Runs a scoped shell notification lifecycle in the owned test workspace."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedNotificationTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedNotificationReceiver["runManagedNotificationTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`
+      ${this.notificationBindings(input)}
+      let output;
+      try {
+        ${domainTeacherCode({
+          executorModel:input.executorModel,
+          work:{kind:"domain",domain:"conversation",operation:"runNotificationLifecycle",input:{goal:"Show and dismiss the assigned notification"}},
+          inputCode:"prepared.request",
+          bindingCode:"const assignedServices=prepared.services;",
+        },runId)}
+        output={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+      } finally { await prepared.cleanup(); }
+      const utilityValue=output;
+    `) as Awaited<ReturnType<ManagedNotificationReceiver["runManagedNotificationTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies an owned shell notification lifecycle without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedNotification(input: {contextId:string;caseId:string}): ReturnType<ManagedNotificationReceiver["qualifyManagedNotification"]> {
+    return await this.runHarnessUtility("teacher",`
+      ${this.notificationBindings(input)}
+      let output;
+      try {
+        ${domainTeacherQualificationCode([{domain:"conversation",operation:"runNotificationLifecycle"}],"const assignedServices=prepared.services;")}
+        output=utilityValue;
+      } finally { await prepared.cleanup(); }
+      const utilityValue=output;
+    `) as Awaited<ReturnType<ManagedNotificationReceiver["qualifyManagedNotification"]>>;
+  }
+
+  private notificationBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedNotification} from "@workspace-skills/system-testing/notification-lifecycle-managed";
+      const prepared=prepareManagedNotification(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
     `;
   }
 

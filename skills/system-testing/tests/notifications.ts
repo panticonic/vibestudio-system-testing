@@ -1,4 +1,6 @@
 import type { TestCase, TestExecutionResult } from "../types.js";
+import type { ManagedNotificationReceiver } from "../notification-lifecycle-managed.js";
+import { notificationWorlds } from "../notification-worlds.js";
 import { NativeNotificationLifecycleObservationSchema } from "@vibestudio/service-schemas/notification";
 import { findLastAgentMessage, getToolCalls, noIncompleteInvocations, successfulEvalCode } from "./_helpers.js";
 
@@ -49,3 +51,64 @@ export const notificationTests: TestCase[] = [
     validate: (result) => notificationChecked(result, ["Accept", "Decline"]),
   },
 ];
+
+const managedSettings = {
+  category: "notifications",
+  explicitOnly: true,
+  validation: "harness" as const,
+  requiresUnits: ["skills/conversation-evidence-review"],
+};
+notificationTests.push(...notificationWorlds.map((world): TestCase => ({
+  ...managedSettings,
+  name: `notification-lifecycle-live-${world.id}`,
+  description: "Show and dismiss one assigned temporary notification with native receipts",
+  prompt: world.goal,
+  async orchestrate({ runner, signal }) {
+    const started = Date.now();
+    const run = await runner.runManagedNotification(world.id, false, signal);
+    if (run.kind !== "teacher") throw new Error("Expected notification teacher execution");
+    const { teacher, verification, contextId } = run.value;
+    return {
+      messages: [],
+      duration: Date.now() - started,
+      provenance: { contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+      diagnostics: { natlangTeacher: teacher, managedNotification: { verification, contextId } },
+    };
+  },
+  validate(result) {
+    const teacher = result.diagnostics?.natlangTeacher as { trainingEligible?: boolean } | undefined;
+    const fixture = result.diagnostics?.managedNotification as
+      Omit<Awaited<ReturnType<ManagedNotificationReceiver["runManagedNotificationTeacher"]>>, "teacher"> | undefined;
+    return {
+      passed: teacher?.trainingEligible === true && fixture?.verification.passed === true,
+      details: fixture?.verification.checks,
+    };
+  },
+})));
+notificationTests.push({
+  ...managedSettings,
+  name: "notification-lifecycle-oracle-qualification",
+  description: "Qualify plain and action-bearing host notifications without model calls",
+  prompt: "Check host acceptance, same-identity dismissal, and foreign-ID rejection.",
+  async orchestrate({ runner, signal }) {
+    const started = Date.now();
+    const cases = [];
+    for (const { id } of notificationWorlds) {
+      const run = await runner.runManagedNotification(id, true, signal);
+      if (run.kind !== "reference") throw new Error("Notification qualification invoked a model");
+      cases.push(run.value);
+    }
+    return { messages: [], duration: Date.now() - started, diagnostics: { notificationQualification: cases } };
+  },
+  validate(result) {
+    const cases = result.diagnostics?.notificationQualification as
+      Awaited<ReturnType<ManagedNotificationReceiver["qualifyManagedNotification"]>>[] | undefined;
+    return {
+      passed: cases?.length === notificationWorlds.length &&
+        cases.every(({ verification, rejectedForeignId }, index) =>
+          verification.caseId === notificationWorlds[index]?.id && verification.passed && rejectedForeignId
+        ),
+      details: cases?.map(({ verification }) => verification.checks),
+    };
+  },
+});

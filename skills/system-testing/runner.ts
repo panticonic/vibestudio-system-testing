@@ -1,4 +1,5 @@
 import { remoteRouteMethods } from "./remote-route-managed.js";
+import { managedNotificationMethods } from "./notification-lifecycle-managed.js";
 import { retainedTriageMethods } from "./retained-triage-managed.js";
 import { gitHubSetupMethods } from "./github-setup-managed.js";
 import { templateReleaseMethods } from "./template-release-managed.js";
@@ -1649,6 +1650,20 @@ export class HeadlessRunner {
       if (qualification)
         return { kind: "reference" as const, value: await rpc.call(owner, remoteRouteMethods.qualifyRemoteRoute, [input], { signal }) };
       return { kind: "teacher" as const, value: await rpc.call(owner, remoteRouteMethods.runRemoteRouteTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedNotification(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      if (qualification)
+        return { kind: "reference" as const, value: await rpc.call(owner, managedNotificationMethods.qualifyManagedNotification, [input], { signal }) };
+      return { kind: "teacher" as const, value: await rpc.call(owner, managedNotificationMethods.runManagedNotificationTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
