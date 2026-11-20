@@ -1,6 +1,8 @@
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
-  newsCadenceSource,
+  newsHandoffSchedule,
+  projectNewsCadenceSource,
+  type NewsCadenceSettings,
   newsHandoffWork,
   type NewsCadenceHandoff,
 } from "./news-worlds.js";
@@ -21,17 +23,7 @@ type News<Report, Request extends { goal: string }> = {
     passed: boolean;
     checks: { matchesState: boolean; matchesRepair?: boolean };
     observed?: Array<
-      | { kind: "reader" }
-      | {
-          kind: "schedule";
-          poll: { intervalMs: number } | null;
-          briefing: {
-            kind: string;
-            at: string | null;
-            timezone: string | null;
-          } | null;
-          owner: { paused: boolean };
-        }
+      { kind: "reader" } | ({ kind: "schedule" } & NewsCadenceSettings)
     >;
   };
 };
@@ -46,15 +38,19 @@ export async function prepareNewsHandoff<
 >(
   ports: Ports,
   news: News<Report, Request>,
-  world: { id: string; handoff: NewsCadenceHandoff },
+  world: {
+    id: string;
+    handoff: NewsCadenceHandoff;
+    repair?: { index: number };
+  },
 ) {
   const scratchWorld = {
     id: world.id,
     group: "news-cadence-handoff",
-    goal: "Stage the verified feed cadence and daily briefing settings for the next shift.",
+    goal: "Stage the verified feed cadence and briefing settings for the next shift.",
     questions: [
       "How frequently do feeds actually poll?",
-      "When is the daily briefing configured to run, and is automatic delivery paused?",
+      "What schedule is configured for briefings, and is automatic delivery paused?",
     ],
     sources: { "news-missions": world.handoff.source },
     status: "staged",
@@ -75,22 +71,9 @@ export async function prepareNewsHandoff<
         if (id !== "news-missions") return null;
         const { observed, checks } = news.verify(null);
         if (!checks.matchesState || checks.matchesRepair === false) return null;
-        const schedule = observed?.find((entry) => entry.kind === "schedule");
-        if (!schedule || schedule.kind !== "schedule") return null;
-        const { poll, briefing, owner } = schedule;
-        if (
-          !poll ||
-          briefing?.kind !== "daily" ||
-          !briefing.at ||
-          !briefing.timezone
-        )
-          return null;
-        const source = newsCadenceSource(
-          poll.intervalMs,
-          briefing.at,
-          briefing.timezone,
-          owner.paused,
-        );
+        const schedule = newsHandoffSchedule(observed, world.repair);
+        if (schedule?.kind !== "schedule") return null;
+        const source = projectNewsCadenceSource(schedule);
         if (source !== world.handoff.source) return null;
         await (materialized ??= materializeScratchSources(ports.fs, {
           ...scratch,

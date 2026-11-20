@@ -69,19 +69,69 @@ export const newsHandoffWork = [
   { kind: "domain", domain: "news", operation: "reviewNews" },
   { kind: "domain", domain: "scratchHandoff", operation: "assembleHandoff" },
 ] as const;
-export function newsCadenceSource(
-  pollMs: number,
-  at: string,
-  timezone: string,
-  paused: boolean,
+export type NewsCadenceSettings = {
+  poll: { intervalMs: number } | null;
+  briefing: {
+    kind: string;
+    at?: string | null;
+    timezone?: string | null;
+    intervalMs?: number | null;
+  } | null;
+  owner: { paused: boolean };
+};
+
+export function projectNewsCadenceSource(
+  settings: NewsCadenceSettings | null | undefined,
 ) {
+  if (!settings) return null;
+  const { poll, briefing, owner } = settings;
+  if (!poll || !Number.isSafeInteger(poll.intervalMs) || poll.intervalMs <= 0)
+    return null;
+  let briefingLine: string;
+  if (briefing?.kind === "daily" && briefing.at && briefing.timezone) {
+    briefingLine = `Daily briefing: ${briefing.at} ${briefing.timezone}.`;
+  } else if (
+    briefing?.kind === "interval" &&
+    typeof briefing.intervalMs === "number" &&
+    Number.isSafeInteger(briefing.intervalMs) &&
+    briefing.intervalMs > 0
+  ) {
+    briefingLine = `Briefing interval: ${briefing.intervalMs / 60_000} minutes.`;
+  } else {
+    return null;
+  }
   return [
-    `Feed polling interval: ${pollMs / 60_000} minutes.`,
-    `Daily briefing: ${at} ${timezone}.`,
-    `Automatic briefing: ${paused ? "paused" : "active"}.`,
+    `Feed polling interval: ${poll.intervalMs / 60_000} minutes.`,
+    briefingLine,
+    `Automatic briefing: ${owner.paused ? "paused" : "active"}.`,
     "",
   ].join("\n");
 }
+
+function cadenceSource(
+  pollMs: number,
+  briefing: NewsCadenceSettings["briefing"],
+  paused: boolean,
+) {
+  const source = projectNewsCadenceSource({
+    poll: { intervalMs: pollMs },
+    briefing,
+    owner: { paused },
+  });
+  if (!source)
+    throw new Error("The handoff needs a concrete cadence assignment");
+  return source;
+}
+
+export function newsHandoffSchedule<T extends { kind: string }>(
+  observations: readonly T[] | undefined,
+  repair?: { index: number },
+): T | undefined {
+  return repair
+    ? observations?.[repair.index]
+    : observations?.findLast(({ kind }) => kind === "schedule");
+}
+
 function repair(
   id: string,
   goal: string,
@@ -153,7 +203,11 @@ export const managedNewsWorlds: (ReturnType<typeof scenario> & {
       ],
     ),
     handoff: {
-      source: newsCadenceSource(5_400_000, "07:45", "Europe/Berlin", true),
+      source: cadenceSource(
+        5_400_000,
+        { kind: "daily", at: "07:45", timezone: "Europe/Berlin" },
+        true,
+      ),
     },
   },
   {
@@ -169,7 +223,61 @@ export const managedNewsWorlds: (ReturnType<typeof scenario> & {
       "poll-mismatch",
     ),
     handoff: {
-      source: newsCadenceSource(1_200_000, "08:30", "America/Chicago", true),
+      source: cadenceSource(
+        1_200_000,
+        { kind: "daily", at: "08:30", timezone: "America/Chicago" },
+        true,
+      ),
+    },
+  },
+  {
+    ...repair(
+      "handoff-after-switching-to-interval",
+      "Replace the fixed Singapore briefing slot with a three-hour interval while automatic delivery stays paused. Give the next shift the actual briefing mode, pause state and feed cadence.",
+      [
+        pause(true),
+        schedule({
+          briefingAt: "09:15",
+          timezone: "Asia/Singapore",
+          pollIntervalMs: 2_400_000,
+        }),
+      ],
+      [pauseReady, intervalReady(180), pollReady(40)],
+      1,
+      "briefing-mismatch",
+    ),
+    handoff: {
+      source: cadenceSource(
+        2_400_000,
+        { kind: "interval", intervalMs: 10_800_000 },
+        true,
+      ),
+    },
+  },
+  {
+    ...repair(
+      "handoff-after-declining-unsupported-cadence",
+      "Change the paused briefing to five minutes only if supported. Hand the next shift the verified settings after the decision, including the separate 75-minute feed poll.",
+      [
+        pause(true),
+        schedule({ briefingIntervalMs: 9_000_000, pollIntervalMs: 4_500_000 }),
+      ],
+      [
+        pollReady(75),
+        [timing("interval", 5), "blocked", "briefing-interval-too-short"],
+        pauseReady,
+        intervalReady(150),
+      ],
+      1,
+      "briefing-interval-too-short",
+      false,
+    ),
+    handoff: {
+      source: cadenceSource(
+        4_500_000,
+        { kind: "interval", intervalMs: 9_000_000 },
+        true,
+      ),
     },
   },
   scenario(
