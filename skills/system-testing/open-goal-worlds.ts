@@ -5,6 +5,7 @@ export { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
 export { openGoalPdfWorlds } from "./open-goal-pdf-worlds.js";
 export { openGoalOwnedPreviewWorlds } from "./open-goal-owned-preview-worlds.js";
 export { publicationGoalWorlds } from "./open-goal-publication-worlds.js";
+export { openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority } from "./open-goal-diagnostics-worlds.js";
 export { operatorGoalWorlds, operatorGoalRequiresUnits } from "./open-goal-operator-worlds.js";
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";

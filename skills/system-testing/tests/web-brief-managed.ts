@@ -8,6 +8,7 @@ import {
   browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
+  openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
   openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits,
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
   publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
@@ -87,7 +88,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
-  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
+  ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
@@ -119,6 +120,7 @@ const templateSettings = {
     authorityPolicy: { authority: personalAutomationAuthority },
   },
   operator: { requiresUnits: operatorGoalRequiresUnits },
+  "system-diagnostics": { requiresUnits: openDiagnosticRequiresUnits, authorityPolicy: openDiagnosticAuthority },
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
   spectrolite: {
@@ -191,6 +193,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "personal-automation" ? "Coordinate live monitor scheduling with independent state readback" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :
     world.kind === "authoring" ? "Discover current program sources and verify an exact compiler review handoff" :
+    world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
     world.kind === "ownedPreview" ? "Publish to the authorized disposable preview and verify its exact hosted artifact" :
