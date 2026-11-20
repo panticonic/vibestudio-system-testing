@@ -108,7 +108,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalHistoryWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3689,7 +3689,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const calendar = openGoalCalendarWorlds.find(({ id }) => id === input.caseId);
     const personalArtifacts = openPersonalArtifactWorlds.find(({ id }) => id === input.caseId);
     const personalHistory = openPersonalHistoryWorlds.find(({ id }) => id === input.caseId);
-    const prepare = personalHistory
+    const googleHandoff = openGoalGoogleHandoffWorlds.find(({ id }) => id === input.caseId);
+    const prepare = googleHandoff
+      ? `import {prepareOpenGoogleHandoffGoal} from "@workspace-skills/open-google-handoff-goal/managed";
+         const candidate=await prepareOpenGoogleHandoffGoal(input,${JSON.stringify(googleHandoff)});
+         const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="googleHandoff" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+      : personalHistory
       ? `import {prepareOpenPersonalHistory} from "@workspace-skills/open-personal-history-runtime";
          const prepared=await prepareOpenPersonalHistory(input,${JSON.stringify(personalHistory)});`
       : calendar

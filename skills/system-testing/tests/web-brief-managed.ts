@@ -5,7 +5,7 @@ import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
   browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
-  openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
+  openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openPersonalArtifactWorlds, openPersonalHistoryWorlds, personalArtifactRequiresUnits, personalHistoryRequiresUnits,
   publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
@@ -87,7 +87,7 @@ const referenceGoals = [...openGoalWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openGoalRecoveryWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -121,6 +121,7 @@ const templateSettings = {
   },
   google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
   calendar: { requiresUnits: ["skills/open-user-goal", "skills/open-calendar-goal", "packages/google-workspace"] },
+  "google-handoff": { requiresUnits: ["skills/open-user-goal", "skills/open-google-handoff-goal", "packages/google-workspace", "packages/gmail"] },
   gmail: { requiresUnits: ["skills/open-user-goal", "skills/open-gmail-goal", "skills/gmail-compose-history-bindings", "packages/gmail", "workers/pubsub-channel"] },
   pdfVault: {
     requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest",
@@ -167,6 +168,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "google" ? "Resolve a read-only Drive goal from observed provider pages" :
     world.kind === "gmail" ? "Recover Gmail compose and delivery state from retained records and current provider readback" :
     world.kind === "calendar" ? "Reconcile live calendar windows, confirm a current decision, and verify its handoff" :
+    world.kind === "google-handoff" ? "Reconcile retained Gmail decisions with the current linked Drive assets" :
     world.kind === "personal-artifacts" ? "Resolve current browser library and collection state within an owned workspace" :
     world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :
     world.kind === "personal" ? "Plan and verify work against the current Mission Control board" :

@@ -49,7 +49,7 @@ function scenario(
 ) {
   const verify = options.verify ?? (decision.status === "ready" || decision.status === "held" ? { before: decision, result: "current" as const } : undefined);
   return {
-    id: "open-goal-google-handoff-" + id, kind: "google-handoff" as const, workspace: "google-workspace" as const,
+    id: "google-handoff-" + id, kind: "google-handoff" as const, workspace: "google-workspace" as const,
     sourceGroup: "vibestudio:google-handoff:" + sourceGroup, split: options.heldOut ? "test" as const : "train" as const,
     goal, provider: world, canStage,
     expected: { reviews, decision, ...(verify ? { verify } : {}),
