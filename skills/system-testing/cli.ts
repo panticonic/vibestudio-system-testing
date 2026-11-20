@@ -1,3 +1,4 @@
+import { usesPanelRepairTeacher } from "./panel-repair-world.js";
 import { modelSettingsRpcMethods } from "@workspace/model-catalog/rpc-contract";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { selectExplicitSystemTests } from "./selection.js";
@@ -259,7 +260,7 @@ export function listSystemTests(
       category: test.category,
       description: test.description,
       ...(test.explicitOnly ? { explicitOnly: true as const } : {}),
-      orchestrated: typeof test.orchestrate === "function",
+      orchestrated: typeof test.orchestrate === "function" || usesPanelRepairTeacher(test),
       requiresUnits: [...(test.requiresUnits ?? [])],
       ...(installed
         ? {

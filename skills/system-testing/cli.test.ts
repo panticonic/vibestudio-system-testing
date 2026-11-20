@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   listUnits: vi.fn(),
   mainState: vi.fn(),
   listDirectory: vi.fn(),
+  extraTests: [] as unknown[],
 }));
 
 vi.mock("@workspace/runtime", () => ({
@@ -109,6 +110,7 @@ vi.mock("./stages.js", () => ({
       requiresUnits: ["about/browser-import-inspector"],
       validate: () => ({ passed: true }),
     },
+    ...mocks.extraTests,
   ],
 }));
 
@@ -543,6 +545,25 @@ describe("system-testing CLI-neutral API", () => {
         requiresUnits: ["about/browser-import-inspector"],
       },
     ]);
+  });
+
+  it("attests panel repair as an orchestrated catalog entry", () => {
+    mocks.extraTests.push({
+      name: "panel-draft-unmount",
+      category: "panel-repair",
+      description: "repair real panel draft behavior",
+      validation: "harness",
+      workspaceRepoFixture: { kind: "draft-repair-panel", section: "panels", fault: "editor-unmount" },
+    });
+    try {
+      expect(listSystemTests({ installedUnits: [] }).at(-1)).toMatchObject({
+        name: "panel-draft-unmount",
+        orchestrated: true,
+        installed: true,
+      });
+    } finally {
+      mocks.extraTests.length = 0;
+    }
   });
 
   it("reads all repository kinds at one exact main event, including paged sections", async () => {

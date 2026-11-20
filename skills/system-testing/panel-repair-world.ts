@@ -1,3 +1,10 @@
+import type { TestCase } from "./types.js";
+
+/** A seeded draft panel is dispatched by the runner directly to Natlang. */
+export function usesPanelRepairTeacher(test: Pick<TestCase, "workspaceRepoFixture" | "validation">): boolean {
+  return test.validation === "harness" && test.workspaceRepoFixture?.kind === "draft-repair-panel";
+}
+
 /** Each world introduces a distinct fault into the React topic editor. */
 export type DraftLoss =
   | "editor-unmount"

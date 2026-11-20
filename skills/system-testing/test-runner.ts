@@ -22,7 +22,11 @@ import { headForChannel } from "@vibestudio/trajectory-identity";
 import { systemTestFailure } from "./structured-error.js";
 import { materializeValidationEvidence } from "./validation-evidence.js";
 import { observePanelDraft } from "./panel-repair-oracle.js";
-import { matchesPanelDraftChecks, panelRepairWorlds } from "./panel-repair-world.js";
+import {
+  matchesPanelDraftChecks,
+  panelRepairWorlds,
+  usesPanelRepairTeacher,
+} from "./panel-repair-world.js";
 import { DEFAULT_SYSTEM_TEST_TIMEOUT_MS } from "./config.js";
 import {
   projectValidationInput,
@@ -481,11 +485,13 @@ export class TestRunner {
       // one cdp scenario held a run in `orchestration` for five and a half
       // hours. `timeoutMs` bounds the test, not just its turns.
       const execution =
-        workspaceRepoFixtureState?.kind === "draft-repair-panel" &&
-        test.validation === "harness"
+        usesPanelRepairTeacher(test)
           ? await (async (): Promise<TestExecutionResult> => {
               enterPhase("natlang-teacher");
               const state = workspaceRepoFixtureState;
+              if (state?.kind !== "draft-repair-panel") {
+                throw new Error("Panel repair teacher requires the prepared draft fixture");
+              }
               const observed = await this.withTimeout(
                 testRunner.runPanelRepairTeacher(state, test.prompt),
                 remainingTimeMs(),
