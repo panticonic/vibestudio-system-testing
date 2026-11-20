@@ -106,7 +106,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
   const writer = bindScratchHandoff(ports.fs, { goal: world.goal, questions: ["What original provider evidence is verified?"],
     sources: [{id:"scope",path:notePath}] }, ports.readBytes).scratchHandoffWrite;
 
-  let listed = false;
+  let listedCards: ConversationCard[] | null = null;
   let laterSeeded = false;
   let primaryReads = 0;
   let listingBusy = false;
@@ -146,15 +146,15 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
   const services = {
     retainedConversationIndex: {
       async list() {
-        if (listed) throw new Error("Read the owned conversation index once");
-        listed = true;
-        return [...lanes.values()].map(row => structuredClone(row.card));
+        if (listedCards) throw new Error("Read the owned conversation index once");
+        listedCards = [...lanes.values()].map(row => structuredClone(row.card));
+        return structuredClone(listedCards);
       },
     },
     retainedConversationState: {
       async read(channelId: string) {
         const owned = lanes.get(channelId);
-        if (!listed || listingBusy || !owned || seen.length >= 4) return null;
+        if (!listedCards || listingBusy || !owned || seen.length >= 4) return null;
         listingBusy = true;
         try {
           const observed = await ports.read(owned.lane);
@@ -241,7 +241,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     const transition = observedTransition(first, latest);
     const checks = {
       exactApprovalVisibility: transition === wanted.transition,
-      discoveredOwnedConversation: listed && targetReads.length === 2 && plan?.channelId === card.channelId && plan.requestId === request.id,
+      discoveredOwnedConversation: listedCards !== null && targetReads.length === 2 && plan?.channelId === card.channelId && plan.requestId === request.id,
       exactRetainedProviderFrontier: isDeepStrictEqual(targetReads[0], first) && isDeepStrictEqual(targetReads[1], latest) &&
         plan?.through === latest.through && latest.rows.length === seeded.size &&
         latest.rows.every(row => isDeepStrictEqual(seeded.get(row.messageId), row.record)) &&
@@ -264,7 +264,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
       rejectedUnownedEvidence: rejected,
     };
     return { contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks, passed: Object.values(checks).every(value => value === true),
-      card, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact };
+      card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact };
   }
   async function rejectUnowned() {
     const foreign = `foreign-${crypto.randomUUID()}`;
