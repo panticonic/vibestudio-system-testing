@@ -7,6 +7,7 @@ import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
+import type { WorkspaceEditFixture } from "./open-goal-owned-research-worlds.js";
 import type { NewsInput } from "./news-contract.js";
 
 type Input = { contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[]; clientPanels?: { surfaceId: string; panelId: string }[] };
@@ -56,7 +57,6 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
   };
 }
 
-type World = (typeof openGoalWorlds)[number];
 function preparePublicResearch({ contextId, caseId }: Input, world: PublicResearchWorld) {
   const { goal, required, conclusions, referenceAnswer } = world;
   const origins = new Set(publicSourceOrigins(world));
@@ -159,9 +159,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
   return { goal, services, verify, qualify };
 }
 
-type EditWorld = Extract<World, { kind: "workspace-edit" | "research-and-edit" }>;
-
-async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: EditWorld) {
+export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: WorkspaceEditFixture) {
   const directory = await fs.mkdtemp("open-user-goal");
   const original: Record<string, string> = { ...world.files };
   const names = Object.keys(original);
