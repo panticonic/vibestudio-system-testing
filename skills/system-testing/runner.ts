@@ -1,3 +1,4 @@
+import { managedDeploymentMethods } from "./remote-deployment-managed.js";
 import { remoteCommissionMethods } from "./remote-commission-managed.js";
 import { approvalTransitionMethods } from "./approval-transition-managed.js";
 import type { SystemTestApprovalObservation } from "@vibestudio/service-schemas/systemTestRunner";
@@ -1670,6 +1671,20 @@ export class HeadlessRunner {
       if (qualification)
         return { kind: "reference" as const, value: await rpc.call(owner, androidAuditMethods.qualifyAndroidAudit, [input], { signal }) };
       return { kind: "teacher" as const, value: await rpc.call(owner, androidAuditMethods.runAndroidAuditTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedDeployment(caseId: string, qualification: boolean, signal: AbortSignal) {
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, caseId };
+      if (qualification)
+        return { kind: "reference" as const, value: await rpc.call(owner, managedDeploymentMethods.qualifyManagedDeployment, [input], { signal }) };
+      return { kind: "teacher" as const, value: await rpc.call(owner, managedDeploymentMethods.runManagedDeploymentTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

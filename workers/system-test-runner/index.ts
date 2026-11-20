@@ -1,3 +1,4 @@
+import type { ManagedDeploymentReceiver } from "@workspace-skills/system-testing/remote-deployment-managed";
 import type { RemoteCommissionReceiver } from "@workspace-skills/system-testing/remote-commission-managed";
 import type { ManagedApprovalTransitionReceiver } from "@workspace-skills/system-testing/approval-transition-managed";
 import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remote-route-managed";
@@ -2488,6 +2489,35 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       const prepared=await prepareManagedAndroidAudit(input,listAndroidAuditDevices,bindAndroidRuntimeAudit);
       const assignedServices=prepared.services;
     `;
+  }
+
+  private managedDeploymentBindings({ contextId, caseId }: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedDeployment} from "@workspace-skills/system-testing/remote-deployment-managed";
+      const prepared=await prepareManagedDeployment(${JSON.stringify({contextId,caseId})});
+      const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Drives the disposable terminal profile through the assigned deployment."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedDeploymentTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedDeploymentReceiver["runManagedDeploymentTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"remoteAccess",operation:"deployRemoteServer",input:{goal:"Verify the assigned deployment"}},
+      inputCode: "prepared.request",
+      goalCode: "prepared.goal",
+      bindingCode: this.managedDeploymentBindings(input),
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedDeploymentReceiver["runManagedDeploymentTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies the assigned hub and terminal path without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedDeployment(input: {contextId:string;caseId:string}): ReturnType<ManagedDeploymentReceiver["qualifyManagedDeployment"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"remoteAccess",operation:"deployRemoteServer"}], this.managedDeploymentBindings(input),
+    )) as Awaited<ReturnType<ManagedDeploymentReceiver["qualifyManagedDeployment"]>>;
   }
 
   private remoteCommissionBindings({ contextId }: {contextId:string}): string {
