@@ -4,7 +4,7 @@ import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import type { RuntimeFs, VcsClient, rpc as RuntimeRpc } from "@workspace/runtime";
 import type {
   CapabilityGoalReport, CapabilityHandoff, CapabilityPlan, CatalogQuery, DetailedCapability,
-  InstalledKnowledge, KnowledgeCitation, ServiceOverview, SkillRow,
+  InstalledKnowledge, KnowledgeCitation, ServiceOverview, SkillRow, WorkspaceRevision,
 } from "@workspace-skills/open-doc-plan/types";
 import sections from "@workspace-skills/sandbox/doc-sections";
 import rank from "@workspace-skills/sandbox/doc-ranking";
@@ -26,7 +26,7 @@ const folderName = /^evidence-handoff-[a-f0-9]{32}$/u;
 const methodName = /^[a-z][\w-]*\.[a-z][\w-]*$/iu;
 const maxSkillBytes = 160 * 1024;
 const reportBytes = 16 * 1024;
-const capabilityId = (name: string) => `service:${name}`;
+const capabilityId = (name: string) => name.includes(":") ? name : `service:${name}`;
 const compare = (a: string, b: string) => a.localeCompare(b, "en");
 const boundedText = (value: string, max: number) => encoder.encode(value).length <= max;
 const byCapabilityId = (ids: string[]) => [...new Set(ids)].sort(compare);
@@ -63,6 +63,18 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     const raw = await rpc.call("main", mainRpcMethods["workspace.readSkill"], [dirPath]);
     return raw && boundedText(raw, maxSkillBytes) ? raw : null;
   }
+  async function versionedSkill(dirPath: string, state: WorkspaceRevision) {
+    const repository = await rpc.call("main", mainRpcMethods["vcs.resolveRepository"], [{ state, repoPath: dirPath }]);
+    if (!repository || repository.repoPath !== dirPath || !isDeepStrictEqual(repository.state, state)) return null;
+    const source = await rpc.call("main", mainRpcMethods["vcs.readFile"], [{
+      state, repositoryId: repository.repositoryId, file: { kind: "path", path: "SKILL.md" },
+    }]);
+    if (!source || source.repositoryId !== repository.repositoryId || source.repoPath !== dirPath ||
+        source.path !== "SKILL.md" || source.content.kind !== "text" || !boundedText(source.content.text, maxSkillBytes)) return null;
+    const { text } = source.content;
+    const revision = { state, repositoryId: source.repositoryId, fileId: source.fileId, contentHash: source.contentHash };
+    return { text, revision };
+  }
   async function liveDescription(id: string): Promise<DetailedCapability | null> {
     const entry = await rpc.call("main", mainRpcMethods["docs.describe"], [id]);
     if (!entry || entry.id !== id) return null;
@@ -84,6 +96,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       description: entry.description?.slice(0, 360),
       sha256: stableSha256Hex({ entry, schema }),
       argumentNames: entry.argumentNames ?? [],
+      signature: entry.signature ?? null,
       argsSchema: bounded("args", schema.argsSchema),
       returnsSchema: bounded("returns", schema.returnsSchema),
       omittedSchemas,
@@ -101,6 +114,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
   }
 
   let currentMemo: Awaited<ReturnType<typeof memo>> | undefined;
+  let sourceRevision: WorkspaceRevision | null = null;
   let installed: SkillRow[] | undefined;
   let overview: ServiceOverview | null = null;
   let staged: CapabilityHandoff | null = null;
@@ -114,10 +128,11 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
   const services = {
     docPlanContext: {
       async observe() {
+        sourceRevision ??= (await vcs.status()).workingHead;
         currentMemo ??= await memo();
         installed ??= await skillIndex();
         return { memo: currentMemo, skillIndex: installed.slice(0, 128).map(row => ({ ...row, description: row.description.slice(0, 180) })),
-          skillIndexComplete: installed.length <= 128, stageAuthorized };
+          skillIndexComplete: installed.length <= 128, sourceRevision, stageAuthorized };
       },
     },
     docPlanCatalog: {
@@ -159,12 +174,14 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
             focus.length > 6 || focus.some(term => typeof term !== "string" || !boundedText(term, 80)) ||
             ++loadCalls > 4) return null;
         const raw = await readSkill(dirPath);
-        if (!raw) return null;
+        if (!raw || !sourceRevision) return null;
+        const exact = await versionedSkill(dirPath, sourceRevision);
+        if (!exact || exact.text !== raw || !isDeepStrictEqual((await vcs.status()).workingHead, sourceRevision)) return null;
         const excerpts = rank(searchTerms(focus), sections(raw, 800).map(({ heading, text }) =>
           ({ source: row.skillPath, section: heading, text }))).slice(0, 6).map(({ section, text }) =>
           ({ heading: section, text }));
         if (!excerpts.length) return null;
-        const knowledge = { skillPath: row.skillPath, sha256: sha256HexSyncText(raw), excerpts };
+        const knowledge = { skillPath: row.skillPath, sha256: sha256HexSyncText(raw), revision: exact.revision, excerpts };
         loaded.set(row.skillPath, knowledge);
         return knowledge;
       },
@@ -188,14 +205,16 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       goal: assignment.goal, memoSha256: currentMemo?.sha256 ?? null, plan });
   }
   function grounded(plan: CapabilityPlan) {
-    return plan.steps.every(step => {
+    return isDeepStrictEqual(sourceRevision, plan.sourceRevision) && plan.steps.every(step => {
       const entry = described.get(step.id);
-      return entry?.sha256 === step.sha256 && isDeepStrictEqual(entry.argumentNames, step.argumentNames);
+      return entry?.sha256 === step.sha256 && entry.signature === step.signature &&
+        isDeepStrictEqual(entry.argumentNames, step.argumentNames);
     }) && plan.knowledge.every(citation => loadedCitation(citation)) &&
       isDeepStrictEqual(plan.overview, overview);
   }
   async function currentPlanSources(plan: CapabilityPlan) {
-    if (currentMemo === undefined || !isDeepStrictEqual(currentMemo, await memo())) return false;
+    if (currentMemo === undefined || !isDeepStrictEqual(currentMemo, await memo()) ||
+        !isDeepStrictEqual((await vcs.status()).workingHead, plan.sourceRevision)) return false;
     const [entries, skills] = await Promise.all([
       Promise.all(plan.steps.map(step => liveDescription(step.id))),
       Promise.all(plan.knowledge.map(async citation => {
@@ -204,11 +223,12 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       })),
     ]);
     return entries.every((entry, index) => entry?.sha256 === plan.steps[index]!.sha256) &&
-      skills.every((raw, index) => Boolean(raw && sha256HexSyncText(raw) === plan.knowledge[index]!.sha256));
+      skills.every((raw, index) => Boolean(raw && sha256HexSyncText(raw) === plan.knowledge[index]!.sha256)) &&
+      isDeepStrictEqual((await vcs.status()).workingHead, plan.sourceRevision);
   }
   function loadedCitation(citation: KnowledgeCitation) {
     const knowledge = loaded.get(citation.skillPath);
-    return knowledge?.sha256 === citation.sha256 &&
+    return knowledge?.sha256 === citation.sha256 && isDeepStrictEqual(knowledge.revision, citation.revision) &&
       knowledge.excerpts.some(excerpt => excerpt.text.includes(citation.quote));
   }
   async function verifyEvidence(outcome: CapabilityGoalReport | null, negative: boolean) {
@@ -223,7 +243,9 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       if (!row) return false;
       const raw = await readSkill(row.dirPath);
       const citation = valid ? plan.knowledge.find(item => item.skillPath === row.skillPath) : null;
-      return !!raw && !!citation && citation.sha256 === sha256HexSyncText(raw) &&
+      const pinned = sourceRevision && await versionedSkill(row.dirPath, sourceRevision);
+      return !!raw && !!citation && !!pinned && pinned.text === raw &&
+        isDeepStrictEqual(pinned.revision, citation.revision) && citation.sha256 === sha256HexSyncText(raw) &&
         raw.includes(citation.quote) && expected.supports.test(citation.quote) && loadedCitation(citation);
     }));
     const foundMissing = assignment.missing;
@@ -256,9 +278,11 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         plan.steps.every((step, index) => {
           const entry = newDescriptions[index];
           return entry?.sha256 === step.sha256 && described.get(step.id)?.sha256 === entry.sha256 &&
-            isDeepStrictEqual(step.argumentNames, entry.argumentNames);
+            entry.signature === step.signature && isDeepStrictEqual(step.argumentNames, entry.argumentNames);
         }),
       loadedInstalledKnowledge: valid && plan.knowledge.length === expectedKnow.length && freshKnowledge.every(Boolean),
+      exactCapabilitySourceRevision: valid && sourceRevision !== null && isDeepStrictEqual(plan.sourceRevision, sourceRevision) &&
+        isDeepStrictEqual(sourceRevision, before.workingHead) && isDeepStrictEqual(sourceRevision, after.workingHead),
       reconciledPlanningEvidence: valid && corrected &&
         assignment.decision.claims.every(claim => claim.test(plan.rationale)) &&
         plan.memoDisposition === (assignment.memoDisposition ?? "none") &&
@@ -281,21 +305,23 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     return { caseId: assignment.id, contextId: input.contextId, goal: assignment.goal,
       checks, passed: Object.values(checks).every(Boolean),
       observed: { docIds: byCapabilityId([...seen]), described: [...described.values()], loaded: [...loaded.values()],
-        memo: currentMemo, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } };
+        memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } };
   }
   async function verify(report: unknown) {
     const response = report as { status?: string; skill?: string; outcome?: CapabilityGoalReport } | null;
     return proof(response?.status === "workspace-skill-reviewed" && response.skill === "capabilityPlan" ? response.outcome ?? null : null);
   }
   async function qualify() {
-    await services.docPlanContext.observe();
+    const opening = await services.docPlanContext.observe();
     const steps: CapabilityPlan["steps"] = [];
     for (const name of assignment.steps) {
       const id = capabilityId(name);
-      await services.docPlanCatalog.search({ query: name, surface: "service" });
+      const surface = id.startsWith("runtime:") ? "runtime" : "service";
+      const query = surface === "runtime" ? name.replace(/^runtime:workerRuntime\./u, "") : name;
+      await services.docPlanCatalog.search({ query, surface });
       const entry = await services.docPlanCatalog.describe(id);
       if (!entry) throw new Error(`Reference live method is unavailable: ${name}`);
-      steps.push({ id, sha256: entry.sha256, argumentNames: entry.argumentNames, purpose: entry.title });
+      steps.push({ id, sha256: entry.sha256, argumentNames: entry.argumentNames, signature: entry.signature, purpose: entry.title });
     }
     const knowledge: KnowledgeCitation[] = [];
     for (const expected of assignment.knowledge ?? []) {
@@ -306,7 +332,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       const from = Math.max(0, match.index - 60);
       const quote = passage.text.slice(from, Math.min(passage.text.length, from + 220)).trim();
       if (!expected.supports.test(quote)) throw new Error(`Reference installed quote exceeded its bound: ${expected.dirPath}`);
-      knowledge.push({ skillPath: recovered.skillPath, sha256: recovered.sha256, quote });
+      knowledge.push({ skillPath: recovered.skillPath, sha256: recovered.sha256, revision: recovered.revision, quote });
     }
     if (assignment.obsoleteMethod && await services.docPlanCatalog.availableMethod(assignment.obsoleteMethod))
       throw new Error("Reference stale memo names a live method");
@@ -314,7 +340,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     if (missing?.kind === "method" && await services.docPlanCatalog.availableMethod(missing.name))
       throw new Error(`Reference blocker is visible: ${missing.name}`);
     const plan: CapabilityPlan = {
-      status: missing ? "hold" : "ready", steps, knowledge, missing: missing ? [missing] : [],
+      status: missing ? "hold" : "ready", sourceRevision: opening.sourceRevision, steps, knowledge, missing: missing ? [missing] : [],
       rationale: assignment.decision.reference,
       memoDisposition: assignment.memoDisposition ?? "none",
       overview: assignment.inventory ? await services.docPlanCatalog.overview() : null,

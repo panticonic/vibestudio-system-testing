@@ -2,6 +2,7 @@ type SkillEvidence = { dirPath: string; focus: string[]; supports: RegExp };
 
 export type CapabilityPlanWorld = {
   kind: "capability-plan";
+  workspace: "examples";
   id: string;
   goal: string;
   sourceGroup: string;
@@ -21,7 +22,7 @@ const skill = (name: string, focus: string[], supports: RegExp): SkillEvidence =
   dirPath: `skills/${name}`, focus, supports,
 });
 
-const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
+const worlds: Omit<CapabilityPlanWorld, "kind" | "workspace">[] = [
   {
     id: "plan-content-addressed-citation",
     decision: { reference: "Retain the digest returned when storing the exact text. Use that digest to retrieve the exact content for the reviewer.",
@@ -180,11 +181,113 @@ const worlds: Omit<CapabilityPlanWorld, "kind">[] = [
     goal: "Tomorrow an editor will take a UTF-8 note from the workspace and preserve its exact text for a later reviewer. Give me a plan from reading the workspace text through storing and retrieving it by content identity. Current live contract argument names matter. Do not read, write, or recover the note now.",
     steps: ["fs.readText", "blobstore.putText", "blobstore.getText"],
   },
+  {
+    id: "plan-semantic-file-provenance-chain",
+    sourceGroup: "vibestudio:catalog:reproducible-semantic-repository-lookup",
+    goal: "I have only the repo-relative path of a workspace guide and a fixed review revision. Plan how to resolve the repository at that semantic state and read the file at the same state. Use the installed VCS guidance to distinguish semantic history from an ordinary Git checkout. Cite the exact source revision of that guidance.",
+    steps: ["vcs.resolveRepository", "vcs.readFile"],
+    knowledge: [skill("vibestudio-vcs", ["semantic history", "git worktree", "managed reads"], /semantic history|Git worktree/iu)],
+    decision: { reference: "Resolve the repository at the named semantic revision, then read the file at the same immutable state. Managed history is semantic rather than an ordinary Git checkout.",
+      claims: [/same|fixed|immutable/iu, /semantic/iu, /repositor/iu] },
+  },
+  {
+    id: "plan-blame-backed-quote-range",
+    sourceGroup: "vibestudio:catalog:bounded-current-quote-provenance",
+    goal: "A reviewer asked us to track the rationale for a specific current text range without reading the entire repository. Find the workspace text-read contract that returns a content hash and range, then the method for bounded blame-backed memory for those exact bytes. Give a read-only plan.",
+    steps: ["fs.readText", "vcs.readMemory"],
+    decision: { reference: "Read the bounded text to obtain its exact range and content hash. Use those same coordinates and hash when requesting blame-backed memory.",
+      claims: [/hash/iu, /range|coordinate/iu, /blame|memory/iu] },
+  },
+  {
+    id: "plan-ambiguous-unit-cache-review",
+    sourceGroup: "vibestudio:catalog:draft-versus-cached-build-provenance",
+    goal: "We have two units with the same basename and an architect wants cached metadata for the reviewed one. Find the live call that can report ambiguity and immutable build keys, then the one that reads metadata for the selected key. Use the installed developer guide to explain whether a green context build proves the running service changed.",
+    steps: ["build.inspectBuildProvenance", "build.getBuildMetadata"],
+    knowledge: [skill("workspace-dev", ["green verify", "running service build", "context candidate"], /context candidate|updates the running service build/iu)],
+    decision: { reference: "Resolve the exact unit when the basename is ambiguous and retain an immutable build key for metadata. A context candidate verification does not change the running build.",
+      claims: [/ambigu|basename/iu, /immutable|key/iu, /running|live/iu] },
+  },
+  {
+    id: "plan-worker-panel-owner-bounded-lookup",
+    sourceGroup: "vibestudio:catalog:worker-panel-self-owner-query",
+    goal: "A Worker needs to find only its current verified human subject's root panels. Everyone is suggesting the ownership-band inventory. Find the portable runtime call limited to the current subject and show its real signature and paging argument. No panel read or cross-owner lookup yet.",
+    steps: ["runtime:workerRuntime.panelTree.roots"],
+    decision: { reference: "Use the Worker-runtime roots call for the current verified subject. The bounded page input carries a cursor and limit without an owner identity.",
+      claims: [/verified|subject|current/iu, /page|cursor|limit/iu] },
+  },
+  {
+    id: "plan-reopen-exact-panel-handle",
+    sourceGroup: "vibestudio:catalog:portable-runtime-search-handle-restoration",
+    goal: "A workstation utility needs to discover panel matches by name and persist just each slot ID. When it starts again it needs a synchronous runtime handle for one exact ID. Identify both concrete Worker-runtime members and their typed signatures in order. This is a plan and should not open any panel.",
+    steps: ["runtime:workerRuntime.panelTree.search", "runtime:workerRuntime.panelTree.get"],
+    decision: { reference: "Use the runtime search for matching entries. Persist the exact slot ID and reconstruct a synchronous handle from that ID on restart.",
+      claims: [/slot|identity|ID/iu, /synchronous|handle/iu, /restart|persist|recover/iu] },
+  },
+  {
+    id: "plan-ready-renderer-not-committed-slot",
+    sourceGroup: "vibestudio:catalog:worker-readiness-versus-durable-panel-admission",
+    goal: "A Worker integration needs to wait for a panel to boot before connecting to it. Another team suggested merely committing its slot. Compare the two actual portable runtime contracts with exact source signatures. Use the installed developer guide's context-ref rule. Don't create a panel.",
+    steps: ["runtime:workerRuntime.createPanelSlot", "runtime:workerRuntime.openPanel"],
+    knowledge: [skill("workspace-dev", ["panel", "explicit context ref", "unpublished source"], /explicit context ref|panels? need an explicit/iu)],
+    decision: { reference: "A committed slot alone does not establish readiness. Use the boot-ready runtime open operation with the explicit context reference when reviewing unpublished panel code.",
+      claims: [/boot|ready/iu, /slot|commit/iu, /context|unpublished/iu] },
+  },
+  {
+    id: "stage-provenance-plan-for-reviewable-candidate",
+    sourceGroup: "vibestudio:catalog:owned-semantic-guide-candidate-handoff",
+    goal: "Write a local scratch plan for comparing draft guidance to protected main. Start with the live method that identifies the main event, then the method for comparing semantic states. Use the installed VCS skill to explain why this is read-only even if it finds divergence, and pin the exact revision of the cited guide in the handoff.",
+    steps: ["vcs.mainState", "vcs.compare"],
+    knowledge: [skill("vibestudio-vcs", ["compare", "read-only", "intent"], /Compare is read-only|read-only preview/iu)],
+    stageAuthorized: true,
+    decision: { reference: "Identify the protected main event and compare at exact semantic references. Comparison is read-only and divergence does not authorize a merge.",
+      claims: [/main (?:event|state)|protected main/iu, /read.only/iu, /compare|comparison/iu] },
+  },
+  {
+    id: "hold-hidden-artifact-stream-in-current-role",
+    sourceGroup: "vibestudio:catalog:real-role-hidden-artifact-streaming",
+    goal: "The contract for our viewer requires build.readBuildArtifact, not merely the content-free artifact manifest. Check whether the exact streaming method is visible in this role. Capture the useful live manifest contract as a partial plan, and hold the viewer work if direct streaming is unavailable. No build or artifact operation now.",
+    steps: ["build.getBuildArtifacts"],
+    missing: { kind: "method", name: "build.readBuildArtifact" },
+    decision: { reference: "The role can obtain an immutable artifact manifest. The necessary direct streaming method is hidden from this catalog, so viewer work remains held.",
+      claims: [/manifest/iu, /stream|readBuildArtifact/iu, /unavailable|hidden|hold|held/iu] },
+  },
+  {
+    id: "plan-held-runtime-installed-repo-selection",
+    sourceGroup: "vibestudio:catalog:held-worker-explicit-skill-canonical-repo",
+    split: "test",
+    goal: "The acceptance runner is compiled for the portable Worker runtime. Its next step will list installed skills and open one chosen package guide by the canonical directory path. Identify the exact portable runtime members and tell the maintainer why a package-level guide can be selected by assertion needs rather than a guessed skill name. Read the installed Testkit guidance without running anything.",
+    steps: ["runtime:workerRuntime.workspace.listSkills", "runtime:workerRuntime.workspace.readSkill"],
+    knowledge: [{ dirPath: "packages/testkit", focus: ["deterministic", "asserted directly", "interpret instructions"], supports: /can be asserted directly|model\s+must/iu }],
+    decision: { reference: "Use the portable Worker workspace index for the exact canonical directory path. The installed Testkit package applies when behavior can be directly asserted.",
+      claims: [/canonical|directory|dirPath/iu, /assert|deterministic/iu, /package|testkit/iu] },
+  },
+  {
+    id: "plan-held-cross-owner-page-contract",
+    sourceGroup: "vibestudio:catalog:held-worker-selected-visible-owner-band",
+    split: "test",
+    goal: "A supervisor is writing a Worker-side plan to inspect one explicitly requested ownership band. Identify which portable runtime method lists visible bands and which pages the selected band, including their exact parameter names. The band ID must come from the first result, and this review grants no panel access.",
+    steps: ["runtime:workerRuntime.panelTree.rootOwners", "runtime:workerRuntime.panelTree.rootsForOwner"],
+    decision: { reference: "Read the visibility-filtered owner bands and use one returned owner ID to page roots for that owner. The documentation does not authorize a wider inspection.",
+      claims: [/owner/iu, /returned|first|visible/iu, /page|cursor/iu] },
+  },
+  {
+    id: "stage-held-authored-program-versus-transport-receipt",
+    sourceGroup: "vibestudio:catalog:held-authored-contract-versus-terminal-eval-evidence",
+    split: "test",
+    goal: "Prepare a scratch-only maintainer handoff. Read the installed Natlang authoring guidance on compiling a callable without running it. Then identify the two live calls for finding a previous eval's terminal record and its retained receipt. The handoff must pin the guide's exact source revision. No new eval or program changes.",
+    steps: ["eval.get", "eval.receipt"],
+    knowledge: [skill("natlang-authoring", ["compile", "describe", "Nothing runs"], /Nothing runs|Compiles the program/iu)],
+    stageAuthorized: true,
+    decision: { reference: "A Natlang compile-only description does not execute it. The prior eval record and retained receipt provide existing execution evidence, which I can stage in local scratch.",
+      claims: [/compile|describe/iu, /receipt/iu, /prior|existing|retain/iu] },
+  },
+
 ];
 
 export const capabilityPlanWorlds: CapabilityPlanWorld[] = worlds.map(world => ({
   ...world,
   kind: "capability-plan",
+  workspace: "examples",
 }));
 
 export const capabilityPlanRequiresUnits = [
