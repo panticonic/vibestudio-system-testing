@@ -98,7 +98,7 @@ const meters = scopedTree("Review meter reconciliation notes", ["review/checkNot
 const cinema = scopedTree("Review independent cinema captions", ["review/checkNotes.nl"]);
 
 export const openGoalAuthoringWorlds: OpenAuthoringWorld[] = [
-  world("collection-scope-drift", "Could you check whether the new nursing station handoff can still keep log access inside its note-check stage? Compare with the signed Thursday release. If it widens access, leave the compiler-backed finding for the reviewer.", [
+  world("collection-scope-drift", "Could you check whether the new nursing station handoff can still keep log access inside its note-check stage? Compare with the signed Thursday release. If it widens access, leave a scratch note with the compiler-backed finding for the reviewer.", [
     candidate("Nursing handoff", "March maintenance candidate", "Thursday release is the compatibility contract.", scopedTree("Review nursing station handoffs", ["review.nl"])),
     released("Nursing handoff", "Signed Thursday release", "Approved for the floor handoff.", nursing),
     withdrawn("Nursing handoff", "Early maintenance candidate", nursing),
@@ -117,7 +117,7 @@ export const openGoalAuthoringWorlds: OpenAuthoringWorld[] = [
     candidate("Library reservation", "Opening-hours fix", "Compatibility reference: branch release.", { ...booking, "review.nl": narrowFunction("Review branch reservation", "  day: string\n  branch: string") }),
     released("Library reservation", "Branch release", "Live route contract.", { ...booking, "review.nl": narrowFunction("Review branch reservation", "  branch: string\n  day: string") }),
   ], "changes-required", [["parameter-change", "review.nl"]]),
-  world("conservation-helper-topology", "The conservation intake package says the evidence reader moved to the root. Does this still have the reviewed private evidence stage from the working release? If the route is broken, leave a handoff for the caretaker with the actual missing path.", [
+  world("conservation-helper-topology", "The conservation intake package says the evidence reader moved to the root. Does this still have the reviewed private evidence stage from the working release? If the route is broken, leave a scratch handoff for the caretaker with the actual missing path.", [
     candidate("Conservation intake", "Intake topology reorganization", "Approved release protects the intended helper path.", { "review.nl": exhibits["review.nl"]!, "checkNotes.nl": readNotes }),
     released("Conservation intake", "Working intake release", "The caretaker validated the nested route.", exhibits),
   ], "changes-required", [["missing-helper", "review/checkNotes.nl"]], { stage: true }),
@@ -129,7 +129,7 @@ export const openGoalAuthoringWorlds: OpenAuthoringWorld[] = [
     candidate("Festival ticket desk", "Counter refactor", "Compare with the released ticket count adapter.", { ...tickets, "counter.ts": 'export function count(): number { return "unavailable"; }\n' }),
     released("Festival ticket desk", "Released ticket count adapter", "Approved live route.", tickets),
   ], "candidate-rejected", [["compiler-error", "counter.ts"]], { stage: true }),
-  world("shelter-baseline-still-usable", "Before shelter round leads switch to the new room-capacity helper, check it against the release preserved in the handoff. The proposed copy looking fine alone is insufficient. If the comparison itself fails, save that fact for the next shift.", [
+  world("shelter-baseline-still-usable", "Before shelter round leads switch to the new room-capacity helper, check it against the release preserved in the handoff. The proposed copy looking fine alone is insufficient. If the comparison itself fails, leave a scratch note for the next shift.", [
     candidate("Shelter capacity", "Capacity candidate", "Comparison: release preserved in accessibility handoff.", shelters),
     released("Shelter capacity", "Accessibility handoff release", "This is the approval archive copy; check whether it can be read now.", { ...shelters, "retained.ts": 'export const approvedCapacity: number = "none";\n' }),
   ], "baseline-rejected", [["compiler-error", "retained.ts"]], { stage: true }),
@@ -141,7 +141,7 @@ export const openGoalAuthoringWorlds: OpenAuthoringWorld[] = [
     candidate("Harbour intake", "Baggage review candidate", "Monday release is the deployed caller's contract.", boats),
     released("Harbour intake", "Monday release", "Baggage caller reads plain text.", boats),
   ], "changes-required", [["return-change", "review.nl"]], { canStage: true, edit: { path: "review.nl", text: narrowFunction("Review harbour baggage plans", "  text: string", "boolean") } }),
-  world("meter-unlisted-service", "Can you check that today’s standalone meter reconciliation package has only the reading interface as agreed? The authorized review brief only allows the scoped note reader. Use the candidate itself and leave the findings here, not in a staged file.", [
+  world("meter-unlisted-service", "Can you check that today’s standalone meter reconciliation package has only the reading interface as agreed? The authorized brief allows reading local notes without declaring an outside service. Use the candidate itself and leave the findings here, not in a staged file.", [
     candidate("Meter reconciliation", "Standalone proofing utility", "The approved local review has no external service declarations.", meters, currentOnly({ declaredServices: [] })),
     withdrawn("Meter reconciliation", "Earlier debug utility", protectedTree("Review earlier meter notes")),
   ], "changes-required", [["unexpected-service", "serverLog"]], { baseline: null }),
@@ -160,8 +160,8 @@ export const openGoalAuthoringWorlds: OpenAuthoringWorld[] = [
     released("Cinema captions", "Accessibility signoff release", "Log access scoped to a private reviewer.", cinema),
     withdrawn("Cinema captions", "Box office draft", { ...cinema, "review.nl": narrowFunction("Review independent cinema captions", "  text: string", "boolean") }),
   ], "changes-required", [["service-scope-change", "serverLog"]], { held: true, stage: true }),
-  world("fuel-console-entry-revision", "The fuel meter console starts the reviewed entry by name. The diagnostic view looks good on the draft, but please check whether the deployed caller can still read the expected result from the reviewed entry after the operator finishes their update. Do not stage approval unless the final revision is compatible.", [
+  world("fuel-console-entry-revision", "The fuel meter console starts the reviewed entry by name. The diagnostic view looks good on the draft, but please check whether the reviewed entry compiles and still serves the deployed caller after the operator finishes their update. Do not stage approval unless the final revision is compatible.", [
     candidate("Fuel meter console", "Operator update", "Compatibility contract lives in the Meter desk release.", fuel),
     released("Fuel meter console", "Meter desk release", "Deployed caller retains its result contract.", fuel),
-  ], "changes-required", [["return-change", "review.nl"]], { held: true, canStage: true, edit: { path: "review.nl", text: narrowFunction("Review fuel meter cards", "  text: string", "{ reading: string }") } }),
+  ], "candidate-rejected", [["compiler-error", "meter-receipt.ts"]], { held: true, canStage: true, edit: { path: "meter-receipt.ts", text: 'export const reading: number = "unavailable";\n' } }),
 ];
