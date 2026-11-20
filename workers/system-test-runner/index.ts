@@ -17,7 +17,7 @@ import type { AndroidPairReceiver } from "@workspace-skills/system-testing/andro
 import type { AndroidInstallReceiver } from "@workspace-skills/system-testing/android-install-managed";
 import type { AndroidAuditReceiver } from "@workspace-skills/system-testing/android-audit-managed";
 import type { DeliveryHistoryReceiver } from "@workspace-skills/system-testing/delivery-history-managed";
-import { isChatDeliveryCase } from "@workspace-skills/system-testing/delivery-history-worlds";
+import { deliveryHistoryOperation } from "@workspace-skills/system-testing/delivery-history-worlds";
 import type { PublicationRevisionReceiver } from "@workspace-skills/system-testing/publication-revision-managed";
 import type { TranscriptCursorReceiver } from "@workspace-skills/system-testing/transcript-cursor-managed";
 import type { UnitIdentityReceiver } from "@workspace-skills/system-testing/unit-identity-managed";
@@ -2620,7 +2620,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   async runDeliveryHistoryTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<DeliveryHistoryReceiver["runDeliveryHistoryTeacher"]> {
     return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
       executorModel: input.executorModel,
-      work: {kind:"domain",domain:"conversation",operation:isChatDeliveryCase(input.caseId) ? "reviewChatDelivery" : "reviewDeliveryHistory",input:{goal:"Audit the assigned delivery receipt"}},
+      work: {kind:"domain",domain:"conversation",operation:deliveryHistoryOperation(input.caseId),input:{goal:"Audit the assigned delivery receipt"}},
       inputCode: "prepared.request",
       bindingCode: this.deliveryHistoryBindings(input),
     },runId)}
@@ -2631,7 +2631,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   @rpc({website:{kind:"closed",reason:"Qualifies actual channel replay and consumer identity without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async qualifyDeliveryHistory(input: {contextId:string;caseId:string}): ReturnType<DeliveryHistoryReceiver["qualifyDeliveryHistory"]> {
     return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
-      [{domain:"conversation",operation:isChatDeliveryCase(input.caseId) ? "reviewChatDelivery" : "reviewDeliveryHistory"}], this.deliveryHistoryBindings(input),
+      [{domain:"conversation",operation:deliveryHistoryOperation(input.caseId)}], this.deliveryHistoryBindings(input),
     )) as Awaited<ReturnType<DeliveryHistoryReceiver["qualifyDeliveryHistory"]>>;
   }
 

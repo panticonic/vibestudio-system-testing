@@ -46,8 +46,32 @@ export const chatDeliveryWorlds = [
   },
 ] as const;
 
+export const conversationHandoffWorlds = [
+  {
+    id: "reopen-original-chat-after-context-switch",
+    goal: "The accepted facilities reminder is being handed off after the operator changed chats. Decide which thread to reopen without resending the reminder.",
+    text: "Leave the signed equipment sheet at reception.",
+    mode: "wrong-panel",
+    next: "reopen-assigned-chat",
+  },
+  {
+    id: "trace-absent-receipt-before-opening-chat",
+    goal: "The channel shows the wording from the shift note, but the original receipt may refer to another message. Decide what the next operator should investigate before relying on the open chat.",
+    text: "Keep the west door available for the delivery.",
+    mode: "missing",
+    next: "trace-original-receipt",
+  },
+] as const;
+
+export const isConversationHandoffCase = (id: string) =>
+  conversationHandoffWorlds.some((world) => world.id === id);
+
 export const isChatDeliveryCase = (id: string) =>
-  chatDeliveryWorlds.some((world) => world.id === id);
+  chatDeliveryWorlds.some((world) => world.id === id) || isConversationHandoffCase(id);
+
+export const deliveryHistoryOperation = (id: string) =>
+  isConversationHandoffCase(id) ? "reviewConversation" :
+    isChatDeliveryCase(id) ? "reviewChatDelivery" : "reviewDeliveryHistory";
 
 export const deliveryOriginByMode = {
   received: "matched",
@@ -55,4 +79,5 @@ export const deliveryOriginByMode = {
   foreign: "foreign-channel",
   "sender-mismatch": "receipt-mismatch",
   missing: "missing-message",
+  "wrong-panel": "matched",
 } as const;

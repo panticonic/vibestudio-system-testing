@@ -8,6 +8,7 @@ import { bindDeliveryHistory } from "@workspace-skills/delivery-history-bindings
 import type {
   ChatDeliveryPanel,
   ChatDeliveryReport,
+  ChatHandoffReport,
   DeliveryHistoryObservation,
   DeliveryHistoryReport,
 } from "../conversation-evidence-review/types.js";
@@ -17,6 +18,7 @@ import {
 } from "./session-replay-managed.js";
 import {
   chatDeliveryWorlds,
+  conversationHandoffWorlds,
   deliveryHistoryWorlds,
   deliveryOriginByMode,
   isChatDeliveryCase,
@@ -30,7 +32,7 @@ import {
 type Input = { contextId: string; caseId: string };
 
 async function prepareHistory(input: Input) {
-  const world = [...deliveryHistoryWorlds, ...chatDeliveryWorlds].find(
+  const world = [...deliveryHistoryWorlds, ...chatDeliveryWorlds, ...conversationHandoffWorlds].find(
     ({ id }) => id === input.caseId,
   );
   if (!world || input.contextId !== contextId) throw new Error("Unknown delivery history assignment");
@@ -49,6 +51,10 @@ async function prepareHistory(input: Input) {
   const originalId = await send(source);
   const retryId = world.mode === "retry" ? await send(source) : null;
   const decoyId = foreign ? await send(selected) : null;
+  const panelChannel = world.mode === "wrong-panel"
+    ? await createOwnedHeadlessChannel(contextId, "Other chat with identical text")
+    : selected;
+  const panelMessageId = panelChannel === selected ? decoyId ?? originalId : await send(panelChannel);
   const senderId = rpc.selfId;
   const receipt = {
     channelId: source.key,
@@ -118,7 +124,8 @@ async function prepareHistory(input: Input) {
     reference,
     verify,
     channelId: selected.key,
-    visibleMessageId: decoyId ?? originalId,
+    panelChannelId: panelChannel.key,
+    visibleMessageId: panelMessageId,
     text: world.text,
     matched,
   };
@@ -126,13 +133,14 @@ async function prepareHistory(input: Input) {
 
 export async function prepareDeliveryHistory(input: Input) {
   const history = await prepareHistory(input);
+  const handoff = conversationHandoffWorlds.find(({ id }) => id === input.caseId);
   if (!isChatDeliveryCase(input.caseId)) {
     return {
       request: history.request,
       services: history.services,
       qualify: async () => history.verify(await history.reference()),
-      verify: (report: DeliveryHistoryReport | ChatDeliveryReport | null) =>
-        history.verify(report && "delivery" in report ? null : report),
+      verify: (report: DeliveryHistoryReport | ChatDeliveryReport | ChatHandoffReport | null) =>
+        history.verify(report && "observation" in report ? report : null),
       release: async () => {},
     };
   }
@@ -140,15 +148,18 @@ export async function prepareDeliveryHistory(input: Input) {
   const panel = await openPanel(CHAT_PANEL_SOURCE, {
     contextId: input.contextId,
     ref: `ctx:${input.contextId}`,
-    stateArgs: { channelName: history.channelId },
+    stateArgs: { channelName: history.panelChannelId },
     parentId: null,
     focus: false,
   });
-  const request = {
+  const chatRequest = {
     ...history.request,
     contextId: input.contextId,
     panelId: panel.id,
   };
+  const request = handoff ? { kind: "chat-handoff" as const, ...chatRequest } : chatRequest;
+  const panelMatches = history.panelChannelId === history.channelId;
+  const verdict = !history.matched ? "history-unverified" : panelMatches ? "verified" : "panel-mismatch";
   let panelReads = 0;
   let observedPanel: ChatDeliveryPanel | null = null;
   async function observe(): Promise<ChatDeliveryPanel> {
@@ -199,9 +210,10 @@ export async function prepareDeliveryHistory(input: Input) {
   };
 
   async function verify(
-    report: DeliveryHistoryReport | ChatDeliveryReport | null,
+    report: DeliveryHistoryReport | ChatDeliveryReport | ChatHandoffReport | null,
   ) {
-    const chat = report && "delivery" in report ? report : null;
+    const decision = report && "chat" in report ? report : null;
+    const chat = decision?.chat ?? (report && "delivery" in report ? report : null);
     const verification = await history.verify(chat?.delivery ?? null);
     // The oracle reads the assigned pane independently, including the decoy
     // for a foreign receipt. The agent's browser service remains unused there.
@@ -211,7 +223,7 @@ export async function prepareDeliveryHistory(input: Input) {
       livePanel:
         actualPanel.panelId === request.panelId &&
         actualPanel.contextId === request.contextId &&
-        actualPanel.channelId === history.channelId &&
+        actualPanel.channelId === history.panelChannelId &&
         actualPanel.source === CHAT_PANEL_SOURCE &&
         actualPanel.phase === "ready" &&
         isDeepStrictEqual(actualPanel.messages, [
@@ -222,14 +234,23 @@ export async function prepareDeliveryHistory(input: Input) {
           isDeepStrictEqual(observedPanel, actualPanel) &&
           isDeepStrictEqual(chat?.panel, actualPanel)
         : panelReads === 0 && observedPanel === null && chat?.panel === null,
-      chatVerdict:
-        chat?.verdict === (history.matched ? "verified" : "history-unverified"),
+      chatVerdict: chat?.verdict === verdict,
+      ...(handoff ? {
+        handoff: decision?.kind === "chat-handoff" &&
+          decision.basis === history.channelId &&
+          decision.next === handoff.next && !decision.ready &&
+          isDeepStrictEqual(decision.blockers, [verdict]),
+      } : {}),
       panelReleased: (await panelTree.path(panel.id)) === null,
     };
     return {
       ...verification,
       request,
-      chat: { actualPanel, observedPanel, panelReads },
+      chat: {
+        actualPanel, observedPanel, panelReads,
+        panelChannelId: history.panelChannelId,
+        panelMessageId: history.visibleMessageId,
+      },
       checks,
       passed: Object.values(checks).every(Boolean),
     };
@@ -238,13 +259,17 @@ export async function prepareDeliveryHistory(input: Input) {
   async function qualify() {
     try {
       const delivery = await history.reference();
-      return await verify({
+      const chat: ChatDeliveryReport = {
         delivery,
         panel: history.matched
           ? await services.chatDeliveryPanel.inspect(request.panelId)
           : null,
-        verdict: history.matched ? "verified" : "history-unverified",
-      });
+        verdict,
+      };
+      return await verify(handoff ? {
+        kind: "chat-handoff", basis: history.channelId, ready: false,
+        blockers: [verdict], next: handoff.next, chat,
+      } : chat);
     } finally {
       await release();
     }

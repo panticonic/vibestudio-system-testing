@@ -1,8 +1,10 @@
 import type { DeliveryHistoryReceiver } from "../delivery-history-managed.js";
 import {
   chatDeliveryWorlds,
+  conversationHandoffWorlds,
   deliveryHistoryWorlds,
   isChatDeliveryCase,
+  isConversationHandoffCase,
 } from "../delivery-history-worlds.js";
 import type { TestCase } from "../types.js";
 import {
@@ -35,10 +37,12 @@ const browserSettings = {
 export const managedDeliveryHistoryTests: TestCase[] = [
   ...deliveryHistoryWorlds,
   ...chatDeliveryWorlds,
+  ...conversationHandoffWorlds,
 ].map((world) => ({
   ...settings,
   ...(isChatDeliveryCase(world.id) ? browserSettings : {}),
-  name: `${isChatDeliveryCase(world.id) ? "chat-delivery" : "delivery-history"}-live-${world.id}`,
+  name: `${isConversationHandoffCase(world.id) ? "conversation-handoff" :
+    isChatDeliveryCase(world.id) ? "chat-delivery" : "delivery-history"}-live-${world.id}`,
   description:
     "Audit delivery against real channel replay and the consumer graph",
   prompt: world.goal,
@@ -120,4 +124,7 @@ function qualification(
 managedDeliveryHistoryTests.push(
   qualification("delivery-history-oracle-qualification", deliveryHistoryWorlds),
   qualification("chat-delivery-oracle-qualification", chatDeliveryWorlds, true),
+  ...conversationHandoffWorlds.map((world) =>
+    qualification(`conversation-handoff-oracle-${world.id}`, [world], true)
+  ),
 );
