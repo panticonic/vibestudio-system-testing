@@ -109,7 +109,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
+  openGoalAuthoringWorlds, openGoalRecoveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3671,6 +3671,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const authoring = openGoalAuthoringWorlds.find(({ id }) => id === input.caseId);
     const google = openGoalGoogleWorlds.find(({ id }) => id === input.caseId);
     const news = newsGoalWorlds.find(({ id }) => id === input.caseId);
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
@@ -3693,7 +3694,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const personalHistory = openPersonalHistoryWorlds.find(({ id }) => id === input.caseId);
     const googleHandoff = openGoalGoogleHandoffWorlds.find(({ id }) => id === input.caseId);
     const personalAutomation = openPersonalAutomationWorlds.find(({ id }) => id === input.caseId);
-    const prepare = personalAutomation
+    const prepare = authoring
+      ? `import {fs,vcs} from "@workspace/runtime";
+         import {prepareOpenAuthoringGoal} from "@workspace-skills/system-testing/open-goal-authoring-managed";
+         const prepared=await prepareOpenAuthoringGoal(input,${JSON.stringify(authoring)},{contextId:actualContextId,fs,vcs,describe:path=>natlang.describe(path)});`
+      : personalAutomation
       ? `import {prepareOpenPersonalAutomation} from "@workspace-skills/open-personal-automation-runtime";
          const prepared=await prepareOpenPersonalAutomation(input,${JSON.stringify(personalAutomation)});`
       : ownedPreview
