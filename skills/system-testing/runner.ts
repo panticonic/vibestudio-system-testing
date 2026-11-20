@@ -1,3 +1,5 @@
+import { approvalTransitionMethods } from "./approval-transition-managed.js";
+import type { SystemTestApprovalObservation } from "@vibestudio/service-schemas/systemTestRunner";
 import { remoteRouteMethods } from "./remote-route-managed.js";
 import { managedNotificationMethods } from "./notification-lifecycle-managed.js";
 import { retainedTriageMethods } from "./retained-triage-managed.js";
@@ -406,6 +408,7 @@ export class HeadlessRunner {
     testNames: Map<HeadlessSession, string | null>;
     modelPolicy: ModelPolicyState;
     thinkingLevel?: SystemTestThinkingLevel;
+    approvalObservation?: SystemTestApprovalObservation;
     sessionPolicies: Map<HeadlessSession, ModelPolicyState>;
   };
   private readonly testName: string | null;
@@ -442,14 +445,9 @@ export class HeadlessRunner {
     opts?: {
       model?: string;
       thinkingLevel?: SystemTestThinkingLevel;
+      approvalObservation?: SystemTestApprovalObservation;
     },
-    shared?: {
-      sessions: Set<HeadlessSession>;
-      testNames: Map<HeadlessSession, string | null>;
-      modelPolicy: HeadlessRunner["shared"]["modelPolicy"];
-      thinkingLevel?: SystemTestThinkingLevel;
-      sessionPolicies: Map<HeadlessSession, ModelPolicyState>;
-    },
+    shared?: HeadlessRunner["shared"],
     testName: string | null = null,
     workspaceRepoFixture: HeadlessRunner["workspaceRepoFixture"] = null,
     testAuthorityPolicy: AgentExecutionTestPolicySpec | null = null,
@@ -464,6 +462,7 @@ export class HeadlessRunner {
       sessions: new Set(),
       testNames: new Map(),
       sessionPolicies: new Map(),
+      ...(opts?.approvalObservation ? { approvalObservation: opts.approvalObservation } : {}),
       ...(opts?.thinkingLevel ? { thinkingLevel: opts.thinkingLevel } : {}),
       modelPolicy: {
         ...modelRoute,
@@ -1768,6 +1767,22 @@ export class HeadlessRunner {
       if (qualification)
         return { kind: "reference" as const, value: await rpc.call(owner, templateReleaseMethods.qualifyTemplateRelease, [input], { signal }) };
       return { kind: "teacher" as const, value: await rpc.call(owner, templateReleaseMethods.runTemplateReleaseTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    } finally {
+      await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+  }
+
+  async runManagedApprovalTransition(qualification: boolean, signal: AbortSignal) {
+    const observation = this.shared.approvalObservation;
+    if (!observation) throw new Error("Use the managed launcher to capture a fresh approval observation");
+    const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
+    try {
+      const owner = await this.createFixtureWorker(contextId);
+      const input = { contextId, observation };
+      if (qualification)
+        return { kind: "reference" as const, result: await rpc.call(owner, approvalTransitionMethods.qualifyManagedApprovalTransition, [input], { signal }) };
+      return { kind: "teacher" as const, result: await rpc.call(owner, approvalTransitionMethods.runManagedApprovalTransitionTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }

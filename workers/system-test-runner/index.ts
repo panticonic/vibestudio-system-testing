@@ -1,3 +1,4 @@
+import type { ManagedApprovalTransitionReceiver } from "@workspace-skills/system-testing/approval-transition-managed";
 import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remote-route-managed";
 import type { ManagedNotificationReceiver } from "@workspace-skills/system-testing/notification-lifecycle-managed";
 import { cliContinuationWork, remoteRouteWorlds } from "@workspace-skills/system-testing/remote-route-worlds";
@@ -2784,6 +2785,34 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       import {prepareTemplateRelease} from "@workspace-skills/system-testing/template-release-managed";
       const prepared=await prepareTemplateRelease(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})});
       const assignedServices=prepared.services;
+    `;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Reviews the assigned live approval observations."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async runManagedApprovalTransitionTeacher(input: Parameters<ManagedApprovalTransitionReceiver["runManagedApprovalTransitionTeacher"]>[0]): ReturnType<ManagedApprovalTransitionReceiver["runManagedApprovalTransitionTeacher"]> {
+    return await this.runHarnessUtility("teacher", runId => `${domainTeacherCode({
+      executorModel: input.executorModel,
+      work: {kind:"domain",domain:"capabilities",operation:"reviewApprovalTransition",input:{goal:"Review the assigned approval observations"}},
+      inputCode: "prepared.request",
+      bindingCode: this.approvalTransitionBindings(input),
+    }, runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedApprovalTransitionReceiver["runManagedApprovalTransitionTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Verifies the managed approval observations without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"read"})
+  async qualifyManagedApprovalTransition(input: Parameters<ManagedApprovalTransitionReceiver["qualifyManagedApprovalTransition"]>[0]): ReturnType<ManagedApprovalTransitionReceiver["qualifyManagedApprovalTransition"]> {
+    return await this.runHarnessUtility("teacher", domainTeacherQualificationCode(
+      [{domain:"capabilities",operation:"reviewApprovalTransition"}], this.approvalTransitionBindings(input),
+    )) as Awaited<ReturnType<ManagedApprovalTransitionReceiver["qualifyManagedApprovalTransition"]>>;
+  }
+
+  private approvalTransitionBindings({ contextId, observation }: Parameters<ManagedApprovalTransitionReceiver["qualifyManagedApprovalTransition"]>[0]): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {prepareManagedApprovalTransition} from "@workspace-skills/system-testing/approval-transition-managed";
+      const prepared=prepareManagedApprovalTransition(${JSON.stringify({contextId,observation})});
+      const assignedServices={};
     `;
   }
 

@@ -29,6 +29,7 @@ import {
   systemTestDescriptorSchema,
   systemTestDoctorResultSchema,
   systemTestRunSummarySchema,
+  type SystemTestApprovalObservation,
   type SystemTestDescriptor,
   type SystemTestDoctorResult,
   type SystemTestRunSummary,
@@ -92,6 +93,7 @@ export interface SystemTestRunOptions {
   thinkingLevel?: SystemTestThinkingLevel;
   concurrency?: number;
   testTimeoutMs?: number;
+  approvalObservation?: SystemTestApprovalObservation;
   /** Durable orchestration heartbeat supplied by CLI/UI hosts. */
   onProgress?: (progress: SystemTestRunProgress) => void | Promise<void>;
   /** EvalDO cancellation hook; lets a cancelled orchestration retire children before RPC abort. */
@@ -401,6 +403,7 @@ export async function runSystemTests(
   const runner = new HeadlessRunner(options.contextId, {
     ...(options.model ? { model } : {}),
     ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+    ...(options.approvalObservation ? { approvalObservation: options.approvalObservation } : {}),
   });
   const tester = new TestRunner(runner, {
     testTimeoutMs,

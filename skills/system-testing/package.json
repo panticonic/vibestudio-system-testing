@@ -47,6 +47,7 @@
     }
   },
   "exports": {
+    "./approval-transition-managed": "./approval-transition-managed.ts",
     "./integration-readiness-managed": "./integration-readiness-managed.ts",
     "./terminal-check-managed": "./terminal-check-managed.ts",
     "./problem-draft-managed": "./problem-draft-managed.ts",
