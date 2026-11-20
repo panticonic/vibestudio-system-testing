@@ -322,7 +322,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     const receipt = stageAuthorized ? await services.docPlanHandoff.stage(plan) : null;
     return proof({ plan, handoff: receipt });
   }
-  return { services, verify, qualify };
+  return { goal: assignment.goal, services, verify, qualify };
 }
 
 function validPlanShape(plan: CapabilityPlan | undefined): plan is CapabilityPlan {
