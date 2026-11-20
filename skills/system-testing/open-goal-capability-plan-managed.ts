@@ -173,11 +173,12 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     docPlanHandoff: {
       async stage(plan: CapabilityPlan) {
         if (!stageAuthorized || staged || plan?.status !== "ready" || !validPlanShape(plan) ||
-            plan.missing.length || !grounded(plan)) return null;
+            plan.missing.length || !grounded(plan) || !await currentPlanSources(plan)) return null;
         const text = artifactBody(plan);
         if (!boundedText(text, reportBytes)) return null;
         const receipt = await handoff.stage(text);
-        if (receipt) staged = { ...receipt, sha256: sha256HexSyncText(text) };
+        if (!receipt) return null;
+        staged = { ...receipt, sha256: sha256HexSyncText(text) };
         return staged;
       },
     },
@@ -193,6 +194,18 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       return entry?.sha256 === step.sha256 && isDeepStrictEqual(entry.argumentNames, step.argumentNames);
     }) && plan.knowledge.every(citation => loadedCitation(citation)) &&
       isDeepStrictEqual(plan.overview, overview);
+  }
+  async function currentPlanSources(plan: CapabilityPlan) {
+    if (currentMemo === undefined || !isDeepStrictEqual(currentMemo, await memo())) return false;
+    const [entries, skills] = await Promise.all([
+      Promise.all(plan.steps.map(step => liveDescription(step.id))),
+      Promise.all(plan.knowledge.map(async citation => {
+        const row = installed?.find(item => item.skillPath === citation.skillPath);
+        return row && await readSkill(row.dirPath);
+      })),
+    ]);
+    return entries.every((entry, index) => entry?.sha256 === plan.steps[index]!.sha256) &&
+      skills.every((raw, index) => Boolean(raw && sha256HexSyncText(raw) === plan.knowledge[index]!.sha256));
   }
   function loadedCitation(citation: KnowledgeCitation) {
     const knowledge = loaded.get(citation.skillPath);
