@@ -8,6 +8,8 @@ type Teacher = Awaited<
 type Qualification = Awaited<
   ReturnType<ManagedEvalRecoveryReceiver["qualifyManagedEvalRecovery"]>
 >;
+const qualified = (proof: Qualification) =>
+  proof.verification.passed && proof.rejectsAnotherDigest && proof.rejectsUnprovenReadback;
 const settings = {
   category: "project-lifecycle",
   explicitOnly: true,
@@ -85,11 +87,28 @@ managedEvalRecoveryTests.push({
     return {
       passed:
         checks?.length === managedEvalRecoveryWorlds.length &&
-        checks.every(
-          ({ verification, rejectsAnotherDigest }) =>
-            verification.passed && rejectsAnotherDigest,
-        ),
+        checks.every(qualified),
       details: { checks },
     };
   },
 });
+
+managedEvalRecoveryTests.push(...managedEvalRecoveryWorlds
+  .filter(({ journalCase }) => journalCase)
+  .map((world): TestCase => ({
+    ...settings,
+    name: `eval-recovery-oracle-${world.id}`,
+    description: "Check the actual eval journal and reject an unproven readback",
+    prompt: world.goal,
+    async orchestrate({runner, signal}) {
+      const started = Date.now();
+      const run = await runner.runManagedEvalRecovery(world.id, true, signal);
+      if (run.kind !== "reference") throw new Error("Expected model-free eval recovery");
+      return { messages: [], duration: Date.now() - started, diagnostics: { evalRecoveryCase: run.result } };
+    },
+    validate(result) {
+      const proof = result.diagnostics?.["evalRecoveryCase"] as Qualification | undefined;
+      return { passed: Boolean(proof && qualified(proof)), details: proof?.verification.checks };
+    },
+  }))
+);

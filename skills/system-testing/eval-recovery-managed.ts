@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
-import type { EvalOperationJournal } from "@vibestudio/service-schemas/eval";
+import { EVAL_OPERATION_JOURNAL_MAX_ENTRIES, type EvalOperationJournal } from "@vibestudio/service-schemas/eval";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { rpc } from "@workspace/runtime";
 import { bindEvalRecovery } from "@workspace-skills/eval-recovery-bindings";
@@ -37,13 +37,23 @@ function expectedText(input: Input) {
   return `Assigned recovery evidence for ${input.caseId} in ${input.contextId}.\n`;
 }
 
+function unrelatedText(input: Input) {
+  return `Unrelated recovery evidence for ${input.caseId} in ${input.contextId}.\n`;
+}
+
 /** The system test owns this finite cell and the only values interpolated into it. */
 export function evalRecoveryProbeCode(input: Input): string {
   const world = worldFor(input.caseId);
   const text = expectedText(input);
-  const operation = world.stored
-    ? `await rpc.call("main", mainRpcMethods["blobstore.putText"], [${JSON.stringify(text)}]);`
-    : `await rpc.call("main", mainRpcMethods["blobstore.getText"], [${JSON.stringify(sha256HexSyncText(text))}]);`;
+  const store = (value: string) =>
+    `await rpc.call("main", mainRpcMethods["blobstore.putText"], [${JSON.stringify(value)}]);`;
+  const read = `await rpc.call("main", mainRpcMethods["blobstore.getText"], [${JSON.stringify(sha256HexSyncText(text))}]);`;
+  const fill = `for (let i = 0; i < ${EVAL_OPERATION_JOURNAL_MAX_ENTRIES + 1}; i++) { ${read} }`;
+  const operations = world.journalCase === "truncated-before-store" ? [fill, store(text)]
+    : world.journalCase === "truncated-after-store" ? [store(text), fill]
+    : world.journalCase === "duplicate" ? [store(text), store(text)]
+    : world.journalCase === "conflicting" ? [store(text), store(unrelatedText(input))]
+    : world.stored ? [store(text)] : [read];
   const outcome = world.fails
     ? 'throw new Error("Intentional failure after the assigned store");'
     : "return { stored: true };";
@@ -52,7 +62,7 @@ export function evalRecoveryProbeCode(input: Input): string {
     import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
     if (actualContextId !== ${JSON.stringify(input.contextId)})
       throw new Error("Recovery probe belongs to another context");
-    ${operation}
+    ${operations.join("\n")}
     ${outcome}
   `;
 }
@@ -62,6 +72,14 @@ export function prepareManagedEvalRecovery(input: Input, probe: Probe) {
   const world = worldFor(caseId);
   const text = expectedText(input);
   const digest = sha256HexSyncText(text);
+  const truncated = world.journalCase?.startsWith("truncated-") === true;
+  const expectedJournal = truncated ? "incomplete"
+    : world.journalCase ? "mismatch"
+    : world.stored ? "matched" : "absent";
+  const readExpected = world.allowReadback && expectedJournal === "matched";
+  const observedStores = world.journalCase === "conflicting" ? [text, unrelatedText(input)]
+    : world.journalCase === "duplicate" ? [text, text]
+    : world.journalCase === "truncated-before-store" || !world.stored ? [] : [text];
   const bound = bindEvalRecovery({
     goal: world.goal,
     contextId,
@@ -102,29 +120,29 @@ export function prepareManagedEvalRecovery(input: Input, probe: Probe) {
       [digest],
     );
     const expectedCell = world.fails ? "failed" : "returned";
-    const expectedJournal = world.stored ? "matched" : "absent";
-    const expectedEffect = world.allowReadback ? "confirmed" : "unchecked";
+    const expectedEffect = readExpected ? "confirmed" : "unchecked";
     const checks = {
       original:
         !!probe.runId &&
         probe.success === !world.fails &&
-        probe.operationJournal?.truncated === false &&
+        probe.operationJournal?.truncated === truncated &&
         attempt?.runId === probe.runId &&
         attempt.cell === expectedCell &&
-        attempt.journal === "complete" &&
+        attempt.journal === (truncated ? "truncated" : "complete") &&
         attempt.expectedDigest === digest &&
         attempt.expectedSize === text.length &&
         attempt.allowReadback === world.allowReadback &&
         isDeepStrictEqual(
           attempt.stores,
-          world.stored
-            ? [{ digest, contentDigest: digest, size: text.length }]
-            : [],
+          observedStores.map((value) => {
+            const digest = sha256HexSyncText(value);
+            return { digest, contentDigest: digest, size: new TextEncoder().encode(value).byteLength };
+          }),
         ),
       storage: hostRead === (world.stored ? text : null),
       readback: isDeepStrictEqual(
         readback,
-        world.allowReadback
+        readExpected
           ? { digest, observedDigest: digest, size: text.length }
           : null,
       ),
@@ -134,7 +152,7 @@ export function prepareManagedEvalRecovery(input: Input, probe: Probe) {
         report.journal === expectedJournal &&
         report.effect === expectedEffect &&
         report.next === world.next &&
-        !!report.reason.trim() &&
+        typeof report.reason === "string" && !!report.reason.trim() &&
         isDeepStrictEqual(report.readback, readback),
     };
     return {
@@ -163,7 +181,12 @@ export function prepareManagedEvalRecovery(input: Input, probe: Probe) {
         error instanceof Error &&
         error.message.includes("complete native receipt");
     }
-    const effect = world.allowReadback
+    const rejectsUnprovenReadback = !world.journalCase || await services.evalRecoveryReadback
+      .read(bound.request.operationId, digest)
+      .then(() => false, (error: unknown) =>
+        error instanceof Error && error.message.includes("complete native receipt")
+      );
+    const effect = readExpected
       ? await services.evalRecoveryReadback.read(
           bound.request.operationId,
           digest,
@@ -173,13 +196,14 @@ export function prepareManagedEvalRecovery(input: Input, probe: Probe) {
       verification: await verify({
         runId: observation.runId,
         cell: observation.cell,
-        journal: world.stored ? "matched" : "absent",
+        journal: expectedJournal,
         readback: effect,
         effect: effect ? "confirmed" : "unchecked",
         next: world.next,
         reason: "Use the actual operation journal and assigned readback.",
       }),
       rejectsAnotherDigest,
+      rejectsUnprovenReadback,
     };
   }
   return { request: bound.request, services, verify, qualify };
