@@ -105,11 +105,15 @@ export async function prepareRemoteCommission(input: Input) {
     );
     const isAssigned = (info: typeof after) =>
       info.workspaceId === identity.workspaceId &&
-      info.serverId === identity.serverId &&
-      info.serverBootId === identity.bootId;
+      info.serverId === identity.serverId;
     const checks = {
       stableDeployment:
-        proof.stableDeployment && isAssigned(before) && isAssigned(after),
+        proof.stableDeployment &&
+        isAssigned(before) &&
+        isAssigned(after) &&
+        typeof before.serverBootId === "string" &&
+        before.serverBootId.length > 0 &&
+        before.serverBootId === after.serverBootId,
       newPairedProfile:
         proof.persistedNewProfile &&
         steps.profile?.state === "unpaired" &&
@@ -138,6 +142,7 @@ export async function prepareRemoteCommission(input: Input) {
       contextId,
       request,
       identity,
+      workspaceBootId: before.serverBootId,
       proof,
       steps,
       order,
