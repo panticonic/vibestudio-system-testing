@@ -1,3 +1,4 @@
+import { openVaultRendererWorlds } from "./open-goal-vault-renderer-worlds.js";
 import type { VaultKnowledgeWorld } from "@workspace-skills/spectrolite-review-fixtures/knowledge-managed";
 type World = VaultKnowledgeWorld;
 type Step = World["expected"]["steps"][number];
@@ -712,4 +713,5 @@ export const openVaultKnowledgeWorlds = [
   ...evidenceGoals,
   ...jointGoals,
   ...handoffGoals,
+  ...openVaultRendererWorlds,
 ];
