@@ -1,4 +1,5 @@
 export { openGoalPersonalWorlds } from "./open-goal-personal-worlds.js";
+export { openLocalDeliveryWorlds, localDeliveryRequiresUnits } from "./open-goal-local-delivery-worlds.js";
 export { openGoalRecoveryWorlds } from "./open-goal-recovery-worlds.js";
 export { openGoalAuthoringWorlds, authoringRequiresUnits } from "./open-goal-authoring-worlds.js";
 export { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
