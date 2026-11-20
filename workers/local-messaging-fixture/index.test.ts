@@ -19,7 +19,7 @@ it("persists the original exact delivery on a passive synthetic probe and sends 
  await expect(entity.callAs({callerId:"do:other:Channel:other",callerKind:"do"},"acceptChannelDelivery",delivery)).rejects.toThrow(/exact admitted channel/);
 });
 it("the fixture channel joins the same inherited canonical capture and wait without host RPC impersonation",async()=>{
- const receipt={queues:["channel-delivery" as const],barrier:{channelId:"owned-channel",headSequence:2,headHash:"actual-hash",admissionRevision:2}};
+ const receipt={queues:["channel-delivery" as const],barrier:{channelId:"owned-channel",headSequence:2,headEnvelopeId:"actual-envelope",admissionRevision:2}};
  const prepare=vi.spyOn(PubSubChannel.prototype,"prepareDurableWorkRelease").mockResolvedValue(receipt);
  const wait=vi.spyOn(PubSubChannel.prototype,"waitDurableWorkRelease").mockResolvedValue();
  const entity=await createTestDO(LocalMessagingChannelDO,{WORKER_SOURCE:"workers/local-messaging-fixture",WORKER_CLASS_NAME:"LocalMessagingChannelDO",__objectKey:"owned-channel"});dbs.push(entity.db);

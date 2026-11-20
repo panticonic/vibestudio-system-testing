@@ -806,7 +806,6 @@ function expectedLiveGadHealthOutcome(
       "missingMappings",
       "orphanMappings",
       "sequenceMismatches",
-      "hashIssues",
       "integrityIssues",
     ])
   ) {
@@ -814,7 +813,7 @@ function expectedLiveGadHealthOutcome(
   }
 
   if (
-    /(validateGadHashes|checkGadIntegrity)[\s\S]{0,300}"?ok"?\s*[:=]\s*false/i.test(
+    /(validateGadIntegrity|checkGadIntegrity)[\s\S]{0,300}"?ok"?\s*[:=]\s*false/i.test(
       evidence,
     )
   ) {
