@@ -115,6 +115,7 @@ import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goa
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   capabilityPlanWorlds, openGoalGitHubWorlds,
+  openAssemblyWorlds,
   openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3678,6 +3679,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const assembly = openAssemblyWorlds.some(({ id }) => id === input.caseId);
     const capabilityPlan = capabilityPlanWorlds.some(({ id }) => id === input.caseId);
     const terminalHandoff = openTerminalWorlds.some(({ id }) => id === input.caseId);
     const evalHandoff = openGoalEvalHandoffWorlds.find(({ id }) => id === input.caseId);
@@ -3726,7 +3728,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     );
     const unitRollout = openUnitRolloutWorlds.find(({ id }) => id === input.caseId);
     const ownedTask = openOwnedTaskWorlds.find(({ id }) => id === input.caseId);
-    const prepare = capabilityPlan
+    const prepare = assembly
+      ? `import {fs,rpc,vcs} from "@workspace/runtime";
+         import {prepareOpenWorkspaceAssembly} from "@workspace-skills/system-testing/open-goal-workspace-assembly-managed";
+         const prepared=await prepareOpenWorkspaceAssembly(input,{contextId:actualContextId,fs,rpc,vcs});`
+      : capabilityPlan
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {prepareOpenCapabilityPlan} from "@workspace-skills/system-testing/open-goal-capability-plan-managed";
          const prepared=await prepareOpenCapabilityPlan(input,{contextId:actualContextId,fs,vcs,rpc});`

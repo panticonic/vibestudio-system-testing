@@ -13,6 +13,7 @@ export { openGoalAuthoringWorlds, authoringRequiresUnits } from "./open-goal-aut
 export { openGoalProgramRunWorlds, programRunRequiresUnits } from "./open-goal-program-run-worlds.js";
 export { openTerminalWorlds, openTerminalRequiresUnits } from "./open-goal-terminal-worlds.js";
 export { capabilityPlanWorlds, capabilityPlanRequiresUnits } from "./open-goal-capability-plan-worlds.js";
+export { openAssemblyWorlds, openAssemblyRequiresUnits } from "./open-goal-workspace-assembly-worlds.js";
 export { openGoalEvalHandoffWorlds, evalHandoffRequiresUnits } from "./open-goal-eval-handoff-worlds.js";
 export { openGoalPdfVaultWorlds } from "./open-goal-pdf-vault-worlds.js";
 export { openGoalPdfWorlds } from "./open-goal-pdf-worlds.js";
