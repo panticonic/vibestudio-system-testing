@@ -124,7 +124,7 @@ export async function prepareNewsHandoff<
     request: {
       goal:
         news.request.goal +
-        " Run the News review first. Then hand off the actual mission settings, including when the old expectation was stale.",
+        " Run the News review first. Stage the verified mission settings. A verified unchanged configuration is ready for handoff after a declined change.",
       work: [
         { ...newsHandoffWork[0], input: news.request },
         { ...newsHandoffWork[1], input: scratch.request },
