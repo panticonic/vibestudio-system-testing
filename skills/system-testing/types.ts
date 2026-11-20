@@ -237,6 +237,8 @@ export interface TestCase {
    * This keeps fixture mechanics out of the user-like prompt.
    */
   workspaceRepoFixture?: WorkspaceRepoCreationScope;
+  /** Give a single agent its own seeded copy for a fixture task that stays private. */
+  agentContext?: "fork";
   /**
    * Optional custom orchestration for tests that need multiple independent
    * headless agents, ordered phases, or other harness-level setup that a single

@@ -590,6 +590,7 @@ export const agenticRuntimeTests: TestCase[] = [
       "Agent applies one coherent multi-file patch and builds that exact workspace state",
     category: "agentic-runtime",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       'In the disposable package, change the exported fixture value to "atomic-system-test" and explain it in the README. Make the related edits together, confirm the package still builds, and leave the change unpublished.',
     validation: "harness",

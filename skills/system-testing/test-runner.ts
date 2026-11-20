@@ -547,7 +547,9 @@ export class TestRunner {
                 orchestrationController,
               )
             : await (async (): Promise<TestExecutionResult> => {
-                session = await testRunner.spawn();
+                session = await testRunner.spawn(
+                  test.agentContext ? { context: test.agentContext } : undefined,
+                );
                 enterPhase("agent-turn");
                 const { modelExecutionEvidence } = await sendAndCapture(
                   session,

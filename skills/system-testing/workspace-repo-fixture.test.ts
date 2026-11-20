@@ -433,7 +433,7 @@ function createPort(
         "event:local": ["event:local", "event:import", "event:main"],
         "event:external": ["event:external", "event:import", "event:main"],
       };
-      const ids = histories[root.eventId] ?? [];
+      const ids = (histories[root.eventId] ?? []).slice(1);
       const offset = cursor ? Number(cursor) : 0;
       const end = Math.min(offset + limit, ids.length);
       return {

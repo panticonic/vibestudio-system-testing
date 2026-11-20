@@ -1005,6 +1005,8 @@ export class WorkspaceRepoFixtureLifecycle {
       state.taskBaseEventId,
       ...taskEvents.map((event) => event.eventId),
     ]);
+    // A past timeline starts with the parents of its root.
+    if (taskEventIds.has(mainEventId)) return mainEventId;
     let cursor: string | undefined;
     do {
       const page = await this.port.vcs.history({
