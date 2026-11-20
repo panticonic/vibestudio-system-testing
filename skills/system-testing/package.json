@@ -279,7 +279,6 @@
     "@workspace-skills/open-program-run": "workspace:*",
     "@workspace-skills/open-doc-plan": "workspace:*",
     "@workspace-skills/open-api-readiness": "workspace:*",
-    "@workspace-skills/open-regency-briefing": "workspace:*",
     "@workspace-skills/open-image-candidate": "workspace:*",
     "@workspace-skills/open-news-evidence": "workspace:*",
     "@workspace-skills/open-personal-welcome": "workspace:*",
@@ -338,6 +337,7 @@
     "@workspace-skills/clientdev": "workspace:*",
 
     "@workspace-skills/mobile-system-testing": "workspace:*",
+    "@workspace-skills/open-regency-briefing": "workspace:*",
     "@vibestudio/rpc": "workspace:*",
     "@workspace/pubsub": "workspace:*",
     "@workspace-skills/browser-import-runtime": "workspace:*",
