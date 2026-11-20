@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3759,7 +3759,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const installedPackage = openInstalledPackageWorlds.find(({ id }) => id === input.caseId);
     const assetIntegrity = openAssetIntegrityWorlds.find(({ id }) => id === input.caseId);
     const mobileContinuity = openMobileContinuityWorlds.find(({ id }) => id === input.caseId);
-    const prepare = mobileContinuity
+    const agentCapability = openAgentCapabilityWorlds.find(({ id }) => id === input.caseId);
+    const prepare = agentCapability
+      ? `import {prepareAgentCapability} from "@workspace-skills/system-testing/open-goal-agent-capability-managed";
+         const prepared=await prepareAgentCapability(input,${JSON.stringify(agentCapability)});`
+      : mobileContinuity
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenMobileContinuity} from "@workspace-skills/mobile-system-testing/open-continuity";
          const prepared=await prepareOpenMobileContinuity(input,${JSON.stringify(mobileContinuity)},
