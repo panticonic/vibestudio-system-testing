@@ -114,7 +114,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openTerminalWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3721,7 +3721,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       { seed: reconciliation.id, worldId: reconciliation.id }, reconciliation.assignment,
     );
     const unitRollout = openUnitRolloutWorlds.find(({ id }) => id === input.caseId);
-    const prepare = unitRollout
+    const ownedTask = openOwnedTaskWorlds.find(({ id }) => id === input.caseId);
+    const prepare = ownedTask
+      ? `import {createDurableObjectServiceClient} from "@workspace/runtime";
+         import {missionControlRpcMethods} from "@workspace/mission-control/rpc-contract";
+         import {prepareOwnedTaskRecovery} from "@workspace-skills/system-testing/open-goal-owned-task-managed";
+         const store=createDurableObjectServiceClient("mission-planning-fixture.v1",missionControlRpcMethods,"natlang-mission-planning-"+actualContextId);
+         const prepared=await prepareOwnedTaskRecovery(input,${JSON.stringify(ownedTask)},store);`
+      : unitRollout
       ? `import {vcs,blobstore,openPanel,rpc} from "@workspace/runtime";
          import {prepareOpenUnitRollout} from "@workspace-skills/system-testing/open-goal-unit-rollout-managed";
          const prepared=await prepareOpenUnitRollout(input,${JSON.stringify(unitRollout)},{contextId:actualContextId,vcs,blobstore,openPanel,rpc,build:services.build});`

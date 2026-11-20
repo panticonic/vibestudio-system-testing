@@ -105,6 +105,7 @@
     "./open-goal-managed": "./open-goal-managed.ts",
     "./open-goal-operator-managed": "./open-goal-operator-managed.ts",
     "./open-goal-unit-rollout-managed": "./open-goal-unit-rollout-managed.ts",
+    "./open-goal-owned-task-managed": "./open-goal-owned-task-managed.ts",
     "./open-goal-local-delivery-managed": "./open-goal-local-delivery-managed.ts",
     "./open-goal-recovery-managed": "./open-goal-recovery-managed.ts",
     "./open-goal-authoring-managed": "./open-goal-authoring-managed.ts",
