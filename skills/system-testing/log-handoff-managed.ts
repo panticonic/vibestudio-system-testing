@@ -24,8 +24,9 @@ type Brief = {
 };
 
 export function prepareManagedLogHandoff(input: Input, seed: Seed) {
-  const world = managedLogHandoffWorlds.find(({ id }) => id === input.caseId);
-  if (!world || input.contextId !== contextId) throw new Error("Unknown host-log handoff assignment");
+  const assigned = managedLogHandoffWorlds.find(({ id }) => id === input.caseId);
+  if (!assigned || input.contextId !== contextId) throw new Error("Unknown host-log handoff assignment");
+  const world = assigned;
   const split = world.earlier.reduce((count, group) => count + group.repeat, 0);
   const middle = seed.steps[split - 1];
   const end = seed.steps.at(-1);
@@ -41,6 +42,7 @@ export function prepareManagedLogHandoff(input: Input, seed: Seed) {
   const reads: Partial<Record<"earlier" | "later", Read>> = {};
   const services = {
     serverLog: {
+      async tail() { throw new Error("Read only the two assigned host-log windows"); },
       async query(filter: { sinceSeq: number; untilSeq: number; tag: string; limit: number; since?: number; level?: string }) {
         const side = (["earlier", "later"] as const).find((key) =>
           filter.sinceSeq === request[key].after && filter.untilSeq === request[key].through);
@@ -64,7 +66,7 @@ export function prepareManagedLogHandoff(input: Input, seed: Seed) {
       !isDeepStrictEqual(read.records.map(({ seq }) => seq), seqs)) return null;
     const findings: Brief["findings"] = [];
     let index = 0;
-    for (const { line, label, repeat } of world![side]) {
+    for (const { line, label, repeat } of world[side]) {
       const group = read.records.slice(index, index + repeat);
       const first = group[0]!;
       const last = group.at(-1)!;
@@ -92,7 +94,7 @@ export function prepareManagedLogHandoff(input: Input, seed: Seed) {
     const checks = {
       earlier: matches(report?.earlier, expectedBrief("earlier")),
       later: matches(report?.later, expectedBrief("later")),
-      progress: report?.status === world?.status,
+      progress: report?.status === world.status,
     };
     return { ...input, request, seed, reads, checks, passed: Object.values(checks).every(Boolean) };
   }
@@ -112,7 +114,7 @@ export function prepareManagedLogHandoff(input: Input, seed: Seed) {
         rejectsForeignWindow = error instanceof Error && error.message.includes("assigned host-log windows");
       }
       return {
-        verification: verify({ status: world!.status, earlier: expectedBrief("earlier"), later: expectedBrief("later") }),
+        verification: verify({ status: world.status, earlier: expectedBrief("earlier"), later: expectedBrief("later") }),
         rejectsForeignWindow,
       };
     },
