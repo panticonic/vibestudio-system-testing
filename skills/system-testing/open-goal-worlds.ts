@@ -1,3 +1,5 @@
+export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
+
 export const openGoalWorlds = [
   {
     kind: "research",

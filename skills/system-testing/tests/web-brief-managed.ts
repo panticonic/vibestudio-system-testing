@@ -2,7 +2,8 @@ import type { TestCase } from "../types.js";
 import type { ManagedWebBriefReceiver } from "../web-brief-managed.js";
 import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed.js";
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
-import { openGoalWorlds } from "../open-goal-worlds.js";
+import { browserGoalWorlds, openGoalWorlds } from "../open-goal-worlds.js";
+import { PANEL_AUTOMATION_RESOURCE, panelControlAuthorityPolicy } from "../panel-authority.js";
 import {
   managedResearchIntakeWorlds,
   managedResearchHandoffWorlds,
@@ -71,16 +72,24 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-managedWebBriefTests.push(...openGoalWorlds.map((world): TestCase => ({
+const openGoalCases = [...openGoalWorlds, ...browserGoalWorlds].map(world => ({ world, qualification: false }));
+openGoalCases.push(...browserGoalWorlds.map(world => ({ world, qualification: true })));
+managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
   ...settings,
-  requiresUnits: ["skills/web-research"],
-  name: `open-goal-${world.id}`,
+  requiresUnits: world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
+  ...(world.kind === "browser" ? {
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-panel"),
+    workspaceRepoFixture: { kind: "open-goal-browser-panel", section: "panels", caseId: world.id },
+  } : {}),
+  name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
   description: world.kind === "research" ? "Answer a user question by discovering public evidence" :
-    "Find and revise a workspace document while preserving a concurrent edit",
+    world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
+      "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
     const started = Date.now();
-    const { teacher, verification } = await runner.runOpenGoal(world.id, signal);
+    const { teacher, verification } = await runner.runOpenGoal(world.id, signal, qualification);
     return {
       messages: [],
       duration: Date.now() - started,
@@ -92,9 +101,10 @@ managedWebBriefTests.push(...openGoalWorlds.map((world): TestCase => ({
     };
   },
   validate(result) {
-    const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | undefined;
+    const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | null | undefined;
     const proof = result.diagnostics?.["openGoalVerification"] as OpenGoalResult["verification"] | undefined;
-    return { passed: teacher?.trainingEligible === true && proof?.passed === true, details: proof?.checks };
+    return { passed: (qualification ? teacher === null : teacher?.trainingEligible === true) &&
+      proof?.passed === true, details: proof?.checks };
   },
 })));
 

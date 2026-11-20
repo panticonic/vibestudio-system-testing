@@ -42,6 +42,8 @@ import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { openGoalMethods } from "./open-goal-managed.js";
+import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
+import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { managedResearchHandoffMethods } from "./research-handoff-managed.js";
 import { managedArchitectureBoundaryMethods } from "./architecture-boundary-managed.js";
 import { managedExtensionReleaseMethods } from "./extension-release-managed.js";
@@ -2184,7 +2186,36 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
-  async runOpenGoal(caseId: string, signal: AbortSignal) {
+  async runOpenGoal(caseId: string, signal: AbortSignal, qualification = false) {
+    const browser = browserGoalWorlds.find((world) => world.id === caseId);
+    if (browser) {
+      const fixture = this.workspaceRepoFixture;
+      const contextId = this.workspaceRepoFixtureContextId;
+      if (fixture?.kind !== "open-goal-browser-panel" || fixture.caseId !== caseId ||
+          !fixture.repoName || !contextId) throw new Error("Open browser goal needs its owned fixture");
+      const before = await vcs.status({ contextId });
+      const source = `panels/${fixture.repoName}`;
+      const panel = await this.openPanelClient(source, {
+        contextId, ref: `ctx:${contextId}`, focus: false, parentId: null,
+        stateArgs: { heading: browser.heading, rows: browser.rows },
+      });
+      try {
+        const result = qualification
+          ? { teacher: null, verification: await prepareBrowserGoal(panel, { contextId, caseId, source }, browser).qualify() }
+          : await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
+            { contextId, caseId, source, panelId: panel.id, executorModel: this.modelRef },
+          ], { signal });
+        const after = await vcs.status({ contextId });
+        const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
+          JSON.stringify(before.workingHead) === JSON.stringify(after.workingHead);
+        return { ...result, verification: {
+          ...result.verification, passed: result.verification.passed && protectedHeadUnchanged,
+          checks: { ...result.verification.checks, protectedHeadUnchanged },
+        } };
+      } finally {
+        await panel.archive();
+      }
+    }
     const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
     try {

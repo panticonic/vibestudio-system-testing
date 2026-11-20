@@ -1,10 +1,12 @@
-import { fs, web } from "@workspace/runtime";
+import { fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
 import { openGoalWorlds } from "./open-goal-worlds.js";
+import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
+import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 
-type Input = { contextId: string; caseId: string };
+type Input = { contextId: string; caseId: string; panelId?: string; source?: string };
 type ResearchReport = {
   status: string;
   research?: {
@@ -15,7 +17,12 @@ type ResearchReport = {
 };
 const normalize = (text: string) => text.replace(/\s+/gu, " ").trim();
 
-export async function prepareOpenGoal({ contextId, caseId }: Input) {
+export async function prepareOpenGoal({ contextId, caseId, panelId, source }: Input) {
+  const browser = browserGoalWorlds.find((item) => item.id === caseId);
+  if (browser) {
+    if (!panelId || !source) throw new Error("The open browser goal needs its owned panel");
+    return prepareBrowserGoal(panelTree.get(panelId), { contextId, caseId, source }, browser);
+  }
   const world = openGoalWorlds.find((item) => item.id === caseId);
   if (!world) throw new Error("Unknown open user goal");
   if (world.kind === "workspace-edit") return prepareWorkspaceGoal({ contextId, caseId }, world);

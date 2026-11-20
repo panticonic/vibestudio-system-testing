@@ -23,12 +23,15 @@ afterEach(async () => {
 });
 
 it("requires fresh observations and independently reads back a recovered revision", async () => {
-  const world = openGoalWorlds.find(({ id }) => id === "reconcile-workshop-update")!;
+  const world = openGoalWorlds.find(({ id }) => id === "reconcile-workshop-update");
+  if (world?.kind !== "workspace-edit") throw new Error("Expected the workshop fixture");
+  const files: Readonly<Record<string, string>> = world.files;
   const prepared = await prepareOpenGoal({ contextId: "owned-context", caseId: world.id });
+  if (!("goalWorkspace" in prepared.services)) throw new Error("Expected the document workspace binding");
   const workspace = prepared.services.goalWorkspace;
-  expect(await workspace.list()).toEqual(Object.keys(world.files).sort());
+  expect(await workspace.list()).toEqual(Object.keys(files).sort());
   const earlier = await workspace.read(world.destination);
-  expect(earlier?.text).toBe(world.files[world.destination]);
+  expect(earlier?.text).toBe(files[world.destination]);
   expect(await workspace.read(world.source)).toBeTruthy();
   expect(await workspace.revise(world.destination, earlier!.version, world.expected)).toEqual({ status: "changed" });
   expect((await prepared.verify({ status: "edited" })).passed).toBe(false);

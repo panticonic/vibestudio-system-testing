@@ -5,6 +5,7 @@ import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { expectedBuildUnitName } from "@vibestudio/workspace-contracts/sourceDirs";
 import { serializeSystemTestError } from "./structured-error.js";
 import { panelRepairWorldSource, type DraftLoss } from "./panel-repair-world.js";
+import { openGoalBrowserPanelSource } from "./open-goal-browser-panel.js";
 
 type FixtureVcs = Pick<
   VcsClient,
@@ -58,6 +59,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "draft-repair-panel"; section: "panels"; fault: DraftLoss }
   | { kind: "publication-preflight-panel"; section: "panels"; caseId: string }
   | { kind: "panel-health-preview"; section: "panels"; caseId: string }
+  | { kind: "open-goal-browser-panel"; section: "panels"; caseId: string }
   | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
   | { kind: "optimizable-panel"; section: "panels" }
   | { kind: "created-repository"; section: WorkspaceRepoSection }
@@ -1316,6 +1318,15 @@ for (const label of copy.publicLabels) {
   paragraph.textContent = label;
   root.append(paragraph);
 }\n` },
+    ];
+  }
+  if (fixture.kind === "open-goal-browser-panel") {
+    const [manifest] = buildablePanelFiles(repoName);
+    const config = JSON.parse(manifest!.content);
+    config.dependencies["@workspace/react"] = "workspace:*";
+    return [
+      { path: "package.json", content: JSON.stringify(config, null, 2) + "\n" },
+      { path: "index.tsx", content: openGoalBrowserPanelSource },
     ];
   }
   if (fixture.kind === "panel-health-preview") {
