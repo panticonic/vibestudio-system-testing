@@ -1,4 +1,5 @@
 import type { AdventureGoalCase, SaveSeed } from "@workspace-skills/open-adventure-journey-runtime";
+import { panelControlAuthorityPolicy } from "./panel-authority.js";
 
 export const adventureGoalRequiresUnits = [
   "skills/open-user-goal",
@@ -6,17 +7,18 @@ export const adventureGoalRequiresUnits = [
   "skills/open-adventure-journey-runtime",
   "skills/examples-review",
   "workers/adventure-world",
+  "panels/dead-letter-office",
+  "panels/missing-country",
+  "panels/wandering-house",
 ];
 
-export const adventureGoalAuthority = {
-  authority: [{
-    ruleId: "control-disposable-adventure-save",
-    capability: { kind: "exact" as const, key: "workspace-service:adventure" },
-    resource: { kind: "prefix" as const, prefix: "do:workers/adventure-world:AdventureWorldDO:natlang-adventure-" },
-    tier: "gated" as const,
-    decision: "task" as const,
-  }],
-};
+export const adventureGoalAuthority = panelControlAuthorityPolicy("inspect-owned-adventure-player", [{
+  ruleId: "control-disposable-adventure-save",
+  capability: { kind: "exact", key: "workspace-service:adventure" },
+  resource: { kind: "prefix", prefix: "do:workers/adventure-world:AdventureWorldDO:natlang-adventure-" },
+  tier: "gated",
+  decision: "task",
+}]);
 
 type Expected = AdventureGoalCase["expected"];
 type Fact = Expected["evidence"][number];

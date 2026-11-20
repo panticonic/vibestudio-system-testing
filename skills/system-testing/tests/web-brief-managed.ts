@@ -131,7 +131,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
 const templateSettings = {
   "local-width": { requiresUnits: openLocalWidthRequiresUnits },
   "dictation-handoff": { requiresUnits: dictationHandoffRequiresUnits },
-  "adventure-journey": { requiresUnits: adventureGoalRequiresUnits, authorityPolicy: adventureGoalAuthority },
+  "adventure-journey": { requiresUnits: adventureGoalRequiresUnits, authorityPolicy: adventureGoalAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
   "provider-handoff": { requiresUnits: providerHandoffRequiresUnits },
   "problem-report": { requiresUnits: problemReportRequiresUnits },
   "capability-plan": { requiresUnits: capabilityPlanRequiresUnits },
