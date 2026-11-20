@@ -216,7 +216,16 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   ...(world.kind === "visualRecovery" ? {
     requiresUnits: ["skills/open-user-goal", "skills/panel-health", "skills/panel-health-runtime"],
     resources: [PANEL_AUTOMATION_RESOURCE],
-    authorityPolicy: panelControlAuthorityPolicy("inspect-open-visual-recovery", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]),
+    authorityPolicy: panelControlAuthorityPolicy("inspect-open-visual-recovery", [
+      PANEL_RUNTIME_SUPERVISION_AUTHORITY,
+      ...(world.surfaces.some(surface => surface.reloadStage) ? [{
+        ruleId: "reload-owned-recovery-renderer",
+        capability: { kind: "exact" as const, key: "runtime.supervision.manage" },
+        resource: { kind: "prefix" as const, prefix: "restart:panel:panel:" },
+        tier: "gated" as const,
+        decision: "once" as const,
+      }] : []),
+    ]),
     workspaceRepoFixture: { kind: "open-goal-panel-recovery", section: "panels", caseId: world.id },
   } : {}),
   ...(world.kind === "ownedPreview" ? {
