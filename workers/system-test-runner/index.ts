@@ -3807,7 +3807,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         ${bindingCode}
         let result;
         try {
-          ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "" }, runId)}
+          ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "", goal: input.goal }, runId)}
           result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
         } finally { await prepared.close?.(); }
         const utilityValue=result;

@@ -277,7 +277,7 @@ export type OpenGoalDomainVerification = {
   checks: Record<string, boolean>;
 };
 export interface OpenGoalReceiver {
-  runOpenGoalTeacher(input: Input & { executorModel: string; qualification?: boolean; news?: NewsInput }):
+  runOpenGoalTeacher(input: Input & { goal: string; executorModel: string; qualification?: boolean; news?: NewsInput }):
     Promise<{ teacher: PanelTeacherResult | null; verification: Verification | OpenGoalDomainVerification }>;
 }
 export const openGoalMethods = createReceiverRpcMethods<OpenGoalReceiver>(["runOpenGoalTeacher"]);

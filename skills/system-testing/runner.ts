@@ -2204,7 +2204,8 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
-  async runOpenGoal(caseId: string, signal: AbortSignal, qualification = false) {
+  async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false) {
+    const request = { caseId, goal, executorModel: this.modelRef, qualification };
     const recovery = openGoalPanelRecoveryWorlds.find(({ id }) => id === caseId);
     if (recovery) {
       const fixture = this.workspaceRepoFixture;
@@ -2223,7 +2224,7 @@ export class HeadlessRunner {
           panels.push({ surfaceId: surface.id, handle });
         }
         return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { contextId, caseId, source, executorModel: this.modelRef, qualification,
+          { ...request, contextId, source,
             recoveryPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) },
         ], { signal });
       } catch (error) {
@@ -2251,14 +2252,14 @@ export class HeadlessRunner {
       });
       try {
         return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { contextId, caseId, panelId: panel.id, source, reviewedRef, executorModel: this.modelRef, qualification },
+          { ...request, contextId, panelId: panel.id, source, reviewedRef },
         ], { signal });
       } finally { await panel.archive(); }
     }
     if (newsGoalWorlds.some(({ id }) => id === caseId))
       return this.withOwnedNews(caseId, signal, (owner, news) =>
         rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-          { contextId: news.contextId, caseId, news, executorModel: this.modelRef, qualification },
+          { ...request, contextId: news.contextId, news },
         ], { signal }));
     const browser = browserGoalWorlds.find((world) => world.id === caseId);
     if (browser) {
@@ -2276,7 +2277,7 @@ export class HeadlessRunner {
         const result = qualification
           ? { teacher: null, verification: await prepareBrowserGoal(panel, { contextId, caseId, source }, browser).qualify() }
           : await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-            { contextId, caseId, source, panelId: panel.id, executorModel: this.modelRef },
+            { ...request, contextId, source, panelId: panel.id },
           ], { signal });
         const after = await vcs.status({ contextId });
         const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
@@ -2294,7 +2295,7 @@ export class HeadlessRunner {
     try {
       const owner = await this.createFixtureWorker(contextId);
       const execute = (panelId?: string) => rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-        { contextId, caseId, panelId, executorModel: this.modelRef, qualification },
+        { ...request, contextId, panelId },
       ], { signal });
       const correction = openGoalPdfVaultWorlds.find(({ id }) => id === caseId);
       if (!correction && !spectroliteGoalWorlds.some(({ id }) => id === caseId)) return await execute();

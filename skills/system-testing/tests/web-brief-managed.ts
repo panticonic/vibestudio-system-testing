@@ -217,7 +217,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
     const started = Date.now();
-    const { teacher, verification } = await runner.runOpenGoal(world.id, signal, qualification);
+    const { teacher, verification } = await runner.runOpenGoal(world, signal, qualification);
     return {
       messages: [],
       duration: Date.now() - started,
@@ -232,7 +232,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | null | undefined;
     const proof = result.diagnostics?.["openGoalVerification"] as OpenGoalResult["verification"] | undefined;
     return { passed: (qualification ? teacher === null : teacher?.trainingEligible === true) &&
-      proof?.passed === true, details: proof?.checks };
+      proof?.passed === true && proof.goal === world.goal, details: proof?.checks };
   },
 })));
 
