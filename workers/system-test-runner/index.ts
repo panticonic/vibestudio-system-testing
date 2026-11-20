@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openAdventureJourneyWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   dictationHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
@@ -3744,7 +3744,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const problemReport = openProblemReportWorlds.some(({ id }) => id === input.caseId);
     const buildIncident = openBuildIncidentWorlds.find(({ id }) => id === input.caseId);
     const localWidth = openLocalWidthWorlds.find(({ id }) => id === input.caseId);
-    const prepare = dictationHandoff
+    const adventure = openAdventureJourneyWorlds.find(({ id }) => id === input.caseId);
+    const prepare = adventure
+      ? `import {prepareOpenAdventureGoal} from "@workspace-skills/open-adventure-journey-runtime";
+         const prepared=await prepareOpenAdventureGoal(input,${JSON.stringify(adventure)});`
+      : dictationHandoff
       ? `import {prepareOpenDictationHandoff} from "@workspace-skills/system-testing/open-goal-dictation-managed";
          const prepared=await prepareOpenDictationHandoff(input);`
       : localWidth

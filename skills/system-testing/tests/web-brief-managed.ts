@@ -10,6 +10,7 @@ import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
+  openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
   browserGoalWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
@@ -107,7 +108,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -130,6 +131,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
 const templateSettings = {
   "local-width": { requiresUnits: openLocalWidthRequiresUnits },
   "dictation-handoff": { requiresUnits: dictationHandoffRequiresUnits },
+  "adventure-journey": { requiresUnits: adventureGoalRequiresUnits, authorityPolicy: adventureGoalAuthority },
   "provider-handoff": { requiresUnits: providerHandoffRequiresUnits },
   "problem-report": { requiresUnits: problemReportRequiresUnits },
   "capability-plan": { requiresUnits: capabilityPlanRequiresUnits },
@@ -300,6 +302,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "research" ? "Answer a user question by discovering public evidence" :
     world.kind === "browser" ? "Determine and verify a live browser panel outcome" :
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
+    world.kind === "adventure-journey" ? "Recover a disposable Adventure save and verify its player evidence and authorized next turn" :
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
     world.kind === "vaultWork" ? "Resolve long-form knowledge work against the current native vault" :
     world.kind === "spectrolite" ? "Navigate or edit the live Spectrolite vault and verify the outcome" :
