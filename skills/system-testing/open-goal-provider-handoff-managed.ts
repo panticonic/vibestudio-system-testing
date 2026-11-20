@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -102,7 +103,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
   const noteDir = await ports.fs.mkdtemp("provider-review");
   const notePath = `${noteDir}/scope.md`;
   await ports.fs.writeFile(notePath, "Use retained provider evidence only. This is no authorization for future provider effects.");
-  const initialScratch = new Set(await ports.fs.readdir("/.tmp"));
+  const initialScratch = new Set(await listOwnedScratchEntries(ports.fs));
   const writer = bindScratchHandoff(ports.fs, { goal: world.goal, questions: ["What original provider evidence is verified?"],
     sources: [{id:"scope",path:notePath}] }, ports.readBytes).scratchHandoffWrite;
 
@@ -235,7 +236,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     const result = wanted.result ? seedIds.get(wanted.result) : null;
     const actualOutput = wanted.output && result ? await committedOutput(latest, result) : null;
     const current = await ports.status();
-    const handoffs = (await ports.fs.readdir("/.tmp")).filter(name => name.startsWith("evidence-handoff-") && !initialScratch.has(name));
+    const handoffs = (await listOwnedScratchEntries(ports.fs)).filter(name => name.startsWith("evidence-handoff-") && !initialScratch.has(name));
     const bytes = staged ? await ports.readBytes(staged.path, limit) : null;
     const text = bytes ? new TextDecoder("utf-8", { fatal: true }).decode(bytes) : null;
     const transition = observedTransition(first, latest);

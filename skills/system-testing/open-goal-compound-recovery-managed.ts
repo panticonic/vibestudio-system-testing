@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
@@ -39,7 +40,7 @@ export async function prepareCompoundRecoveryHandoff(
     throw new Error("Compound recovery needs an owned workspace and scratch-only release");
   const { fs, vcs, native, readBytes } = ports;
   const vcsBefore = await vcs.status();
-  const outputs = async () => (await fs.readdir("/.tmp")).filter(name => scratchEntry.test(name)).sort();
+  const outputs = async () => (await listOwnedScratchEntries(fs)).filter(name => scratchEntry.test(name)).sort();
   const outputBefore = await outputs();
   const directory = await fs.mkdtemp("compound-handoff-input");
   const directivePath = directory + "/request.json";

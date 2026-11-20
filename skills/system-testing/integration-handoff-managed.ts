@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { parseExpression } from "@babel/parser";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -43,9 +44,7 @@ export async function prepareIntegrationHandoff(
     throw new Error("Unknown assigned integration handoff");
   const { fs, vcs, rpc } = ports;
   const before = (await vcs.status()).workingHead;
-  const initialScratch = (await fs.exists("/.tmp"))
-    ? await fs.readdir("/.tmp")
-    : [];
+  const initialScratch = await listOwnedScratchEntries(fs);
   const requestedFiles = [
     ...new Set(
       scenario.questions.flatMap(({ evidence }) =>
@@ -235,7 +234,7 @@ export async function verifyIntegrationHandoff(
     stage?.status === expectedStatus &&
     isDeepStrictEqual(stage.unanswered, unanswered) &&
     isDeepStrictEqual(stage.missingSources, []);
-  const added = (await fs.readdir("/.tmp").catch(() => [])).filter(
+  const added = (await listOwnedScratchEntries(fs)).filter(
     (name) => stageName.test(name) && !assignment.initialScratch.includes(name),
   );
   let evidenceMatches =

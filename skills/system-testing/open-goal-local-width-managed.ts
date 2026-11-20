@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { localModelsExtensionMethods, type LocalModelEntry } from "@workspace/model-catalog/localModels";
@@ -86,7 +87,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     throw new Error("Local width requires the assigned owned workspace");
   const { fs, vcs, readBytes } = ports;
   const before = await vcs.status();
-  const outputs = async () => (await fs.readdir("/.tmp")).filter(name => outputName.test(name)).sort();
+  const outputs = async () => (await listOwnedScratchEntries(fs)).filter(name => outputName.test(name)).sort();
   const baselineOutputs = await outputs();
   const directory = await fs.mkdtemp("retained-local-width");
   const scope: Scope = { machine: world.machine, boot: crypto.randomUUID(), configuration: "saved-local-config-8" };

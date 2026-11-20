@@ -1,3 +1,4 @@
+import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -40,7 +41,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
   const root = await fs.mkdtemp("open-capability-plan");
   const memoPath = `${root}/memo.md`;
   if (assignment.memo) await fs.writeFile(memoPath, assignment.memo.text);
-  const initialHandoffs = (await fs.readdir("/.tmp")).filter(name => folderName.test(name));
+  const initialHandoffs = (await listOwnedScratchEntries(fs)).filter(name => folderName.test(name));
   const stageAuthorized = assignment.stageAuthorized === true;
 
   const handoff = bindScratchHandoff(fs, {
@@ -260,7 +261,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       await rpc.call("main", mainRpcMethods["docs.describe"], [capabilityId(obsolete)]) === null);
     const currentOverview = assignment.inventory ? await liveOverview() : null;
     const after = await vcs.status();
-    const stagedNames = (await fs.readdir("/.tmp")).filter(name => folderName.test(name) && !initialHandoffs.includes(name));
+    const stagedNames = (await listOwnedScratchEntries(fs)).filter(name => folderName.test(name) && !initialHandoffs.includes(name));
     const expectedReceipt = stageAuthorized && !foundMissing;
     let retained = !staged && !outcome?.handoff && stagedNames.length === 0;
     if (expectedReceipt && staged && valid && isDeepStrictEqual(staged, outcome?.handoff) &&
