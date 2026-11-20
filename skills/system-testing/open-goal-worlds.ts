@@ -38,6 +38,7 @@ export { operatorGoalWorlds, operatorGoalRequiresUnits } from "./open-goal-opera
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 export { openApiReadinessWorlds, openApiReadinessRequiresUnits } from "./open-goal-api-readiness-worlds.js";
+export { openImageCandidateWorlds, openImageCandidateRequiresUnits } from "./open-goal-image-candidate-worlds.js";
 export { openNewsEvidenceWorlds, openNewsEvidenceRequiresUnits } from "./open-goal-news-evidence-worlds.js";
 export { newsGoalWorlds, newsGoalRequiresUnits, openNewsChecks } from "./open-goal-news-worlds.js";
 export { spectroliteGoalWorlds } from "./open-goal-spectrolite-worlds.js";

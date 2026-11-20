@@ -12,7 +12,7 @@ import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/
 import {
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
   openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
-  browserGoalWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
+  browserGoalWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openOwnedTaskWorlds, ownedTaskRequiresUnits,
@@ -115,7 +115,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openApiReadinessWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -181,6 +181,7 @@ const templateSettings = {
   "owned-task": { requiresUnits: ownedTaskRequiresUnits, authorityPolicy: missionPlanningSettings.authorityPolicy },
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   "api-readiness": { requiresUnits: openApiReadinessRequiresUnits },
+  "image-candidate": { requiresUnits: openImageCandidateRequiresUnits },
   "news-evidence": { requiresUnits: openNewsEvidenceRequiresUnits },
   news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },
   spectrolite: {
@@ -331,6 +332,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
     world.kind === "adventure-journey" ? "Recover a disposable Adventure save and verify its player evidence and authorized next turn" :
     world.kind === "api-readiness" ? "Check the trusted integration and pregranted-only offline API binding readiness" :
+    world.kind === "image-candidate" ? "Verify retained image attempts, original bytes and private handoff authority" :
     world.kind === "news-evidence" ? "Join retained News authority, exact original articles and the current cadence for a private evidence note" :
     world.kind === "news" ? "Resolve a user goal against the current News reader and mission owners" :
     world.kind === "vaultWork" ? "Resolve long-form knowledge work against the current native vault" :
