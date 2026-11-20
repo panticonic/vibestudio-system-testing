@@ -86,8 +86,21 @@ export function prepareManagedLogCursor(
   function referenceBrief() {
     const snapshot = observed?.snapshot;
     if (world.kind !== "review-window" || !snapshot) return null;
-    const [first] = snapshot.records;
-    if (!first) return null;
+    const findings = world.groups.flatMap((group) => {
+      const first = snapshot.records[group.first];
+      if (group.class === "routine" || !first) return [];
+      return [{
+        class: group.class,
+        tag: hostWorkerdLogTag,
+        message: first.message.slice(0, 300),
+        count: group.count,
+        firstSeq: seed.steps[group.first]!,
+        lastSeq: seed.steps[group.last]!,
+      }];
+    }).sort((left, right) =>
+      Number(right.class === "failure") - Number(left.class === "failure") ||
+      left.firstSeq - right.firstSeq
+    );
     return {
       serverBootId: seed.boot,
       latestSeq: throughSeq,
@@ -96,18 +109,10 @@ export function prepareManagedLogCursor(
         toSeq: throughSeq,
         records: seed.steps.length,
       },
-      status: "incident",
-      headline: "The assigned index write failed repeatedly.",
-      findings: [
-        {
-          class: "failure",
-          tag: hostWorkerdLogTag,
-          message: first.message.slice(0, 300),
-          count: seed.steps.length,
-          firstSeq: seed.steps[0]!,
-          lastSeq: throughSeq,
-        },
-      ],
+      status: findings.some(({ class: kind }) => kind === "failure")
+        ? "incident" : findings.length ? "attention" : "normal",
+      headline: "Reviewed the assigned host-log window.",
+      findings,
     };
   }
 
@@ -149,11 +154,11 @@ export function prepareManagedLogCursor(
           report.brief.serverBootId === seed.boot &&
           report.brief.latestSeq === throughSeq &&
           isDeepStrictEqual(report.brief.window, expected.window) &&
-          report.brief.findings.length === 1 &&
-          expected.findings.every((finding) =>
+          report.brief.findings.length === expected.findings.length &&
+          expected.findings.every((finding, index) =>
             Object.entries(finding).every(
               ([key, value]) =>
-                report.brief!.findings[0]![key as keyof typeof finding] ===
+                report.brief!.findings[index]![key as keyof typeof finding] ===
                 value,
             ),
           )
