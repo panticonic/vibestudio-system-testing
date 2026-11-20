@@ -1,5 +1,7 @@
 import type { GitHubSetupReceiver } from "../github-setup-managed.js";
 import { githubSetupWorlds } from "../github-setup-worlds.js";
+import { managedGitHubDiagnosisWorlds } from "../github-diagnosis-worlds.js";
+import type { ManagedGitHubDiagnosisReceiver } from "../github-diagnosis-managed.js";
 import { appendSystemTestCleanupFailure } from "../structured-error.js";
 import type { HeadlessSession } from "@workspace/agentic-session";
 import type { TestCase, TestExecutionResult, TestOrchestrationContext } from "../types.js";
@@ -372,6 +374,41 @@ const githubSetupSettings = {
   validation: "harness" as const,
   requiresUnits: ["skills/github"],
 };
+
+type DiagnosisCapture = Awaited<ReturnType<ManagedGitHubDiagnosisReceiver["runManagedGitHubDiagnosisTeacher"]>>;
+skillTests.push(...managedGitHubDiagnosisWorlds.flatMap(
+  (world) => [false, true].map((qualification): TestCase => ({
+    ...githubSetupSettings,
+    timeoutMs: 6 * 60_000,
+    name: `github-diagnosis-${qualification ? "oracle" : "live"}-${world.id}`,
+    description: "Diagnose a local GitHub preflight and verify its exact setup handoff",
+    prompt: world.goal,
+    async orchestrate({ runner, signal }) {
+      const started = Date.now();
+      const run = await runner.runManagedGitHubDiagnosis(world.id, qualification, signal);
+      const duration = Date.now() - started;
+      if (run.kind === "reference") {
+        if (!qualification) throw new Error("Expected a captured GitHub diagnosis");
+        return { messages: [], duration, diagnostics: { githubDiagnosis: run.result } };
+      }
+      if (qualification) throw new Error("Qualification invoked a teacher");
+      const { teacher, verification, contextId } = run.result;
+      return {
+        messages: [], duration,
+        provenance: { contextId, channelId: null, branchId: null, agentEntityId: null, agentTargetId: null },
+        diagnostics: { natlangTeacher: teacher, githubDiagnosis: verification },
+      };
+    },
+    validate(result) {
+      const verification = result.diagnostics?.["githubDiagnosis"] as DiagnosisCapture["verification"] | undefined;
+      const teacher = result.diagnostics?.["natlangTeacher"] as DiagnosisCapture["teacher"] | undefined;
+      return {
+        passed: verification?.passed === true && (qualification || teacher?.trainingEligible === true),
+        details: verification?.checks,
+      };
+    },
+  })),
+));
 
 skillTests.push(...githubSetupWorlds.flatMap((world): TestCase[] => [
   {

@@ -4,6 +4,7 @@ import { cliContinuationWork, remoteRouteWorlds } from "@workspace-skills/system
 import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
+import type { ManagedGitHubDiagnosisReceiver } from "@workspace-skills/system-testing/github-diagnosis-managed";
 import type { PersonalResumeReceiver } from "@workspace-skills/system-testing/personal-resume-managed";
 import type { ManagedUnitDesignReceiver } from "@workspace-skills/system-testing/unit-design-managed";
 import type { TemplateReleaseReceiver } from "@workspace-skills/system-testing/template-release-managed";
@@ -2629,6 +2630,38 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     }, runId)}
       utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
     `) as Awaited<ReturnType<GitHubSetupReceiver["runGitHubSetupTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Diagnoses a caller-assigned local GitHub preflight."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async runManagedGitHubDiagnosisTeacher(input: {contextId:string;caseId:string;executorModel:string}): ReturnType<ManagedGitHubDiagnosisReceiver["runManagedGitHubDiagnosisTeacher"]> {
+    return await this.runHarnessUtility("teacher",runId=>`${domainTeacherCode({
+      executorModel:input.executorModel,
+      work:{kind:"domain",domain:"github",operation:"diagnoseGitHubOperation",input:{goal:"Diagnose the assigned GitHub operation"}},
+      inputCode:"prepared.request",
+      bindingCode:this.gitHubDiagnosisBindings(input),
+    },runId)}
+      utilityValue={contextId:actualContextId,teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
+    `) as Awaited<ReturnType<ManagedGitHubDiagnosisReceiver["runManagedGitHubDiagnosisTeacher"]>>;
+  }
+
+  @rpc({website:{kind:"closed",reason:"Qualifies local GitHub preflight and setup routing without a model."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+  async qualifyManagedGitHubDiagnosis(input: {contextId:string;caseId:string}): ReturnType<ManagedGitHubDiagnosisReceiver["qualifyManagedGitHubDiagnosis"]> {
+    return await this.runHarnessUtility("teacher",domainTeacherQualificationCode(
+      [{domain:"github",operation:"diagnoseGitHubOperation"}],this.gitHubDiagnosisBindings(input),
+    )) as Awaited<ReturnType<ManagedGitHubDiagnosisReceiver["qualifyManagedGitHubDiagnosis"]>>;
+  }
+
+  private gitHubDiagnosisBindings(input: {contextId:string;caseId:string}): string {
+    return `
+      import {contextId as actualContextId} from "@workspace/runtime";
+      import {bindGitHubDiagnosis} from "@workspace-skills/github/diagnosis";
+      import {listGitHubCredentials} from "@workspace-skills/github";
+      import {prepareManagedGitHubDiagnosis} from "@workspace-skills/system-testing/github-diagnosis-managed";
+      const prepared=await prepareManagedGitHubDiagnosis(${JSON.stringify({contextId:input.contextId,caseId:input.caseId})},{
+        bind:bindGitHubDiagnosis,countCredentials:async()=>(await listGitHubCredentials()).length,
+      });
+      const assignedServices=prepared.services;
+    `;
   }
 
   @rpc({website:{kind:"closed",reason:"Reviews assigned working and published extension manifests."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})

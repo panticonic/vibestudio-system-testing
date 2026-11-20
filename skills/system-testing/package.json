@@ -63,6 +63,7 @@
     "./retained-triage-managed": "./retained-triage-managed.ts",
     "./retained-triage-worlds": "./retained-triage-worlds.ts",
     "./github-setup-managed": "./github-setup-managed.ts",
+    "./github-diagnosis-managed": "./github-diagnosis-managed.ts",
     "./personal-resume-managed": "./personal-resume-managed.ts",
     "./mission-facility-worlds": "./mission-facility-worlds.ts",
     "./unit-design-managed": "./unit-design-managed.ts",
