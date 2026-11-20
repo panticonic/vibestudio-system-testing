@@ -118,7 +118,7 @@ import {
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
-  openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
+  openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3747,7 +3747,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const localWidth = openLocalWidthWorlds.find(({ id }) => id === input.caseId);
     const adventure = openAdventureJourneyWorlds.find(({ id }) => id === input.caseId);
     const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
-    const prepare = presentation
+    const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
+    const prepare = deployedInterface
+      ? `import {prepareDeployedInterfaceGoal} from "@workspace-skills/system-testing/open-goal-deployed-interface-managed";
+         if(input.contextId!==actualContextId)throw new Error("Interface review belongs to another context");
+         const prepared=await prepareDeployedInterfaceGoal(input,${JSON.stringify(deployedInterface)});`
+      : presentation
       ? `import {prepareOpenLocalPresentation} from "@workspace-skills/system-testing/open-goal-local-presentation-managed";
          if (!input.panelId || !input.source) throw new Error("Local presentation requires its owned renderer");
          const prepared=await prepareOpenLocalPresentation(input,${JSON.stringify(presentation)});`
