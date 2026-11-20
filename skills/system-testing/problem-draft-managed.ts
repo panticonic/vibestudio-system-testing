@@ -6,6 +6,14 @@ import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
 import { managedProblemDraftWorlds } from "./problem-draft-worlds.js";
 
+export type ManagedProblemDraftWorld = {
+  id: string;
+  goal: string;
+  mode: "new" | "existing" | "stale";
+  defect: "platform" | "user-code" | "refusal" | "transient";
+  account: Parameters<typeof bindLocalProblemDraft>[0]["account"];
+};
+
 type Binding = ReturnType<typeof bindLocalProblemDraft>;
 type Services = Binding["services"];
 type OpenedDraft = Awaited<ReturnType<Services["problemDraftOpen"]["create"]>>;
@@ -23,8 +31,9 @@ type Plan = {
 export async function prepareManagedProblemDraft(
   contextId: string,
   caseId: string,
+  assignment?: ManagedProblemDraftWorld,
 ) {
-  const world = requireAssignedWorld(
+  const world = assignment ?? requireAssignedWorld(
     managedProblemDraftWorlds,
     caseId,
     "Unknown managed problem draft case",
@@ -207,7 +216,7 @@ export async function prepareManagedProblemDraft(
         : [
             {
               section: "symptom" as const,
-              claims: "unverified" as const,
+              claims: account.reproduced ? "observed" as const : "unverified" as const,
               markdown: [account.goal, account.observed, account.expected].join(
                 "\n",
               ),

@@ -112,6 +112,7 @@
     "./open-goal-authoring-managed": "./open-goal-authoring-managed.ts",
     "./open-goal-program-run-managed": "./open-goal-program-run-managed.ts",
     "./open-goal-compound-recovery-managed": "./open-goal-compound-recovery-managed.ts",
+    "./open-goal-problem-report-managed": "./open-goal-problem-report-managed.ts",
     "./open-goal-owned-research-managed": "./open-goal-owned-research-managed.ts",
     "./open-goal-terminal-managed": "./open-goal-terminal-managed.ts",
     "./open-goal-capability-plan-managed": "./open-goal-capability-plan-managed.ts",

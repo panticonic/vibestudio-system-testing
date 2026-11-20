@@ -117,7 +117,7 @@ import {
   newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds,
-  openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
+  openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
@@ -3738,7 +3738,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
     }
     const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
-    const prepare = compoundRecovery
+    const problemReport = openProblemReportWorlds.some(({ id }) => id === input.caseId);
+    const prepare = problemReport
+      ? `import {prepareOpenProblemReport} from "@workspace-skills/system-testing/open-goal-problem-report-managed";
+         const prepared=await prepareOpenProblemReport(input);`
+      : compoundRecovery
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
          import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
          import {openEvalHandoffNative} from "@workspace-skills/system-testing/open-goal-eval-handoff-managed";
