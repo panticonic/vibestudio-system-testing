@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openLiveTendrilBoardWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openLiveLocalInventoryWorlds, openLiveTendrilBoardWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3696,6 +3696,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
     const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
+    const liveLocalInventory = openLiveLocalInventoryWorlds.find(({ id }) => id === input.caseId);
     const liveTendrilBoard = openLiveTendrilBoardWorlds.find(({ id }) => id === input.caseId);
     const cliRoute = openCliRouteWorlds.find(({ id }) => id === input.caseId);
     const ownedOperation = openOwnedOperationsWorlds.find(({ id }) => id === input.caseId);
@@ -4092,6 +4093,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {credentialLifecycle} from "@vibestudio/credential-client/credentialStatus";
          const prepared=await prepareOpenApiReadiness(input,{match:matchUrlBoundCredentialCandidates,binding:findCredentialBinding,
            audience:findMatchingUrlAudience,lifecycle:credentialLifecycle});`
+      : liveLocalInventory
+      ? `import {prepareOpenLiveLocalInventory} from "@workspace-skills/system-testing/open-goal-live-local-inventory-managed";
+         const prepared=await prepareOpenLiveLocalInventory(input,${JSON.stringify(liveLocalInventory)});`
       : liveTendrilBoard
       ? `import {prepareOpenLiveTendrilBoard} from "@workspace-skills/system-testing/open-goal-live-tendril-board-managed";
          if (typeof input.tendrilChannelId !== "string") throw new Error("The Tendril board needs its owned channel");
