@@ -1,17 +1,21 @@
 import { isDeepStrictEqual } from "node:util";
-import { contextId, extensions, fs, vcs } from "@workspace/runtime";
-import { prepareLocalModelComparison } from "@workspace-skills/local-model-task-bindings/live";
+import { contextId, fs, vcs } from "@workspace/runtime";
+import type { prepareLocalModelComparison } from "@workspace-skills/local-model-task-bindings/live";
 import type { LocalInventoryWorld } from "./open-goal-live-local-inventory-worlds.js";
 
 type Card = { id: string; title: string; current: boolean };
 type Comparison = Awaited<ReturnType<typeof prepareLocalModelComparison>>;
 type Report = Comparison["expected"];
 
-export async function prepareOpenLiveLocalInventory(input: { contextId: string; caseId: string; goal: string }, world: LocalInventoryWorld) {
+export async function prepareOpenLiveLocalInventory(
+  input: { contextId: string; caseId: string; goal: string },
+  world: LocalInventoryWorld,
+  prepareComparison: (contextId: string, world: LocalInventoryWorld) => Promise<Comparison>,
+) {
   if (contextId !== input.contextId || world.id !== input.caseId || world.goal !== input.goal)
     throw new Error("The local model docket belongs to another goal or workspace");
   const original = await vcs.status({ contextId });
-  const prepared = await prepareLocalModelComparison(extensions, input.contextId, world);
+  const prepared = await prepareComparison(input.contextId, world);
   const card: Card = { id: crypto.randomUUID(), title: world.title, current: true };
   const prior: Card = { id: crypto.randomUUID(), title: `${world.title} archive`, current: false };
   const docket = { card, preferences: world.preferences, purpose: "Read current local inventory for this retained workload." };

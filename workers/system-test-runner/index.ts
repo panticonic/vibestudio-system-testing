@@ -4102,8 +4102,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          const prepared=await prepareOpenApiReadiness(input,{match:matchUrlBoundCredentialCandidates,binding:findCredentialBinding,
            audience:findMatchingUrlAudience,lifecycle:credentialLifecycle});`
       : liveLocalInventory
-      ? `import {prepareOpenLiveLocalInventory} from "@workspace-skills/system-testing/open-goal-live-local-inventory-managed";
-         const prepared=await prepareOpenLiveLocalInventory(input,${JSON.stringify(liveLocalInventory)});`
+      ? `import {extensions} from "@workspace/runtime";
+         import {prepareLocalModelComparison} from "@workspace-skills/local-model-task-bindings/live";
+         import {prepareOpenLiveLocalInventory} from "@workspace-skills/system-testing/open-goal-live-local-inventory-managed";
+         const prepared=await prepareOpenLiveLocalInventory(input,${JSON.stringify(liveLocalInventory)},
+           (contextId, world) => prepareLocalModelComparison(extensions,contextId,world));`
       : androidDelivery
       ? `import {prepareOpenAndroidDelivery} from "@workspace-skills/system-testing/open-goal-android-delivery-managed";
          const prepared=await prepareOpenAndroidDelivery(input,${JSON.stringify(androidDelivery)});`
