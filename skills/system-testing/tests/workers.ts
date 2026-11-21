@@ -1582,7 +1582,7 @@ export const workerTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
     agentContext: "fork",
     prompt:
-      "Run a disposable worker with a non-secret probe setting, tell me what the worker itself observes, and leave no worker instance behind.",
+      "Check the disposable worker's contract for its descriptor and probe method. Run the worker with a non-secret probe setting, tell me what the worker itself observes, and leave no worker instance behind.",
     validate: (result) => {
       const base = lifecycleEvidence(result, [
         ["workers.create", "env", "workers.destroy"],
