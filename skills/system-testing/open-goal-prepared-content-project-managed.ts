@@ -300,7 +300,11 @@ export async function prepareOpenPreparedContentProject(
     const prepared=journalStep("contentProjectDraft","prepare");
     const written=journalStep("contentProjectDraft","write");
     const committed=journalStep("contentProjectCommit","commit");
-    const verifiedState = artifact?.semanticReviewInput?.actual?.state;
+    const independentlyRead = artifact?.semanticReviewInput?.actual;
+    const verifiedState = independentlyRead?.state;
+    const readme = independentlyRead?.documents.find(file=>file.path==="README.md")?.text;
+    const ownedDocs = independentlyRead?.documents.filter(file=>file.path.startsWith("docs/")) ?? [];
+    const directLinks = new Set(Array.from(readme?.matchAll(/\]\((docs\/[^)#]+)(?:#[^)]*)?\)/gu) ?? [],match=>match[1]));
     const scopedWrites = (
       !!prepared && !!written && !!authorization?.written &&
       isDeepStrictEqual(outcome?.draft?.snapshot,written.result) &&
@@ -322,7 +326,7 @@ export async function prepareOpenPreparedContentProject(
           : outcome.scope===null && journal.filter(entry=>entry.service==="contentProjectScope").length===0),
       exactArtifactOrReadOnlyHold: mutating ? scopedWrites && artifact?.passed===true &&
         isDeepStrictEqual(verifiedState,actual.workingHead) &&
-        new Set(artifact.semanticReviewInput?.actual.documents.filter(file=>file.path.startsWith("docs/")).map(file=>file.path)).size >= world.roles.length
+        ownedDocs.length>=world.roles.length && ownedDocs.every(file=>directLinks.has(file.path))
         : !prepared && !written && !committed && outcome?.draft===null && final?.candidate===null && occupationPreserved() &&
           (!sourceReadback.occupied || (retainedOwner?.content.kind==="text" && retainedOwner.content.text===occupiedText)),
       protectedPrivateBoundary: actual.mainEventId===before.mainEventId &&
