@@ -12,6 +12,7 @@ import type {
   DurableQuestionReport,
   DurableQuestionRoster,
 } from "@workspace-skills/gad-context/natlang-types";
+import { withOwnedChannelClient } from "./session-replay-managed.js";
 import type { GadReviewWorld } from "./open-goal-gad-durable-question-worlds.js";
 
 type Readers = Parameters<typeof bindDurableQuestionReview>[1];
@@ -125,22 +126,36 @@ export function bindOpenGadDurableQuestion(
   return {services, verify, qualify};
 }
 
+type OwnedPublisherLane = { key: string; target: string };
+type UserPublish = (text: string, idempotencyKey: string) => Promise<string>;
+
+function withUserPublisher<T>(
+  lane: OwnedPublisherLane,
+  contextId: string,
+  publish: (send: UserPublish) => Promise<T>,
+): Promise<T> {
+  return withOwnedChannelClient({ ...lane, expected: [] }, contextId, client =>
+    publish((text, idempotencyKey) => client.send(text, { idempotencyKey })),
+  );
+}
+
 type Ports = {
   runtime: Pick<typeof runtime, "createEntity" | "retireEntity">;
   rpc: typeof rpc;
   readers?: Readers;
   driveOwnObservation?: () => Promise<void>;
+  publishUserQuestions?: typeof withUserPublisher;
 };
 
 export async function prepareOpenGadDurableQuestion(
   contextId: string, world: GadReviewWorld, ports: Ports = {runtime,rpc},
 ) {
-  const { runtime, rpc, readers = gad, driveOwnObservation } = ports;
+  const { runtime, rpc, readers = gad, driveOwnObservation, publishUserQuestions = withUserPublisher } = ports;
   const fixtureId = crypto.randomUUID();
   const channelId = `gad-question-${fixtureId}`;
   const issued: string[] = [];
   const roster: NativeMember[] = [];
-  const published: { messageId: string; id?: number }[] = [];
+  const submitted: string[] = [];
   async function create(source: string, className: string, key: string) {
     const handle = await runtime.createEntity({kind: "do", execution: { surface: "code", source }, className, key, contextId});
     if (handle.kind !== "do" || handle.contextId !== contextId) throw new Error("Durable review requires an owned local entity");
@@ -168,25 +183,41 @@ export async function prepareOpenGadDurableQuestion(
       if (person.retired) await rpc.call(peer.targetId, localMessagingFixtureMethods.leaveOwnedRoster, [joined.revision]);
       roster.push({participantId:peer.id, handle:person.handle, displayName:person.name, inactive:!!person.retired});
     }
-    // The native caller relay stamps the verified sender but does not add a roster member.
-    for (const [index, text] of world.messages.entries()) {
-      published.push(await rpc.call(channel.targetId, channelClientRpcMethods.sendAsCaller, [text, {
-        idempotencyKey:`review-${fixtureId}-${index}`,
-      }]));
-    }
     async function readNative(): Promise<NativeState> {
       const events: ChannelEvent[] = [];
       for await (const page of iterateChannelReplayAfterPages(
         request => rpc.call(channel.targetId, channelRpcMethods.getReplayAfter, [request]), {after:0},
       )) events.push(...page.logEvents);
       const messages = canonicalUserRecords(events);
+      // Headless user transport presence is transient. Durable joins are the
+      // independently attested population of the persisted GAD roster.
       const active = (await rpc.call(channel.targetId, channelClientRpcMethods.getParticipants, []))
+        .filter(row => row.transport === "do")
         .map(row => row.participantId);
-      if (!isDeepStrictEqual(published.map(row => [row.messageId,row.id]), messages.map(row => [row.messageId,row.sequence])))
-        throw new Error("Native replay differs from the individual published message receipts");
       return {messages, roster, active};
     }
-    const native = await readNative();
+    function matchesSubmitted(state: NativeState) {
+      return new Set(submitted).size === world.messages.length &&
+        isDeepStrictEqual(submitted, state.messages.map(row => row.messageId));
+    }
+    // A session calling sendAsCaller produces an assistant message. The
+    // normal headless user composer preserves each individual user submission.
+    const native = world.messages.length
+      ? await publishUserQuestions({key:channelId,target:channel.targetId},contextId,async send => {
+        for (const [index,text] of world.messages.entries())
+          submitted.push(await send(text,`review-${fixtureId}-${index}`));
+        return await waitFor(async () => {
+          const exact = await readNative();
+          return matchesSubmitted(exact) ? exact : undefined;
+        }, {label:"assigned individual user submissions in canonical replay",timeoutMs:20000,intervalMs:100});
+      })
+      : await readNative();
+    async function readAssignedNative() {
+      const state = await readNative();
+      if (!matchesSubmitted(state))
+        throw new Error("Native replay differs from the individual user submission receipts");
+      return state;
+    }
     await driveOwnObservation?.();
     // Native replay leads the workspace GAD projection through its observation queue.
     // Establish the assigned fixture frontier before handing the read-only scope to the model.
@@ -199,7 +230,7 @@ export async function prepareOpenGadDurableQuestion(
         roster.every(expected => members.rows.some(row => row.participant_id === expected.participantId &&
           (row.left_at !== null) === expected.inactive)) ? true : undefined;
     }, {label:"owned GAD projection frontier",timeoutMs:20000,intervalMs:100});
-    return {...bindOpenGadDurableQuestion(contextId,channelId,world,readNative,readers),close};
+    return {...bindOpenGadDurableQuestion(contextId,channelId,world,readAssignedNative,readers),close};
   } catch (error) {
     try { await close(); }
     catch (cleanup) { throw new AggregateError([error,cleanup], "Durable question setup and cleanup failed"); }
