@@ -104,6 +104,8 @@ import { managedBrowserImportMethods } from "./browser-import-contract.js";
 import { managedDriveSharingMethods } from "./drive-sharing-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { grimoireSceneEstate } from "./grimoire-fixture-player.js";
+import { regencyFixturePanel, regencyFixtureRealm } from "./regency-fixture-player.js";
+import { openRegencyWorlds } from "./open-goal-regency-worlds.js";
 import { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
@@ -2396,6 +2398,18 @@ export class HeadlessRunner {
         try {
           return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
             { ...request, contextId, panelId: panel.id, grimoireEstateKey },
+          ], { signal });
+        } finally { await panel.archive(); }
+      }
+      if (openRegencyWorlds.some(({ id }) => id === caseId)) {
+        const realm = regencyFixtureRealm(crypto.randomUUID());
+        const panel = await this.openPanelClient(regencyFixturePanel, {
+          contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+          stateArgs: { realm },
+        });
+        try {
+          return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+            { ...request, contextId, regencyFixture: { panelId: panel.id, realm } },
           ], { signal });
         } finally { await panel.archive(); }
       }

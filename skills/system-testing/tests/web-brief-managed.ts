@@ -292,12 +292,13 @@ const templateSettings = {
     resource: { kind: "prefix" as const, prefix: "do:workers/regency-realm:RegencyGameDO:natlang-realm-" },
     tier: "gated" as const, decision: "task" as const,
   }] } },
-  "regency-briefing": { requiresUnits: openRegencyRequiresUnits, authorityPolicy: { authority: [{
+  "regency-briefing": { requiresUnits: openRegencyRequiresUnits, resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("open-owned-regency-player-panel", [{
     ruleId: "read-and-forecast-owned-regency-realm",
     capability: { kind: "exact" as const, key: "workspace-service:regency" },
     resource: { kind: "prefix" as const, prefix: "do:workers/regency-realm:RegencyGameDO:natlang-realm-" },
     tier: "gated" as const, decision: "task" as const,
-  }] } },
+  }]) },
   "image-candidate": { requiresUnits: openImageCandidateRequiresUnits },
   "news-evidence": { requiresUnits: openNewsEvidenceRequiresUnits },
   news: { requiresUnits: newsGoalRequiresUnits, authorityPolicy: newsAuthority, resources: [PANEL_AUTOMATION_RESOURCE] },

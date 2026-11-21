@@ -119,4 +119,4 @@ export const openRegencyWorlds:OpenRegencyWorld[]=drafts.map(row=>({
   sourceGroup:`vibestudio:regency:open-council:${row.id}`,
 }));
 export const openRegencyRequiresUnits=["skills/open-user-goal","skills/open-regency-briefing","skills/examples-review",
-  "skills/examples-review-fixtures","skills/scratch-handoff-bindings","workers/regency-realm","workers/pubsub-channel"];
+  "skills/examples-review-fixtures","skills/scratch-handoff-bindings","panels/regency-fixture-player","workers/regency-realm","workers/pubsub-channel"];

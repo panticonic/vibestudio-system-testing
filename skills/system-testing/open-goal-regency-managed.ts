@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
-import { contextId, fs, rpc, vcs } from "@workspace/runtime";
+import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { Horizon, RegencyAdvance, RegencyClaim, RegencyFinding, RegencyForecast, RegencyIndex,
   RegencyMemo, RegencyNote, RegencyReport, RegencySnapshot, RealmFinding, RealmReadback } from "@workspace-skills/open-regency-briefing/types";
@@ -8,14 +8,12 @@ import { createOwnedHeadlessChannel } from "./session-replay-managed.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { openRegencyWorlds } from "./open-goal-regency-worlds.js";
+import { bindRegencyFixturePlayer, type RegencyFixtureIdentity } from "./regency-fixture-player.js";
 
 type View = {game:{world:unknown;programs:unknown};pending:{id:string}|null;painting:boolean};
 type RealmStore = {
   read():Promise<View>;
   preview(months:Horizon):Promise<{basis:unknown;forecast:unknown}>;
-  seat(targetId:string,channelId:string):Promise<unknown>;
-  advance(id:string,months:number):Promise<View>;
-  cancel():Promise<View>;
 };
 type ReviewInput = {kind:"settlement";check:unknown;current:RealmReadback} |
   {kind:"compare";check:unknown;before:RealmReadback;after:RealmReadback;basis:"forecast"|"observed";assertCommitted:boolean};
@@ -24,18 +22,25 @@ type Installed = {
   readback(id:string,world:unknown):RealmReadback;
   review(input:ReviewInput):RealmFinding;
 };
+type Input = {contextId:string;caseId:string;regencyFixture?:RegencyFixtureIdentity};
 type Ports = {contextId:string|null;fs:typeof fs;status:typeof vcs.status;open:typeof createOwnedHeadlessChannel;
+  player:Awaited<ReturnType<typeof bindRegencyFixturePlayer>>;
   readBytes(path:string,max:number):Promise<Uint8Array>};
-function livePorts():Ports {
+async function livePorts(input:Input):Promise<Ports> {
+  const fixture=input.regencyFixture;
+  if(!fixture)throw new Error("The owned Regency realm needs a player renderer");
   return {contextId,fs,status:input=>vcs.status(input),open:createOwnedHeadlessChannel,
+    player:await bindRegencyFixturePlayer(panelTree.get(fixture.panelId),input.contextId,fixture),
     readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)};
 }
 const maxBytes=12*1024;
 
-export async function prepareOpenRegency(input:{contextId:string;caseId:string},installed:Installed,ports=livePorts()) {
+export async function prepareOpenRegency(input:Input,installed:Installed,injected?:Ports) {
+  const ports=injected??await livePorts(input);
   const world=openRegencyWorlds.find(row=>row.id===input.caseId);
   if(!world||!input.contextId||input.contextId!==ports.contextId)throw new Error("Regency assignment needs its owned context");
-  const realm=`natlang-realm-${crypto.randomUUID()}`;
+  const realm=input.regencyFixture?.realm;
+  if(!realm)throw new Error("Missing assigned Regency realm");
   const lane=await ports.open(input.contextId,"Private Regency review");
   const store=installed.owner(realm);
   const before=await ports.status();
@@ -50,11 +55,12 @@ export async function prepareOpenRegency(input:{contextId:string;caseId:string},
   async function move(months:number,keepPending:boolean) {
     const id=`settlement-${crypto.randomUUID()}`;
     const old=snapshot(await store.read());
-    const result=await store.advance(id,months);
+    await ports.player.advance(id,months);
+    const result=await store.read();
     if(result.pending?.id!==id||snapshot(result).accounts.month!==old.accounts.month+months)
       throw new Error("Native Regency advancement did not persist its owned receipt");
     // With no council advisors, this closes only narration and leaves settlement committed.
-    if(!keepPending)await store.cancel();
+    if(!keepPending)await ports.player.cancel();
     const saved=await store.read();
     if(snapshot(saved).accounts.month!==old.accounts.month+months||(!keepPending&&saved.pending))
       throw new Error("Regency cancellation changed the settled ledger");
@@ -69,7 +75,7 @@ export async function prepareOpenRegency(input:{contextId:string;caseId:string},
   async function seat() {
     if(!ready) {
       // A real owned channel supplies the inert seat. No advisor can receive work.
-      await store.seat(lane.target,lane.key);
+      await ports.player.seat(lane);
       ready=true;
     }
   }
