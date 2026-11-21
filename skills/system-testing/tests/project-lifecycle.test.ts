@@ -282,6 +282,8 @@ describe("project lifecycle prompts", () => {
     const test = projectLifecycleTests.find(
       ({ name }) => name === "panel-fork-dry-run-and-commit",
     )!;
+    expect(test.agentContext).toBe("fork");
+    expect(test.resources).toContain("vcs:protected-main");
     const panel = {
       phase: "ready",
       panelId: "panel:forked",

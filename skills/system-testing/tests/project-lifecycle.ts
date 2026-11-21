@@ -1449,6 +1449,7 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Fork and open a panel project",
     category: "project-lifecycle",
     workspaceRepoFixture: BUILDABLE_PANEL_WITH_DERIVED_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: panelControlAuthorityPolicy(
       "inspect-forked-project-panel",
       [
@@ -1464,7 +1465,7 @@ export const projectLifecycleTests: TestCase[] = [
         },
       ],
     ),
-    resources: [PANEL_AUTOMATION_RESOURCE],
+    resources: [PANEL_AUTOMATION_RESOURCE, "vcs:protected-main"],
     prompt:
       "Create and publish a separate panel based on the provided panel project, leave the original unchanged, and open the published copy to confirm it works.",
     validate: validatePanelFork,
