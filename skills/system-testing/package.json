@@ -364,6 +364,7 @@
     "@workspace/natlang-services": "workspace:*",
     "@workspace/speech": "workspace:*",
     "@workspace/runtime": "workspace:*",
+    "@workspace/web-core": "workspace:*",
     "@workspace/vcs-engine": "workspace:*",
     "@workspace/testkit": "workspace:*",
     "@workspace-skills/workspace-dev": "workspace:*",

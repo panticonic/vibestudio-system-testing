@@ -1,4 +1,4 @@
-import { fs, panelTree, web } from "@workspace/runtime";
+import { credentials, fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
@@ -6,6 +6,7 @@ import { openGoalWorlds, publicSourceOrigins, type PublicResearchWorld } from ".
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
+import { attestPublicSearch, type PublicSearchReceipt } from "./open-public-search-evidence.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import type { WorkspaceEditFixture } from "./open-goal-owned-research-worlds.js";
 import type { NewsInput } from "./news-contract.js";
@@ -41,6 +42,7 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
     publicEvidence: Awaited<ReturnType<typeof research.verify>>,
   ) => ({
     ...edit, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
+    citationSources: publicEvidence.citationSources,
     checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed,
   });
   return {
@@ -61,17 +63,25 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
 function preparePublicResearch({ contextId, caseId }: Input, world: PublicResearchWorld) {
   const { goal, required, conclusions, referenceAnswer } = world;
   const origins = new Set(publicSourceOrigins(world));
-  const allowed = new Set<string>();
   const pages = new Map<string, Awaited<ReturnType<typeof web.fetch>>>();
-  const searches: { queries: string[]; urls: string[] }[] = [];
-  const fetched: { requested: string; url: string; digest: string }[] = [];
+  const searches: PublicSearchReceipt[] = [];
+  const fetched: {
+    requested: string;
+    url: string;
+    digest: string;
+    searchIndex: number;
+    provider: PublicSearchReceipt["provider"];
+    input: Parameters<typeof web.fetch>[0];
+    page: Awaited<ReturnType<typeof web.fetch>>;
+  }[] = [];
   const snapshotTime = Date.now();
   async function search(queries: string[]) {
-    const result = await web.search({ queries });
-    const urls = result.results.flatMap(({ sources }) => sources.map(({ url }) => url));
-    for (const url of urls) allowed.add(url);
-    searches.push({ queries: [...queries], urls });
-    return result;
+    const receipt = await attestPublicSearch({
+      hasCredential: async origin => (await credentials.resolveCredential({ url: origin })) != null,
+      search: queries => web.search({ queries }),
+    }, queries);
+    searches.push(receipt);
+    return structuredClone(receipt.result);
   }
   const services = {
     goalDiscovery: {
@@ -81,12 +91,16 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
     web: {
       async search({queries}: {queries: string[]}) { return search(queries); },
       async fetch(options: Parameters<typeof web.fetch>[0]) {
-        if ((options.session && options.session !== "public") || !allowed.has(options.url) ||
+        const searchIndex = searches.findIndex(receipt => receipt.urls.includes(options.url));
+        if ((options.session && options.session !== "public") || searchIndex < 0 ||
             !origins.has(new URL(options.url).origin))
           throw new Error("Use the public session and an authorized URL discovered in the current search");
         const page = await web.fetch({ ...options, session: "public" });
-        pages.set(page.digest, page);
-        fetched.push({ requested: options.url, url: page.url, digest: page.digest });
+        if (page.session !== "public" || !origins.has(new URL(page.url).origin))
+          throw new Error("The fetched evidence left the assigned public origins");
+        pages.set(page.digest, structuredClone(page));
+        fetched.push({ requested: options.url, url: page.url, digest: page.digest, searchIndex,
+          provider: searches[searchIndex]!.provider, input: structuredClone(options), page: structuredClone(page) });
         return page;
       },
       async read(options: Parameters<typeof web.read>[0]) {
@@ -110,8 +124,16 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
     }));
     const date = new Date(snapshotTime).toISOString().slice(0, 10);
     const answer = normalize(result?.research?.statements?.map(({ text }) => text).join(" ") ?? "");
+    const citationSources = citations.flatMap(({ url, quote, retrieved }) => {
+      const source = fetched.find(page => page.url === url && cache.some(readback =>
+        readback.url === url && readback.digest === page.digest && readback.exact && readback.text.includes(normalize(quote))));
+      return source ? [{ url, quote, retrieved, digest: source.digest, searchIndex: source.searchIndex, provider: source.provider }] : [];
+    });
+    const sourceAttested = fetched.every(({ requested, searchIndex, provider }) =>
+      searches[searchIndex]?.provider === provider && searches[searchIndex]?.urls.includes(requested));
     const checks = {
-      discoveredSources: searches.length > 0 && fetched.length > 0 && fetched.every(({ requested }) => allowed.has(requested)),
+      discoveredSources: searches.length > 0 && fetched.length > 0 && sourceAttested,
+      attestedSearchProvider: searches.length > 0 && sourceAttested && citations.length > 0 && citationSources.length === citations.length,
       exactPageReadback: cache.length > 0 && cache.every(({ exact }) => exact),
       answeredGoal: result?.status === (world.kind === "research" ? "answered" : "edited") &&
         result.research?.status === "answered" &&
@@ -130,7 +152,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
           return (actual === host || actual.endsWith("." + host)) && normalize(quote).toLowerCase().includes(phrase);
         })),
     };
-    return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, checks };
+    return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks };
   }
   async function qualify() {
     const statements = [];
