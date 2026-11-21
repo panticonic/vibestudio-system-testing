@@ -187,6 +187,7 @@ export { openDesktopReadinessWorlds } from "./open-goal-desktop-readiness-worlds
 export { openNotificationStateWorlds } from "./open-goal-notification-state-worlds.js";
 export { openMobileContinuityWorlds } from "./open-goal-mobile-continuity-worlds.js";
 export { openWebhookAdmissionWorlds, openWebhookAdmissionRequiresUnits } from "./open-goal-webhook-admission-worlds.js";
+export { openSameTurnEvalWorlds, openSameTurnEvalRequiresUnits } from "./open-goal-same-turn-eval-worlds.js";
 export { openLogFollowerWorlds, openLogFollowerRequiresUnits } from "./open-goal-log-follower-worlds.js";
 export { openPtyContinuityWorlds, openPtyContinuityRequiresUnits } from "./open-goal-pty-continuity-worlds.js";
 export { openDevelopmentAuditWorlds, openDevelopmentAuditRequiresUnits } from "./open-goal-development-audit-worlds.js";
