@@ -214,3 +214,5 @@ export { openScaffoldWorlds } from "./open-goal-scaffold-worlds.js";
 export { openLocalMethodWorlds } from "./open-goal-local-method-worlds.js";
 
 export { openCliRouteWorlds, openCliRouteRequiresUnits } from "./open-goal-cli-route-worlds.js";
+
+export { openLiveTendrilBoardWorlds, openLiveTendrilBoardRequiresUnits } from "./open-goal-live-tendril-board-worlds.js";

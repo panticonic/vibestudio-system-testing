@@ -1,7 +1,7 @@
 export const tendrilPanel = "panels/tendril-workflow-fixture";
 
 type Value = string | number | boolean;
-type Step =
+export type TendrilFixtureStep =
   | { kind: "read" }
   | {
       kind: "update";
@@ -12,12 +12,12 @@ type Step =
   | { kind: "write"; field: { key: string; value: Value } }
   | { kind: "invoke"; name: string; expected: { key: string; value: Value } };
 
-const read: Step = { kind: "read" };
-const write = (key: string, value: Value): Step => ({
+const read: TendrilFixtureStep = { kind: "read" };
+const write = (key: string, value: Value): TendrilFixtureStep => ({
   kind: "write",
   field: { key, value },
 });
-const invoke = (name: string, key: string, value: Value): Step => ({
+const invoke = (name: string, key: string, value: Value): TendrilFixtureStep => ({
   kind: "invoke",
   name,
   expected: { key, value },
@@ -28,7 +28,7 @@ const startReview = invoke("startReview", "phase", "review");
 const intake = invoke("returnToIntake", "phase", "intake");
 const clearTimer = invoke("clearTimer", "minutes", 0);
 
-function world(id: string, goal: string, steps: Step[]) {
+function world(id: string, goal: string, steps: TendrilFixtureStep[]) {
   return {
     id,
     request: {
@@ -40,32 +40,34 @@ function world(id: string, goal: string, steps: Step[]) {
   };
 }
 
+export type ManagedTendrilWorld = ReturnType<typeof world>;
+
 export const tendrilCandidateBuild = {
   "review-layout": "board-review",
   "incident-layout": "board-incident",
   "broken-boot": "board-broken",
 } as const;
-const reviewLayout: Step = {
+const reviewLayout: TendrilFixtureStep = {
   kind: "update",
   candidate: "review-layout",
   expectedBuild: "board-review",
 };
-const incidentLayout: Step = {
+const incidentLayout: TendrilFixtureStep = {
   kind: "update",
   candidate: "incident-layout",
   expectedBuild: "board-incident",
 };
-const brokenBuild: Step = {
+const brokenBuild: TendrilFixtureStep = {
   kind: "update",
   candidate: "broken-boot",
   expectedBuild: "board-broken",
 };
-const restore = (expectedBuild: string): Step => ({
+const restore = (expectedBuild: string): TendrilFixtureStep => ({
   kind: "restore",
   expectedBuild,
 });
 
-export function hasTendrilBuildSteps(request: { steps: Step[] }) {
+export function hasTendrilBuildSteps(request: { steps: TendrilFixtureStep[] }) {
   return request.steps.some(
     ({ kind }) => kind === "update" || kind === "restore",
   );

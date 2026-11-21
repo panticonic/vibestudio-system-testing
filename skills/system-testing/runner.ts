@@ -3,6 +3,7 @@ import { openClientDiagnosticsWorlds } from "./open-goal-client-diagnostics-worl
 import { managedDeploymentMethods } from "./remote-deployment-managed.js";
 import { remoteCommissionMethods } from "./remote-commission-managed.js";
 import { approvalTransitionMethods } from "./approval-transition-managed.js";
+import { openLiveTendrilBoardWorlds } from "./open-goal-live-tendril-board-worlds.js";
 import type { SystemTestApprovalObservation } from "@vibestudio/service-schemas/systemTestRunner";
 import { remoteRouteMethods } from "./remote-route-managed.js";
 import { managedNotificationMethods } from "./notification-lifecycle-managed.js";
@@ -1107,6 +1108,17 @@ export class HeadlessRunner {
 
   async runManagedTendril(caseId: string, qualification: boolean, signal: AbortSignal) {
     if (!managedTendrilWorlds.some(({ id }) => id === caseId)) throw new Error("Unknown Tendril case");
+    return this.withOwnedTendril(signal, async (owner, contextId, channelId) => {
+      const input = { contextId, caseId, channelId };
+      return qualification
+        ? { kind: "reference" as const, result: await rpc.call(owner, managedTendrilMethods.qualifyManagedTendril, [input], { signal }) }
+        : { kind: "teacher" as const, result: await rpc.call(owner, managedTendrilMethods.runManagedTendrilTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+    });
+  }
+
+  private async withOwnedTendril<T>(
+    signal: AbortSignal, exercise: (owner: string, contextId: string, channelId: string) => Promise<T>,
+  ): Promise<T> {
     const policy = fixtureContextAuthority(this.testAuthorityPolicy, []);
     const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [policy ? { testPolicy: policy } : {}]);
     const channelId = `natlang-tendril-${crypto.randomUUID()}`;
@@ -1126,10 +1138,7 @@ export class HeadlessRunner {
         className: "PubSubChannel", key: channelId, contextId,
       }]);
       if (channel.contextId !== contextId) throw new Error("Tendril channel belongs to another context");
-      const input = { contextId, caseId, channelId };
-      return qualification
-        ? { kind: "reference" as const, result: await rpc.call(owner, managedTendrilMethods.qualifyManagedTendril, [input], { signal }) }
-        : { kind: "teacher" as const, result: await rpc.call(owner, managedTendrilMethods.runManagedTendrilTeacher, [{ ...input, executorModel: this.modelRef }], { signal }) };
+      return await exercise(owner, contextId, channelId);
     } finally {
       try { await warm?.archive(); }
       finally {
@@ -2210,6 +2219,9 @@ export class HeadlessRunner {
   }
   async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false) {
     const request = { caseId, goal, executorModel: this.modelRef, qualification };
+    if (openLiveTendrilBoardWorlds.some(({ id }) => id === caseId))
+      return this.withOwnedTendril(signal, (owner, contextId, tendrilChannelId) =>
+        rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [{ ...request, contextId, tendrilChannelId }], { signal }));
     if (openLocalPresentationWorlds.some(({ id }) => id === caseId)) {
       const fixture = this.workspaceRepoFixture;
       const contextId = this.workspaceRepoFixtureContextId;

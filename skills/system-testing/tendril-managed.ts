@@ -10,6 +10,7 @@ import type {
 import {
   hasTendrilBuildSteps,
   managedTendrilWorlds,
+  type ManagedTendrilWorld,
   tendrilCandidateBuild,
   tendrilPanel,
 } from "./tendril-worlds.js";
@@ -46,9 +47,9 @@ export function prepareManagedTendril(input: {
   caseId: string;
   contextId: string;
   channelId: string;
-}) {
-  const assigned = managedTendrilWorlds.find(({ id }) => id === input.caseId);
-  if (!assigned) throw new Error("Unknown Tendril assignment");
+}, override?: ManagedTendrilWorld) {
+  const assigned = override ?? managedTendrilWorlds.find(({ id }) => id === input.caseId);
+  if (!assigned || assigned.id !== input.caseId) throw new Error("Unknown Tendril assignment");
   const world = assigned;
   const { request } = world;
   const buildWorld = hasTendrilBuildSteps(request);

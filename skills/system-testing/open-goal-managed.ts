@@ -10,7 +10,7 @@ import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import type { WorkspaceEditFixture } from "./open-goal-owned-research-worlds.js";
 import type { NewsInput } from "./news-contract.js";
 
-type Input = { contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[]; clientPanels?: { surfaceId: string; panelId: string }[] };
+type Input = { tendrilChannelId?: string; contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[]; clientPanels?: { surfaceId: string; panelId: string }[] };
 type ResearchReport = {
   status: string;
   research?: {
