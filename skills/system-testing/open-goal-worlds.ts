@@ -179,6 +179,7 @@ export { openSkillMaintenanceWorlds } from "./open-goal-skill-maintenance-worlds
 export { openDesktopReadinessWorlds } from "./open-goal-desktop-readiness-worlds.js";
 export { openNotificationStateWorlds } from "./open-goal-notification-state-worlds.js";
 export { openMobileContinuityWorlds } from "./open-goal-mobile-continuity-worlds.js";
+export { openContentArchiveWorlds, openContentArchiveRequiresUnits } from "./open-goal-content-archive-worlds.js";
 export { openSystemReleaseWorlds, openSystemReleaseRequiresUnits } from "./open-goal-system-release-worlds.js";
 export { openPanelSourceMigrationWorlds, openPanelSourceMigrationRequiresUnits } from "./open-goal-panel-source-migration-worlds.js";
 export { openWorkspaceShareWorlds, openWorkspaceShareRequiresUnits } from "./open-goal-workspace-share-worlds.js";
