@@ -59,11 +59,11 @@ function failure(
   const result = call.execution?.result;
   const details =
     isRecord(result) && isRecord(result["details"]) ? result["details"] : null;
-  const errorData =
-    details && isRecord(details["errorData"]) ? details["errorData"] : null;
+  const error = details && isRecord(details["error"]) ? details["error"] : null;
+  const errorData = error?.["errorData"] ?? details?.["errorData"];
   const failureCode =
     call.execution?.failureCode ?? call.failureCode ?? details?.["failureCode"];
-  return failureCode === code && errorData?.["code"] === code
+  return failureCode === code && isRecord(errorData) && errorData["code"] === code
     ? errorData
     : null;
 }
