@@ -45,6 +45,8 @@ import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
 import { openGoalMethods } from "./open-goal-managed.js";
+import { chatContinuityTestPolicy } from "./chat-continuity-authority.js";
+import { openChatContinuityWorlds } from "./open-goal-chat-continuity-worlds.js";
 import type { NewsInput } from "./news-contract.js";
 import { newsGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds } from "./open-goal-worlds.js";
 import { openGoalPanelRecoveryWorlds } from "./open-goal-panel-recovery-worlds.js";
@@ -2358,8 +2360,16 @@ export class HeadlessRunner {
         await panel.archive();
       }
     }
-    const testPolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
-    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [testPolicy ? { testPolicy } : {}]);
+    const chat = openChatContinuityWorlds.find(({ id }) => id === caseId);
+    const scopedContextId = chat?.worker && chat.worker !== "missing" ? crypto.randomUUID() : undefined;
+    const baselinePolicy = fixtureContextAuthority(this.testAuthorityPolicy, []);
+    const testPolicy = scopedContextId && baselinePolicy
+      ? chatContinuityTestPolicy(baselinePolicy, scopedContextId)
+      : baselinePolicy;
+    const { contextId } = await rpc.call("main", mainRpcMethods["runtime.createContext"], [{
+      ...(scopedContextId ? { contextId: scopedContextId } : {}),
+      ...(testPolicy ? { testPolicy } : {}),
+    }]);
     try {
       const owner = await this.createFixtureWorker(contextId);
       const execute = (panelId?: string) => rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [

@@ -14,6 +14,7 @@ import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-re
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { openChatContinuityWorlds } from "./open-goal-chat-continuity-worlds.js";
+import { chatContinuityPrimaryChannel } from "./chat-continuity-authority.js";
 
 type Lane=Awaited<ReturnType<typeof createOwnedHeadlessChannel>>;
 type Agent={objectKey:string;id:string;target:string;participantId:string|null};
@@ -76,7 +77,7 @@ async function joinWorker(agent:Agent,lane:Lane,owner:string) {
   const receipt=await rpc.call(agent.target,agentRpcMethods.subscribeChannel,[{
     channelId:lane.key,channelRef,contextId:owner,config:configuration,replay:false,delivery:"addressed",
   }]);
-  if(!receipt.ok||!receipt.participantId)throw new Error("No address-only worker membership");
+  if(!receipt.ok||receipt.participantId!==agent.target)throw new Error("No address-only membership for the owned worker");
   if(agent.participantId&&agent.participantId!==receipt.participantId)throw new Error("Rejoining changed the retained worker identity");
   agent.participantId=receipt.participantId;
 }
@@ -166,8 +167,12 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   if(!world||!input.contextId||input.contextId!==ports.contextId)throw new Error("Chat continuity requires its owned context");
   const owner=input.contextId;
   const before=await ports.status();
-  const active=await ports.open(owner,world.title);
+  const assigned=world.worker&&world.worker!=="missing"?chatContinuityPrimaryChannel(owner):undefined;
+  const active=await ports.open(owner,world.title,assigned?.key);
+  if(assigned&&(active.key!==assigned.key||active.target!==assigned.target))
+    throw new Error("The managed chat does not match its scoped inspection target");
   const alternate=await ports.open(owner,world.title);
+  if(alternate.target===active.target)throw new Error("The comparison chat must be separate");
   const key=`user-note-${crypto.randomUUID()}`;
   const original=await ports.send(active,owner,world.message,key);
   const lookalike=await ports.send(alternate,owner,world.message,`standalone-${crypto.randomUUID()}`);

@@ -19,8 +19,11 @@ import {
 
 type Lane = { key: string; target: string; expected: ReplayMessage[] };
 
-export async function createOwnedHeadlessChannel(contextId: string, title: string): Promise<Lane> {
-  const key = `natlang-channel-${crypto.randomUUID()}`;
+export async function createOwnedHeadlessChannel(
+  contextId: string,
+  title: string,
+  key = `natlang-channel-${crypto.randomUUID()}`,
+): Promise<Lane> {
   const { targetId: target, contextId: owner } = await rpc.call(
     "main",
     mainRpcMethods["runtime.createEntity"],
