@@ -85,6 +85,7 @@
     "./tour-rehearsal-worlds": "./tour-rehearsal-worlds.ts",
     "./tour-rehearsal-managed": "./tour-rehearsal-managed.ts",
     "./open-goal-build-incidents-managed": "./open-goal-build-incidents-managed.ts",
+    "./open-goal-phone-first-run-managed": "./open-goal-phone-first-run-managed.ts",
     "./open-goal-skill-maintenance-managed": "./open-goal-skill-maintenance-managed.ts",
     "./open-goal-skill-maintenance-native": "./open-goal-skill-maintenance-native.ts",
     "./open-goal-desktop-readiness-managed": "./open-goal-desktop-readiness-managed.ts",
@@ -313,6 +314,7 @@
     "@vibestudio/workspace-contracts": "workspace:*",
     "@vibestudio/content-addressing": "workspace:*",
     "@vibestudio/credential-client": "workspace:*",
+    "@workspace-skills/phone-setup": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
     "@vibestudio/shared": "workspace:*",
     "@vibestudio/shell-core": "workspace:*",
@@ -358,6 +360,6 @@
     "@workspace-skills/open-adventure-journey-runtime": "workspace:*",
     "@workspace-skills/spectrolite-review-fixtures": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
-    "@workspace-skills/phone-setup": "workspace:*"
+    "@workspace-clients/mobile-browser": "workspace:*"
   }
 }

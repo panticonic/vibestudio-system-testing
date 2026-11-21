@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3770,6 +3770,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const desktopReadiness = openDesktopReadinessWorlds.find(({ id }) => id === input.caseId);
     const panelSourceMigration = openPanelSourceMigrationWorlds.find(({ id }) => id === input.caseId);
     const skillMaintenance = openSkillMaintenanceWorlds.find(({ id }) => id === input.caseId);
+    const phoneFirstRun = openPhoneFirstRunWorlds.find(({ id }) => id === input.caseId);
     const testkitCloseout = openTestkitCloseoutWorlds.find(({ id }) => id === input.caseId);
     const systemRelease = openSystemReleaseWorlds.find(({ id }) => id === input.caseId);
     let systemReleaseSeed: Awaited<ReturnType<typeof seedSystemRelease>> | undefined;
@@ -3782,7 +3783,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       });
     }
     const contentArchive = openContentArchiveWorlds.find(({ id }) => id === input.caseId);
-    const prepare = contentArchive
+    const prepare = phoneFirstRun
+      ? `import {vcs} from "@workspace/runtime";
+         import {preparePhoneFirstRun} from "@workspace-skills/system-testing/open-goal-phone-first-run-managed";
+         import {workspacePhoneReadiness} from "@workspace-clients/mobile-browser/phone-readiness";
+         const prepared=await preparePhoneFirstRun(input,${JSON.stringify(phoneFirstRun)},
+           {contextId:actualContextId,vcs,workspacePhoneReadiness});`
+      : contentArchive
       ? `import {prepareContentArchive} from "@workspace-skills/system-testing/open-goal-content-archive-managed";
          const prepared=await prepareContentArchive(input,${JSON.stringify(contentArchive)});`
       : testkitCloseout
