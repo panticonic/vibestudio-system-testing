@@ -44,7 +44,7 @@ import { managedGitBridgeReviewWorlds } from "./git-bridge-review-worlds.js";
 import { managedVcsDeliveryMethods } from "./vcs-delivery-managed.js";
 import { deliveryRepository, managedVcsDeliveryWorlds } from "./vcs-delivery-worlds.js";
 import { managedWebBriefMethods } from "./web-brief-managed.js";
-import { openGoalMethods } from "./open-goal-managed.js";
+import { openGoalMethods, type OpenGoalReceiver } from "./open-goal-managed.js";
 import { chatContinuityTestPolicy } from "./chat-continuity-authority.js";
 import { openChatContinuityWorlds } from "./open-goal-chat-continuity-worlds.js";
 import type { NewsInput } from "./news-contract.js";
@@ -2200,7 +2200,8 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
-  async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false) {
+  async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false):
+    ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
     const request = { caseId, goal, executorModel: this.modelRef, qualification };
     if (openLiveTendrilBoardWorlds.some(({ id }) => id === caseId))
       return this.withOwnedTendril(signal, (owner, contextId, tendrilChannelId) =>
@@ -2345,10 +2346,12 @@ export class HeadlessRunner {
       });
       try {
         const result = qualification
-          ? { teacher: null, verification: await prepareBrowserGoal(panel, { contextId, caseId, source }, browser).qualify() }
+          ? { contextId, teacher: null, verificationErrors: [],
+              verification: await prepareBrowserGoal(panel, { contextId, caseId, source }, browser).qualify() }
           : await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
             { ...request, contextId, source, panelId: panel.id },
           ], { signal });
+        if (!result.verification) return result;
         const after = await vcs.status({ contextId });
         const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
           JSON.stringify(before.workingHead) === JSON.stringify(after.workingHead);
