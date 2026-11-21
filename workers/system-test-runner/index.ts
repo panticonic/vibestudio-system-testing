@@ -121,7 +121,7 @@ import {
   preparedContentProjectWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
-  openExtensionDossierWorlds,
+  openExtensionDossierWorlds, openUnitHandoffWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalMethodWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   gadDurableQuestionWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3786,6 +3786,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const audience = openAudienceResponseWorlds.find(({ id }) => id === input.caseId);
     const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
+    const unitHandoff = openUnitHandoffWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
     const tendrilRoute = openTendrilRouteWorlds.find(({ id }) => id === input.caseId);
     const installedPackage = openInstalledPackageWorlds.find(({ id }) => id === input.caseId);
@@ -3916,6 +3917,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : tendrilRoute
       ? `import {prepareOpenTendrilRoute} from "@workspace-skills/system-testing/open-goal-tendril-route-managed";
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
+      : unitHandoff
+      ? `import {prepareUnitHandoff} from "@workspace-skills/system-testing/open-goal-unit-handoff-managed";
+         const prepared=await prepareUnitHandoff(${JSON.stringify(unitHandoff)});`
       : extensionDossier
       ? `import {prepareExtensionDossier} from "@workspace-skills/system-testing/open-goal-extension-dossier-managed";
          const prepared=await prepareExtensionDossier(input,${JSON.stringify(extensionDossier)});`

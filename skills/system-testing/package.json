@@ -113,6 +113,7 @@
     "./open-goal-audience-response-managed": "./open-goal-audience-response-managed.ts",
     "./open-goal-local-presentation-managed": "./open-goal-local-presentation-managed.ts",
     "./open-goal-deployed-interface-managed": "./open-goal-deployed-interface-managed.ts",
+    "./open-goal-unit-handoff-managed": "./open-goal-unit-handoff-managed.ts",
     "./open-goal-extension-dossier-managed": "./open-goal-extension-dossier-managed.ts",
     "./open-goal-installed-package-managed": "./open-goal-installed-package-managed.ts",
     "./open-goal-local-width-managed": "./open-goal-local-width-managed.ts",

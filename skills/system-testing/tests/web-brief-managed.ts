@@ -52,6 +52,7 @@ import {
   openBuildIncidentWorlds, buildIncidentRequiresUnits,
   openDeployedInterfaceWorlds, openDeployedInterfaceRequiresUnits,
   openExtensionDossierWorlds, openExtensionDossierRequiresUnits,
+  openUnitHandoffWorlds, openUnitHandoffRequiresUnits,
   openInstalledPackageWorlds, openInstalledPackageRequiresUnits,
   openLocalWidthWorlds, openLocalWidthRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
@@ -147,6 +148,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...terminalAppRepairWorlds, ...preparedContentProjectWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...openAudienceResponseWorlds,
+  ...openUnitHandoffWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
@@ -202,6 +204,7 @@ const templateSettings = {
   "panel-source-migration": { requiresUnits: openPanelSourceMigrationRequiresUnits },
   "workspace-share": { requiresUnits: openWorkspaceShareRequiresUnits },
   "agent-capability": { requiresUnits: openAgentCapabilityRequiresUnits },
+  "unit-handoff": { requiresUnits: openUnitHandoffRequiresUnits },
   "extension-dossier": { requiresUnits: openExtensionDossierRequiresUnits },
   "installed-package": { requiresUnits: openInstalledPackageRequiresUnits },
   "local-width": { requiresUnits: openLocalWidthRequiresUnits },
@@ -539,6 +542,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :
     world.kind === "build-incident" ? "Reconcile a retained native build profile and exact source coordinates" :
     world.kind === "deployed-interface" ? "Review the exact installed interface, deployed claim, and approved local scope" :
+    world.kind === "unit-handoff" ? "Review current unit design and exact local visual identity" :
     world.kind === "extension-dossier" ? "Compare extension releases and prepare a scoped local verification dossier" :
     world.kind === "installed-package" ? "Verify the installed worker package and restore only its approved local field" :
     world.kind === "local-width" ? "Reconcile current local model readiness with retained execution width evidence" :
