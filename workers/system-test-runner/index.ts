@@ -4219,23 +4219,6 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     `) as Awaited<ReturnType<ManagedProvenanceHistoryReceiver["runManagedProvenanceHistoryTeacher"]>>;
   }
 
-  @rpc({website:{kind:"closed",reason:"Qualifies the native provenance read and evidence scope without model calls."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
-  async qualifyManagedProvenanceHistory(input: ProvenanceHistoryInput): ReturnType<ManagedProvenanceHistoryReceiver["qualifyManagedProvenanceHistory"]> {
-    return await this.runHarnessUtility("teacher",`
-      ${this.provenanceHistoryBindings(input)}
-      await natlang.describe("skills/provenance-orientation/reviewProvenance.nl");
-      let rejectedOutside=false;
-      try { await assignedServices.provenanceHistory.readNext({path:"other-workspace.txt",walk:"cause",scope:"work-unit"}); }
-      catch { rejectedOutside=true; }
-      for(const check of prepared.request.checks) await assignedServices.provenanceHistory.readNext(check);
-      const report=prepared.reference();
-      const verification=await prepared.verify(report);
-      const altered={...report,findings:report.findings.map(row=>({...row,evidence:["foreign-evidence"]}))};
-      const rejectedWrongCoordinate=rejectedOutside&&!(await prepared.verify(altered)).passed;
-      const utilityValue={verification,rejectedWrongCoordinate};
-    `) as Awaited<ReturnType<ManagedProvenanceHistoryReceiver["qualifyManagedProvenanceHistory"]>>;
-  }
-
   private provenanceHistoryBindings(input: ProvenanceHistoryInput) {
     return `
       import {vcs,contextId as actualContextId} from "@workspace/runtime";

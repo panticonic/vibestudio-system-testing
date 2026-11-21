@@ -237,3 +237,27 @@ export async function prepareManagedProvenanceHistory(
 
   return { request, service: { readNext }, reference, verify };
 }
+
+export async function qualifyManagedProvenanceHistory(
+  vcs: Ports,
+  contextId: string,
+  repoPath: string,
+  caseId: string,
+) {
+  const prepared = await prepareManagedProvenanceHistory(vcs, contextId, repoPath, caseId);
+  let rejectedOutside = false;
+  try {
+    await prepared.service.readNext({ path: "other-workspace.txt", walk: "cause", scope: "work-unit" });
+  } catch {
+    rejectedOutside = true;
+  }
+  for (const check of prepared.request.checks) await prepared.service.readNext(check);
+  const report = prepared.reference();
+  const verification = await prepared.verify(report);
+  const altered = {
+    ...report,
+    findings: report.findings.map((row) => ({ ...row, evidence: ["foreign-evidence"] })),
+  };
+  const rejectedWrongCoordinate = rejectedOutside && !(await prepared.verify(altered)).passed;
+  return { verification, rejectedWrongCoordinate };
+}

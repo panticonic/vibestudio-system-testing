@@ -7,7 +7,7 @@ import type {
 
 type OracleClient = Pick<
   VcsClient,
-  "status" | "readFile" | "compare" | "inspect"
+  "status" | "readFile" | "inspect"
 >;
 export type IntegrationOracleFixture = {
   contextId: string;
@@ -68,29 +68,39 @@ export async function verifyWorkspaceIntegration(
 
   const decisionIds = new Set<string>();
   const seen = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    const page = await vcs.compare({
-      target: status.workingHead,
-      source: fixture.source,
-      ...(cursor ? { cursor } : {}),
-    });
-    evidence.push(page);
-    if (
-      !page.resolution.complete ||
-      !page.resolution.concluded ||
-      page.resolution.remainingCoordinateCount !== 0
-    )
+  for (const entry of status.integrating) {
+    if (isDeepStrictEqual(entry.source, fixture.source) &&
+        (!entry.concluded || entry.remainingCoordinateCount !== 0)) {
       reasons.push("Source integration incomplete or unconcluded");
-    for (const item of page.coordinates)
-      if (item.decisionId) decisionIds.add(item.decisionId);
-    cursor = page.nextCursor ?? undefined;
-    if (cursor) {
-      if (seen.has(cursor))
-        throw new Error("Oracle comparison repeated a cursor");
-      seen.add(cursor);
     }
-  } while (cursor);
+  }
+  // After a merge, its source is already an ancestor. Read the decisions
+  // from the target's recorded work instead of attempting another comparison.
+  let basis: VcsStateNodeRef | null = status.workingHead;
+  while (basis && !isDeepStrictEqual(basis, fixture.commonSeedEvent)) {
+    const key = basis.kind === "event" ? basis.eventId : basis.applicationId;
+    if (seen.has(key)) throw new Error("Oracle target history contains a cycle");
+    seen.add(key);
+    const inspected = await vcs.inspect({ node: basis, edgeLimit: 1 });
+    evidence.push(inspected);
+    const { node } = inspected;
+    if (node.kind === "application") {
+      const work = await vcs.inspect({
+        node: { kind: "work-unit", workUnitId: node.value.workUnitId },
+        edgeLimit: 1,
+      });
+      evidence.push(work);
+      if (work.node.kind !== "work-unit") throw new Error("Oracle target work unit is unavailable");
+      for (const decisionId of work.node.value.decisionIds) decisionIds.add(decisionId);
+      basis = node.value.basis;
+    } else {
+      if (node.kind !== "event") throw new Error("Oracle target event is unavailable");
+      for (const decisionId of node.value.decisionIds) decisionIds.add(decisionId);
+      const parent = node.value.parentEventIds[0];
+      basis = parent ? { kind: "event", eventId: parent } : null;
+    }
+  }
+  if (!basis) reasons.push("Target history does not reach the assigned common seed");
 
   const accountedFiles = new Set<string>();
   for (const decisionId of decisionIds) {
