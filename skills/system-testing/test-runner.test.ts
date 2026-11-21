@@ -1605,6 +1605,32 @@ describe("TestRunner", () => {
   it("surfaces workspace repo fixture teardown failures as infrastructure failures", async () => {
     const messages = [
       {
+        id: "published-fixture",
+        senderId: "agent",
+        senderMetadata: { type: "agent" },
+        kind: "message",
+        complete: true,
+        contentType: "invocation",
+        content: JSON.stringify({
+          id: "push-fixture",
+          name: "vcs",
+          arguments: { operation: "push" },
+          execution: {
+            status: "complete",
+            result: {
+              details: {
+                operation: "push",
+                result: {
+                  contextId: "context:fixture-test",
+                  eventId: "event:published-fixture",
+                  mainEventId: "event:published-fixture",
+                },
+              },
+            },
+          },
+        }),
+      },
+      {
         id: "answer-fixture",
         senderId: "agent",
         senderMetadata: { type: "agent" },
@@ -1622,7 +1648,7 @@ describe("TestRunner", () => {
         channelId: "chat-fixture",
         agentEntityId: "agent-fixture",
         agentTargetId: "target-fixture",
-        agentContextId: "ctx-fixture",
+        agentContextId: "context:fixture-test",
         messages,
         invocations: [],
         debugEvents: [],
@@ -1686,6 +1712,10 @@ describe("TestRunner", () => {
       validate: () => ({ passed: true }),
     });
 
+    expect(childRunner.cleanupWorkspaceRepoFixture).toHaveBeenCalledWith(
+      { ...fixtureState, publishedFixtureEventId: "event:published-fixture" },
+      expect.any(Function),
+    );
     expect(result).toMatchObject({
       passed: false,
       reason:

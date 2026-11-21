@@ -947,8 +947,9 @@ export class TestRunner {
         enterPhase("workspace-fixture-cleanup");
         try {
           const agentContextId = outcome?.execution.provenance?.contextId;
-          const publishedFixtureEventId = outcome && agentContextId &&
-            agentContextId !== workspaceRepoFixtureState.contextId
+          // The fixture runner and agent may share a context ID while owning
+          // separate working copies. Attribute main from the agent's receipt.
+          const publishedFixtureEventId = outcome && agentContextId
             ? publishedEventForContext(outcome.execution, agentContextId)
             : undefined;
           const fixtureCleanup = await testRunner.cleanupWorkspaceRepoFixture(
