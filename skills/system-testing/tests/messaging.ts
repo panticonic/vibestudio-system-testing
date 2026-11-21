@@ -199,7 +199,7 @@ export const messagingTests: TestCase[] = [
 
     timeoutMs: 600_000,
     prompt:
-      "Delegate to a subagent to count the markdown files under the skills directory in the background. " +
+      "Delegate to a subagent to count the Markdown files under /skills/messaging, including its subdirectories, in the background. " +
       "Once it is under way, tell it you also want the total line count, then give me both numbers.",
     reportClaims: [
       {
