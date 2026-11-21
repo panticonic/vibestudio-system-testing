@@ -78,7 +78,6 @@ export const CREATED_PANEL_STORE_WORKSPACE_REPO_FIXTURE = {
 export const CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE = {
   kind: "created-repository",
   section: "packages",
-  privateCommit: true,
 } as const satisfies WorkspaceRepoCreationScope;
 
 export const CREATED_SKILL_WORKSPACE_REPO_FIXTURE = {

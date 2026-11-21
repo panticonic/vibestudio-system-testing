@@ -1494,7 +1494,7 @@ export const projectLifecycleTests: TestCase[] = [
     name: "commit-existing-project",
     description: "Create, change, and commit a package project",
     category: "project-lifecycle",
-    workspaceRepoFixture: CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    workspaceRepoFixture: { ...CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE, privateCommit: true },
     agentContext: "fork",
     prompt:
       "Create an isolated package project, make one follow-up change, and commit that change.",
