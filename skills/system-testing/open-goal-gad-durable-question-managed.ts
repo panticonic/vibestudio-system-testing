@@ -224,13 +224,34 @@ export async function prepareOpenGadDurableQuestion(
     // Observe the exact accepted envelope and roster separately. The channel
     // can also contain native agentic lifecycle envelopes that are not messages.
     const last = native.messages.at(-1);
+    // The completed headless evidence producer may retain a membership row
+    // after closing. Its exact admitted sender is separate from the assigned
+    // participants. Keep active producers and all other departures visible.
+    const closedPublisherId = last && !roster.some(member => member.participantId === last.senderId)
+      ? last.senderId : null;
+    const reviewReaders: Readers = {
+      getChannelEnvelope: input => readers.getChannelEnvelope(input),
+      readChannelEnvelopes: input => readers.readChannelEnvelopes(input),
+      async inspectChannelRoster(input) {
+        if (input.channelId !== channelId) throw new Error("Roster read escaped the assigned channel");
+        const limit = input.limit ?? 100;
+        const raw = await readers.inspectChannelRoster({ ...input, limit: limit + 1 });
+        const rows = raw.rows.filter(row => !(row.channel_id === channelId &&
+          row.participant_id === closedPublisherId && row.left_at !== null)).slice(0, limit);
+        return { rows, summary: {
+          rows: rows.length,
+          activeParticipants: rows.filter(row => row.left_at === null).length,
+          inactiveParticipants: rows.filter(row => row.left_at !== null).length,
+        } };
+      },
+    };
     let frontier: unknown = null;
     try {
       await waitFor(async () => {
         const row = last ? await readers.getChannelEnvelope({channelId,envelopeId:last.envelopeId}) : null;
         const event = row?.payload ? agenticEventSchema.safeParse(row.payload) : null;
         const observed = event?.success && event.data.kind === "message.completed" ? event.data : null;
-        const members = await readers.inspectChannelRoster({channelId,limit:24});
+        const members = await reviewReaders.inspectChannelRoster({channelId,limit:24});
         frontier = {
           message: row && {channelId:row.channelId,envelopeId:row.envelopeId,sequence:row.seq,
             messageId:observed?.causality?.messageId,senderId:row.from.id,role:observed?.payload.role},
@@ -247,11 +268,11 @@ export async function prepareOpenGadDurableQuestion(
       }, {label:"owned GAD projection frontier",timeoutMs:20000,intervalMs:100});
     } catch (error) {
       throw new Error(`Owned GAD projection frontier did not match canonical admission: ${JSON.stringify({
-        channelId, expectedMessage:last && {messageId:last.messageId,envelopeId:last.envelopeId,
+        channelId, closedPublisherId, expectedMessage:last && {messageId:last.messageId,envelopeId:last.envelopeId,
           sequence:last.sequence,senderId:last.senderId}, expectedRoster:roster, frontier,
       })}`, {cause:error});
     }
-    return {...bindOpenGadDurableQuestion(contextId,channelId,world,readAssignedNative,readers),close};
+    return {...bindOpenGadDurableQuestion(contextId,channelId,world,readAssignedNative,reviewReaders),close};
   } catch (error) {
     try { await close(); }
     catch (cleanup) { throw new AggregateError([error,cleanup], "Durable question setup and cleanup failed"); }
