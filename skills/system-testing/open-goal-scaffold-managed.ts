@@ -599,11 +599,12 @@ export async function prepareOpenScaffold(
       ? true
       : (await services.scaffoldPrepare.prepare(key, ref, plan.kinds)) ===
           null && isDeepStrictEqual((await status()).workingHead, initial);
+    const rejectedAlteredEvidence = denied && rejectedChangedMain && rejectedUnapprovedDraft;
     return {
-      verification,
-      report,
-      rejectedAlteredEvidence:
-        denied && rejectedChangedMain && rejectedUnapprovedDraft,
+      ...verification,
+      passed: verification.passed && rejectedAlteredEvidence,
+      checks: { ...verification.checks, rejectedAlteredEvidence },
+      referenceReport: report,
     };
   }
   return { services, verify, qualify };

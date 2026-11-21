@@ -550,10 +550,12 @@ export async function prepareOpenLocalMethod(
         if (!isDeepStrictEqual(await readTerminal(true), terminal))
           throw new Error("Re-drive changed a settled local method");
       }
+      const rejectedAlteredEvidence = denied === 2 && rejected;
       return {
-        verification,
-        report,
-        rejectedAlteredEvidence: denied === 2 && rejected,
+        ...verification,
+        passed: verification.passed && rejectedAlteredEvidence,
+        checks: { ...verification.checks, rejectedAlteredEvidence },
+        referenceReport: report,
       };
     }
     return { services, verify, qualify, close };

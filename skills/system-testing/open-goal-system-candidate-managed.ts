@@ -780,10 +780,12 @@ export async function prepareOpenSystemCandidate(
     const verification = await verify(report);
     const altered = structuredClone(report);
     altered.outcome.readback.main = "foreign";
+    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
     return {
-      report,
-      verification,
-      rejectedAlteredEvidence: denied === 2 && !(await verify(altered)).passed,
+      ...verification,
+      passed: verification.passed && rejectedAlteredEvidence,
+      checks: { ...verification.checks, rejectedAlteredEvidence },
+      referenceReport: report,
     };
   }
   return { services, verify, qualify };
