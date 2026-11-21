@@ -22,6 +22,7 @@ import {
   openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
   openRouteAuthorityRequiresUnits,
   openLaunchStateRequiresUnits,
+  openCliRouteWorlds, openCliRouteRequiresUnits,
   openOwnedOperationsRequiresUnits,
   browserGoalWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityRequiresUnits, openChatContinuityWorlds, openRouteAuthorityWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, workspaceClaimRequiresUnits, openBridgeDeliveryWorlds, openBridgeDeliveryRequiresUnits, openEditorialRequiresUnits, openEditorialWorlds, openPortfolioRequiresUnits, openPortfolioWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
@@ -126,7 +127,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openLocalMethodWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -218,6 +219,7 @@ const templateSettings = {
   "owned-task": { requiresUnits: ownedTaskRequiresUnits, authorityPolicy: missionPlanningSettings.authorityPolicy },
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   "api-readiness": { requiresUnits: openApiReadinessRequiresUnits },
+  "cli-route": { requiresUnits: openCliRouteRequiresUnits },
   "owned-operations": { requiresUnits: openOwnedOperationsRequiresUnits },
   "chat-continuity": { requiresUnits: openChatContinuityRequiresUnits },
   "route-authority": { requiresUnits: openRouteAuthorityRequiresUnits },
@@ -457,6 +459,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "extension-dossier" ? "Compare extension releases and prepare a scoped local verification dossier" :
     world.kind === "installed-package" ? "Verify the installed worker package and restore only its approved local field" :
     world.kind === "local-width" ? "Reconcile current local model readiness with retained execution width evidence" :
+    world.kind === "cli-route" ? "Verify the native gateway and recover the retained CLI invocation scope" :
     world.kind === "owned-operations" ? "Verify independent owned role checkpoints, their cleanup, and any private release dossier" :
     world.kind === "system-diagnostics" ? "Check exact live log windows and independently verify the incident outcome" :
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :

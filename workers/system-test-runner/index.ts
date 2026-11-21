@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openCliRouteWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3696,6 +3696,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
     const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
+    const cliRoute = openCliRouteWorlds.find(({ id }) => id === input.caseId);
     const ownedOperation = openOwnedOperationsWorlds.find(({ id }) => id === input.caseId);
     const chatContinuity = openChatContinuityWorlds.some(({ id }) => id === input.caseId);
     const routeAuthority = openRouteAuthorityWorlds.some(({ id }) => id === input.caseId);
@@ -4081,6 +4082,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {credentialLifecycle} from "@vibestudio/credential-client/credentialStatus";
          const prepared=await prepareOpenApiReadiness(input,{match:matchUrlBoundCredentialCandidates,binding:findCredentialBinding,
            audience:findMatchingUrlAudience,lifecycle:credentialLifecycle});`
+      : cliRoute
+      ? `import {prepareOpenCliRoute} from "@workspace-skills/system-testing/open-goal-cli-route-managed";
+         const prepared=await prepareOpenCliRoute(input,${JSON.stringify(cliRoute)});`
       : ownedOperation
       ? `import {prepareOpenOwnedOperations} from "@workspace-skills/system-testing/open-goal-owned-operations-managed";
          const prepared=await prepareOpenOwnedOperations(input,${JSON.stringify(ownedOperation)});`

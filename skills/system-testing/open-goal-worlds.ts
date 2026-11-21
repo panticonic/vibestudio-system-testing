@@ -210,3 +210,5 @@ export { openOwnedOperationsWorlds, openOwnedOperationsRequiresUnits } from "./o
 
 export { openScaffoldWorlds } from "./open-goal-scaffold-worlds.js";
 export { openLocalMethodWorlds } from "./open-goal-local-method-worlds.js";
+
+export { openCliRouteWorlds, openCliRouteRequiresUnits } from "./open-goal-cli-route-worlds.js";

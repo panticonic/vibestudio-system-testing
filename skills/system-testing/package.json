@@ -157,6 +157,7 @@
     "./open-goal-owned-preview-managed": "./open-goal-owned-preview-managed.ts",
     "./open-goal-publication-managed": "./open-goal-publication-managed.ts",
     "./open-goal-api-readiness-managed": "./open-goal-api-readiness-managed.ts",
+    "./open-goal-cli-route-managed": "./open-goal-cli-route-managed.ts",
     "./open-goal-owned-operations-managed": "./open-goal-owned-operations-managed.ts",
     "./open-goal-chat-continuity-managed": "./open-goal-chat-continuity-managed.ts",
     "./open-goal-route-authority-managed": "./open-goal-route-authority-managed.ts",
