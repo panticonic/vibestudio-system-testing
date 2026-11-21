@@ -3787,8 +3787,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {vcs} from "@workspace/runtime";
          import {preparePhoneFirstRun} from "@workspace-skills/system-testing/open-goal-phone-first-run-managed";
          import {workspacePhoneReadiness} from "@workspace-clients/mobile-browser/phone-readiness";
+         import {bindPhoneSetup} from "@workspace-skills/phone-setup/workflow";
+         import {eligiblePhoneDesktops} from "@workspace-skills/phone-setup/eligibility";
          const prepared=await preparePhoneFirstRun(input,${JSON.stringify(phoneFirstRun)},
-           {contextId:actualContextId,vcs,workspacePhoneReadiness});`
+           {contextId:actualContextId,vcs,workspacePhoneReadiness,bindPhoneSetup,eligiblePhoneDesktops});`
       : contentArchive
       ? `import {prepareContentArchive} from "@workspace-skills/system-testing/open-goal-content-archive-managed";
          const prepared=await prepareContentArchive(input,${JSON.stringify(contentArchive)});`

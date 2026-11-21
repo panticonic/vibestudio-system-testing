@@ -314,7 +314,6 @@
     "@vibestudio/workspace-contracts": "workspace:*",
     "@vibestudio/content-addressing": "workspace:*",
     "@vibestudio/credential-client": "workspace:*",
-    "@workspace-skills/phone-setup": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
     "@vibestudio/shared": "workspace:*",
     "@vibestudio/shell-core": "workspace:*",
@@ -360,6 +359,7 @@
     "@workspace-skills/open-adventure-journey-runtime": "workspace:*",
     "@workspace-skills/spectrolite-review-fixtures": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
+    "@workspace-skills/phone-setup": "workspace:*",
     "@workspace-clients/mobile-browser": "workspace:*"
   }
 }

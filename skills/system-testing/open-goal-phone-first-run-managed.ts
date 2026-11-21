@@ -7,8 +7,8 @@ import {
   CURRENT_HOST_ABI,
   isClientRuntime,
 } from "@vibestudio/workspace-contracts/clients";
-import { bindPhoneSetup } from "@workspace-skills/phone-setup/workflow";
-import { eligiblePhoneDesktops } from "@workspace-skills/phone-setup/eligibility";
+import type { bindPhoneSetup } from "@workspace-skills/phone-setup/workflow";
+import type { eligiblePhoneDesktops } from "@workspace-skills/phone-setup/eligibility";
 import type { workspacePhoneReadiness } from "@workspace-clients/mobile-browser/phone-readiness";
 import type { VcsClient } from "@workspace/runtime";
 import type { PhoneFirstRunWorld } from "./open-goal-phone-first-run-worlds.js";
@@ -17,6 +17,8 @@ type Ports = {
   contextId: string | null;
   vcs: Pick<VcsClient, "status" | "resolveRepository" | "readFile">;
   workspacePhoneReadiness: typeof workspacePhoneReadiness;
+  bindPhoneSetup: typeof bindPhoneSetup;
+  eligiblePhoneDesktops: typeof eligiblePhoneDesktops;
 };
 type Journal = {
   service: string;
@@ -176,7 +178,7 @@ export async function preparePhoneFirstRun(
     title: world.name + " archive",
     edition: "archive" as const,
   };
-  const desktops = eligiblePhoneDesktops(
+  const desktops = ports.eligiblePhoneDesktops(
     PhoneProviderSchema.array().parse(
       (world.providers ?? []).map((providerId) => {
         const hostPlatform = providerId.startsWith("mac") ? "darwin" : "linux";
@@ -224,7 +226,7 @@ export async function preparePhoneFirstRun(
     );
   };
   const ready = ports.workspacePhoneReadiness(visibleSession(world));
-  const bound = await bindPhoneSetup(
+  const bound = await ports.bindPhoneSetup(
     { goal: world.goal, paired: { deviceId: targetId, platform } },
     {
       client: {
