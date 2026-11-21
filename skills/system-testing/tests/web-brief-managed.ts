@@ -16,7 +16,7 @@ import {
   openWorkspaceShareWorlds, openWorkspaceShareRequiresUnits,
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
   openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
-  browserGoalWorlds, openEditorialRequiresUnits, openEditorialWorlds, openPortfolioRequiresUnits, openPortfolioWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
+  browserGoalWorlds, openChatContinuityRequiresUnits, openChatContinuityWorlds, openEditorialRequiresUnits, openEditorialWorlds, openPortfolioRequiresUnits, openPortfolioWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openOwnedTaskWorlds, ownedTaskRequiresUnits,
@@ -119,7 +119,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openChatContinuityWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -198,6 +198,7 @@ const templateSettings = {
   "owned-task": { requiresUnits: ownedTaskRequiresUnits, authorityPolicy: missionPlanningSettings.authorityPolicy },
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   "api-readiness": { requiresUnits: openApiReadinessRequiresUnits },
+  "chat-continuity": { requiresUnits: openChatContinuityRequiresUnits },
   "editorial-packet": { requiresUnits: openEditorialRequiresUnits, authorityPolicy: missionPlanningSettings.authorityPolicy },
   "demo-portfolio": { requiresUnits: openPortfolioRequiresUnits, authorityPolicy: { authority: [{
     ruleId: "inspect-owned-portfolio-garden",
@@ -367,6 +368,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "suite" ? "Select and verify a live declared workspace suite" :
     world.kind === "adventure-journey" ? "Recover a disposable Adventure save and verify its player evidence and authorized next turn" :
     world.kind === "api-readiness" ? "Check the trusted integration and pregranted-only offline API binding readiness" :
+    world.kind === "chat-continuity" ? "Verify local first-party chat receipt and exact default-worker continuity" :
     world.kind === "editorial-packet" ? "Reconcile an owned publication candidate against approved sources and exact semantic co-edits" :
     world.kind === "demo-portfolio" ? "Decide paired Grimoire and Regency readiness from the current acceptance criteria" :
     world.kind === "regency-briefing" ? "Resolve Regency decisions against verified saved accounts, forecasts and any authorized advance" :

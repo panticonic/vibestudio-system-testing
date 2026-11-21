@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openChatContinuityWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3696,6 +3696,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const googleSetup = openGoalGoogleSetupWorlds.find(({ id }) => id === input.caseId);
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
     const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
+    const chatContinuity = openChatContinuityWorlds.some(({ id }) => id === input.caseId);
     const editorialPacket = openEditorialWorlds.some(({ id }) => id === input.caseId);
     const demoPortfolio = openPortfolioWorlds.some(({ id }) => id === input.caseId);
     const regencyBriefing = openRegencyWorlds.some(({ id }) => id === input.caseId);
@@ -4049,6 +4050,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {credentialLifecycle} from "@vibestudio/credential-client/credentialStatus";
          const prepared=await prepareOpenApiReadiness(input,{match:matchUrlBoundCredentialCandidates,binding:findCredentialBinding,
            audience:findMatchingUrlAudience,lifecycle:credentialLifecycle});`
+      : chatContinuity
+      ? `import {prepareOpenChatContinuity} from "@workspace-skills/system-testing/open-goal-chat-continuity-managed";
+         const prepared=await prepareOpenChatContinuity(input);`
       : editorialPacket
       ? `import {prepareOpenEditorial} from "@workspace-skills/system-testing/open-goal-editorial-managed";
          import {openEditorialMissionStore} from "@workspace-skills/open-personal-goal/editorial-owner";
