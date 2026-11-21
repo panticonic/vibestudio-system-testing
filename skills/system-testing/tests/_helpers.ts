@@ -1236,24 +1236,33 @@ export function requireRevertEvidence(result: TestExecutionResult): {
         zeroWorkingCounts(status["workingCounts"]),
       );
     });
-    const restoredRead = afterCounteractionCommit.find(
+    const readsRestoredText = (call: InvocationCardPayloadLike) =>
+      call.name === "read" &&
+      call.arguments?.["path"] === path &&
+      focusedToolProtocolText(call).includes(oldText) &&
+      !focusedToolProtocolText(call).includes(newText);
+    const attachedReadState = (call: InvocationCardPayloadLike): unknown => {
+      const details = focusedToolDetails(call, "read");
+      const provenance = details ? recordField(details, "provenance") : null;
+      return provenance?.["status"] === "attached" ? provenance["state"] : null;
+    };
+    const restoredAtEvent = afterCounteractionCommit.some(
       (call) =>
-        call.name === "read" &&
-        call.arguments?.["path"] === path &&
-        focusedToolProtocolText(call).includes(oldText) &&
-        !focusedToolProtocolText(call).includes(newText),
+        readsRestoredText(call) &&
+        (cleanStatus || eventRefEquals(attachedReadState(call), restoredEventId)),
     );
-    const restoredReadDetails = restoredRead
-      ? focusedToolDetails(restoredRead, "read")
-      : null;
-    const readProvenance = restoredReadDetails
-      ? recordField(restoredReadDetails, "provenance")
-      : null;
-    const readAtCommittedEvent =
-      readProvenance?.["status"] === "attached" &&
-      eventRefEquals(readProvenance["state"], restoredEventId);
-    const restoredByRead =
-      Boolean(restoredRead) && Boolean(cleanStatus || readAtCommittedEvent);
+    // A read of the exact application also establishes restored committed
+    // text when that application is the only content committed in the undo.
+    const restoredAtApplication =
+      cleanStatus &&
+      arraysEqual(counteractionCommitEntry.value["committedApplicationIds"], [revertApplicationId]) &&
+      arraysEqual(counteractionCommitEntry.value["integrationSourceEventIds"], []) &&
+      calls.slice(revertIndex + 1, counteractionCommitEntry.index).some(
+        (call) =>
+          readsRestoredText(call) &&
+          stateMatchesApplication(attachedReadState(call), revertApplicationId),
+      );
+    const restoredByRead = restoredAtEvent || restoredAtApplication;
     const restoredByInverseEffect = cleanStatus && inverseContentEffect;
     if (!restoredByRead && !restoredByInverseEffect) continue;
     return { passed: true, reason: undefined };

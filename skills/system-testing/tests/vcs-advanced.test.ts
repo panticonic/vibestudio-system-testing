@@ -601,7 +601,7 @@ describe("reduced VCS agentic catalog", () => {
       ({ name }) => name === "vcs-sizable-history-memory-recall",
     )!;
     const evidence = (
-      target: string, subjectKind: string, text: string, walk?: "cause",
+      target: string, subjectKind: string, text: string, walk?: "cause" | "cohort",
     ) => invocation(target, "provenance", { target, ...(walk ? { walk } : {}) }, {
       protocolContent: [{ type: "text", text }],
       details: { ref: target, subjectKind, ...(walk ? { walk } : {}) },
@@ -621,6 +621,13 @@ describe("reduced VCS agentic catalog", () => {
 
     expect(test.validate(execution(final, [cause, commit, application])).passed).toBe(true);
     expect(test.validate(execution(final, [cause, commit, unrelated])).passed).toBe(false);
+    const cohortFor = (commitRef: string) => evidence("@r1-1111", "work-unit",
+      '  work (1)\n    stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name" · work unit · import · @r1-1111\n' +
+      `  commits (1)\n    commit · Retire Harbor Lantern after launch; use Retention Service in support and audit records · ${commitRef}`,
+      "cohort");
+    expect(test.validate(execution(final, [cause, commit, cohortFor("@r2-2222")])).passed).toBe(true);
+    expect(test.validate(execution(final, [cause, commit, cohortFor("@r5-5555")])).passed).toBe(false);
+
   });
 
   it("joins an exact edited-file read to preserved and buried historical evidence", () => {
@@ -1089,6 +1096,30 @@ describe("reduced VCS agentic catalog", () => {
     expect(test.validate(execution(final, opaqueTarget)).passed).toBe(true);
     invocationCause.invocationId = "unrelated-revert";
     expect(test.validate(execution(final, opaqueTarget)).passed).toBe(false);
+
+    const applicationRead = structuredClone(opaqueTarget);
+    const readBeforeCommit = applicationRead.pop()!;
+    applicationRead.splice(3, 0, readBeforeCommit);
+    const readResult = readBeforeCommit.invocation.execution.result as {
+      details: { provenance: Record<string, unknown> };
+    };
+    const readState = { kind: "application", applicationId: "application:counteraction" };
+    readResult.details.provenance["state"] = readState;
+    const readEpisodes = readResult.details.provenance["episodes"] as Record<string, unknown>[];
+    readEpisodes[0]!["cause"] = {
+      toolName: "vcs",
+      invocation: { kind: "trajectory-invocation", invocationId: applicationRead[2]!.invocation.id },
+      requestRef: null,
+    };
+    expect(test.validate(execution(final, applicationRead)).passed).toBe(true);
+    readState.applicationId = "application:other";
+    expect(test.validate(execution(final, applicationRead)).passed).toBe(false);
+    readState.applicationId = "application:counteraction";
+    const undo = applicationRead[4]!.invocation.execution.result as {
+      result: { committedApplicationIds: string[] };
+    };
+    undo.result.committedApplicationIds.push("application:other");
+    expect(test.validate(execution(final, applicationRead)).passed).toBe(false);
 
     const committedReadWithoutStatus = structuredClone(attachedCounteraction);
     committedReadWithoutStatus.splice(4, 1);

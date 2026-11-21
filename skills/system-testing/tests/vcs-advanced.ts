@@ -397,6 +397,9 @@ function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
   const decisions = new Set<string>();
   const workByApplication = new Map<string, string>();
   const committedApplications = new Set<string>();
+  const cohortCommits: Array<{ commit: string; work: string }> = [];
+  const inspectedCommits = new Set<string>();
+  const retirementCommit = "Retire Harbor Lantern after launch; use Retention Service in support and audit records";
   for (const call of calls) {
     const target = call.arguments?.["target"];
     const envelope = call.execution?.result;
@@ -407,20 +410,30 @@ function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
         text.includes(`${retirementIntent} · work unit · import · ${target} ← import boundary`)) {
       decisions.add(target);
     }
+    if (details["subjectKind"] === "work-unit" && details["walk"] === "cohort" &&
+        text.includes(`${retirementIntent} · work unit · import · ${target}`)) {
+      const cohortCommit = text.split("\n").find((line) =>
+        line.trimStart().startsWith(`commit · ${retirementCommit} · `));
+      const commitRef = cohortCommit?.match(/(@r[0-9a-z]+-[0-9a-f]{4})$/u)?.[1];
+      if (commitRef) cohortCommits.push({ commit: commitRef, work: target });
+    }
     if (details["subjectKind"] === "application") {
       const edge = /application (@r[0-9a-z]+-[0-9a-f]{4}) —applies-work→ work-unit (@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
       if (edge?.[1] === target) workByApplication.set(target, edge[2]!);
     }
     if (details["subjectKind"] === "event" &&
-        text.includes('node · event · commit · message "Retire Harbor Lantern after launch; use Retention Service in support and audit records"')) {
+        text.includes(`node · event · commit · message "${retirementCommit}"`) &&
+        text.includes(`event ${target} —caused-by→ command `)) {
+      inspectedCommits.add(target);
       const edge = /event (@r[0-9a-z]+-[0-9a-f]{4}) —committed-by→ application (@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
-      if (edge?.[1] === target && text.includes(`event ${target} —caused-by→ command `)) {
-        committedApplications.add(edge[2]!);
-      }
+      if (edge?.[1] === target) committedApplications.add(edge[2]!);
     }
   }
-  return [...workByApplication].some(([application, work]) =>
-    committedApplications.has(application) && decisions.has(work))
+  const matchedApplication = [...workByApplication].some(([application, work]) =>
+    committedApplications.has(application) && decisions.has(work));
+  const matchedCohort = cohortCommits.some(({ commit, work }) =>
+    inspectedCommits.has(commit) && decisions.has(work));
+  return matchedApplication || matchedCohort
     ? answer
     : {
         passed: false,
