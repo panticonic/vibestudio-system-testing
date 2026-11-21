@@ -564,7 +564,7 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
     agentContext: "fork",
     prompt:
-      "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer?",
+      "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer? If you find it by following provenance, inspect the exact retirement commit as well as the decision that led to it.",
 
     validate: requireHistoricalDecisionEvidence,
   },
