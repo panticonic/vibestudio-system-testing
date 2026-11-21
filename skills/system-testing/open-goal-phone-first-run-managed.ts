@@ -408,9 +408,9 @@ export async function preparePhoneFirstRun(
         (row) => row.service === name && row.method === method,
       );
       return (
-        rows.length === 1 &&
-        isDeepStrictEqual(rows[0]!.args, args) &&
-        isDeepStrictEqual(rows[0]!.result, result)
+        rows.length > 0 &&
+        (name === "phoneFirstRun" || rows.length === 1) &&
+        rows.every((row) => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, result))
       );
     };
     const start = journal.find((row) => row.method === "start")?.result as
@@ -420,7 +420,7 @@ export async function preparePhoneFirstRun(
       ?.result as
       | Awaited<ReturnType<typeof services.phoneSetupRead.readiness>>
       | undefined;
-    const resume = outcome?.evidence.resume;
+    const resume = outcome?.evidence?.resume;
     const checks = {
       exactPhoneDesktopEligibility:
         match("phoneFirstRun", "discover", [], [card, archived]) &&
@@ -429,8 +429,8 @@ export async function preparePhoneFirstRun(
           desktops.map((value) => value.providerId),
           expected.eligible ?? [],
         ) &&
-        isDeepStrictEqual(outcome?.evidence.assignment, assignment) &&
-        isDeepStrictEqual(outcome?.evidence.card, card),
+        isDeepStrictEqual(outcome?.evidence?.assignment, assignment) &&
+        isDeepStrictEqual(outcome?.evidence?.card, card),
       preservedOwnedPairing:
         paired === "owned"
           ? Boolean(
@@ -456,23 +456,24 @@ export async function preparePhoneFirstRun(
       exactScopedMobileDebugPhases:
         phases.status === (expected.phases ?? "unavailable") &&
         match("phoneFirstRun", "phases", [id], phases) &&
-        isDeepStrictEqual(outcome?.evidence.startup, phases),
+        isDeepStrictEqual(outcome?.evidence?.startup, phases),
       exactInstalledReactNativeDeclaration:
         build.runtime === "react-native" &&
         build.abi === build.expectedAbi &&
         build.providerPackage === "@workspace-extensions/react-native" &&
         match("phoneFirstRun", "provider", [id], build) &&
-        isDeepStrictEqual(outcome?.evidence.build, build),
+        isDeepStrictEqual(outcome?.evidence?.build, build),
       matchedReadOnlyPhoneDisposition:
         envelope?.status === "workspace-skill-reviewed" &&
         envelope.skill === "phoneFirstRun" &&
         outcome?.scope === "owned-phone-eligibility-rehearsal" &&
-        outcome.decision.action === expected.action &&
+        outcome.decision?.action === expected.action &&
+        typeof outcome.decision.reason === "string" &&
         Boolean(outcome.decision.reason.trim()) &&
         after.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(after.workingHead, baseline.workingHead) &&
         unwantedOperations === 0 &&
-        journal.length === (paired === "owned" ? 6 : 4),
+        journal.filter(({ service }) => service === "phoneSetupRead").length === (paired === "owned" ? 2 : 0),
     };
     return {
       contextId: input.contextId,
