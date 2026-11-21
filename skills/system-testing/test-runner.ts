@@ -320,7 +320,6 @@ export class TestRunner {
       (test.timeoutMs === null
         ? Infinity
         : (test.timeoutMs ?? DEFAULT_SYSTEM_TEST_TIMEOUT_MS));
-    const testDeadline = startTime + testTimeoutMs;
     const testRunner =
       typeof this.runner.forTest === "function"
         ? this.runner.forTest(test.name, {
@@ -359,6 +358,10 @@ export class TestRunner {
         workspaceRepoFixtureState =
           await testRunner.prepareWorkspaceRepoFixture();
       }
+      orchestrationController.signal.throwIfAborted();
+      // Provisioning the disposable workspace is a prerequisite. Count its
+      // elapsed time in the result without charging it to the scenario.
+      const testDeadline = (workspaceRepoFixtureState ? Date.now() : startTime) + testTimeoutMs;
       if (workspaceRepoFixtureState?.kind === "draft-repair-panel") {
         enterPhase("fixture-baseline");
         const { contextId, repoPath } = workspaceRepoFixtureState;
@@ -511,7 +514,7 @@ export class TestRunner {
       // drives panels, and waits on the harness. Only the turns carried the
       // test deadline, so anything else that failed to settle ran forever —
       // one cdp scenario held a run in `orchestration` for five and a half
-      // hours. `timeoutMs` bounds the test, not just its turns.
+      // hours. The scenario budget covers orchestration as well as the turns.
       const execution =
         usesPanelRepairTeacher(test)
           ? await (async (): Promise<TestExecutionResult> => {

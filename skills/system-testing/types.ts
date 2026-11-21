@@ -197,8 +197,9 @@ export interface TestCase {
    */
   requiresUnits?: readonly string[];
   /**
-   * Case-specific end-to-end budget. Use this only when the user-visible
-   * operation has an intrinsically longer deadline than the catalog default.
+   * Case-specific scenario budget after repository fixture preparation.
+   * Use this only when the user-visible operation has an intrinsically longer
+   * deadline than the catalog default.
    * null means no elapsed-time deadline. An explicit run-level timeout
    * still takes precedence.
    */

@@ -1224,7 +1224,7 @@ describe("TestRunner", () => {
     });
   });
 
-  it("shares one timeout budget across every orchestrated phase", async () => {
+  it.each([false, true])("shares one scenario budget with fixture setup %s", async (hasFixture) => {
     let now = 10_000;
     const dateNow = vi.spyOn(Date, "now").mockImplementation(() => now);
     const timeout = vi.spyOn(globalThis, "setTimeout");
@@ -1247,6 +1247,16 @@ describe("TestRunner", () => {
     const runner = {
       modelRef: TEST_MODEL,
       closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      prepareWorkspaceRepoFixture: vi.fn(async () => {
+        now += 1_500;
+        return { kind: "content", contextId: "context:fixture" };
+      }),
+      cleanupWorkspaceRepoFixture: vi.fn(async () => ({
+        publishedFixtureRemoved: null,
+        unexpectedPublishedRepositoriesRemoved: [],
+        counteractedChangeIds: [],
+      })),
+      withTaskResources: (prompt: string) => prompt,
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -1259,6 +1269,7 @@ describe("TestRunner", () => {
         category: "test",
         description: "one shared deadline",
         prompt: "unused",
+        ...(hasFixture ? { workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE } : {}),
         orchestrate: async ({
           runner: orchestrationRunner,
           remainingTimeMs,
