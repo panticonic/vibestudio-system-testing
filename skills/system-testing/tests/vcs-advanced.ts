@@ -613,7 +613,7 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     agentContext: "fork",
     prompt:
-      "Change and commit one existing line in the disposable project, then undo that change while preserving the record of both changes. Commit the undo and explain what the history shows.",
+      "Change and commit one existing line in the disposable project, then undo that change while preserving the record of both changes. Commit the undo, reread the restored file, verify the working copy is clean, and explain what the history shows.",
     validate: (result) => {
       const base = checked(result, ["vcs.edit", "vcs.revert", "vcs.commit", "vcs.status"]);
       return base.passed ? requireRevertEvidence(result) : base;
