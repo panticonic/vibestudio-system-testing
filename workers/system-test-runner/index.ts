@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openDesktopReadinessWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3767,7 +3767,16 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const notificationState = openNotificationStateWorlds.find(({ id }) => id === input.caseId);
     const desktopReadiness = openDesktopReadinessWorlds.find(({ id }) => id === input.caseId);
     const panelSourceMigration = openPanelSourceMigrationWorlds.find(({ id }) => id === input.caseId);
-    const prepare = panelSourceMigration
+    const skillMaintenance = openSkillMaintenanceWorlds.find(({ id }) => id === input.caseId);
+    const prepare = skillMaintenance
+      ? `import {vcs,rpc} from "@workspace/runtime";
+         import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
+         import {prepareSkillMaintenance} from "@workspace-skills/system-testing/open-goal-skill-maintenance-managed";
+         import {ownedSkillMaintenanceNative} from "@workspace-skills/system-testing/open-goal-skill-maintenance-native";
+         const prepared=await prepareSkillMaintenance(input,${JSON.stringify(skillMaintenance)},
+           {contextId:actualContextId,vcs,describe:path=>natlang.describe(path),
+            native:ownedSkillMaintenanceNative(createMainRpcCaller(rpc),actualContextId)});`
+      : panelSourceMigration
       ? `import {preparePanelSourceMigration} from "@workspace-skills/system-testing/open-goal-panel-source-migration-managed";
          const prepared=await preparePanelSourceMigration(input,${JSON.stringify(panelSourceMigration)});`
       : desktopReadiness

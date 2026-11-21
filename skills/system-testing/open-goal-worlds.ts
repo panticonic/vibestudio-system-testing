@@ -174,6 +174,7 @@ export function publicSourceOrigins(world: PublicResearchWorld): string[] {
 }
 
 export { openTemplateMigrationWorlds, openTemplateMigrationRequiresUnits } from "./open-goal-template-migration-worlds.js";
+export { openSkillMaintenanceWorlds } from "./open-goal-skill-maintenance-worlds.js";
 export { openDesktopReadinessWorlds } from "./open-goal-desktop-readiness-worlds.js";
 export { openNotificationStateWorlds } from "./open-goal-notification-state-worlds.js";
 export { openMobileContinuityWorlds } from "./open-goal-mobile-continuity-worlds.js";
