@@ -200,3 +200,5 @@ export { openTestkitCloseoutWorlds } from "./open-goal-testkit-closeout-worlds.j
 export { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
 
 export { openExamplesAdoptionWorlds } from "./open-goal-examples-adoption-worlds.js";
+
+export { openSystemCandidateWorlds } from "./open-goal-system-candidate-worlds.js";
