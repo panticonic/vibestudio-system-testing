@@ -155,6 +155,7 @@
     "./open-goal-owned-preview-managed": "./open-goal-owned-preview-managed.ts",
     "./open-goal-publication-managed": "./open-goal-publication-managed.ts",
     "./open-goal-api-readiness-managed": "./open-goal-api-readiness-managed.ts",
+    "./open-goal-owned-operations-managed": "./open-goal-owned-operations-managed.ts",
     "./open-goal-chat-continuity-managed": "./open-goal-chat-continuity-managed.ts",
     "./open-goal-workspace-claims-managed": "./open-goal-workspace-claims-managed.ts",
     "./open-goal-bridge-delivery-managed": "./open-goal-bridge-delivery-managed.ts",

@@ -203,3 +203,4 @@ export { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
 export { openExamplesAdoptionWorlds } from "./open-goal-examples-adoption-worlds.js";
 
 export { openSystemCandidateWorlds } from "./open-goal-system-candidate-worlds.js";
+export { openOwnedOperationsWorlds, openOwnedOperationsRequiresUnits } from "./open-goal-owned-operations-worlds.js";
