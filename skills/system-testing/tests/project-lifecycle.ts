@@ -1477,6 +1477,7 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Dry-run a worker fork",
     category: "project-lifecycle",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Preview a separate copy of the existing worker and confirm the original remains unchanged.",
     validate: validateWorkerForkPlan,

@@ -779,6 +779,7 @@ export const developerErgonomicsTests: TestCase[] = [
     category: "developer-ergonomics",
 
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Stress-test the disposable package's build diagnostics by introducing more than 50 separate type errors so the bounded error report is exercised. Then fix the package and confirm it builds cleanly. Leave the temporary breakage unpublished.",
     validate: validateBoundedBuildDiagnostics,
@@ -827,6 +828,7 @@ export const developerErgonomicsTests: TestCase[] = [
     category: "developer-ergonomics",
 
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       'In the disposable project, create one new text file with the complete content `Status: “before”` and a concise stated intent. Then make a targeted replacement in that same file using straight-quoted old text `Status: "before"`, changing it to `Status: "unified-agentic-ergonomics"` with a distinct concise stated intent. Use the natural whole-file and targeted-edit capabilities, verify the final file by reading it, and do not publish.',
     validate: validateUnifiedFileAuthoring,

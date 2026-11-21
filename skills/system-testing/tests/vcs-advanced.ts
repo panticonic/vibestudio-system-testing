@@ -519,6 +519,7 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Recover a retired project fact and its rationale from a sizable semantic history",
     category: "vcs-advanced",
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer?",
 
@@ -530,6 +531,7 @@ export const vcsAdvancedTests: TestCase[] = [
       "Explain a current edited-file value using an older decision in a sizable semantic history",
     category: "vcs-advanced",
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Review src/retention-policy.ts in the disposable historical project. Why is archiveWindowDays 21 rather than 14, and did the later history reverse that decision? Ground the answer in the workspace's recorded evidence.",
 
@@ -540,6 +542,7 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Use explicit file transfers and verify their distinct provenance semantics",
     category: "vcs-advanced",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Create two small source files in the disposable project. Reorganize them so one moves to a nested location and the other is duplicated, then explain what happened to their identities and history.",
     validate: (result) => {
@@ -554,6 +557,7 @@ export const vcsAdvancedTests: TestCase[] = [
     category: "vcs-advanced",
     resources: ["vcs:protected-main"],
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt: `${CAUSALITY_PROMPT} Read the finished file before answering so its exact-coordinate workspace memory is part of your evidence.`,
     validate: (result) => {
       const base = checked(result, []);
@@ -570,6 +574,7 @@ export const vcsAdvancedTests: TestCase[] = [
       "Explain an imported line using exact native facts and an honest external boundary",
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Who changed an untouched line in the disposable project, and what can we actually establish about why it is here?",
     validate: (result) => {
@@ -586,6 +591,7 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Distinguish new native intent from untouched imported origin in one file",
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt: MIXED_IMPORT_PROMPT,
     validate: (result) => {
       const base = checked(result, []);
@@ -605,6 +611,7 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Counteract exact semantic changes without erasing their history",
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Change and commit one existing line in the disposable project, then undo that change while preserving the record of both changes. Commit the undo and explain what the history shows.",
     validate: (result) => {

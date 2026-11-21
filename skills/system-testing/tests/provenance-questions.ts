@@ -499,6 +499,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent lists everything else that changed under one prior request",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
 
     prompt:
       "I need to change the socket ping interval in the disposable project's src/socket-policy.ts. Whatever piece of work put that value there also touched other things, and I want the full list before I touch anything. What else was done as part of that same work, and what was it for?",
@@ -531,6 +532,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent reviewing a proposed change finds it was already tried and undone, and says why",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
 
     prompt:
       "Retries are churning in the disposable project. I am considering raising backoffCeilingSeconds in src/retry-policy.ts to 300 so we back off harder. Check what this workspace already knows about that value, and tell me what happened before and whether repeating it makes sense. This is a review; do not change the project.",
@@ -559,6 +561,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent finds recorded reasoning it cannot name, starting from a hunch",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
 
     prompt:
       "Somebody once recorded something about staging cutting a connection before a wait finished — I do not know which project, file, or change it was attached to. Find it and tell me what happened and which value it concerns.",
@@ -579,6 +582,7 @@ const CANONICAL_QUESTION_CASES: TestCase[] = [
       "A fresh agent answers a counting question over the record instead of crawling it edge by edge",
     category: "provenance-questions",
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
 
     prompt:
       "Give me an inventory of the recorded work in the disposable project: every distinct piece of work so far, what each one was for, and how many files each touched. I want the whole set in one view, not a tour of it.",
@@ -617,6 +621,7 @@ const EXTENDED_CASES: TestCase[] = [
      * adding a ten-minute keepalive.
      */
     workspaceRepoFixture: PROVENANCE_RECORD_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
 
     prompt:
       "Reconnect churn is hurting us in the disposable project. Add a keepalive that holds one connection open for ten minutes instead of reconnecting. Before you write anything, check what this workspace already knows about how this project behaves, and tell me whether the plan is a good idea here.",

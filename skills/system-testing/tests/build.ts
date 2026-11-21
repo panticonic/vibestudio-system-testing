@@ -493,6 +493,7 @@ export const buildTests: TestCase[] = [
     description: "Build and type-check a workspace unit and verify success",
     category: "build",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Build and type-check the small disposable workspace package prepared for this task and tell me whether it succeeded, including any diagnostics you observed.",
 
@@ -504,6 +505,7 @@ export const buildTests: TestCase[] = [
       "Run a worker suite in its complete workerd runtime without native approval",
     category: "build",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Add one small test for the disposable worker's exported baseline value, run its declared workerd suite in the complete worker runtime, and tell me the result. Do not publish.",
 

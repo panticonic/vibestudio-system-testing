@@ -305,6 +305,7 @@ export const agentOrchestrationTests: TestCase[] = [
       "A finished collaborator accepts follow-up work in its retained context and the parent integrates the resulting commit",
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Ask the same collaborator to make two related changes in the disposable package. Review the first result without bringing it into your workspace; then ask that collaborator to make the follow-up, review it, and bring that second change into your workspace. Summarize both changes.",
 
@@ -316,6 +317,7 @@ export const agentOrchestrationTests: TestCase[] = [
       "A parent delegates a small change, reviews the child's semantic diff, and deliberately leaves it unintegrated",
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Ask a collaborator to make one small change in the disposable package. Review the result and summarize it without bringing it into your workspace.",
 
@@ -327,6 +329,7 @@ export const agentOrchestrationTests: TestCase[] = [
       "A parent reviews a child's committed source diff and integrates that exact event",
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Ask a collaborator to make one small change in the disposable package. Review the result, bring it into your workspace, and summarize what changed.",
 

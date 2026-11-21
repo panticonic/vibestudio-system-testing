@@ -1580,6 +1580,7 @@ export const workerTests: TestCase[] = [
     description: "Create a worker with environment variables",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Run a disposable worker with a non-secret probe setting, tell me what the worker itself observes, and leave no worker instance behind.",
     validate: (result) => {
@@ -1625,6 +1626,7 @@ export const workerTests: TestCase[] = [
     description: "Author and consume a private RPC service in the task context",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: ({ workspaceRepoFixture }) => {
       const repoName = workspaceRepoFixture?.repoName;
       if (!repoName) {
@@ -1657,6 +1659,7 @@ export const workerTests: TestCase[] = [
       "Installed workspace code consumes a context-local userland service",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: {
       authority: [
         {
