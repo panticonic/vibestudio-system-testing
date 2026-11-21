@@ -495,7 +495,7 @@ export const vcsTests: TestCase[] = [
       { name: "eval", failureCode: "DestinationOccupied" },
     ],
     prompt:
-      "In the disposable project, create docs/a.md and docs/b.md with one line each, then try to rename docs/a.md to docs/b.md. Keep both notes intact if the move is blocked. Check the workspace's recommended recovery and tell me what is in docs/ afterwards.",
+      "In the disposable project, create docs/a.md and docs/b.md with one line each, then try to rename docs/a.md to docs/b.md. If the move is blocked, call the workspace VCS recovery helper with the typed error to get its recommended next step. Keep both notes intact and tell me what is in docs/ afterwards.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
