@@ -27,6 +27,7 @@ import {
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
   openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
   openWorkspaceConfigWorlds, openWorkspaceConfigRequiresUnits,
+  openCoordinatedRevisionWorlds, openCoordinatedRevisionRequiresUnits,
   openRetainedMemoryWorlds, openRetainedMemoryRequiresUnits,
   openIntentDiscoveryRequiresUnits,
   openRouteAuthorityRequiresUnits,
@@ -140,6 +141,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...terminalAppRepairWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+  ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
@@ -250,6 +252,7 @@ const templateSettings = {
   "owned-operations": { requiresUnits: openOwnedOperationsRequiresUnits },
   "chat-continuity": { requiresUnits: openChatContinuityRequiresUnits },
   "workspace-config": { requiresUnits: openWorkspaceConfigRequiresUnits },
+  "coordinated-revision": { requiresUnits: openCoordinatedRevisionRequiresUnits },
   "retained-memory": { requiresUnits: openRetainedMemoryRequiresUnits },
   "intent-discovery": { requiresUnits: openIntentDiscoveryRequiresUnits },
   "route-authority": { requiresUnits: openRouteAuthorityRequiresUnits },
@@ -470,6 +473,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "api-readiness" ? "Check the trusted integration and pregranted-only offline API binding readiness" :
     world.kind === "chat-continuity" ? "Verify local first-party chat receipt and exact default-worker continuity" :
     world.kind === "workspace-config" ? "Reconcile current workspace configuration with retained state and protected manifest evidence" :
+    world.kind === "coordinated-revision" ? "Coordinate a scoped native document revision, re-check authority after conflict and verify exact readback" :
     world.kind === "retained-memory" ? "Recover a retained workspace claim with actual scoped recall and exact original evidence" :
     world.kind === "intent-discovery" ? "Disambiguate a natural local request using the runtime catalog and exact owned evidence" :
     world.kind === "route-authority" ? "Choose the exact authorized evidence route after complete native preflight" :
