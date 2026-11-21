@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openLiveTendrilBoardWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openLiveTendrilBoardWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openRetainedMemoryWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
@@ -3809,7 +3809,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const logFollower = openLogFollowerWorlds.find(({ id }) => id === input.caseId);
     const deliveryWake = openDeliveryWakeWorlds.find(({ id }) => id === input.caseId);
     const sameTurnEval = openSameTurnEvalWorlds.find(({ id }) => id === input.caseId);
-    const prepare = deliveryWake
+    const workspaceSmoke = openWorkspaceSmokeWorlds.find(({ id }) => id === input.caseId);
+    const prepare = workspaceSmoke
+      ? `import {prepareWorkspaceSmoke} from "@workspace-skills/system-testing/open-goal-workspace-smoke-managed";
+         const prepared=await prepareWorkspaceSmoke(input,${JSON.stringify(workspaceSmoke)});`
+      : deliveryWake
       ? `import {prepareDeliveryWake} from "@workspace-skills/system-testing/open-goal-delivery-wake-managed";
          const prepared=await prepareDeliveryWake(input,${JSON.stringify(deliveryWake)});`
       : sameTurnEval
