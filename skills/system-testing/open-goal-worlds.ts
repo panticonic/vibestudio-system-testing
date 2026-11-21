@@ -39,6 +39,7 @@ export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 export { openApiReadinessWorlds, openApiReadinessRequiresUnits } from "./open-goal-api-readiness-worlds.js";
 export { openChatContinuityWorlds, openChatContinuityRequiresUnits } from "./open-goal-chat-continuity-worlds.js";
+export { openRouteAuthorityWorlds, openRouteAuthorityRequiresUnits } from "./open-goal-route-authority-worlds.js";
 export { openLaunchStateWorlds, openLaunchStateRequiresUnits } from "./open-goal-launch-state-worlds.js";
 export { openWorkspaceClaimWorlds, workspaceClaimRequiresUnits } from "./open-goal-workspace-claims-worlds.js";
 export { openBridgeDeliveryWorlds, openBridgeDeliveryRequiresUnits } from "./open-goal-bridge-delivery-worlds.js";

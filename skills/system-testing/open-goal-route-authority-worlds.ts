@@ -1,0 +1,76 @@
+export type LocalRoute="working"|"committed"|"earlier"|"private-copy"|"comparison";
+export type Route=LocalRoute|"external";
+type RouteWorld={
+  id:string;title:string;goal:string;purpose:string;field:string;
+  before:string;committed:string;working?:string;copy:string|null;
+  route:Route;note?:boolean;split?:"test";
+  target?:"within"|"lookalike"|"subdomain";allowedOrigin?:boolean;
+};
+const cases:RouteWorld[]=[
+  {id:"current-private-schedule",title:"Roof survey",goal:"Find the Roof survey time the floor operator would see in the current local workspace. A signed printout may be older. Do not open a link.",
+    purpose:"survey window",field:"surveyWindow",before:"07:00",committed:"08:15",working:"08:45",copy:"08:15",route:"working"},
+  {id:"committed-vs-live-edit",title:"Catering handoff",goal:"I need the last committed Catering handoff pickup deadline, even though the current application may contain a newer draft. Keep a private evidence note.",
+    purpose:"committed pickup deadline",field:"pickupDeadline",before:"17:00",committed:"16:30",working:"16:00",copy:"16:45",route:"committed",note:true},
+  {id:"verify-before-policy-was-replaced",title:"Escort rota",goal:"Establish which supervisor was named in the prior Escort rota before the current local release. Identify that exact historical record and leave everything alone.",
+    purpose:"prior supervisor",field:"supervisor",before:"Dana",committed:"Erin",copy:"Erin",route:"earlier"},
+  {id:"private-copy-is-the-original-request",title:"Archive packet",goal:"What press approval did the offline Archive packet record? Do not substitute the updated local project or open the proof link. Retain a private note.",
+    purpose:"retained press approval",field:"pressApproval",before:"county catalogue",committed:"studio catalogue",working:"internal proofs only",copy:"spring museum edition",route:"private-copy",note:true},
+  {id:"verify-independent-copy-agrees",title:"West gate",goal:"Check whether West gate's current local opening instruction matches the separately retained private copy. Do both reads and report the comparison.",
+    purpose:"opening rule consistency",field:"openingRule",before:"Staff enter in pairs",committed:"Check badge and log arrival",copy:"Check badge and log arrival",route:"comparison"},
+  {id:"hold-disagreeing-identical-title-copies",title:"Volunteer contact",goal:"Compare the current local Volunteer contact recipient with the independent contact card. If they disagree, keep both values in a private review and send nothing.",
+    purpose:"recipient agreement",field:"intendedRecipient",before:"front room",committed:"rota coordinator",working:"floor lead",copy:"rota coordinator",route:"comparison",note:true},
+  {id:"scoped-origin-review-without-opening",title:"Licensing office",goal:"Check whether the Licensing office's nominated link fits the allowance for https://review.example.invalid. Inspect only the authority to open it. Do not visit any page.",
+    purpose:"link permission review",field:"licenseRecord",before:"spring edition",committed:"fall edition",copy:"fall edition",route:"external",target:"within",allowedOrigin:true},
+  {id:"lookalike-origin-refused",title:"Registration desk",goal:"Find out whether Registration desk's nominated page belongs to the only approved origin, https://review.example.invalid. Similar names are not enough. Keep a private authority decision and open nothing.",
+    purpose:"registration origin scope",field:"registrationClass",before:"visitors",committed:"staff",copy:"staff",route:"external",target:"lookalike",allowedOrigin:true,note:true},
+  {id:"link-without-any-allowance-held",title:"Print fixture",goal:"The Print fixture link is saved but this is a no-link review. Explain whether its exact origin is in scope. Don't open it or change the setup.",
+    purpose:"no-link hold",field:"printAudience",before:"students",committed:"operators",copy:"operators",route:"external",target:"within"},
+  {id:"range-read-keeps-exact-row",title:"Safety notebook",goal:"Find the wording in the current Safety notebook about emergency calls. Read the active workspace file rather than relying on the previous inspector copy. Save the confirmed value privately.",
+    purpose:"current emergency call wording",field:"emergencyCall",before:"call by radio",committed:"call the supervisor and log time",working:"call dispatch first",copy:"call the supervisor and log time",route:"working",note:true},
+  {id:"missing-private-sidecar-isnt-live-proof",title:"Floor markings",goal:"Look up the privately retained Floor markings inspection code. If the card is missing, report the gap instead of taking the local draft or opening an online reference.",
+    purpose:"private inspection code",field:"inspectionCode",before:"W10",committed:"W14",copy:null,route:"private-copy"},
+  {id:"one-good-source-isnt-a-join",title:"Load path",goal:"Check whether the current Load path route agrees with the signed private route card. If one input is absent, state which comparison cannot be made and keep a private decision.",
+    purpose:"two-source route comparison",field:"loadRoute",before:"main stair",committed:"right loading bay",copy:null,route:"comparison",note:true},
+  {id:"subdomain-is-separate-scope",title:"Reserve stock",goal:"Does the exact nominated Reserve stock link fall under the permitted https://review.example.invalid origin? Its access uses an origin boundary, so do not treat a similarly named service as permission or open either link.",
+    purpose:"resource origin boundary",field:"restockQuantity",before:"2 cases",committed:"3 cases",copy:"3 cases",route:"external",target:"subdomain",allowedOrigin:true},
+  {id:"frozen-cutoff-not-current-working",title:"Day report",goal:"Report the Day report cutoff in the saved committed version the coordinator signed off. The unpublished draft and private printer copy may differ. Review only.",
+    purpose:"committed cutoff",field:"reportCutoff",before:"noon",committed:"14:20",working:"15:00",copy:"13:00",route:"committed"},
+  {id:"earlier-order-remains-verifiable",title:"Kit assembly",goal:"The Kit assembly order has been updated. Recover the earlier recorded order and preserve a short private note about its revision. No edit or external lookup.",
+    purpose:"earlier assembly order",field:"assemblyOrder",before:"bases, hooks, labels",committed:"hooks, bases, labels",copy:"labels, hooks, bases",route:"earlier",note:true},
+  {id:"retained-phrase-not-recent-lowest-authority",title:"Door marshal",goal:"Find the retained private Door marshal passphrase for the earlier briefing only. Avoid the current operational text and any external lookup, and keep the handoff private.",
+    purpose:"owned training phrase",field:"handoffPhrase",before:"green west",committed:"amber west",working:"green north",copy:"amber north",route:"private-copy",note:true},
+  {id:"working-application-distinct-from-public-copy",title:"Traffic counts",goal:"What collection window is actually saved in the current Traffic counts working application? The committed and copy records are alternatives to rule out. Do not reconcile them.",
+    purpose:"working collection window",field:"collectionWindow",before:"morning only",committed:"weekday afternoons",working:"before first bus",copy:"weekday afternoons",route:"working"},
+  {id:"both-values-match-even-after-coedit",title:"Switchboard",goal:"Before the next operator uses Switchboard, compare the latest working setting and the retained agreement on which line to answer. Keep a private signoff if both sources exist.",
+    purpose:"separate line agreement",field:"lineToAnswer",before:"north line",committed:"south line",working:"duty line",copy:"duty line",route:"comparison",note:true},
+  {id:"same-origin-path-still-requires-host-assessment",title:"Library supply",goal:"The Library supply candidate uses a different path on the approved https://review.example.invalid origin. Determine the exact native approval state for that site without visiting it.",
+    purpose:"same-origin approval state",field:"extensionPeriod",before:"one day",committed:"two days",copy:"two days",route:"external",target:"within",allowedOrigin:true},
+  {id:"historical-route-remains-correct-when-copy-missing",title:"Drop-off slips",goal:"Review the earlier Drop-off slips handover stage from its original local revision. The private sidecar may not exist. Report the actual earlier stage, with no write.",
+    purpose:"historical handover stage",field:"handoverStage",before:"desk review",committed:"warehouse review",working:"assigned pickup",copy:null,route:"earlier"},
+  {id:"independent-private-phrase-protects-edit",title:"Show caller",goal:"Preserve the editing session. Read only the separately retained Show caller reminder and give its exact phrase with the scope of that copy.",
+    purpose:"independent reminder",field:"reminder",before:"check the west rail",committed:"signal the producer",working:"check the stage door",copy:"cue at the marked corner",route:"private-copy"},
+  {id:"current-local-authority-no-remote-needed",title:"Audience check",goal:"Settle the current Audience check value by reading the exact current local manifest. Its external document may have the same title, but there is no approval to use it.",
+    purpose:"current audience",field:"audience",before:"staff",committed:"volunteers",working:"ticketed observers",copy:"staff",route:"working"},
+  {id:"compare-change-without-publishing",title:"Film screening",goal:"Check whether the local Film screening candidate and retained caption agree about the next audience. Note the discrepancy privately if there is one. Do not synchronize.",
+    purpose:"audience agreement",field:"screeningAudience",before:"donors",committed:"curators",working:"technicians",copy:"curators",route:"comparison",note:true},
+  {id:"local-commit-vs-signed-copy-same-revision-title",title:"Gallery lighting",goal:"Retrieve the prior approved committed Gallery lighting value without treating the latest working application or the same-titled retained copy as the signed revision. Keep private evidence.",
+    purpose:"exact committed light level",field:"lightingLevel",before:"40%",committed:"35%",working:"32%",copy:"31%",route:"committed",note:true},
+  {id:"held-latest-record-not-separately-archived",title:"Water delivery",goal:"Compare Water delivery’s exact current distribution note with the independent retained note. Keep the private result and preserve any mismatch for review.",
+    purpose:"delivery note comparison",field:"distributionNote",before:"send one cart",committed:"send two marked carts",working:"send one cold cart first",copy:"send two marked carts",route:"comparison",note:true,split:"test"},
+  {id:"held-foreign-prefix-cannot-count-as-approval",title:"Stage permit",goal:"Review whether Stage permit can use its nominated proof link under the listed approved https://review.example.invalid origin. Inspect the exact scope; do not visit.",
+    purpose:"permit scope preflight",field:"permit",before:"permit v1",committed:"permit v2",copy:"permit v2",route:"external",target:"lookalike",allowedOrigin:true,split:"test"},
+  {id:"held-missing-sidecar-from-a-real-local-release",title:"Stencil sheet",goal:"Confirm the local retained Stencil sheet inspection stamp. If the actual private file is gone, say so and leave a private record; do not replace it with text from the candidate.",
+    purpose:"retained stamp",field:"inspectionStamp",before:"marked by prep",committed:"marked by verification",copy:null,route:"private-copy",note:true,split:"test"},
+  {id:"held-history-same-field-public-current-does-not-contaminate",title:"Courier notes",goal:"Which delivery time appears in the original Courier notes checkpoint? Keep the exact historical scope distinct from the edited working note and the ready private copy.",
+    purpose:"prior delivery time",field:"courierTime",before:"13:10",committed:"13:40",working:"14:10",copy:"13:40",route:"earlier",split:"test"},
+  {id:"held-working-changes-beat-both-printed-receipts",title:"Packing waves",goal:"Verify the actual current local Packing waves allowance. The last commit and a signed sheet may agree with each other. Do not automatically treat either as the working value.",
+    purpose:"working batch size",field:"packingLimit",before:"limit six",committed:"limit eight",working:"limit seven",copy:"limit eight",route:"working",split:"test"},
+  {id:"held-exact-permission-scope-but-host-does-not-execute",title:"Usage appendix",goal:"Assess the current access requirement for the Usage appendix on https://review.example.invalid. Record the authorization state privately and leave the service entirely unvisited.",
+    purpose:"permission observation not operation",field:"usageRule",before:"training only",committed:"staff and training",copy:"staff and training",route:"external",target:"within",allowedOrigin:true,note:true,split:"test"},
+];
+export type OpenRouteAuthorityWorld=RouteWorld&{kind:"route-authority";workspace:"examples";sourceGroup:string};
+export const openRouteAuthorityWorlds:OpenRouteAuthorityWorld[]=cases.map(world=>({...world,id:`route-authority-${world.id}`,
+  kind:"route-authority",workspace:"examples",sourceGroup:`vibestudio:owned-route-authority:${world.id}`}));
+export const openRouteAuthorityRequiresUnits=[
+  "skills/open-user-goal","skills/open-route-authority","skills/capabilities","skills/scratch-handoff-bindings",
+];
