@@ -1,3 +1,4 @@
+import { vcsMethods } from "@vibestudio/service-schemas/vcs";
 import { parse } from "@babel/parser";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
@@ -12,7 +13,7 @@ const BUILDABLE_EXTENSION = {
   kind: "buildable-extension",
   section: "extensions",
 } as const;
-const BUILDABLE_APP = { kind: "buildable-app", section: "apps" } as const;
+const BUILDABLE_APP = { kind: "buildable-app", section: "terminal-apps" } as const;
 const OPTIMIZABLE_PANEL = {
   kind: "optimizable-panel",
   section: "panels",
@@ -1194,9 +1195,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       label: "app",
       fixture: BUILDABLE_APP,
       repoName: "system-test-app",
-      repoPath: "apps/system-test-app",
-      packageName: "@workspace-apps/system-test-app",
-      skillPath: "skills/appdev/SKILL.md",
+      repoPath: "terminal-apps/system-test-app",
+      packageName: "@workspace-terminal-apps/system-test-app",
+      skillPath: "skills/terminal-apps/SKILL.md",
       expectedFiles: [
         "SKILL.md",
         "assets/icon.svg",
@@ -1254,6 +1255,8 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
         });
       }
       if (scenario.fixture.kind === "buildable-app") {
+        const [snapshot] = fake.importSnapshot.mock.calls[0]!;
+        expect(vcsMethods.importSnapshot.args.safeParse([snapshot]).success).toBe(true);
         expect(seededText).toContain('"capability": "context.boundary"');
         expect(seededText).toContain('"evidence": "bounded-dynamic"');
       }

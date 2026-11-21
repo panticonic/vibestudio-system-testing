@@ -51,7 +51,7 @@ export const BUILDABLE_EXTENSION_WORKSPACE_REPO_FIXTURE = {
 
 export const BUILDABLE_APP_WORKSPACE_REPO_FIXTURE = {
   kind: "buildable-app",
-  section: "apps",
+  section: "terminal-apps",
 } as const satisfies WorkspaceRepoCreationScope;
 
 export const BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE = {

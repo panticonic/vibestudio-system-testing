@@ -36,7 +36,7 @@ const focusedVerificationAuthority: TestAuthorityPolicy = {
 
 function requireTrustedUnitRepair(
   result: TestExecutionResult,
-  section: "apps" | "extensions",
+  section: "terminal-apps" | "extensions",
 ) {
   const incomplete = noIncompleteInvocations(result);
   if (!incomplete.passed) return incomplete;
@@ -154,6 +154,6 @@ export const trustedUnitAuthoringTests: TestCase[] = [
     prompt:
       'The disposable terminal app still prints "booting" after startup has completed. Please fix it.',
 
-    validate: (result) => requireTrustedUnitRepair(result, "apps"),
+    validate: (result) => requireTrustedUnitRepair(result, "terminal-apps"),
   },
 ];
