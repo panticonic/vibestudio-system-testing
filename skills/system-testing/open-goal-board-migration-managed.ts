@@ -36,7 +36,7 @@ export function renderLegacyBoard(world: Rendered): string {
     card.checklist.map(item => `<p data-check>${html(item)}</p>`).join("") +
     card.attachments.map(item => `<p data-attachment>${html(item)}</p>`).join("") + "</article>").join("");
   const document = `<!doctype html><html><meta charset="utf-8"><main data-board="${html(world.id)}"><h1>${html(world.title)}</h1><p data-edition>${html(world.edition)}</p>${articles}</main></html>`;
-  return `browser:data:text/html;charset=utf-8,${encodeURIComponent(document)}`;
+  return `data:text/html;charset=utf-8,${encodeURIComponent(document)}`;
 }
 
 const identity = ({ id, title, edition, cards }: Rendered): LegacyBoard =>
@@ -102,9 +102,10 @@ export async function prepareOpenBoardMigration(
     const source = sources.find(item => item.id === id);
     if (!source) throw new Error("The board is outside the owned migration scope");
     const url = renderLegacyBoard(source);
+    const panelSource = `browser:${url}`;
     let panel = handles.get(id);
     if (!panel) {
-      panel = await openPanel(url, { contextId: input.contextId, parentId: null, title: source.title });
+      panel = await openPanel(url, { contextId: input.contextId, parentId: null, title: source.title, focus: false });
       handles.set(id, panel);
     }
     const before = await panel.observe();
@@ -114,8 +115,8 @@ export async function prepareOpenBoardMigration(
       const rendered = await session.page.evaluate<Rendered>(capture);
       const after = await panel.observe();
       const generation = session.receipt?.generation;
-      if (before.kind !== "browser" || after.kind !== "browser" || before.source !== url ||
-          after.source !== url || generation?.panelId !== panel.id ||
+      if (before.kind !== "browser" || after.kind !== "browser" || before.source !== panelSource ||
+          after.source !== panelSource || generation?.panelId !== panel.id ||
           after.panelId !== panel.id || rendered.id !== id)
         throw new Error("CDP observation did not belong to the selected board");
       return { view: { board: identity(rendered), cards: rendered.cards }, panelId: panel.id, generation };
