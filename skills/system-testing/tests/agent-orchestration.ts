@@ -77,6 +77,36 @@ function protocolText(call: ReturnType<typeof getToolCalls>[number]): string {
     : "";
 }
 
+function adoptedChildChange(
+  mutation: Record<string, unknown> | null,
+  details: Record<string, unknown> | null,
+): boolean {
+  const applicationId = mutation?.["applicationId"];
+  const workingHead = record(details?.["workingHead"]);
+  const initialHead = record(details?.["initialWorkingHead"]);
+  const outcomes = mutation?.["outcomes"];
+  return (
+    typeof applicationId === "string" &&
+    workingHead?.["kind"] === "application" &&
+    workingHead["applicationId"] === applicationId &&
+    initialHead !== null &&
+    initialHead["applicationId"] !== applicationId &&
+    Array.isArray(outcomes) &&
+    outcomes.some((value) => {
+      const outcome = record(value);
+      const childChanges = record(outcome?.["attribution"])?.["theirs"];
+      return (
+        outcome?.["status"] === "adopt" &&
+        Array.isArray(childChanges) &&
+        childChanges.some((change) => {
+          const changeId = record(change)?.["changeId"];
+          return typeof changeId === "string" && changeId.length > 0;
+        })
+      );
+    })
+  );
+}
+
 function validateSubagentDiff(result: TestExecutionResult, integrate: boolean) {
   const base = validateAgentCompletionReport(result);
   if (!base.passed) return base;
@@ -166,8 +196,9 @@ function validateSubagentDiff(result: TestExecutionResult, integrate: boolean) {
         nativeMerges.some((value) => {
           const mutation = record(value);
           return (
-            typeof mutation?.["incorporatedChangeCount"] === "number" &&
-            mutation["incorporatedChangeCount"] > 0
+            (typeof mutation?.["incorporatedChangeCount"] === "number" &&
+              mutation["incorporatedChangeCount"] > 0) ||
+            adoptedChildChange(mutation, details)
           );
         });
       const priorInspection =
