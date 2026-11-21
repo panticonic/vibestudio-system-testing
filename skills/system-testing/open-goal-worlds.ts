@@ -193,6 +193,7 @@ export { openDesktopReadinessWorlds } from "./open-goal-desktop-readiness-worlds
 export { openNotificationStateWorlds } from "./open-goal-notification-state-worlds.js";
 export { openMobileContinuityWorlds } from "./open-goal-mobile-continuity-worlds.js";
 export { openWebhookAdmissionWorlds, openWebhookAdmissionRequiresUnits } from "./open-goal-webhook-admission-worlds.js";
+export { openSourceAttributionWorlds, openSourceAttributionRequiresUnits } from "./open-goal-source-attribution-worlds.js";
 export { openWorkspaceSmokeWorlds, openWorkspaceSmokeRequiresUnits } from "./open-goal-workspace-smoke-worlds.js";
 export { openSameTurnEvalWorlds, openSameTurnEvalRequiresUnits } from "./open-goal-same-turn-eval-worlds.js";
 export { openDeliveryWakeWorlds, openDeliveryWakeRequiresUnits } from "./open-goal-delivery-wake-worlds.js";

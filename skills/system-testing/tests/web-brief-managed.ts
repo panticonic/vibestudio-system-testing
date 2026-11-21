@@ -14,6 +14,7 @@ import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
   openWebhookAdmissionWorlds, openWebhookAdmissionRequiresUnits,
+  openSourceAttributionWorlds, openSourceAttributionRequiresUnits,
   openWorkspaceSmokeWorlds, openWorkspaceSmokeRequiresUnits,
   openSameTurnEvalWorlds, openSameTurnEvalRequiresUnits,
   openDeliveryWakeWorlds, openDeliveryWakeRequiresUnits,
@@ -143,7 +144,7 @@ type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>
 const referenceGoals = [...terminalAppRepairWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -172,6 +173,7 @@ const templateSettings = {
     authority: [{ ruleId: "owned-local-webhook-fixture", capability: { kind: "exact", key: "webhooks.manage" },
       resource: { kind: "exact", key: "webhooks.manage" }, tier: "gated", decision: "once" }],
   } },
+  "source-attribution": { requiresUnits: openSourceAttributionRequiresUnits },
   "workspace-smoke": { requiresUnits: openWorkspaceSmokeRequiresUnits },
   "same-turn-eval": { requiresUnits: openSameTurnEvalRequiresUnits },
   "delivery-wake": { requiresUnits: openDeliveryWakeRequiresUnits },
@@ -544,6 +546,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "mobileContinuity" ? "Review exact companion build, startup and reconnect in an owned local fixture" :
     world.kind === "testkit-closeout" ? "Compare actual owned Testkit attempts and verify a private conditional closeout" :
     world.kind === "webhook-admission" ? "Verify exact owned webhook admission metadata and a conditional private note" :
+    world.kind === "source-attribution" ? "Trace current owned source through native semantic VCS and verify exact local authority" :
     world.kind === "workspace-smoke" ? "Discover exact approved source and verify the installed local workspace smoke result" :
     world.kind === "same-turn-eval" ? "Recover the exact useful result after an owned bounded eval failure or preview" :
     world.kind === "delivery-wake" ? "Recover the exact owned mailbox after native subscription interruption and wake" :
