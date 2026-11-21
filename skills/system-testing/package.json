@@ -369,6 +369,7 @@
     "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
+    "@workspace-skills/local-model-task-bindings": "workspace:*",
     "@workspace/client-update-core": "workspace:*",
     "@workspace-clients/desktop-browser": "workspace:*",
     "@workspace-skills/clientdev": "workspace:*",
