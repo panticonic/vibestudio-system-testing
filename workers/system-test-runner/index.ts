@@ -4109,7 +4109,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
            (contextId, world) => prepareLocalModelComparison(extensions,contextId,world));`
       : androidDelivery
       ? `import {prepareOpenAndroidDelivery} from "@workspace-skills/system-testing/open-goal-android-delivery-managed";
-         const prepared=await prepareOpenAndroidDelivery(input,${JSON.stringify(androidDelivery)});`
+         import {phoneSetup} from "@workspace-skills/phone-setup";
+         import {bindInstalledMobileScenario,inspectInternalAndroidApp,listMobileDebugDevices} from "@workspace-skills/mobile-system-testing/live-bindings";
+         const prepared=await prepareOpenAndroidDelivery(input,${JSON.stringify(androidDelivery)},{
+           phoneSetup,bind:bindInstalledMobileScenario,inventory:listMobileDebugDevices,verifyApp:inspectInternalAndroidApp});`
       : liveTendrilBoard
       ? `import {prepareOpenLiveTendrilBoard} from "@workspace-skills/system-testing/open-goal-live-tendril-board-managed";
          if (typeof input.tendrilChannelId !== "string") throw new Error("The Tendril board needs its owned channel");

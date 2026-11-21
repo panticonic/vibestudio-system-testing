@@ -1,8 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 import { contextId, rpc, workspace } from "@workspace/runtime";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
-import { phoneSetup } from "@workspace-skills/phone-setup";
-import {
+import type { phoneSetup } from "@workspace-skills/phone-setup";
+import type {
   bindInstalledMobileScenario, inspectInternalAndroidApp, listMobileDebugDevices,
 } from "@workspace-skills/mobile-system-testing/live-bindings";
 import type { MobileAssignment, MobileReport } from "../mobile-system-testing/scenario/types.js";
@@ -12,16 +12,27 @@ import type { AndroidDeliveryWorld } from "./open-goal-android-delivery-worlds.j
 
 type AndroidScope = { workspace: string; deviceId: string | null; deviceKind: "disposable-emulator"; note: string };
 
-export async function prepareOpenAndroidDelivery(input: { contextId: string; caseId: string; goal: string }, world: AndroidDeliveryWorld) {
+type AndroidBindings = {
+  phoneSetup: typeof phoneSetup;
+  bind: typeof bindInstalledMobileScenario;
+  inventory: typeof listMobileDebugDevices;
+  verifyApp: typeof inspectInternalAndroidApp;
+};
+
+export async function prepareOpenAndroidDelivery(
+  input: { contextId: string; caseId: string; goal: string },
+  world: AndroidDeliveryWorld,
+  bindings: AndroidBindings,
+) {
   if (input.contextId !== contextId || input.caseId !== world.id || input.goal !== world.goal)
     throw new Error("The Android delivery scope belongs to another owned goal");
   const prepared = world.route === "pair"
-    ? await prepareManagedAndroidPair(input, await workspace.getActive(), await phoneSetup(), bindInstalledMobileScenario, world)
+    ? await prepareManagedAndroidPair(input, await workspace.getActive(), await bindings.phoneSetup(), bindings.bind, world)
     : await (async () => {
       const { workspaceId } = await rpc.call("main", mainRpcMethods["auth.getConnectionInfo"], []);
       if (!workspaceId) throw new Error("The Android development exercise requires an authenticated workspace");
       return prepareManagedAndroidInstall(input, workspaceId, {
-        bind: bindInstalledMobileScenario, inventory: listMobileDebugDevices, verifyApp: inspectInternalAndroidApp,
+        bind: bindings.bind, inventory: bindings.inventory, verifyApp: bindings.verifyApp,
       }, world);
     })();
   const scope: AndroidScope = { workspace: prepared.request.workspace, deviceId: prepared.request.deviceId,
