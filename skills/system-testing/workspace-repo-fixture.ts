@@ -96,6 +96,7 @@ export interface WorkspaceRepoFixtureRepository {
 }
 
 type WorkspaceRepoFixtureStateBase = {
+  publishedFixtureEventId?: string;
   testName: string;
   contextId: string;
   taskBaseEventId: string;
@@ -531,7 +532,7 @@ export class WorkspaceRepoFixtureLifecycle {
       onPhase?.("task-first-parent-events");
       const taskEvents = await this.taskFirstParentEvents(
         state,
-        taskStatus.committed.eventId,
+        state.publishedFixtureEventId ?? taskStatus.committed.eventId,
       );
       const needsCreationScope =
         state.kind === "created-repository" ||

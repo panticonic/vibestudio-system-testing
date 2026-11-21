@@ -35,6 +35,7 @@ import {
 } from "./validation-failure.js";
 import { channelDeliveryLatencyViolations } from "./delivery-latency.js";
 import { judgeReportClaims, reportClaimsOf } from "./report-claims.js";
+import { publishedEventForContext } from "./tests/_helpers.js";
 import type { SystemTestJsonValue } from "./structured-error.js";
 import {
   assertAgentGoalPrompt,
@@ -921,8 +922,15 @@ export class TestRunner {
       if (workspaceRepoFixtureState) {
         enterPhase("workspace-fixture-cleanup");
         try {
+          const agentContextId = outcome?.execution.provenance?.contextId;
+          const publishedFixtureEventId = outcome && agentContextId &&
+            agentContextId !== workspaceRepoFixtureState.contextId
+            ? publishedEventForContext(outcome.execution, agentContextId)
+            : undefined;
           const fixtureCleanup = await testRunner.cleanupWorkspaceRepoFixture(
-            workspaceRepoFixtureState,
+            publishedFixtureEventId
+              ? { ...workspaceRepoFixtureState, publishedFixtureEventId }
+              : workspaceRepoFixtureState,
             (phase) => enterPhase(`workspace-fixture-cleanup:${phase}`),
           );
           if (outcome) {

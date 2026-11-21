@@ -447,6 +447,7 @@ export const vcsTests: TestCase[] = [
     category: "vcs",
     resources: ["vcs:protected-main"],
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Make a small distinctive change in the disposable project and publish it for the team. Tell me whether it was accepted and what changed.",
     validate: (result) => {

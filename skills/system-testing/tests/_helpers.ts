@@ -843,6 +843,22 @@ export function requirePublishedCommitEvidence(result: TestExecutionResult): {
   );
 }
 
+/** The protected event receipt belongs to the exact agent that ran the fixture. */
+export function publishedEventForContext(
+  result: TestExecutionResult,
+  contextId: string,
+): string | undefined {
+  for (const call of getToolCalls(result).slice().reverse()) {
+    const push = focusedVcsResult(call, "push");
+    const eventId = push?.["eventId"];
+    if (
+      push?.["contextId"] === contextId &&
+      typeof eventId === "string" &&
+      push["mainEventId"] === eventId
+    ) return eventId;
+  }
+}
+
 /** Join the public merge receipt and committed source to both preserved line origins. */
 export function requireIncrementalIntegrationEvidence(
   result: TestExecutionResult,
