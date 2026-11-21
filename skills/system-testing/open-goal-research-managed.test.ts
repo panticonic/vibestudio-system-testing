@@ -8,23 +8,30 @@ const sources = vi.hoisted(() => ({
   quote: "not available for registration or transfer",
 }));
 
-vi.mock("@workspace/runtime", async (importOriginal) => {
-  const runtime = await importOriginal<typeof import("@workspace/runtime")>();
-  return {
-    ...runtime,
-    web: {
-      search: vi.fn(async ({ queries }: { queries: string[] }) => ({
-        results: queries.map(query => ({ query, sources: [
-          { url: sources.url }, { url: sources.unrelated },
-        ] })),
-      })),
-      fetch: vi.fn(async ({ url }: { url: string }) => ({
-        url, digest: createHash("sha256").update(sources.quote).digest("hex"), size: sources.quote.length,
-      })),
-      read: vi.fn(async () => ({ text: sources.quote, bytes: sources.quote.length })),
-    },
-  };
-});
+vi.mock("@workspace/runtime", () => ({
+  contextId: "owned",
+  credentials: { resolveCredential: vi.fn(async () => null) },
+  fs: {},
+  panelTree: {},
+  rpc: {},
+  web: {
+    search: vi.fn(async ({ queries }: { queries: string[] }) => ({
+      provider: "duckduckgo", elapsedMs: 0,
+      results: queries.map(query => ({ query, text: "Scoped public source", sources: [
+        { url: sources.url }, { url: sources.unrelated },
+      ] })),
+    })),
+    fetch: vi.fn(async ({ url }: { url: string }) => ({
+      url, title: "Example domains", digest: createHash("sha256").update(sources.quote).digest("hex"),
+      session: "public", size: sources.quote.length, head: sources.quote, headBytes: sources.quote.length,
+      truncated: false, servedFromCache: false, elapsedMs: 0,
+    })),
+    read: vi.fn(async ({ digest, offset = 0, limit = 8000 }: { digest: string; offset?: number; limit?: number }) => {
+      const text = sources.quote.slice(offset, offset + limit);
+      return { digest, offset, limit, text, bytes: text.length, nextOffset: offset + text.length };
+    }),
+  },
+}));
 
 it("requires the conclusion as well as the exact source quotation", async () => {
   const prepared = await prepareOpenGoal({ contextId: "owned", caseId: "explain-reserved-example-domains" });
@@ -45,5 +52,9 @@ it("requires the conclusion as well as the exact source quotation", async () => 
     passed: false, checks: { groundedCitations: true, supportedConclusion: false },
   });
   expect(await verify("Example.com, example.net, and example.org are not available for registration."))
-    .toMatchObject({ passed: true, checks: { groundedCitations: true, supportedConclusion: true } });
+    .toMatchObject({
+      passed: true, checks: { groundedCitations: true, supportedConclusion: true, attestedSearchProvider: true },
+      searches: [{ provider: "duckduckgo" }],
+      citationSources: [{ ...cites[0], provider: "duckduckgo", searchIndex: 0 }],
+    });
 });
