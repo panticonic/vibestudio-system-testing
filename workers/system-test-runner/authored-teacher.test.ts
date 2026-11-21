@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalOutcomeCode, openGoalTeacherCode } from "./authored-teacher.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const options = { skill: "repairPanel" as const, serviceNames: ["assigned", "assignedEdit"], executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
@@ -74,6 +74,51 @@ it.each([undefined, "Private fixture goal"] as const)(
     });
     expect(result).toMatchObject({ report, trainingEligible: true, rootCallIds: ["root"] });
     expect(result.calls).toHaveLength(2);
+  },
+);
+
+it.each([[false, false], [true, false], [false, true], [true, true]])(
+  "keeps captured teacher records after verifier failure (%s) or retirement failure (%s)",
+  async (failVerification, failRetirement) => {
+    const code = openGoalOutcomeCode({
+      executorModel: "provider:teacher",
+      goal: "Confirm the stored result.",
+      bindingCode: "const assignedServices = {}, actualContextId = 'context';",
+    }, "run-one");
+    const report = { disposition: "confirmed" };
+    const verification = { contextId: "context", passed: true };
+    let retired = false;
+    const prepared = {
+      async verify(value: unknown) {
+        expect(value).toEqual(report);
+        if (failVerification) throw new TypeError("missing evidence");
+        return verification;
+      },
+      async close() {
+        retired = true;
+        if (failRetirement) throw new Error("owner lost");
+      },
+    };
+    const result = await new AsyncFunction("natlang", "prepared", code + "\nreturn utilityValue;")({
+      captureModelTurns() {},
+      load: async () => async () => report,
+      calls: async ({ after }: { after?: string }) => after ? [] : [{ callId: "root", parentCallId: null }],
+      trace: async () => ({
+        callId: "root",
+        summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
+        record: { call_id: "root", parent_call_id: null, definition: { name: "runUserGoal" }, outcome: "done" },
+      }),
+    }, prepared);
+    expect(retired).toBe(true);
+    expect(result).toMatchObject({
+      contextId: "context",
+      teacher: { report, calls: [{ callId: "root" }], trainingEligible: true },
+      verification: failVerification ? null : verification,
+      verificationErrors: [
+        ...(failVerification ? [{ phase: "verification", message: "missing evidence" }] : []),
+        ...(failRetirement ? [{ phase: "retirement", message: "owner lost" }] : []),
+      ],
+    });
   },
 );
 

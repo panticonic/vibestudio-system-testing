@@ -630,20 +630,25 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   prompt: world.goal,
   async orchestrate({ runner, signal }) {
     const started = Date.now();
-    const { teacher, verification } = await runner.runOpenGoal(world, signal, qualification);
+    const { contextId, teacher, verification, verificationErrors } = await runner.runOpenGoal(world, signal, qualification);
     return {
       messages: [],
       duration: Date.now() - started,
       provenance: {
-        contextId: verification.contextId,
+        contextId,
         channelId: null, branchId: null, agentEntityId: null, agentTargetId: null,
       },
-      diagnostics: { natlangTeacher: teacher, openGoalVerification: verification },
+      diagnostics: { natlangTeacher: teacher, openGoalVerification: verification, openGoalVerificationErrors: verificationErrors },
     };
   },
   validate(result) {
     const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | null | undefined;
     const proof = result.diagnostics?.["openGoalVerification"] as OpenGoalResult["verification"] | undefined;
+    const failures = result.diagnostics?.["openGoalVerificationErrors"] as OpenGoalResult["verificationErrors"] | undefined;
+    if (failures?.length) return {
+      passed: false,
+      reason: failures.map(({ phase, message }) => `Workspace outcome ${phase} failed: ${message}`).join("; "),
+    };
     if (qualification ? teacher !== null : teacher?.trainingEligible !== true) {
       return { passed: false, reason: qualification
         ? "The model-free workspace reference returned teacher execution evidence"

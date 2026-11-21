@@ -300,6 +300,11 @@ export type OpenGoalDomainVerification = {
 };
 export interface OpenGoalReceiver {
   runOpenGoalTeacher(input: Input & { goal: string; executorModel: string; qualification?: boolean; news?: NewsInput }):
-    Promise<{ teacher: PanelTeacherResult | null; verification: Verification | OpenGoalDomainVerification }>;
+    Promise<{
+      contextId: string;
+      teacher: PanelTeacherResult | null;
+      verification: Verification | OpenGoalDomainVerification | null;
+      verificationErrors: { phase: "verification" | "retirement"; message: string }[];
+    }>;
 }
 export const openGoalMethods = createReceiverRpcMethods<OpenGoalReceiver>(["runOpenGoalTeacher"]);

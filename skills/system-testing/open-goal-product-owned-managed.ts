@@ -132,15 +132,18 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     const report = reportOf<GoogleReport>(raw, "googleRunbook");
     const current = await basis();
     const workspace = await ports.status({ contextId: input.contextId });
-    const calendarProof = report && await calendar.verify(report.calendar);
+    const calendarReport = report?.calendar;
+    const decision = report?.decision;
+    const calendarProof = calendarReport && await calendar.verify(calendarReport);
     const targetNow = current.documents.find(doc => doc.path === target)!;
     const wanted = world.action === "revise" ? world.after + (world.coedit ?? "") : world.before;
     const writingCalls = calls.filter(call => call.method === "apply");
     const checks = {
-      current_calendar: calendarProof?.passed === true && report?.calendar.handoff === null,
-      runbook_authority: report?.decision.action === world.action && report.decision.path === target &&
-        report.decision.approval === approvalId && !!report.decision.reason.trim(),
-      exact_basis_attribution: !!report && !!bases[0] && isDeepStrictEqual(report.attribution, mapping(report.calendar, bases[0])),
+      current_calendar: calendarProof?.passed === true && calendarReport?.handoff === null,
+      runbook_authority: decision?.action === world.action && decision.path === target &&
+        decision.approval === approvalId && typeof decision.reason === "string" && !!decision.reason.trim(),
+      exact_basis_attribution: calendarProof?.passed === true && !!calendarReport && !!bases[0] &&
+        isDeepStrictEqual(report?.attribution, mapping(calendarReport, bases[0])),
       exact_runbook_result: targetNow.text === wanted && (world.action === "revise"
         ? !!applied && isDeepStrictEqual(report?.write, applied) && applied.version === targetNow.version &&
           writingCalls.length === (world.coedit ? 2 : 1) && (!world.coedit ||
@@ -211,10 +214,11 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
     views: [{ id: publishedDesk.id, status: "ready", rendered: renderComponent(world.spec) }], omitted: [],
   };
   function exactPresentation(presentation: PresentationReport | null) {
-    const view = presentation?.views[0];
-    if (presentation?.views.length !== 1 || presentation.omitted.length !== 0 ||
-        view?.status !== "ready" || view.id !== publishedDesk.id ||
-        view.rendered.component !== world.spec.component || !isDeepStrictEqual(view.rendered.props, world.spec.props)) return false;
+    if (!Array.isArray(presentation?.views) || presentation.views.length !== 1 ||
+        !Array.isArray(presentation.omitted) || presentation.omitted.length !== 0) return false;
+    const view = presentation.views[0];
+    if (view?.status !== "ready" || view.id !== publishedDesk.id ||
+        view.rendered?.component !== world.spec.component || !isDeepStrictEqual(view.rendered.props, world.spec.props)) return false;
     return view.rendered.mdx === renderComponent(view.rendered).mdx;
   }
   const encode = (desk: Desk, basis: NewsEvidenceReport, presentation: PresentationReport) =>
@@ -233,8 +237,9 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
         const args = [desk, plan, basis, presentation];
         if (authoring || artifact || !observed || !isDeepStrictEqual(observed, desk) ||
           plan?.action !== "packet" || plan.revision !== desk.revision ||
-          desk.grant !== "private-draft" || basis?.briefing?.result.status !== "ready" ||
-          basis.plan.action !== "report" || !basis.sources.length || !exactPresentation(presentation))
+          desk.grant !== "private-draft" || basis?.briefing?.result?.status !== "ready" ||
+          basis.plan?.action !== "report" || !Array.isArray(basis.sources) || !basis.sources.length ||
+          !exactPresentation(presentation))
           return record("newsEditionReview", "stage", args, null);
         authoring = true;
         try {
@@ -251,17 +256,22 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
   };
   async function verify(raw: unknown) {
     const report = reportOf<NewsReport>(raw, "newsEditionReview");
-    const proof = report && await news.verify(wrap(report.news));
+    const basis = report?.news;
+    const plan = report?.plan;
+    const proof = basis && await news.verify(wrap(basis));
+    const verifiedBasis = proof?.passed === true && basis?.handoff === null;
     const latest = await currentDesk();
     const body = artifact && await readText(ports, artifact.path);
     const checks = {
-      current_news_edition: proof?.passed === true && report?.news.handoff === null,
-      exact_desk_authority: !!observed && !!report && isDeepStrictEqual(observed, latest) && isDeepStrictEqual(report.desk, latest) &&
-        report.plan.revision === latest.revision && report.plan.action === world.action && report.plan.format === world.format && !!report.plan.reason.trim(),
-      exact_basis_attribution: !!report && isDeepStrictEqual(report.attribution, attribution(latest, report.news, world.action)),
-      verified_editor_packet: world.action === "packet" ? !!report && !!body && !!artifact &&
-        !!report.presentation && exactPresentation(report.presentation) && isDeepStrictEqual(report.artifact, artifact) &&
-        body === encode(latest, report.news, report.presentation) && length(body) === artifact.bytes && sha256HexSyncText(body) === artifact.sha256
+      current_news_edition: verifiedBasis,
+      exact_desk_authority: !!observed && isDeepStrictEqual(observed, latest) && isDeepStrictEqual(report?.desk, latest) &&
+        plan?.revision === latest.revision && plan.action === world.action && plan.format === world.format &&
+        typeof plan.reason === "string" && !!plan.reason.trim(),
+      exact_basis_attribution: verifiedBasis && !!basis && Array.isArray(basis.sources) &&
+        isDeepStrictEqual(report?.attribution, attribution(latest, basis, world.action)),
+      verified_editor_packet: world.action === "packet" ? verifiedBasis && !!basis && !!body && !!artifact &&
+        !!report?.presentation && exactPresentation(report.presentation) && isDeepStrictEqual(report.artifact, artifact) &&
+        body === encode(latest, basis, report.presentation) && length(body) === artifact.bytes && sha256HexSyncText(body) === artifact.sha256
         : !artifact && report?.artifact === null && report.presentation === null && calls.every(call => call.method !== "stage"),
       preserved_workspace: await readText(ports, file) === initial &&
         isDeepStrictEqual(await ports.status({ contextId: input.contextId }), workspace),

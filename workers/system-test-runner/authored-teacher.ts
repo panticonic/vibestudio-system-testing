@@ -111,6 +111,32 @@ export function openGoalTeacherCode(options: {executorModel: string; bindingCode
   }, runId, false, JSON.stringify(options.goal));
 }
 
+/** Return the captured run even when its independent verifier or retire step fails. */
+export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCode>[0], runId: string) {
+  return `
+    ${options.bindingCode}
+    let teacher, verification = null;
+    const verificationErrors = [];
+    const recordFailure = (phase, error) => verificationErrors.push({
+      phase,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    try {
+      ${openGoalTeacherCode({ ...options, bindingCode: "" }, runId)}
+      teacher = utilityValue;
+      try { verification = await prepared.verify(teacher.report); }
+      catch (error) { recordFailure("verification", error); }
+    } finally {
+      try { await prepared.close?.(); }
+      catch (error) {
+        if (!teacher) throw error;
+        recordFailure("retirement", error);
+      }
+    }
+    const utilityValue = { teacher, verification, verificationErrors, contextId: actualContextId };
+  `;
+}
+
 /** Keep the complete report for goals that require several skills. */
 export function composedTeacherCode<Options extends ComposedTeacherOptions>(
   options: Options,

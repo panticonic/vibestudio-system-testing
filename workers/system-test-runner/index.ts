@@ -116,7 +116,7 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
   type OwnedIntegrationWorld, type IntegrationFixtureInput, type IntegrationFixtureReceiver,
 } from "@workspace-skills/system-testing/vcs-integration-fixture-contract";
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
-import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalOutcomeCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidAuditWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openBoardMigrationWorlds, openLiveTendrilBoardWorlds, openNativeImageWorlds, openProvenanceQuestionWorlds, openTranscriptSurfaceWorlds, openSourceAttributionWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
@@ -4330,21 +4330,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         ${bindingCode}
         if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
         let utilityValue;
-        try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
+        try { utilityValue={teacher:null,verification:await prepared.qualify(),verificationErrors:[],contextId:actualContextId}; }
         finally { await prepared.close?.(); }
       `;
       }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
       return await this.runHarnessUtility("teacher", (runId, evalScope) => {
         registerActivation(evalScope);
-        return `
-        ${bindingCode}
-        let result;
-        try {
-          ${openGoalTeacherCode({ executorModel: input.executorModel, bindingCode: "", goal: input.goal }, runId)}
-          result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
-        } finally { await prepared.close?.(); }
-        const utilityValue=result;
-      `;
+        return openGoalOutcomeCode({ executorModel: input.executorModel, bindingCode, goal: input.goal }, runId);
       }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
     } catch (error) {
       operationError = error;
