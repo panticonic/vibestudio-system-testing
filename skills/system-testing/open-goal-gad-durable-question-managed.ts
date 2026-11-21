@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { gad, rpc, runtime } from "@workspace/runtime";
+import { agenticEventSchema } from "@workspace/agentic-protocol";
 import { waitFor } from "@workspace/testkit";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
@@ -15,7 +16,8 @@ import type {
 import { withOwnedChannelClient } from "./session-replay-managed.js";
 import type { GadReviewWorld } from "./open-goal-gad-durable-question-worlds.js";
 
-type Readers = Parameters<typeof bindDurableQuestionReview>[1];
+type Readers = NonNullable<Parameters<typeof bindDurableQuestionReview>[1]> &
+  Pick<typeof gad, "getChannelEnvelope">;
 type NativeMember = { participantId: string; handle: string; displayName: string; inactive: boolean };
 type NativeState = { messages: DurableQuestionMessage[]; active: string[]; roster: NativeMember[] };
 const skill = "gadDurableQuestion";
@@ -219,17 +221,36 @@ export async function prepareOpenGadDurableQuestion(
       return state;
     }
     await driveOwnObservation?.();
-    // Native replay leads the workspace GAD projection through its observation queue.
-    // Establish the assigned fixture frontier before handing the read-only scope to the model.
-    await waitFor(async () => {
-      const boundary = await readers.readChannelEnvelopes({channelId, limit:0, payloadKind:agenticEventKind});
-      const members = await readers.inspectChannelRoster({channelId, limit:24});
-      return (boundary.pageInfo.lastSeq ?? null) === (native.messages.at(-1)?.sequence ?? null) &&
-        boundary.pageInfo.totalCount === native.messages.length &&
-        members.rows.length === roster.length &&
-        roster.every(expected => members.rows.some(row => row.participant_id === expected.participantId &&
-          (row.left_at !== null) === expected.inactive)) ? true : undefined;
-    }, {label:"owned GAD projection frontier",timeoutMs:20000,intervalMs:100});
+    // Observe the exact accepted envelope and roster separately. The channel
+    // can also contain native agentic lifecycle envelopes that are not messages.
+    const last = native.messages.at(-1);
+    let frontier: unknown = null;
+    try {
+      await waitFor(async () => {
+        const row = last ? await readers.getChannelEnvelope({channelId,envelopeId:last.envelopeId}) : null;
+        const event = row?.payload ? agenticEventSchema.safeParse(row.payload) : null;
+        const observed = event?.success && event.data.kind === "message.completed" ? event.data : null;
+        const members = await readers.inspectChannelRoster({channelId,limit:24});
+        frontier = {
+          message: row && {channelId:row.channelId,envelopeId:row.envelopeId,sequence:row.seq,
+            messageId:observed?.causality?.messageId,senderId:row.from.id,role:observed?.payload.role},
+          roster: members.rows.map(entry=>({id:entry.participant_id,leftAt:entry.left_at})),
+        };
+        const exactMessage = !last ||
+          (row?.channelId===channelId && row.envelopeId===last.envelopeId && row.seq===last.sequence &&
+            row.from.id===last.senderId && observed?.payload.role==="user" &&
+            observed.causality?.messageId===last.messageId);
+        const exactRoster = members.rows.length===roster.length &&
+          roster.every(expected=>members.rows.some(entry=>entry.channel_id===channelId &&
+            entry.participant_id===expected.participantId && (entry.left_at!==null)===expected.inactive));
+        return exactMessage && exactRoster ? true : undefined;
+      }, {label:"owned GAD projection frontier",timeoutMs:20000,intervalMs:100});
+    } catch (error) {
+      throw new Error(`Owned GAD projection frontier did not match canonical admission: ${JSON.stringify({
+        channelId, expectedMessage:last && {messageId:last.messageId,envelopeId:last.envelopeId,
+          sequence:last.sequence,senderId:last.senderId}, expectedRoster:roster, frontier,
+      })}`, {cause:error});
+    }
     return {...bindOpenGadDurableQuestion(contextId,channelId,world,readAssignedNative,readers),close};
   } catch (error) {
     try { await close(); }
