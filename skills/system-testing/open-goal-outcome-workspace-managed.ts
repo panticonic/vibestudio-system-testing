@@ -60,6 +60,14 @@ async function prepareWorkspace(input: Input, world: OutcomeWorkspaceWorld) {
     return { path: name, version, text };
   }
 
+  async function describe(id: string): Promise<IntentDescription | null> {
+    if (id !== readMethod) return null;
+    const entry = await rpc.call("main", mainRpcMethods["docs.describe"], [id]);
+    if (entry?.id !== id) return null;
+    const description = `${entry.description?.slice(0, 180) ?? ""} In this workspace the scope is an exact owned note path from the notice.`;
+    return { id, name: entry.qualifiedName, description, digest: stableSha256Hex(entry) };
+  }
+
   const services = {
     goalWorkspace: {
       list: async () => (await fs.readdir(directory)).sort(),
@@ -91,15 +99,12 @@ async function prepareWorkspace(input: Input, world: OutcomeWorkspaceWorld) {
       notice: async () => structuredClone(notice),
       async search(query: string) {
         if (typeof query !== "string" || !query.trim() || query.length > 128) return [];
-        const hits = await rpc.call("main", mainRpcMethods["docs.search"], [query, { surface: "service", limit: 8 }]);
-        return hits.map(hit => ({ id: hit.id, name: hit.qualifiedName, description: hit.description?.slice(0, 210) ?? "" }));
+        const match = await describe(readMethod);
+        if (!match) return [];
+        const { id, name, description } = match;
+        return [{ id, name, description }];
       },
-      async describe(id: string): Promise<IntentDescription | null> {
-        if (id !== readMethod) return null;
-        const entry = await rpc.call("main", mainRpcMethods["docs.describe"], [id]);
-        if (entry?.id !== id) return null;
-        return { id, name: entry.qualifiedName, description: entry.description?.slice(0, 260) ?? "", digest: stableSha256Hex(entry) };
-      },
+      describe,
       async inspect(methodId: string, scope: string): Promise<IntentObservation | null> {
         if (methodId !== readMethod || scope !== notePath) return null;
         const note = await read(world.authority);
@@ -153,8 +158,10 @@ export async function prepareOutcomeWorkspace(input: Input, world: OutcomeWorksp
 
   async function reference(target: Awaited<ReturnType<typeof prepareWorkspace>>, useIntent: boolean) {
     const { goalWorkspace, nativeIntentDiscovery } = target.services;
+    const available = useIntent ? await nativeIntentDiscovery.search("current workspace handoff") : [];
+    const method = available[0] && await nativeIntentDiscovery.describe(available[0].id);
     const source = useIntent
-      ? await nativeIntentDiscovery.inspect(readMethod, target.notePath)
+      ? method && await nativeIntentDiscovery.inspect(method.id, target.notePath)
       : await goalWorkspace.read(world.authority);
     if (!source) throw new Error("Current facilitator handoff is missing");
     if (world.target === null) {
