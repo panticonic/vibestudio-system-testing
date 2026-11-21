@@ -176,8 +176,9 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
   function validateEvidence() {
     const expectedPaths = new Set(world.questions.map(item => item.path).concat(world.candidates ?? []));
     const expectedTraces = new Set(world.questions.map(item => item.path + "\0" + item.text));
-    if (readbacks.size !== expectedPaths.size || traceReads.size !== expectedTraces.size) return false;
-    if ([...readbacks].some(([id, view]) => !expectedPaths.has(getCandidate(id).path) || Boolean(view) !== latestText.has(getCandidate(id).path))) return false;
+    const observedPaths = new Set([...readbacks.keys()].map(id => getCandidate(id).path));
+    if ([...expectedPaths].some(path => !observedPaths.has(path)) || traceReads.size !== expectedTraces.size) return false;
+    if ([...readbacks].some(([id, view]) => Boolean(view) !== latestText.has(getCandidate(id).path))) return false;
     for (const { view, selected, spans, trace } of traceReads.values()) {
       const actual = view.fragments.find(fragment => fragment.id === selected.fragment)!;
       const expected = world.questions.filter(item => item.path === view.candidate.path && item.text === actual.text);
