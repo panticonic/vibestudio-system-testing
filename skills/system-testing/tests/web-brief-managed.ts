@@ -274,12 +274,13 @@ const templateSettings = {
   "editorial-packet": { requiresUnits: openEditorialRequiresUnits, authorityPolicy: missionPlanningSettings.authorityPolicy },
   examplesAdoption: { requiresUnits: ["skills/open-user-goal", "extensions/templates", "skills/template-candidate", "skills/scratch-handoff-bindings"] },
   grimoireScene: { requiresUnits: ["skills/open-user-goal", "panels/grimoire", "workers/grimoire-world", "skills/examples-review-fixtures", "packages/living-canvas"],
-    authorityPolicy: { authority: [{
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("open-owned-grimoire-player-panel", [{
       ruleId: "inspect-owned-grimoire-scene",
       capability: { kind: "exact" as const, key: "workspace-service:grimoire" },
       resource: { kind: "prefix" as const, prefix: "do:workers/grimoire-world:GrimoireWorldDO:natlang-scene-" },
       tier: "gated" as const, decision: "task" as const,
-    }] } },
+    }]) },
   "demo-portfolio": { requiresUnits: openPortfolioRequiresUnits, authorityPolicy: { authority: [{
     ruleId: "inspect-owned-portfolio-garden",
     capability: { kind: "exact" as const, key: "workspace-service:grimoire" },

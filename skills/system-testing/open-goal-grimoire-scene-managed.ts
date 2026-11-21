@@ -3,7 +3,7 @@ import {
   sha256HexSyncText,
   stableSha256Hex,
 } from "@vibestudio/content-addressing";
-import { contextId, fs, rpc, vcs } from "@workspace/runtime";
+import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { grimoireSceneInstalled } from "@workspace-skills/examples-review-fixtures/open-grimoire-scene-owner";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -90,7 +90,11 @@ type GrimoireSceneOutcome = {
   readback: GrimoireSceneReadback;
 };
 
+import { advanceOwnedGrimoirePanel, assertOwnedGrimoirePanel, grimoireClockIndex,
+  grimoireSceneDocket, grimoireSceneEstate, type GrimoireClock } from "./grimoire-fixture-player.js";
+
 type Installed = typeof grimoireSceneInstalled;
+type Input = { contextId: string; caseId: string; panelId?: string; grimoireEstateKey?: string };
 type Journal = {
   service: string;
   method: string;
@@ -102,33 +106,41 @@ type Ports = {
   fs: Parameters<typeof bindScratchHandoff>[0] & Pick<typeof fs, "readdir">;
   status: Pick<typeof vcs, "status">["status"];
   readBytes(path: string, limit: number): Promise<Uint8Array>;
+  advanceFixture(before: GrimoireClock): Promise<void>;
 };
 const maxBytes = 64 * 1024;
 const namespaces = { read: "grimoireScene", write: "grimoireHandoff" } as const;
 
-function livePorts(): Ports {
+async function livePorts(input: Input, estateKey: string): Promise<Ports> {
+  if (!input.panelId) throw new Error("The owned Grimoire scene needs its player panel");
+  const panel = panelTree.get(input.panelId);
+  const fixture = {contextId:input.contextId,estateKey};
+  await assertOwnedGrimoirePanel(panel,fixture);
   return {
     contextId,
     fs,
     status: (input) => vcs.status(input),
     readBytes: (path, limit) => readWorkspaceBytes(rpc, path, limit),
+    advanceFixture: before => advanceOwnedGrimoirePanel(panel,fixture,before),
   };
 }
 
 export async function prepareOpenGrimoireScene(
-  input: { contextId: string; caseId: string },
+  input: Input,
   world: GrimoireSceneWorld,
   installed: Installed,
-  ports = livePorts(),
+  injected?: Ports,
 ) {
+  const ownerId = input.grimoireEstateKey;
+  if (!ownerId) throw new Error("The owned Grimoire scene needs its assigned estate");
+  const key = grimoireSceneDocket(ownerId);
+  const ports = injected ?? await livePorts(input,ownerId);
   if (
     !input.contextId ||
     input.contextId !== ports.contextId ||
     input.caseId !== world.id
   )
     throw new Error("Grimoire scene belongs to another Examples context");
-  const key = crypto.randomUUID();
-  const ownerId = "natlang-scene-" + key;
   const owner = installed.owner(ownerId);
   const docket: GrimoireDocket = {
     id: key,
@@ -214,7 +226,12 @@ export async function prepareOpenGrimoireScene(
 
   const initial = await observe();
   async function pulse() {
-    await owner.advanceFixture("scene-quiet-" + crypto.randomUUID());
+    const before = await observe();
+    await ports.advanceFixture(before.garden);
+    const after = await observe();
+    if (grimoireClockIndex(after.garden) !== grimoireClockIndex(before.garden) + 1 ||
+        before.view.turn !== after.view.turn || before.view.sceneDigest !== after.view.sceneDigest)
+      throw new Error("The player control did not establish one quiet pulse in the assigned Grimoire estate");
   }
   for (let i = 0; i < (world.advanceBefore ?? 0); i++) await pulse();
   const ready = await observe();
@@ -234,7 +251,7 @@ export async function prepareOpenGrimoireScene(
       : null;
   const scope: GrimoireCaretakerScope = {
     docketId: docket.id,
-    ownerId: world.source === "other" ? "natlang-scene-" + archive.id : ownerId,
+    ownerId: world.source === "other" ? grimoireSceneEstate(archive.id) : ownerId,
     frontier:
       world.source === "past" ? initial.view.frontier : ready.view.frontier,
     approved: world.approved !== false,

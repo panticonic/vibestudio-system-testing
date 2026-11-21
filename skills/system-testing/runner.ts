@@ -103,6 +103,8 @@ import { managedDriveCheckpointMethods } from "./drive-checkpoint-contract.js";
 import { managedBrowserImportMethods } from "./browser-import-contract.js";
 import { managedDriveSharingMethods } from "./drive-sharing-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
+import { grimoireSceneEstate } from "./grimoire-fixture-player.js";
+import { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
 import { managedMemoryMethods } from "./verified-memory-contract.js";
@@ -2385,6 +2387,18 @@ export class HeadlessRunner {
       const execute = (panelId?: string) => rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
         { ...request, contextId, panelId },
       ], { signal });
+      if (openGrimoireSceneWorlds.some(({ id }) => id === caseId)) {
+        const grimoireEstateKey = grimoireSceneEstate(crypto.randomUUID());
+        const panel = await this.openPanelClient(grimoirePanel, {
+          contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+          stateArgs: { estateKey: grimoireEstateKey },
+        });
+        try {
+          return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+            { ...request, contextId, panelId: panel.id, grimoireEstateKey },
+          ], { signal });
+        } finally { await panel.archive(); }
+      }
       const correction = openGoalPdfVaultWorlds.find(({ id }) => id === caseId);
       const knowledge = openVaultKnowledgeWorlds.find(({ id }) => id === caseId);
       if (!correction && !knowledge && !spectroliteGoalWorlds.some(({ id }) => id === caseId)) return await execute();
