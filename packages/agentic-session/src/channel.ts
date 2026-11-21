@@ -171,11 +171,11 @@ export async function destroyHeadlessAgentContext(opts: {
   contextId: string;
   timeoutMs?: number;
 }): Promise<void> {
-  const args = [{ contextId: opts.contextId, recursive: true as const }] as const;
+  const context = { contextId: opts.contextId, recursive: true };
   if (opts.timeoutMs === undefined) {
-    await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], args);
+    await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], [context]);
   } else {
-    await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], args, {
+    await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], [context], {
       timeoutMs: opts.timeoutMs,
     });
   }
