@@ -118,8 +118,9 @@ function unitListInspection(result: Parameters<typeof noIncompleteInvocations>[0
     };
   }
   const final = findLastAgentMessage(result);
+  const inventoryLabel = "(?:(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)|live\\s+(?:runtime\\s+)?executions?)";
   const countPattern = new RegExp(
-    `\\b${roster.entities.length}\\b[^.\\n]{0,40}\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b|\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b[^.\\n]{0,40}\\b${roster.entities.length}\\b`,
+    `\\b${roster.entities.length}\\b[^.\\n]{0,40}\\b${inventoryLabel}\\b|\\b${inventoryLabel}\\b[^.\\n]{0,40}\\b${roster.entities.length}\\b`,
     "iu"
   );
   if (

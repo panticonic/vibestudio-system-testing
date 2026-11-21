@@ -1307,13 +1307,16 @@ describe("workspace unit diagnostics semantic validators", () => {
   const defaultHealthCode =
     "const units = await runtime.supervision.list(); const health = await runtime.supervision.health(units[0].identity); return health;";
 
-  it("accepts natural prose backed by list and detail inspection evidence", () => {
+  it.each([
+    "There are 3 workspace units available; extensions/status is running after inspection.",
+    "**3 live executions** were reported. I inspected extensions/status, which is running.",
+  ])("accepts a report backed by list and detail inspection: %s", (report) => {
     expect(
       listTest.validate(
         execution(
           "const sup = runtime.supervision; const units = await sup.list(); const detail = await sup.describe(units[1].identity); return { units, detail };",
           { units: 3, detail: { status: "running" } },
-          "There are 3 workspace units available; extensions/status is running after inspection.",
+          report,
           "eval",
           describeOnlyJournal
         )
