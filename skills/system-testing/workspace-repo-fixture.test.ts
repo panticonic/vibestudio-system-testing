@@ -1390,9 +1390,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       ([input]) => input.node.kind === "repository",
     );
     expect(repositoryInspections).toEqual([]);
-    expect(fake.history).toHaveBeenCalledWith(
-      expect.objectContaining({ root: event("event:main"), direction: "past" }),
-    );
+    expect(fake.history).not.toHaveBeenCalled();
   });
 
   it("refuses a fixture whose inspected import work does not match its requested snapshot", async () => {
