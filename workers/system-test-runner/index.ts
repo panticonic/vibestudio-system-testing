@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3785,7 +3785,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       });
     }
     const contentArchive = openContentArchiveWorlds.find(({ id }) => id === input.caseId);
-    const prepare = phoneFirstRun
+    const webhookAdmission = openWebhookAdmissionWorlds.find(({ id }) => id === input.caseId);
+    const prepare = webhookAdmission
+      ? `import {prepareWebhookAdmission} from "@workspace-skills/system-testing/open-goal-webhook-admission-managed";
+         const prepared=await prepareWebhookAdmission(input,${JSON.stringify(webhookAdmission)});`
+      : phoneFirstRun
       ? `import {vcs} from "@workspace/runtime";
          import {preparePhoneFirstRun} from "@workspace-skills/system-testing/open-goal-phone-first-run-managed";
          import {workspacePhoneReadiness} from "@workspace-clients/mobile-browser/phone-readiness";
@@ -4104,7 +4108,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         console.info("[open-unit-rollout]", {
           caseId: input.caseId, contextId: input.contextId, phase: "utility.eval", event: "started",
         });
-      const approvals = apiReadiness ? "pregranted-only" as const : undefined;
+      const approvals = apiReadiness || webhookAdmission ? "pregranted-only" as const : undefined;
       if (input.qualification) return await this.runHarnessUtility("teacher", `
         ${bindingCode}
         if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
