@@ -328,7 +328,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       const allFound=present.length===pageScope.length&&actualWords.length===labels.length;
       const wanted=present.length!==pageScope.length?"missing-pages":allFound?"verified":"partial-match";
       const citations=source.pdf?.citations??[];
-      proofSources.push(source.selection?.attachment===name&&source.request?.query===labels.join(", ")&&name===grant(snapshots[i].mission)&&
+      proofSources.push(source.selection?.attachment===name&&source.request?.allowOcr===false&&source.request?.query===labels.join(", ")&&name===grant(snapshots[i].mission)&&
         source.pdf?.digest===sha256Hex(data)&&source.pdf?.status===wanted&&
         isDeepStrictEqual(citations.map(cite=>cite.quote),actualWords)&&
         citations.every(cite=>native.some(line=>isDeepStrictEqual(line,cite)))&&
