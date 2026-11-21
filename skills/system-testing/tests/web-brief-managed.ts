@@ -56,7 +56,7 @@ import {
   openDeployedInterfaceWorlds, openDeployedInterfaceRequiresUnits,
   openExtensionDossierWorlds, openExtensionDossierRequiresUnits,
   openUnitHandoffWorlds, openUnitHandoffRequiresUnits,
-  googleRunbookWorlds, newsEditionReviewWorlds, assignedPublicBriefWorlds,
+  googleRunbookWorlds, outcomeWorkspaceWorlds, newsEditionReviewWorlds, assignedPublicBriefWorlds,
   openInstalledPackageWorlds, openInstalledPackageRequiresUnits,
   openLocalWidthWorlds, openLocalWidthRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
@@ -150,7 +150,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...automationActivationWorlds, ...terminalAppRepairWorlds, ...preparedContentProjectWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...outcomeWorkspaceWorlds, ...automationActivationWorlds, ...terminalAppRepairWorlds, ...preparedContentProjectWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...openAudienceResponseWorlds,
   ...openUnitHandoffWorlds,
   ...googleRunbookWorlds, ...newsEditionReviewWorlds, ...assignedPublicBriefWorlds,
@@ -176,6 +176,7 @@ const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutio
   })),
 });
 const templateSettings = {
+  "outcome-workspace": { requiresUnits: ["skills/open-user-goal"] },
   phoneFirstRun: { requiresUnits: ["skills/open-user-goal", "skills/phone-setup", "clients/mobile-browser", "extensions/mobile-debug", "extensions/react-native"] },
   skillMaintenance: { requiresUnits: ["skills/open-user-goal", "skills/natlang-authoring"] },
   desktopReadiness: { requiresUnits: ["skills/open-user-goal", "skills/clientdev", "clients/desktop-browser", "packages/client-update-core"] },
@@ -624,6 +625,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "publication" ? "Check the requested website destination against real package and publication evidence" :
     world.kind === "pdfVault" ? "Ground a working vault correction in the original PDF and verify its revision" :
     world.kind === "pdf" ? "Inspect the selected PDF using original text, geometry and retained raster evidence" :
+    world.kind === "outcome-workspace" ? "Resolve a local workspace goal and verify its requested outcome" :
       "Find and revise a workspace document while preserving a concurrent edit",
   prompt: world.goal,
   async orchestrate({ runner, signal }) {

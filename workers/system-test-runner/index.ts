@@ -126,7 +126,7 @@ import {
   automationActivationWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
-  openExtensionDossierWorlds, openUnitHandoffWorlds, googleRunbookWorlds, newsEditionReviewWorlds, assignedPublicBriefWorlds,
+  openExtensionDossierWorlds, openUnitHandoffWorlds, googleRunbookWorlds, newsEditionReviewWorlds, assignedPublicBriefWorlds, outcomeWorkspaceWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalMethodWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   gadDurableQuestionWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3811,6 +3811,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
     const googleRunbook = googleRunbookWorlds.find(({ id }) => id === input.caseId);
     const newsEditionReview = newsEditionReviewWorlds.find(({ id }) => id === input.caseId);
+    const outcomeWorkspace = outcomeWorkspaceWorlds.some(({ id }) => id === input.caseId);
     const assignedPublicBrief = assignedPublicBriefWorlds.find(({ id }) => id === input.caseId);
     const unitHandoff = openUnitHandoffWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
@@ -3947,6 +3948,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : tendrilRoute
       ? `import {prepareOpenTendrilRoute} from "@workspace-skills/system-testing/open-goal-tendril-route-managed";
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
+      : outcomeWorkspace
+      ? `import {prepareOutcomeWorkspace} from "@workspace-skills/system-testing/open-goal-outcome-workspace-managed";
+         import {outcomeWorkspaceWorlds} from "@workspace-skills/system-testing/open-goal-outcome-workspace-worlds";
+         const world=outcomeWorkspaceWorlds.find(({id})=>id===input.caseId);
+         if(!world)throw new Error("Unknown outcome workspace goal");
+         const prepared=await prepareOutcomeWorkspace(input,world);`
       : assignedPublicBrief
       ? `import {prepareAssignedPublicBrief} from "@workspace-skills/system-testing/open-goal-assigned-public-brief-managed";
          import {assignedPublicBriefWorlds} from "@workspace-skills/system-testing/open-goal-assigned-public-brief-worlds";

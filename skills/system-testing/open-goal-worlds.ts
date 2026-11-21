@@ -1,3 +1,4 @@
+export { outcomeWorkspaceWorlds } from "./open-goal-outcome-workspace-worlds.js";
 export { assignedPublicBriefWorlds } from "./open-goal-assigned-public-brief-worlds.js";
 export { automationActivationWorlds } from "./open-goal-automation-activation-worlds.js";
 export { googleRunbookWorlds, newsEditionReviewWorlds } from "./open-goal-product-owned-worlds.js";
