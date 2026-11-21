@@ -656,7 +656,7 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     agentContext: "fork",
     prompt:
-      "Change and commit one existing line in the disposable project. Use the change from that edit as the undo target so both changes stay in history. Commit the undo, reread the restored file, verify the working copy is clean, and explain what the history shows.",
+      "Change and commit one existing line in the disposable project. Use the change from that edit as the undo target so both changes stay in history. Pass the exact change reference itself without its display label. Commit the undo, reread the restored file, verify the working copy is clean, and explain what the history shows.",
     validate: (result) => {
       const base = checked(result, ["vcs.edit", "vcs.revert", "vcs.commit", "vcs.status"]);
       return base.passed ? requireRevertEvidence(result) : base;
