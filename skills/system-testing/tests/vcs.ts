@@ -418,6 +418,7 @@ export const vcsTests: TestCase[] = [
       "Author several local edits and commit the complete incremental chain",
     category: "vcs",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "In the disposable project, make two small related edits as separate local steps, then preserve the complete local chain as one clean milestone. Report what happened.",
     validate: (result) => {
@@ -431,6 +432,7 @@ export const vcsTests: TestCase[] = [
       "Inspect uncommitted local intent and coordinate effects relative to protected main",
     category: "vcs",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Make one small distinctive edit in the disposable project. Do not commit it. Use the semantic local comparison to inspect the complete working state relative to protected main, then report the intent and coordinate evidence it returns.",
     validate: (result) => {
@@ -485,9 +487,12 @@ export const vcsTests: TestCase[] = [
     description:
       "A move onto an existing file fails with a typed error and is recovered by the typed recovery table, not by parsing the message",
     category: "vcs",
-    expectedToolFailures: [{ name: "move_file", errorIncludes: "DestinationOccupied" }],
+    expectedToolFailures: [
+      { name: "move_file", errorIncludes: "DestinationOccupied" },
+      { name: "eval", failureCode: "DestinationOccupied" },
+    ],
     prompt:
-      "In the disposable project, create docs/a.md and docs/b.md with one line each, then rename docs/a.md to docs/b.md. Tell me how that went and what is in docs/ afterwards.",
+      "In the disposable project, create docs/a.md and docs/b.md with one line each, then try to rename docs/a.md to docs/b.md. If it fails, check the workspace's recommended recovery before deciding what to do. Tell me what is in docs/ afterwards.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;

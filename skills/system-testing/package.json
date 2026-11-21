@@ -323,7 +323,6 @@
     "@workspace-skills/templates": "workspace:*",
     "@workspace-skills/workspace-unit-design": "workspace:*",
     "@workspace/pubsub": "workspace:*",
-    "@workspace-skills/browser-import-runtime": "workspace:*",
     "@workspace-skills/open-calendar-goal": "workspace:*",
     "@workspace-skills/open-google-handoff-goal": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",

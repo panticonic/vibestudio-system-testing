@@ -1,8 +1,5 @@
-import type { OpenBrowserMigrationWorld } from "@workspace-skills/browser-import-runtime/open-migration-managed";
-
-type Profile = OpenBrowserMigrationWorld["profiles"][number];
-type Categories = Profile["profile"]["categories"];
-type Bookmark = NonNullable<Profile["retainedBookmarks"]>[number];
+type Categories = Array<"bookmarks" | "history">;
+type Bookmark = { title: string; url: string };
 
 const both: Categories = ["bookmarks", "history"];
 const bookmarks: Categories = ["bookmarks"];
@@ -29,7 +26,7 @@ function inspect(
   categories: Categories,
   counts: number[],
   warnings = 0,
-): Profile {
+) {
   const source = { state: "available" as const, categories: both };
   const observed = preview(categories, counts, warnings);
   return {
@@ -58,7 +55,7 @@ function inspect(
         progress: [],
       },
     },
-  };
+  } as const;
 }
 
 function execute(
@@ -67,7 +64,7 @@ function execute(
   device: string,
   entries: Bookmark[],
   hold?: "totals" | "warnings" | "owner",
-): Profile {
+) {
   const source = { state: "available" as const, categories: both };
   const approvedPreview = preview(bookmarks, [entries.length]);
   const observed = preview(
@@ -122,7 +119,7 @@ function execute(
         progress,
       },
     },
-  };
+  } as const;
 }
 
 function recover(
@@ -131,7 +128,7 @@ function recover(
   device: string,
   entries: Bookmark[],
   cancelled: boolean,
-): Profile {
+) {
   const phase = cancelled ? "cancelled" : "complete";
   const progress = [
     {
@@ -163,7 +160,7 @@ function recover(
       reads: ["history"],
       expected: { next: "keep-results", source: null, totals: [], progress },
     },
-  };
+  } as const;
 }
 
 const target = (title: string, parent: string, bookmark: Bookmark) => ({
@@ -184,7 +181,26 @@ const trainingPlan = journal("safety/brief", "Crew safety briefing");
 const readingPack = journal("access/reading", "Accessible reading pack");
 const freezerLog = journal("cold-chain/log", "Freezer temperature log");
 
-export const openBrowserMigrationWorlds = [
+// The catalog is installed in every test workspace. The runner loads the
+// browser import implementation only for cases routed to Personal.
+type BrowserMigrationWorld = {
+  kind: "browserMigration";
+  id: string;
+  goal: string;
+  workspace: "personal";
+  sourceGroup: string;
+  split?: "test";
+  profiles: Array<ReturnType<typeof inspect | typeof execute | typeof recover>>;
+  collection?: ReturnType<typeof collection>;
+  expected: {
+    source: string;
+    status: "observed" | "imported" | "retained" | "held" | "handed-off";
+    handoff?: ReturnType<typeof target>;
+    missingHandoff?: boolean;
+  };
+};
+
+export const openBrowserMigrationWorlds: BrowserMigrationWorld[] = [
   {
     kind: "browserMigration",
     id: "estimate-workshop-profile-migration",
@@ -400,7 +416,7 @@ export const openBrowserMigrationWorlds = [
     ]),
     expected: { source: "cart", status: "held", missingHandoff: true },
   },
-] satisfies OpenBrowserMigrationWorld[];
+];
 
 export const browserMigrationRequiresUnits = [
   "skills/open-user-goal",
