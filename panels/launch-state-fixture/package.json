@@ -1,0 +1,36 @@
+{
+  "name": "@workspace-panels/launch-state-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "vibestudio": {
+    "title": "Owned launch-state fixture",
+    "entry": "index.tsx",
+    "hiddenInLauncher": true,
+    "stateArgs": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "owner": { "type": "string" },
+        "label": { "type": "string" },
+        "mode": { "type": "string", "enum": ["summary", "detail", "quiet"] },
+        "count": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "order": { "type": "string", "enum": ["asc", "desc"] },
+            "side": { "type": "string", "enum": ["west", "east"] },
+            "lastNote": { "type": "string" },
+            "pins": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["order", "side", "pins"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["title", "owner", "mode", "count", "settings"],
+      "additionalProperties": false
+    },
+    "authority": { "requests": [], "provides": [] }
+  },
+  "dependencies": {"react":"^19.0.0","react-dom":"^19.0.0"}
+}
