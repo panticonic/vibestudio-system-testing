@@ -34,6 +34,7 @@ import {
   openAndroidDeliveryWorlds,
   openLiveLocalInventoryWorlds, openLiveLocalInventoryRequiresUnits,
   openLiveTendrilBoardWorlds, openLiveTendrilBoardRequiresUnits,
+  openBoardMigrationWorlds, boardMigrationRequiresUnits,
   openCliRouteWorlds, openCliRouteRequiresUnits,
   openOwnedOperationsRequiresUnits,
   browserGoalWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityRequiresUnits, openChatContinuityWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, workspaceClaimRequiresUnits, openBridgeDeliveryWorlds, openBridgeDeliveryRequiresUnits, openEditorialRequiresUnits, openEditorialWorlds, openPortfolioRequiresUnits, openPortfolioWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
@@ -140,7 +141,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...terminalAppRepairWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...openRetainedMemoryWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openLiveTendrilBoardWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -236,6 +237,11 @@ const templateSettings = {
   recovery: { requiresUnits: ["skills/open-user-goal", "skills/open-session-recovery", "skills/session-cursor-bindings", "workers/pubsub-channel"] },
   "api-readiness": { requiresUnits: openApiReadinessRequiresUnits },
   "live-local-inventory": { requiresUnits: openLiveLocalInventoryRequiresUnits },
+  "board-migration": {
+    requiresUnits: boardMigrationRequiresUnits,
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-owned-board-migration", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]),
+  },
   "live-tendril-board": {
     requiresUnits: openLiveTendrilBoardRequiresUnits, resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-tendril-board", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]),
@@ -484,6 +490,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "calendar" ? "Reconcile live calendar windows, confirm a current decision, and verify its handoff" :
     world.kind === "google-handoff" ? "Reconcile retained Gmail decisions with the current linked Drive assets" :
     world.kind === "personal-artifacts" ? "Resolve current browser library and collection state within an owned workspace" :
+    world.kind === "board-migration" ? "Inspect the rendered legacy board and reconcile a scoped migration" :
     world.kind === "browserMigration" ? "Review live browser import authority, owner receipts, and collection handoff" :
     world.kind === "githubWork" ? "Review the owned local Git checkout and current GitHub owner authority" :
     world.kind === "personal-history" ? "Verify decisions across immutable archive milestones" :

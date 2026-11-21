@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openLiveTendrilBoardWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openBoardMigrationWorlds, openLiveTendrilBoardWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openRetainedMemoryWorlds,
   terminalAppRepairWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
@@ -3700,6 +3700,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
     const liveLocalInventory = openLiveLocalInventoryWorlds.find(({ id }) => id === input.caseId);
     const androidDelivery = openAndroidDeliveryWorlds.find(({ id }) => id === input.caseId);
+    const boardMigration = openBoardMigrationWorlds.find(({ id }) => id === input.caseId);
     const liveTendrilBoard = openLiveTendrilBoardWorlds.find(({ id }) => id === input.caseId);
     const cliRoute = openCliRouteWorlds.find(({ id }) => id === input.caseId);
     const ownedOperation = openOwnedOperationsWorlds.find(({ id }) => id === input.caseId);
@@ -4124,6 +4125,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {bindInstalledMobileScenario,inspectInternalAndroidApp,listMobileDebugDevices} from "@workspace-skills/mobile-system-testing/live-bindings";
          const prepared=await prepareOpenAndroidDelivery(input,${JSON.stringify(androidDelivery)},{
            phoneSetup,bind:bindInstalledMobileScenario,inventory:listMobileDebugDevices,verifyApp:inspectInternalAndroidApp});`
+      : boardMigration
+      ? `import {prepareOpenBoardMigration} from "@workspace-skills/system-testing/open-goal-board-migration-managed";
+         const prepared=await prepareOpenBoardMigration(input,${JSON.stringify(boardMigration)});`
       : liveTendrilBoard
       ? `import {prepareOpenLiveTendrilBoard} from "@workspace-skills/system-testing/open-goal-live-tendril-board-managed";
          if (typeof input.tendrilChannelId !== "string") throw new Error("The Tendril board needs its owned channel");
