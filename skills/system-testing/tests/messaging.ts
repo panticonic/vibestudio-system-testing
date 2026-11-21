@@ -251,7 +251,7 @@ export const messagingTests: TestCase[] = [
     description:
       "A message for someone who is not in the conversation is held back, with the roster resolved exactly, and the user is told who can be reached",
     category: "messaging",
-    prompt: "Let Dana from accounting know the quarterly report is ready for review.",
+    prompt: "Let Dana from accounting know the quarterly report is ready for review. Resolve Dana’s name using the messaging skill before attempting delivery, and tell me if you cannot reach them.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
