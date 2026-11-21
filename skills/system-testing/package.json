@@ -339,7 +339,6 @@
     "@workspace/client-update-core": "workspace:*",
     "@workspace-clients/desktop-browser": "workspace:*",
     "@workspace-skills/clientdev": "workspace:*",
-
     "@workspace-skills/mobile-system-testing": "workspace:*",
     "@workspace-skills/open-demo-portfolio": "workspace:*",
     "@workspace-skills/open-regency-briefing": "workspace:*",
