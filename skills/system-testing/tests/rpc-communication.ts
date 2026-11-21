@@ -48,7 +48,7 @@ export const rpcTests: TestCase[] = [
     name: "worker-rpc",
     description: "List worker sources via RPC",
     category: "rpc-communication",
-    prompt: "Ask the worker service which worker sources can be launched and summarize the result.",
+    prompt: "Ask the worker service which worker sources can be launched. Include the exact number of entries in the returned list, then summarize what it contains.",
     validate: (result) =>
       semanticRpc(result, [["workers.listSources"]], (values, final) => {
         const sources = walkArrays(values).find((value) =>
