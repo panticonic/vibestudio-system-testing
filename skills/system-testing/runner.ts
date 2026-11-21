@@ -106,6 +106,7 @@ import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
 import { grimoireSceneEstate } from "./grimoire-fixture-player.js";
 import { regencyFixturePanel, regencyFixtureRealm } from "./regency-fixture-player.js";
 import { openRegencyWorlds } from "./open-goal-regency-worlds.js";
+import { openPortfolioWorlds } from "./open-goal-portfolio-worlds.js";
 import { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
 import { managedChecklistMethods } from "./checklist-contract.js";
 import { managedSetupMethods } from "./onboarding-contract.js";
@@ -2412,6 +2413,28 @@ export class HeadlessRunner {
             { ...request, contextId, regencyFixture: { panelId: panel.id, realm } },
           ], { signal });
         } finally { await panel.archive(); }
+      }
+      if (openPortfolioWorlds.some(({ id }) => id === caseId)) {
+        const scope = crypto.randomUUID();
+        const gardenId = `natlang-garden-${scope}`;
+        const realm = regencyFixtureRealm(scope);
+        const garden = await this.openPanelClient(grimoirePanel, {
+          contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+          stateArgs: { estateKey: gardenId },
+        });
+        try {
+          const regency = await this.openPanelClient(regencyFixturePanel, {
+            contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
+            stateArgs: { realm },
+          });
+          try {
+            return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
+              { ...request, contextId, portfolioFixture: {
+                gardenPanelId: garden.id, gardenId, regency: { panelId: regency.id, realm },
+              } },
+            ], { signal });
+          } finally { await regency.archive(); }
+        } finally { await garden.archive(); }
       }
       const correction = openGoalPdfVaultWorlds.find(({ id }) => id === caseId);
       const knowledge = openVaultKnowledgeWorlds.find(({ id }) => id === caseId);

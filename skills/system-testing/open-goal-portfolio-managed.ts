@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
-import { contextId, fs, rpc, vcs } from "@workspace/runtime";
+import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { AcceptanceCard, GardenCriterion, GardenResult, GardenState, Horizon, PortfolioDecision, PortfolioFinding, PortfolioFrame,
   PortfolioIndex, PortfolioNote, PortfolioPlan, PortfolioProjection, PortfolioReport, RealmCriterion, RealmResult, RealmState } from "@workspace-skills/open-demo-portfolio/types";
@@ -8,36 +8,57 @@ import { createOwnedHeadlessChannel } from "./session-replay-managed.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { openPortfolioWorlds, type GardenAction } from "./open-goal-portfolio-worlds.js";
+import { advanceOwnedGrimoirePanel, assertOwnedGrimoirePanel, visitOwnedGrimoirePanel, type GrimoireClock } from "./grimoire-fixture-player.js";
+import { bindRegencyFixturePlayer, type RegencyFixtureIdentity } from "./regency-fixture-player.js";
 
 type RealmView={game:{world:unknown;programs:unknown};pending:{id:string}|null;painting:boolean};
 type GardenView={garden:unknown;pending:unknown;seated:boolean};
 type Installed={
-  garden(id:string):{read():Promise<GardenView>;pulse(id:string):Promise<GardenView>;visit(residentId:string):Promise<GardenView>};
+  garden(id:string):{read():Promise<GardenView>};
   readGarden(id:string,garden:unknown):GardenState;
   reviewGarden(review:unknown):PortfolioFinding;
   realm:{
-    owner(id:string):{read():Promise<RealmView>;preview(months:Horizon):Promise<{basis:unknown;forecast:unknown}>;
-      seat(target:string,channel:string):Promise<unknown>;advance(id:string,months:number):Promise<RealmView>;cancel():Promise<RealmView>};
+    owner(id:string):{read():Promise<RealmView>;preview(months:Horizon):Promise<{basis:unknown;forecast:unknown}>};
     readback(id:string,world:unknown):RealmState;
     review(review:unknown):PortfolioFinding;
   };
 };
+export type PortfolioFixtureIdentity = {gardenPanelId:string;gardenId:string;regency:RegencyFixtureIdentity};
+type Input = {contextId:string;caseId:string;portfolioFixture?:PortfolioFixtureIdentity};
 type Ports={contextId:string|null;fs:typeof fs;status:typeof vcs.status;open:typeof createOwnedHeadlessChannel;
+  gardenPlayer:{pulse(before:GrimoireClock):Promise<void>;visit(before:GrimoireClock,name:string):Promise<void>};
+  realmPlayer:Awaited<ReturnType<typeof bindRegencyFixturePlayer>>;
   readBytes(path:string,limit:number):Promise<Uint8Array>};
-function livePorts():Ports {
+async function livePorts(input:Input):Promise<Ports> {
+  const fixture=input.portfolioFixture;
+  if(!fixture)throw new Error("The portfolio needs both owned player panels");
+  const garden=panelTree.get(fixture.gardenPanelId);
+  const ownedGarden={contextId:input.contextId,estateKey:fixture.gardenId};
+  await assertOwnedGrimoirePanel(garden,ownedGarden);
   return {contextId,fs,status:input=>vcs.status(input),open:createOwnedHeadlessChannel,
+    gardenPlayer:{
+      pulse:before=>advanceOwnedGrimoirePanel(garden,ownedGarden,before),
+      visit:(before,name)=>visitOwnedGrimoirePanel(garden,ownedGarden,before,name),
+    },
+    realmPlayer:await bindRegencyFixturePlayer(panelTree.get(fixture.regency.panelId),input.contextId,fixture.regency),
     readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)};
 }
 const maxBytes=24*1024;
 const clock=(garden:GardenState)=>garden.day*4+garden.phase;
 
-export async function prepareOpenPortfolio(input:{contextId:string;caseId:string},installed:Installed,ports=livePorts()) {
+export async function prepareOpenPortfolio(input:Input,installed:Installed,injected?:Ports) {
+  const ports=injected??await livePorts(input);
   const world=openPortfolioWorlds.find(entry=>entry.id===input.caseId);
   if(!world||!input.contextId||input.contextId!==ports.contextId)throw new Error("Portfolio assignment needs its owned Examples context");
-  const scope=crypto.randomUUID();
+  const fixture=input.portfolioFixture;
+  if(!fixture || !/^natlang-garden-[a-f0-9-]{36}$/u.test(fixture.gardenId))
+    throw new Error("Portfolio needs its exact assigned garden");
+  const scope=fixture.gardenId.slice("natlang-garden-".length);
   const id=`portfolio-${scope}`;
-  const gardenId=`natlang-garden-${scope}`;
-  const realmId=`natlang-realm-${scope}`;
+  const gardenId=fixture.gardenId;
+  const realmId=fixture.regency.realm;
+  if(realmId!==`natlang-realm-${scope}`||fixture.regency.panelId===fixture.gardenPanelId)
+    throw new Error("Portfolio player panels do not belong to the same fixture pair");
   const garden=installed.garden(gardenId);
   const realm=installed.realm.owner(realmId);
   const before=await ports.status();
@@ -49,25 +70,28 @@ export async function prepareOpenPortfolio(input:{contextId:string;caseId:string
   if(initialGarden.pending||initialGarden.seated||gardenState(initialGarden).day!==1||gardenState(initialGarden).phase!==2||
     initialRealm.pending||initialRealm.painting||realmState(initialRealm).month!==0) throw new Error("Expected the untouched paired demos");
 
-  const appliedGarden:{id:string;kind:"pulse"|"visit";resident?:string;before:number;after:number}[]=[];
+  const appliedGarden:{kind:"pulse"|"visit";resident?:string;before:number;after:number}[]=[];
   async function applyGarden(actions:GardenAction[]) {
     for(const action of actions) {
       if(typeof action!=="number") {
         const old=gardenState(await garden.read());
-        const view=await garden.visit(action);
+        const resident=old.residents.find(row=>row.id===action);
+        if(!resident)throw new Error("The assigned resident is absent from the live garden");
+        await ports.gardenPlayer.visit(old,resident.name);
+        const view=await garden.read();
         const now=gardenState(view);
         if(view.pending||view.seated||clock(now)!==clock(old))throw new Error("A visit changed the observation clock");
-        appliedGarden.push({id:action,kind:"visit",resident:action,before:clock(old),after:clock(now)});
+        appliedGarden.push({kind:"visit",resident:action,before:clock(old),after:clock(now)});
         continue;
       }
       if(!Number.isInteger(action)||action<1||action>12)throw new Error("Invalid assigned quiet pulses");
       for(let step=0;step<action;step++) {
-        const pulseId=`pulse-${crypto.randomUUID()}`;
         const old=gardenState(await garden.read());
-        const view=await garden.pulse(pulseId);
+        await ports.gardenPlayer.pulse(old);
+        const view=await garden.read();
         const now=gardenState(view);
         if(view.pending||view.seated||clock(now)!==clock(old)+1)throw new Error("Quiet pulse did not persist its phase without narration");
-        appliedGarden.push({id:pulseId,kind:"pulse",before:clock(old),after:clock(now)});
+        appliedGarden.push({kind:"pulse",before:clock(old),after:clock(now)});
       }
     }
   }
@@ -77,15 +101,16 @@ export async function prepareOpenPortfolio(input:{contextId:string;caseId:string
     if(!months)return;
     if(!seatRegistered) {
       const channel=await ports.open(input.contextId,"Paired demo inert fixture seat");
-      await realm.seat(channel.target,channel.key);
+      await ports.realmPlayer.seat(channel);
       seatRegistered=true;
     }
     const old=realmState(await realm.read());
     const move=`paired-settlement-${crypto.randomUUID()}`;
-    const result=await realm.advance(move,months);
+    await ports.realmPlayer.advance(move,months);
+    const result=await realm.read();
     if(result.pending?.id!==move||realmState(result).month!==old.month+months)
       throw new Error("Missing native portfolio realm advancement");
-    await realm.cancel();
+    await ports.realmPlayer.cancel();
     const saved=await realm.read();
     if(saved.pending||saved.painting||!isDeepStrictEqual(realmState(saved),realmState(result)))
       throw new Error("The quiet closure changed settled portfolio accounts");

@@ -9,8 +9,9 @@ import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import type { WorkspaceEditFixture } from "./open-goal-owned-research-worlds.js";
 import type { NewsInput } from "./news-contract.js";
+import type { PortfolioFixtureIdentity } from "./open-goal-portfolio-managed.js";
 
-type Input = { regencyFixture?: { panelId: string; realm: string }; tendrilChannelId?: string; grimoireEstateKey?: string; contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[]; clientPanels?: { surfaceId: string; panelId: string }[] };
+type Input = { portfolioFixture?: PortfolioFixtureIdentity; regencyFixture?: { panelId: string; realm: string }; tendrilChannelId?: string; grimoireEstateKey?: string; contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[]; clientPanels?: { surfaceId: string; panelId: string }[] };
 type ResearchReport = {
   status: string;
   research?: {

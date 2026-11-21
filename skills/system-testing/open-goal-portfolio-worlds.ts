@@ -130,4 +130,4 @@ export const openPortfolioWorlds:OpenPortfolioWorld[]=rows.map(row=>({
   ...row,id:`demo-portfolio-${row.id}`,kind:"demo-portfolio",workspace:"examples",sourceGroup:`vibestudio:examples:paired-demo:${row.id}`,
 }));
 export const openPortfolioRequiresUnits=["skills/open-user-goal","skills/open-demo-portfolio","skills/examples-review",
-  "skills/examples-review-fixtures","skills/scratch-handoff-bindings","workers/grimoire-world","workers/regency-realm","workers/pubsub-channel"];
+  "skills/examples-review-fixtures","skills/scratch-handoff-bindings","panels/grimoire","panels/regency-fixture-player","workers/grimoire-world","workers/regency-realm","workers/pubsub-channel"];

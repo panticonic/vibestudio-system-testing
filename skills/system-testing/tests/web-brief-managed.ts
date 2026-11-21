@@ -281,7 +281,8 @@ const templateSettings = {
       resource: { kind: "prefix" as const, prefix: "do:workers/grimoire-world:GrimoireWorldDO:natlang-scene-" },
       tier: "gated" as const, decision: "task" as const,
     }]) },
-  "demo-portfolio": { requiresUnits: openPortfolioRequiresUnits, authorityPolicy: { authority: [{
+  "demo-portfolio": { requiresUnits: openPortfolioRequiresUnits, resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("open-owned-paired-demo-players", [{
     ruleId: "inspect-owned-portfolio-garden",
     capability: { kind: "exact" as const, key: "workspace-service:grimoire" },
     resource: { kind: "prefix" as const, prefix: "do:workers/grimoire-world:GrimoireWorldDO:natlang-garden-" },
@@ -291,7 +292,7 @@ const templateSettings = {
     capability: { kind: "exact" as const, key: "workspace-service:regency" },
     resource: { kind: "prefix" as const, prefix: "do:workers/regency-realm:RegencyGameDO:natlang-realm-" },
     tier: "gated" as const, decision: "task" as const,
-  }] } },
+  }]) },
   "regency-briefing": { requiresUnits: openRegencyRequiresUnits, resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("open-owned-regency-player-panel", [{
     ruleId: "read-and-forecast-owned-regency-realm",
