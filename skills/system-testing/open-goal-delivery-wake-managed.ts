@@ -22,32 +22,70 @@ const fromNative = new Map<string, WakeEventKind>(Object.entries(nativeKind).map
 const scopePrefix = "do:workers/delivery-wake-fixture:DeliveryWakeFixtureDO:";
 export async function recoverOwnedSubscription(port: RpcConnectOptions["rpc"], channel: string, target: string, context: string, mode: DeliveryWakeWorld["connection"]) {
   let attempts = 0, firstRejected = false, admittedSurfaces = 0, ready = false;
+  const resident = port.selfId.startsWith("do:");
+  const register = port.registerResidentSession?.bind(port);
+  if (resident && !register) throw new Error("The owned Durable Object has no resident channel registrar");
+
+  function attemptOpening() {
+    attempts++;
+    if (attempts === 1 && mode !== "clean") {
+      firstRejected = true;
+      throw Object.assign(new Error("Owned first subscription was rejected"), { code: "ECONNRESET" });
+    }
+    if (attempts > 2) throw new Error("Owned subscriber exceeded recovery budget");
+  }
+
   const wrapped: RpcConnectOptions["rpc"] = {
     selfId: port.selfId, call: port.call.bind(port),
     streamReadable: async (destination, method, args, options) => {
-      if (destination !== target || method.name !== "subscribe") return port.streamReadable(destination, method, args, options);
-      attempts++;
-      if (attempts === 1 && mode !== "clean") {
-        firstRejected = true;
-        throw Object.assign(new Error("Owned first subscription was rejected"), { code: "ECONNRESET" });
-      }
-      if (attempts > 2) throw new Error("Owned subscriber exceeded recovery budget");
+      if (resident || destination !== target || method.name !== "subscribe")
+        return port.streamReadable(destination, method, args, options);
+      attemptOpening();
       const response = await port.streamReadable(destination, method, args, options);
       if (response.status >= 200 && response.status < 300) admittedSurfaces++;
       return response;
     },
   };
+  if (resident && register) {
+    wrapped.registerResidentSession = (channelId, receive, relationship) => {
+      const registration = register(channelId, receive, relationship);
+      return {
+        close: registration.close.bind(registration),
+        ...(registration.relationshipEnded && { relationshipEnded: registration.relationshipEnded.bind(registration) }),
+        transport: {
+          async call(destination, method, args, options) {
+            if (destination !== target || method.name !== "join")
+              return registration.transport.call(destination, method, args, options);
+            attemptOpening();
+            const result = await registration.transport.call(destination, method, args, options);
+            admittedSurfaces++;
+            return result;
+          },
+        },
+      };
+    };
+  }
   const coordinator = mode === "recover" ? createRecoveryCoordinator() : undefined;
   const client = connectViaRpc({ rpc: wrapped, contextId: context, channel, channelTargetId: target,
-    clientId: port.selfId, name: "Owned reconnect probe", type: "user", replayMode: "stream",
+    clientId: port.selfId, name: "Owned reconnect probe", type: resident ? "agent" : "user",
+    replayMode: "stream", ...(resident ? { deliveryMode: "resident" } : {}),
     ...(coordinator ? { recoveryCoordinator: coordinator } : {}) });
+  let lastFailure: string | undefined;
+  const unsubscribeErrors = client.onError(error => { lastFailure = error.message; });
   try {
     await client.ready(AbortSignal.timeout(7000));
     if (client.contextId !== context) throw new Error("A different workspace acknowledged the reconnect");
     ready = true;
   } catch (error) {
-    if (mode !== "unavailable" || !firstRejected || attempts !== 1 || admittedSurfaces !== 0) throw error;
-  } finally { await client.close(); }
+    if (mode !== "unavailable" || !firstRejected || attempts !== 1 || admittedSurfaces !== 0) {
+      const transport = resident ? "resident join" : "stream subscription";
+      throw new Error(`Owned ${transport} failed after ${attempts} openings and ${admittedSurfaces} admissions: ${lastFailure ?? error}`,
+        { cause: error });
+    }
+  } finally {
+    unsubscribeErrors();
+    await client.close();
+  }
   return { channel, context, attempts, firstRejected, ready, admittedSurfaces };
 }
 
