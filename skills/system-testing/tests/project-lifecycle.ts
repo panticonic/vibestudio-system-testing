@@ -1430,8 +1430,9 @@ export const projectLifecycleTests: TestCase[] = [
       "inspect-created-project-panel",
     ),
     resources: [PANEL_AUTOMATION_RESOURCE],
+    timeoutMs: 15 * 60_000,
     prompt:
-      "Create and publish a brand-new isolated panel project, then open it for use.",
+      "Create a brand-new isolated panel project, preview it privately before publishing, then publish it and open the published panel for use.",
     validate: validatePanelCreate,
   },
   {
