@@ -117,6 +117,7 @@ import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goa
 import {
   openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openLiveTendrilBoardWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openRetainedMemoryWorlds,
+  terminalAppRepairWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3728,6 +3729,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const localDelivery = openLocalDeliveryWorlds.find(({ id }) => id === input.caseId);
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
     const gadDurableQuestion = gadDurableQuestionWorlds.find(({ id }) => id === input.caseId);
+    const terminalAppRepair = terminalAppRepairWorlds.find(({ id }) => id === input.caseId);
     const clientDiagnostics = openClientDiagnosticsWorlds.find(({ id }) => id === input.caseId);
     const visualRecovery = openGoalPanelRecoveryWorlds.some(({ id }) => id === input.caseId);
     const ownedPreview = openGoalOwnedPreviewWorlds.some(({ id }) => id === input.caseId);
@@ -4021,6 +4023,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : gadDurableQuestion
       ? `import {prepareOpenGadDurableQuestion} from "@workspace-skills/system-testing/open-goal-gad-durable-question-managed";
          const prepared=await prepareOpenGadDurableQuestion(actualContextId,${JSON.stringify(gadDurableQuestion)});`
+      : terminalAppRepair
+      ? `import {vcs,rpc,openPanel} from "@workspace/runtime";
+         import {prepareOpenTerminalAppRepair, terminalRepairHostPorts, verifyUnit} from "@workspace-skills/system-testing/open-goal-terminal-app-repair-managed";
+         const prepared=await prepareOpenTerminalAppRepair(actualContextId,${JSON.stringify(terminalAppRepair)},
+           terminalRepairHostPorts(rpc,vcs,command => verifyUnit({rpc,openPanel,contextId:actualContextId,operationPrefix:"owned-terminal-repair"},command)));`
       : clientDiagnostics
       ? `import {prepareOpenClientDiagnostics} from "@workspace-skills/system-testing/open-goal-client-diagnostics-managed";
          if (!input.source || !input.clientPanels) throw new Error("Client diagnostics needs its owned local panels");

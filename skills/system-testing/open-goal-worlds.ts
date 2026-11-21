@@ -1,4 +1,5 @@
 export { gadDurableQuestionWorlds, gadDurableQuestionRequiresUnits } from "./open-goal-gad-durable-question-worlds.js";
+export { terminalAppRepairWorlds } from "./open-goal-terminal-app-repair-worlds.js";
 export { openClientDiagnosticsWorlds, clientDiagnosticsRequiresUnits } from "./open-goal-client-diagnostics-worlds.js";
 export { openBrowserMigrationWorlds, browserMigrationRequiresUnits } from "./open-goal-browser-migration-worlds.js";
 export { openReconciliationWorlds, reconciliationRequiresUnits } from "./open-goal-reconciliation-worlds.js";
