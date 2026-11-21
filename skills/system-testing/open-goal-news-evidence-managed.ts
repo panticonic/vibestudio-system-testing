@@ -127,7 +127,13 @@ function reviewBriefing(input:BriefingEvidence):Review {
 
 export async function prepareOpenNewsEvidence(input:{contextId:string;caseId:string},installed:Installed,ports=livePorts()) {
   const world=openNewsEvidenceWorlds.find(item=>item.id===input.caseId);
-  if (!world||input.contextId!==ports.contextId) throw new Error("News evidence is restricted to the assigned context");
+  if (!world) throw new Error("Unknown retained News evidence case");
+  return prepareOpenNewsEvidenceWorld(input,installed,world,ports);
+}
+
+export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseId:string},installed:Installed,
+  world:OpenNewsEvidenceWorld,ports=livePorts()) {
+  if (world.id!==input.caseId||input.contextId!==ports.contextId) throw new Error("News evidence is restricted to the assigned context");
   const before=await ports.status();
   const lane=await ports.open(input.contextId,world.desk);
   const reader=crypto.randomUUID();
@@ -403,7 +409,7 @@ export async function prepareOpenNewsEvidence(input:{contextId:string;caseId:str
     const report={status:"workspace-skill-reviewed",skill:"newsEvidence",outcome};
     const accepted=await verify(report);
     const forged=await verify({...report,outcome:{...outcome,plan:{...outcome.plan,readerMessage:"another-reader"}}});
-    return {...accepted,passed:accepted.passed&&!forged.passed};
+    return {...accepted,passed:accepted.passed&&!forged.passed,report:outcome};
   }
   return {goal:world.goal,services,verify,qualify};
 }

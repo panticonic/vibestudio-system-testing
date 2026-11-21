@@ -1,4 +1,5 @@
 export { automationActivationWorlds } from "./open-goal-automation-activation-worlds.js";
+export { googleRunbookWorlds, newsEditionReviewWorlds } from "./open-goal-product-owned-worlds.js";
 export { preparedContentProjectWorlds } from "./open-goal-prepared-content-project-worlds.js";
 export { gadDurableQuestionWorlds, gadDurableQuestionRequiresUnits } from "./open-goal-gad-durable-question-worlds.js";
 export { terminalAppRepairWorlds } from "./open-goal-terminal-app-repair-worlds.js";

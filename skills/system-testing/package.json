@@ -193,6 +193,8 @@
     "./open-goal-portfolio-managed": "./open-goal-portfolio-managed.ts",
     "./open-goal-regency-managed": "./open-goal-regency-managed.ts",
     "./open-goal-image-candidate-managed": "./open-goal-image-candidate-managed.ts",
+    "./open-goal-product-owned-managed": "./open-goal-product-owned-managed.ts",
+    "./open-goal-product-owned-worlds": "./open-goal-product-owned-worlds.ts",
     "./open-goal-news-evidence-managed": "./open-goal-news-evidence-managed.ts",
     "./open-goal-worlds": "./open-goal-worlds.ts",
     "./web-brief-worlds": "./web-brief-worlds.ts",

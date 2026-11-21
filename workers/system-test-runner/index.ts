@@ -122,7 +122,7 @@ import {
   automationActivationWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
-  openExtensionDossierWorlds, openUnitHandoffWorlds,
+  openExtensionDossierWorlds, openUnitHandoffWorlds, googleRunbookWorlds, newsEditionReviewWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalMethodWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   gadDurableQuestionWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3789,6 +3789,8 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const audience = openAudienceResponseWorlds.find(({ id }) => id === input.caseId);
     const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
+    const googleRunbook = googleRunbookWorlds.find(({ id }) => id === input.caseId);
+    const newsEditionReview = newsEditionReviewWorlds.find(({ id }) => id === input.caseId);
     const unitHandoff = openUnitHandoffWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
     const tendrilRoute = openTendrilRouteWorlds.find(({ id }) => id === input.caseId);
@@ -3924,6 +3926,18 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : tendrilRoute
       ? `import {prepareOpenTendrilRoute} from "@workspace-skills/system-testing/open-goal-tendril-route-managed";
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
+      : googleRunbook
+      ? `import {prepareOpenCalendarGoal} from "@workspace-skills/open-calendar-goal/managed";
+         import {prepareGoogleRunbook} from "@workspace-skills/system-testing/open-goal-product-owned-managed";
+         const world=${JSON.stringify(googleRunbook)};
+         const prepared=await prepareGoogleRunbook(input,world,await prepareOpenCalendarGoal(input,world.calendar));`
+      : newsEditionReview
+      ? `import {prepareNewsEditionReview} from "@workspace-skills/system-testing/open-goal-product-owned-managed";
+         import {newsEditionReviewWorlds} from "@workspace-skills/system-testing/open-goal-product-owned-worlds";
+         import {canonicalizeUrl,articleId,captureNewsReaderReadback} from "@workspace/feeds";
+         const world=newsEditionReviewWorlds.find(({id})=>id===input.caseId);
+         if(!world)throw new Error("Unknown private News editorial review");
+         const prepared=await prepareNewsEditionReview(input,world,{canonicalizeUrl,articleId,capture:captureNewsReaderReadback});`
       : unitHandoff
       ? `import {prepareUnitHandoff} from "@workspace-skills/system-testing/open-goal-unit-handoff-managed";
          const prepared=await prepareUnitHandoff(${JSON.stringify(unitHandoff)});`

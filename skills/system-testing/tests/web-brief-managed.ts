@@ -56,6 +56,7 @@ import {
   openDeployedInterfaceWorlds, openDeployedInterfaceRequiresUnits,
   openExtensionDossierWorlds, openExtensionDossierRequiresUnits,
   openUnitHandoffWorlds, openUnitHandoffRequiresUnits,
+  googleRunbookWorlds, newsEditionReviewWorlds,
   openInstalledPackageWorlds, openInstalledPackageRequiresUnits,
   openLocalWidthWorlds, openLocalWidthRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
@@ -152,6 +153,7 @@ type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>
 const referenceGoals = [...automationActivationWorlds, ...terminalAppRepairWorlds, ...preparedContentProjectWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...openAudienceResponseWorlds,
   ...openUnitHandoffWorlds,
+  ...googleRunbookWorlds, ...newsEditionReviewWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidAuditWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openNativeImageWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
@@ -208,6 +210,8 @@ const templateSettings = {
   "panel-source-migration": { requiresUnits: openPanelSourceMigrationRequiresUnits },
   "workspace-share": { requiresUnits: openWorkspaceShareRequiresUnits },
   "agent-capability": { requiresUnits: openAgentCapabilityRequiresUnits },
+  "google-runbook": { requiresUnits: ["skills/open-calendar-goal", "skills/workspace-document-revision", "skills/provenance-orientation"] },
+  "news-edition-review": { requiresUnits: ["skills/news-workflows", "skills/open-news-evidence", "skills/visualize", "skills/provenance-orientation"] },
   "unit-handoff": { requiresUnits: openUnitHandoffRequiresUnits },
   "extension-dossier": { requiresUnits: openExtensionDossierRequiresUnits },
   "installed-package": { requiresUnits: openInstalledPackageRequiresUnits },
@@ -554,6 +558,8 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :
     world.kind === "build-incident" ? "Reconcile a retained native build profile and exact source coordinates" :
     world.kind === "deployed-interface" ? "Review the exact installed interface, deployed claim, and approved local scope" :
+    world.kind === "google-runbook" ? "Correct a private operations runbook from current Calendar and approval evidence" :
+    world.kind === "news-edition-review" ? "Prepare a grounded private editorial packet for a retained News edition" :
     world.kind === "unit-handoff" ? "Review current unit design and exact local visual identity" :
     world.kind === "extension-dossier" ? "Compare extension releases and prepare a scoped local verification dossier" :
     world.kind === "installed-package" ? "Verify the installed worker package and restore only its approved local field" :
