@@ -1,7 +1,7 @@
 const domain = "https://example.com/";
 const help = "https://www.iana.org/help/example-domains";
 const registry = "https://www.iana.org/assignments/special-use-domain-names";
-const decorative = "https://www.w3.org/WAI/tutorials/images/decorative/";
+const decorative = "https://w3c.github.io/wai-tutorial-images/tutorials/images/decorative/";
 
 export const assignedPublicBriefWorlds = [
   {
@@ -36,7 +36,7 @@ export const assignedPublicBriefWorlds = [
   {
     id: "public-brief-withhold-website-wide-conformance", kind: "assigned-public-brief", workspace: "examples", split: "test",
     sourceGroup: "vibestudio:web-research:decorative-thumbnails",
-    goal: "Our editor followed the decorative-image advice at https://www.w3.org/WAI/tutorials/images/decorative/. Can I sign a claim that our particular library website meets every WCAG criterion based on that one page? Use only the linked guidance and hold the claim if this evidence cannot certify our implementation.",
+    goal: "Our editor followed the decorative-image advice at https://w3c.github.io/wai-tutorial-images/tutorials/images/decorative/. Can I sign a claim that our particular library website meets every WCAG criterion based on that one page? Use only the linked guidance and hold the claim if this evidence cannot certify our implementation.",
     sources: [decorative], facts: [], referenceAnswer: "", conclusions: [],
   },
 ] as const;
