@@ -78,6 +78,7 @@ function appliedDocsProbe(
     forbiddenToolNames?: string[];
     authorityPolicy?: TestCase["authorityPolicy"];
     resources?: TestCase["resources"];
+    timeoutMs?: number;
   },
 ): TestCase {
   return {
@@ -85,6 +86,7 @@ function appliedDocsProbe(
     description,
     category: "docs-probes",
     prompt: `${task} Consult the workspace documentation for the relevant guidance.`,
+    ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options?.authorityPolicy
       ? { authorityPolicy: options.authorityPolicy }
       : {}),
@@ -150,6 +152,7 @@ export const docsProbeTests: TestCase[] = [
     ],
     {
       workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
+      timeoutMs: 15 * 60_000,
       authorityPolicy: panelControlAuthorityPolicy("inspect-docs-probe-panel"),
       resources: [PANEL_AUTOMATION_RESOURCE],
       actionEvidence: [
