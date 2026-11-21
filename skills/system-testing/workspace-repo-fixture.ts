@@ -194,7 +194,7 @@ export class WorkspaceRepoFixtureLifecycle {
       );
     const events = await this.taskFirstParentEvents(
       state,
-      status.committed.eventId,
+      state.publishedFixtureEventId ?? status.committed.eventId,
     );
     const changes = await this.inspectTaskChanges(
       await this.taskWorkNewestFirst(events),

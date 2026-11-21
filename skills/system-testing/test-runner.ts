@@ -596,47 +596,41 @@ export class TestRunner {
       execution.submittedInputs = submittedInputs;
       execution.modelExecutionEvidence ??=
         execution.snapshot?.modelExecutionEvidence;
-      if (workspaceRepoFixtureState) {
-        // Validators run before teardown, but they still need the harness-owned
-        // fixture identity to prove calls target this exact seeded receiver.
-        execution.diagnostics = {
-          ...execution.diagnostics,
-          workspaceRepoFixture: { ...workspaceRepoFixtureState },
-        };
-      }
-      if (workspaceRepoFixtureState?.section === "workers") {
-        enterPhase("validation");
-        execution.diagnostics = {
-          ...execution.diagnostics,
-          fixtureRuntimeEntities:
-            await testRunner.observeFixtureRuntimeEntities(
-              workspaceRepoFixtureState,
-            ),
-        };
-      }
-      if (workspaceRepoFixtureState?.kind === "draft-repair-panel") {
-        enterPhase("validation");
-        const { contextId, repoPath } = workspaceRepoFixtureState;
-        if (execution.provenance?.contextId !== contextId) {
-          throw new Error(
-            "Panel repair must run in its seeded workspace context.",
-          );
-        }
-        execution.diagnostics = {
-          ...execution.diagnostics,
-          panelDraftBaseline: orchestrationDiagnostics["panelDraftBaseline"],
-          panelDraftVerification: await observePanelDraft(
-            testRunner,
-            contextId,
-            repoPath,
-          ),
-        };
-      }
-
       const validationExecution = await materializeValidationEvidence(
         execution,
         testRunner.validationEvidenceReader,
       );
+      if (workspaceRepoFixtureState) {
+        const agentContextId = validationExecution.provenance?.contextId;
+        const publishedFixtureEventId = agentContextId
+          ? publishedEventForContext(validationExecution, agentContextId)
+          : undefined;
+        if (publishedFixtureEventId) {
+          workspaceRepoFixtureState = { ...workspaceRepoFixtureState, publishedFixtureEventId };
+        }
+        // Validators need the harness-owned fixture identity before teardown.
+        const fixtureDiagnostics: Record<string, unknown> = {
+          workspaceRepoFixture: { ...workspaceRepoFixtureState },
+        };
+        if (workspaceRepoFixtureState.section === "workers") {
+          enterPhase("validation");
+          fixtureDiagnostics["fixtureRuntimeEntities"] =
+            await testRunner.observeFixtureRuntimeEntities(workspaceRepoFixtureState);
+        }
+        if (workspaceRepoFixtureState.kind === "draft-repair-panel") {
+          enterPhase("validation");
+          const { contextId, repoPath } = workspaceRepoFixtureState;
+          if (execution.provenance?.contextId !== contextId) {
+            throw new Error("Panel repair must run in its seeded workspace context.");
+          }
+          fixtureDiagnostics["panelDraftBaseline"] = orchestrationDiagnostics["panelDraftBaseline"];
+          fixtureDiagnostics["panelDraftVerification"] =
+            await observePanelDraft(testRunner, contextId, repoPath);
+        }
+        execution.diagnostics = { ...execution.diagnostics, ...fixtureDiagnostics };
+        validationExecution.diagnostics = { ...validationExecution.diagnostics, ...fixtureDiagnostics };
+      }
+
       validationExecution.toolFailures = classifyToolFailures(
         collectToolFailures(validationExecution),
         test.expectedToolFailures,
@@ -949,9 +943,10 @@ export class TestRunner {
           const agentContextId = outcome?.execution.provenance?.contextId;
           // The fixture runner and agent may share a context ID while owning
           // separate working copies. Attribute main from the agent's receipt.
-          const publishedFixtureEventId = outcome && agentContextId
-            ? publishedEventForContext(outcome.execution, agentContextId)
-            : undefined;
+          const publishedFixtureEventId = workspaceRepoFixtureState.publishedFixtureEventId ??
+            (outcome && agentContextId
+              ? publishedEventForContext(outcome.execution, agentContextId)
+              : undefined);
           const fixtureCleanup = await testRunner.cleanupWorkspaceRepoFixture(
             publishedFixtureEventId
               ? { ...workspaceRepoFixtureState, publishedFixtureEventId }

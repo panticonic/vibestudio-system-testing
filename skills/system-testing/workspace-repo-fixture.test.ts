@@ -91,7 +91,7 @@ function createPort(
             : published
               ? "event:import"
               : "event:main";
-  const status = vi.fn(async ({ contextId }: { contextId: string }) => {
+  const status = vi.fn<WorkspaceRepoFixturePort["vcs"]["status"]>(async ({ contextId }) => {
     const committedEventId =
       contextId === "context:1"
         ? prepared || taskCreatedRepositories.length > 0
@@ -699,7 +699,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
   });
 
-  it("observes a created worker through its committed task lineage before cleanup", async () => {
+  it("observes a published worker when the fixture has a different working copy", async () => {
     const fake = createPort();
     const fixture = new WorkspaceRepoFixtureLifecycle(
       fake.port,
@@ -713,7 +713,17 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const state = await fixture.prepare();
     await expect(fixture.observeRepositories(state)).rejects.toThrow("found 0");
     fake.createTaskRepositories(["workers/task-created"]);
-    await expect(fixture.observeRepositories(state)).resolves.toEqual([
+    const status = await fake.status({ contextId: state.contextId });
+    fake.status.mockResolvedValueOnce({
+      ...status,
+      committed: event("event:main"),
+      workingHead: event("event:main"),
+      mainRelation: "behind",
+    });
+    await expect(fixture.observeRepositories({
+      ...state,
+      publishedFixtureEventId: "event:task",
+    })).resolves.toEqual([
       {
         repositoryId: "repository:task-created:0",
         repoPath: "workers/task-created",
