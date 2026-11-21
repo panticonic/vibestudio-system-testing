@@ -68,7 +68,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "open-goal-browser-panel"; section: "panels"; caseId: string }
   | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
   | { kind: "optimizable-panel"; section: "panels" }
-  | { kind: "created-repository"; section: WorkspaceRepoSection }
+  | { kind: "created-repository"; section: WorkspaceRepoSection; privateCommit?: true }
   | {
       kind: "created-repositories";
       section: WorkspaceRepoSection;
@@ -529,10 +529,17 @@ export class WorkspaceRepoFixtureLifecycle {
           "Workspace fixture task context has no committed event for attribution",
         );
       }
+      // An explicitly private test verifies the authored commit in its own
+      // trajectory. Teardown can retire its copy once main is still at basis.
+      const privateWorkStayedLocal =
+        state.kind === "created-repository" && state.privateCommit === true &&
+        state.publishedFixtureEventId === undefined &&
+        taskStatus.mainEventId === state.taskBaseEventId;
       const needsCreationScope =
-        state.kind === "created-repository" ||
-        state.kind === "created-repositories" ||
-        state.kind === "buildable-panel-with-derived";
+        !privateWorkStayedLocal &&
+        (state.kind === "created-repository" ||
+          state.kind === "created-repositories" ||
+          state.kind === "buildable-panel-with-derived");
       // If main still points at the fixture's original event, none of its
       // private descendants reached main. Inspect ancestry only for a
       // creation-scope check or when there is publication to attribute.
@@ -556,7 +563,7 @@ export class WorkspaceRepoFixtureLifecycle {
         state,
         scopedTaskChanges?.createdRepositories ?? [],
       );
-      creationScopeError = creationScope.error;
+      creationScopeError = privateWorkStayedLocal ? null : creationScope.error;
       onPhase?.("published-boundary");
       const publishedBoundary =
         taskEvents.length === 0

@@ -19,6 +19,7 @@ import {
 } from "../panel-authority.js";
 import { getToolCalls, type InvocationCardPayloadLike } from "./_helpers.js";
 import {
+  committedPreparation,
   preparedProject,
   publishedPreparation,
   publishedCommits,
@@ -367,25 +368,24 @@ function validateProjectCommit(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result, []);
   if (!base.passed) return base;
   const calls = getToolCalls(result);
-  const creationIndex = calls.findIndex((call) => {
-    if (call.name !== "eval") return false;
-    const returned = invocationReturnValue(call);
-    return (
-      call.execution?.status === "complete" &&
-      call.execution.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("prepareProjects") &&
-      returned.present &&
-      walkRecords([returned.value]).some((record) =>
-        createdProject(record, "packages"),
-      )
-    );
-  });
-  if (creationIndex < 0) {
+  const creations = calls.flatMap((call, index) =>
+    call.name === "eval" && details(call) &&
+    String(call.arguments?.["code"] ?? "").includes("prepareProjects")
+      ? returnedRecords(call).filter((record) => createdProject(record, "packages"))
+        .map((record) => ({ record, index }))
+      : []
+  );
+  const creation = creations[0];
+  if (!creation || new Set(creations.map(({ record }) => record["created"])).size !== 1 ||
+      !committedPreparation(result, creation.record) || publishedCommits(result).length > 0) {
     return {
       passed: false,
-      reason: "No completed eval returned the created package identity",
+      reason: "No single package preparation was joined to a private commit",
     };
   }
+  const creationIndex = creation.index;
+  const createdPath = String(creation.record["created"]);
+  const preparedContext = (creation.record["preparation"] as Record<string, unknown>)["contextId"];
   for (
     let mutationIndex = creationIndex + 1;
     mutationIndex < calls.length;
@@ -408,12 +408,13 @@ function validateProjectCommit(result: TestExecutionResult) {
       continue;
     }
     const path = mutationCall.arguments?.["path"];
-    if (typeof path !== "string" || !path.startsWith("packages/")) continue;
+    if (typeof path !== "string" || !path.startsWith(`${createdPath}/`)) continue;
     for (const call of calls.slice(mutationIndex + 1)) {
       const committed = commitResult(call);
       const event = committed?.["event"];
       if (
-        Array.isArray(committed?.["committedApplicationIds"]) &&
+        committed?.["contextId"] === preparedContext &&
+        Array.isArray(committed["committedApplicationIds"]) &&
         committed["committedApplicationIds"].includes(applicationId) &&
         isRecord(event) &&
         event["kind"] === "event" &&
@@ -1493,6 +1494,7 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Create, change, and commit a package project",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Create an isolated package project, make one follow-up change, and commit that change.",
     validate: validateProjectCommit,

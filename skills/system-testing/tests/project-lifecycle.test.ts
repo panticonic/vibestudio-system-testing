@@ -257,6 +257,7 @@ describe("project lifecycle prompts", () => {
     expect(fixtureFor("commit-existing-project")).toEqual({
       kind: "created-repository",
       section: "packages",
+      privateCommit: true,
     });
     expect(fixtureFor("worker-create-commit-publish")).toEqual({
       kind: "created-repository",
@@ -276,6 +277,47 @@ describe("project lifecycle prompts", () => {
       section: "panels",
       expectedSections: ["panels", "workers"],
     });
+  });
+
+  it("joins a private package and its follow-up edit to the exact commit", () => {
+    const test = projectLifecycleTests.find(({ name }) => name === "commit-existing-project")!;
+    const prepared = preparation();
+    const create = invocation("prepare", "eval", { code: "prepareProjects()" }, {
+      returnValue: [{
+        created: "packages/example",
+        preflight: { ok: true, projectType: "package" },
+        preparation: prepared,
+      }],
+    });
+    const edit = (path: string) => invocation("edit", "edit", { path }, {
+      storage: "vcs",
+      vcsResult: {
+        applicationId: "application:edit",
+        changeIds: ["change:edit"],
+        workingHead: { kind: "application", applicationId: "application:edit" },
+      },
+    });
+    const commit = (applicationIds: string[]) =>
+      invocation("commit", "vcs", { operation: "commit" }, {
+        result: {
+          contextId: prepared.contextId,
+          event: { kind: "event", eventId: "event:local" },
+          committedApplicationIds: applicationIds,
+        },
+      });
+    const editPath = "packages/example/index.ts";
+    const applications = ["application:prepared", "application:edit"];
+    const local = (path: string, applicationIds: string[]) => {
+      const execution = todoExecution([create, edit(path), commit(applicationIds)]);
+      execution.messages = execution.messages.filter((message) => !message.id?.startsWith("prepared:"));
+      return execution;
+    };
+
+    expect(test.agentContext).toBe("fork");
+    expect(test.validate(local(editPath, applications)).passed).toBe(true);
+    expect(test.validate(local("packages/unrelated/index.ts", applications)).passed).toBe(false);
+    expect(test.validate(local(editPath, ["application:edit"])).passed).toBe(false);
+    expect(test.validate(todoExecution([create, edit(editPath), commit(applications)])).passed).toBe(false);
   });
 
   it("requires a published fork even when the local commit renders correctly", () => {

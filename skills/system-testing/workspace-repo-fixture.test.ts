@@ -774,6 +774,22 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
 
+  it("retires a private creation fixture when protected main stayed at its basis", async () => {
+    const fake = createPort();
+    const fixture = new WorkspaceRepoFixtureLifecycle(fake.port, "local-package", null, {
+      kind: "created-repository",
+      section: "packages",
+      privateCommit: true,
+    });
+    const state = await fixture.prepare();
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: null,
+      publishedFixtureRemoved: null,
+    });
+    expect(fake.inspect).not.toHaveBeenCalled();
+    expect(fake.destroyContext).toHaveBeenCalledWith(state.contextId);
+  });
+
   it("owns one atomically published panel and worker store", async () => {
     const fake = createPort();
     const fixture = new WorkspaceRepoFixtureLifecycle(
