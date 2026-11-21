@@ -349,8 +349,9 @@ export const agentOrchestrationTests: TestCase[] = [
     category: "agent-orchestration",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     agentContext: "fork",
+    timeoutMs: 15 * 60_000,
     prompt:
-      "Ask a collaborator to make one small change in the disposable package. Review the result and summarize it without bringing it into your workspace.",
+      "Ask a collaborator to change one exported string in the disposable package’s src/index.ts and commit it in their working copy. Review the committed diff and summarize it without bringing the change into your workspace.",
 
     validate: (result) => validateSubagentDiff(result, false),
   },
