@@ -192,3 +192,5 @@ export { openLocalPresentationWorlds } from "./open-goal-local-presentation-worl
 export { openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority } from "./open-goal-adventure-worlds.js";
 
 export { openTestkitCloseoutWorlds } from "./open-goal-testkit-closeout-worlds.js";
+
+export { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
