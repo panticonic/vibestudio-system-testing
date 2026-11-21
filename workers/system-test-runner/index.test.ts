@@ -7,6 +7,7 @@ import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import { wireCallerFor } from "@vibestudio/rpc/internal";
 import { createMainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import { createTestDO } from "@vibestudio/durable/test-utils";
+import { evalRuntimeId } from "@vibestudio/shared/evalRuntimeIdentity";
 import { rpcMethodAuthority } from "@vibestudio/rpc";
 import {
   failedSystemTestRunRecord,
@@ -101,6 +102,23 @@ function runRecord(
     },
   };
 }
+
+it("refuses native activation from a finite Eval without a bound assignment", async () => {
+  const owner = await createTestDO(TestSystemTestRunnerDO, {
+    WORKER_SOURCE: "workers/system-test-runner",
+    WORKER_CLASS_NAME: "SystemTestRunnerDO",
+    __objectKey: "activation",
+  });
+  try {
+    const callerId = evalRuntimeId("do:workers/system-test-runner:SystemTestRunnerDO:activation", "other-scope");
+    await expect(owner.callAs(
+      { callerId, callerKind: "do", userId: "test-owner" },
+      "launchAssignedOpenAutomation",
+    )).rejects.toThrow(/No native activation is assigned to this finite Eval/);
+  } finally {
+    owner.db.close();
+  }
+});
 
 async function recordOwner() {
   const owner = await createTestDO(TestSystemTestRunnerDO, {

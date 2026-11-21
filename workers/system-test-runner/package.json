@@ -149,6 +149,7 @@
     }
   },
   "dependencies": {
+    "@vibestudio/automation": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
     "@vibestudio/shared": "workspace:*",
     "@workspace-skills/system-testing": "workspace:*",

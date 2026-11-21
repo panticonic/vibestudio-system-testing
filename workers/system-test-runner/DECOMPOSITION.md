@@ -1,0 +1,7 @@
+# Durable automation activation in system tests
+
+The Automation Activation Natlang tree reads the current approval, chooses a checked launch plan or holds, and independently reads the native receipt. The managed adapter owns exact fixture construction, current consent and revision validation, and readback.
+
+A fixture launch has two native RPCs. The ordinary Missions client compiles the plan under its immediate author and then calls MissionsDO to install it. The Host requires durable code for compilation and verifies the same live author, immutable executor image and execution intent on installation. Scheduled Recovery and existing managed automation fixtures already use the installed System Test Runner for these operations. Those fixture seeds stay on their existing path.
+
+Automation Activation has to launch after consent validation, while the Natlang runner is observing the case. Its finite Eval utility calls back to its installed owner, as main system-test checkpoint writes already do. The receiver accepts just the canonical Eval entity for that invocation, looks up its privately bound fixture definition, and calls the ordinary Missions client with its fixed idempotency key. The callback takes no plan, owner, mission, or idempotency arguments. It is assigned only to activation, recovery, and retained prior-activation fixtures. The runner retires the binding once the utility exits. The reviewed Host compiler and receiver checks apply without modification.

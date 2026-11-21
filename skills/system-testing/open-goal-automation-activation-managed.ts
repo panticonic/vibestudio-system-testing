@@ -5,8 +5,32 @@ import { stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId as context, fs, rpc } from "@workspace/runtime";
 import type { AutomationActivationWorld } from "./open-goal-automation-activation-worlds.js";
 
-type Missions=Pick<ReturnType<typeof createMissionsClient>,"getDefault"|"get"|"list"|"launch"|"listRuns"|"transitionAtRevision">;
+type Missions=Pick<ReturnType<typeof createMissionsClient>,"getDefault"|"get"|"list"|"listRuns"|"transitionAtRevision">;
 type Ports={contextId:string|null;missions:Missions;fs:Pick<typeof fs,"mkdtemp"|"readFile"|"writeFile"|"rename"|"rm">};
+type NativeLaunch = () => Promise<MissionRecord>;
+type Assignment = {
+  caseId: string;
+  contextId: string;
+  id: string;
+  now: number;
+  baseline: { missionId: string; revisionDigest: string; owner: string };
+};
+
+export class OwnedAutomationActivationLaunches {
+  private readonly callbacks = new Map<string, NativeLaunch>();
+
+  register(evalId: string, launch: NativeLaunch) {
+    if (this.callbacks.has(evalId)) throw new Error("Automation activation Eval is already assigned");
+    this.callbacks.set(evalId, launch);
+    return () => { this.callbacks.delete(evalId); };
+  }
+
+  async launch(callerId: string | null, callerKind: string | null): Promise<MissionRecord> {
+    const launch = callerKind === "do" && callerId && this.callbacks.get(callerId);
+    if (!launch) throw new Error("No native activation is assigned to this finite Eval");
+    return launch();
+  }
+}
 type Consent={
   id:string;subject:string;owner:string;state:"approved"|"pending"|"withdrawn"|"preview-only";edition:"current"|"archive";
 };
@@ -20,19 +44,44 @@ function projection(mission:MissionRecord) {
     revisionDigest:mission.revisionDigest,nextRunAt:mission.nextRunAt ?? null,runCount:mission.runCount,state:mission.state };
 }
 
-export async function prepareOwnedAutomationActivation(
-  input:{contextId:string;caseId:string}, world:AutomationActivationWorld,
-  ports:Ports={contextId:context,missions:createMissionsClient(rpc),fs},
-) {
-  const {missions,fs}=ports;
-  const {contextId}=input;
-  if (!contextId || contextId!==ports.contextId || input.caseId!==world.id)
-    throw new Error("Automation activation needs its assigned owned context");
-  const initialDefault=await missions.getDefault("workspace-updates");
-  if (!initialDefault || initialDefault.charter.execution.kind!=="agent")
+async function readDefault(missions: Pick<Missions, "getDefault">) {
+  const initialDefault = await missions.getDefault("workspace-updates");
+  const execution = initialDefault?.charter.execution;
+  if (!initialDefault || execution?.kind !== "agent")
     throw new Error("Could not bind the native installed automation executor image");
-  const owner=initialDefault.owner.userId;
-  const id=crypto.randomUUID();
+  return { initialDefault, image: execution.image };
+}
+
+function baseline(record: MissionRecord) {
+  return { missionId: record.missionId, revisionDigest: record.revisionDigest, owner: record.owner.userId };
+}
+
+export async function assignOwnedAutomationActivation(
+  missions: Pick<ReturnType<typeof createMissionsClient>, "getDefault" | "launch">,
+  contextId: string,
+  world: AutomationActivationWorld,
+): Promise<{ assignment: Assignment; launch: NativeLaunch | null }> {
+  const { initialDefault } = await readDefault(missions);
+  const assignment: Assignment = {
+    caseId: world.id, contextId, id: crypto.randomUUID(), now: Date.now(), baseline: baseline(initialDefault),
+  };
+  const needsLaunch = world.profile === "activate" || world.profile === "retry" || world.profile === "already-active";
+  const launch = needsLaunch ? async () => {
+    const { initialDefault: current, image } = await readDefault(missions);
+    if (!isDeepStrictEqual(baseline(current), assignment.baseline))
+      throw new Error("The assigned automation baseline moved before activation");
+    const { name, charter } = definition(world, assignment, image);
+    return missions.launch({ name, charter }, { idempotencyKey: "owned-activation:" + assignment.id });
+  } : null;
+  return { assignment, launch };
+}
+
+function definition(
+  world: AutomationActivationWorld,
+  assignment: Assignment,
+  image: Awaited<ReturnType<typeof readDefault>>["image"],
+) {
+  const { id, now } = assignment;
   const name=world.title+" ["+id+"]";
   const operation="automation-review:"+id;
   const sourceRows=[
@@ -41,18 +90,37 @@ export async function prepareOwnedAutomationActivation(
     { id:operation+":superseded", eligible:false },
   ];
   const execution={
-    kind:"agent" as const,image:initialDefault.charter.execution.image,conversation:{mode:"fresh" as const},operations:[],
+    kind:"agent" as const,image,conversation:{mode:"fresh" as const},operations:[],
     action:{kind:"eval" as const,code:
       "const rows = "+JSON.stringify(sourceRows)+"; "+
       "return { operation: "+JSON.stringify(world.operation)+", count: rows.filter(row => row.eligible).length };"},
   };
-  const now=Date.now();
   const futureAnchor=now+45*day;
   const desired:MissionTrigger=world.cadence==="manual"?{kind:"manual"}:{
     kind:"schedule",everyMs:world.minutes!*60_000,...(world.maxRuns===undefined?{}:{maxRuns:world.maxRuns}),
   };
   const nativeTrigger=desired.kind==="schedule"?{...desired,anchorAt:futureAnchor}:desired;
   const charter={summary:world.operation,execution,trigger:nativeTrigger};
+  return { name, operation, futureAnchor, desired, nativeTrigger, charter };
+}
+
+export async function prepareOwnedAutomationActivation(
+  input: { contextId: string; caseId: string },
+  world: AutomationActivationWorld,
+  assignment: Assignment,
+  launch: NativeLaunch,
+  ports: Ports = { contextId: context, missions: createMissionsClient(rpc), fs },
+) {
+  const { missions, fs } = ports;
+  const { contextId } = input;
+  if (!contextId || contextId !== ports.contextId || input.caseId !== world.id ||
+      assignment.contextId !== contextId || assignment.caseId !== world.id)
+    throw new Error("Automation activation needs its assigned owned context");
+  const { initialDefault, image } = await readDefault(missions);
+  if (!isDeepStrictEqual(baseline(initialDefault), assignment.baseline))
+    throw new Error("The assigned automation baseline moved before review");
+  const { now, baseline: { owner } } = assignment;
+  const { name, operation, futureAnchor, desired, nativeTrigger, charter } = definition(world, assignment, image);
   const directory=await fs.mkdtemp("owned-automation-activation");
   const file=directory+"/consent.json";
   let created:MissionRecord|null=null;
@@ -97,10 +165,6 @@ export async function prepareOwnedAutomationActivation(
   type Evidence=Awaited<ReturnType<typeof observe>>;
   let observed:Evidence|undefined;
   let initialMissionIds:string[]=[];
-  const launchKey="owned-activation:"+id;
-  async function launch(options:{idempotencyKey:string}) {
-    return missions.launch({name,charter},options);
-  }
   async function close() {
     // Rediscover via the unique fixture title when a launch persisted but its first response was lost.
     const owned=(await missions.list()).filter(row=>row.name===name && row.owner.userId===owner &&
@@ -116,7 +180,7 @@ export async function prepareOwnedAutomationActivation(
   }
   try {
     await writeConsents(firstConsent);
-    if(profile==="already-active") existing=await launch({idempotencyKey:launchKey+":retained"});
+    if(profile==="already-active") existing=await launch();
     initialMissionIds=(await missions.list()).map(record=>record.missionId);
   } catch(error) {
     try {await close();}
@@ -141,13 +205,12 @@ export async function prepareOwnedAutomationActivation(
         moved=true;
         return {...deny,status:"moved" as const,evidenceRevision:(await observe()).current};
       }
-      const options={idempotencyKey:launchKey};
       launchCalls++;
-      created=await launch(options);
+      created=await launch();
       if (profile==="retry") {
         // Drop the first response and recover the very same persisted mission.
         launchCalls++;
-        const recovered=await launch(options);
+        const recovered=await launch();
         if (!isDeepStrictEqual(projection(recovered),projection(created)) ||
             recovered.revision!==created.revision || !isDeepStrictEqual(recovered.charter,created.charter) ||
             !isDeepStrictEqual(recovered.authorityPlan,created.authorityPlan))

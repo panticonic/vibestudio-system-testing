@@ -92,6 +92,10 @@ import type { ManagedAuthoringReceiver, AuthoringInput } from "@workspace-skills
 import type { ManagedPresentationReceiver, PresentationTeacherInput } from "@workspace-skills/system-testing/presentation-contract";
 import type { ManagedPdfReceiver, PdfIntakeInput } from "@workspace-skills/system-testing/pdf-intake-contract";
 import type { ManagedPublicationReceiver, PublicationInput } from "@workspace-skills/system-testing/publication-preflight-contract";
+import { evalRuntimeId } from "@vibestudio/shared/evalRuntimeIdentity";
+import { createMissionsClient } from "@vibestudio/service-schemas/clients/missionsClient";
+import type { MissionRecord } from "@vibestudio/automation/mission";
+import { assignOwnedAutomationActivation, OwnedAutomationActivationLaunches } from "@workspace-skills/system-testing/open-goal-automation-activation-managed";
 import { closeOwnedScheduledRecovery, seedOwnedScheduledRecovery } from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
 import {
   pauseManagedAutomationFixture,
@@ -452,6 +456,8 @@ function systemTestEvalCode(
 }
 
 export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver, ManagedChecklistReceiver {
+  private readonly automationActivationLaunches = new OwnedAutomationActivationLaunches();
+
   protected createTables(): void {
     this.sql.exec(`CREATE TABLE system_test_records (
       run_id TEXT PRIMARY KEY,
@@ -664,9 +670,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     });
   }
 
+  @rpc({
+    website: { kind: "closed", reason: "Launches an exact disposable automation assigned to one finite test Eval." },
+    requires: SYSTEM_TEST_OPERATOR, effect: { kind: "open" }, tier: "open", sensitivity: "write",
+  })
+  async launchAssignedOpenAutomation(): Promise<MissionRecord> {
+    return this.automationActivationLaunches.launch(this.rpcCallerId, this.rpcCallerKind);
+  }
+
   private async runHarnessUtility(
     kind: "doctor" | "list" | "teacher",
-    code: string | ((runId: string) => string),
+    code: string | ((runId: string, evalScope: string) => string),
     approvals?: "pregranted-only",
   ): Promise<unknown> {
     const runId = `system-test-runner:${kind}:${crypto.randomUUID()}`;
@@ -687,7 +701,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         source: {
           kind: "inline",
           code: `
-          ${typeof code === "function" ? code(runId) : code}
+          ${typeof code === "function" ? code(runId, subKey) : code}
           const serialized = JSON.stringify(utilityValue);
           scope[${JSON.stringify(scopeKey)}] = serialized;
           return {
@@ -3770,6 +3784,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const unitRollout = openUnitRolloutWorlds.find(({ id }) => id === input.caseId);
     const ownedTask = openOwnedTaskWorlds.find(({ id }) => id === input.caseId);
     const automationActivation = automationActivationWorlds.find(({ id }) => id === input.caseId);
+    const activationOwner = automationActivation ? await this.integrationFixtureIdentity() : undefined;
+    if (activationOwner && activationOwner.contextId !== input.contextId)
+      throw new Error("Automation activation belongs to another context");
+    const activationSeed = automationActivation && await assignOwnedAutomationActivation(
+      createMissionsClient(this.rpc), input.contextId, automationActivation,
+    );
     const scheduledRecovery = openScheduledRecoveryWorlds.find(({ id }) => id === input.caseId);
     let scheduledSeed: Awaited<ReturnType<typeof seedOwnedScheduledRecovery>> | undefined;
     if (scheduledRecovery) {
@@ -4011,8 +4031,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {prepareOpenOwnedResearch} from "@workspace-skills/system-testing/open-goal-owned-research-managed";
          const prepared=await prepareOpenOwnedResearch(input);`
       : automationActivation
-      ? `import {prepareOwnedAutomationActivation} from "@workspace-skills/system-testing/open-goal-automation-activation-managed";
-         const prepared=await prepareOwnedAutomationActivation(input,${JSON.stringify(automationActivation)});`
+      ? `import {rpc} from "@workspace/runtime";
+         import {systemTestRunnerRpcMethods} from "@workspace-workers/system-test-runner/contract";
+         import {prepareOwnedAutomationActivation} from "@workspace-skills/system-testing/open-goal-automation-activation-managed";
+         const launch=()=>rpc.call(${JSON.stringify(activationOwner?.ownerEntityId)},systemTestRunnerRpcMethods.launchAssignedOpenAutomation,[]);
+         const prepared=await prepareOwnedAutomationActivation(input,${JSON.stringify(automationActivation)},${JSON.stringify(activationSeed?.assignment)},launch);`
       : scheduledRecovery
       ? `import {prepareOwnedScheduledRecovery} from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
          const prepared=await prepareOwnedScheduledRecovery(input,${JSON.stringify(scheduledRecovery)},${JSON.stringify(scheduledSeed)});`
@@ -4275,6 +4298,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         ${prepare}
         const assignedServices=prepared.services;
     `;
+    let releaseActivation: (() => void) | undefined;
+    const registerActivation = (evalScope: string) => {
+      if (activationOwner && activationSeed?.launch) {
+        releaseActivation = this.automationActivationLaunches.register(
+          evalRuntimeId(activationOwner.ownerEntityId, evalScope), activationSeed.launch,
+        );
+      }
+    };
     let operationError: unknown;
     try {
       if (input.qualification && unitRollout)
@@ -4282,14 +4313,19 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
           caseId: input.caseId, contextId: input.contextId, phase: "utility.eval", event: "started",
         });
       const approvals = apiReadiness || webhookAdmission ? "pregranted-only" as const : undefined;
-      if (input.qualification) return await this.runHarnessUtility("teacher", `
+      if (input.qualification) return await this.runHarnessUtility("teacher", (_runId, evalScope) => {
+        registerActivation(evalScope);
+        return `
         ${bindingCode}
         if (!("qualify" in prepared)) throw new Error("The open goal has no model-free qualification");
         let utilityValue;
         try { utilityValue={teacher:null,verification:await prepared.qualify()}; }
         finally { await prepared.close?.(); }
-      `, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-      return await this.runHarnessUtility("teacher", runId => `
+      `;
+      }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      return await this.runHarnessUtility("teacher", (runId, evalScope) => {
+        registerActivation(evalScope);
+        return `
         ${bindingCode}
         let result;
         try {
@@ -4297,11 +4333,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
           result={teacher:utilityValue,verification:await prepared.verify(utilityValue.report)};
         } finally { await prepared.close?.(); }
         const utilityValue=result;
-      `, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      `;
+      }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
     } catch (error) {
       operationError = error;
       throw error;
     } finally {
+      releaseActivation?.();
       if (scheduledSeed) {
         try {
           await closeOwnedScheduledRecovery(this.rpc, scheduledSeed.items);
