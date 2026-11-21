@@ -156,6 +156,7 @@
     "./open-goal-chat-continuity-managed": "./open-goal-chat-continuity-managed.ts",
     "./open-goal-bridge-delivery-managed": "./open-goal-bridge-delivery-managed.ts",
     "./open-goal-editorial-managed": "./open-goal-editorial-managed.ts",
+    "./open-goal-examples-adoption-managed": "./open-goal-examples-adoption-managed.ts",
     "./open-goal-grimoire-scene-managed": "./open-goal-grimoire-scene-managed.ts",
     "./open-goal-portfolio-managed": "./open-goal-portfolio-managed.ts",
     "./open-goal-regency-managed": "./open-goal-regency-managed.ts",

@@ -196,3 +196,5 @@ export { openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAu
 export { openTestkitCloseoutWorlds } from "./open-goal-testkit-closeout-worlds.js";
 
 export { openGrimoireSceneWorlds } from "./open-goal-grimoire-scene-worlds.js";
+
+export { openExamplesAdoptionWorlds } from "./open-goal-examples-adoption-worlds.js";
