@@ -47,6 +47,14 @@ import {
 } from "./agent-message.js";
 
 const AGENT_INTERRUPT_TIMEOUT_MS = 30_000;
+const PROTECTED_MAIN_RESOURCE = "vcs:protected-main";
+
+function fixtureUsesProtectedMain(test: TestCase): boolean {
+  return Boolean(test.workspaceRepoFixture) && (
+    test.agentContext !== "fork" ||
+    test.resources?.includes(PROTECTED_MAIN_RESOURCE) === true
+  );
+}
 
 type MaybePromise<T> = T | Promise<T>;
 type RunSuiteFilter = {
@@ -142,7 +150,7 @@ export class TestRunner {
 
     const resourcesFor = (test: TestCase): string[] => [
       ...new Set([
-        ...(test.workspaceRepoFixture ? ["vcs:protected-main"] : []),
+        ...(fixtureUsesProtectedMain(test) ? [PROTECTED_MAIN_RESOURCE] : []),
         ...(test.category === "workers" ? ["category:workers"] : []),
         ...(test.resources ?? []).filter(Boolean),
       ]),
@@ -308,6 +316,9 @@ export class TestRunner {
         ? this.runner.forTest(test.name, {
             workspaceRepoFixture: test.workspaceRepoFixture,
             authorityPolicy: test.authorityPolicy,
+            ...(test.workspaceRepoFixture && !fixtureUsesProtectedMain(test)
+              ? { allowFixturePublication: false }
+              : {}),
           })
         : this.runner;
     let session: HeadlessSession | undefined;

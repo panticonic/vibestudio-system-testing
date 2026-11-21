@@ -637,6 +637,7 @@ export class HeadlessRunner {
     opts?: {
       workspaceRepoFixture?: WorkspaceRepoCreationScope;
       authorityPolicy?: TestAuthorityPolicy;
+      allowFixturePublication?: boolean;
     },
   ): HeadlessRunner {
     const repoNameStem = `system-test-${slugifyTestName(testName)}-`;
@@ -746,7 +747,9 @@ export class HeadlessRunner {
             tier: "gated",
             decision: "once",
           },
-          ...fixturePublicationAuthority(workspaceRepoFixture),
+          ...(opts?.allowFixturePublication === false
+            ? []
+            : fixturePublicationAuthority(workspaceRepoFixture)),
           ...(authorityPolicy?.authority ?? []),
         ],
         unexpectedPrompts: "fail",

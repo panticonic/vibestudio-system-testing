@@ -1368,6 +1368,8 @@ describe("TestRunner", () => {
     let maxActiveSetups = 0;
     let unrelatedRanWhileFixtureActive = false;
     const unrelatedStarted = deferred<void>();
+    const privateStarted = deferred<void>();
+    let privateRanWhileFixtureActive = false;
     const session = (testName: string) => ({
       channelId: crypto.randomUUID(),
       messages: [] as ChatMessage[],
@@ -1398,10 +1400,17 @@ describe("TestRunner", () => {
         closeOwnedDevelopmentSessions: vi.fn(async () => []),
         withTaskResources: (prompt: string) => prompt,
         prepareWorkspaceRepoFixture: vi.fn(async () => {
-          activeSetups += 1;
-          maxActiveSetups = Math.max(maxActiveSetups, activeSetups);
-          if (testName === "alpha") await unrelatedStarted.promise;
-          activeSetups -= 1;
+          if (testName === "private") {
+            privateRanWhileFixtureActive = activeSetups === 1;
+            privateStarted.resolve();
+          } else {
+            activeSetups += 1;
+            maxActiveSetups = Math.max(maxActiveSetups, activeSetups);
+            if (testName === "alpha") {
+              await Promise.all([unrelatedStarted.promise, privateStarted.promise]);
+            }
+            activeSetups -= 1;
+          }
           return {
             kind: "content" as const,
             section: "projects" as const,
@@ -1445,13 +1454,22 @@ describe("TestRunner", () => {
     };
 
     const suite = await tester.runSuite(
-      [fixtureTest("alpha"), fixtureTest("beta"), unrelatedTest],
+      [
+        fixtureTest("alpha"),
+        fixtureTest("beta"),
+        { ...fixtureTest("private"), agentContext: "fork" },
+        unrelatedTest,
+      ],
       { concurrency: 3 },
     );
 
-    expect(suite.passed).toBe(3);
+    expect(suite.passed).toBe(4);
     expect(maxActiveSetups).toBe(1);
     expect(unrelatedRanWhileFixtureActive).toBe(true);
+    expect(privateRanWhileFixtureActive).toBe(true);
+    expect(runner.forTest).toHaveBeenCalledWith("private", expect.objectContaining({
+      allowFixturePublication: false,
+    }));
   });
 
   it.each([null, "Expected one task-created repository, found none"])(
