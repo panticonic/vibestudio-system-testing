@@ -56,7 +56,7 @@ import {
   openDeployedInterfaceWorlds, openDeployedInterfaceRequiresUnits,
   openExtensionDossierWorlds, openExtensionDossierRequiresUnits,
   openUnitHandoffWorlds, openUnitHandoffRequiresUnits,
-  googleRunbookWorlds, newsEditionReviewWorlds,
+  googleRunbookWorlds, newsEditionReviewWorlds, assignedPublicBriefWorlds,
   openInstalledPackageWorlds, openInstalledPackageRequiresUnits,
   openLocalWidthWorlds, openLocalWidthRequiresUnits,
   openDiagnosticWorlds, openDiagnosticRequiresUnits, openDiagnosticAuthority,
@@ -153,7 +153,7 @@ type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>
 const referenceGoals = [...automationActivationWorlds, ...terminalAppRepairWorlds, ...preparedContentProjectWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...openAudienceResponseWorlds,
   ...openUnitHandoffWorlds,
-  ...googleRunbookWorlds, ...newsEditionReviewWorlds,
+  ...googleRunbookWorlds, ...newsEditionReviewWorlds, ...assignedPublicBriefWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidAuditWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openNativeImageWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
@@ -210,6 +210,7 @@ const templateSettings = {
   "panel-source-migration": { requiresUnits: openPanelSourceMigrationRequiresUnits },
   "workspace-share": { requiresUnits: openWorkspaceShareRequiresUnits },
   "agent-capability": { requiresUnits: openAgentCapabilityRequiresUnits },
+  "assigned-public-brief": { requiresUnits: ["skills/open-user-goal", "skills/web-research", "skills/web-research-bindings"] },
   "google-runbook": { requiresUnits: ["skills/open-calendar-goal", "skills/workspace-document-revision", "skills/provenance-orientation"] },
   "news-edition-review": { requiresUnits: ["skills/news-workflows", "skills/open-news-evidence", "skills/visualize", "skills/provenance-orientation"] },
   "unit-handoff": { requiresUnits: openUnitHandoffRequiresUnits },
@@ -345,6 +346,15 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
   ...(world.kind === "research" || world.kind === "research-and-edit"
     ? { authorityPolicy: publicResearchAuthority(world) } : {}),
+  ...(world.kind === "assigned-public-brief" ? {
+    authorityPolicy: { authority: [...new Set(world.sources.map(url => new URL(url).origin))].map((origin, index) => ({
+      ruleId: `assigned-brief-public-origin-${index + 1}`,
+      capability: { kind: "exact", key: "network.response.read" },
+      resource: { kind: "exact", key: origin },
+      tier: "gated",
+      decision: "once",
+    })) },
+  } : {}),
   ...(world.kind === "suite" && world.execution ? world.execution.runtime === "native"
     ? { authorityPolicy: nativeSuiteAuthority }
     : { authorityPolicy: { authority: [PANEL_RUNTIME_STATE_AUTHORITY] }, resources: [PANEL_AUTOMATION_RESOURCE] }
@@ -558,6 +568,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "local-reconciliation" ? "Reconcile exact local and incoming workspace revisions and verify the retained handoff" :
     world.kind === "build-incident" ? "Reconcile a retained native build profile and exact source coordinates" :
     world.kind === "deployed-interface" ? "Review the exact installed interface, deployed claim, and approved local scope" :
+    world.kind === "assigned-public-brief" ? "Resolve a decision from explicitly assigned public pages and exact quotations" :
     world.kind === "google-runbook" ? "Correct a private operations runbook from current Calendar and approval evidence" :
     world.kind === "news-edition-review" ? "Prepare a grounded private editorial packet for a retained News edition" :
     world.kind === "unit-handoff" ? "Review current unit design and exact local visual identity" :

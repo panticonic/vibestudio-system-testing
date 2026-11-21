@@ -1,3 +1,4 @@
+export { assignedPublicBriefWorlds } from "./open-goal-assigned-public-brief-worlds.js";
 export { automationActivationWorlds } from "./open-goal-automation-activation-worlds.js";
 export { googleRunbookWorlds, newsEditionReviewWorlds } from "./open-goal-product-owned-worlds.js";
 export { preparedContentProjectWorlds } from "./open-goal-prepared-content-project-worlds.js";

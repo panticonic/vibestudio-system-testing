@@ -126,7 +126,7 @@ import {
   automationActivationWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
-  openExtensionDossierWorlds, openUnitHandoffWorlds, googleRunbookWorlds, newsEditionReviewWorlds,
+  openExtensionDossierWorlds, openUnitHandoffWorlds, googleRunbookWorlds, newsEditionReviewWorlds, assignedPublicBriefWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalMethodWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   gadDurableQuestionWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
@@ -3811,6 +3811,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
     const googleRunbook = googleRunbookWorlds.find(({ id }) => id === input.caseId);
     const newsEditionReview = newsEditionReviewWorlds.find(({ id }) => id === input.caseId);
+    const assignedPublicBrief = assignedPublicBriefWorlds.find(({ id }) => id === input.caseId);
     const unitHandoff = openUnitHandoffWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
     const tendrilRoute = openTendrilRouteWorlds.find(({ id }) => id === input.caseId);
@@ -3946,6 +3947,12 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : tendrilRoute
       ? `import {prepareOpenTendrilRoute} from "@workspace-skills/system-testing/open-goal-tendril-route-managed";
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
+      : assignedPublicBrief
+      ? `import {prepareAssignedPublicBrief} from "@workspace-skills/system-testing/open-goal-assigned-public-brief-managed";
+         import {assignedPublicBriefWorlds} from "@workspace-skills/system-testing/open-goal-assigned-public-brief-worlds";
+         const world=assignedPublicBriefWorlds.find(({id})=>id===input.caseId);
+         if(!world)throw new Error("Unknown assigned public brief");
+         const prepared=prepareAssignedPublicBrief(input,world);`
       : googleRunbook
       ? `import {prepareOpenCalendarGoal} from "@workspace-skills/open-calendar-goal/managed";
          import {prepareGoogleRunbook} from "@workspace-skills/system-testing/open-goal-product-owned-managed";
@@ -4312,7 +4319,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         console.info("[open-unit-rollout]", {
           caseId: input.caseId, contextId: input.contextId, phase: "utility.eval", event: "started",
         });
-      const approvals = apiReadiness || webhookAdmission ? "pregranted-only" as const : undefined;
+      const approvals = apiReadiness || webhookAdmission || assignedPublicBrief ? "pregranted-only" as const : undefined;
       if (input.qualification) return await this.runHarnessUtility("teacher", (_runId, evalScope) => {
         registerActivation(evalScope);
         return `

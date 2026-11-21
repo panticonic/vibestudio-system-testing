@@ -31,13 +31,22 @@ const collapse = (value: string) => value.replace(/\s+/gu, " ").trim();
 
 export function prepareManagedWebBrief(contextId: string, caseId: string) {
   const world = requireAssignedWorld(managedWebBriefWorlds, caseId, "Unknown assigned web brief");
+  return prepareManagedWebBriefWorld(contextId, world);
+}
+
+export function prepareManagedWebBriefWorld(
+  contextId: string,
+  world: { id: string; goal: string; sources: readonly string[]; facts: readonly { source: string; pattern: string }[] },
+  transport: Pick<typeof web, "fetch" | "read"> = web,
+) {
+  const caseId = world.id;
   const retrievedAt = Date.now();
   const retrieved = new Date(retrievedAt).toISOString().slice(0, 10);
   const bound = bindAssignedResearch({
     goal: world.goal,
-    sources: world.sources,
+    sources: [...world.sources],
     retrievedAt,
-  });
+  }, transport);
   const reads: { requested: string; page: Page }[] = [];
   const tails: Range[] = [];
   const services: Services = {
@@ -59,7 +68,7 @@ export function prepareManagedWebBrief(contextId: string, caseId: string) {
   async function verify(report: Brief | null) {
     const cache = await Promise.all(
       reads.map(async ({ requested, page }) => {
-        const entire = await readVerifiedCachedPage(input => web.read(input), page);
+        const entire = await readVerifiedCachedPage(input => transport.read(input), page);
         const tail = tails.find(({ digest }) => digest === page.digest);
         return {
           requested,
@@ -200,17 +209,14 @@ export function prepareManagedWebBrief(contextId: string, caseId: string) {
         ],
       };
     });
-    return {
-      verification: await verify({
-        question: world.goal,
-        status: statements.length ? "answered" : "insufficient",
-        statements,
-        notRead: [],
-        rejected: 0,
-      }),
-      rejectedUnassignedUrl,
-      rejectedForeignDigest,
+    const report: Brief = {
+      question: world.goal,
+      status: statements.length ? "answered" : "insufficient",
+      statements,
+      notRead: [],
+      rejected: 0,
     };
+    return { verification: await verify(report), report, rejectedUnassignedUrl, rejectedForeignDigest };
   }
   return { request: bound.request, services, verify, qualify };
 }
