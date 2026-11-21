@@ -3,7 +3,7 @@ import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TestExecutionResult, TestOrchestrationContext } from "../types.js";
-import { unitDiagnosticsTests } from "./unit-diagnostics.js";
+import { PROJECT_PULSE_END, unitDiagnosticsTests } from "./unit-diagnostics.js";
 
 const notificationRuntime = vi.hoisted(() => ({
   list: vi.fn(),
@@ -551,7 +551,7 @@ describe("automation native launch system test validator", () => {
       kind: "cron",
       expression: "5 5 * * THU",
       timezone: "America/New_York",
-      untilAt: Date.UTC(2027, 0, 1, 5),
+      untilAt: Date.parse(PROJECT_PULSE_END),
       maxRuns: 12,
     },
     action: {
@@ -645,14 +645,17 @@ describe("automation native launch system test validator", () => {
     expect(automationLaunchTest.validate(result).passed).toBe(false);
   });
 
-  it("still rejects a schedule that is not the requested one", () => {
+  it.each([
+    { expression: "5 5 * * 3" },
+    { untilAt: Date.parse(PROJECT_PULSE_END) + 60 * 60_000 },
+  ])("rejects an inexact schedule override %o", (override) => {
     expect(
       automationLaunchTest.validate(
         execution(
           "",
           {
             ...launch,
-            trigger: { ...launch.trigger, expression: "5 5 * * 3" },
+            trigger: { ...launch.trigger, ...override },
           },
           "Daily project pulse is running; use its automation pill to inspect or stop it.",
           "launch_automation"
