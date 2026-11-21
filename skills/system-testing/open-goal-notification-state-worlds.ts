@@ -54,7 +54,7 @@ function scenario(
     goal,
     split: split === "held" ? "test" : "train",
     sourceGroup: `vibestudio.notification-state.${source}`,
-    workspace: "system-testing",
+    workspace: "system",
     kind: "notificationState",
     ...input,
   } as const;
