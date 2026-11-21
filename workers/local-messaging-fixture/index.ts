@@ -116,3 +116,5 @@ export class LocalMessagingChannelDO extends PubSubChannel {
  @rpc({website:{kind:"closed",reason:"Join delivery on this owned synthetic channel only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"})
  async joinFixtureDelivery(){const receipt=await super.prepareDurableWorkRelease("delivery");await super.waitDurableWorkRelease("delivery",receipt.barrier);return receipt;}
 }
+
+export { OwnedMethodPeerDO } from "./owned-method-peer.js";

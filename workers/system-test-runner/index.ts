@@ -120,7 +120,7 @@ import {
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
-  openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
+  openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalMethodWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
   operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
@@ -3716,6 +3716,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const spectrolite = spectroliteGoalWorlds.find(({ id }) => id === input.caseId);
     const personal = openGoalPersonalWorlds.find(({ id }) => id === input.caseId);
     const operator = operatorGoalWorlds.some(({ id }) => id === input.caseId);
+    const localMethodExchange = openLocalMethodWorlds.find(({ id }) => id === input.caseId);
     const localDelivery = openLocalDeliveryWorlds.find(({ id }) => id === input.caseId);
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
     const clientDiagnostics = openClientDiagnosticsWorlds.find(({ id }) => id === input.caseId);
@@ -4053,6 +4054,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {prepareOpenPublicationGoal} from "@workspace-skills/system-testing/open-goal-publication-managed";
          if (!input.panelId || !input.source) throw new Error("The publishing goal needs its owned renderer");
          const prepared=await prepareOpenPublicationGoal(input);`
+      : localMethodExchange
+      ? `import {runtime,rpc} from "@workspace/runtime";
+         import {prepareOpenLocalMethod} from "@workspace-skills/system-testing/open-goal-local-method-managed";
+         const prepared=await prepareOpenLocalMethod(input,${JSON.stringify(localMethodExchange)},{runtime,rpc});`
       : localDelivery
       ? `import {runtime,rpc} from "@workspace/runtime";
          import {prepareOpenLocalDelivery} from "@workspace-skills/system-testing/open-goal-local-delivery-managed";

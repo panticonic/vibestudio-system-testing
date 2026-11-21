@@ -27,7 +27,7 @@ import {
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openOwnedTaskWorlds, ownedTaskRequiresUnits,
-  openLocalDeliveryWorlds, localDeliveryRequiresUnits,
+  openLocalMethodWorlds, openLocalDeliveryWorlds, localDeliveryRequiresUnits,
   openUnitRolloutWorlds, unitRolloutRequiresUnits,
   openBuildIncidentWorlds, buildIncidentRequiresUnits,
   openDeployedInterfaceWorlds, openDeployedInterfaceRequiresUnits,
@@ -126,7 +126,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openLocalMethodWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -211,6 +211,7 @@ const templateSettings = {
   operator: { requiresUnits: operatorGoalRequiresUnits },
   "build-incident": { requiresUnits: buildIncidentRequiresUnits },
   "system-diagnostics": { requiresUnits: openDiagnosticRequiresUnits, authorityPolicy: openDiagnosticAuthority },
+  localMethodExchange: { requiresUnits: ["skills/open-user-goal", "workers/local-messaging-fixture", "workers/pubsub-channel"] },
   "local-delivery": { requiresUnits: localDeliveryRequiresUnits },
   "unit-rollout": { requiresUnits: unitRolloutRequiresUnits, resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-unit-rollout", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]) },
@@ -467,6 +468,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "skillMaintenance" ? "Qualify retained compiler evidence and the exact owned Natlang skill patch or hold" :
     world.kind === "desktopReadiness" ? "Review current installed desktop authority, retained update offers and responsive window continuity" :
     world.kind === "notificationState" ? "Inspect, reconcile, and verify exact retained notification state under the current owned subscription" :
+    world.kind === "localMethodExchange" ? "Recover or settle an exact owned native method exchange" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
     world.kind === "clientDiagnostics" ? "Diagnose the owned client and its durable conversation with exact readback" :

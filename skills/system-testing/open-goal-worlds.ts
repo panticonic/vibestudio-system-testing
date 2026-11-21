@@ -209,3 +209,4 @@ export { openSystemCandidateWorlds } from "./open-goal-system-candidate-worlds.j
 export { openOwnedOperationsWorlds, openOwnedOperationsRequiresUnits } from "./open-goal-owned-operations-worlds.js";
 
 export { openScaffoldWorlds } from "./open-goal-scaffold-worlds.js";
+export { openLocalMethodWorlds } from "./open-goal-local-method-worlds.js";
