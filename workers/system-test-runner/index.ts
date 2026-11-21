@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3795,7 +3795,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const webhookAdmission = openWebhookAdmissionWorlds.find(({ id }) => id === input.caseId);
     const developmentAudit = openDevelopmentAuditWorlds.find(({ id }) => id === input.caseId);
     const ptyContinuity = openPtyContinuityWorlds.find(({ id }) => id === input.caseId);
-    const prepare = ptyContinuity
+    const logFollower = openLogFollowerWorlds.find(({ id }) => id === input.caseId);
+    const prepare = logFollower
+      ? `import {prepareLogFollower} from "@workspace-skills/system-testing/open-goal-log-follower-managed";
+         const prepared=await prepareLogFollower(input,${JSON.stringify(logFollower)});`
+      : ptyContinuity
       ? `import {preparePtyContinuity} from "@workspace-skills/system-testing/open-goal-pty-continuity-managed";
          const prepared=await preparePtyContinuity(input,${JSON.stringify(ptyContinuity)});`
       : webhookAdmission

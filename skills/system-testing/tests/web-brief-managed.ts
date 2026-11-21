@@ -11,6 +11,7 @@ import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
   openWebhookAdmissionWorlds, openWebhookAdmissionRequiresUnits,
+  openLogFollowerWorlds, openLogFollowerRequiresUnits,
   openPtyContinuityWorlds, openPtyContinuityRequiresUnits,
   openDevelopmentAuditWorlds, openDevelopmentAuditRequiresUnits,
   openContentArchiveWorlds, openContentArchiveRequiresUnits,
@@ -124,7 +125,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -153,6 +154,7 @@ const templateSettings = {
     authority: [{ ruleId: "owned-local-webhook-fixture", capability: { kind: "exact", key: "webhooks.manage" },
       resource: { kind: "exact", key: "webhooks.manage" }, tier: "gated", decision: "once" }],
   } },
+  "log-follower": { requiresUnits: openLogFollowerRequiresUnits, authorityPolicy: openDiagnosticAuthority },
   "pty-continuity": { requiresUnits: openPtyContinuityRequiresUnits, authorityPolicy: { authority: [{
     ruleId: "launch-owned-retained-terminal-fixture",
     capability: { kind: "prefix" as const, prefix: "userland:extensions/shell/native.shell.execute#" },
@@ -468,6 +470,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "mobileContinuity" ? "Review exact companion build, startup and reconnect in an owned local fixture" :
     world.kind === "testkit-closeout" ? "Compare actual owned Testkit attempts and verify a private conditional closeout" :
     world.kind === "webhook-admission" ? "Verify exact owned webhook admission metadata and a conditional private note" :
+    world.kind === "log-follower" ? "Resume a native server log follower and check source identities and coverage" :
     world.kind === "pty-continuity" ? "Check native terminal identity, retained byte cursor and exact exit before local retention" :
     world.kind === "development-audit" ? "Verify exact retained development run and conditional owned repair attention" :
     world.kind === "content-archive" ? "Reconcile an exact immutable content archive and its current working project" :
