@@ -1363,19 +1363,17 @@ describe("TestRunner", () => {
     expect(unrelatedRanWhileGitActive).toBe(true);
   });
 
-  it("serializes workspace repository fixtures while unrelated tests remain concurrent", async () => {
-    let activeSetups = 0;
-    let maxActiveSetups = 0;
-    let unrelatedRanWhileFixtureActive = false;
+  it("lets private fixtures run together without racing protected main", async () => {
+    const activeFixtures = new Set<string>();
+    const overlaps = new Map<string, string[]>();
     const unrelatedStarted = deferred<void>();
-    const privateStarted = deferred<void>();
-    let privateRanWhileFixtureActive = false;
+    const secondPrivateStarted = deferred<void>();
     const session = (testName: string) => ({
       channelId: crypto.randomUUID(),
       messages: [] as ChatMessage[],
       sendAndWait: vi.fn(async () => {
         if (testName === "unrelated") {
-          unrelatedRanWhileFixtureActive = activeSetups === 1;
+          overlaps.set(testName, [...activeFixtures]);
           unrelatedStarted.resolve();
         }
       }),
@@ -1400,17 +1398,11 @@ describe("TestRunner", () => {
         closeOwnedDevelopmentSessions: vi.fn(async () => []),
         withTaskResources: (prompt: string) => prompt,
         prepareWorkspaceRepoFixture: vi.fn(async () => {
-          if (testName === "private") {
-            privateRanWhileFixtureActive = activeSetups === 1;
-            privateStarted.resolve();
-          } else {
-            activeSetups += 1;
-            maxActiveSetups = Math.max(maxActiveSetups, activeSetups);
-            if (testName === "alpha") {
-              await Promise.all([unrelatedStarted.promise, privateStarted.promise]);
-            }
-            activeSetups -= 1;
-          }
+          overlaps.set(testName, [...activeFixtures]);
+          activeFixtures.add(testName);
+          if (testName === "alpha") await unrelatedStarted.promise;
+          if (testName === "private-a") await secondPrivateStarted.promise;
+          if (testName === "private-b") secondPrivateStarted.resolve();
           return {
             kind: "content" as const,
             section: "projects" as const,
@@ -1427,11 +1419,14 @@ describe("TestRunner", () => {
         }),
         spawn: vi.fn(async () => session(testName)),
         collectDiagnostics: vi.fn(async () => ({})),
-        cleanupWorkspaceRepoFixture: vi.fn(async () => ({
-          publishedFixtureRemoved: null,
-          unexpectedPublishedRepositoriesRemoved: [],
-          counteractedChangeIds: [],
-        })),
+        cleanupWorkspaceRepoFixture: vi.fn(async () => {
+          activeFixtures.delete(testName);
+          return {
+            publishedFixtureRemoved: null,
+            unexpectedPublishedRepositoriesRemoved: [],
+            counteractedChangeIds: [],
+          };
+        }),
       })),
     } as unknown as HeadlessRunner;
     const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
@@ -1456,18 +1451,21 @@ describe("TestRunner", () => {
     const suite = await tester.runSuite(
       [
         fixtureTest("alpha"),
+        { ...fixtureTest("private-a"), agentContext: "fork" },
+        { ...fixtureTest("private-b"), agentContext: "fork" },
         fixtureTest("beta"),
-        { ...fixtureTest("private"), agentContext: "fork" },
         unrelatedTest,
       ],
       { concurrency: 3 },
     );
 
-    expect(suite.passed).toBe(4);
-    expect(maxActiveSetups).toBe(1);
-    expect(unrelatedRanWhileFixtureActive).toBe(true);
-    expect(privateRanWhileFixtureActive).toBe(true);
-    expect(runner.forTest).toHaveBeenCalledWith("private", expect.objectContaining({
+    expect(suite.passed).toBe(5);
+    expect(overlaps.get("alpha")).toEqual([]);
+    expect(overlaps.get("unrelated")).toEqual(["alpha"]);
+    expect(overlaps.get("private-a")).toEqual([]);
+    expect(overlaps.get("private-b")).toEqual(["private-a"]);
+    expect(overlaps.get("beta")).toEqual([]);
+    expect(runner.forTest).toHaveBeenCalledWith("private-a", expect.objectContaining({
       allowFixturePublication: false,
     }));
   });

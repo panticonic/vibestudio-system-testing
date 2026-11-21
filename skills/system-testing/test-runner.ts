@@ -49,11 +49,10 @@ import {
 const AGENT_INTERRUPT_TIMEOUT_MS = 30_000;
 const PROTECTED_MAIN_RESOURCE = "vcs:protected-main";
 
-function fixtureUsesProtectedMain(test: TestCase): boolean {
-  return Boolean(test.workspaceRepoFixture) && (
-    test.agentContext !== "fork" ||
-    test.resources?.includes(PROTECTED_MAIN_RESOURCE) === true
-  );
+function mainAccess(test: TestCase): "publish" | "snapshot" | null {
+  if (test.resources?.includes(PROTECTED_MAIN_RESOURCE)) return "publish";
+  if (!test.workspaceRepoFixture) return null;
+  return test.agentContext === "fork" ? "snapshot" : "publish";
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -146,11 +145,12 @@ export class TestRunner {
     );
     const pending = new Set(filtered.map((_test, index) => index));
     const activeResources = new Set<string>();
+    let activeMainSnapshots = 0;
     let scheduleWaiters: Array<() => void> = [];
 
     const resourcesFor = (test: TestCase): string[] => [
       ...new Set([
-        ...(fixtureUsesProtectedMain(test) ? [PROTECTED_MAIN_RESOURCE] : []),
+        ...(mainAccess(test) === "publish" ? [PROTECTED_MAIN_RESOURCE] : []),
         ...(test.category === "workers" ? ["category:workers"] : []),
         ...(test.resources ?? []).filter(Boolean),
       ]),
@@ -164,16 +164,25 @@ export class TestRunner {
     const claimRunnable = async (): Promise<{
       index: number;
       resources: string[];
+      access: ReturnType<typeof mainAccess>;
     } | null> => {
       for (;;) {
         if (this.cancelled) return null;
         for (const index of pending) {
-          const resources = resourcesFor(filtered[index]!);
+          const test = filtered[index]!;
+          const resources = resourcesFor(test);
+          const access = mainAccess(test);
           if (resources.some((resource) => activeResources.has(resource)))
+            continue;
+          // Creating a snapshot checks its basis against main. Keep publishers
+          // out while private cases verify that basis and retire their copies.
+          if (access === "publish" && activeMainSnapshots > 0) continue;
+          if (access === "snapshot" && activeResources.has(PROTECTED_MAIN_RESOURCE))
             continue;
           pending.delete(index);
           for (const resource of resources) activeResources.add(resource);
-          return { index, resources };
+          if (access === "snapshot") activeMainSnapshots += 1;
+          return { index, resources, access };
         }
         if (pending.size === 0) return null;
         await new Promise<void>((resolve) => scheduleWaiters.push(resolve));
@@ -218,6 +227,7 @@ export class TestRunner {
         } finally {
           for (const resource of claim.resources)
             activeResources.delete(resource);
+          if (claim.access === "snapshot") activeMainSnapshots -= 1;
           wakeSchedulers();
         }
       }
@@ -316,7 +326,7 @@ export class TestRunner {
         ? this.runner.forTest(test.name, {
             workspaceRepoFixture: test.workspaceRepoFixture,
             authorityPolicy: test.authorityPolicy,
-            ...(test.workspaceRepoFixture && !fixtureUsesProtectedMain(test)
+            ...(mainAccess(test) === "snapshot"
               ? { allowFixturePublication: false }
               : {}),
           })
