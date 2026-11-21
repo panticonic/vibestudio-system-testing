@@ -103,7 +103,7 @@ import { managedDriveCheckpointMethods } from "./drive-checkpoint-contract.js";
 import { managedBrowserImportMethods } from "./browser-import-contract.js";
 import { managedDriveSharingMethods } from "./drive-sharing-contract.js";
 import { grimoirePanel, managedGrimoireWorlds } from "./grimoire-worlds.js";
-import { grimoireSceneEstate } from "./grimoire-fixture-player.js";
+import { advanceOwnedGrimoirePanel, grimoireClockIndex, grimoireSceneEstate, visitOwnedGrimoirePanel } from "./grimoire-fixture-player.js";
 import { regencyFixturePanel, regencyFixtureRealm } from "./regency-fixture-player.js";
 import { openRegencyWorlds } from "./open-goal-regency-worlds.js";
 import { openPortfolioWorlds } from "./open-goal-portfolio-worlds.js";
@@ -1423,42 +1423,17 @@ export class HeadlessRunner {
       });
       const panel = handle;
       const before = await rpc.call(owner, managedGrimoireMethods.inspectOwnedGarden, [{ contextId, garden }], { signal }) as { day: number; phase: number };
-      if (world.actions.length > 0) {
-        await setViewport(panel, { width: 1200, height: 1000 });
-        const { page } = await panel.cdp.session();
-        let clock = before.day * 4 + before.phase;
-        try {
-          for (const [index, action] of world.actions.entries()) {
-            signal.throwIfAborted();
-            const quiet = action === "linger";
-            const button = quiet ? "Observe quietly" : action;
-            const control = page.getByRole("button", { name: button, exact: true });
-            if (!quiet) {
-              const selected = () => this.evalInPanelClient<boolean>(
-                panel,
-                `document.querySelector('.garden-stage .scene-note[aria-expanded="true"]')?.getAttribute("aria-label") === ${JSON.stringify(action)}`,
-              );
-              // Opening the resident card records a visit; closing it does not.
-              if (await selected()) {
-                await control.click();
-                await waitFor(async () => !(await selected()) || undefined, { label: `${action}'s resident card closes` });
-              }
-            }
-            await control.click();
-            if (quiet) clock++;
-            const expectedTime = `DAY ${Math.floor(clock / 4)} · ${["MORNING", "AFTERNOON", "EVENING", "NIGHT"][clock % 4]}`;
-            await waitFor(async () => {
-              signal.throwIfAborted();
-              const state = await this.evalInPanelClient<{ clock: string; notice: string; busy: boolean }>(
-                panel,
-                '({clock: document.querySelector(".garden-caption .eyebrow")?.textContent ?? "", notice: document.querySelector(".garden-observations p")?.textContent ?? "", busy: document.querySelector(".garden-observations button")?.disabled ?? true})',
-              );
-              return (!state.busy && state.clock.replace(/\s+/gu, " ").trim() === expectedTime &&
-                (quiet || state.notice.startsWith(`${action} pauses to watch you.`) ||
-                  state.notice.startsWith(`${action} recognises your hand`))) || undefined;
-            }, { label: `${caseId} action ${index + 1}: ${button} settles in the actual garden` });
-          }
-        } finally { await page.close(); }
+      let clock = grimoireClockIndex(before);
+      const fixture = { contextId, estateKey: garden };
+      for (const action of world.actions) {
+        signal.throwIfAborted();
+        const current = { day: Math.floor(clock / 4), phase: clock % 4 };
+        if (action === "linger") {
+          await advanceOwnedGrimoirePanel(panel, fixture, current);
+          clock++;
+        } else {
+          await visitOwnedGrimoirePanel(panel, fixture, current, action);
+        }
       }
       const input = { contextId, garden, caseId, before, portfolioCaseId };
       return qualification
