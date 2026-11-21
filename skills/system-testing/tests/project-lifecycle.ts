@@ -22,7 +22,6 @@ import {
   preparedProject,
   publishedPreparation,
   publishedCommits,
-  committedPreparation,
 } from "./_project-evidence.js";
 import {
   completedScenarioEvidence,
@@ -277,21 +276,19 @@ function validatePanelFork(result: TestExecutionResult) {
       record["dryRun"] === false &&
       typeof record["source"] === "string",
   );
-  if (!fork || !committedPreparation(result, fork))
+  if (!fork || !publishedPreparation(result, fork))
     return {
       passed: false,
       reason:
-        "No prepared panel-fork application was joined to its exact local commit",
+        "No prepared panel fork was joined to its exact committed and published event",
     };
-  // The task asks for a saved, working copy, not a particular planning sequence.
-  // Preparation and its exact commit prove delivery; a dry run is optional.
   return hasBootReadyPanelEvidence(base.evidence.evalValues) ||
     hasReadyCapturedPanel(base.evidence.calls, String(fork["created"]))
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "The committed fork returned no matching boot-ready rendered-panel inspection",
+          "The published fork returned no matching boot-ready rendered-panel inspection",
       };
 }
 

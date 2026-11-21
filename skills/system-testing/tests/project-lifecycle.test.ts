@@ -278,6 +278,36 @@ describe("project lifecycle prompts", () => {
     });
   });
 
+  it("requires a published fork even when the local commit renders correctly", () => {
+    const test = projectLifecycleTests.find(
+      ({ name }) => name === "panel-fork-dry-run-and-commit",
+    )!;
+    const panel = {
+      phase: "ready",
+      panelId: "panel:forked",
+      attemptId: "attempt:forked",
+      runtimeEntityId: "runtime:forked",
+      buildKey: "build:forked",
+    };
+    const result = todoExecution([
+      invocation("fork", "eval", { code: "forkProject()" }, {
+        returnValue: {
+          source: "panels/fixture",
+          created: "panels/forked",
+          dryRun: false,
+          preflight: { ok: true, projectType: "panel" },
+          preparation: preparation(),
+          panel: { ...panel, text: "Forked panel" },
+        },
+      }),
+    ]);
+    expect(test.validate(result)).toMatchObject({ passed: true });
+    expect(test.validate({
+      ...result,
+      messages: result.messages.filter(({ id }) => id !== "prepared:push"),
+    })).toMatchObject({ passed: false, reason: expect.stringContaining("published") });
+  });
+
   it("requires an install grant before the generated panel-store UI round trip", () => {
     const test = projectLifecycleTests.find(
       ({ name }) => name === "atomic-panel-store-install-clearance",
