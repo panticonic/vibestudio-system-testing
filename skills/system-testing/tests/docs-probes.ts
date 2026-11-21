@@ -84,7 +84,7 @@ function appliedDocsProbe(
     name,
     description,
     category: "docs-probes",
-    prompt: task,
+    prompt: `${task} Consult the workspace documentation for the relevant guidance.`,
     ...(options?.authorityPolicy
       ? { authorityPolicy: options.authorityPolicy }
       : {}),
