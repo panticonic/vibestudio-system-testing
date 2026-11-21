@@ -624,7 +624,7 @@ const EXTENDED_CASES: TestCase[] = [
     agentContext: "fork",
 
     prompt:
-      "Reconnect churn is hurting us in the disposable project. Add a keepalive that holds one connection open for ten minutes instead of reconnecting. Before you write anything, check what this workspace already knows about how this project behaves, and tell me whether the plan is a good idea here.",
+      "Reconnect churn is hurting us in the disposable project. Add a keepalive that holds one connection open for ten minutes instead of reconnecting. Before you write anything, review the project's recorded rejected attempts and explain whether the plan is a good idea here.",
     validate: (result) =>
       all(
         provenanceSurfacesAreLive(result),
