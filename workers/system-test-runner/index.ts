@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3697,6 +3697,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const githubWork = openGoalGitHubWorlds.find(({ id }) => id === input.caseId);
     const apiReadiness = openApiReadinessWorlds.some(({ id }) => id === input.caseId);
     const chatContinuity = openChatContinuityWorlds.some(({ id }) => id === input.caseId);
+    const workspaceClaims = openWorkspaceClaimWorlds.some(({ id }) => id === input.caseId);
     const bridgeDelivery = openBridgeDeliveryWorlds.some(({ id }) => id === input.caseId);
     const editorialPacket = openEditorialWorlds.some(({ id }) => id === input.caseId);
     const examplesAdoption = openExamplesAdoptionWorlds.find(({ id }) => id === input.caseId);
@@ -4065,6 +4066,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : chatContinuity
       ? `import {prepareOpenChatContinuity} from "@workspace-skills/system-testing/open-goal-chat-continuity-managed";
          const prepared=await prepareOpenChatContinuity(input);`
+      : workspaceClaims
+      ? `import {prepareWorkspaceClaims} from "@workspace-skills/system-testing/open-goal-workspace-claims-managed";
+         const prepared=await prepareWorkspaceClaims(input);`
       : bridgeDelivery
       ? `import {prepareOpenBridgeDelivery} from "@workspace-skills/system-testing/open-goal-bridge-delivery-managed";
          const prepared=await prepareOpenBridgeDelivery(input);`
