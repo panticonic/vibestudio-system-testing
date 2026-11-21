@@ -145,6 +145,7 @@
     "./open-goal-problem-report-managed": "./open-goal-problem-report-managed.ts",
     "./open-goal-owned-research-managed": "./open-goal-owned-research-managed.ts",
     "./open-goal-terminal-app-repair-managed": "./open-goal-terminal-app-repair-managed.ts",
+    "./open-goal-prepared-content-project-managed": "./open-goal-prepared-content-project-managed.ts",
     "./open-goal-terminal-managed": "./open-goal-terminal-managed.ts",
     "./open-goal-capability-plan-managed": "./open-goal-capability-plan-managed.ts",
     "./open-goal-personal-welcome-managed": "./open-goal-personal-welcome-managed.ts",
