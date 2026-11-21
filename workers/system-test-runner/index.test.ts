@@ -1,3 +1,6 @@
+import { prepareSystemRelease } from "../../skills/system-testing/open-goal-system-release-managed.js";
+import { seedSystemRelease } from "../../skills/system-testing/open-goal-system-release-records.js";
+import { openSystemReleaseWorlds, type SystemReleaseWorld } from "../../skills/system-testing/open-goal-system-release-worlds.js";
 import { describe, expect, it, vi } from "vitest";
 import { panelTeacherInputSchema } from "@vibestudio/service-schemas/systemTestRunner";
 import { schemaRpcMock } from "@vibestudio/rpc/test-utils";
@@ -127,29 +130,23 @@ async function recordOwner() {
   vi.spyOn(owner.instance.wireCallerForTest(), "call").mockImplementation(
     rpcCall,
   );
-  const store = async (record: SystemTestRunRecord) => {
-    const references = [];
-    for (const entry of record.suite.results) {
-      const bytes = new TextEncoder().encode(JSON.stringify(entry));
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-      const digest = [...hash]
-        .map((byte) => byte.toString(16).padStart(2, "0"))
-        .join("");
-      blobs.set(digest, bytes);
-      references.push({
-        testName: entry.test.name,
-        digest,
-        size: bytes.length,
-      });
-    }
-    await owner.call(
-      "storeSystemTestRunCheckpoint",
-      record.runId,
-      { ...record, suite: { ...record.suite, results: [] } },
-      references,
-    );
+  const put = async (text: string) => {
+    const bytes = new TextEncoder().encode(text);
+    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const digest = [...hash].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    blobs.set(digest, bytes);
+    return { digest, size: bytes.length };
   };
-  return { ...owner, rpcCall, store };
+  const persist = async (runId: string, record: SystemTestRunRecord, references: { testName: string; digest: string; size: number }[]) => {
+    await owner.call("storeSystemTestRunCheckpoint", runId, record, references);
+  };
+  const store = async (record: SystemTestRunRecord) => {
+    const references = await Promise.all(record.suite.results.map(async entry => ({
+      testName: entry.test.name, ...await put(JSON.stringify(entry)),
+    })));
+    await persist(record.runId, { ...record, suite: { ...record.suite, results: [] } }, references);
+  };
+  return { ...owner, rpcCall, store, put, persist };
 }
 
 describe("system-test durable execution ownership", () => {
@@ -461,5 +458,118 @@ describe("system-test inspection authority", () => {
       tier: "open",
       sensitivity: "read",
     });
+  });
+});
+
+async function releaseReview(world: SystemReleaseWorld) {
+  const owner = await recordOwner();
+  const contextId = "owned-system-release";
+  const seed = await seedSystemRelease(contextId, world, owner);
+  const evidence = new Map<string, string>();
+  const calls: { runId: string; name: string; offset: number }[] = [];
+  const directory = "/.tmp/owned-release";
+  const ports: NonNullable<Parameters<typeof prepareSystemRelease>[4]> = {
+    contextId,
+    inspect: runId => owner.call("inspectSystemTestRun", runId),
+    read: async (runId, name, offset, limit) => {
+      calls.push({ runId, name, offset });
+      return owner.call("readSystemTestTrajectoryPage", runId, name, true, offset, limit) as ReturnType<typeof ports.read>;
+    },
+    artifact: {
+      directory: async () => directory,
+      write: async (path, text) => { evidence.set(path, text); },
+      read: async (path, limit) => {
+        const bytes = new TextEncoder().encode(evidence.get(path));
+        if (!evidence.has(path) || bytes.length > limit) throw new Error("Missing bounded archive");
+        return bytes;
+      },
+      entries: async root => [...evidence.keys()].filter(path => path.startsWith(root + "/")).map(path => path.slice(root.length + 1)),
+    },
+  };
+  return { seed, ports, calls, evidence, prepare: (override = ports) =>
+    prepareSystemRelease({ contextId, caseId: world.id }, world, seed, "system-test-runner", override) };
+}
+
+describe("retained System release handoff reference", () => {
+  for (const world of openSystemReleaseWorlds) {
+    it(world.id, async () => {
+      const fixture = await releaseReview(world);
+      const result = await (await fixture.prepare()).qualify();
+      expect(result.checks, JSON.stringify(result.checks)).toEqual(
+        Object.fromEntries(Object.keys(result.checks).map(key => [key, true])),
+      );
+      expect(result.passed).toBe(true);
+      const runId = world.expected.selection ? fixture.seed[world.expected.selection] : null;
+      expect(result.choice.runId).toBe(runId);
+      expect(result.assessment?.disposition).toBe(world.expected.outcome);
+      expect(fixture.calls.every(call => call.runId === runId && world.required.includes(call.name))).toBe(true);
+      if (world.id.includes("multi-page")) expect(fixture.calls.some(call => call.offset > 4096)).toBe(true);
+      if (world.id.includes("runtime-and-secondary")) {
+        expect(result.cases[0].primary?.kind).toBe("runtime");
+        expect(result.cases[0].cleanup).toHaveLength(1);
+      }
+      if (world.id.includes("expected-negative-and-runtime")) {
+        expect(result.cases[0].expectedToolFailures).toEqual(["EXPECTED_SCOPE_DENIED"]);
+        expect(result.cases[0].primary).toBeNull();
+        expect(result.cases[1].primary?.kind).toBe("runtime");
+      }
+      if (result.handoff) {
+        const artifact = JSON.parse(fixture.evidence.get(result.handoff.path)!);
+        expect(artifact).toMatchObject({ runId, buildKey: fixture.seed.buildKey, cases: result.cases });
+      } else expect(fixture.evidence.size).toBe(0);
+    });
+  }
+
+  it("rejects arbitrary runs, cases, evidence mutation, and premature staging", async () => {
+    const world = openSystemReleaseWorlds[0];
+    const fixture = await releaseReview(world);
+    const { services } = await fixture.prepare();
+    const assignment = await services.systemReleaseEvidence.discover();
+    await expect(services.systemReleaseEvidence.compare("foreign-assignment")).rejects.toThrow(/assigned checkpoint/);
+    await services.systemReleaseEvidence.compare(assignment.id);
+    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.earlier, world.required[0])).rejects.toThrow(/selected exact/);
+    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.current, "extra-check")).rejects.toThrow(/selected exact/);
+    const stage = (cases: Parameters<typeof services.systemReleaseHandoff.stage>[3]) =>
+      services.systemReleaseHandoff.stage(assignment.id, fixture.seed.current, "stage-acceptance", cases);
+    await expect(stage([])).rejects.toThrow(/complete exact/);
+    const cases = [];
+    for (const name of world.required)
+      cases.push(await services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.current, name));
+    await expect(stage([{ ...cases[0], digest: "tampered" }, ...cases.slice(1)])).rejects.toThrow(/complete exact/);
+    expect(fixture.evidence.size).toBe(0);
+  });
+
+  it("holds a previously permitted earlier handoff if the nominated run settles before staging", async () => {
+    const world = openSystemReleaseWorlds.find(item => item.id.includes("reuse-exact-previous"))!;
+    const fixture = await releaseReview(world);
+    let first = true;
+    const { services } = await fixture.prepare({ ...fixture.ports, inspect: async id => {
+      const record = await fixture.ports.inspect(id) as Record<string, unknown>;
+      if (id !== fixture.seed.current) return record;
+      if (first) { first = false; return record; }
+      return { ...record, status: "cancelled", completedAt: "2026-11-22T00:00:00Z" };
+    } });
+    const assignment = await services.systemReleaseEvidence.discover();
+    await services.systemReleaseEvidence.compare(assignment.id);
+    const cases = [];
+    for (const name of world.required)
+      cases.push(await services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.earlier, name));
+    await expect(services.systemReleaseHandoff.stage(assignment.id, fixture.seed.earlier, "stage-acceptance", cases))
+      .rejects.toThrow(/changed before the local handoff/);
+    expect(fixture.evidence.size).toBe(0);
+  });
+
+  it("rejects an unstable native page and writes no local handoff", async () => {
+    const world = openSystemReleaseWorlds.find(item => item.id.includes("multi-page"))!;
+    const fixture = await releaseReview(world);
+    const { services } = await fixture.prepare({ ...fixture.ports, read: async (id, name, offset, limit) => {
+      const page = await fixture.ports.read(id, name, offset, limit);
+      return offset ? { ...page, length: page.length + 1 } : page;
+    } });
+    const assignment = await services.systemReleaseEvidence.discover();
+    await services.systemReleaseEvidence.compare(assignment.id);
+    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.current, world.required[0]))
+      .rejects.toThrow(/unstable retained/);
+    expect(fixture.evidence.size).toBe(0);
   });
 });

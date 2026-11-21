@@ -5,6 +5,7 @@ import type { RemoteRouteReceiver } from "@workspace-skills/system-testing/remot
 import type { ManagedNotificationReceiver } from "@workspace-skills/system-testing/notification-lifecycle-managed";
 import { cliContinuationWork, remoteRouteWorlds } from "@workspace-skills/system-testing/remote-route-worlds";
 import type { RetainedTriageReceiver } from "@workspace-skills/system-testing/retained-triage-managed";
+import { seedSystemRelease } from "@workspace-skills/system-testing/open-goal-system-release-records";
 import { retainedTriageWorlds } from "@workspace-skills/system-testing/retained-triage-worlds";
 import type { GitHubSetupReceiver } from "@workspace-skills/system-testing/github-setup-managed";
 import type { ManagedGitHubDiagnosisReceiver } from "@workspace-skills/system-testing/github-diagnosis-managed";
@@ -114,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openSystemReleaseWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3768,7 +3769,20 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const desktopReadiness = openDesktopReadinessWorlds.find(({ id }) => id === input.caseId);
     const panelSourceMigration = openPanelSourceMigrationWorlds.find(({ id }) => id === input.caseId);
     const skillMaintenance = openSkillMaintenanceWorlds.find(({ id }) => id === input.caseId);
-    const prepare = skillMaintenance
+    const systemRelease = openSystemReleaseWorlds.find(({ id }) => id === input.caseId);
+    let systemReleaseSeed: Awaited<ReturnType<typeof seedSystemRelease>> | undefined;
+    if (systemRelease) {
+      const owner = await this.integrationFixtureIdentity();
+      if (owner.contextId !== input.contextId) throw new Error("System release review belongs to another context");
+      systemReleaseSeed = await seedSystemRelease(input.contextId, systemRelease, {
+        put: text => this.rpc.call("main", mainRpcMethods["blobstore.putText"], [text]),
+        persist: (runId, record, entries) => this.storeSystemTestRunCheckpoint(runId, record, entries),
+      });
+    }
+    const prepare = systemRelease
+      ? `import {prepareSystemRelease} from "@workspace-skills/system-testing/open-goal-system-release-managed";
+         const prepared=await prepareSystemRelease(input,${JSON.stringify(systemRelease)},${JSON.stringify(systemReleaseSeed)},${JSON.stringify(this.rpcSelfId)});`
+      : skillMaintenance
       ? `import {vcs,rpc} from "@workspace/runtime";
          import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
          import {prepareSkillMaintenance} from "@workspace-skills/system-testing/open-goal-skill-maintenance-managed";
