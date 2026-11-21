@@ -160,6 +160,7 @@
     "./open-goal-workspace-claims-managed": "./open-goal-workspace-claims-managed.ts",
     "./open-goal-bridge-delivery-managed": "./open-goal-bridge-delivery-managed.ts",
     "./open-goal-editorial-managed": "./open-goal-editorial-managed.ts",
+    "./open-goal-scaffold-managed": "./open-goal-scaffold-managed.ts",
     "./open-goal-system-candidate-managed": "./open-goal-system-candidate-managed.ts",
     "./open-goal-examples-adoption-managed": "./open-goal-examples-adoption-managed.ts",
     "./open-goal-grimoire-scene-managed": "./open-goal-grimoire-scene-managed.ts",

@@ -20,7 +20,7 @@ import {
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
   openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
   openOwnedOperationsRequiresUnits,
-  browserGoalWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityRequiresUnits, openChatContinuityWorlds, openOwnedOperationsWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, workspaceClaimRequiresUnits, openBridgeDeliveryWorlds, openBridgeDeliveryRequiresUnits, openEditorialRequiresUnits, openEditorialWorlds, openPortfolioRequiresUnits, openPortfolioWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
+  browserGoalWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityRequiresUnits, openChatContinuityWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, workspaceClaimRequiresUnits, openBridgeDeliveryWorlds, openBridgeDeliveryRequiresUnits, openEditorialRequiresUnits, openEditorialWorlds, openPortfolioRequiresUnits, openPortfolioWorlds, openRegencyRequiresUnits, openRegencyWorlds, openImageCandidateRequiresUnits, openImageCandidateWorlds, openApiReadinessRequiresUnits, openApiReadinessWorlds, openNewsEvidenceRequiresUnits, openNewsEvidenceWorlds, newsGoalRequiresUnits, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds,
   evalHandoffRequiresUnits, openGoalEvalHandoffWorlds, programRunRequiresUnits, openGoalProgramRunWorlds, authoringRequiresUnits, openGoalAuthoringWorlds, openGoalGoogleHandoffWorlds, openGoalGoogleWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds, openGoalRecoveryWorlds,
   operatorGoalWorlds, operatorGoalRequiresUnits, openGoalWorlds, publicationGoalWorlds,
   openOwnedTaskWorlds, ownedTaskRequiresUnits,
@@ -123,7 +123,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -317,6 +317,10 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   } : {}),
   ...(world.kind === "mobileContinuity" ? { requiresUnits: ["skills/open-user-goal", "skills/mobile-system-testing",
     "clients/mobile-browser", "extensions/react-native"] } : {}),
+  ...(world.kind === "scaffoldReview" ? {
+    requiresUnits: ["skills/open-user-goal", "skills/workspace-dev",
+      ...(world.workspace === "examples" ? ["packages/svelte", "templates/svelte"] : [])],
+  } : {}),
   ...(world.kind === "systemCandidateTriage" ? {
     requiresUnits: ["skills/open-user-goal", "extensions/templates", "skills/template-candidate", "skills/scratch-handoff-bindings", world.unit],
   } : {}),
@@ -444,6 +448,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "operator" ? "Resolve readiness and authorized operations on the owned hub" :
     world.kind === "unit-rollout" ? "Diagnose and verify an owned workspace unit with controlled local source rollout" :
     world.kind === "owned-task" ? "Recover current owned card and attempt evidence with an independently confirmed local handoff" :
+    world.kind === "scaffoldReview" ? "Prepare and reread the native owned scaffold from a product brief" :
     world.kind === "systemCandidateTriage" ? "Diagnose a native System review file and confirm a private handoff" :
     world.kind === "phoneFirstRun" ? "Review retained setup ownership, first-run phase evidence and installed provider eligibility" :
     world.kind === "skillMaintenance" ? "Qualify retained compiler evidence and the exact owned Natlang skill patch or hold" :

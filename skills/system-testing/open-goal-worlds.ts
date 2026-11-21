@@ -204,3 +204,5 @@ export { openExamplesAdoptionWorlds } from "./open-goal-examples-adoption-worlds
 
 export { openSystemCandidateWorlds } from "./open-goal-system-candidate-worlds.js";
 export { openOwnedOperationsWorlds, openOwnedOperationsRequiresUnits } from "./open-goal-owned-operations-worlds.js";
+
+export { openScaffoldWorlds } from "./open-goal-scaffold-worlds.js";
