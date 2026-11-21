@@ -1,0 +1,21 @@
+{
+  "name": "@workspace-workers/delivery-wake-fixture",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./index.ts", "./contract": "./contract.ts" },
+  "vibestudio": {
+    "kind": "worker",
+    "entry": "index.ts",
+    "agentVisible": false,
+    "title": "Owned channel delivery recovery fixture",
+    "durable": { "classes": [{ "className": "DeliveryWakeFixtureDO" }] },
+    "authority": { "requests": [], "provides": [], "serviceRequests": [] }
+  },
+  "dependencies": {
+    "@vibestudio/shared": "workspace:*",
+    "@workspace/runtime": "workspace:*",
+    "@workspace/pubsub": "workspace:*",
+    "@workspace-workers/pubsub-channel": "workspace:*"
+  }
+}
