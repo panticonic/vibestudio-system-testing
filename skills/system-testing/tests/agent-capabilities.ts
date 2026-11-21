@@ -228,7 +228,8 @@ export const agentCapabilityTests: TestCase[] = [
     name: "multi-turn",
     description: "Agent stores something in scope and retrieves it later",
     category: "agent-capabilities",
-    prompt: "Show whether a sandbox value persists between separate evaluations.",
+    prompt:
+      "Store a sandbox value and return it from that evaluation. In a separate evaluation, read and return the stored value without assigning it again. Report both observations.",
     validate: matchingScopeRoundTrip,
   },
   {
