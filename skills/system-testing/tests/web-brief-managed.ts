@@ -15,6 +15,7 @@ import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
   openWebhookAdmissionWorlds, openWebhookAdmissionRequiresUnits,
+  openNativeImageWorlds, openNativeImageRequiresUnits,
   openProvenanceQuestionWorlds, openProvenanceQuestionRequiresUnits,
   openTranscriptSurfaceWorlds, openTranscriptSurfaceRequiresUnits,
   openSourceAttributionWorlds, openSourceAttributionRequiresUnits,
@@ -151,7 +152,7 @@ const referenceGoals = [...terminalAppRepairWorlds, ...preparedContentProjectWor
   ...openUnitHandoffWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openNativeImageWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -180,6 +181,7 @@ const templateSettings = {
     authority: [{ ruleId: "owned-local-webhook-fixture", capability: { kind: "exact", key: "webhooks.manage" },
       resource: { kind: "exact", key: "webhooks.manage" }, tier: "gated", decision: "once" }],
   } },
+  "native-image": { requiresUnits: openNativeImageRequiresUnits },
   "provenance-question": { requiresUnits: openProvenanceQuestionRequiresUnits },
   "transcript-surface": { requiresUnits: openTranscriptSurfaceRequiresUnits },
   "source-attribution": { requiresUnits: openSourceAttributionRequiresUnits },
@@ -571,6 +573,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "mobileContinuity" ? "Review exact companion build, startup and reconnect in an owned local fixture" :
     world.kind === "testkit-closeout" ? "Compare actual owned Testkit attempts and verify a private conditional closeout" :
     world.kind === "webhook-admission" ? "Verify exact owned webhook admission metadata and a conditional private note" :
+    world.kind === "native-image" ? "Generate or reuse an exact owned native image job and preserve the approved original" :
     world.kind === "provenance-question" ? "Recover the exact recorded local rationale, scope and rejected work" :
     world.kind === "transcript-surface" ? "Review the approved workspace transcript surface and exact native publication or hold" :
     world.kind === "source-attribution" ? "Trace current owned source through native semantic VCS and verify exact local authority" :

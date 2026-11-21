@@ -196,6 +196,7 @@ export { openDesktopReadinessWorlds } from "./open-goal-desktop-readiness-worlds
 export { openNotificationStateWorlds } from "./open-goal-notification-state-worlds.js";
 export { openMobileContinuityWorlds } from "./open-goal-mobile-continuity-worlds.js";
 export { openWebhookAdmissionWorlds, openWebhookAdmissionRequiresUnits } from "./open-goal-webhook-admission-worlds.js";
+export { openNativeImageWorlds, openNativeImageRequiresUnits } from "./open-goal-native-image-worlds.js";
 export { openProvenanceQuestionWorlds, openProvenanceQuestionRequiresUnits } from "./open-goal-provenance-question-worlds.js";
 export { openTranscriptSurfaceWorlds, openTranscriptSurfaceRequiresUnits } from "./open-goal-transcript-surface-worlds.js";
 export { openSourceAttributionWorlds, openSourceAttributionRequiresUnits } from "./open-goal-source-attribution-worlds.js";

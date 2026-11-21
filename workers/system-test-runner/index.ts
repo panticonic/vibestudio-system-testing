@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openBoardMigrationWorlds, openLiveTendrilBoardWorlds, openProvenanceQuestionWorlds, openTranscriptSurfaceWorlds, openSourceAttributionWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openBoardMigrationWorlds, openLiveTendrilBoardWorlds, openNativeImageWorlds, openProvenanceQuestionWorlds, openTranscriptSurfaceWorlds, openSourceAttributionWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openAudienceResponseWorlds, openCoordinatedRevisionWorlds, openRetainedMemoryWorlds,
   terminalAppRepairWorlds,
   preparedContentProjectWorlds,
@@ -3817,11 +3817,15 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const logFollower = openLogFollowerWorlds.find(({ id }) => id === input.caseId);
     const deliveryWake = openDeliveryWakeWorlds.find(({ id }) => id === input.caseId);
     const sameTurnEval = openSameTurnEvalWorlds.find(({ id }) => id === input.caseId);
+    const nativeImage = openNativeImageWorlds.find(({ id }) => id === input.caseId);
     const provenanceQuestion = openProvenanceQuestionWorlds.find(({ id }) => id === input.caseId);
     const transcriptSurface = openTranscriptSurfaceWorlds.find(({ id }) => id === input.caseId);
     const sourceAttribution = openSourceAttributionWorlds.find(({ id }) => id === input.caseId);
     const workspaceSmoke = openWorkspaceSmokeWorlds.find(({ id }) => id === input.caseId);
-    const prepare = provenanceQuestion
+    const prepare = nativeImage
+      ? `import {prepareNativeImage} from "@workspace-skills/system-testing/open-goal-native-image-managed";
+         const prepared=await prepareNativeImage(input,${JSON.stringify(nativeImage)});`
+      : provenanceQuestion
       ? `import {prepareProvenanceQuestion} from "@workspace-skills/system-testing/open-goal-provenance-question-managed";
          const prepared=await prepareProvenanceQuestion(input,${JSON.stringify(provenanceQuestion)});`
       : transcriptSurface

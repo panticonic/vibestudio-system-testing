@@ -1,0 +1,35 @@
+{
+  "name": "@workspace-workers/image-job-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "vibestudio": {
+    "title": "Owned Image Job Fixture",
+    "kind": "worker",
+    "entry": "index.ts",
+    "durable": {
+      "classes": [
+        {
+          "className": "ImageJobFixtureDO"
+        }
+      ]
+    },
+    "agentVisible": false,
+    "authority": {
+      "requests": [],
+      "provides": [],
+      "serviceRequests": []
+    }
+  },
+  "dependencies": {
+    "@workspace-workers/images": "workspace:*",
+    "@workspace/runtime": "workspace:*",
+    "@workspace/harness": "workspace:*",
+    "@vibestudio/shared": "workspace:*",
+    "@vibestudio/content-addressing": "workspace:*"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./contract": "./contract.ts"
+  }
+}
