@@ -110,6 +110,7 @@ import { managedAuthoringMethods } from "./authoring-contract.js";
 import { managedPresentationMethods } from "./presentation-contract.js";
 import { managedPresentationWorlds } from "./presentation-worlds.js";
 import { checkPresentation, observePresentation, referencePresentation } from "./presentation-managed.js";
+import { openAudienceResponseWorlds } from "./open-goal-audience-response-worlds.js";
 import { openLocalPresentationWorlds } from "./open-goal-local-presentation-worlds.js";
 import { managedPdfMethods } from "./pdf-intake-contract.js";
 import { managedPublicationMethods } from "./publication-preflight-contract.js";
@@ -2222,7 +2223,7 @@ export class HeadlessRunner {
     if (openLiveTendrilBoardWorlds.some(({ id }) => id === caseId))
       return this.withOwnedTendril(signal, (owner, contextId, tendrilChannelId) =>
         rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [{ ...request, contextId, tendrilChannelId }], { signal }));
-    if (openLocalPresentationWorlds.some(({ id }) => id === caseId)) {
+    if (openLocalPresentationWorlds.some(({ id }) => id === caseId) || openAudienceResponseWorlds.some(({ id }) => id === caseId)) {
       const fixture = this.workspaceRepoFixture;
       const contextId = this.workspaceRepoFixtureContextId;
       if (fixture?.kind !== "presentation-preview-panel" || fixture.caseId !== caseId || !fixture.repoName || !contextId)

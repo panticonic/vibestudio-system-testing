@@ -29,6 +29,7 @@ import {
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
   openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openNotificationStateWorlds, openMobileContinuityWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority,
   openWorkspaceConfigWorlds, openWorkspaceConfigRequiresUnits,
+  openAudienceResponseWorlds, openAudienceResponseRequiresUnits,
   openCoordinatedRevisionWorlds, openCoordinatedRevisionRequiresUnits,
   openRetainedMemoryWorlds, openRetainedMemoryRequiresUnits,
   openIntentDiscoveryRequiresUnits,
@@ -143,6 +144,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...terminalAppRepairWorlds, ...preparedContentProjectWorlds, ...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+  ...openAudienceResponseWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
@@ -392,6 +394,12 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     requiresUnits: ["skills/open-user-goal", "skills/tendrils", "panels/tendril-workflow-fixture",
       "workers/tendril", "workers/pubsub-channel"],
   } : {}),
+  ...(world.kind === "audience-response" ? {
+    requiresUnits: openAudienceResponseRequiresUnits,
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-owned-audience-response"),
+    workspaceRepoFixture: { kind: "presentation-preview-panel", section: "panels", caseId: world.id },
+  } : {}),
   ...(world.kind === "localPresentation" ? {
     requiresUnits: ["skills/open-user-goal", "skills/visualize"],
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -479,6 +487,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "api-readiness" ? "Check the trusted integration and pregranted-only offline API binding readiness" :
     world.kind === "chat-continuity" ? "Verify local first-party chat receipt and exact default-worker continuity" :
     world.kind === "workspace-config" ? "Reconcile current workspace configuration with retained state and protected manifest evidence" :
+    world.kind === "audience-response" ? "Choose and verify grounded audience interaction or concise plain response" :
     world.kind === "coordinated-revision" ? "Coordinate a scoped native document revision, re-check authority after conflict and verify exact readback" :
     world.kind === "retained-memory" ? "Recover a retained workspace claim with actual scoped recall and exact original evidence" :
     world.kind === "intent-discovery" ? "Disambiguate a natural local request using the runtime catalog and exact owned evidence" :

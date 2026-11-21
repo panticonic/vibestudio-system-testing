@@ -116,7 +116,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openBoardMigrationWorlds, openLiveTendrilBoardWorlds, openSourceAttributionWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
-  openCoordinatedRevisionWorlds, openRetainedMemoryWorlds,
+  openAudienceResponseWorlds, openCoordinatedRevisionWorlds, openRetainedMemoryWorlds,
   terminalAppRepairWorlds,
   preparedContentProjectWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
@@ -3783,6 +3783,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const buildIncident = openBuildIncidentWorlds.find(({ id }) => id === input.caseId);
     const localWidth = openLocalWidthWorlds.find(({ id }) => id === input.caseId);
     const adventure = openAdventureJourneyWorlds.find(({ id }) => id === input.caseId);
+    const audience = openAudienceResponseWorlds.find(({ id }) => id === input.caseId);
     const presentation = openLocalPresentationWorlds.find(({ id }) => id === input.caseId);
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
@@ -3914,6 +3915,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       ? `import {prepareDeployedInterfaceGoal} from "@workspace-skills/system-testing/open-goal-deployed-interface-managed";
          if(input.contextId!==actualContextId)throw new Error("Interface review belongs to another context");
          const prepared=await prepareDeployedInterfaceGoal(input,${JSON.stringify(deployedInterface)});`
+      : audience
+      ? `import {prepareAudienceResponse} from "@workspace-skills/system-testing/open-goal-audience-response-managed";
+         const prepared=await prepareAudienceResponse(input,${JSON.stringify(audience)});`
       : presentation
       ? `import {prepareOpenLocalPresentation} from "@workspace-skills/system-testing/open-goal-local-presentation-managed";
          if (!input.panelId || !input.source) throw new Error("Local presentation requires its owned renderer");

@@ -44,6 +44,7 @@ export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 export { openApiReadinessWorlds, openApiReadinessRequiresUnits } from "./open-goal-api-readiness-worlds.js";
 export { openChatContinuityWorlds, openChatContinuityRequiresUnits } from "./open-goal-chat-continuity-worlds.js";
 export { openWorkspaceConfigWorlds, openWorkspaceConfigRequiresUnits } from "./open-goal-workspace-config-worlds.js";
+export { openAudienceResponseWorlds, openAudienceResponseRequiresUnits } from "./open-goal-audience-response-worlds.js";
 export { openCoordinatedRevisionWorlds, openCoordinatedRevisionRequiresUnits } from "./open-goal-coordinated-revision-worlds.js";
 export { openRetainedMemoryWorlds, openRetainedMemoryRequiresUnits } from "./open-goal-retained-memory-worlds.js";
 export { openIntentDiscoveryWorlds, openIntentDiscoveryRequiresUnits } from "./open-goal-intent-discovery-worlds.js";

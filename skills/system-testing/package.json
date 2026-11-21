@@ -108,6 +108,7 @@
     "./open-goal-agent-capability-managed": "./open-goal-agent-capability-managed.ts",
     "./open-goal-asset-integrity-managed": "./open-goal-asset-integrity-managed.ts",
     "./open-goal-tendril-route-managed": "./open-goal-tendril-route-managed.ts",
+    "./open-goal-audience-response-managed": "./open-goal-audience-response-managed.ts",
     "./open-goal-local-presentation-managed": "./open-goal-local-presentation-managed.ts",
     "./open-goal-deployed-interface-managed": "./open-goal-deployed-interface-managed.ts",
     "./open-goal-extension-dossier-managed": "./open-goal-extension-dossier-managed.ts",
@@ -292,6 +293,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts"
   },
   "dependencies": {
+    "@workspace-skills/open-audience-response": "workspace:*",
     "@workspace-skills/open-owned-scheduled-recovery": "workspace:*",
     "@workspace-skills/open-session-recovery": "workspace:*",
     "@workspace-skills/template-candidate-bindings": "workspace:*",
