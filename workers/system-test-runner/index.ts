@@ -114,7 +114,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openDesktopReadinessWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openDesktopReadinessWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3765,7 +3765,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const workspaceShare = openWorkspaceShareWorlds.find(({ id }) => id === input.caseId);
     const notificationState = openNotificationStateWorlds.find(({ id }) => id === input.caseId);
     const desktopReadiness = openDesktopReadinessWorlds.find(({ id }) => id === input.caseId);
-    const prepare = desktopReadiness
+    const panelSourceMigration = openPanelSourceMigrationWorlds.find(({ id }) => id === input.caseId);
+    const prepare = panelSourceMigration
+      ? `import {preparePanelSourceMigration} from "@workspace-skills/system-testing/open-goal-panel-source-migration-managed";
+         const prepared=await preparePanelSourceMigration(input,${JSON.stringify(panelSourceMigration)});`
+      : desktopReadiness
       ? `import {vcs,rpc} from "@workspace/runtime";
          import {prepareDesktopReadiness} from "@workspace-skills/system-testing/open-goal-desktop-readiness-managed";
          import * as updateModel from "@workspace/client-update-core";

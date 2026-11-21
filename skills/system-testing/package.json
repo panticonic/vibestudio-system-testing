@@ -88,6 +88,7 @@
     "./open-goal-desktop-readiness-managed": "./open-goal-desktop-readiness-managed.ts",
     "./open-goal-notification-state-managed": "./open-goal-notification-state-managed.ts",
     "./open-goal-mobile-continuity-worlds": "./open-goal-mobile-continuity-worlds.ts",
+    "./open-goal-panel-source-migration-managed": "./open-goal-panel-source-migration-managed.ts",
     "./open-goal-workspace-share-managed": "./open-goal-workspace-share-managed.ts",
     "./open-goal-agent-capability-managed": "./open-goal-agent-capability-managed.ts",
     "./open-goal-asset-integrity-managed": "./open-goal-asset-integrity-managed.ts",
