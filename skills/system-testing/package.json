@@ -93,6 +93,7 @@
     "./open-goal-mobile-continuity-worlds": "./open-goal-mobile-continuity-worlds.ts",
     "./open-goal-testkit-closeout-managed": "./open-goal-testkit-closeout-managed.ts",
     "./open-goal-webhook-admission-managed": "./open-goal-webhook-admission-managed.ts",
+    "./open-goal-transcript-surface-managed": "./open-goal-transcript-surface-managed.ts",
     "./open-goal-source-attribution-managed": "./open-goal-source-attribution-managed.ts",
     "./open-goal-workspace-smoke-managed": "./open-goal-workspace-smoke-managed.ts",
     "./open-goal-same-turn-eval-managed": "./open-goal-same-turn-eval-managed.ts",
