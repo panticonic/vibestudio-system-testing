@@ -9,7 +9,16 @@
     "durable": {
       "classes": [
         {
-          "className": "TestAgentWorker"
+          "className": "TestAgentWorker",
+          "storage": "dolt",
+          "doltLocal": [
+            "do_identity",
+            "subscription_intents",
+            "subscriptions",
+            "subagent_runs",
+            "custom_cards",
+            "agent_hot_path_trace"
+          ]
         }
       ]
     },
