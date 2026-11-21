@@ -115,7 +115,7 @@ import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testin
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalTeacherCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
-  openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openSystemReleaseWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openSkillMaintenanceWorlds, openDesktopReadinessWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3770,6 +3770,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const desktopReadiness = openDesktopReadinessWorlds.find(({ id }) => id === input.caseId);
     const panelSourceMigration = openPanelSourceMigrationWorlds.find(({ id }) => id === input.caseId);
     const skillMaintenance = openSkillMaintenanceWorlds.find(({ id }) => id === input.caseId);
+    const testkitCloseout = openTestkitCloseoutWorlds.find(({ id }) => id === input.caseId);
     const systemRelease = openSystemReleaseWorlds.find(({ id }) => id === input.caseId);
     let systemReleaseSeed: Awaited<ReturnType<typeof seedSystemRelease>> | undefined;
     if (systemRelease) {
@@ -3780,7 +3781,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         persist: (runId, record, entries) => this.storeSystemTestRunCheckpoint(runId, record, entries),
       });
     }
-    const prepare = systemRelease
+    const prepare = testkitCloseout
+      ? `import {prepareOpenTestkitCloseout} from "@workspace-skills/system-testing/open-goal-testkit-closeout-managed";
+         const prepared=await prepareOpenTestkitCloseout(input,${JSON.stringify(testkitCloseout)});`
+      : systemRelease
       ? `import {prepareSystemRelease} from "@workspace-skills/system-testing/open-goal-system-release-managed";
          const prepared=await prepareSystemRelease(input,${JSON.stringify(systemRelease)},${JSON.stringify(systemReleaseSeed)},${JSON.stringify(this.rpcSelfId)});`
       : skillMaintenance

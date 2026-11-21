@@ -90,6 +90,7 @@
     "./open-goal-desktop-readiness-managed": "./open-goal-desktop-readiness-managed.ts",
     "./open-goal-notification-state-managed": "./open-goal-notification-state-managed.ts",
     "./open-goal-mobile-continuity-worlds": "./open-goal-mobile-continuity-worlds.ts",
+    "./open-goal-testkit-closeout-managed": "./open-goal-testkit-closeout-managed.ts",
     "./open-goal-system-release-managed": "./open-goal-system-release-managed.ts",
     "./open-goal-system-release-records": "./open-goal-system-release-records.ts",
     "./open-goal-panel-source-migration-managed": "./open-goal-panel-source-migration-managed.ts",

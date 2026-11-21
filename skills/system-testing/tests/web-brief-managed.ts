@@ -10,7 +10,7 @@ import type { ManagedResearchHandoffReceiver } from "../research-handoff-managed
 import type { OpenGoalReceiver } from "../open-goal-managed.js";
 import type { AgentExecutionTestPolicySpec } from "@vibestudio/shared/authority/testPolicy";
 import {
-  openSystemReleaseWorlds, openSystemReleaseRequiresUnits,
+  openSystemReleaseWorlds, openSystemReleaseRequiresUnits, openTestkitCloseoutWorlds,
   openPanelSourceMigrationWorlds, openPanelSourceMigrationRequiresUnits,
   openWorkspaceShareWorlds, openWorkspaceShareRequiresUnits,
   openAgentCapabilityWorlds, openAgentCapabilityRequiresUnits,
@@ -117,7 +117,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 );
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
-const referenceGoals = [...openGoalWorlds, ...openSkillMaintenanceWorlds, ...openDesktopReadinessWorlds, ...openSystemReleaseWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
+const referenceGoals = [...openGoalWorlds, ...openSkillMaintenanceWorlds, ...openDesktopReadinessWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
@@ -143,6 +143,11 @@ const templateSettings = {
   notificationState: { requiresUnits: ["skills/open-user-goal", "workers/notification-state-fixture"] },
   "deployed-interface": { requiresUnits: openDeployedInterfaceRequiresUnits },
   "system-release": { requiresUnits: openSystemReleaseRequiresUnits },
+  "testkit-closeout": {
+    requiresUnits: ["skills/open-user-goal", "skills/session-test-review", "panels/chat", "workers/local-messaging-fixture"],
+    resources: [PANEL_AUTOMATION_RESOURCE],
+    authorityPolicy: panelControlAuthorityPolicy("inspect-owned-testkit-closeout"),
+  },
   "panel-source-migration": { requiresUnits: openPanelSourceMigrationRequiresUnits },
   "workspace-share": { requiresUnits: openWorkspaceShareRequiresUnits },
   "agent-capability": { requiresUnits: openAgentCapabilityRequiresUnits },
@@ -409,6 +414,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
     world.kind === "clientDiagnostics" ? "Diagnose the owned client and its durable conversation with exact readback" :
     world.kind === "mobileContinuity" ? "Review exact companion build, startup and reconnect in an owned local fixture" :
+    world.kind === "testkit-closeout" ? "Compare actual owned Testkit attempts and verify a private conditional closeout" :
     world.kind === "system-release" ? "Review the exact retained suite evidence for a private release handoff" :
     world.kind === "panel-source-migration" ? "Reconcile the exact source relocation and its local callers" :
     world.kind === "workspace-share" ? "Reconcile a retained share and exact private local authorization" :

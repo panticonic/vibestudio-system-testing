@@ -33,12 +33,12 @@ type Assignment = ReturnType<typeof world>["plan"][number];
 type Panel = Awaited<ReturnType<typeof openPanel>>;
 
 export async function exerciseTestkitCleanup(
-  caseId: string,
+  caseId: string, captureId?: string,
 ): Promise<LiveCleanupEvidence> {
   if (!contextId) throw new Error("Testkit cleanup needs an owned context");
   const scope = contextId;
   const assigned = world(caseId);
-  const receipt = `${scope}:testkit-cleanup`;
+  const receipt = captureId ? `${scope}:testkit-cleanup:${captureId}` : `${scope}:testkit-cleanup`;
   const release: LiveCleanupEvidence["release"] = {
     kind: "testkit",
     receipt: `${receipt}:deferred`,
@@ -287,9 +287,9 @@ export async function exerciseTestkitCleanup(
   }
 }
 
-export async function prepareTestkitCleanup(caseId: string) {
+export async function prepareTestkitCleanup(caseId: string, captureId?: string) {
   const assigned = world(caseId);
-  const evidence = await exerciseTestkitCleanup(caseId);
+  const evidence = await exerciseTestkitCleanup(caseId, captureId);
   const request: LiveCleanupRequest = {
     goal: assigned.goal,
     receipt: evidence.receipt,

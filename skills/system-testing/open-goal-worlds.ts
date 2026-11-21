@@ -187,3 +187,5 @@ export { openAssetIntegrityWorlds } from "./open-goal-asset-integrity-worlds.js"
 export { openTendrilRouteWorlds } from "./open-goal-tendril-route-worlds.js";
 export { openLocalPresentationWorlds } from "./open-goal-local-presentation-worlds.js";
 export { openAdventureJourneyWorlds, adventureGoalRequiresUnits, adventureGoalAuthority } from "./open-goal-adventure-worlds.js";
+
+export { openTestkitCloseoutWorlds } from "./open-goal-testkit-closeout-worlds.js";
