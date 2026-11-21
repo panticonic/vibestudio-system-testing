@@ -103,7 +103,7 @@ function runRecord(
   };
 }
 
-it("refuses native activation from a finite Eval without a bound assignment", async () => {
+it("requires operator authority and an assigned finite Eval for native activation", async () => {
   const owner = await createTestDO(TestSystemTestRunnerDO, {
     WORKER_SOURCE: "workers/system-test-runner",
     WORKER_CLASS_NAME: "SystemTestRunnerDO",
@@ -114,7 +114,9 @@ it("refuses native activation from a finite Eval without a bound assignment", as
     await expect(owner.callAs(
       { callerId, callerKind: "do", userId: "test-owner" },
       "launchAssignedOpenAutomation",
-    )).rejects.toThrow(/No native activation is assigned to this finite Eval/);
+    )).rejects.toThrow(/relationship workspace-role not satisfied/);
+    await expect(owner.call("launchAssignedOpenAutomation"))
+      .rejects.toThrow(/No native activation is assigned to this finite Eval/);
   } finally {
     owner.db.close();
   }
