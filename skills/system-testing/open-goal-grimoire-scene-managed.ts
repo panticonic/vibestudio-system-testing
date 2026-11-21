@@ -654,10 +654,12 @@ export async function prepareOpenGrimoireScene(
     const altered = structuredClone(report);
     altered.outcome.readback.sceneDigest = "retired";
     const wrong = await verify(altered);
+    const rejectedAlteredEvidence = rejectedAlias && !wrong.passed;
     return {
-      verification,
-      report,
-      rejectedAlteredEvidence: rejectedAlias && !wrong.passed,
+      ...verification,
+      passed: verification.passed && rejectedAlteredEvidence,
+      checks: { ...verification.checks, rejectedAlteredEvidence },
+      referenceReport: report,
     };
   }
   return { services, verify, qualify };
