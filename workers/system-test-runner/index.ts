@@ -116,6 +116,7 @@ import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeac
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
 import {
   openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openLiveTendrilBoardWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
+  openRetainedMemoryWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds,
@@ -3703,6 +3704,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const ownedOperation = openOwnedOperationsWorlds.find(({ id }) => id === input.caseId);
     const chatContinuity = openChatContinuityWorlds.some(({ id }) => id === input.caseId);
     const workspaceConfigReview = openWorkspaceConfigWorlds.some(({ id }) => id === input.caseId);
+    const retainedMemory = openRetainedMemoryWorlds.some(({ id }) => id === input.caseId);
     const intentDiscovery = openIntentDiscoveryWorlds.some(({ id }) => id === input.caseId);
     const routeAuthority = openRouteAuthorityWorlds.some(({ id }) => id === input.caseId);
     const launchState = openLaunchStateWorlds.some(({ id }) => id === input.caseId);
@@ -4121,6 +4123,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : workspaceConfigReview
       ? `import {prepareWorkspaceConfig} from "@workspace-skills/system-testing/open-goal-workspace-config-managed";
          const prepared=await prepareWorkspaceConfig(input);`
+      : retainedMemory
+      ? `import {prepareRetainedMemory} from "@workspace-skills/system-testing/open-goal-retained-memory-managed";
+         const prepared=await prepareRetainedMemory(input);`
       : intentDiscovery
       ? `import {prepareIntentDiscovery} from "@workspace-skills/system-testing/open-goal-intent-discovery-managed";
          const prepared=await prepareIntentDiscovery(input);`
