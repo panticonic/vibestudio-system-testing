@@ -487,12 +487,14 @@ export const vcsTests: TestCase[] = [
     description:
       "A move onto an existing file fails with a typed error and is recovered by the typed recovery table, not by parsing the message",
     category: "vcs",
+    workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     expectedToolFailures: [
       { name: "move_file", errorIncludes: "DestinationOccupied" },
       { name: "eval", failureCode: "DestinationOccupied" },
     ],
     prompt:
-      "In the disposable project, create docs/a.md and docs/b.md with one line each, then try to rename docs/a.md to docs/b.md. If it fails, check the workspace's recommended recovery before deciding what to do. Tell me what is in docs/ afterwards.",
+      "In the disposable project, create docs/a.md and docs/b.md with one line each, then try to rename docs/a.md to docs/b.md. Keep both notes intact if the move is blocked. Check the workspace's recommended recovery and tell me what is in docs/ afterwards.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
