@@ -1092,7 +1092,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       `policyRevision = ${SIZABLE_HISTORY_FIXTURE_REVISIONS}`,
     );
 
+    fake.inspect.mockClear();
     await fixture.cleanup(state);
+    expect(fake.inspect).not.toHaveBeenCalled();
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
 

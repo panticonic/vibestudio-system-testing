@@ -529,15 +529,23 @@ export class WorkspaceRepoFixtureLifecycle {
           "Workspace fixture task context has no committed event for attribution",
         );
       }
-      onPhase?.("task-first-parent-events");
-      const taskEvents = await this.taskFirstParentEvents(
-        state,
-        state.publishedFixtureEventId ?? taskStatus.committed.eventId,
-      );
       const needsCreationScope =
         state.kind === "created-repository" ||
         state.kind === "created-repositories" ||
         state.kind === "buildable-panel-with-derived";
+      // If main still points at the fixture's original event, none of its
+      // private descendants reached main. Inspect ancestry only for a
+      // creation-scope check or when there is publication to attribute.
+      const needsAncestry = needsCreationScope ||
+        state.publishedFixtureEventId !== undefined ||
+        taskStatus.mainEventId !== state.taskBaseEventId;
+      onPhase?.("task-first-parent-events");
+      const taskEvents = needsAncestry
+        ? await this.taskFirstParentEvents(
+            state,
+            state.publishedFixtureEventId ?? taskStatus.committed.eventId,
+          )
+        : [];
       const scopedTaskChanges = needsCreationScope
         ? await this.inspectTaskChanges(
             await this.taskWorkNewestFirst(taskEvents),
