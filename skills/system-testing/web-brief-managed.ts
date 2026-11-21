@@ -1,6 +1,6 @@
 import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { readVerifiedCachedPage } from "./verified-web-cache.js";
 import { web } from "@workspace/runtime";
 import { bindAssignedResearch } from "@workspace-skills/web-research-bindings";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -59,22 +59,13 @@ export function prepareManagedWebBrief(contextId: string, caseId: string) {
   async function verify(report: Brief | null) {
     const cache = await Promise.all(
       reads.map(async ({ requested, page }) => {
-        const entire = await web.read({
-          digest: page.digest,
-          offset: 0,
-          limit: page.size,
-        });
+        const entire = await readVerifiedCachedPage(input => web.read(input), page);
         const tail = tails.find(({ digest }) => digest === page.digest);
         return {
           requested,
           digest: page.digest,
           size: page.size,
-          verified:
-            entire.offset === 0 &&
-            entire.bytes === page.size &&
-            entire.nextOffset === page.size &&
-            sha256HexSyncText(entire.text) === page.digest &&
-            entire.text.startsWith(page.head),
+          verified: entire.exact,
           visible: (page.head + (tail?.text ?? "")).slice(0, 9000),
         };
       }),
@@ -251,19 +242,8 @@ export function prepareManagedResearchIntake(
         url: requestedUrl,
         session: "public",
       });
-      const entire = await web.read({
-        digest: page.digest,
-        offset: 0,
-        limit: page.size,
-      });
-      if (
-        page.session !== "public" ||
-        entire.offset !== 0 ||
-        entire.bytes !== page.size ||
-        entire.nextOffset !== page.size ||
-        !entire.text.startsWith(page.head) ||
-        sha256HexSyncText(entire.text) !== page.digest
-      )
+      const entire = await readVerifiedCachedPage(input => web.read(input), page);
+      if (page.session !== "public" || !entire.exact)
         throw new Error(
           "Research source did not match the actual cached bytes",
         );

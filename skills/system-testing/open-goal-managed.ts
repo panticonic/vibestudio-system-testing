@@ -7,6 +7,7 @@ import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { attestPublicSearch, type PublicSearchReceipt } from "./open-public-search-evidence.js";
+import { readVerifiedCachedPage } from "./verified-web-cache.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import type { WorkspaceEditFixture } from "./open-goal-owned-research-worlds.js";
 import type { NewsInput } from "./news-contract.js";
@@ -118,9 +119,8 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
     const result = value as ResearchReport | null;
     const citations = result?.research?.statements?.flatMap(({ cites }) => cites) ?? [];
     const cache = await Promise.all([...pages.values()].map(async (page) => {
-      const read = await web.read({ digest: page.digest, offset: 0, limit: page.size });
-      return { url: page.url, digest: page.digest, text: normalize(read.text),
-        exact: read.bytes === page.size && sha256HexSyncText(read.text) === page.digest };
+      const read = await readVerifiedCachedPage(input => web.read(input), page);
+      return { url: page.url, digest: page.digest, text: normalize(read.text), exact: read.exact };
     }));
     const date = new Date(snapshotTime).toISOString().slice(0, 10);
     const answer = normalize(result?.research?.statements?.map(({ text }) => text).join(" ") ?? "");
@@ -165,7 +165,8 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
         const hostname = new URL(url).hostname;
         if (hostname !== host && !hostname.endsWith("." + host)) continue;
         const page = await services.web.fetch({ url });
-        const read = await services.web.read({ digest: page.digest, offset: 0, limit: page.size });
+        const read = await readVerifiedCachedPage(services.web.read, page);
+        if (!read.exact) throw new Error("The reference public search could not verify the cached page digest");
         const text = normalize(read.text);
         const offset = text.toLowerCase().indexOf(phrase);
         if (offset < 0) continue;

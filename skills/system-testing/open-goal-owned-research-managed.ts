@@ -1,3 +1,4 @@
+import { readCachedWebRange, readVerifiedCachedPage } from "./verified-web-cache.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, extensions, vcs, web } from "@workspace/runtime";
@@ -132,10 +133,8 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
   };
 
   async function exactPage(page: Page) {
-    const bytes = await ports.web.read({ digest: page.digest, offset: 0, limit: page.size });
-    return { url: page.url, digest: page.digest, text: bytes.text, size: page.size,
-      exact: bytes.digest === page.digest && bytes.offset === 0 && bytes.bytes === page.size &&
-        sha256HexSyncText(bytes.text) === page.digest };
+    const bytes = await readVerifiedCachedPage(input => ports.web.read(input), page);
+    return { url: page.url, digest: page.digest, text: bytes.text, size: page.size, exact: bytes.exact };
   }
   async function verify(value: unknown) {
     const report = value as Result | null;
@@ -185,8 +184,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       const page = await services.web.fetch({ url: expectedUrl });
       let text = page.head;
       if (page.truncated) {
-        const tail: Read = await services.web.read({ digest: page.digest, offset: page.headBytes, limit: page.size - page.headBytes });
-        text += tail.text;
+        text += await readCachedWebRange(services.web.read, page.digest, page.headBytes, page.size);
       }
       const canonical = normalize(text);
       const at = canonical.toLowerCase().indexOf(expected.phrase.toLowerCase());
