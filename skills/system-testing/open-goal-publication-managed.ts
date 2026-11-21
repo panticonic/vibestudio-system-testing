@@ -263,7 +263,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
         (world.labels ?? []).every(({ text, packageOnly }) => snapshot.document.text.includes(text) === !packageOnly),
       rereadCurrentAndRetainedPackage: repackaged.artifactDigest === current.artifactDigest &&
         repackaged.privateReceipt.sourceStateHash === current.privateReceipt.sourceStateHash &&
-        prior.artifactDigest !== "" && (world.revisedCaption ? prior.artifactDigest !== current.artifactDigest : prior.artifactDigest === current.artifactDigest),
+        prior.artifactDigest.length > 0 && (world.revisedCaption ? prior.artifactDigest !== current.artifactDigest : prior.artifactDigest === current.artifactDigest),
       exactPreflight: expectedPreflight ? preflightReads === 1 && !!projected &&
         projected.status === expectedPreflight.status && outcome?.status === projected.status &&
         projected.next === expectedPreflight.next && outcome.next === projected.next && Array.isArray(outcome.blockers) &&

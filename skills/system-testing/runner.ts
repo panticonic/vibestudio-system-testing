@@ -2279,7 +2279,7 @@ export class HeadlessRunner {
       if (fixture?.kind !== "open-goal-panel-recovery" || fixture.caseId !== caseId || !fixture.repoName || !contextId)
         throw new Error("Visual recovery needs the owned panel fixture.");
       const source = `panels/${fixture.repoName}`;
-      const panels: { surfaceId: string; handle: Awaited<ReturnType<typeof this.openPanelClient>> }[] = [];
+      const panels: { surfaceId: string; handle: PanelHandle }[] = [];
       const failures: unknown[] = [];
       try {
         for (const surface of recovery.surfaces) {

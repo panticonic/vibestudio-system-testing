@@ -411,9 +411,10 @@ function validateProjectCommit(result: TestExecutionResult) {
     if (typeof path !== "string" || !path.startsWith(`${createdPath}/`)) continue;
     for (const call of calls.slice(mutationIndex + 1)) {
       const committed = commitResult(call);
-      const event = committed?.["event"];
+      if (!committed) continue;
+      const event = committed["event"];
       if (
-        committed?.["contextId"] === preparedContext &&
+        committed["contextId"] === preparedContext &&
         Array.isArray(committed["committedApplicationIds"]) &&
         committed["committedApplicationIds"].includes(applicationId) &&
         isRecord(event) &&

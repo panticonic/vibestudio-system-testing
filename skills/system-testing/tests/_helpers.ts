@@ -857,6 +857,7 @@ export function publishedEventForContext(
       push["mainEventId"] === eventId
     ) return eventId;
   }
+  return undefined;
 }
 
 /** Join the public merge receipt and committed source to both preserved line origins. */
