@@ -38,6 +38,7 @@ export { operatorGoalWorlds, operatorGoalRequiresUnits } from "./open-goal-opera
 export { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 export { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 export { openApiReadinessWorlds, openApiReadinessRequiresUnits } from "./open-goal-api-readiness-worlds.js";
+export { openEditorialWorlds, openEditorialRequiresUnits } from "./open-goal-editorial-worlds.js";
 export { openPortfolioWorlds, openPortfolioRequiresUnits } from "./open-goal-portfolio-worlds.js";
 export { openRegencyWorlds, openRegencyRequiresUnits } from "./open-goal-regency-worlds.js";
 export { openImageCandidateWorlds, openImageCandidateRequiresUnits } from "./open-goal-image-candidate-worlds.js";

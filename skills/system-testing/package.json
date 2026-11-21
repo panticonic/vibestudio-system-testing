@@ -149,6 +149,7 @@
     "./open-goal-owned-preview-managed": "./open-goal-owned-preview-managed.ts",
     "./open-goal-publication-managed": "./open-goal-publication-managed.ts",
     "./open-goal-api-readiness-managed": "./open-goal-api-readiness-managed.ts",
+    "./open-goal-editorial-managed": "./open-goal-editorial-managed.ts",
     "./open-goal-portfolio-managed": "./open-goal-portfolio-managed.ts",
     "./open-goal-regency-managed": "./open-goal-regency-managed.ts",
     "./open-goal-image-candidate-managed": "./open-goal-image-candidate-managed.ts",
@@ -343,6 +344,7 @@
     "@workspace-skills/clientdev": "workspace:*",
 
     "@workspace-skills/mobile-system-testing": "workspace:*",
+    "@workspace-skills/open-editorial-packet": "workspace:*",
     "@workspace-skills/open-demo-portfolio": "workspace:*",
     "@workspace-skills/open-regency-briefing": "workspace:*",
     "@vibestudio/rpc": "workspace:*",
