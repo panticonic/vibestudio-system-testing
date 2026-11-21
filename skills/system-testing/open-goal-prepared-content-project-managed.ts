@@ -75,7 +75,8 @@ export async function prepareOpenPreparedContentProject(
   const repositories = await Promise.all([
     { repoPath: sourcesPath, files: originalSources },
     ...(world.profile === "occupied" ? [{ repoPath, files: [{ path: "README.md", text: occupiedText }] }] : []),
-  ].map(async repository => ({
+  ].sort((left,right)=>left.repoPath<right.repoPath ? -1 : left.repoPath>right.repoPath ? 1 : 0)
+    .map(async repository => ({
     repoPath: repository.repoPath,
     files: await Promise.all(repository.files.map(async file => {
       const { digest } = await ports.putText(file.text);
