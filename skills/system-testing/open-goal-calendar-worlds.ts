@@ -1,9 +1,50 @@
-import type { OpenCalendarWorld } from "@workspace-skills/open-calendar-goal/managed";
-
-type World = OpenCalendarWorld & { sourceGroup: string; split: "train" | "test" };
-type Timeline = World["timelines"][number];
-type Page = Timeline["initial"][number];
-type Event = Exclude<Page, number>[number];
+// These fixture inputs are installed with the catalog. Only the routed
+// Google Workspace case loads the optional calendar runtime.
+type EventTime = { dateTime?: string; date?: string };
+type Event = {
+  id: string;
+  summary?: string;
+  description?: string;
+  status: "confirmed" | "cancelled" | "tentative";
+  updated: string;
+  start?: EventTime;
+  end?: EventTime;
+};
+type Page = readonly Event[] | number;
+type Timeline = {
+  id: string;
+  name: string;
+  description: string;
+  timeZone: string;
+  initial: readonly Page[];
+  refresh?: readonly Page[];
+  readback?: Readonly<Record<string, Event | number>>;
+};
+type EventRef = {
+  calendarId: string;
+  eventId: string;
+  updated?: string;
+  source?: "readback";
+};
+type World = {
+  id: string;
+  goal: string;
+  sourceGroup: string;
+  split: "train" | "test";
+  window: { start: string; end: string };
+  timelines: readonly Timeline[];
+  catalogPageSize: number;
+  canStage: boolean;
+  expected: {
+    scope: readonly string[];
+    refresh: boolean;
+    status: "selected" | "held" | "incomplete" | "stale";
+    selection: EventRef | null;
+    evidence: readonly EventRef[];
+    verify?: EventRef;
+    stage: boolean;
+  };
+};
 const date = "2026-10-22";
 const window = { start: date + "T09:00:00Z", end: date + "T12:00:00Z" };
 const old = "2026-10-20T09:00:00Z";
