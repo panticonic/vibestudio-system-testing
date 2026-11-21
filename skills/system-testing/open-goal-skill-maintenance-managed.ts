@@ -106,6 +106,7 @@ export async function prepareSkillMaintenance(
   const files = {
     "run.nl": textSource(root),
     "natlang.json": config(packageName, world.scope?.original),
+    "SKILL.md": `---\nname: ${packageName}\ndescription: ${JSON.stringify(world.name + " reusable contract review")}\n---\n\n# ${world.name}\n\nUse the typed entrypoint in run.nl. Its named children own the specialized contract checks.\n`,
     [canary]:
       JSON.stringify({
         name: world.name,
@@ -125,6 +126,10 @@ export async function prepareSkillMaintenance(
   const archivedFiles = {
     ...files,
     "natlang.json": config(packageName + "-archive", world.scope?.original),
+    "SKILL.md": files["SKILL.md"].replace(
+      `name: ${packageName}\n`,
+      `name: ${packageName}-archive\n`,
+    ),
   };
   const directories = [
     { path: workingPath, files },
