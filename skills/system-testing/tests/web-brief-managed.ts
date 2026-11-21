@@ -512,8 +512,18 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
   validate(result) {
     const teacher = result.diagnostics?.["natlangTeacher"] as (OpenGoalResult["teacher"] & { trainingEligible?: boolean }) | null | undefined;
     const proof = result.diagnostics?.["openGoalVerification"] as OpenGoalResult["verification"] | undefined;
-    return { passed: (qualification ? teacher === null : teacher?.trainingEligible === true) &&
-      proof?.passed === true && proof.goal === world.goal, details: proof?.checks };
+    if (qualification ? teacher !== null : teacher?.trainingEligible !== true) {
+      return { passed: false, reason: qualification
+        ? "The model-free workspace reference returned teacher execution evidence"
+        : "The managed teacher run did not produce eligible execution evidence" };
+    }
+    if (typeof proof?.passed !== "boolean" || proof.caseId !== world.id || proof.goal !== world.goal ||
+        proof.contextId !== result.provenance?.contextId || !proof.checks ||
+        !Object.values(proof.checks).length || Object.values(proof.checks).some(value => typeof value !== "boolean")) {
+      return { passed: false, reason: "The workspace fixture did not return a bound verification result" };
+    }
+    return { passed: proof.passed, details: proof.checks,
+      ...(proof.passed ? {} : { reason: "Independent workspace checks rejected this outcome" }) };
   },
 })));
 
