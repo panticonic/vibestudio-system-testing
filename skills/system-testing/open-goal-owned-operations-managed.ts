@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { createOwnedOperations, verifyOwnedOperations } from "@workspace/natlang-services";
 import { operationsDocketEvidenceSchema, operationsDossierMethods } from "@workspace/natlang-services/ownedOperationsContracts";
 import { contextId, fs, rpc, runtime, vcs } from "@workspace/runtime";
@@ -43,7 +43,7 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
         : "The current owner authorizes an isolated local role exercise and its cleanup.",
       request: world.request,
     };
-    const docket = { id, title, edition, kind: world.request.kind, revision: sha256HexSyncText(JSON.stringify(body)) };
+    const docket = { id, title, edition, kind: world.request.kind, revision: stableSha256Hex(body) };
     const path = `${directory}/${id}.json`;
     await fs.writeFile(path, JSON.stringify({ docket, ...body }));
     paths.set(id, path);
@@ -55,7 +55,7 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
   function decode(bytes: Uint8Array, id: string) {
     const parsed = operationsDocketEvidenceSchema.parse(JSON.parse(text.decode(bytes)));
     const { docket, ...body } = parsed;
-    if (docket.id !== id || docket.revision !== sha256HexSyncText(JSON.stringify(body)))
+    if (docket.id !== id || docket.revision !== stableSha256Hex(body))
       throw new Error("The retained docket identity or body revision changed");
     return parsed;
   }
