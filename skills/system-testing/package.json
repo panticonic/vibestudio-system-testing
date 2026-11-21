@@ -140,6 +140,7 @@
     "./open-goal-operator-managed": "./open-goal-operator-managed.ts",
     "./open-goal-unit-rollout-managed": "./open-goal-unit-rollout-managed.ts",
     "./open-goal-owned-task-managed": "./open-goal-owned-task-managed.ts",
+    "./open-goal-automation-activation-managed": "./open-goal-automation-activation-managed.ts",
     "./open-goal-scheduled-recovery-managed": "./open-goal-scheduled-recovery-managed.ts",
     "./open-goal-local-method-managed": "./open-goal-local-method-managed.ts",
     "./open-goal-local-delivery-managed": "./open-goal-local-delivery-managed.ts",

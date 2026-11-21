@@ -119,6 +119,7 @@ import {
   openAudienceResponseWorlds, openCoordinatedRevisionWorlds, openRetainedMemoryWorlds,
   terminalAppRepairWorlds,
   preparedContentProjectWorlds,
+  automationActivationWorlds,
   openScheduledRecoveryWorlds, capabilityPlanWorlds, openGoalGitHubWorlds,
   openAssemblyWorlds, openTemplateMigrationWorlds,
   openExtensionDossierWorlds, openUnitHandoffWorlds,
@@ -3768,6 +3769,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     );
     const unitRollout = openUnitRolloutWorlds.find(({ id }) => id === input.caseId);
     const ownedTask = openOwnedTaskWorlds.find(({ id }) => id === input.caseId);
+    const automationActivation = automationActivationWorlds.find(({ id }) => id === input.caseId);
     const scheduledRecovery = openScheduledRecoveryWorlds.find(({ id }) => id === input.caseId);
     let scheduledSeed: Awaited<ReturnType<typeof seedOwnedScheduledRecovery>> | undefined;
     if (scheduledRecovery) {
@@ -3994,6 +3996,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : ownedResearch
       ? `import {prepareOpenOwnedResearch} from "@workspace-skills/system-testing/open-goal-owned-research-managed";
          const prepared=await prepareOpenOwnedResearch(input);`
+      : automationActivation
+      ? `import {prepareOwnedAutomationActivation} from "@workspace-skills/system-testing/open-goal-automation-activation-managed";
+         const prepared=await prepareOwnedAutomationActivation(input,${JSON.stringify(automationActivation)});`
       : scheduledRecovery
       ? `import {prepareOwnedScheduledRecovery} from "@workspace-skills/system-testing/open-goal-scheduled-recovery-managed";
          const prepared=await prepareOwnedScheduledRecovery(input,${JSON.stringify(scheduledRecovery)},${JSON.stringify(scheduledSeed)});`
