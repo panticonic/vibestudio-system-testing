@@ -4,7 +4,7 @@ import type { TestCase } from "../types.js";
 
 type Qualification = Awaited<ReturnType<AndroidAuditReceiver["qualifyAndroidAudit"]>>;
 type Teacher = Awaited<ReturnType<AndroidAuditReceiver["runAndroidAuditTeacher"]>>;
-const settings = {
+export const androidAuditSettings = {
   category: "mobile",
   explicitOnly: true,
   validation: "harness" as const,
@@ -23,7 +23,7 @@ const settings = {
 };
 
 export const managedAndroidAuditTests: TestCase[] = androidAuditWorlds.map((world) => ({
-  ...settings,
+  ...androidAuditSettings,
   name: `android-audit-live-${world.id}`,
   description: "Audit the assigned Android device and application through Mobile Debug",
   prompt: world.goal,
@@ -46,7 +46,7 @@ export const managedAndroidAuditTests: TestCase[] = androidAuditWorlds.map((worl
 }));
 
 managedAndroidAuditTests.push({
-  ...settings,
+  ...androidAuditSettings,
   name: "android-audit-oracle-qualification",
   description: "Qualify native Android inventory and application evidence without model calls",
   prompt: androidAuditWorlds[0].goal,

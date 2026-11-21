@@ -1,3 +1,4 @@
+import { androidAuditSettings } from "./android-audit-managed.js";
 import { androidPairingAuthority } from "./mobile.js";
 import { preparedContentProjectWorlds } from "../open-goal-prepared-content-project-worlds.js";
 import { terminalAppRepairWorlds } from "../open-goal-terminal-app-repair-worlds.js";
@@ -38,7 +39,7 @@ import {
   openIntentDiscoveryRequiresUnits,
   openRouteAuthorityRequiresUnits,
   openLaunchStateRequiresUnits,
-  openAndroidDeliveryWorlds,
+  openAndroidAuditWorlds, openAndroidDeliveryWorlds,
   openLiveLocalInventoryWorlds, openLiveLocalInventoryRequiresUnits,
   openLiveTendrilBoardWorlds, openLiveTendrilBoardRequiresUnits,
   openBoardMigrationWorlds, boardMigrationRequiresUnits,
@@ -152,7 +153,7 @@ const referenceGoals = [...terminalAppRepairWorlds, ...preparedContentProjectWor
   ...openUnitHandoffWorlds,
   ...openCoordinatedRevisionWorlds,
   ...openRetainedMemoryWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openNativeImageWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidAuditWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openBoardMigrationWorlds, ...openLiveTendrilBoardWorlds, ...openNativeImageWorlds, ...openProvenanceQuestionWorlds, ...openTranscriptSurfaceWorlds, ...openSourceAttributionWorlds, ...openWorkspaceSmokeWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -454,6 +455,12 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     }] : []),
     workspaceRepoFixture: { kind: "open-goal-publication-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "android-audit" ? {
+    timeoutMs: androidAuditSettings.timeoutMs,
+    resources: androidAuditSettings.resources,
+    requiresUnits: ["skills/open-user-goal", ...androidAuditSettings.requiresUnits],
+    authorityPolicy: androidAuditSettings.authorityPolicy,
+  } : {}),
   ...(world.kind === "android-delivery" ? {
     timeoutMs: 25 * 60_000, resources: ["mobile:android-device"],
     requiresUnits: ["skills/open-user-goal", "skills/mobile-system-testing",
@@ -549,6 +556,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "installed-package" ? "Verify the installed worker package and restore only its approved local field" :
     world.kind === "local-width" ? "Reconcile current local model readiness with retained execution width evidence" :
     world.kind === "live-local-inventory" ? "Compare live local model candidates and independently verify the read-only handoff" :
+    world.kind === "android-audit" ? "Audit the assigned Android target and read the internal app only when requested" :
     world.kind === "android-delivery" ? "Verify the exact Android installation, readiness, or pairing on a disposable emulator" :
     world.kind === "live-tendril-board" ? "Present and independently verify the live Tendril board, stored state and retained build" :
     world.kind === "cli-route" ? "Verify the native gateway and recover the retained CLI invocation scope" :

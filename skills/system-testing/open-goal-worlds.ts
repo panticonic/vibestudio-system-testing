@@ -233,4 +233,5 @@ export { openCliRouteWorlds, openCliRouteRequiresUnits } from "./open-goal-cli-r
 export { openLiveTendrilBoardWorlds, openLiveTendrilBoardRequiresUnits } from "./open-goal-live-tendril-board-worlds.js";
 
 export { openLiveLocalInventoryWorlds, openLiveLocalInventoryRequiresUnits } from "./open-goal-live-local-inventory-worlds.js";
+export { openAndroidAuditWorlds } from "./open-goal-android-audit-worlds.js";
 export { openAndroidDeliveryWorlds } from "./open-goal-android-delivery-worlds.js";
