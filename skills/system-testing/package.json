@@ -373,6 +373,7 @@
     "@workspace/pubsub": "workspace:*"
   },
   "devDependencies": {
+    "@workspace-skills/open-user-goal": "workspace:*",
     "@workspace-skills/local-model-task-bindings": "workspace:*",
     "@workspace/client-update-core": "workspace:*",
     "@workspace-clients/desktop-browser": "workspace:*",
