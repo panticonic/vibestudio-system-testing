@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, openPanel, fs, type PanelHandle } from "@workspace/runtime";
 import type {
   BoardCard, BoardMigrationOutcome, BoardMigrationReceipt, LegacyBoard,
@@ -40,7 +40,7 @@ export function renderLegacyBoard(world: Rendered): string {
 }
 
 const identity = ({ id, title, edition, cards }: Rendered): LegacyBoard =>
-  ({ id, title, edition, revision: sha256HexSyncText(encode(cards)) });
+  ({ id, title, edition, revision: stableSha256Hex(cards) });
 
 export function admitBoardMigration(
   observed: MigrationView, basis: MigrationBasis, selection: MigrationSelection,
