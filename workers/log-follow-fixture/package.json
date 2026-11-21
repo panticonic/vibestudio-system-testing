@@ -1,0 +1,19 @@
+{
+  "name": "@workspace-workers/log-follow-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.ts" },
+  "vibestudio": {
+    "kind": "worker",
+    "entry": "index.ts",
+    "agentVisible": false,
+    "title": "Owned host log follower fixture",
+    "durable": { "classes": [{ "className": "LogFollowFixtureDO" }] },
+    "authority": { "requests": [], "provides": [], "serviceRequests": [] }
+  },
+  "dependencies": {
+    "@vibestudio/shared": "workspace:*",
+    "@workspace/runtime": "workspace:*"
+  }
+}

@@ -1,8 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import { readEventWatchRecords } from "@vibestudio/shared/events";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
-import { contextId, fs, rpc } from "@workspace/runtime";
+import { contextId, fs, rpc, runtime } from "@workspace/runtime";
 import { hostWorkerdLogTag } from "./log-audit-worlds.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import type { LogFixtureLine, LogFollowerWorld, LogOperationState } from "./open-goal-log-follower-worlds.js";
@@ -16,19 +17,32 @@ type Ports = {
   query(input: NativeQuery): Promise<Header & { records: NativeRow[] }>;
   stats(): Promise<{ oldestSeq: number | null }>;
   watch(id: string, signal: AbortSignal): Promise<RawEventResponse>;
-  emit(message: string): void;
+  emit(input: LogBatch): Promise<void>;
   scratch: { directory(): Promise<string>; write(path: string, data: string): Promise<void>;
     read(path: string): Promise<Uint8Array>; entries(path: string): Promise<string[]> };
 };
-function livePorts(): Ports {
-  return { contextId,
+type LogBatch = { marker: string; phase: "ready" | "catchup" | "final"; messages: string[] };
+const writerMethods = createReceiverRpcMethods<{ appendBatch(input: LogBatch): Promise<void> }>(["appendBatch"]);
+async function livePorts(owner: string) {
+  if (owner !== contextId) throw new Error("Log fixture belongs to another context");
+  const entity = await runtime.createEntity({ kind: "do", contextId: owner,
+    execution: { surface: "code", source: "workers/log-follow-fixture" },
+    className: "LogFollowFixtureDO", key: "log-follower-" + crypto.randomUUID() });
+  const close = () => runtime.retireEntity({ id: entity.id });
+  if (entity.kind !== "do" || entity.contextId !== owner) {
+    await close();
+    throw new Error("Scoped log writer has wrong native identity");
+  }
+  const target = entity.targetId;
+  const ports: Ports = { contextId,
     query: query => rpc.call("main", mainRpcMethods["serverLog.query"], [query]),
     stats: () => rpc.call("main", mainRpcMethods["serverLog.stats"], []),
     watch: (id, signal) => rpc.streamReadable("main", mainRpcMethods["events.watch"], [["server-log:append"], id], { signal }),
-    emit: message => console.warn(message),
+    emit: batch => rpc.call(target, writerMethods.appendBatch, [batch]),
     scratch: { directory: () => fs.mkdtemp("native-log-follower"),
       write: async (path, text) => { await fs.writeFile(path, text); }, read: path => readWorkspaceBytes(rpc, path, 20000),
       entries: path => fs.readdir(path) } };
+  return { ports, close };
 }
 type EvidenceRow = { seq: number; lane: string; request: string; state: LogOperationState; detail: string };
 type Capture = { boot: string; workspace: string; epoch: string; opened: boolean; canceled: boolean; start: number; oldest: number | null;
@@ -39,7 +53,15 @@ type Decision = { state: LogFollowerWorld["expected"]["state"]; citations: numbe
 type Receipt = { path: string; bytes: number; sha256: string };
 type Effect = { service: string; method: string; args: unknown[]; result: unknown };
 
-export async function prepareLogFollower(input: { contextId: string; caseId: string }, world: LogFollowerWorld, ports = livePorts()) {
+type Input = { contextId: string; caseId: string };
+export async function prepareLogFollower(input: Input, world: LogFollowerWorld, replayPorts?: Ports) {
+  if (replayPorts) return bindLogFollower(input, world, replayPorts);
+  const { ports, close } = await livePorts(input.contextId);
+  try { return { ...await bindLogFollower(input, world, ports), close }; }
+  catch (error) { await close(); throw error; }
+}
+
+async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Ports) {
   if (input.contextId !== ports.contextId || input.caseId !== world.id || world.lines.length > 16)
     throw new Error("Log follower case is outside the owned context");
   const marker = "natlang-follow-" + crypto.randomUUID(), channel = marker + "/row ", control = marker + "/barrier ";
@@ -69,11 +91,9 @@ export async function prepareLogFollower(input: { contextId: string; caseId: str
       await new Promise(resolve => setTimeout(resolve, 35));
     }
   }
-  function emitRows(phase: LogFixtureLine["phase"]) {
-    for (const item of source.filter(row => row.phase === phase)) {
-      const { phase: _, ...body } = item;
-      ports.emit(channel + JSON.stringify(body));
-    }
+  function emitRows(phase: LogFixtureLine["phase"], barrier: LogBatch["phase"]) {
+    const rows = source.filter(row => row.phase === phase).map(({ phase: _phase, ...record }) => channel + JSON.stringify(record));
+    return ports.emit({ marker, phase: barrier, messages: [...rows, control + barrier] });
   }
   function itemFromRow(row: NativeRow) {
     const line = row.message.split(/\r?\n/u).find(text => text.includes(channel));
@@ -88,8 +108,7 @@ export async function prepareLogFollower(input: { contextId: string; caseId: str
   const fold = (rows: NativeRow[]) => rows.flatMap(row => itemFromRow(row) ?? []);
   const hold = (continuity: Continuity): Join => ({ continuity, boot: initial.serverBootId, through: null, rows: [], duplicates: [] });
 
-  emitRows("backlog");
-  ports.emit(control + "ready");
+  await emitRows("backlog", "ready");
   const beforeWatch = await awaitBarrier("ready");
   const backlog = fold((await identity(channel, start, beforeWatch)).records);
   const saved = { boot: world.checkpoint === "old-boot" ? "retired-" + crypto.randomUUID() : initial.serverBootId,
@@ -144,8 +163,7 @@ export async function prepareLogFollower(input: { contextId: string; caseId: str
         throw new Error("Native log watcher never acknowledged its scope");
       epoch = head.value.epoch;
       opened = true;
-      emitRows("overlap");
-      ports.emit(control + "catchup");
+      await emitRows("overlap", "catchup");
       catchupThrough = await awaitBarrier("catchup");
       oldest = (await ports.stats()).oldestSeq;
       query = fold((await identity(channel, scopedStart, catchupThrough, world.limit + 1)).records);
@@ -155,8 +173,7 @@ export async function prepareLogFollower(input: { contextId: string; caseId: str
         controller.abort();
         canceled = true;
       }
-      emitRows("live");
-      ports.emit(control + "final");
+      await emitRows("live", "final");
       witnessedThrough = await awaitBarrier("final");
       if (!world.interrupted) await until(witnessedThrough);
     } finally {

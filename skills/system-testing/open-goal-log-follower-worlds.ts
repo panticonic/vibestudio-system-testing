@@ -21,7 +21,7 @@ function world(id: string, subject: string, goal: string, lines: LogFixtureLine[
     limit: options.limit ?? 10, allowFresh: options.allowFresh ?? false, mayStage: options.mayStage ?? options.stage ?? false,
     interrupted: options.interrupted ?? false, expected: { continuity, state, stage: options.stage ?? false } };
 }
-export const openLogFollowerRequiresUnits = ["skills/open-user-goal", "skills/server-logs", "skills/system-testing", "workers/system-test-runner"];
+export const openLogFollowerRequiresUnits = ["skills/open-user-goal", "skills/server-logs", "skills/system-testing", "workers/system-test-runner", "workers/log-follow-fixture"];
 export const openLogFollowerWorlds = [
   world("shipping-batch-overlap-before-commit", "Shipping batches",
     "My Shipping batches follow disconnected just after admission. Reconstruct what happened to this batch and leave a local closeout if it finished.",
