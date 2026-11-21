@@ -3811,7 +3811,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const deployedInterface = openDeployedInterfaceWorlds.find(({ id }) => id === input.caseId);
     const googleRunbook = googleRunbookWorlds.find(({ id }) => id === input.caseId);
     const newsEditionReview = newsEditionReviewWorlds.find(({ id }) => id === input.caseId);
-    const outcomeWorkspace = outcomeWorkspaceWorlds.some(({ id }) => id === input.caseId);
+    const outcomeWorkspace = outcomeWorkspaceWorlds.find(({ id }) => id === input.caseId);
     const assignedPublicBrief = assignedPublicBriefWorlds.find(({ id }) => id === input.caseId);
     const unitHandoff = openUnitHandoffWorlds.find(({ id }) => id === input.caseId);
     const extensionDossier = openExtensionDossierWorlds.find(({ id }) => id === input.caseId);
@@ -3950,10 +3950,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
       : outcomeWorkspace
       ? `import {prepareOutcomeWorkspace} from "@workspace-skills/system-testing/open-goal-outcome-workspace-managed";
-         import {outcomeWorkspaceWorlds} from "@workspace-skills/system-testing/open-goal-worlds";
-         const world=outcomeWorkspaceWorlds.find(({id})=>id===input.caseId);
-         if(!world)throw new Error("Unknown outcome workspace goal");
-         const prepared=await prepareOutcomeWorkspace(input,world);`
+         const prepared=await prepareOutcomeWorkspace(input,${JSON.stringify(outcomeWorkspace)});`
       : assignedPublicBrief
       ? `import {prepareAssignedPublicBrief} from "@workspace-skills/system-testing/open-goal-assigned-public-brief-managed";
          import {assignedPublicBriefWorlds} from "@workspace-skills/system-testing/open-goal-assigned-public-brief-worlds";
