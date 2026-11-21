@@ -596,6 +596,33 @@ describe("reduced VCS agentic catalog", () => {
     expect(test.validate(execution(final, [proseOnly])).passed).toBe(false);
   });
 
+  it("accepts an import cause linked through the application to the commit", () => {
+    const test = vcsAdvancedTests.find(
+      ({ name }) => name === "vcs-sizable-history-memory-recall",
+    )!;
+    const evidence = (
+      target: string, subjectKind: string, text: string, walk?: "cause",
+    ) => invocation(target, "provenance", { target, ...(walk ? { walk } : {}) }, {
+      protocolContent: [{ type: "text", text }],
+      details: { ref: target, subjectKind, ...(walk ? { walk } : {}) },
+    });
+    const cause = evidence("@r1-1111", "work-unit",
+      'stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name" · work unit · import · @r1-1111 ← import boundary',
+      "cause");
+    const commit = evidence("@r2-2222", "event",
+      'node · event · commit · message "Retire Harbor Lantern after launch; use Retention Service in support and audit records"\n' +
+      "event @r2-2222 —caused-by→ command @r4-4444\n" +
+      "event @r2-2222 —committed-by→ application @r3-3333");
+    const application = evidence("@r3-3333", "application",
+      "application @r3-3333 —applies-work→ work-unit @r1-1111");
+    const unrelated = evidence("@r3-3333", "application",
+      "application @r3-3333 —applies-work→ work-unit @r5-5555");
+    const final = "Harbor Lantern was retired after launch to use the public name Retention Service.";
+
+    expect(test.validate(execution(final, [cause, commit, application])).passed).toBe(true);
+    expect(test.validate(execution(final, [cause, commit, unrelated])).passed).toBe(false);
+  });
+
   it("joins an exact edited-file read to preserved and buried historical evidence", () => {
     const test = vcsAdvancedTests.find(
       ({ name }) => name === "vcs-sizable-history-edited-file-context",
@@ -1049,6 +1076,19 @@ describe("reduced VCS agentic catalog", () => {
     expect(test.validate(execution(final, unrelatedCounteraction)).passed).toBe(
       false,
     );
+
+    const invocationCause = {
+      kind: "trajectory-invocation",
+      invocationId: opaqueTarget[2]!.invocation.id,
+    };
+    opaqueProvenance.episodes[0]!["cause"] = {
+      toolName: "vcs",
+      invocation: invocationCause,
+      requestRef: null,
+    };
+    expect(test.validate(execution(final, opaqueTarget)).passed).toBe(true);
+    invocationCause.invocationId = "unrelated-revert";
+    expect(test.validate(execution(final, opaqueTarget)).passed).toBe(false);
 
     const committedReadWithoutStatus = structuredClone(attachedCounteraction);
     committedReadWithoutStatus.splice(4, 1);

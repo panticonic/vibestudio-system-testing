@@ -1069,14 +1069,17 @@ export function requireRevertEvidence(result: TestExecutionResult): {
       (episode) => {
         const change = recordField(episode, "change");
         const cause = recordField(episode, "cause");
+        const invocation = cause ? recordField(cause, "invocation") : null;
         const request = cause ? recordField(cause, "requestRef") : null;
+        const sameInvocation = invocation?.["kind"] === "trajectory-invocation" &&
+          invocation["invocationId"] === revertCall.id;
+        const sameRequest = request?.["operation"] === "revert" &&
+          isStringArray(request["changeIds"]) && request["changeIds"].length === 1 &&
+          request["changeIds"][0] === requestedChange;
         return (
           change?.["changeId"] === counteractionChangeId &&
           cause?.["toolName"] === "vcs" &&
-          request?.["operation"] === "revert" &&
-          isStringArray(request["changeIds"]) &&
-          request["changeIds"].length === 1 &&
-          request["changeIds"][0] === requestedChange &&
+          (sameInvocation || sameRequest) &&
           isStringArray(episode["counteractsChangeIds"]) &&
           episode["counteractsChangeIds"].length === 1
         );

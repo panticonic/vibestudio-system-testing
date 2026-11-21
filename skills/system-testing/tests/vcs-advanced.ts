@@ -368,6 +368,8 @@ function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
       call.execution?.status === "complete" &&
       call.execution.isError !== true,
   );
+  const retirementIntent =
+    'stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name"';
   const historicalDecisionEvidence = calls.some((call) => {
     const target = call.arguments?.["target"];
     const envelope = isRecord(call.execution?.result) ? call.execution.result : null;
@@ -387,10 +389,38 @@ function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
       authoredChanges.length > 0 && authoredChanges.every((edge) => edge[1] === target) &&
       importedRepositories.length > 0 && importedRepositories.every((edge) => edge[1] === target) &&
       /external snapshot generated:"system-test:\/\/vcs-sizable-history-memory-recall\//u.test(text) &&
-      /stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name"/u.test(text)
+      text.includes(retirementIntent)
     );
   });
-  return historicalDecisionEvidence
+  if (historicalDecisionEvidence) return answer;
+
+  const decisions = new Set<string>();
+  const workByApplication = new Map<string, string>();
+  const committedApplications = new Set<string>();
+  for (const call of calls) {
+    const target = call.arguments?.["target"];
+    const envelope = call.execution?.result;
+    const details = isRecord(envelope) && isRecord(envelope["details"]) ? envelope["details"] : null;
+    if (typeof target !== "string" || details?.["ref"] !== target) continue;
+    const text = protocolText(call);
+    if (details["subjectKind"] === "work-unit" && details["walk"] === "cause" &&
+        text.includes(`${retirementIntent} · work unit · import · ${target} ← import boundary`)) {
+      decisions.add(target);
+    }
+    if (details["subjectKind"] === "application") {
+      const edge = /application (@r[0-9a-z]+-[0-9a-f]{4}) —applies-work→ work-unit (@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
+      if (edge?.[1] === target) workByApplication.set(target, edge[2]!);
+    }
+    if (details["subjectKind"] === "event" &&
+        text.includes('node · event · commit · message "Retire Harbor Lantern after launch; use Retention Service in support and audit records"')) {
+      const edge = /event (@r[0-9a-z]+-[0-9a-f]{4}) —committed-by→ application (@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
+      if (edge?.[1] === target && text.includes(`event ${target} —caused-by→ command `)) {
+        committedApplications.add(edge[2]!);
+      }
+    }
+  }
+  return [...workByApplication].some(([application, work]) =>
+    committedApplications.has(application) && decisions.has(work))
     ? answer
     : {
         passed: false,
@@ -613,7 +643,7 @@ export const vcsAdvancedTests: TestCase[] = [
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
     agentContext: "fork",
     prompt:
-      "Change and commit one existing line in the disposable project, then undo that change while preserving the record of both changes. Commit the undo, reread the restored file, verify the working copy is clean, and explain what the history shows.",
+      "Change and commit one existing line in the disposable project. Use the change from that edit as the undo target so both changes stay in history. Commit the undo, reread the restored file, verify the working copy is clean, and explain what the history shows.",
     validate: (result) => {
       const base = checked(result, ["vcs.edit", "vcs.revert", "vcs.commit", "vcs.status"]);
       return base.passed ? requireRevertEvidence(result) : base;
