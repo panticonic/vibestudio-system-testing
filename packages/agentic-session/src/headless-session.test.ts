@@ -126,7 +126,7 @@ describe("HeadlessSession", () => {
     ).rejects.toBe(setup);
     expect(rpcCall).toHaveBeenLastCalledWith("main", "runtime.destroyContext", [
       { contextId: "original-context", recursive: true },
-    ], undefined);
+    ], { timeoutMs: 90_000 });
   });
 
   it("constructs without connecting", () => {
@@ -796,7 +796,7 @@ describe("HeadlessSession", () => {
       "main",
       expect.objectContaining({ name: "runtime.destroyContext" }),
       [{ contextId: "ctx-owned", recursive: true }],
-      { timeoutMs: 30_000 }
+      { timeoutMs: 90_000 }
     );
     expect(session.snapshot().cleanupErrors).toEqual([]);
   });

@@ -169,10 +169,16 @@ export async function retireHeadlessAgent(opts: {
 export async function destroyHeadlessAgentContext(opts: {
   rpcCall: AgentLaunchRpc["call"];
   contextId: string;
+  timeoutMs?: number;
 }): Promise<void> {
-  await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], [
-    { contextId: opts.contextId, recursive: true },
-  ]);
+  const args = [{ contextId: opts.contextId, recursive: true as const }] as const;
+  if (opts.timeoutMs === undefined) {
+    await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], args);
+  } else {
+    await opts.rpcCall("main", mainRpcMethods["runtime.destroyContext"], args, {
+      timeoutMs: opts.timeoutMs,
+    });
+  }
 }
 
 export async function unsubscribeHeadlessAgent(opts: {
