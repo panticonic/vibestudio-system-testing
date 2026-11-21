@@ -546,7 +546,7 @@ export const buildTests: TestCase[] = [
     description: "Import a built package and inspect its exports",
     category: "build",
     prompt:
-      "Import an existing workspace-built package in the sandbox and describe the exports you observed.",
+      "Import an existing workspace-built package in the sandbox and describe the exports you observed. If you need to look up the build, the workspace build service is available as services.build.",
     validate: validateWorkspaceImport,
   },
 ];
