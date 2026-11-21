@@ -1,3 +1,4 @@
+import { androidPairingAuthority } from "./mobile.js";
 import { openVaultKnowledgeWorlds } from "../open-goal-vault-knowledge-worlds.js";
 import { openGoalGoogleSetupWorlds, googleSetupRequiresUnits } from "../open-goal-google-setup-worlds.js";
 import { gadDurableQuestionWorlds, gadDurableQuestionRequiresUnits } from "../open-goal-gad-durable-question-worlds.js";
@@ -27,6 +28,7 @@ import {
   openIntentDiscoveryRequiresUnits,
   openRouteAuthorityRequiresUnits,
   openLaunchStateRequiresUnits,
+  openAndroidDeliveryWorlds,
   openLiveLocalInventoryWorlds, openLiveLocalInventoryRequiresUnits,
   openLiveTendrilBoardWorlds, openLiveTendrilBoardRequiresUnits,
   openCliRouteWorlds, openCliRouteRequiresUnits,
@@ -134,7 +136,7 @@ export const managedWebBriefTests: TestCase[] = managedWebBriefWorlds.map(
 
 type OpenGoalResult = Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
 const referenceGoals = [...openGoalWorlds, ...openLiveLocalInventoryWorlds, ...openPhoneFirstRunWorlds, ...openSkillMaintenanceWorlds, ...openWebhookAdmissionWorlds, ...openDevelopmentAuditWorlds, ...openDesktopReadinessWorlds, ...openContentArchiveWorlds, ...openSystemReleaseWorlds, ...openTestkitCloseoutWorlds, ...openPanelSourceMigrationWorlds, ...openWorkspaceShareWorlds, ...openNotificationStateWorlds, ...openAgentCapabilityWorlds, ...openMobileContinuityWorlds, ...openInstalledPackageWorlds, ...openAssetIntegrityWorlds, ...openTendrilRouteWorlds, ...openExtensionDossierWorlds, ...personalWelcomeWorlds, ...openDeployedInterfaceWorlds, ...openLocalPresentationWorlds, ...specialistHandoffWorlds, ...openAdventureJourneyWorlds, ...dictationHandoffWorlds, ...openLocalWidthWorlds, ...openBuildIncidentWorlds, ...providerHandoffWorlds, ...openProblemReportWorlds, ...openCompoundRecoveryWorlds, ...openOwnedResearchWorlds, ...openScheduledRecoveryWorlds, ...openAssemblyWorlds, ...openTemplateMigrationWorlds, ...capabilityPlanWorlds, ...openOwnedTaskWorlds, ...openTerminalWorlds, ...openReconciliationWorlds, ...openGoalEvalHandoffWorlds, ...openGoalProgramRunWorlds, ...openGoalAuthoringWorlds,
-  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openLiveTendrilBoardWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
+  ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openAndroidDeliveryWorlds, ...openDeliveryWakeWorlds, ...openWorkspaceConfigWorlds, ...openLiveTendrilBoardWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
@@ -402,6 +404,19 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     }] : []),
     workspaceRepoFixture: { kind: "open-goal-publication-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "android-delivery" ? {
+    timeoutMs: 25 * 60_000, resources: ["mobile:android-device"],
+    requiresUnits: ["skills/open-user-goal", "skills/mobile-system-testing",
+      world.route === "pair" ? "workers/phone-provisioning" : "extensions/mobile-debug"],
+    authorityPolicy: world.route === "pair" ? androidPairingAuthority : {
+      authority: [{
+        ruleId: "open-android-development-install",
+        capability: { kind: "prefix" as const, prefix: "userland:extensions/mobile-debug/native.mobile.execute#" },
+        resource: { kind: "exact" as const, key: "native.mobile:extension:@workspace-extensions/mobile-debug" },
+        tier: "gated" as const, decision: "once" as const,
+      }],
+    },
+  } : {}),
   ...(world.kind in templateSettings
     ? templateSettings[world.kind as keyof typeof templateSettings] : {}),
   ...(world.kind === "templateMigration" && world.authority ? { authorityPolicy: { authority: [{
@@ -479,6 +494,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "installed-package" ? "Verify the installed worker package and restore only its approved local field" :
     world.kind === "local-width" ? "Reconcile current local model readiness with retained execution width evidence" :
     world.kind === "live-local-inventory" ? "Compare live local model candidates and independently verify the read-only handoff" :
+    world.kind === "android-delivery" ? "Verify the exact Android installation, readiness, or pairing on a disposable emulator" :
     world.kind === "live-tendril-board" ? "Present and independently verify the live Tendril board, stored state and retained build" :
     world.kind === "cli-route" ? "Verify the native gateway and recover the retained CLI invocation scope" :
     world.kind === "owned-operations" ? "Verify independent owned role checkpoints, their cleanup, and any private release dossier" :

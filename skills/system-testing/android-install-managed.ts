@@ -26,9 +26,10 @@ export async function prepareManagedAndroidInstall(
   input: Input,
   workspace: string,
   ports: NativePorts,
+  assignment?: { id: string; goal: string; mode: (typeof androidInstallWorlds)[number]["mode"]; reset?: boolean },
 ) {
-  const world = androidInstallWorlds.find(({ id }) => id === input.caseId);
-  if (!world) throw new Error("Unknown managed Android installation case");
+  const world = assignment ?? androidInstallWorlds.find(({ id }) => id === input.caseId);
+  if (!world || world.id !== input.caseId) throw new Error("Unknown managed Android installation case");
   const devices = await ports.inventory();
   const targets = devices.filter(({ serial, state }) => /^emulator-\d+$/u.test(serial) && state === "device");
   if (targets.length !== 1)
@@ -44,7 +45,7 @@ export async function prepareManagedAndroidInstall(
   const foreground = world.mode !== "foreground-hold";
   const request: MobileAssignment = {
     goal: world.goal, workspace, scenario: "development", authority: "execute",
-    reset: false, deviceId: world.mode === "target-hold" ? missing : owned,
+    reset: assignment?.reset ?? false, deviceId: world.mode === "target-hold" ? missing : owned,
   };
   const bound = ports.bind(request, { workspace, provider: null, tooling: true, foreground });
   const inventories: MobileInventory[] = [];
@@ -85,7 +86,7 @@ export async function prepareManagedAndroidInstall(
         isDeepStrictEqual(inventory.devices, installExpected ? [{ id: owned, state: "ready" }] : []),
       execution: installExpected
         ? installs.length === 1 && install?.deviceId === owned &&
-          install.packageName === "app.vibestudio.mobile.internal" && install.reset === false &&
+          install.packageName === "app.vibestudio.mobile.internal" && install.reset === request.reset &&
           readbacks.length === 1 && readback?.deviceId === owned && readback.packageName === install.packageName
         : installs.length === 0 && readbacks.length === 0,
       device: installExpected

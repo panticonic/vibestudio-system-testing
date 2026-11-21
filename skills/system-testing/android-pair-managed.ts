@@ -17,8 +17,9 @@ export async function prepareManagedAndroidPair(
   workspace: string,
   phone: Phone,
   bind: typeof bindInstalledMobileScenario,
+  assignment?: { id: string; goal: string; mode: (typeof androidPairWorlds)[number]["mode"] },
 ) {
-  const world = requireAssignedWorld(androidPairWorlds, input.caseId, "Unknown Android pairing case");
+  const world = requireAssignedWorld(assignment ? [assignment] : androidPairWorlds, input.caseId, "Unknown Android pairing case");
   const providers = (await phone.providers()).filter(({ platforms }) => platforms.includes("android"));
   if (providers.length !== 1)
     throw new Error("Connect exactly one desktop that can provision the Android emulator");

@@ -162,6 +162,7 @@
     "./open-goal-api-readiness-managed": "./open-goal-api-readiness-managed.ts",
     "./open-goal-live-tendril-board-managed": "./open-goal-live-tendril-board-managed.ts",
     "./open-goal-live-local-inventory-managed": "./open-goal-live-local-inventory-managed.ts",
+    "./open-goal-android-delivery-managed": "./open-goal-android-delivery-managed.ts",
     "./open-goal-cli-route-managed": "./open-goal-cli-route-managed.ts",
     "./open-goal-owned-operations-managed": "./open-goal-owned-operations-managed.ts",
     "./open-goal-chat-continuity-managed": "./open-goal-chat-continuity-managed.ts",
