@@ -121,7 +121,7 @@ import {
   openExtensionDossierWorlds,
   personalWelcomeWorlds, dictationHandoffWorlds, specialistHandoffWorlds, providerHandoffWorlds, openProblemReportWorlds, openCompoundRecoveryWorlds, openOwnedResearchWorlds, openTerminalWorlds, openOwnedTaskWorlds, openGoalGoogleSetupWorlds, openUnitRolloutWorlds,
   openDeployedInterfaceWorlds, openLocalWidthWorlds, openBuildIncidentWorlds, openGoalEvalHandoffWorlds, openGoalProgramRunWorlds, openGoalAuthoringWorlds, openDiagnosticWorlds, openReconciliationWorlds, openGoalRecoveryWorlds, openLocalMethodWorlds, openLocalDeliveryWorlds, openPersonalArtifactWorlds, openPersonalAutomationWorlds, openPersonalHistoryWorlds, openBrowserMigrationWorlds,
-  operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
+  gadDurableQuestionWorlds, operatorGoalWorlds, publicationGoalWorlds, spectroliteGoalWorlds, openVaultKnowledgeWorlds, openClientDiagnosticsWorlds,
 } from "@workspace-skills/system-testing/open-goal-worlds";
 
 import {
@@ -3722,6 +3722,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     const localMethodExchange = openLocalMethodWorlds.find(({ id }) => id === input.caseId);
     const localDelivery = openLocalDeliveryWorlds.find(({ id }) => id === input.caseId);
     const recovery = openGoalRecoveryWorlds.find(({ id }) => id === input.caseId);
+    const gadDurableQuestion = gadDurableQuestionWorlds.find(({ id }) => id === input.caseId);
     const clientDiagnostics = openClientDiagnosticsWorlds.find(({ id }) => id === input.caseId);
     const visualRecovery = openGoalPanelRecoveryWorlds.some(({ id }) => id === input.caseId);
     const ownedPreview = openGoalOwnedPreviewWorlds.some(({ id }) => id === input.caseId);
@@ -4004,6 +4005,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          import {prepareOpenGoogleSetup} from "@workspace-skills/google-drive/open-google-setup-managed";
          if (!input.source || !input.panelId) throw new Error("Google setup needs its assigned welcome panel");
          const prepared=await prepareOpenGoogleSetup(panelTree.get(input.panelId),actualContextId,input.source,${JSON.stringify(googleSetup)});`
+      : gadDurableQuestion
+      ? `import {prepareOpenGadDurableQuestion} from "@workspace-skills/system-testing/open-goal-gad-durable-question-managed";
+         const prepared=await prepareOpenGadDurableQuestion(actualContextId,${JSON.stringify(gadDurableQuestion)});`
       : clientDiagnostics
       ? `import {prepareOpenClientDiagnostics} from "@workspace-skills/system-testing/open-goal-client-diagnostics-managed";
          if (!input.source || !input.clientPanels) throw new Error("Client diagnostics needs its owned local panels");

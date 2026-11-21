@@ -36,6 +36,14 @@ export class LocalMessagingProbeDO extends DurableObjectBase {
   this.sql.exec("INSERT OR REPLACE INTO messaging_probe_revision VALUES(1,?)",joined.revision);
   return {participantId:id,revision:joined.revision};
  }
+ @rpc({website:{kind:"closed",reason:"Only the fixture owner may retire a passive review participant."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"})
+ async leaveOwnedRoster(revision:number) {
+  const config=this.config();
+  const retained=Number(this.sql.exec("SELECT revision FROM messaging_probe_revision WHERE id=1").one()["revision"]);
+  if (revision!==retained) throw new Error("This is not the owned participant revision");
+  const participantId=actorId({source:String(this.env["WORKER_SOURCE"]),className:String(this.env["WORKER_CLASS_NAME"]),key:this.objectKey});
+  await this.rpc.call(config.channelTargetId,channelRpcMethods.leave,[{participantId,revision}]);
+ }
  @rpc({website:{kind:"closed",reason:"Only canonical channel delivery reaches this passive probe."},principals:["code","host"],effect:{kind:"open"},tier:"open",sensitivity:"write"})
  override async acceptChannelDelivery(input:ResidentChannelDeliveryInput) {
   const config=this.config();

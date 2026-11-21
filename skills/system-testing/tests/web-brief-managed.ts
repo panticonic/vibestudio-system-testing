@@ -1,5 +1,6 @@
 import { openVaultKnowledgeWorlds } from "../open-goal-vault-knowledge-worlds.js";
 import { openGoalGoogleSetupWorlds, googleSetupRequiresUnits } from "../open-goal-google-setup-worlds.js";
+import { gadDurableQuestionWorlds, gadDurableQuestionRequiresUnits } from "../open-goal-gad-durable-question-worlds.js";
 import { openClientDiagnosticsWorlds, clientDiagnosticsRequiresUnits } from "../open-goal-client-diagnostics-worlds.js";
 import { openGoalGitHubWorlds, githubOpenRequiresUnits, githubOpenAuthority } from "../open-goal-github-worlds.js";
 import { openGoalPanelRecoveryWorlds } from "../open-goal-panel-recovery-worlds.js";
@@ -133,7 +134,7 @@ const referenceGoals = [...openGoalWorlds, ...openPhoneFirstRunWorlds, ...openSk
   ...browserGoalWorlds, ...suiteGoalWorlds, ...openExamplesAdoptionWorlds, ...openGrimoireSceneWorlds, ...openChatContinuityWorlds, ...openLiveTendrilBoardWorlds, ...openSameTurnEvalWorlds, ...openCliRouteWorlds, ...openLocalMethodWorlds, ...openIntentDiscoveryWorlds, ...openRouteAuthorityWorlds, ...openLogFollowerWorlds, ...openLaunchStateWorlds, ...openScaffoldWorlds, ...openOwnedOperationsWorlds, ...openPtyContinuityWorlds, ...openSystemCandidateWorlds, ...openWorkspaceClaimWorlds, ...openBridgeDeliveryWorlds, ...openEditorialWorlds, ...openPortfolioWorlds, ...openRegencyWorlds, ...openApiReadinessWorlds, ...openImageCandidateWorlds, ...openNewsEvidenceWorlds, ...newsGoalWorlds, ...spectroliteGoalWorlds, ...openVaultKnowledgeWorlds, ...openGoalGoogleWorlds,
   ...openGoalPersonalWorlds, ...operatorGoalWorlds, ...openDiagnosticWorlds, ...openGoalRecoveryWorlds, ...openLocalDeliveryWorlds, ...openUnitRolloutWorlds, ...publicationGoalWorlds,
   ...openGoalPdfWorlds, ...openGoalGmailWorlds, ...openGoalPdfVaultWorlds, ...openGoalCalendarWorlds,
-  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
+  ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
 const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
@@ -324,6 +325,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     ]),
     workspaceRepoFixture: { kind: "open-goal-google-setup", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "gadDurableQuestion" ? { requiresUnits: gadDurableQuestionRequiresUnits } : {}),
   ...(world.kind === "clientDiagnostics" ? {
     requiresUnits: clientDiagnosticsRequiresUnits,
     resources: [PANEL_AUTOMATION_RESOURCE],
@@ -485,6 +487,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     world.kind === "localMethodExchange" ? "Recover or settle an exact owned native method exchange" :
     world.kind === "local-delivery" ? "Resolve current local recipients and check retained delivery, recovery, and exact acknowledgment" :
     world.kind === "recovery" ? "Recover current work from retained session evidence" :
+    world.kind === "gadDurableQuestion" ? "Review the exact owned durable question and current GAD roster" :
     world.kind === "clientDiagnostics" ? "Diagnose the owned client and its durable conversation with exact readback" :
     world.kind === "mobileContinuity" ? "Review exact companion build, startup and reconnect in an owned local fixture" :
     world.kind === "testkit-closeout" ? "Compare actual owned Testkit attempts and verify a private conditional closeout" :
