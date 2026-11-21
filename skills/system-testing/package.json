@@ -198,6 +198,7 @@
     "./open-goal-product-owned-managed": "./open-goal-product-owned-managed.ts",
     "./open-goal-product-owned-worlds": "./open-goal-product-owned-worlds.ts",
     "./open-goal-news-evidence-managed": "./open-goal-news-evidence-managed.ts",
+    "./open-goal-outcome-workspace-managed": "./open-goal-outcome-workspace-managed.ts",
     "./open-goal-worlds": "./open-goal-worlds.ts",
     "./web-brief-worlds": "./web-brief-worlds.ts",
     "./architecture-boundary-managed": "./architecture-boundary-managed.ts",

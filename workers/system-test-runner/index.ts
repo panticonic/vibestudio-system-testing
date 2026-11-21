@@ -3950,7 +3950,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
          const prepared=await prepareOpenTendrilRoute(input,${JSON.stringify(tendrilRoute)});`
       : outcomeWorkspace
       ? `import {prepareOutcomeWorkspace} from "@workspace-skills/system-testing/open-goal-outcome-workspace-managed";
-         import {outcomeWorkspaceWorlds} from "@workspace-skills/system-testing/open-goal-outcome-workspace-worlds";
+         import {outcomeWorkspaceWorlds} from "@workspace-skills/system-testing/open-goal-worlds";
          const world=outcomeWorkspaceWorlds.find(({id})=>id===input.caseId);
          if(!world)throw new Error("Unknown outcome workspace goal");
          const prepared=await prepareOutcomeWorkspace(input,world);`
