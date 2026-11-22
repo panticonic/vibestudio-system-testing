@@ -27,6 +27,7 @@ const localYear = new Intl.DateTimeFormat("en", {
   year: "numeric",
 }).format(new Date());
 export const PROJECT_PULSE_END = `${Number(localYear) + 1}-01-01T00:00:00-05:00`;
+const projectPulseEndTimestamp = Date.parse(PROJECT_PULSE_END);
 
 function semanticUnitInspection(
   result: Parameters<typeof noIncompleteInvocations>[0],
@@ -904,7 +905,7 @@ function isDailyProjectPulseLaunch(value: unknown): boolean {
     // scheduled the automation the request asked for.
     /^5\s+5\s+\*\s+\*\s+(?:4|THU)$/iu.test(String(trigger["expression"] ?? "")) &&
     trigger["timezone"] === projectPulseTimezone &&
-    trigger["untilAt"] === Date.parse(PROJECT_PULSE_END) &&
+    trigger["untilAt"] === projectPulseEndTimestamp &&
     trigger["maxRuns"] === 12 &&
     ((action?.["kind"] === "prompt" &&
       typeof action["text"] === "string" &&
@@ -984,7 +985,7 @@ export const unitDiagnosticsTests: TestCase[] = [
       "Agent launches an active finite timezone-aware calendar automation without publishing a worker",
     category: "unit-diagnostics",
     prompt:
-      `Please start an automation called ‘Daily project pulse’ that checks project status every Thursday at 5:05 a.m. ${projectPulseTimezone} time and posts a concise update. Have it stop at the New Year’s midnight (${PROJECT_PULSE_END}) or after 12 runs, whichever comes first. Keep it offline and start it now. Tell me where I can inspect or stop it.`,
+      `Please start an automation called ‘Daily project pulse’ that checks project status every Thursday at 5:05 a.m. ${projectPulseTimezone} time and posts a concise update. Have it stop at the New Year’s midnight (${PROJECT_PULSE_END}, exactly ${projectPulseEndTimestamp} milliseconds since the Unix epoch) or after 12 runs, whichever comes first. Activate the schedule now with a single launch, keep it offline, and tell me where I can inspect or stop it.`,
     authorityPolicy: {
       authority: [
         {
