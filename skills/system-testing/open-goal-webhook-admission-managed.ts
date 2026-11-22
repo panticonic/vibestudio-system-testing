@@ -226,12 +226,14 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
   const services = {
     webhookAdmissionEvidence: {
       async discover() {
-        if (discovered) throw new Error("Discover only one authorized local registration");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return record("webhookAdmissionEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (!discovered || observed || pending || id !== assignment.id) throw new Error("Read only the exact assigned webhook registration");
+        if (!discovered || id !== assignment.id) throw new Error("Read only the exact assigned webhook registration");
+        if (observed) return structuredClone(observed);
+        if (pending) throw new Error("The webhook observation is already in progress");
         pending = true;
         try { observed = await observe(); return record("webhookAdmissionEvidence", "inspect", [id], observed); }
         finally { pending = false; }
