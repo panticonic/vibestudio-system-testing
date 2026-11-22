@@ -949,7 +949,7 @@ export const unitDiagnosticsTests: TestCase[] = [
     description: "Report the version history of a workspace unit",
     category: "unit-diagnostics",
     prompt:
-      "Pick an installed workspace extension and tell me how many retained versions it has and whether any version is currently active. If one is active, identify it.",
+      "Use the installed-unit catalog through services.build to pick a workspace extension. Tell me how many retained versions it has and whether any version is currently active. If one is active, identify it.",
     validate: (result) =>
       semanticUnitInspection(
         result,
