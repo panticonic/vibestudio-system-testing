@@ -17,6 +17,12 @@ export type MobilePorts = {
   app(deviceId: string, packageName: string): Promise<AppReadback>;
 };
 
+export type MobileScenarioBinder = (
+  assignment: MobileAssignment,
+  presence: Omit<MobileInventory, "devices">,
+  signal?: AbortSignal,
+) => ReturnType<typeof bindMobileScenario>;
+
 /** Bind one attempt to a caller-owned request and the receiver's observed target. */
 export function bindMobileScenario(
   request: MobileAssignment,

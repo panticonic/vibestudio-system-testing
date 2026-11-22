@@ -54,6 +54,10 @@
       ],
       "serviceRequests": [
         {
+          "protocol": "vibestudio.channel.v1",
+          "availability": "required"
+        },
+        {
           "protocol": "vibestudio.development.v1",
           "availability": "optional"
         },
@@ -68,6 +72,10 @@
         {
           "protocol": "vibestudio.images.v1",
           "availability": "optional"
+        },
+        {
+          "protocol": "vibestudio.workspace-source.v1",
+          "availability": "required"
         }
       ],
       "provides": []

@@ -1,6 +1,6 @@
 import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
-import { vcs } from "@workspace/runtime";
+import { vcs, workers } from "@workspace/runtime";
 import { bindArchitectureReview } from "@workspace-skills/architecture/workflow";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
@@ -37,10 +37,18 @@ export async function prepareManagedArchitectureBoundary(
     initial.workingHead.kind === "event"
       ? initial.workingHead.eventId
       : initial.workingHead.applicationId;
+  const resolveProvider = {
+    "vibestudio.workspace-source.v1": () =>
+      workers.resolveService("vibestudio.workspace-source.v1", null),
+    "vibestudio.channel.v1": () =>
+      workers.resolveService("vibestudio.channel.v1", lane?.key ?? null),
+    "vibestudio.missions.v1": () =>
+      workers.resolveService("vibestudio.missions.v1", null),
+  }[world.protocol];
   const bound = bindArchitectureReview({
     ...world,
     contextId,
-    ...(lane ? { objectKey: lane.key } : {}),
+    resolveProvider,
   });
   const routes: Route[] = [];
   const declarations: Declaration[] = [];
