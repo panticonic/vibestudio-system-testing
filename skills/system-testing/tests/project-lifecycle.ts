@@ -1545,6 +1545,7 @@ export const projectLifecycleTests: TestCase[] = [
       "Build, debug, polish, and publish a To-Do panel through the live UI",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
+    timeoutMs: 15 * 60_000,
     // The task deliberately induces a source diagnostic. Its failed report is
     // completed verification evidence; the validator requires a later clean check.
     authorityPolicy: panelControlAuthorityPolicy("inspect-created-panel", [
