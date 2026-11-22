@@ -45,3 +45,20 @@ export function assessSemanticOutcome<T extends Verification>(
     },
   };
 }
+
+/** Transitional adapters for existing oracles. These values never enter model context.
+ * Delete each case when its domain verifier directly consumes its application type. */
+export function applicationVerifierValue(entry: { resultType: string; skill?: string }, actual: unknown): unknown {
+  const value = actual as Record<string, unknown> | null;
+  switch (entry.resultType) {
+    case "ResearchGoalReport": return { status: value?.status, research: actual };
+    case "ResearchRevision":
+    case "WorkspaceEditReport":
+    case "BrowserGoalReport":
+    case "WorkspaceSuiteReport": return actual;
+    case "WorkspaceAnswer": return { outcome: { summary: value?.answer } };
+    default: return entry.skill
+      ? { status: "workspace-skill-reviewed", skill: entry.skill, outcome: actual }
+      : actual;
+  }
+}

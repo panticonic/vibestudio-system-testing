@@ -26,3 +26,17 @@ describe("application outcome contracts", () => {
     expect(() => assessSemanticOutcome({ passed: false, checks: { reportedRevision: false } }, effectsOnly)).toThrow("every independent application check");
   });
 });
+
+import { applicationVerifierValue } from "./semantic-outcome-contract.js";
+it("adapts native application values only at the legacy oracle boundary", () => {
+  const research = { status: "answered", question: "Why?", statements: [] };
+  expect(applicationVerifierValue({ resultType: "ResearchGoalReport", skill: "owned-research" }, research))
+    .toEqual({ status: "answered", research });
+  const edit = { status: "edited", path: "guide.md", version: "v2" };
+  for (const resultType of ["WorkspaceEditReport", "ResearchRevision", "BrowserGoalReport", "WorkspaceSuiteReport"])
+    expect(applicationVerifierValue({ resultType, skill: "ignored" }, edit)).toBe(edit);
+  expect(applicationVerifierValue({ resultType: "WorkspaceAnswer" }, { answer: "Doors open at 6." }))
+    .toEqual({ outcome: { summary: "Doors open at 6." } });
+  expect(applicationVerifierValue({ resultType: "DomainOutcome", skill: "domain" }, edit))
+    .toEqual({ status: "workspace-skill-reviewed", skill: "domain", outcome: edit });
+});

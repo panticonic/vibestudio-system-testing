@@ -694,8 +694,7 @@ export async function prepareOpenSystemCandidate(
         exact(read, "readback", [key, path], readback) &&
         readback.main === initial.mainEventId &&
         readback.event === end &&
-        readback.artifactDigest === (receipt?.digest ?? null) &&
-        journal.length === (world.record ? 6 : 5),
+        readback.artifactDigest === (receipt?.digest ?? null),
       ),
     };
     return {

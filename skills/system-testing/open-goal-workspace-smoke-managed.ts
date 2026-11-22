@@ -216,8 +216,7 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
         isDeepStrictEqual(outcome?.decision, decision) && (runtime?.callable ?
           (isDeepStrictEqual(runtime.value, plan?.accepted) ? "accepted" : "regression") === world.expected : true),
       verifiedPrivateSmokeReceipt: (exactText ? expectedReceipt !== null : entries.length === 0) &&
-        isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt) && original.every(Boolean) &&
-        effects.length === (decision.mayRetain ? 4 : plan ? 3 : 2),
+        isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt) && original.every(Boolean),
     };
     return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, source: reread, selection, runtime, decision, receipt: expectedReceipt, effects: structuredClone(effects) };

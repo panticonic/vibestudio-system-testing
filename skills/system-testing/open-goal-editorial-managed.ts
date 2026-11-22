@@ -195,7 +195,9 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
   const services={
     editorialMission:{async list(){listed=await cards();return structuredClone(listed);}},
     editorialWorkspace:{async read(id:string){
-      if(!listed||id!==firstMission.id||busy||snapshots.length>=2||snapshots.length===1&&!raceObserved)return null;
+      if(!listed||id!==firstMission.id)return null;
+      if(snapshots.length>=2||snapshots.length===1&&!raceObserved)return structuredClone(snapshots.at(-1)!);
+      if(busy)return null;
       busy=true;
       try {
         const view=await readSnapshot();
@@ -210,10 +212,11 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
         const live=snapshots.at(-1);
         const record=sources.at(-1);
         const name=live&&grant(live.mission);
-        if(!live||!record||active||!name||!isDeepStrictEqual(live,snapshot)||!isDeepStrictEqual(inputPlan,plan)||
+        if(!live||!record||!name||!isDeepStrictEqual(live,snapshot)||!isDeepStrictEqual(inputPlan,plan)||
           name!==selection?.attachment||!isDeepStrictEqual(selection.pages,pageScope)||selection.query!==labels.join(", "))
           return null;
         if(!isDeepStrictEqual(live,await readSnapshot()))return null;
+        if(active)return isDeepStrictEqual(record.selection,selection) && record.request ? structuredClone(record.request) : null;
         const data=await bytes(name);
         const request:PacketReadRequest={goal:world.goal,document:name,pages:[...pageScope],batchSize:2,purpose:"text",
           allowOcr:false,query:selection.query};
@@ -223,7 +226,8 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
         return structuredClone(request);
       },
       async attest(report:PacketPdf){
-        if(!active||active.selected.pdf||report?.digest!==active.digest||!Array.isArray(report.citations))return unavailable;
+        if(!active||report?.digest!==active.digest||!Array.isArray(report.citations))return unavailable;
+        if(active.selected.pdf)return isDeepStrictEqual(active.selected.pdf,report) ? structuredClone(active.selected.evidence) : unavailable;
         const {selected,data}=active;
         if(!selected.request)throw new Error("Missing exact attachment binding");
         const scope=selected.request.pages;

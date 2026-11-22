@@ -1,3 +1,4 @@
+import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, images, rpc, vcs } from "@workspace/runtime";
@@ -125,7 +126,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
   const snapshots:ImageJournal[]=[];
   const reads:ImageRead[]=[];
   let listed=false;
-  let journalBusy=false;
+  const journalReads = new Map<string, Promise<unknown>>();
   let readBusy=false;
   let stageBusy=false;
   let handoff:ImageHandoff|null=null;
@@ -170,17 +171,19 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
   const services={
     imageCandidateBriefs:{async list(){listed=true;return structuredClone(index);}},
     imageCandidateJournal:{async read(channelId:string){
-      if(!listed||channelId!==lane.key||journalBusy||snapshots.length>=2)return null;
-      journalBusy=true;
-      try {
+      if(!listed||channelId!==lane.key)return null;
+      return serializeByKey(journalReads, channelId, async () => {
+        if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
         if(snapshots.length===1&&later.length)await save(later);
         const value=project(await ports.read(lane));
         snapshots.push(value);
         return structuredClone(value);
-      } finally {journalBusy=false;}
+      });
     }},
     imageCandidateOriginal:{async read(briefId:string,id:string){
-      if(briefId!==brief.id||snapshots.length!==2||readBusy||reads.length>=4||reads.some(read=>read.candidateId===id))
+      const previous=briefId===brief.id?reads.find(read=>read.candidateId===id):undefined;
+      if(previous)return structuredClone(previous);
+      if(briefId!==brief.id||snapshots.length!==2||readBusy)
         return refused(id);
       readBusy=true;
       try {

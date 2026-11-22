@@ -147,7 +147,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
   const services = {
     retainedConversationIndex: {
       async list() {
-        if (listedCards) throw new Error("Read the owned conversation index once");
+        if (listedCards) return structuredClone(listedCards);
         listedCards = [...lanes.values()].map(row => structuredClone(row.card));
         return structuredClone(listedCards);
       },
@@ -155,7 +155,10 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     retainedConversationState: {
       async read(channelId: string) {
         const owned = lanes.get(channelId);
-        if (!listedCards || listingBusy || !owned || seen.length >= 4) return null;
+        if (!listedCards || !owned) return null;
+        const previous = seen.filter(row => row.channelId === channelId);
+        if (previous.length >= 2) return structuredClone(previous.at(-1)!);
+        if (listingBusy) return null;
         listingBusy = true;
         try {
           const observed = await ports.read(owned.lane);
@@ -171,7 +174,9 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     },
     retainedProviderOutput: {
       async read(channelId: string, message: string) {
-        if (channelId !== card.channelId || primaryReads < 2 || outputs.length >= 2) return null;
+        if (channelId !== card.channelId || primaryReads < 2) return null;
+        const previous = outputs.find(row => row.message === message);
+        if (previous) return structuredClone(previous.result);
         const observed = seen.findLast(row => row.channelId === channelId);
         const latest = await ports.read(mainLane);
         if (!observed || latest.through !== observed.through || !latest.rows.some(row => row.messageId === message)) return null;

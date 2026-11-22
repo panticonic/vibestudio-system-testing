@@ -136,7 +136,7 @@ export function openGoalTeacherCode(options: {executorModel: string; bindingCode
 /** Return the captured run even when its independent verifier or retire step fails. */
 export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCode>[0], runId: string) {
   return `
-    import { assessSemanticOutcome } from "@workspace-skills/system-testing/semantic-outcome-contract";
+    import { assessSemanticOutcome, applicationVerifierValue } from "@workspace-skills/system-testing/semantic-outcome-contract";
     ${options.bindingCode}
     let teacher, verification = null;
     const verificationErrors = [];
@@ -149,9 +149,7 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
       teacher = utilityValue;
       try {
         const actualResult = teacher.report;
-        const verifierValue = ${JSON.stringify(options.entry.skill)}
-          ? { status: "workspace-skill-reviewed", skill: ${JSON.stringify(options.entry.skill)}, outcome: actualResult }
-          : actualResult;
+        const verifierValue = applicationVerifierValue(${JSON.stringify(options.entry)}, actualResult);
         verification = await prepared.verify(verifierValue);
         verification = {
           ...assessSemanticOutcome(verification, ${JSON.stringify(options.outcomeContract)}),

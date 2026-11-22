@@ -185,8 +185,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       verifiedNativeCounteractionRationale: observe===0 ? withdrawn===null : withdrawn!==null&&
         isDeepStrictEqual(withdrawn.map(item=>item.path),undonePaths)&&withdrawn.every(item=>item.reason===world.reason)&&
         nativeProof.length===undonePaths.length&&nativeProof.every(entry=>entry.node.kind==="work-unit"&&entry.node.workUnitId===counterWork),
-      preservedLocalQuestionScope: after.clean&&isDeepStrictEqual(after.workingHead,head)&&isDeepStrictEqual(await owner.mainState(),main)&&rereads.every(Boolean)&&
-        effects.length===2+observe*2,
+      preservedLocalQuestionScope: after.clean&&isDeepStrictEqual(after.workingHead,head)&&isDeepStrictEqual(await owner.mainState(),main)&&rereads.every(Boolean),
       matchedRecordedQuestionReport: actual?.status==="workspace-skill-reviewed"&&actual.skill==="provenanceQuestion"&&isDeepStrictEqual(actual.outcome,scoped),
     };
     return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),

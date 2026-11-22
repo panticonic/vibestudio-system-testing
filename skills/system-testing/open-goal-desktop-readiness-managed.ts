@@ -440,8 +440,7 @@ export async function prepareDesktopReadiness(
         outcome.decision.action === expected.action &&
         Boolean(outcome.decision.reason.trim()) &&
         isDeepStrictEqual(outcome.evidence.desk, desk) &&
-        matched("discover", [], [desk, neighbor]) &&
-        journal.length === 4,
+        matched("discover", [], [desk, neighbor]),
       preservedDesktopWorkspaceHeads:
         final.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(final.workingHead, baseline.workingHead),

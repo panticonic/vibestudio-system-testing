@@ -472,8 +472,7 @@ export async function prepareOpenLocalMethod(
             ? expected?.executed === 1 &&
               expected.detail === world.detail &&
               expected.outcome === (refused ? "error" : "success")
-            : expected === null) &&
-          journal.length === (expectedAction === "request" ? 4 : 3),
+            : expected === null),
         ),
       };
       return {

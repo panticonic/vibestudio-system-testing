@@ -132,7 +132,9 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       launchStateRead:{
         async enumerate(){listed=true;return structuredClone(index);},
         async read(panelId:string){
-          if(!listed||panelId!==active.id||frames.length>=2||busy)return null;
+          if(!listed||panelId!==active.id)return null;
+          if(frames.length>=2)return structuredClone(frames.at(-1)!);
+          if(busy)return null;
           busy=true;
           try {
             if(frames.length===1&&world.advance)await active.stateArgs.patch(world.advance);

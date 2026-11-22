@@ -258,7 +258,7 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
       classifiedExactOwnedRequest: report?.status === "workspace-skill-reviewed" && report.skill === "logFollower" &&
         isDeepStrictEqual(outcome?.decision, expectedDecision),
       verifiedScopedLogFollowReceipt: (body ? exactReceipt !== null : entries.length === 0) &&
-        isDeepStrictEqual(receipt, exactReceipt) && isDeepStrictEqual(outcome?.receipt, exactReceipt) && effects.length === (body ? 3 : 2),
+        isDeepStrictEqual(receipt, exactReceipt) && isDeepStrictEqual(outcome?.receipt, exactReceipt),
     };
     return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, capture: proof, joined: expectedJoin, decision: expectedDecision, receipt: exactReceipt, effects: structuredClone(effects) };

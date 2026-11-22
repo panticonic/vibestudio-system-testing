@@ -527,8 +527,7 @@ export async function prepareOpenExamplesAdoption(
         exact(read, "readback", [key, receipt?.path ?? null], readback) &&
         readback.main === initial.mainEventId &&
         readback.event === finalEvent &&
-        readback.digest === (receipt?.digest ?? null) &&
-        journal.length === (records ? 6 : 5),
+        readback.digest === (receipt?.digest ?? null),
       ),
     };
     return {

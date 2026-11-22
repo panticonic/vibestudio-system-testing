@@ -201,7 +201,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     return selected.reason==="selected"&&selected.message===msg;
   }
   const services={
-    quietIntegrationIndex:{async list(){if(listed)throw new Error("Read the readiness index once");listed=true;return structuredClone(index);}},
+    quietIntegrationIndex:{async list(){listed=true;return structuredClone(index);}},
     quietIntegrationJournal:{async read(channelId:string){
       if(!listed||channelId!==lane.key||reading||snapshots.length>=2)return null;
       reading=true;

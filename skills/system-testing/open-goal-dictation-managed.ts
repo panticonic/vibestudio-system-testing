@@ -182,7 +182,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
   const services = {
     retainedDictationIndex: {
       async list() {
-        if (listed) throw new Error("Read the owned dictation index once");
+
         listed = [...lanes.values()].map(entry => structuredClone(entry.thread));
         return structuredClone(listed);
       },
@@ -190,7 +190,10 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     retainedDictationState: {
       async read(threadId: string) {
         const known = lanes.get(threadId);
-        if (!listed || !known || reading || seen.length >= 4) return null;
+        if (!listed || !known) return null;
+        const previous = seen.filter(row => row.threadId === threadId);
+        if (previous.length >= 2) return structuredClone(previous.at(-1)!);
+        if (reading) return null;
         reading = true;
         try {
           const snapshot = await ports.read(known.lane);

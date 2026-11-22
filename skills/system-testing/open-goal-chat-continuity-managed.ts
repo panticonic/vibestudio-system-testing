@@ -1,3 +1,4 @@
+import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, runtime, vcs } from "@workspace/runtime";
@@ -206,6 +207,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What proves continuity of this exact local chat?"],
     sources:[{id:"scope",path:policy}]},ports.readBytes).scratchHandoffWrite;
   let listed=false,activeOperation=false;
+  const transcriptReads = new Map<string, Promise<unknown>>();
   let retryId:string|null=null;
   const frames:ChatObservation[]=[];
   let handoff:ChatHandoff|null=null;
@@ -238,15 +240,19 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   const services={
     chatContinuityIndex:{async list(){listed=true;return structuredClone(index);}},
     chatContinuityState:{async read(channelId:string){
-      if(!listed||channelId!==active.key||frames.length>=2||activeOperation)return null;
-      activeOperation=true;
-      try {
+      if(!listed||channelId!==active.key)return null;
+      return serializeByKey(transcriptReads, channelId, async () => {
+        if(frames.length>=2)return structuredClone(frames.at(-1)!);
+        if(activeOperation)return frames.length ? structuredClone(frames.at(-1)!) : null;
+        activeOperation=true;
+        try {
         const opening=frames.length===0;
         if(!opening)await changeFixture();
         const value=await observe(opening);
         frames.push(value);
         return structuredClone(value);
-      } finally {activeOperation=false;}
+        } finally {activeOperation=false;}
+      });
     }},
     chatContinuityHandoff:{async stage(report:ChatContinuityReport){
       if(!shouldWrite||!frames[1]||!report?.disposition?.write||report.disposition.status!==world.status||

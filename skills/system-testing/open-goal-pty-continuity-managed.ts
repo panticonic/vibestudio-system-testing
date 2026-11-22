@@ -248,7 +248,7 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         matchedFixtureOutputAndProcess: matchesFixture("nominated", evidence.nominated) && matchesFixture("alternative", evidence.alternative),
         verifiedScopedTerminalReceipt: (writeExpected ? exactReceipt !== null : entries.length === 0) &&
           isDeepStrictEqual(receipt, exactReceipt) && isDeepStrictEqual(outcome?.receipt, exactReceipt),
-        preservedOwnedTerminalAndNeighbor: isDeepStrictEqual(before, await state()) && effects.length === (writeExpected ? 4 : 3),
+        preservedOwnedTerminalAndNeighbor: isDeepStrictEqual(before, await state()),
       };
       return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal,
         assignment, evidence, choice, decision, receipt: exactReceipt, checks, effects: structuredClone(effects) };

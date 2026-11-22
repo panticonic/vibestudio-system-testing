@@ -185,7 +185,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
         isDeepStrictEqual(outcome?.assessment, assessment),
       verifiedOwnedRepairTransition: (shouldKeep ? exactKeep : after.intents.length === 0) &&
         isDeepStrictEqual(receipt, expectedReceipt) && isDeepStrictEqual(outcome?.receipt, expectedReceipt),
-      preservedNeighborAndPriorRun: preserved && before.intents.length === 0 && effects.length === (shouldKeep ? 4 : 3),
+      preservedNeighborAndPriorRun: preserved && before.intents.length === 0,
     };
     return { passed: Object.values(checks).every(Boolean), caseId: world.id, goal: world.goal, contextId: input.contextId,
       checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) };

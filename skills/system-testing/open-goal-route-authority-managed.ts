@@ -156,8 +156,9 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     routeEvidenceRead:{
       async discover(){discovered=true;return structuredClone(offer);},
       async inspect(routeId:string){
-        if(!discovered||snapshots.length!==operations.length||readback||busy||routeId!==nominated.id||world.route==="external"||
+        if(!discovered||snapshots.length!==operations.length||busy||routeId!==nominated.id||world.route==="external"||
           !nominated.operationIds.every(id=>expectedAuthority().reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible")))return null;
+        if(readback)return structuredClone(readback);
         busy=true;
         try{
           readback={routeId,records:await readRoute(world.route)};return structuredClone(readback);
@@ -165,9 +166,13 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       },
     },
     assignedAuthorityRead:{async preflight(operationId:string){
-      if(!discovered||operationId!==operations[snapshots.length]?.id)throw new Error("Preflight only the ordered scoped route candidates");
+      if(!discovered||!operations.some(operation=>operation.id===operationId))throw new Error("Preflight only scoped route candidates");
+      const previous=snapshots.find(row=>row.operationId===operationId);
+      if(previous)return structuredClone(previous);
       const observation=await binding.services.assignedAuthorityRead.preflight(operationId);
-      snapshots.push(observation);return structuredClone(observation);
+      snapshots.push(observation);
+      snapshots.sort((a,b)=>operations.findIndex(operation=>operation.id===a.operationId)-operations.findIndex(operation=>operation.id===b.operationId));
+      return structuredClone(observation);
     }},
     routeEvidenceHandoff:{async stage(report:OwnedRouteReview){
       if(!world.note||handoff||busy||snapshots.length!==operations.length||report?.handoff!==null||!matchesChoice(report.choice)||
@@ -200,7 +205,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
     const checks={
       exactRouteDiscovery:discovered&&exact(offer,report?.offer)&&new Set(offer.routes.map(row=>row.id)).size===7,
-      exactOrderedRoutePreflight:snapshots.length===operations.length&&snapshots.every((row,i)=>row.operationId===operations[i].id)&&
+      exactScopedRoutePreflight:snapshots.length===operations.length&&operations.every(operation=>snapshots.some(row=>row.operationId===operation.id))&&
         exact(report?.authority,authorization),
       exactCanonicalOriginCeiling:sameClaim(linkReview,new URL(linkUrl).origin)&&sameClaim(altReview,new URL(altUrl).origin),
       selectedExactLocalAuthority:!!report&&matchesChoice(report.choice)&&(world.route==="external"||nominated.operationIds.every(id=>

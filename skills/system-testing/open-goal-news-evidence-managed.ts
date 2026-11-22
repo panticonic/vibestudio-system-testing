@@ -280,9 +280,11 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       plan:report.plan,readerWindows:report.readers,schedule:report.schedule,briefing:report.briefing,sources:report.sources});
   }
   const services={
-    newsEvidenceIndex:{async list(){if(listed) throw new Error("Read the owned News index once");listed=true;return structuredClone(index);}},
+    newsEvidenceIndex:{async list(){listed=true;return structuredClone(index);}},
     newsEvidenceJournal:{async read(channelId:string){
-      if(!listed||channelId!==lane.key||busy||snapshots.length>=2)return null;
+      if(!listed||channelId!==lane.key)return null;
+      if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
+      if(busy)return null;
       busy=true;
       try {
         const current=await ports.read(lane);

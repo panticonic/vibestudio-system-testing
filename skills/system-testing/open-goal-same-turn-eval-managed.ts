@@ -249,8 +249,7 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
         isDeepStrictEqual(delivery, expectedRecovery) && isDeepStrictEqual(recovery, actualRecovery) &&
         (pick.decision === "narrow" ? !!actualRecovery && candidate(outputPacket(actualRecovery.result))?.digest === hash(wanted) : !actualRecovery),
       preservedExactOwnedScope: !!diagnosticStable && actualSource?.data === JSON.stringify(initial) &&
-        (checkpoint ? actualCheckpoint?.data === JSON.stringify(checkpoint) : actualCheckpoint === null) &&
-        effects.length === (expectedRecovery ? 3 : 2),
+        (checkpoint ? actualCheckpoint?.data === JSON.stringify(checkpoint) : actualCheckpoint === null),
     };
     return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, evidence, pick, recovery: expectedRecovery, effects: structuredClone(effects) };

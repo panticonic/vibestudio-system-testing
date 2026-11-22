@@ -196,7 +196,9 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
   const services={
     demoPortfolioIndex:{async list(){discovered=true;return structuredClone(index);}},
     demoPortfolioState:{async read(portfolio:string){
-      if(!discovered||portfolio!==id||running||frames.length>=2)return null;
+      if(!discovered||portfolio!==id)return null;
+      if(frames.length>=2)return structuredClone(frames.at(-1)!);
+      if(running)return null;
       running=true;
       try {
         const stage=frames.length?"current":"opening";

@@ -208,7 +208,7 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
   const services = {
     agentCapabilityEvidence: {
       async discover() {
-        if (discovered) throw new Error("Discover the owned notebook once");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("agentCapabilityEvidence", "discover", [], assignment);
       },

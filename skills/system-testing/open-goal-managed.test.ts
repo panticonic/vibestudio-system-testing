@@ -5,6 +5,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { prepareOpenGoal } from "./open-goal-managed.js";
 import { openGoalWorlds } from "./open-goal-worlds.js";
 
+vi.mock("./open-goal-suite-managed.js", () => ({ prepareOpenGoalSuite: vi.fn() }));
+
 const fixture = vi.hoisted(() => ({ directory: "" }));
 vi.mock("@workspace/runtime", () => ({
   fs: {
@@ -45,4 +47,21 @@ it("requires fresh observations and independently reads back a recovered revisio
   expect((await prepared.verify(report)).passed).toBe(true);
   await writeFile(join(fixture.directory, world.source), "changed source");
   expect((await prepared.verify(report)).passed).toBe(false);
+});
+
+it("accepts a correct recovered edit after extra stale retries without requiring a list route", async () => {
+  const world = openGoalWorlds.find(({ id }) => id === "reconcile-workshop-update");
+  if (world?.kind !== "workspace-edit") throw new Error("Expected the workshop fixture");
+  const prepared = await prepareOpenGoal({ contextId: "owned-context", caseId: world.id });
+  if (!("goalWorkspace" in prepared.services)) throw new Error("Expected document bindings");
+  const workspace = prepared.services.goalWorkspace;
+  await workspace.read(world.source);
+  const original = await workspace.read(world.destination);
+  expect((await workspace.revise(world.destination, original!.version, world.expected)).status).toBe("changed");
+  expect((await workspace.revise(world.destination, original!.version, world.expected)).status).toBe("changed");
+  const fresh = await workspace.read(world.destination);
+  const result = await workspace.revise(world.destination, fresh!.version, world.expected);
+  if (!("version" in result)) throw new Error("Expected stored revision");
+  await workspace.read(world.destination);
+  expect((await prepared.verify({ status: "edited", path: world.destination, version: result.version })).passed).toBe(true);
 });

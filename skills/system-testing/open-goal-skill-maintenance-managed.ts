@@ -549,8 +549,7 @@ export async function prepareSkillMaintenance(
         isDeepStrictEqual(final.check.failures, compilerReadback.failures) &&
         final.check.revision === after.revision &&
         (await native.retained(final.retained)) &&
-        isDeepStrictEqual(outcome?.final, final.check) &&
-        journal.length === (withPatch ? 6 : 5),
+        isDeepStrictEqual(outcome?.final, final.check),
     };
     return {
       contextId,

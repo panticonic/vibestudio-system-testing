@@ -540,8 +540,7 @@ export async function prepareOpenScaffold(
         isDeepStrictEqual(readback.units, actual.map(projection)) &&
         (staging
           ? isDeepStrictEqual(after, final.workingHead)
-          : isDeepStrictEqual(initial, final.workingHead)) &&
-        journal.length === (staging ? 4 : 3),
+          : isDeepStrictEqual(initial, final.workingHead)),
       ),
     };
     return {

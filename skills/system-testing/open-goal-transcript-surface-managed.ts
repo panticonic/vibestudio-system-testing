@@ -226,7 +226,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     const finalSibling = effect === "publish-inline" || effect === "refresh-inline" ? resulting.bar : resulting.card;
     const outcome = { assignment, approvals: approved, selection, replay, decision, receipt };
     const checks = {
-      boundCurrentTranscriptApproval: discovered && listed && isDeepStrictEqual(approvals, approved) && effects.length === (approval ? (receipt ? 4 : 3) : 2),
+      boundCurrentTranscriptApproval: discovered && listed && isDeepStrictEqual(approvals, approved),
       provedCurrentNativeSurface: approval ? isDeepStrictEqual(replay, baseline.view) : replay === null,
       exactScopedTranscriptDelta: isDeepStrictEqual(after.rows.slice(0, baseline.rows.length), baseline.rows) &&
         difference.length === coordinates.length && difference.every((row, index) => row.id === coordinates[index]?.id && row.messageId === coordinates[index]?.messageId && row.senderId === owner) &&

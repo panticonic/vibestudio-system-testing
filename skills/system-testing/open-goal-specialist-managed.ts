@@ -206,7 +206,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
   const services = {
     ownedSpecialistIndex: {
       async list(): Promise<SpecialistIndex> {
-        if (index) throw new Error("Read the owned specialist roster once");
+        if (index) return structuredClone(index);
         const roster = await ports.roster(lane,input.contextId);
         index = {scope,agents:world.candidates.map(entry=>{
           const {state,participantId} = interpretRoster(entry.handle,roster);
@@ -217,7 +217,9 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     },
     channelAgentRead: {
       async read(request: MembershipRequest) {
-        if (!index || membershipReads.length || request?.goal !== world.goal || request.channelId !== lane.key ||
+        const previous = membershipReads.find(row => isDeepStrictEqual(row.request, request));
+        if (previous) return structuredClone(previous.observed);
+        if (!index || request?.goal !== world.goal || request.channelId !== lane.key ||
             request.contextId !== scope.contextId || request.action !== "inspect" || request.options !== null ||
             !identities.has(request.handle)) throw new Error("Only one exact owned inspect request is permitted");
         const observed = interpretRoster(request.handle,await ports.roster(lane,input.contextId));
@@ -227,7 +229,9 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     },
     ownedSpecialistRun: {
       async read(channelId: string) {
-        if (!index || busy || channelId !== lane.key || snapshots.length >= 2) return null;
+        if (!index || channelId !== lane.key) return null;
+        if (snapshots.length >= 2) return structuredClone(snapshots.at(-1)!);
+        if (busy) return null;
         busy = true;
         try {
           const observed = await ports.read(lane);
@@ -241,8 +245,10 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     ownedSpecialistArtifact: {
       async read(channelId: string, message: string) {
         const current = snapshots[1];
-        const member = membershipReads[0];
-        if (!current || !member || channelId !== lane.key || artifactReads.length) return null;
+        const member = membershipReads.find(row=>current&&joinOriginal(scope,row.request.handle,row.observed,current,"no-suitable-specialist").resultMessage===message);
+        if (!current || !member || channelId !== lane.key) return null;
+        const previous = artifactReads.find(row => row.message === message);
+        if (previous) return structuredClone(previous.value);
         const join = joinOriginal(scope,member.request.handle,member.observed,current,"no-suitable-specialist");
         if (join.reason !== "verified" || join.resultMessage !== message || (await ports.read(lane)).through !== current.through) return null;
         const value = await cached(sourceOf(current,message));
@@ -253,11 +259,11 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     ownedSpecialistHandoff: {
       async stage(plan: SpecialistPlan, history: HistoryReview) {
         if (!scope.mayStage || writing || handoff || !plan || plan.action !== "stage" || plan.channelId !== lane.key ||
-            plan.taskId !== scope.taskId || snapshots.length !== 2 || !membershipReads[0]) return null;
+            plan.taskId !== scope.taskId || snapshots.length !== 2 || !membershipReads.some(row=>row.request.handle===plan.handle)) return null;
         writing = true;
         try {
           const latest = await ports.read(lane);
-          const member = membershipReads[0];
+          const member = membershipReads.find(row=>row.request.handle===plan.handle)!;
           const {plan:verified,result} = await complete(latest,member.request.handle,interpretRoster(member.request.handle,await ports.roster(lane,input.contextId)));
           const {explanation,...facts} = plan;
           if (!explanation?.trim() || !isDeepStrictEqual(facts,verified) || !verified.artifact || !result ||
@@ -285,7 +291,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const {plan:independent,result} = await complete(latest,expected.handle,selected);
     const membership = selected ? { ...selected,status:selected.state === "conflict" ? "held" : "observed" } : null;
     const plan = outcome?.plan;
-    const member = membershipReads[0];
+    const member = membershipReads.find(row=>row.request.handle===expected.handle);
     const after = await ports.status();
     const files = (await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-") && !beforeFiles.has(name));
     const written = handoff ? await ports.readBytes(handoff.path,maximum) : null;
@@ -293,10 +299,10 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const foreign = crypto.randomUUID();
     const checks = {
       exactCurrentSpecialist: !!index && !!plan && plan.handle === expected.handle &&
-        (expected.handle ? membershipReads.length === 1 && member?.request.handle === expected.handle &&
+        (expected.handle ? member?.request.handle === expected.handle &&
           isDeepStrictEqual(member.observed,selected) &&
           isDeepStrictEqual(outcome?.membership,{request:member.request,report:membership}) :
-          membershipReads.length === 0 && outcome?.membership === null),
+          outcome?.membership === null),
       exactSpecialistFrontiers: snapshots.length === 2 && isDeepStrictEqual(snapshots[0],initial) &&
         isDeepStrictEqual(snapshots[1],latest) && latest.rows.length === expectedRows.size &&
         latest.rows.every(row=>isDeepStrictEqual(row.record,expectedRows.get(row.messageId))) &&

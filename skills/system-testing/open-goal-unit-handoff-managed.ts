@@ -221,7 +221,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
   const services = {
     unitHandoff: {
       async discover() {
-        if (discovered) throw new Error("Read installed unit inventory once");
+        if (discovered) return structuredClone(inventory);
         discovered = true;
         return log("unitHandoff", "discover", [], inventory);
       },

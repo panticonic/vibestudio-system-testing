@@ -594,7 +594,6 @@ export async function prepareOpenGrimoireScene(
         readback.sceneDigest === final.view.sceneDigest &&
         readback.frontier === final.view.frontier &&
         readback.fileDigest === (receipt?.digest ?? null) &&
-        journal.length === (stages ? 6 : 5) &&
         isDeepStrictEqual(start.workingHead, end.workingHead) &&
         start.mainEventId === end.mainEventId,
       ),

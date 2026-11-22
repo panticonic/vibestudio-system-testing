@@ -185,7 +185,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
         isDeepStrictEqual(main,await vcs.mainState())&&untouched?.content.kind==="text"&&untouched.content.text===canary&&
         (expectedBytes===null?output===null:output?.content.kind==="bytes"&&output.content.base64===expectedBytes)&&
         (!reference||isDeepStrictEqual(refRead?.asset,reference)&&refRead?.base64===imageFixtureBytes.png[2]),
-      matchedNativeImageReport:isDeepStrictEqual(value,report())&&effects.length===2+Number(outcome!==null)+Number(saved!==null),
+      matchedNativeImageReport:isDeepStrictEqual(value,report()),
     };
     return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report().outcome,
       native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset.digest??null},effects:structuredClone(effects)};

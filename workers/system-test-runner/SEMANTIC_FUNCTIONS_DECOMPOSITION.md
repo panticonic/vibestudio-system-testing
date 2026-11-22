@@ -12,3 +12,28 @@ Each task binds a public Natlang function and actual arguments from the installe
 | Retain outcome dimensions and trace | TypeScript attestation | The training exporter must distinguish effect evidence, application return checks and execution conventions. |
 
 Required answers stay required. Effects and returned values are declared separately, and a convention can be omitted only when a specific task contract supplies an independent observable proof of every requested outcome. A name resembling a report is insufficient reason to omit it.
+
+## Reviewed execution conventions (2026-11-22)
+
+The following exact event-count predicates were removed after reviewing the enclosing checks. The complete effect journals remain in evidence; method/argument bindings, real readback, final state and protected-neighbor checks remain required. None of these tasks requests a number of tool invocations.
+
+| Domain | Removed convention | Independent evidence retained |
+| --- | --- | --- |
+| examples adoption, system candidate | five/six recorded calls | exact adopted content, native check/readback and unchanged main head |
+| scaffold | three/four recorded calls | real unit projections and final working state |
+| skill maintenance | five/six recorded calls | compiler result, retained event and final revision |
+| desktop readiness | four recorded calls | exact desk evidence, domain decision and protected workspace heads |
+| local method | three/four recorded calls | exact requested method result and execution identity |
+| grimoire scene | five/six recorded calls | real scene/frontier digest and protected heads |
+| delivery wake | two/three recorded calls | durable normalized mailbox, original receipts and exact wake result |
+| transcript surface | two/three/four recorded calls | real current approval, surface state and allowed native delta |
+| provenance question | fixed count from observation flag | native counteraction evidence and protected main/working state |
+| native image | fixed count from read/write flags | actual image bytes, authorized target and protected reference |
+| workspace smoke, log follower, same-turn eval | fixed count from receipt flag | actual scoped artifact/delivery/recovery and protected state |
+| development audit, PTY continuity | fixed count from retention flag | actual retained repair/terminal proof and unchanged neighboring state |
+| workspace document edit | exactly two attempts and mandatory list call | observed authority, changed basis, fresh read/write, exact final document and protected files |
+| route authority | prescribed preflight ordering | every scoped candidate's actual observation and exact authority ceiling; observations canonicalized for deterministic comparison |
+
+Repeated reads of an already observed immutable frontier now return the owned cached value in image candidates, chat continuity, editorial workspace/PDF attestation, provider handoff, specialist run, news evidence, launch state, dictation and portfolio. Repeated index queries no longer consume a one-shot capability. Foreign identities remain refused; new effects still require current authority and version checks.
+
+This table documents reviewed mechanisms; the default strict contract for another verifier is not evidence that every check in it has been semantically reviewed. Required answers remain required.

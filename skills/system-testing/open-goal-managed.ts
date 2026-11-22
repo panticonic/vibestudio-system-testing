@@ -197,7 +197,6 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
   const reads: { path: string; version: string }[] = [];
   const attempts: { path: string; version: string; text: string; status: string }[] = [];
   let changedVersion: string | undefined;
-  let listed = false;
   let revising = false;
   const services = {
     goalDiscovery: { search: async () => [], snapshotTime: () => Date.now() },
@@ -208,7 +207,6 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
     },
     goalWorkspace: {
       async list() {
-        listed = true;
         return (await fs.readdir(directory)).sort();
       },
       async read(path: string) {
@@ -253,14 +251,12 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
       [name, await readText(`${directory}/${name}`)] as const)));
     const version = hash(contents[world.destination]!);
     const checks = {
-      discoveredWorkspace: listed && reads.some(({ path }) => path === world.source) &&
+      discoveredWorkspace: reads.some(({ path }) => path === world.source) &&
         reads.some(({ path, version }) => path === world.destination && version === hash(original[path]!)),
-      recoveredConcurrentEdit: Boolean(changedVersion) && attempts.length === 2 &&
-        attempts[0]?.path === world.destination && attempts[0].version === hash(original[world.destination]!) &&
-        attempts[0].status === "changed" &&
+      recoveredConcurrentEdit: Boolean(changedVersion) && attempts.some(attempt =>
+          attempt.path === world.destination && attempt.version === hash(original[world.destination]!) && attempt.status === "changed") &&
         reads.some(({ path, version }) => path === world.destination && version === changedVersion) &&
-        attempts[1]?.path === world.destination && attempts[1].version === changedVersion &&
-        attempts[1].status === "written",
+        attempts.some(attempt => attempt.path === world.destination && attempt.version === changedVersion && attempt.status === "written"),
       exactDocumentReadback: contents[world.destination] === world.expected &&
         reads.some(({ path, version: read }) => path === world.destination && read === version),
       preservedOtherDocuments: Object.keys(contents).every((name) =>

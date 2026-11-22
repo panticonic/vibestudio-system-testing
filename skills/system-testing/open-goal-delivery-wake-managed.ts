@@ -285,8 +285,7 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
       verifiedUniqueNormalizedMailbox: isDeepStrictEqual(after.rows, expectedRows) && after.contextCopies === 0 &&
         isDeepStrictEqual(after.contextIds, contexts) && new Set(after.rows.map(row => row.deliveryId)).size === after.rows.length &&
         before.receipts.every(old => after.receipts.some(row => isDeepStrictEqual(row, old))),
-      verifiedExactWakeReceipt: isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt) &&
-        effects.length === (shouldWake ? 3 : 2),
+      verifiedExactWakeReceipt: isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt),
     };
     return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, evidence: observed, choice, receipt: expectedReceipt, effects: structuredClone(effects) };

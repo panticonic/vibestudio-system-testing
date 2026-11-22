@@ -105,7 +105,7 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
         if (failRetirement) throw new Error("owner lost");
       },
     };
-    const result = await new AsyncFunction("natlang", "prepared", "assessSemanticOutcome", code.replace(/import \{ assessSemanticOutcome \} from [^;]+;/u, "") + "\nreturn utilityValue;")({
+    const result = await new AsyncFunction("natlang", "prepared", "assessSemanticOutcome", "applicationVerifierValue", code.replace(/import \{ assessSemanticOutcome, applicationVerifierValue \} from [^;]+;/u, "") + "\nreturn utilityValue;")({
       captureModelTurns() {},
       load: async () => async () => report,
       calls: async ({ after }: { after?: string }) => after ? [] : [{ callId: "root", parentCallId: null }],
@@ -114,7 +114,7 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
         summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
         record: { call_id: "root", parent_call_id: null, definition: { name: "reviseDocument" }, outcome: "done" },
       }),
-    }, prepared, (value: unknown) => value);
+    }, prepared, (value: unknown) => value, (_entry: unknown, value: unknown) => value);
     expect(retired).toBe(true);
     expect(result).toMatchObject({
       contextId: "context",
