@@ -321,7 +321,8 @@ it("captures a direct application function with several typed inputs and no rout
   });
   expect(captured.trainingEligible).toBe(true);
   expect(captured.report).toEqual(resultValue);
-  expect(captured.entry).toEqual({ program: task.program, callable: task.callable, arguments: task.arguments });
+  expect(captured.entry).toEqual({ program: task.program, callable: task.callable, arguments: task.arguments,
+    argumentJson: Object.fromEntries(Object.entries(task.arguments).map(([name,value])=>[name,JSON.stringify(value)])) });
   expect(captured.calls).toHaveLength(1);
 });
 
@@ -329,4 +330,13 @@ it("refuses an argument list that differs from the declared application entry", 
   const task = { ...entry("original"), inputValues: ["rewritten"] };
   expect(() => openGoalTeacherCode({ entry: task, goal: "original", executorModel: "provider:teacher", bindingCode: "" }, "run-one"))
     .toThrow("exact application arguments");
+});
+
+it("binds exact JavaScript JSON input bytes for numeric and surrogate arguments",()=>{
+  const argument={fraction:1e-7,large:1e20,unpaired:"\ud800",ordered:{z:1,a:2}};
+  const task={program:"skills/library/processInput.nl",callable:"processInput",arguments:{goal:"Keep source bytes",argument},
+    parameterNames:["goal","argument"],inputValues:["Keep source bytes",argument],resultType:"Result",argumentJson:{goal:JSON.stringify("Keep source bytes"),argument:JSON.stringify(argument)}};
+  const code=openGoalTeacherCode({entry:task,goal:task.arguments.goal,executorModel:"provider:teacher",bindingCode:"const assignedServices={};"},"run-one");
+  expect(code).toContain(JSON.stringify(task.argumentJson));
+  expect(()=>openGoalTeacherCode({entry:{...task,argumentJson:{...task.argumentJson,argument:"{}"}},goal:task.arguments.goal,executorModel:"provider:teacher",bindingCode:""},"run-one")).toThrow("exact application arguments");
 });

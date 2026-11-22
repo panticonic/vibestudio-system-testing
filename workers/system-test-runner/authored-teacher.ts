@@ -107,6 +107,7 @@ export type SemanticTaskEntry = {
   program: string;
   callable: string;
   arguments: Record<string, unknown>;
+  argumentJson?: Record<string, string>;
   parameterNames: string[];
   inputValues: unknown[];
   resultType: string;
@@ -118,7 +119,9 @@ function validateEntry(entry: SemanticTaskEntry): void {
       !/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(entry.callable) ||
       !entry.resultType.trim() || new Set(entry.parameterNames).size !== entry.parameterNames.length ||
       Object.keys(entry.arguments).length !== entry.parameterNames.length ||
-      entry.parameterNames.some(name => !Object.hasOwn(entry.arguments, name)) ||
+      entry.parameterNames.some(name => !Object.hasOwn(entry.arguments, name) || typeof JSON.stringify(entry.arguments[name]) !== "string") ||
+      (entry.argumentJson !== undefined && (Object.keys(entry.argumentJson).length !== entry.parameterNames.length ||
+        entry.parameterNames.some(name => entry.argumentJson?.[name] !== JSON.stringify(entry.arguments[name])))) ||
       JSON.stringify(entry.inputValues) !== JSON.stringify(entry.parameterNames.map(name => entry.arguments[name])))
     throw new Error("A semantic task needs its installed entry and exact application arguments");
 }
@@ -269,7 +272,7 @@ ${options.bindingCode}
           (index>0 && !(Date.parse(ordered[index-1]?.ended_at)<=Date.parse(record.started_at)))))
           captureErrors.push("A dependent skill began before its prerequisite completed");
       }
-      let utilityValue={report,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments})},` : ""}executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
+      let utilityValue={report,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
         trainingEligible:executionError===null&&captureErrors.length===0};
   `;
 }

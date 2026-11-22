@@ -54,6 +54,7 @@ export function applicationVerifierValue(entry: { resultType: string; skill?: st
     case "ResearchGoalReport": return { status: value?.status, research: actual };
     case "ResearchRevision": return { ...(value?.revision as object | null ?? {}),
       status: (value?.revision as {status?:string}|null)?.status ?? (value?.research as {status?:string}|null)?.status, research: value?.research };
+    case "UnitHandoffReport":
     case "WorkspaceEditReport":
     case "BrowserGoalReport":
     case "WorkspaceSuiteReport": return actual;
