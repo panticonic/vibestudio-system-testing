@@ -932,7 +932,7 @@ export const unitDiagnosticsTests: TestCase[] = [
     description: "List running workspace units and inspect one of them",
     category: "unit-diagnostics",
     prompt:
-      "Which workspace units are currently running? Inspect one representative unit in more detail and summarize what you observed.",
+      "Which workspace units are currently running? Report the number of live entities returned by supervision, then use a separate supervision detail lookup on one exact entity and summarize what you observed.",
     validate: unitListInspection,
   },
   {
