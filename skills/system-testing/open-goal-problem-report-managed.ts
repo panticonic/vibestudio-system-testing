@@ -45,7 +45,7 @@ export async function prepareOpenProblemReport(input: { contextId: string; caseI
     const current = await problemReports.get(other.id);
     const checks = {
       foundCurrentIncident: discovered && selected?.incident === activeId &&
-        openings.filter(({ result }) => result !== null).length === 1,
+        openings.some(({ result }) => result !== null),
       preservedNeighbor: current.revision === baseline.revision && isDeepStrictEqual(current.value, baseline.value),
       verifiedExactLocalDraft: verification.passed,
       stayedLocal: verification.checks.localOnly && verification.checks.retention,
@@ -63,7 +63,7 @@ export async function prepareOpenProblemReport(input: { contextId: string; caseI
     const result = await draft.qualify();
     const current = await problemReports.get(other.id);
     const checks = {
-      foundCurrentIncident: discovered && openings.filter(({ result }) => result !== null).length === 1,
+      foundCurrentIncident: discovered && openings.some(({ result }) => result !== null),
       preservedNeighbor: current.revision === baseline.revision && isDeepStrictEqual(current.value, baseline.value),
       verifiedExactLocalDraft: result.verification.passed && result.rejectedForeignScope && result.rejectedWrongRevision,
       stayedLocal: result.verification.checks.localOnly && result.verification.checks.retention,

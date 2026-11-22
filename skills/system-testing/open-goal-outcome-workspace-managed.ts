@@ -12,6 +12,9 @@ type Report = {
   status?: string;
   path?: string;
   version?: string;
+  answer?: string;
+  citations?: {path:string;version:string;quote:string}[];
+  unresolved?: string[];
   outcome?: { summary?: string; explanation?: string; evidence?: unknown; outcome?: { summary?: string } };
 };
 
@@ -127,23 +130,32 @@ async function prepareWorkspace(input: Input, world: OutcomeWorkspaceWorld) {
     const sourceDigest = sha256HexSyncText(world.files[world.authority]!);
     const guide = world.target === null ? null : contents[world.target];
     const revision = typeof guide === "string" ? sha256HexSyncText(guide) : null;
-    const summary = report?.outcome?.outcome?.summary ?? report?.outcome?.summary ?? report?.outcome?.explanation;
+    const summary = report?.answer;
     const openingTime = new RegExp(`(?:doors?[^.\\n]{0,36}${world.doors}|${world.doors}[^.\\n]{0,36}doors?)`, "iu");
     const checks = {
       currentAuthorityObserved: observations.has(`${world.authority}:${sourceDigest}`),
       protectedWorkspace: names.length === filenames.length && names.every((name, i) => name === filenames[i]) &&
         filenames.every(name => name === world.target || contents[name] === world.files[name]),
-      requestedOutcome: world.target === null
-        ? acceptedWrites.length === 0 && typeof summary === "string" &&
-          openingTime.test(summary) && /(?:current (?:facilitator )?handoff|venue team|current-handoff\.md)/iu.test(summary)
-        : guide === expectedGuide && acceptedWrites.some(write => write.path === world.target && write.version === revision) &&
-          report?.status === "edited" && report.path === world.target && report.version === revision,
+      requestedEffect: world.target === null ? acceptedWrites.length === 0
+        : guide === expectedGuide && acceptedWrites.some(write => write.path === world.target && write.version === revision),
+      requiredAnswer: world.target !== null || (typeof summary === "string" && openingTime.test(summary) &&
+        Array.isArray(report?.citations) && report.citations.some(citation => citation.path === world.authority &&
+          citation.version === sourceDigest && typeof citation.quote === "string" && citation.quote.trim().length > 0 &&
+          world.files[world.authority]!.includes(citation.quote) && openingTime.test(citation.quote)) &&
+        Array.isArray(report?.unresolved) && report.unresolved.length === 0),
+      reportedRevision: world.target === null || (report?.status === "edited" && report.path === world.target && report.version === revision),
       retainedConcurrentWork: !world.concurrentAddition || (concurrentVersion !== undefined &&
         typeof guide === "string" && guide.includes(world.concurrentAddition)),
     };
     return {
       caseId: input.caseId, contextId: input.contextId, goal: world.goal,
       checks, passed: Object.values(checks).every(Boolean),
+      outcomeContract: {
+        effects: {checks:["currentAuthorityObserved","protectedWorkspace","requestedEffect","retainedConcurrentWork"],
+          rationale:"The current authority, requested real document effect and protected files are checked independently."},
+        returnedValue: {checks:["requiredAnswer","reportedRevision"],required:world.target===null,
+          rationale:world.target===null?"The user explicitly asks the door time and supporting current workspace evidence.":"The user asks a stored guide correction; no returned revision receipt is requested."},
+      },
       authority: { path: world.authority, sha256: sourceDigest },
       target: world.target === null ? null : { path: world.target, sha256: revision },
       contents, acceptedWrites: structuredClone(acceptedWrites),
@@ -165,8 +177,10 @@ export async function prepareOutcomeWorkspace(input: Input, world: OutcomeWorksp
       : await goalWorkspace.read(world.authority);
     if (!source) throw new Error("Current facilitator handoff is missing");
     if (world.target === null) {
-      return { status: "workspace-skill-reviewed", skill: "intentDiscovery",
-        outcome: { outcome: { status: "observed", summary: `The current facilitator handoff gives door time ${world.doors}.` } } };
+      const authority = await goalWorkspace.read(world.authority);
+      if(!authority)throw new Error("Current handoff evidence is missing");
+      return {answer:`Doors open at ${world.doors}.`,citations:[{path:world.authority,version:authority.version,
+        quote:world.files[world.authority]!}],unresolved:[]};
     }
     const previous = await goalWorkspace.read(world.target);
     if (!previous || target.expectedGuide === null) throw new Error("Staff guide is missing");

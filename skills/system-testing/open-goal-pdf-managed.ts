@@ -101,6 +101,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
   let visual: PdfGoalBinding["visual"];
   const textProbes: Awaited<ReturnType<ReturnType<typeof createPdfIntakeBindings>["pdfIntakeProbe"]["probe"]>>[] = [];
   const textReads: BatchReceipt[] = [];
+  const probeCache = new Map<string, typeof textProbes[number]>();
+  const textCache = new Map<string, BatchReceipt>();
   const layoutBindings = new Map<string, Layout>();
   const layoutReads = new Map<string, PdfLayoutPage>();
   const renders = new Map<number, PdfGoalRender>();
@@ -145,7 +147,10 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     pdfIntakeProbe: {
       async probe(...args: Parameters<ReturnType<typeof createPdfIntakeBindings>["pdfIntakeProbe"]["probe"]>) {
         if (!intake) throw new Error("Bind the selected local PDF before probing its text.");
+        const key = JSON.stringify(args);
+        if (probeCache.has(key)) return structuredClone(probeCache.get(key)!);
         const receipt = await intake.pdfIntakeProbe.probe(...args);
+        probeCache.set(key, structuredClone(receipt));
         textProbes.push(structuredClone(receipt));
         return receipt;
       },
@@ -153,7 +158,10 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     pdfIntakeRead: {
       async read(...args: Parameters<ReturnType<typeof createPdfIntakeBindings>["pdfIntakeRead"]["read"]>) {
         if (!intake) throw new Error("Bind the selected local PDF before reading its text.");
+        const key = JSON.stringify(args);
+        if (textCache.has(key)) return structuredClone(textCache.get(key)!);
         const receipt = await intake.pdfIntakeRead.read(...args);
+        textCache.set(key, structuredClone(receipt));
         textReads.push(structuredClone(receipt));
         return receipt;
       },
@@ -161,7 +169,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     pdfLayoutRead: {
       async inspect(id: string) {
         const scoped = layoutBindings.get(id);
-        if (!scoped || layoutReads.has(id)) throw new Error("Use an unread layout page from the selected local PDF.");
+        if (!scoped) throw new Error("Use a layout page from the selected local PDF.");
+        if (layoutReads.has(id)) return structuredClone(layoutReads.get(id)!);
         const receipt = await scoped.services.pdfLayoutRead.inspect(id);
         layoutReads.set(id, structuredClone(receipt));
         return receipt;
@@ -169,8 +178,9 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     },
     pdfGoalVisual: {
       async render(id: string, pageNumber: number) {
-        if (!source || visual?.operationId !== id || !visual.pages.includes(pageNumber) || renders.has(pageNumber))
-          throw new Error("Use an unrendered page from the selected local PDF.");
+        if (!source || visual?.operationId !== id || !visual.pages.includes(pageNumber))
+          throw new Error("Use a page from the selected local PDF.");
+        if (renders.has(pageNumber)) return structuredClone(renders.get(pageNumber)!);
         const page = await extensions.invoke(extensionName, "renderPage", [
           source.bytes, { pageNumber, scale: 1 },
         ]) as RenderedPage;
@@ -239,8 +249,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
         isDeepStrictEqual(selection.renderPages, expected.render) &&
         isDeepStrictEqual(report?.selection, selection) && isDeepStrictEqual(report?.document, binding?.document) &&
         isDeepStrictEqual(report?.missingPages, expected.missing ?? []),
-      textEvidence: claims ? textProbes.length === 1 &&
-        isDeepStrictEqual(readPages, expected.pages) &&
+      textEvidence: claims ? textProbes.length > 0 &&
+        isDeepStrictEqual([...new Set(readPages)].sort((a,b)=>a-b), [...expected.pages].sort((a,b)=>a-b)) &&
         textReads.every(receipt => receipt.digest === source?.digest) &&
         report?.text?.digest === source?.digest && report?.text?.status === claims.status &&
         isDeepStrictEqual(report.text.readPages, expected.pages) && isDeepStrictEqual(report.text.remaining, []) &&

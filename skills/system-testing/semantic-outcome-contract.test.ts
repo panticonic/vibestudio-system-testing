@@ -33,10 +33,11 @@ it("adapts native application values only at the legacy oracle boundary", () => 
   expect(applicationVerifierValue({ resultType: "ResearchGoalReport", skill: "owned-research" }, research))
     .toEqual({ status: "answered", research });
   const edit = { status: "edited", path: "guide.md", version: "v2" };
-  for (const resultType of ["WorkspaceEditReport", "ResearchRevision", "BrowserGoalReport", "WorkspaceSuiteReport"])
+  for (const resultType of ["WorkspaceEditReport", "BrowserGoalReport", "WorkspaceSuiteReport"])
     expect(applicationVerifierValue({ resultType, skill: "ignored" }, edit)).toBe(edit);
+  expect(applicationVerifierValue({ resultType:"ResearchRevision" }, {research,revision:edit})).toEqual({...edit,research});
   expect(applicationVerifierValue({ resultType: "WorkspaceAnswer" }, { answer: "Doors open at 6." }))
-    .toEqual({ outcome: { summary: "Doors open at 6." } });
+    .toEqual({ answer: "Doors open at 6." });
   expect(applicationVerifierValue({ resultType: "DomainOutcome", skill: "domain" }, edit))
     .toEqual({ status: "workspace-skill-reviewed", skill: "domain", outcome: edit });
 });

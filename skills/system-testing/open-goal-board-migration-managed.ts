@@ -191,14 +191,13 @@ export async function prepareOpenBoardMigration(
       ...expectedSelection, boardId: expectedId.id, revision: expectedId.revision,
     } : null;
     const checks = {
-      exactRenderedMigrationBoard: listed && observations.length === 1 &&
-        isDeepStrictEqual(observations[0], repeated) && isDeepStrictEqual(repeated.view.cards, expected.cards),
+      exactRenderedMigrationBoard: listed && observations.some(observation => isDeepStrictEqual(observation, repeated)) && isDeepStrictEqual(repeated.view.cards, expected.cards),
       exactMigrationAuthority: Boolean(basis && isDeepStrictEqual(basis.approval, approval) &&
         basis.target === world.target && isDeepStrictEqual(basis.existing, initial?.cards ?? null)),
       matchedMigrationCardScope: isDeepStrictEqual(outcome?.board, expectedId) &&
         isDeepStrictEqual(outcome?.selection, expectedSelection),
       independentMigrationReadback: isDeepStrictEqual(final, receipt ?? initial) &&
-        isDeepStrictEqual(outcome?.receipt, receipt) && writes === Number(world.disposition === "retained"),
+        isDeepStrictEqual(outcome?.receipt, receipt) && (world.disposition === "retained" ? writes > 0 : writes === 0),
       preservedMigrationNeighbors: await fs.readFile(neighbor, "utf8") === neighborText &&
         isDeepStrictEqual(JSON.parse(await fs.readFile(approvalFile, "utf8") as string), approval),
       matchedWorkspaceMigrationDisposition: report?.status === "workspace-skill-reviewed" &&

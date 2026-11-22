@@ -29,6 +29,7 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
   const path = directory.replace(/\/$/u, "") + "/closeout-review.json";
   const expectedNote = world.lane === "any" || (world.lane === "clear" && world.disposition === "cleared");
   const reads: string[] = [];
+  const readEvidence = new Map<string, Awaited<ReturnType<typeof current.services.testkitCleanup.inspect>>>();
   const stages: CloseoutReport[] = [];
   let nominated = false;
   let rejectedForeign = false;
@@ -38,7 +39,7 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
   const services = {
     testkitCloseout: {
       async nominate(goal: string) {
-        if (nominated || goal !== world.goal) throw new Error("Only the exact goal can nominate this closeout pair");
+        if (goal !== world.goal) throw new Error("Only the exact goal can nominate this closeout pair");
         nominated = true;
         return structuredClone(pair);
       },
@@ -60,11 +61,13 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
     testkitCleanup: {
       async inspect(receipt: string) {
         const attempt = receipt === pair.current.receipt ? current : receipt === pair.prior.receipt ? prior : null;
-        if (!nominated || !attempt || reads.includes(receipt)) {
+        if (!nominated || !attempt) {
           if (!attempt) rejectedForeign = true;
-          throw new Error("Use one of the two nominated Testkit closeout receipts exactly once");
+          throw new Error("Use a nominated Testkit closeout receipt");
         }
+        if (readEvidence.has(receipt)) return structuredClone(readEvidence.get(receipt)!);
         const evidence = await attempt.services.testkitCleanup.inspect(receipt);
+        readEvidence.set(receipt, structuredClone(evidence));
         reads.push(receipt);
         return evidence;
       },

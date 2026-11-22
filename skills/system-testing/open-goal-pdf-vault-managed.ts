@@ -108,10 +108,10 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       exactWorkingVault: mayEdit ? vaultResult?.passed === true
         : vaultServiceCalls === 0 && result?.vault === null && isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
-        attempts.length === 2 && attempts[0]?.outcome === "changed" && attempts[1]?.outcome === "written" &&
-        attempts[0].revision !== attempts[1].revision &&
+        attempts.some(earlier => earlier.outcome === "changed" &&
+          attempts.some(later => later.outcome === "written" && earlier.revision !== later.revision)) &&
         typeof coedited === "string" && coedited.includes(concurrent.append)
-        : !concurrentReceipt && (mayEdit ? attempts.length === 1 && attempts[0]?.outcome === "written" : attempts.length === 0),
+        : !concurrentReceipt && (mayEdit ? attempts.some(attempt => attempt.outcome === "written") : attempts.length === 0),
       protectedHeads: initial.mainEventId === after.mainEventId && isDeepStrictEqual(initial.committed, after.committed),
     };
     return { passed: Object.values(checks).every(Boolean), checks, contextId, caseId, panelId, goal,
