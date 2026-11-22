@@ -282,7 +282,7 @@ export const blobstoreTests: TestCase[] = [
     description: "Build, list, diff, and materialize an immutable blob file tree",
     category: "blobstore",
     prompt:
-      "In one sandbox evaluation, build a small immutable file tree and a second version with one changed file. Use the treeHash string returned by each putPathTree call as that tree’s reference. List the first tree with an options object, then read one original file from the blob store using its contentHash. Compare the two trees. Use blobstore.materializeTree to copy one version into the sandbox and read each resulting file as UTF-8. Explain the difference and confirm each file arrived.",
+      "In one sandbox evaluation, build a small immutable file tree and a second version with one changed file. Keep the treeHash strings returned by putPathTree. In a later evaluation in the same sandbox, list the first tree by hash with an options object, then read one original file from the blob store using its contentHash. Compare the two trees. Use blobstore.materializeTree to copy one version into the sandbox and read each resulting file as UTF-8. Explain the difference and confirm each file arrived.",
     validate: treeLifecycleChecked,
     reportClaims: [
       { id: "tree", claim: "An immutable file tree was built.", match: /tree/iu },
