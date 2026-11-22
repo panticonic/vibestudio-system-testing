@@ -10,7 +10,6 @@ export type Correction = {
   pdf: Omit<OpenPdfWorld, "goal" | "id" | "sourceGroup" | "workspace" | "kind">;
   vault: Pick<OpenSpectroliteWorld, "openPath" | "files" | "draft" | "writablePath" | "expected">;
   concurrent?: { path: string; append: string };
-  holdReason?: { terms: string[]; reference: string };
 };
 const note = (title: string, body: string) => `---\ntitle: ${title}\n---\n\n# ${title}\n\n${body}\n`;
 const row = (text: string) => [text];

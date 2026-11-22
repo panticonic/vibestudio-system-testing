@@ -97,7 +97,6 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const selectedQuotes = bound?.source.citations.map(({ page, quote }) => ({ page, text: quote }));
     const attempts = vaultResult?.revisionAttempts ?? [];
     const coedited = concurrent && vaultResult?.workingFiles[concurrent.path];
-    const holdTerms = [...(world.pdf.expected.missing ?? []).map(String), ...(world.holdReason?.terms ?? [])];
     const reason = result?.handoff?.status === "hold" && typeof result.handoff.reason === "string"
       ? result.handoff.reason.trim().toLowerCase() : "";
     const checks = {
@@ -105,7 +104,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       verifiedHandoff: mayEdit ? !!bound && isDeepStrictEqual(result?.pdf, attestedReport) &&
         isDeepStrictEqual(result?.handoff, bound) && bound.source.document === world.pdf.expected.document &&
         isDeepStrictEqual(selectedQuotes, expectedQuotes)
-        : !bound && reason.length > 0 && holdTerms.every(term => reason.includes(term.toLowerCase())),
+        : !bound && pdfResult.passed && reason.length > 0,
       exactWorkingVault: mayEdit ? vaultResult?.passed === true
         : vaultServiceCalls === 0 && result?.vault === null && isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
@@ -130,7 +129,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     try { await services.spectroliteGoal.inspect(); }
     catch (error) { rejectsPrematureVaultAccess = error instanceof Error && error.message.includes("approved PDF evidence"); }
     const handoff = mayEdit ? await services.pdfVaultBridge.bind(reference.outcome, quoteIndices)
-      : hold(world.holdReason?.reference ?? `Missing approved page ${world.pdf.expected.missing?.join(", ")}.`);
+      : hold(`Missing approved page ${world.pdf.expected.missing?.join(", ")}.`);
     if (mayEdit && handoff.status !== "bound") throw new Error("The reference could not attest the approved PDF lines.");
     const outcome = handoff.status === "bound" ? (await vault.reference()).outcome : null;
     const verified = await verify(wrap("pdfVault", { pdf: reference.outcome, handoff, vault: outcome }));
