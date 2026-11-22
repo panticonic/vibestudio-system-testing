@@ -510,7 +510,7 @@ export const interactionSurfaceTests: TestCase[] = [
     name: "custom-message-publish",
     description: "Publish a custom chat message",
     category: "interaction-surfaces",
-    prompt: "Publish a small custom chat message if this context supports it.",
+    prompt: "Publish a small custom chat message using the sandbox chat API and a self-contained renderer.",
     validate: (result) => {
       const base = completedScenarioEvidence(result);
       if (!base.passed) return base;
