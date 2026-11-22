@@ -2342,6 +2342,21 @@ describe("absent recipient messaging", () => {
   });
 });
 
+describe("child steering", () => {
+  it("requires one of each count and an exact child delivery", () => {
+    const test = scenario(messagingTests, "steer-a-running-child");
+    const notify: ToolStep = {
+      name: "notify",
+      arguments: { to: ["run:@child"], content: "Also count the lines." },
+      result: { details: { sent: [{ runId: "run:child" }] } },
+    };
+    const report = "- **Markdown files:** 3\n- **Total lines:** 292";
+    expect(test.validate(directExecution(report, [notify])).passed).toBe(true);
+    expect(test.validate(directExecution(report, [])).passed).toBe(false);
+    expect(test.validate(directExecution(`${report}\nTotal lines: 300`, [notify])).passed).toBe(false);
+  });
+});
+
 describe("extension transport invocation", () => {
   const test = scenario(extensionSurfaceTests, "extension-invoke-roundtrip");
 
