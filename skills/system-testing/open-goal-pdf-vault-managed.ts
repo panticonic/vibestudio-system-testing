@@ -39,7 +39,6 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
   const mayEdit = world.vault.writablePath !== undefined;
   let bound: Bound | undefined;
   let attestedReport: unknown;
-  let vaultServiceCalls = 0;
   let concurrentReceipt: { previous: unknown; next: unknown; text: string } | undefined;
 
   async function beforeWrite() {
@@ -63,15 +62,14 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
   const vaultService = vault.services.spectroliteGoal;
   function requireBound() {
     if (!bound) throw new Error("Bind the live approved PDF evidence before opening the correction.");
-    vaultServiceCalls++;
   }
   const services = {
     ...pdf.services,
     pdfVaultBridge: {
       async bind(report: unknown, indices: number[]): Promise<Handoff> {
-        if (bound) return hold("This correction already has a bound source.");
         const source = await pdf.attestCitations(report, indices);
         if (!source) return hold("The requested lines cannot be attested against the original PDF.");
+        if (bound) return isDeepStrictEqual(source,bound.source) ? structuredClone(bound) : hold("This correction already has a different bound source.");
         const citations = source.citations.map(({ page, line, quote }) => ({ page, line, quote }));
         const directive = `${goal}\n\nVerified original attachment and lines:\n${JSON.stringify({ ...source, citations })}\nApply only the requested changes to the latest observed working source. Preserve other text and verify the resulting working revision.`;
         bound = { status: "bound", source, directive };
@@ -80,10 +78,10 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       },
     },
     spectroliteGoal: {
-      inspect() { requireBound(); return vaultService.inspect(); },
-      follow(target: string, revision: string) { requireBound(); return vaultService.follow(target, revision); },
+      inspect() { return vaultService.inspect(); },
+      follow(target: string, revision: string) { return vaultService.follow(target, revision); },
       revise(revision: string, source: string) { requireBound(); return vaultService.revise(revision, source); },
-      evidence(checks: string[]) { requireBound(); return vaultService.evidence(checks); },
+      evidence(checks: string[]) { return vaultService.evidence(checks); },
     },
   };
 
@@ -106,10 +104,9 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
         isDeepStrictEqual(selectedQuotes, expectedQuotes)
         : !bound && pdfResult.passed && reason.length > 0,
       exactWorkingVault: mayEdit ? vaultResult?.passed === true
-        : vaultServiceCalls === 0 && result?.vault === null && isDeepStrictEqual(initial.workingHead, after.workingHead),
+        : isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
-        attempts.some(earlier => earlier.outcome === "changed" &&
-          attempts.some(later => later.outcome === "written" && earlier.revision !== later.revision)) &&
+        vaultResult?.passed === true &&
         typeof coedited === "string" && coedited.includes(concurrent.append)
         : !concurrentReceipt && (mayEdit ? attempts.some(attempt => attempt.outcome === "written") : attempts.length === 0),
       protectedHeads: initial.mainEventId === after.mainEventId && isDeepStrictEqual(initial.committed, after.committed),

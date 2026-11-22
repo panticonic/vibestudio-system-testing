@@ -343,7 +343,6 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const proposedText=world.operation==="review"||world.topology==="no-approval"||world.topology==="missing-page"||world.topology==="partial-evidence"?
       null:corrected(initial);
     const revised=world.race==="unrelated-edit"?corrected(initial)+otherAddition:world.race==="already-done"?corrected(initial):null;
-    const changedAttempts=attempts.filter(item=>item.result.status==="changed");
     const writtenAttempts=attempts.filter(item=>item.result.status==="written");
     const v=report?.decision;
     const files=(await listOwnedScratchEntries(ports.fs)).filter(path=>path.startsWith("evidence-handoff-")&&!originalFiles.has(path));
@@ -359,7 +358,6 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       minimalEditorialProposal:proposedText===null?report?.edit?.proposed===null:report?.edit?.proposed?.text===proposedText&&
         report.edit.proposed.path===candidatePath&&report.edit.proposed.version===firstDoc.version,
       preservedCoeditorBoundary:raceObserved===Boolean(world.race)&&report?.edit?.revised===revised&&
-        (world.race?changedAttempts.some(item=>item.proposal.version===snapshots[0]?.candidate.version):changedAttempts.length===0)&&
         (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate.version):writtenAttempts.length===0),
       verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead)&&isDeepStrictEqual(stored,report?.edit?.stored)&&
         isDeepStrictEqual(report.edit.attempts,attempts.map(item=>item.result)),

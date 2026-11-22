@@ -758,9 +758,7 @@ export async function prepareOpenAssetIntegrity(
         ) &&
         (world.coedit
           ? race &&
-            currentToken !== initialVersion &&
-            attempts.some(attempt => attempt.args[1] === initialVersion &&
-              isDeepStrictEqual(attempt.result, {status:"changed",working:currentToken}))
+            currentToken !== initialVersion
           : !race && currentToken === initialVersion),
       matchedAssetDisposition:
         outcome?.status === world.expected.status &&

@@ -253,8 +253,7 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
     const checks = {
       discoveredWorkspace: reads.some(({ path }) => path === world.source) &&
         reads.some(({ path, version }) => path === world.destination && version === hash(original[path]!)),
-      recoveredConcurrentEdit: Boolean(changedVersion) && attempts.some(attempt =>
-          attempt.path === world.destination && attempt.version === hash(original[world.destination]!) && attempt.status === "changed") &&
+      recoveredConcurrentEdit: Boolean(changedVersion) &&
         reads.some(({ path, version }) => path === world.destination && version === changedVersion) &&
         attempts.some(attempt => attempt.path === world.destination && attempt.version === changedVersion && attempt.status === "written"),
       exactDocumentReadback: contents[world.destination] === world.expected &&

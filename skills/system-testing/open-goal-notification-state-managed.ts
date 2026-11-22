@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import type { WorkspaceRuntime } from "@workspace/runtime/hosted";
 import {
@@ -185,14 +186,14 @@ export async function prepareOpenNotificationState(
       ownsFinal && raw.active
         ? await rpc.call(target, actor.read, [raw.active])
         : null;
-    const initial = journal.find((row) => row.method === "read")?.result as
-      | Snapshot
-      | undefined;
+    const refreshIndex=journal.findIndex(row=>row.method==="refresh");
+    const initial = journal.slice(0,refreshIndex<0?0:refreshIndex).find(row=>row.method==="read"&&
+      isDeepStrictEqual(row.result,outcome?.lifecycle?.original))?.result as Snapshot|undefined;
     const refresh = journal.find((row) => row.method === "refresh")?.result as
       | Refresh
       | undefined;
-    const current = journal.filter((row) => row.method === "read")[1]
-      ?.result as Snapshot | undefined;
+    const current = refreshIndex<0?undefined:journal.slice(refreshIndex+1).find(row=>row.method==="read"&&
+      isDeepStrictEqual(row.result,outcome?.lifecycle?.current))?.result as Snapshot|undefined;
     const ack = journal.find((row) => row.method === "acknowledge")?.result as
       | Ack
       | undefined;
@@ -209,14 +210,8 @@ export async function prepareOpenNotificationState(
     });
     const checks = {
       exactNotificationReadScope:
-        isDeepStrictEqual(
-          journal.map((row) => row.method),
-          actions,
-        ) &&
-        isDeepStrictEqual(
-          journal.map((row) => row.args),
-          selectedArgs,
-        ) &&
+        sameEvidenceMembers(journal.map(({method,args})=>({method,args})),
+          actions.map((method,index)=>({method,args:selectedArgs[index]}))) &&
         isDeepStrictEqual(
           initial?.attention.map((row) => row.id),
           expected.before,

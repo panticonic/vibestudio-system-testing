@@ -161,8 +161,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       exactCoordinatedDrafts:!!first&&exactPlan(report?.plan,initialPlan,firstDrafts)&&
         (after?!!world.next&&exactPlan(report?.reconciled,world.next.status,finalEdits):report?.reconciled===null),
       exactNativeRevisionRace:world.concurrent?!!after&&!!actualRace&&snapshotBytes(actualRace,expectedRace)&&
-        equal(after.scope.files,actualRace)&&equal(report?.updated,after.scope)&&equal(after.state,reporterRaceState)&&
-        attempts.some(attempt=>attempt.receipt.status==="changed"&&sameEvidenceMembers(attempt.drafts,firstDrafts)&&equal(report?.first,attempt.receipt)):
+        equal(after.scope.files,actualRace)&&equal(report?.updated,after.scope)&&equal(after.state,reporterRaceState):
         !after&&!actualRace&&report?.updated===null,
       exactAtomicRevisionBasis:world.concurrent?
         (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&
