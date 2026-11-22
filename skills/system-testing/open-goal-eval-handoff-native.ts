@@ -1,16 +1,21 @@
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import type { RpcCaller } from "@vibestudio/rpc";
 import {
-  createEvalExecutor, createEvalRunHandle, EVAL_OPERATION_JOURNAL_MAX_ENTRIES,
-  type EvalCall, type EvalResultReceipt, type EvalStartInput,
+  createDynamicCodeRunObserver, startDynamicCodeRun,
+} from "@vibestudio/service-schemas/dynamicCode";
+import {
+  EVAL_OPERATION_JOURNAL_MAX_ENTRIES, evalResultReceiptSchema, settledResult,
+  type EvalResultReceipt, type EvalStartInput,
 } from "@vibestudio/service-schemas/eval";
+import { createMainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import type { EvalMode } from "./open-goal-eval-handoff-worlds.js";
 
 export type EvalRetryGate = { path: string; blocked: "park" | "reject" };
 export type OwnedEvalRequest = { contextId: string; mode: EvalMode; text: string; runId: string; retryGate?: EvalRetryGate };
 export type OwnedEvalRun = {
   request: OwnedEvalRequest;
-  admission: EvalStartInput;
+  admission: EvalStartInput & { scope: { key: string; lifecycle: "finite" } };
   terminal: "returned" | "failed" | "cancelled";
   runDigest: string;
   receipt: EvalResultReceipt | null;
@@ -48,17 +53,19 @@ export function openEvalProbeCode({ contextId, mode, text, retryGate }: OwnedEva
   return [...header, ...operations, mode.startsWith("failed-") ? failure : success].join("\n");
 }
 
-export function openEvalHandoffNative(call: EvalCall) {
-  const execute = createEvalExecutor(call);
-  const ownedScopes = new Set<string>();
+type RunObserver = ReturnType<typeof createDynamicCodeRunObserver>;
+
+export function openEvalHandoffNative(rpc: Pick<RpcCaller, "call">) {
+  const call = createMainRpcCaller(rpc);
+  const ownedScopes = new Map<string, RunObserver | null>();
   async function readText(digest: string) {
     return call("blobstore.getText", [digest]);
   }
-  async function waitForParkedStore(request: OwnedEvalRequest, handle: ReturnType<typeof createEvalRunHandle>) {
+  async function waitForParkedStore(request: OwnedEvalRequest, observer: RunObserver) {
     const digest = sha256HexSyncText(request.text);
     for (let observation = 0; observation < 250; observation++) {
       if (await readText(digest) === request.text) return;
-      const state = await handle.get();
+      const state = await observer.get();
       if (state.status === "done" || state.status === "cancelled" || state.status === "approval-route-lost")
         throw new Error("The owned attempt settled before the intended durable write and cooperative cancellation");
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -67,58 +74,71 @@ export function openEvalHandoffNative(call: EvalCall) {
   }
   async function run(request: OwnedEvalRequest): Promise<OwnedEvalRun> {
     const scopeKey = `open-eval-handoff-${crypto.randomUUID()}`;
-    const admission: EvalStartInput = {
+    const admission: OwnedEvalRun["admission"] = {
       runId: request.runId, scope: { key: scopeKey, lifecycle: "finite" },
       source: { kind: "inline", syntax: "typescript", code: openEvalProbeCode(request) },
     };
-    ownedScopes.add(scopeKey);
-    const handle = createEvalRunHandle(call, admission);
+    ownedScopes.set(scopeKey, null);
+    const { admission: admitted, observer, started } = await startDynamicCodeRun(rpc, admission);
+    ownedScopes.set(scopeKey, observer);
+    if (admitted.runId !== request.runId || started.runId !== request.runId)
+      throw new Error("The owned run was not admitted");
     const cancelled = request.mode.startsWith("cancelled-");
-    let startedDigest: string | null = null;
     if (cancelled) {
-      const opened = await handle.start();
-      if (opened.runId !== request.runId || opened.status === "terminal") throw new Error("The owned cancellation probe was not admitted");
-      startedDigest = opened.runDigest;
       try {
-        if (request.mode === "cancelled-store") await waitForParkedStore(request, handle);
+        if (request.mode === "cancelled-store") await waitForParkedStore(request, observer);
       } finally {
-        const cancellation = await handle.cancel();
+        const cancellation = await observer.cancel();
         if (!cancellation.ok || cancellation.forcedReset) throw new Error("The cancellable native cell did not stop cooperatively");
       }
     } else {
-      const result = await execute(admission);
-      if (result.success === request.mode.startsWith("failed-")) throw new Error("The owned native eval returned the wrong lifecycle outcome");
+      const deadline = Date.now() + 60_000;
+      for (;;) {
+        const state = await observer.await(400);
+        const result = settledResult(state);
+        if (result) {
+          if (result.success === request.mode.startsWith("failed-")) throw new Error("The owned native eval returned the wrong lifecycle outcome");
+          break;
+        }
+        if (state.status === "unknown" || Date.now() >= deadline) throw new Error("The owned native eval did not settle");
+      }
     }
-    const snapshot = await handle.get();
+    const snapshot = await observer.get();
     if (snapshot.status !== (cancelled ? "cancelled" : "done")) throw new Error("The owned native eval lacks its exact terminal state");
-    const receipt = await call("eval.receipt", [{ scopeKey, runId: request.runId }]);
-    if (!receipt || receipt.runId !== request.runId || !isDeepStrictEqual(snapshot.result, receipt.result) ||
+    const receipt = evalResultReceiptSchema.parse(await observer.receipt());
+    if (receipt.runId !== request.runId || !isDeepStrictEqual(snapshot.result, receipt.result) ||
         (cancelled && receipt.result.failureKind !== "cancelled"))
       throw new Error("The terminal native receipt did not match the observed run");
     const runDigest = receipt.runDigest;
-    if (!runDigest || (startedDigest && startedDigest !== runDigest)) throw new Error("The receipt did not retain its admitted run identity");
+    if (!runDigest || (started.runDigest && started.runDigest !== runDigest))
+      throw new Error("The receipt did not retain its admitted run identity");
     return { request, admission, terminal: cancelled ? "cancelled" : receipt.result.success ? "returned" : "failed",
       runDigest, receipt, physicallyStored: await readText(sha256HexSyncText(request.text)) === request.text };
   }
 
   async function replay(run: OwnedEvalRun) {
-    const handle = createEvalRunHandle(call, run.admission);
-    const next = await handle.start();
-    const receipt = await call("eval.receipt", [handle.route]);
-    return next.status === "terminal" && next.runId === run.request.runId && next.runDigest === run.runDigest &&
-      next.snapshot?.status === (run.terminal === "cancelled" ? "cancelled" : "done") && isDeepStrictEqual(receipt, run.receipt);
+    const { admission, observer, started } = await startDynamicCodeRun(rpc, run.admission);
+    const original = ownedScopes.get(run.admission.scope.key);
+    const snapshot = await observer.get();
+    const receipt = await observer.receipt();
+    return admission.hostId === original?.route.hostId && started.runId === run.request.runId &&
+      started.runDigest === run.runDigest &&
+      snapshot.status === (run.terminal === "cancelled" ? "cancelled" : "done") &&
+      isDeepStrictEqual(receipt, run.receipt);
   }
 
   async function retained(run: OwnedEvalRun) {
-    const handle = createEvalRunHandle(call, run.admission);
-    return isDeepStrictEqual(await call("eval.receipt", [handle.route]), run.receipt) &&
-      ((await handle.get()).status === (run.terminal === "cancelled" ? "cancelled" : "done"));
+    const observer = ownedScopes.get(run.admission.scope.key);
+    return !!observer && isDeepStrictEqual(await observer.receipt(), run.receipt) &&
+      (await observer.get()).status === (run.terminal === "cancelled" ? "cancelled" : "done");
   }
 
   async function close() {
     const failures = [];
-    for (const scopeKey of ownedScopes) {
-      try { await call("eval.dispose", [{ scopeKey }]); }
+    for (const [scopeKey, observer] of ownedScopes) {
+      try { await observer?.release(); }
+      catch (error) { failures.push(error); }
+      try { await call("dynamicCode.dispose", [{ scopeKey }]); }
       catch (error) { failures.push(error); }
     }
     if (failures.length) throw new AggregateError(failures, "Could not dispose the owned eval handoff scopes");

@@ -3741,11 +3741,10 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     }
     const prepare = evalHandoff
       ? `import {fs,rpc,vcs} from "@workspace/runtime";
-         import {createMainRpcCaller} from "@vibestudio/service-schemas/mainRpc";
          import {prepareOpenEvalHandoff,openEvalHandoffNative} from "@workspace-skills/system-testing/open-goal-eval-handoff-managed";
          import {readWorkspaceBytes} from "@workspace-skills/system-testing/scratch-handoff-managed";
          const prepared=await prepareOpenEvalHandoff(input,${JSON.stringify(evalHandoff)},
-           {contextId:actualContextId,fs,vcs,native:openEvalHandoffNative(createMainRpcCaller(rpc)),readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
+           {contextId:actualContextId,fs,vcs,native:openEvalHandoffNative(rpc),readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)});`
       : programRun
       ? `import {fs,vcs} from "@workspace/runtime";
          import {prepareOpenProgramRun} from "@workspace-skills/system-testing/open-goal-program-run-managed";
