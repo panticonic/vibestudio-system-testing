@@ -4,7 +4,7 @@ import { contextId, openPanel, fs, type PanelHandle } from "@workspace/runtime";
 import type {
   BoardCard, BoardMigrationOutcome, BoardMigrationReceipt, LegacyBoard,
   MigrationApproval, MigrationBasis, MigrationSelection, MigrationView,
-} from "@workspace-skills/open-user-goal/runUserGoal/reviewBoardMigration/types";
+} from "@workspace-skills/open-user-goal/reviewBoardMigration/types";
 import type { OpenBoardMigrationWorld } from "./open-goal-board-migration-worlds.js";
 
 const encode = (value: unknown) => JSON.stringify(value);

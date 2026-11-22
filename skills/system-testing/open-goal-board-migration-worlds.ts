@@ -1,4 +1,4 @@
-import type { BoardCard, BoardMigrationOutcome } from "@workspace-skills/open-user-goal/runUserGoal/reviewBoardMigration/types";
+import type { BoardCard, BoardMigrationOutcome } from "@workspace-skills/open-user-goal/reviewBoardMigration/types";
 
 type BoardFixture = { title: string; edition: string; cards: BoardCard[] };
 type Disposition = BoardMigrationOutcome["disposition"];
