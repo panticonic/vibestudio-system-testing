@@ -153,6 +153,7 @@
     "@vibestudio/service-schemas": "workspace:*",
     "@vibestudio/shared": "workspace:*",
     "@workspace-skills/system-testing": "workspace:*",
+    "@workspace-skills/open-user-goal": "workspace:*",
     "@workspace/runtime": "workspace:*",
     "@vibestudio/rpc": "workspace:*"
   },
