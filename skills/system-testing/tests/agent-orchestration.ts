@@ -339,7 +339,7 @@ export const agentOrchestrationTests: TestCase[] = [
     agentContext: "fork",
     timeoutMs: 15 * 60_000,
     prompt:
-      "Ask a collaborator to change one exported string in the disposable package’s src/index.ts and commit it. Review the committed diff without bringing it into your workspace. Then ask that same collaborator to make and commit a related change in that file. Review the second diff, bring the changes into your workspace, and summarize both edits.",
+      "Ask one collaborator to change an exported string in the disposable package’s src/index.ts and commit it. Review the committed diff and leave your workspace unchanged. Send the follow-up to the original collaborator’s run address so they can make and commit a related change in the same file. Review their second committed diff, then integrate that collaborator’s work once and summarize both edits.",
 
     validate: validateSubagentFollowup,
   },
