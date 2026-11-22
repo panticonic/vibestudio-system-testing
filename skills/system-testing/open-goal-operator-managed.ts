@@ -79,14 +79,14 @@ export function bindOpenGoalOperator(
   let active: Promise<unknown> | undefined;
 
   async function exclusively<T>(operation: () => Promise<T>): Promise<T> {
-    if (active || finishResult)
-      throw new Error("Wait for the owned terminal operation to settle");
-    const pending = operation();
+    if (finishResult) throw new Error("The owned terminal session has already finalized");
+    const previous = active;
+    const pending = (previous ?? Promise.resolve()).catch(() => undefined).then(operation);
     active = pending;
     try {
       return await pending;
     } finally {
-      active = undefined;
+      if (active === pending) active = undefined;
     }
   }
 
@@ -98,8 +98,9 @@ export function bindOpenGoalOperator(
       },
       observe(targetId: string) {
         return exclusively(async () => {
-          if (!listed || targetId !== target.id || baseline)
-            throw new Error("Read one of the discovered terminal targets once");
+          if (!listed || targetId !== target.id)
+            throw new Error("Read a discovered terminal target");
+          if (baseline) return structuredClone(baseline);
           const observed = await session.baseline();
           const identity =
             observed.state === initial.state &&
@@ -146,10 +147,10 @@ export function bindOpenGoalOperator(
           if (
             session.kind !== "deployment" ||
             installation?.state !== "applied" ||
-            receipt !== installation.receipt ||
-            deployment
+            receipt !== installation.receipt
           )
-            throw new Error("Verify the current installer receipt once");
+            throw new Error("Verify the current installer receipt");
+          if (deployment) return structuredClone(deployment);
           deployment = await session.verify(receipt);
           return structuredClone(deployment);
         });
@@ -208,10 +209,10 @@ export function bindOpenGoalOperator(
           if (
             session.kind !== "terminal-profile" ||
             route?.state !== "routed" ||
-            receipt !== route.receipt ||
-            child
+            receipt !== route.receipt
           )
-            throw new Error("Verify the actual routed child once");
+            throw new Error("Verify the actual routed child");
+          if (child) return structuredClone(child);
           child = await session.verify(receipt);
           return structuredClone(child);
         });

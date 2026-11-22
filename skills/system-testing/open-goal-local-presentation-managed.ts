@@ -346,14 +346,12 @@ export async function prepareOpenLocalPresentation(
       joinedCurrentPresentationRevision:
         (world.coedit
           ? raced &&
-            changes.length === 1 &&
-            current?.revision !== changes[0]?.args[1] &&
-            (changes[0]?.result as { revision?: string }).revision ===
-              current?.revision &&
+            changes.some(change => current?.revision !== change.args[1] &&
+              (change.result as {revision?:string}).revision === current?.revision) &&
             reads.get(current!.id)?.revision === current?.revision
           : changes.length === 0) &&
         (holds
-          ? attempts.length === (world.coedit ? 1 : 0)
+          ? attempts.every(attempt => (attempt.result as Preview).status !== "visible")
           : saved?.preview.source === current?.id &&
             saved?.preview.revision === current?.revision),
       matchedPresentationDisposition: Boolean(

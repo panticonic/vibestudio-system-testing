@@ -133,8 +133,8 @@ managedIncidentContinuationTests.push({
       | undefined;
     return checks?.length === incidentContinuationWorlds.length &&
       checks.every(
-        ({ verification, rejectedPrematureRead }) =>
-          verification.passed && rejectedPrematureRead,
+        ({ verification, rejectedForeignRef }) =>
+          verification.passed && rejectedForeignRef,
       )
       ? {
           passed: true,

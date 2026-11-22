@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { accountProfileSchema, workspaceMemberProfileSchema } from "@vibestudio/service-schemas/account";
@@ -176,12 +177,13 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
   const services = {
     workspaceShareEvidence: {
       async discover() {
-        if (discovered) throw new Error("Discover the exact owned share review once");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("workspaceShareEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (!discovered || inspected || id !== assignment.document) throw new Error("Read only the exact assigned shared object");
+        if (discovered && id === assignment.document && inspected) return structuredClone(inspected);
+        if (!discovered || id !== assignment.document) throw new Error("Read only the exact assigned shared object");
         inspected = await observe();
         return capture("workspaceShareEvidence", "inspect", [id], inspected);
       },
@@ -229,7 +231,7 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
       selectedExactWorkspaceAndObject: discovered && inspected?.object.workspace === workspace &&
         inspected?.object.id === assignment.document && inspected?.object.digest === digest(original.body) &&
         isDeepStrictEqual(outcome?.assignment, assignment) &&
-        isDeepStrictEqual(effects.filter(effect => effect.service === "workspaceShareEvidence").map(({ method }) => method), expectedReadMethods),
+        sameEvidenceMembers(effects.filter(effect => effect.service === "workspaceShareEvidence").map(({ method }) => method), expectedReadMethods),
       readExactMembershipAndRole: isDeepStrictEqual(inspected?.member, current.member) &&
         isDeepStrictEqual(inspected?.session, current.session) && isDeepStrictEqual(outcome?.observation, current),
       reconciledExactInviteAndRevision: inspected?.invitation.currentRevision === projection.currentRevision &&

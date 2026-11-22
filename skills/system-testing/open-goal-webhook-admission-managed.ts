@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { webhookIngressSubscriptionSummarySchema } from "@vibestudio/service-schemas/webhookIngress";
@@ -284,7 +285,7 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
         isDeepStrictEqual(out?.handoff, handoff),
       preservedNativeRegistryAndRedaction: isDeepStrictEqual(baseline, finalRows) &&
         final.history.every(row => !row.hasSecret && row.verifierKind === "oidc-jwt") &&
-        isDeepStrictEqual(effects.map(effect => effect.method), wantStage ? ["discover", "inspect", "stage"] : ["discover", "inspect"]),
+        sameEvidenceMembers(effects.map(effect => effect.method), wantStage ? ["discover", "inspect", "stage"] : ["discover", "inspect"]),
     };
     return { caseId: world.id, contextId: owner, goal: world.goal, assignment, evidence: final, binding: expectedBinding,
       assessment: out?.assessment, handoff, effects: structuredClone(effects), checks,

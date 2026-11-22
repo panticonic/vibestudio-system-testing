@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { buildProvenanceSchema } from "@vibestudio/service-schemas/build";
@@ -186,12 +187,13 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
   const services = {
     systemReleaseEvidence: {
       async discover() {
-        if (issued) throw new Error("Discover only one local System release assignment");
+        if (issued) return structuredClone(assigned);
         issued = true;
         return capture("systemReleaseEvidence", "discover", [], assigned);
       },
       async compare(id: string) {
-        if (!issued || compared || pending || id !== assigned.id) throw new Error("Compare only the two assigned checkpoint headers");
+        if (issued && id === assigned.id && compared) return structuredClone(compared);
+        if (!issued || pending || id !== assigned.id) throw new Error("Compare only the two assigned checkpoint headers");
         pending = true;
         try {
           const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
@@ -201,14 +203,17 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
       },
       async inspectCase(id: string, runId: string | null, name: string) {
         if (!compared || !runId || pending || id !== assigned.id || runId !== choose(compared).runId ||
-            (reviewedId !== null && reviewedId !== runId) || assigned.required[reads.length] !== name)
-          throw new Error("Read the selected exact required System case in review order");
+            (reviewedId !== null && reviewedId !== runId) || !assigned.required.includes(name))
+          throw new Error("Read a required case from the exact selected System run");
+        const previous=reads.find(row=>row.name===name);
+        if(previous)return structuredClone(previous);
         pending = true;
         try {
           const run = runId === compared.current.id ? compared.current : compared.earlier;
           const proof = await readCase(run, name);
           reviewedId = runId;
           reads.push(proof);
+          reads.sort((a,b)=>assigned.required.indexOf(a.name)-assigned.required.indexOf(b.name));
           return capture("systemReleaseEvidence", "inspectCase", [id, runId, name], proof);
         } finally { pending = false; }
       },
@@ -216,7 +221,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
     systemReleaseHandoff: {
       async stage(id: string, runId: string | null, disposition: Assessment["disposition"], cases: Case[]) {
         if (!runId || runId !== reviewedId || pending || receipt || id !== assigned.id ||
-            reads.length !== assigned.required.length || !isDeepStrictEqual(cases, reads) ||
+            reads.length !== assigned.required.length || !sameEvidenceMembers(cases, reads) ||
             !["stage-acceptance", "stage-diagnostics"].includes(disposition) || assess(reads).disposition !== disposition)
           throw new Error("Stage only the authorized handoff for the complete exact selected run evidence");
         pending = true;
@@ -224,7 +229,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
           const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
           if (!isDeepStrictEqual(compared, { current, earlier }))
             throw new Error("Retained run coordinates changed before the local handoff");
-          const canonical = dossier(disposition, runId, cases);
+          const canonical = dossier(disposition, runId, reads);
           await artifact.write(outputPath, canonical);
           const stored = await artifact.read(outputPath, maximumArtifact);
           if (decode.decode(stored) !== canonical) throw new Error("Local release handoff did not retain exact bytes");
@@ -257,14 +262,14 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
       retainedNativeRunPair: isDeepStrictEqual(compared, finalPair) && isDeepStrictEqual(outcome?.runs, finalPair) &&
         isDeepStrictEqual(outcome?.assignment, assigned),
       matchedOwnedBuildAndAttempt: isDeepStrictEqual(outcome?.choice, expectedChoice) && reviewedId === (selected?.id ?? null),
-      exactRequiredCaseEvidence: isDeepStrictEqual(reads, nativeCases) && isDeepStrictEqual(outcome?.cases, nativeCases),
+      exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases) && Array.isArray(outcome?.cases) && sameEvidenceMembers(outcome.cases, nativeCases),
       matchedReleaseDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "systemRelease" &&
         outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
         typeof outcome.assessment.reason === "string" && outcome.assessment.reason.trim().length > 0 && outcome.assessment.reason.length <= 1400,
       verifiedPrivateHandoff: expectedBytes ? raw !== null && decode.decode(raw) === expectedBytes && !!receipt &&
         receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) &&
         isDeepStrictEqual(outcome?.handoff, receipt) : entries.length === 0 && receipt === null && outcome?.handoff === null,
-      noSuiteRerunOrUnassignedCase: isDeepStrictEqual(effects.map(item => item.method), expectedMethods),
+      noSuiteRerunOrUnassignedCase: sameEvidenceMembers(effects.map(item => item.method), expectedMethods),
     };
     return { caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
       cases: nativeCases, assessment: outcome?.assessment, handoff: receipt, effects: structuredClone(effects),

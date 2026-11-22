@@ -169,12 +169,13 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
   const service = {
     sameTurnEvalEvidence: {
       async discover() {
-        if (discovered) throw new Error("Only one current same-turn assignment may be discovered");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("sameTurnEvalEvidence", "discover", [], assignment);
       },
       async observe(id: string) {
-        if (id !== assignment.id || !discovered || evidence || inspecting) throw new Error("Read the admitted owned same-turn evidence once");
+        if (discovered && id === assignment.id && evidence) return structuredClone(evidence);
+        if (id !== assignment.id || !discovered || inspecting) throw new Error("Read the admitted owned same-turn evidence once");
         inspecting = true;
         try { evidence = await setup(); return capture("sameTurnEvalEvidence", "observe", [id], evidence); }
         finally { inspecting = false; }

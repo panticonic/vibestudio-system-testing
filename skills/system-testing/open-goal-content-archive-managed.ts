@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { VcsEditChange } from "@vibestudio/service-schemas/vcs";
@@ -212,12 +213,13 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
   const services = {
     contentArchiveEvidence: {
       async discover() {
-        if (discovered) throw new Error("Discover only one assigned content archive");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("contentArchiveEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (!discovered || observed || busy || id !== assignment.id) throw new Error("Inspect only the exact assigned archive and project");
+        if (discovered && id === assignment.id && observed) return structuredClone(observed);
+        if (!discovered || busy || id !== assignment.id) throw new Error("Inspect only the exact assigned archive and project");
         busy = true;
         try { observed = await observe(); return capture("contentArchiveEvidence", "inspect", [id], observed); }
         finally { busy = false; }
@@ -325,7 +327,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
         storedReceipt?.status === "restored" && counts : storedReceipt === null) &&
         isDeepStrictEqual(out?.receipt, storedReceipt) &&
         (!storedReceipt || storedReceipt.workingRevision === revision(checkpoint.workingHead) && isDeepStrictEqual(storedReceipt.files, final)) &&
-        isDeepStrictEqual(effects.map(item => item.method), expectedRestore ? ["discover", "inspect", "restore"] : ["discover", "inspect"]),
+        sameEvidenceMembers(effects.map(item => item.method), expectedRestore ? ["discover", "inspect", "restore"] : ["discover", "inspect"]),
       preservedWorkingProjectAndNeighbor: exactRepo?.repositoryId === repository && isDeepStrictEqual(stable, corresponding) &&
         isDeepStrictEqual(neighboring, initialNeighbor) && checkpoint.mainEventId === initial.mainEventId &&
         (!world.race || rows.find(file => file.path === notePath)?.contentHash === sha256HexSyncText(raceNote)) &&

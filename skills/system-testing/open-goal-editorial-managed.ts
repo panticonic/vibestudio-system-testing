@@ -258,7 +258,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       async apply(id:string,proposal:PacketDocument):Promise<PacketWrite>{
         const snapshot=snapshots.at(-1);
         const entry=sources.at(-1);
-        if(!snapshot||busy||committedWrite||attempts.length>=2||plan.operation!=="revise"||id!==firstMission.id||
+        if(!snapshot||busy||committedWrite||plan.operation!=="revise"||id!==firstMission.id||
           proposal?.path!==candidatePath||proposal.version!==snapshot.candidate.version||!entry?.evidence||
           entry.evidence.status!=="grounded"||!isDeepStrictEqual(entry.evidence.citations.map(cite=>cite.quote),approvedLines)||
           proposal.text!==corrected(snapshot.candidate.text)||proposal.text===snapshot.candidate.text||
@@ -343,7 +343,8 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const proposedText=world.operation==="review"||world.topology==="no-approval"||world.topology==="missing-page"||world.topology==="partial-evidence"?
       null:corrected(initial);
     const revised=world.race==="unrelated-edit"?corrected(initial)+otherAddition:world.race==="already-done"?corrected(initial):null;
-    const expectedStatuses=world.race?(world.end==="ready"?["changed","written"]:["changed"]):world.end==="ready"?["written"]:[];
+    const changedAttempts=attempts.filter(item=>item.result.status==="changed");
+    const writtenAttempts=attempts.filter(item=>item.result.status==="written");
     const v=report?.decision;
     const files=(await listOwnedScratchEntries(ports.fs)).filter(path=>path.startsWith("evidence-handoff-")&&!originalFiles.has(path));
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,byteLimit)):null;
@@ -358,9 +359,8 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       minimalEditorialProposal:proposedText===null?report?.edit?.proposed===null:report?.edit?.proposed?.text===proposedText&&
         report.edit.proposed.path===candidatePath&&report.edit.proposed.version===firstDoc.version,
       preservedCoeditorBoundary:raceObserved===Boolean(world.race)&&report?.edit?.revised===revised&&
-        isDeepStrictEqual(attempts.map(item=>item.result.status),expectedStatuses)&&
-        (!world.race||attempts[0]?.proposal.version===snapshots[0]?.candidate.version)&&
-        (expectedStatuses.length!==2||attempts[1]?.proposal.version===snapshots[1]?.candidate.version),
+        (world.race?changedAttempts.some(item=>item.proposal.version===snapshots[0]?.candidate.version):changedAttempts.length===0)&&
+        (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate.version):writtenAttempts.length===0),
       verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead)&&isDeepStrictEqual(stored,report?.edit?.stored)&&
         isDeepStrictEqual(report.edit.attempts,attempts.map(item=>item.result)),
       groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&

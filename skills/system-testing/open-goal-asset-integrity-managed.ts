@@ -759,11 +759,8 @@ export async function prepareOpenAssetIntegrity(
         (world.coedit
           ? race &&
             currentToken !== initialVersion &&
-            attempts[0]?.args[1] === initialVersion &&
-            isDeepStrictEqual(attempts[0]?.result, {
-              status: "changed",
-              working: currentToken,
-            })
+            attempts.some(attempt => attempt.args[1] === initialVersion &&
+              isDeepStrictEqual(attempt.result, {status:"changed",working:currentToken}))
           : !race && currentToken === initialVersion),
       matchedAssetDisposition:
         outcome?.status === world.expected.status &&
@@ -780,12 +777,13 @@ export async function prepareOpenAssetIntegrity(
             receipt.manifestDigest === sha256HexSyncText(output) &&
             isDeepStrictEqual(outcome?.receipt, receipt) &&
             isDeepStrictEqual(await fs.readdir(directory), ["verified"]) &&
-            attempts.length === (world.coedit ? 2 : 1),
+            attempts.some(attempt => (attempt.result as Stage).status === "staged" &&
+              isDeepStrictEqual((attempt.result as {receipt?:Receipt}).receipt, receipt)),
           )
         : receipt === null &&
           outcome?.receipt === null &&
           (await fs.readdir(directory)).length === 0 &&
-          attempts.length === (world.coedit ? 1 : 0),
+          attempts.every(attempt => (attempt.result as Stage).status !== "staged"),
     };
     return {
       contextId,

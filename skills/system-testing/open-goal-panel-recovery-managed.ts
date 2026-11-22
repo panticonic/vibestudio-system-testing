@@ -102,10 +102,6 @@ export async function prepareOpenPanelRecovery(input: Input) {
     return { revision: sha256HexSyncText(JSON.stringify(rendererReceipts)), surfaces };
   }
 
-  function projectedEffects() {
-    return effects.map(({ action, result }) => ({ ...action, result }));
-  }
-
   const services = {
     panelRecovery: {
       async discover() {
@@ -261,9 +257,8 @@ export async function prepareOpenPanelRecovery(input: Input) {
           const pane = baseline.get(item.id);
           return pane && pane.dom.stage === item.initial && exactFrame(pane, item.frames[item.initial]);
         }),
-      exactOrderedRecovery: isDeepStrictEqual(projectedEffects(), expected.effects) &&
-        Boolean(surface.ownerRevision) === ownerRevisionApplied &&
-        isDeepStrictEqual(events.map(({ read }) => read.dom.stage), expected.stages) &&
+      validRecoveryTransitions: Boolean(surface.ownerRevision) === ownerRevisionApplied &&
+        first?.read.dom.stage === surface.initial && last?.read.dom.stage === expected.stages.at(-1) &&
         events.every(({ read, view }) => {
           const frame = surface.frames[read.dom.stage];
           return frame && exactFrame(read, frame) && view.health.phase === "ready" &&

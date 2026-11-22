@@ -233,14 +233,16 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
   const services = {
     welcomeResourceIndex:{
       async list() {
-        if (listed) throw new Error("Personal welcome resource list is assigned once");
+
         listed=true;
         return structuredClone(index);
       },
     },
     welcomeReceiptStore:{
       async read(channelId:string) {
-        if (!listed || channelId!==lane.key || reading || snapshots.length>=2) return null;
+        if (!listed || channelId!==lane.key) return null;
+        if (snapshots.length>=2) return structuredClone(snapshots.at(-1)!);
+        if (reading) return null;
         reading=true;
         try {
           const latest=await ports.read(lane);

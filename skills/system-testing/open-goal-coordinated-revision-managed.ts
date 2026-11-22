@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { compareUtf16CodeUnits } from "@vibestudio/content-addressing";
 import { contextId, fs, vcs, type VcsClient } from "@workspace/runtime";
@@ -72,16 +73,16 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       async discover(){
         const {workingHead}=await ports.vcs.status();
         const seen=await scope(workingHead);
-        snapshots.push({state:workingHead,scope:seen});
+        if(!snapshots.some(snapshot=>equal(snapshot.state,workingHead))) snapshots.push({state:workingHead,scope:seen});
         return structuredClone(seen);
       },
       async revise(head:string,drafts:RevisionDraft[]){
         const last=snapshots.at(-1);
-        if(inFlight||!last||last.scope.head!==head||attempts.length>=2||
+        if(inFlight||!last||last.scope.head!==head||
           !Array.isArray(drafts)||drafts.length===0||world.initial||attempts.at(-1)?.receipt.status==="applied")
           return mark("unavailable",(await ports.vcs.status()).workingHead);
         const paths=drafts.map(({path})=>path);
-        if(!equal(paths,ordered([...new Set(paths)]))||drafts.some(row=>{
+        if(new Set(paths).size!==paths.length||drafts.some(row=>{
           const old=last.scope.files.find(file=>file.path===row.path);
           return !writable.has(row.path)||old?.version!==row.version||typeof row.text!=="string"||
             row.text.length>8192||row.text===old?.text;
@@ -135,7 +136,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       equal(ordered([...result.supported,...result.missing]),ordered(result.required))&&(!required||result.missing.length===0);
   }
   function exactPlan(plan:RevisionPlan|null|undefined,status:RevisionPlan["status"],wanted:RevisionDraft[]){
-    return plan?.status===status&&equal(plan.destinations,wanted)&&typeof plan.explanation==="string"&&
+    return plan?.status===status&&sameEvidenceMembers(plan.destinations,wanted)&&typeof plan.explanation==="string"&&
       !!plan.explanation.trim()&&plan.explanation.length<=850;
   }
   async function verify(raw:unknown) {
@@ -144,7 +145,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const status=await ports.vcs.status();
     const actual=await observe(status.workingHead);
     const first=snapshots[0];
-    const after=snapshots[1];
+    const after=reporterRaceState?snapshots.find(snapshot=>equal(snapshot.state,reporterRaceState)):undefined;
     const initialPlan=world.initial??"ready";
     const changedByOther=world.concurrent??{};
     const finalEdits=world.concurrent?(after?expectedDrafts(after.scope,true):[]):first?expectedDrafts(first.scope,false):[];
@@ -161,14 +162,15 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
         (after?!!world.next&&exactPlan(report?.reconciled,world.next.status,finalEdits):report?.reconciled===null),
       exactNativeRevisionRace:world.concurrent?!!after&&!!actualRace&&snapshotBytes(actualRace,expectedRace)&&
         equal(after.scope.files,actualRace)&&equal(report?.updated,after.scope)&&equal(after.state,reporterRaceState)&&
-        attempts[0]?.receipt.status==="changed"&&equal(attempts[0]?.drafts,firstDrafts)&&equal(report?.first,attempts[0]?.receipt):
+        attempts.some(attempt=>attempt.receipt.status==="changed"&&sameEvidenceMembers(attempt.drafts,firstDrafts)&&equal(report?.first,attempt.receipt)):
         !after&&!actualRace&&report?.updated===null,
-      exactAtomicRevisionBasis:world.concurrent?attempts.length===(world.next?.status==="ready"?2:1)&&
-        (world.next?.status==="ready"?attempts[1]?.receipt.status==="applied"&&equal(attempts[1]?.drafts,finalEdits)&&
-          attempts[1]?.head===after?.scope.head&&equal(report?.final,attempts[1]?.receipt):report?.final===null):
-        report?.final===null&&(initialPlan==="ready"?attempts.length===1&&attempts[0]?.head===first?.scope.head&&
-          attempts[0]?.receipt.status==="applied"&&equal(attempts[0]?.drafts,firstDrafts)&&equal(report?.first,attempts[0]?.receipt):
-          attempts.length===0&&report?.first===null),
+      exactAtomicRevisionBasis:world.concurrent?
+        (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&
+          attempt.head===after?.scope.head&&equal(report?.final,attempt.receipt)):
+          report?.final===null&&attempts.every(attempt=>attempt.receipt.status!=="applied")):
+        report?.final===null&&(initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope.head&&
+          attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)&&equal(report?.first,attempt.receipt)):
+          attempts.every(attempt=>attempt.receipt.status!=="applied")&&report?.first===null),
       independentlyVerifiedRevisionBatch:!!finalRead&&equal(report?.readback,finalRead)&&equal(actual,finalRead.files)&&
         finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&
         actual.every(file=>first?.scope.files.some(old=>old.path===file.path&&old.fileId===file.fileId)),

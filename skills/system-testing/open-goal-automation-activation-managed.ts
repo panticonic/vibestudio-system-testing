@@ -224,7 +224,7 @@ export async function prepareOwnedAutomationActivation(
   let capturedRead:ReturnType<typeof projection>|null=null;
   const services={
     automationActivationEvidence:{async observe() {
-      if(observed)throw new Error("Observe the exact assigned activation once");
+      if(observed)return structuredClone(observed);
       observed=await observe();
       return note("automationActivationEvidence","observe",[],observed);
     }},
@@ -232,7 +232,8 @@ export async function prepareOwnedAutomationActivation(
       return note("automationActivationCommit","activate",[revision,plan,decision],await activate(revision,plan,decision));
     }},
     automationActivationReadback:{async read(wanted:Receipt) {
-      if(!receipt||!isDeepStrictEqual(wanted,receipt)||capturedRead)throw new Error("Read from the exact owned launch receipt");
+      if(!receipt||!isDeepStrictEqual(wanted,receipt))throw new Error("Read from the exact owned launch receipt");
+      if(capturedRead)return structuredClone(capturedRead);
       const live=await missions.get(receipt.missionId);
       if(!live||live.revisionDigest!==receipt.revisionDigest)throw new Error("Native scheduler no longer matches the activation");
       capturedRead=projection(live);

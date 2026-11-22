@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -320,7 +321,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     const expectedMethods = ["discover", "source", "runtime", "candidate", "history", ...(shouldStage ? ["stage"] : [])];
     const checks = {
       boundOriginalOwnerScope: decoder.decode(originalScope) === scopeBytes && isDeepStrictEqual(discovery, found) &&
-        isDeepStrictEqual(outcome?.assignment, found) && isDeepStrictEqual(effects.map(effect => effect.method), expectedMethods),
+        isDeepStrictEqual(outcome?.assignment, found) && sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
       usedExactInstalledReleaseReview: isDeepStrictEqual(source, review.source.observation) &&
         isDeepStrictEqual(runtime, review.runtime.observation) && isDeepStrictEqual(outcome?.review, review),
       verifiedPackageDifference: isDeepStrictEqual(candidate, compared) && isDeepStrictEqual(outcome?.candidate, compared) &&

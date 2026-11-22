@@ -1,4 +1,6 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+vi.mock("@workspace/runtime",()=>({contextId:"owned-context"}));
+vi.mock("./tests/_client-device.js",()=>({openClientDevice:vi.fn()}));
 import { bindOpenGoalOperator } from "./open-goal-operator-managed.js";
 import { operatorGoalWorlds } from "./open-goal-operator-worlds.js";
 
@@ -155,4 +157,22 @@ it("uses the observed profile's actual pairing route and rejects forged receipts
   });
   expect(forged.checks.boundOperatorReport).toBe(false);
   expect(records.at(-2)).toBe("child");
+});
+
+it("replays owned observations and verifier receipts for concurrent repeated reads", async()=>{
+  const harness=deployment("reapply-review-hub-preserving-project");
+  const [target]=await harness.services.operatorDiscovery.list();
+  const [first,repeat]=await Promise.all([
+    harness.services.operatorDiscovery.observe(target!.id),
+    harness.services.operatorDiscovery.observe(target!.id),
+  ]);
+  expect(repeat).toEqual(first);
+  const applied=await harness.services.operatorDeployment.apply(first.receipt,"restart");
+  const [read,again]=await Promise.all([
+    harness.services.operatorDeployment.verify(applied.receipt),
+    harness.services.operatorDeployment.verify(applied.receipt),
+  ]);
+  expect(again).toEqual(read);
+  await expect(harness.services.operatorDeployment.verify("foreign-receipt")).rejects.toThrow();
+  expect(harness.records).toEqual(["baseline","apply","verify"]);
 });

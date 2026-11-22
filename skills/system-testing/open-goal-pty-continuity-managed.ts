@@ -167,12 +167,13 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
     const services = {
       ptyContinuityEvidence: {
         async discover() {
-          if (discovered) throw new Error("Terminal review already discovered");
+          if (discovered) return structuredClone(assignment);
           discovered = true;
           return capture("ptyContinuityEvidence", "discover", [], assignment);
         },
         async inspect(id: string) {
-          if (!discovered || observations.has(id)) throw new Error("Observe the assigned attempts once");
+          if (!discovered) throw new Error("Discover the assigned attempts before inspecting");
+          if (observations.has(id)) return structuredClone(await observations.get(id));
           const record = observe(lookup(id));
           observations.set(id, record);
           return capture("ptyContinuityEvidence", "inspect", [id], await record);

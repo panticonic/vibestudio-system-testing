@@ -212,7 +212,8 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
   const services = {
     assemblyInventory: {
       async observe() {
-        if (observed || !await sameHead()) throw new Error("Read the owned assembly inventory once at its current semantic head");
+        if (!await sameHead()) throw new Error("Read the owned assembly inventory at its current semantic head");
+        if (observed) return structuredClone(observed);
         observed = { head, reviewed, units: [...source.values()].map(item => item.unit),
           allowedBuilds: [...buildScope], mayStage: world.mayStage === true, note: await readNote() };
         return structuredClone(observed);

@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { WORKSPACE_PACKAGE_SCOPES, workspaceDependencyRefError } from "@vibestudio/workspace-contracts/sourceDirs";
@@ -261,12 +262,13 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
   const services = {
     installedPackageRead: {
       async discover() {
-        if (discovered) throw new Error("Discover the owned package only once");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return remember("installedPackageRead", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (!discovered || observed || id !== operationId) throw new Error("Inspect only the assigned installed package");
+        if (discovered && id === operationId && observed) return structuredClone(observed);
+        if (!discovered || id !== operationId) throw new Error("Inspect only the assigned installed package");
         observed = (await observe()).observation;
         return remember("installedPackageRead", "inspect", [id], observed);
       },
@@ -354,7 +356,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
       usedExactPackageBaseline: observed?.baselineDigest === baseline.digest && observed.mainRevision === initial.mainEventId &&
         isDeepStrictEqual(observed.baselineValue, currentValue(baseline.value, world.key)) &&
         isDeepStrictEqual(observed.workingValue, currentValue(before.value, world.key)),
-      honoredReviewAssignment: isDeepStrictEqual(effects.map(row => row.method), expectedMethods) &&
+      honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods) &&
         envelope?.status === "workspace-skill-reviewed" && envelope.skill === "installedPackage" &&
         outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,

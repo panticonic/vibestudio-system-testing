@@ -20,7 +20,7 @@ export interface ManagedIncidentContinuationReceiver {
     input: IncidentContinuationInput,
   ): Promise<{
     verification: Verification;
-    rejectedPrematureRead: boolean;
+    rejectedForeignRef: boolean;
   }>;
 }
 export const managedIncidentContinuationMethods =

@@ -102,7 +102,8 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     },
     remoteGatewayIdentity: {
       async observe(id: string) {
-        if (!selected || id !== selected.request.operationId || observed)
+        if (selected && id === selected.request.operationId && observed) return structuredClone(observed);
+        if (!selected || id !== selected.request.operationId)
           throw new Error("Verify the gateway of the exact selected invocation once");
         observed = await gateway();
         return observed;

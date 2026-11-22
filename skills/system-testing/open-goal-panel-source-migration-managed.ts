@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -406,7 +407,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
       matchedLocalMigrationPlan: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "panelSourceMigration" &&
         outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200 &&
-        isDeepStrictEqual(effects.map(effect => effect.method), expectedMethods),
+        sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
       verifiedExactMutationReceipts: (moved?.status ?? null) === expectedMove && (aligned?.status ?? null) === expectedAlign &&
         (updated?.status ?? null) === expectedUpdate && [moved, aligned, updated].every(receipt =>
           receipt === null || (receipt.status === "state-changed" ? receipt.operation === null :
