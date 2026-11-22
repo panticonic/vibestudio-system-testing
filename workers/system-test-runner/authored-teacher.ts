@@ -1,3 +1,5 @@
+import type { SemanticOutcomeContract } from "@workspace-skills/system-testing/semantic-outcome-contract";
+
 export type VibestudioSkill =
   | "repairPanel"
   | "repairUnit"
@@ -98,22 +100,43 @@ type ComposedTeacherOptions = {
   heldAssignments?: Record<string, string>;
   requestCode?: string;
   openGoal?: true;
+  entry?: SemanticTaskEntry;
 };
 
-export const openGoalProgram = "skills/open-user-goal/runUserGoal.nl";
+export type SemanticTaskEntry = {
+  program: string;
+  callable: string;
+  arguments: Record<string, unknown>;
+  parameterNames: string[];
+  inputValues: unknown[];
+  resultType: string;
+  skill?: string | null;
+};
 
-export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string; goal: string}, runId: string) {
+function validateEntry(entry: SemanticTaskEntry): void {
+  if (!/^skills\/(?:[A-Za-z0-9_-]+\/)+[A-Za-z0-9_-]+\.nl$/u.test(entry.program) ||
+      !/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(entry.callable) ||
+      !entry.resultType.trim() || new Set(entry.parameterNames).size !== entry.parameterNames.length ||
+      Object.keys(entry.arguments).length !== entry.parameterNames.length ||
+      entry.parameterNames.some(name => !Object.hasOwn(entry.arguments, name)) ||
+      JSON.stringify(entry.inputValues) !== JSON.stringify(entry.parameterNames.map(name => entry.arguments[name])))
+    throw new Error("A semantic task needs its installed entry and exact application arguments");
+}
+
+export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string; goal: string; entry: SemanticTaskEntry; outcomeContract?: SemanticOutcomeContract}, runId: string) {
   if (typeof options.goal !== "string" || !options.goal.trim()) {
     throw new Error("An open-goal teacher needs the catalog's user goal");
   }
+  validateEntry(options.entry);
   return captureWorkflow({
     ...options, openGoal: true, workflowRequest: { goal: "", work: [] },
-  }, runId, false, JSON.stringify(options.goal));
+  }, runId, false, options.entry.inputValues.map(value => JSON.stringify(value)).join(","));
 }
 
 /** Return the captured run even when its independent verifier or retire step fails. */
 export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCode>[0], runId: string) {
   return `
+    import { assessSemanticOutcome } from "@workspace-skills/system-testing/semantic-outcome-contract";
     ${options.bindingCode}
     let teacher, verification = null;
     const verificationErrors = [];
@@ -124,7 +147,17 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
     try {
       ${openGoalTeacherCode({ ...options, bindingCode: "" }, runId)}
       teacher = utilityValue;
-      try { verification = await prepared.verify(teacher.report); }
+      try {
+        const actualResult = teacher.report;
+        const verifierValue = ${JSON.stringify(options.entry.skill)}
+          ? { status: "workspace-skill-reviewed", skill: ${JSON.stringify(options.entry.skill)}, outcome: actualResult }
+          : actualResult;
+        verification = await prepared.verify(verifierValue);
+        verification = {
+          ...assessSemanticOutcome(verification, ${JSON.stringify(options.outcomeContract)}),
+          entry: teacher.entry, actualResult,
+        };
+      }
       catch (error) { recordFailure("verification", error); }
     } finally {
       try { await prepared.close?.(); }
@@ -182,7 +215,7 @@ function captureWorkflow(
   return `
 ${options.bindingCode}
       natlang.captureModelTurns({executorModel:${JSON.stringify(options.executorModel)}});
-      const programPath=${JSON.stringify(options.openGoal ? openGoalProgram : "skills/vibestudio-workflows/runWorkflow.nl")};
+      const programPath=${JSON.stringify(options.openGoal ? options.entry!.program : "skills/vibestudio-workflows/runWorkflow.nl")};
       const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
       const expectedRemaining=${JSON.stringify(expectedRemaining)};
       let report=null, executionError=null;
@@ -226,7 +259,7 @@ ${options.bindingCode}
         } catch(error) {captureErrors.push("Cannot read record "+row.callId+": "+String(error));}
       }
       const rootRecord=calls.find(call=>call.callId===rootCallIds[0])?.record;
-      if(!rootRecord || rootRecord.definition.name!==${JSON.stringify(options.openGoal ? "runUserGoal" : "runWorkflow")}) captureErrors.push("The authored workflow root was not observed");
+      if(!rootRecord || rootRecord.definition.name!==${JSON.stringify(options.openGoal ? options.entry!.callable : "runWorkflow")}) captureErrors.push("The authored workflow root was not observed");
       if(rootRecord?.outcome!=="done") captureErrors.push("Assigned authored root did not complete successfully");
       const children=calls.filter(call=>call.record?.parent_call_id===rootCallIds[0]).map(call=>call.record);
       if(!${Boolean(options.openGoal)} && (JSON.stringify(children.map(record=>record.definition.name).sort())!==JSON.stringify(expectedSkills) || children.some(record=>record.outcome!=="done")))
@@ -238,7 +271,7 @@ ${options.bindingCode}
           (index>0 && !(Date.parse(ordered[index-1]?.ended_at)<=Date.parse(record.started_at)))))
           captureErrors.push("A dependent skill began before its prerequisite completed");
       }
-      let utilityValue={report,executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
+      let utilityValue={report,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments})},` : ""}executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
         trainingEligible:executionError===null&&captureErrors.length===0};
   `;
 }

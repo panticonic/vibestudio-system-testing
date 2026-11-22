@@ -1,0 +1,47 @@
+/** Independent requirements of an authored task, separate from its execution trace. */
+export type SemanticOutcomeContract = {
+  effects: { checks: readonly string[]; rationale: string };
+  returnedValue: { checks: readonly string[]; required: boolean; rationale: string };
+};
+
+type Verification = {
+  passed: boolean;
+  checks: Record<string, boolean>;
+  [name: string]: unknown;
+};
+
+export function assessSemanticOutcome<T extends Verification>(
+  verification: T,
+  contract?: SemanticOutcomeContract,
+): T & { outcomeContract: SemanticOutcomeContract; outcomeDimensions: {
+  effects: { passed: boolean; checks: Record<string, boolean> };
+  returnedValue: { required: boolean; passed: boolean; checks: Record<string, boolean> };
+} } {
+  // Existing application oracles remain strict until their authored contract
+  // identifies independent state checks and any incidental response convention.
+  const declared = contract ?? {
+    effects: { checks: Object.keys(verification.checks), rationale: "The domain verifier binds the actual application evidence and required returned values." },
+    returnedValue: { checks: [], required: true, rationale: "The domain result is part of this task's existing application contract." },
+  };
+  const names = [...declared.effects.checks, ...declared.returnedValue.checks];
+  if (new Set(names).size !== names.length || names.length !== Object.keys(verification.checks).length ||
+      names.some(name => !Object.hasOwn(verification.checks, name)) ||
+      !declared.effects.rationale.trim() || !declared.returnedValue.rationale.trim())
+    throw new Error("The outcome contract must account for every independent application check once");
+  const select = (names: readonly string[]) => Object.fromEntries(names.map(name => [name, verification.checks[name]!]));
+  const effects = select(declared.effects.checks);
+  const returnedValue = select(declared.returnedValue.checks);
+  const effectsPassed = Object.values(effects).every(value => value === true);
+  const returnPassed = Object.values(returnedValue).every(value => value === true);
+  const required = { ...effects, ...(declared.returnedValue.required ? returnedValue : {}) };
+  return {
+    ...verification,
+    checks: required,
+    passed: effectsPassed && (!declared.returnedValue.required || returnPassed),
+    outcomeContract: declared,
+    outcomeDimensions: {
+      effects: { passed: effectsPassed, checks: effects },
+      returnedValue: { required: declared.returnedValue.required, passed: returnPassed, checks: returnedValue },
+    },
+  };
+}

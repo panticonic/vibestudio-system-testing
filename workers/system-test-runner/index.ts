@@ -118,6 +118,8 @@ import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorksp
 import type { IntegrationHandoffReceiver } from "@workspace-skills/system-testing/integration-handoff-contract";
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalOutcomeCode } from "./authored-teacher.js";
 import type { OpenGoalReceiver } from "@workspace-skills/system-testing/open-goal-managed";
+import * as openGoalDefinitions from "@workspace-skills/system-testing/open-goal-worlds";
+import { semanticTaskEntry } from "@workspace-skills/open-user-goal/entrypoints";
 import {
   openDeliveryWakeWorlds, openPhoneFirstRunWorlds, openSkillMaintenanceWorlds, openWebhookAdmissionWorlds, openDevelopmentAuditWorlds, openDesktopReadinessWorlds, openContentArchiveWorlds, openSystemReleaseWorlds, openTestkitCloseoutWorlds, openPanelSourceMigrationWorlds, openWorkspaceShareWorlds, openNotificationStateWorlds, openAgentCapabilityWorlds, openMobileContinuityWorlds, openInstalledPackageWorlds, openAssetIntegrityWorlds, openTendrilRouteWorlds, openLocalPresentationWorlds, openAdventureJourneyWorlds, openExamplesAdoptionWorlds, openGrimoireSceneWorlds, openChatContinuityWorlds, openAndroidAuditWorlds, openAndroidDeliveryWorlds, openWorkspaceConfigWorlds, openLiveLocalInventoryWorlds, openBoardMigrationWorlds, openLiveTendrilBoardWorlds, openNativeImageWorlds, openProvenanceQuestionWorlds, openTranscriptSurfaceWorlds, openSourceAttributionWorlds, openWorkspaceSmokeWorlds, openSameTurnEvalWorlds, openCliRouteWorlds, openIntentDiscoveryWorlds, openRouteAuthorityWorlds, openLogFollowerWorlds, openLaunchStateWorlds, openScaffoldWorlds, openOwnedOperationsWorlds, openPtyContinuityWorlds, openSystemCandidateWorlds, openWorkspaceClaimWorlds, openBridgeDeliveryWorlds, openEditorialWorlds, openPortfolioWorlds, openRegencyWorlds, openImageCandidateWorlds, openApiReadinessWorlds, openNewsEvidenceWorlds, newsGoalWorlds, openGoalCalendarWorlds, openGoalGmailWorlds, openGoalGoogleWorlds, openGoalGoogleHandoffWorlds, openGoalOwnedPreviewWorlds, openGoalPanelRecoveryWorlds, openGoalPdfWorlds, openGoalPdfVaultWorlds, openGoalPersonalWorlds,
   openAudienceResponseWorlds, openCoordinatedRevisionWorlds, openRetainedMemoryWorlds,
@@ -4336,7 +4338,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
       return await this.runHarnessUtility("teacher", (runId, evalScope) => {
         registerActivation(evalScope);
-        return openGoalOutcomeCode({ executorModel: input.executorModel, bindingCode, goal: input.goal }, runId);
+        const task = Object.values(openGoalDefinitions).flatMap(value => Array.isArray(value) ? value : [])
+          .find(world => world && world.id === input.caseId && world.goal === input.goal);
+        if (!task || typeof task.kind !== "string") throw new Error("The semantic task has no declared application entry");
+        const entry = semanticTaskEntry(task.kind, input.goal, task);
+        return openGoalOutcomeCode({ executorModel: input.executorModel, bindingCode, goal: input.goal, entry, outcomeContract: task.outcomeContract }, runId);
       }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
     } catch (error) {
       operationError = error;

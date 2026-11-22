@@ -1,3 +1,5 @@
+import type { SemanticOutcomeContract } from "./semantic-outcome-contract.js";
+
 type Bookmark = { key: string; folder: string; title: string; path: string };
 type Visit = { title: string; path: string; time: number };
 type Panel = {
@@ -28,6 +30,7 @@ export type PersonalArtifactWorld = {
   split?: "test";
   sourceGroup: string;
   goal: string;
+  outcomeContract: SemanticOutcomeContract;
   collectionTitle: string;
   folders: string[];
   bookmarks: Bookmark[];
@@ -43,7 +46,7 @@ export type PersonalArtifactWorld = {
     collectionHeld: boolean;
   };
 };
-type Inputs = Omit<PersonalArtifactWorld, "kind" | "workspace" | "expected"> & {
+type Inputs = Omit<PersonalArtifactWorld, "kind" | "workspace" | "expected" | "outcomeContract"> & {
   library?: LibraryStep[];
   collection?: PanelStep[];
   selected?: string | null;
@@ -59,6 +62,16 @@ function world({
   ...input
 }: Inputs): PersonalArtifactWorld {
   return {
+    outcomeContract: {
+      effects: {
+        checks: ["observedOwnedArtifacts", "exactLibraryState", "protectedBrowserRecords", "exactCollectionState", "verifiedBookmarkHandoff", "recoveredFreshBasis"],
+        rationale: "These tasks request bookmark and panel changes or preservation. The final native library and panel readbacks independently establish those effects.",
+      },
+      returnedValue: {
+        checks: ["reportedArtifactEvidence"], required: false,
+        rationale: "The authored goals request persistent workspace effects. The incidental held flags in the returned receipt are not a requested user answer.",
+      },
+    },
     kind: "personal-artifacts",
     workspace: "personal",
     ...input,

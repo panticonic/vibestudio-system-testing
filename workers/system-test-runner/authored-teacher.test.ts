@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { authoredTeacherCode, composedTeacherCode, domainTeacherCode, domainTeacherQualificationCode, openGoalOutcomeCode, openGoalTeacherCode } from "./authored-teacher.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const entry = (goal: string) => ({
+  program: "skills/application/reviseDocument.nl", callable: "reviseDocument", arguments: { goal },
+  parameterNames: ["goal"], inputValues: [goal], resultType: "Revision",
+});
 const options = { skill: "repairPanel" as const, serviceNames: ["assigned", "assignedEdit"], executorModel: "provider:teacher", request: { goal: "task" }, bindingCode: "const assignedService={};" };
 async function capture(rootOutcome: string, childParent = "root", wrongModel = false) {
   const rows = [{ callId: "root", parentCallId: null }, { callId: "skill", parentCallId: "root" }, { callId: "child", parentCallId: "skill" }];
@@ -46,6 +50,7 @@ it.each([undefined, "Private fixture goal"] as const)(
     const goal = 'Update the notice titled "Approved decision".\nKeep the footer intact.';
     const code = openGoalTeacherCode({
       executorModel: "provider:teacher",
+      entry: entry(goal),
       goal,
       bindingCode: `const prepared=${JSON.stringify({ goal: adapterGoal })}, assignedServices={};`,
     }, "run-one");
@@ -54,7 +59,7 @@ it.each([undefined, "Private fixture goal"] as const)(
     const result = await new AsyncFunction("natlang", code + "\nreturn utilityValue;")({
       captureModelTurns() {},
       load: async (path: string) => {
-        expect(path).toBe("skills/open-user-goal/runUserGoal.nl");
+        expect(path).toBe(entry(goal).program);
         return async (...args: unknown[]) => {
           expect(args).toEqual([goal]);
           return report;
@@ -67,7 +72,7 @@ it.each([undefined, "Private fixture goal"] as const)(
         record: {
           call_id: id,
           parent_call_id: id === "root" ? null : "root",
-          definition: { name: id === "root" ? "runUserGoal" : "reviseWorkspaceDocument" },
+          definition: { name: id === "root" ? "reviseDocument" : "reviseWorkspaceDocument" },
           outcome: "done",
         },
       }),
@@ -83,6 +88,7 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
     const code = openGoalOutcomeCode({
       executorModel: "provider:teacher",
       goal: "Confirm the stored result.",
+      entry: entry("Confirm the stored result."),
       bindingCode: "const assignedServices = {}, actualContextId = 'context';",
     }, "run-one");
     const report = { disposition: "confirmed" };
@@ -99,16 +105,16 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
         if (failRetirement) throw new Error("owner lost");
       },
     };
-    const result = await new AsyncFunction("natlang", "prepared", code + "\nreturn utilityValue;")({
+    const result = await new AsyncFunction("natlang", "prepared", "assessSemanticOutcome", code.replace(/import \{ assessSemanticOutcome \} from [^;]+;/u, "") + "\nreturn utilityValue;")({
       captureModelTurns() {},
       load: async () => async () => report,
       calls: async ({ after }: { after?: string }) => after ? [] : [{ callId: "root", parentCallId: null }],
       trace: async () => ({
         callId: "root",
         summary: { run_id: "run-one", owner_key: "owner", owner_kind: "test" },
-        record: { call_id: "root", parent_call_id: null, definition: { name: "runUserGoal" }, outcome: "done" },
+        record: { call_id: "root", parent_call_id: null, definition: { name: "reviseDocument" }, outcome: "done" },
       }),
-    }, prepared);
+    }, prepared, (value: unknown) => value);
     expect(retired).toBe(true);
     expect(result).toMatchObject({
       contextId: "context",
@@ -123,7 +129,7 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
 );
 
 it("rejects an absent catalog goal before generating teacher code", () => {
-  expect(() => openGoalTeacherCode({ executorModel: "provider:teacher", bindingCode: "", goal: " " }, "run-one"))
+  expect(() => openGoalTeacherCode({ executorModel: "provider:teacher", bindingCode: "", goal: " ", entry: entry(" ") }, "run-one"))
     .toThrow("needs the catalog's user goal");
 });
 
@@ -289,4 +295,38 @@ it("captures a completed prerequisite and explicit hold without admitting the de
   expect((await run([reason], ["operate"])).trainingEligible).toBe(true);
   expect((await run([], ["operate"])).trainingEligible).toBe(false);
   expect((await run([reason], ["operate", "deliverProject"])).trainingEligible).toBe(false);
+});
+
+it("captures a direct application function with several typed inputs and no router", async () => {
+  const task = {
+    program: "skills/library/reconcileDraft.nl", callable: "reconcileDraft",
+    arguments: { goal: "Keep the approved date", approved: { date: "2026-12-01" } },
+    parameterNames: ["goal", "approved"], inputValues: ["Keep the approved date", { date: "2026-12-01" }],
+    resultType: "ProposedRevision",
+  };
+  const resultValue = { changes: [{ path: "start", value: "2026-12-01" }] };
+  const generated = openGoalTeacherCode({ entry: task, goal: task.arguments.goal, executorModel: "provider:teacher", bindingCode: "const assignedServices={};" }, "run-one");
+  const captured = await new AsyncFunction("natlang", generated + "\nreturn utilityValue;")({
+    captureModelTurns() {},
+    load: async (program: string) => {
+      expect(program).toBe(task.program);
+      return async (...args: unknown[]) => {
+        expect(args).toEqual(task.inputValues);
+        return resultValue;
+      };
+    },
+    calls: async ({ after }: { after?: string }) => after ? [] : [{ callId: "root", parentCallId: null }],
+    trace: async () => ({ callId: "root", summary: { run_id: "run-one", owner_kind: "eval", owner_key: "owner" },
+      record: { call_id: "root", parent_call_id: null, definition: { name: "reconcileDraft" }, outcome: "done" } }),
+  });
+  expect(captured.trainingEligible).toBe(true);
+  expect(captured.report).toEqual(resultValue);
+  expect(captured.entry).toEqual({ program: task.program, callable: task.callable, arguments: task.arguments });
+  expect(captured.calls).toHaveLength(1);
+});
+
+it("refuses an argument list that differs from the declared application entry", () => {
+  const task = { ...entry("original"), inputValues: ["rewritten"] };
+  expect(() => openGoalTeacherCode({ entry: task, goal: "original", executorModel: "provider:teacher", bindingCode: "" }, "run-one"))
+    .toThrow("exact application arguments");
 });

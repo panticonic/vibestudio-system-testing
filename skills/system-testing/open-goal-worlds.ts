@@ -93,6 +93,16 @@ export const openGoalWorlds = [
   },
   {
     kind: "workspace-edit",
+    outcomeContract: {
+      effects: {
+        checks: ["discoveredWorkspace", "recoveredConcurrentEdit", "exactDocumentReadback", "preservedOtherDocuments"],
+        rationale: "The user asks for an approved document correction while preserving unrelated material and concurrent additions.",
+      },
+      returnedValue: {
+        checks: ["reportedStoredRevision"], required: false,
+        rationale: "The exact written document and its independent readback establish the requested correction without a summary of its revision identifier.",
+      },
+    },
     id: "reconcile-workshop-update",
     goal: "I need to send the workshop update already in this workspace. Bring it in line with the approved operations notes and keep the rest of the update intact.",
     sourceGroup: "vibestudio:workspace-edit:operations-document-recovery",
@@ -108,6 +118,16 @@ export const openGoalWorlds = [
   },
   {
     kind: "workspace-edit",
+    outcomeContract: {
+      effects: {
+        checks: ["discoveredWorkspace", "recoveredConcurrentEdit", "exactDocumentReadback", "preservedOtherDocuments"],
+        rationale: "The user asks for an approved document correction while preserving unrelated material and concurrent additions.",
+      },
+      returnedValue: {
+        checks: ["reportedStoredRevision"], required: false,
+        rationale: "The exact written document and its independent readback establish the requested correction without a summary of its revision identifier.",
+      },
+    },
     id: "correct-library-notice",
     goal: "Please bring the library closure notice up to date using the confirmed decision in the workspace. People still need the return-slot information.",
     sourceGroup: "vibestudio:workspace-edit:operations-document-recovery",
@@ -142,6 +162,16 @@ export const openGoalWorlds = [
   },
   {
     kind: "workspace-edit",
+    outcomeContract: {
+      effects: {
+        checks: ["discoveredWorkspace", "recoveredConcurrentEdit", "exactDocumentReadback", "preservedOtherDocuments"],
+        rationale: "The user asks for an approved document correction while preserving unrelated material and concurrent additions.",
+      },
+      returnedValue: {
+        checks: ["reportedStoredRevision"], required: false,
+        rationale: "The exact written document and its independent readback establish the requested correction without a summary of its revision identifier.",
+      },
+    },
     id: "correct-lending-renewal-instructions",
     split: "test",
     goal: "Bring the equipment lending instructions in line with the committee's signed decision on renewals. Preserve the collection instructions and anything added by the equipment desk.",
