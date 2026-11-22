@@ -20,6 +20,42 @@
       "provides": [],
       "requests": [
         {
+          "capability": "workspace-service:channel",
+          "resource": {
+            "kind": "prefix",
+            "prefix": "do:workers/pubsub-channel:PubSubChannel:"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic",
+          "packages": [
+            "@workspace-skills/system-testing"
+          ]
+        },
+        {
+          "capability": "workspace-service:gad.workspace",
+          "resource": {
+            "kind": "exact",
+            "key": "do:workers/workspace-source:GadWorkspaceDO:workspace"
+          },
+          "tier": "gated",
+          "evidence": "exact",
+          "packages": [
+            "@workspace-skills/system-testing"
+          ]
+        },
+        {
+          "capability": "workspace-service:missions",
+          "resource": {
+            "kind": "exact",
+            "key": "do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "exact",
+          "packages": [
+            "@workspace-skills/system-testing"
+          ]
+        },
+        {
           "capability": "userland:workers/missions/missions.edit#*",
           "resource": {
             "kind": "exact",
