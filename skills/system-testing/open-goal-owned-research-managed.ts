@@ -104,7 +104,8 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
           throw new Error("Use an authorized owned HTTP page and the public session");
         const effect: typeof attempted[number] = { requested: options.url, url: null, digest: null };
         attempted.push(effect);
-        const page = await ports.web.fetch({ url: options.url, session: "public" });
+        const page = await ports.web.fetch({ url: options.url, session: "public",
+          network: { kind: "loopback", origin: endpoint.origin } });
         if (page.url !== options.url || page.session !== "public" || page.size < 1 || page.size > maxPageBytes)
           throw new Error("The native page did not retain its exact owned URL and bounded public receipt");
         pages.set(page.digest, page);
@@ -138,7 +139,6 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     const cites = statements.flatMap(statement => statement.cites ?? []);
     const readback = await Promise.all([...pages.values()].map(exactPage));
     const protectedScope = await ports.status();
-    const required = world!.required;
     const citationsExact = cites.length > 0 && cites.every(citation => typeof citation.quote === "string" &&
       normalize(citation.quote).length >= 20 && citation.retrieved === date &&
       readback.some(page => page.url === citation.url && normalize(page.text).includes(normalize(citation.quote))));
@@ -147,22 +147,23 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       discoveredOwnedSources: pages.size > 0 &&
         attempted.every(({ requested }) => entries.has(requested)),
       exactOwnedPageReadback: readback.length > 0 && readback.every(page => page.exact),
-      groundedOwnedCitations: citationsExact &&
-        required.every(required => cites.some(citation => citation.url === url(required.page) &&
-          normalize(citation.quote).toLowerCase().includes(required.phrase.toLowerCase()))),
+      groundedOwnedCitations: citationsExact,
       readOwnedCacheContinuation: reads.every(read => [...pages.values()].some(page =>
         read.digest === page.digest && read.offset >= 0 && read.bytes >= 0 && read.offset + read.bytes <= page.size)),
       answeredOwnedGoal: report?.status === (edit ? "edited" : "answered") && research?.status === "answered" &&
         research.question === world!.goal && statements.length > 0 &&
-        statements.every(statement => Boolean(statement.text?.trim()) && statement.cites?.length > 0) &&
-        world!.claims.every(rule => rule.test(statements.map(item => item.text).join(" "))),
+        statements.every(statement => Boolean(statement.text?.trim()) && statement.cites?.length > 0),
       protectedOwnedResearchScope: protectedScope.mainEventId === before.mainEventId &&
         isDeepStrictEqual(protectedScope.workingHead, before.workingHead),
       ...(document?.checks ?? {}),
     };
     return { contextId: input.contextId, caseId: input.caseId, goal: world!.goal, checks,
       passed: Object.values(checks).every(Boolean), origin: endpoint.origin, searches, attempted, reads,
-      fetched: [...pages.values()], fetchReceipts, cacheReceipts, readback, document };
+      fetched: [...pages.values()], fetchReceipts, cacheReceipts, readback, document,
+      semanticReviewRequired:true,semanticReviewInput:{kind:"public-claims",actual:{goal:world!.goal,
+        answer:statements.map(statement=>statement.text).join("\n"),citations:cites.map(({url,quote})=>({url,quote})),
+        sourceScope:[...entries.keys()],sources:readback.map(source=>({url:source.url,
+          title:[...pages.values()].find(page=>page.url===source.url)?.title??"",sha256:source.digest,text:source.text}))}} };
   }
 
   async function qualify() {
