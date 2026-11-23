@@ -47,5 +47,6 @@ Mechanism inventory and observations before edits:
   source-bound outcome proof must still independently establish completion.
 
 Task IDs, goals, splits and entry signatures remain unchanged. New helpers affect
-internal policy/data responsibilities, not teacher-route requirements. Core9f,
-all five vendor products and application capabilities are unchanged.
+internal policy/data responsibilities, not teacher-route requirements. This domain repair preserves the Core API and application capabilities. The
+separately coordinated v13 vendor update supplies the frozen Core a87 revision
+to all five SDK products; no vendor sources are edited by this domain patch.
