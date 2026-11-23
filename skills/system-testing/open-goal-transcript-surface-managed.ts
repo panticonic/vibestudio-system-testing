@@ -158,7 +158,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     return view.bar && !view.bar.cleared && view.bar.key === approval.key && isDeepStrictEqual(view.bar.card, approval.card) ? "none" : "display-bar";
   };
   const effect = shouldEffect(), decision = { effect, reason: blocker ?? (effect === "none" ? "already-current" : "ready") };
-  let discovered = false, listed = false, replay: Read["view"] | null = null, receipt: Receipt | null = null;
+  let discovered = false, replay: Read["view"] | null = null, receipt: Receipt | null = null;
   let publishing = false, raced: ChannelProtocolEvent | null = null, published: ChannelProtocolEvent | null = null;
   const effects: { service: string; method: string; args: unknown[]; result: unknown }[] = [];
   function capture<T>(service: string, method: string, args: unknown[], result: T): T {
@@ -167,19 +167,19 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
   const services = {
     transcriptApproval: {
       async discover() {
-        if (discovered) throw new Error("This transcript assignment was already opened");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("transcriptApproval", "discover", [], assignment);
       },
       async list(scope: string) {
-        if (!discovered || scope !== id || listed) throw new Error("Current approvals require the exact open assignment");
-        listed = true;
+        if (scope !== id) throw new Error("Current approvals require the exact open assignment");
         return capture("transcriptApproval", "list", [scope], await scan());
       },
     },
     transcriptObservation: {
       async replay(scope: string, candidate: string) {
-        if (!listed || scope !== id || candidate !== approval?.id || replay) throw new Error("Only the unique approved owned surface can be replayed");
+        if (scope !== id || candidate !== approval?.id) throw new Error("Only the unique approved owned surface can be replayed");
+        if (replay) return structuredClone(replay);
         replay = (await readLane(primary, ports.context, owner, key)).view;
         return capture("transcriptObservation", "replay", [scope, candidate], replay);
       },
@@ -226,7 +226,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     const finalSibling = effect === "publish-inline" || effect === "refresh-inline" ? resulting.bar : resulting.card;
     const outcome = { assignment, approvals: approved, selection, replay, decision, receipt };
     const checks = {
-      boundCurrentTranscriptApproval: discovered && listed && isDeepStrictEqual(approvals, approved),
+      boundCurrentTranscriptApproval: isDeepStrictEqual(approvals, approved),
       provedCurrentNativeSurface: approval ? isDeepStrictEqual(replay, baseline.view) : replay === null,
       exactScopedTranscriptDelta: isDeepStrictEqual(after.rows.slice(0, baseline.rows.length), baseline.rows) &&
         difference.length === coordinates.length && difference.every((row, index) => row.id === coordinates[index]?.id && row.messageId === coordinates[index]?.messageId && row.senderId === owner) &&

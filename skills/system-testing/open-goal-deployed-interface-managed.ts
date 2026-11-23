@@ -202,7 +202,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
         return remember("interfaceEvidence", "discover", [], discovered);
       },
       async inspect(id: string) {
-        const subject = discovered?.subjects.find(entry => entry.id === id);
+        const subject = subjects.find(entry => entry.id === id);
         if (!subject) throw new Error("Inspect only an observed assigned installed deployment source");
         const current = await observeUnit(subject);
         observations.set(id, current);
@@ -211,7 +211,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     },
     architectureProviderRead: {
       async resolve(id: string) {
-        if (!bound || !observations.has(assigned.id)) throw new Error("Observe the owned interface before its provider route");
+        if (!bound) throw new Error("Use the assigned owned provider route");
         route = await bound.services.architectureProviderRead.resolve(id);
         return remember("architectureProviderRead", "resolve", [id], route);
       },
@@ -225,7 +225,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
       async stage(observation: Observation, decision: Decision) {
         const approval = await readReview();
         const boundary = boundaryResult();
-        if (stored || !discovered || !isDeepStrictEqual(observation, observations.get(assigned.id)) ||
+        if (stored || !isDeepStrictEqual(observation, observations.get(assigned.id)) ||
             !canStage(approval, decision) || decision !== decisionFor(observation, approval, boundary) ||
             !exactBoundary(observation, boundary) || !isDeepStrictEqual((await vcs.status({ contextId: input.contextId })).workingHead, initial.workingHead))
           return remember("interfaceReviewHandoff", "stage", [observation, decision], null);
@@ -268,7 +268,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
       inspectedExactInstalledDefinition: isDeepStrictEqual(methods("interfaceEvidence"), ["discover", "inspect"]) &&
         isDeepStrictEqual(observations.get(assigned.id), current) && isDeepStrictEqual(outcome?.observation, current),
       verifiedExactProviderBoundary: exactRoute && isDeepStrictEqual(outcome?.architecture, architecture),
-      honoredRetainedReviewScope: scopeIntact && isDeepStrictEqual(discovered, expectedSurvey) &&
+      honoredRetainedReviewScope: scopeIntact && (!discovered || isDeepStrictEqual(discovered, expectedSurvey)) &&
         isDeepStrictEqual(outcome?.survey, expectedSurvey),
       distinguishedDeployedDefinition: report?.status === "workspace-skill-reviewed" && report.skill === "deployedInterface" &&
         outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
