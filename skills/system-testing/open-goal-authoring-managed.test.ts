@@ -1,3 +1,4 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import { mkdtemp, rm, readFile, writeFile, mkdir, readdir, rename, access } from "node:fs/promises";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
@@ -34,7 +35,13 @@ it("joins compiler evidence by role, permits replay and preserves unchanged issu
     expect(await s.authoringReviewControl.confirm(receipt)).toBe("current");
     await s.authoringDiscovery.open(world.goal, selection);
     expect(await s.authoringReviewControl.confirm(receipt)).toBe("current");
-    expect((await prepared.verify({ status: "reviewed", receipt, artifact: null })).passed).toBe(true);
+    const correct = await prepared.verify({status:"reviewed",receipt,artifact:null});
+    expect(assessSemanticOutcome(correct).passed).toBe(true);
+    const wrong = await prepared.verify({status:"reviewed",receipt:{...receipt,review:{...receipt.review,candidateRevision:"invented-source"}},artifact:null});
+    expect(wrong.checks.returnedAuthoringArtifacts).toBe(false);
+    expect(wrong.outcomeContract.effects.checks.every(key=>wrong.checks[key])).toBe(true);
+    expect(assessSemanticOutcome(wrong).passed).toBe(false);
+    expect(wrong.incorrectReturnValues).toHaveLength(1);
     expect(await s.authoringReviewControl.confirm({ ...receipt, selection: { ...selection, candidateId: "foreign" } })).toBe("changed");
     const source = path.join(temp, "programs", selection.candidateId, "source", "review.nl");
     await writeFile(source, "concurrently changed source");

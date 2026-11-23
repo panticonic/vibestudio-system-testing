@@ -497,7 +497,7 @@ export async function preparePhoneFirstRun(
     const checks = { ...result.checks, rejectedArchive, rejectedForeignProof };
     return {
       ...result,
-      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,...["rejectedArchive", "rejectedForeignProof"]]}},
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedArchive","rejectedForeignProof"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

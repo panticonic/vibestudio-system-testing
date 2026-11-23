@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -136,7 +137,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
       world.operation !== "inspect" && world.credential === "agent" ? "ask-parent" : "run-assigned-command";
     return { source, contextId, status, action, gateway: native };
   }
-  async function verify(value: unknown): Promise<OpenGoalDomainVerification & Record<string, unknown>> {
+  async function verify(value: unknown, invocation?: InvocationObservations): Promise<OpenGoalDomainVerification & Record<string, unknown>> {
     const report = value as {
         status?: string; docket?: Docket | null; gateway?: Route | null; continuation?: Continuation | null; reason?: string;
       } | null;
@@ -149,7 +150,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
       credential: current.credential, operation: current.operation }) : false;
     const checks = {
       independentlyObservedCurrentCliDocket: isDeepStrictEqual(selected, { docket, request }) &&
-        isDeepStrictEqual(outcome?.docket, docket) && isDeepStrictEqual(current, basis) && isDeepStrictEqual(storedRetired, history),
+        isDeepStrictEqual(current, basis) && isDeepStrictEqual(storedRetired, history),
       exactAuthenticatedCliGateway: isDeepStrictEqual(observed, native) && isDeepStrictEqual(assignedGateway, native) &&
         isDeepStrictEqual(outcome?.gateway, expectedRoute(native)),
       boundAuthorizedCliContinuation: expected ? scopeBound && isDeepStrictEqual(outcome?.continuation, expected) :
@@ -158,7 +159,12 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
       matchedCliRouteDisposition: outcome?.status === (expected ? "reviewed" : "held") &&
         typeof outcome.reason === "string" && outcome.reason.trim().length > 0,
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: input.goal,
+    return {
+      outcomeContract:{effects:{checks:["independentlyObservedCurrentCliDocket", "preservedReadOnlyContinuation"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["exactAuthenticatedCliGateway", "boundAuthorizedCliContinuation", "matchedCliRouteDisposition"],required:true,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.exactAuthenticatedCliGateway&&checks.boundAuthorizedCliContinuation&&checks.matchedCliRouteDisposition)?[{required:true,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverCliRoute",source:"recoverCliRoute.nl"},value}]:[],
+ contextId: input.contextId, caseId: input.caseId, goal: input.goal,
       passed: Object.values(checks).every(Boolean), checks, docket, observed, selected, scope, expected,
       outcome: outcome ?? null, available: [retired, docket] };
   }
@@ -177,7 +183,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     };
     const proof = await verify(report);
     const enforcedCliEvidenceBoundary = earlyDenied && retiredDenied && wrongIdDenied;
-    return { ...proof, passed: proof.passed && enforcedCliEvidenceBoundary,
+    return { ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"enforcedCliEvidenceBoundary"]}}, passed: proof.passed && enforcedCliEvidenceBoundary,
       checks: { ...proof.checks, enforcedCliEvidenceBoundary } };
   }
   return { services, verify, qualify };

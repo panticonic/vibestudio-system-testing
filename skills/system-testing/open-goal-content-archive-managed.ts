@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -282,9 +283,9 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
       },
     },
   };
-  async function verify(report: unknown) {
+  async function verify(report: unknown, invocation?: InvocationObservations) {
     const envelope = report as {
-      assignment: typeof assignment; observation: Observation; archive: { ref: string | null; reason: string }; plan: Plan; receipt: Receipt | null;
+      action:Plan["action"];reason:string;receipt:Receipt|null;
     } | null;
     const checkpoint = await status();
     const out = envelope;
@@ -305,11 +306,9 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
       client.readFile({ state: checkpoint.workingHead, repositoryId: repository, file: { kind: "path", path } })));
     const checks = {
       exactArchiveTreesAndBasis: observed !== null && isDeepStrictEqual(observed.primary, first) &&
-        isDeepStrictEqual(observed.previous, second) && isDeepStrictEqual(out?.observation, observed),
-      matchedApprovedEdition: isDeepStrictEqual(out?.assignment, assignment) && out?.archive?.ref === expectedRef &&
-        typeof out?.archive?.reason === "string" && out.archive.reason.trim().length > 0,
-      matchedScopedLocalPlan: out?.plan?.action === world.expected.action && isDeepStrictEqual(out?.plan?.paths, intended) &&
-        typeof out?.plan?.reason === "string" && out.plan.reason.trim().length > 0,
+        isDeepStrictEqual(observed.previous, second),
+      matchedApprovedEdition: !!observed&&choose(observed)===expectedRef,
+      matchedScopedLocalPlan: out?.action===world.expected.action&&typeof out?.reason==="string"&&!!out.reason.trim()&&isDeepStrictEqual(out?.receipt,storedReceipt),
       restoredExactAddressedMembers: restored.every((path, i) => {
         const b = approved[paths.indexOf(path)];
         const row = rows.find(file => file.path === path);
@@ -324,7 +323,6 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
       verifiedAtomicReceipt: (expectedRestore ? world.race ?
         storedReceipt?.status === "state-changed" && storedReceipt.application === null :
         storedReceipt?.status === "restored" && counts : storedReceipt === null) &&
-        isDeepStrictEqual(out?.receipt, storedReceipt) &&
         (!storedReceipt || storedReceipt.workingRevision === revision(checkpoint.workingHead) && isDeepStrictEqual(storedReceipt.files, final)) &&
         sameEvidenceMembers(effects.map(item => item.method), expectedRestore ? ["discover", "inspect", "restore"] : ["discover", "inspect"]),
       preservedWorkingProjectAndNeighbor: exactRepo?.repositoryId === repository && isDeepStrictEqual(stable, corresponding) &&
@@ -332,8 +330,13 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
         (!world.race || rows.find(file => file.path === notePath)?.contentHash === sha256HexSyncText(raceNote)) &&
         (expectedRestore ? revision(checkpoint.workingHead) !== revision(seeded.workingHead) : revision(checkpoint.workingHead) === revision(seeded.workingHead)),
     };
-    return { caseId: world.id, contextId: owner, goal: world.goal, assignment, observation: observed,
-      archive: out?.archive, plan: out?.plan, receipt: storedReceipt, effects: structuredClone(effects),
+    return {
+      outcomeContract:{effects:{checks:["exactArchiveTreesAndBasis", "matchedApprovedEdition", "restoredExactAddressedMembers", "verifiedAtomicReceipt", "preservedWorkingProjectAndNeighbor"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["matchedScopedLocalPlan"],required:world.expected.action!=="restore",rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:report!==undefined&&!(checks.matchedScopedLocalPlan)?[{required:world.expected.action!=="restore",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverContentArchive",source:"recoverContentArchive.nl"},value:report}]:[],
+ caseId: world.id, contextId: owner, goal: world.goal, assignment, observation: observed,
+      action: out?.action, reason: out?.reason, receipt: storedReceipt, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {
@@ -344,7 +347,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
     const receipt = drafted.action === "restore" ?
       await services.contentArchiveChange.restore(assigned.id, ref, observation.workingRevision, drafted.paths) : null;
     return verify({
-      assignment: assigned, observation, archive: { ref, reason: "Compare the exact retained edition and project owners." }, plan: drafted, receipt,
+      action:drafted.action,reason:drafted.reason,receipt,
     });
   }
   return { services, qualify, verify };

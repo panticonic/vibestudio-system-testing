@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, problemReports } from "@workspace/runtime";
 import { prepareManagedProblemDraft } from "./problem-draft-managed.js";
@@ -38,19 +39,23 @@ export async function prepareOpenProblemReport(input: { contextId: string; caseI
     },
   };
 
-  async function verify(report: unknown) {
-    const wrapper = report as { incident?: string; draft?: unknown } | null;
-    const selected = wrapper;
-    const verification = await draft.verify(selected?.draft as Parameters<typeof draft.verify>[0] ?? null);
+  async function verify(report: unknown, invocation?:InvocationObservations) {
+    const verification=await draft.verify(report as Parameters<typeof draft.verify>[0]??null);
     const current = await problemReports.get(other.id);
     const checks = {
-      foundCurrentIncident: discovered && selected?.incident === activeId &&
+      foundCurrentIncident: discovered &&
         openings.some(({ result }) => result !== null),
       preservedNeighbor: current.revision === baseline.revision && isDeepStrictEqual(current.value, baseline.value),
-      verifiedExactLocalDraft: verification.passed,
+      verifiedExactLocalDraft: Object.entries(verification.checks).filter(([key])=>key!=="result").every(([,passed])=>passed),
+      returnedProblemDraft: verification.checks.result,
       stayedLocal: verification.checks.localOnly && verification.checks.retention,
     };
-    return { passed: Object.values(checks).every(Boolean), checks, caseId: input.caseId,
+    return {
+      outcomeContract:{effects:{checks:["foundCurrentIncident", "preservedNeighbor", "verifiedExactLocalDraft", "stayedLocal"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["returnedProblemDraft"],required:world.mode==="stale",rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:report!==undefined&&!(checks.returnedProblemDraft)?[{required:world.mode==="stale",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnProblemReportGoal",source:"workOnProblemReportGoal.nl"},value:report}]:[],
+ passed: Object.values(checks).every(Boolean), checks, caseId: input.caseId,
       contextId: input.contextId, goal: world!.goal, activeId, candidates, openings, draft: verification };
   }
 
@@ -65,10 +70,11 @@ export async function prepareOpenProblemReport(input: { contextId: string; caseI
     const checks = {
       foundCurrentIncident: discovered && openings.some(({ result }) => result !== null),
       preservedNeighbor: current.revision === baseline.revision && isDeepStrictEqual(current.value, baseline.value),
-      verifiedExactLocalDraft: result.verification.passed && result.rejectedForeignScope && result.rejectedWrongRevision,
+      verifiedExactLocalDraft: Object.entries(result.verification.checks).filter(([key])=>key!=="result").every(([,passed])=>passed)&&result.rejectedForeignScope&&result.rejectedWrongRevision,
+      returnedProblemDraft: result.verification.checks.result,
       stayedLocal: result.verification.checks.localOnly && result.verification.checks.retention,
     };
-    return { passed: Object.values(checks).every(Boolean), checks, caseId: input.caseId,
+    return {outcomeContract:{effects:{checks:["foundCurrentIncident","preservedNeighbor","verifiedExactLocalDraft","stayedLocal"],rationale:"Actual native draft state and its retained negative-authority tests establish the effect."},returnedValue:{checks:["returnedProblemDraft"],required:true,rationale:"The reference includes its requested actual reporter value."}}, passed: Object.values(checks).every(Boolean), checks, caseId: input.caseId,
       contextId: input.contextId, goal: world!.goal, activeId, candidates, openings, draft: result.verification };
   }
 

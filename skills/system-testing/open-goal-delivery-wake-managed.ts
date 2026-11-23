@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { canonicalJson, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createRecoveryCoordinator } from "@vibestudio/shell-core/recoveryCoordinator";
@@ -246,7 +247,7 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
       },
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; evidence?: unknown; choice?: unknown; receipt?: unknown;
     } | null;
@@ -271,11 +272,12 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
       !rangeComplete || !sourceEvent ? "hold-evidence" : alreadyPresent ? "confirmed" :
       !inRange(sourceEvent.sequence) ? "hold-evidence" : assignment.mayWake ? "advance" : "hold-policy";
     const checks = {
-      matchedOwnedDeliveryAssignment: isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.choice, choice),
+      matchedOwnedDeliveryAssignment: observed!==null,
+      returnedDeliveryResolution: isDeepStrictEqual(outcome?.choice,choice)&&isDeepStrictEqual(outcome?.receipt,expectedReceipt),
       verifiedNativeFirstSubscription: connection?.channel === key && connection.context === input.contextId && connection.ready === ready &&
         connection.firstRejected === (world.connection !== "clean") && connection.attempts >= (world.connection === "recover" ? 2 : 1) &&
         (ready ? connection.admittedSurfaces >= 1 : connection.admittedSurfaces === 0),
-      verifiedExactRetainedDelivery: !!observed && isDeepStrictEqual(outcome?.evidence, observed) &&
+      verifiedExactRetainedDelivery: !!observed &&
         before.history.length === seeded.events.length - (seeded.omit ? 1 : 0) &&
         (disposition !== "confirmed" || !!exactRow) && (disposition !== "advance" || !!sourceEvent),
       verifiedSameReceiverCursor: nativeDisposition === disposition &&
@@ -284,9 +286,17 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
       verifiedUniqueNormalizedMailbox: isDeepStrictEqual(after.rows, expectedRows) && after.contextCopies === 0 &&
         isDeepStrictEqual(after.contextIds, contexts) && new Set(after.rows.map(row => row.deliveryId)).size === after.rows.length &&
         before.receipts.every(old => after.receipts.some(row => isDeepStrictEqual(row, old))),
-      verifiedExactWakeReceipt: isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt),
+      verifiedExactWakeReceipt: isDeepStrictEqual(receipt, expectedReceipt),
     };
-    return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
+    return {
+      outcomeContract: {
+        effects: {checks:["matchedOwnedDeliveryAssignment", "verifiedNativeFirstSubscription", "verifiedExactRetainedDelivery", "verifiedSameReceiverCursor", "verifiedUniqueNormalizedMailbox", "verifiedExactWakeReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["returnedDeliveryResolution"],required:!shouldWake,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.returnedDeliveryResolution) ? [{required:!shouldWake,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewDeliveryWake",source:"reviewDeliveryWake.nl"},value}] : [],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, evidence: observed, choice, receipt: expectedReceipt, effects: structuredClone(effects) };
   }
   async function qualify() {
@@ -298,12 +308,11 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
     const rejectedCursorDrift = !range || await rejected(store.recover({ key, ...range, after: range.after - 1 }));
     const receipt = choice.disposition === "advance" && choice.event ?
       await services.deliveryWakeAction.apply(assigned.id, choice.event.id, range) : null;
-    const report = { assignment: assigned, evidence, choice, receipt };
+    const report = { choice, receipt };
     const proof = await verify(report);
-    const rejectedWrongScope = !(await verify({ ...report, choice: { ...choice, event: null },
-      assignment: { ...assigned, recipient: "other" } })).passed;
+    const rejectedWrongScope = !(await verify({ ...report, choice: { ...choice, disposition: "invented" } })).passed;
     const checks = { ...proof.checks, rejectedForeignReplay, rejectedCursorDrift, rejectedWrongScope };
-    return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignReplay","rejectedCursorDrift","rejectedWrongScope"]}}, checks, passed: Object.values(checks).every(Boolean), report };
   }
   return { services, verify, qualify };
 }

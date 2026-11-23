@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { ProgramDescription } from "@workspace/natlang/describe-types";
@@ -210,7 +211,7 @@ export async function prepareOpenAuthoringGoal(
   async function verifyOutcome(outcome: AuthoringOpenOutcome | null) {
     const after = await vcs.status();
     const receipt = outcome?.status === "reviewed" ? outcome.receipt : null;
-    const selected = receipt ? issuedFor(receipt) : opened;
+    const selected = confirmed ? issuedFor(confirmed) : opened;
     const artifact = outcome?.status === "reviewed" ? outcome.artifact : null;
     const actual = selected?.reads.length ? reviewCompilerReadbacks(selected) : null;
     const currentConfirmed = wanted ? confirmations.at(-1) === "current" && (!world.edit || confirmations.includes("changed")) : confirmations.length === 0;
@@ -222,15 +223,15 @@ export async function prepareOpenAuthoringGoal(
     }));
     const stagedText = await fs.exists(handoff) ? String(await fs.readFile(handoff, "utf8")) : null;
     const stageVerified = world.expected.stage
-      ? !!receipt && !!artifact && stagedText === encode(receipt) &&
-        artifact.path === handoff && artifact.revision === sha256HexSyncText(stagedText)
-      : artifact === null && stagedText === null;
+      ? !!confirmed&&!!handoffReceipt&&stagedText===encode(confirmed)&&handoffReceipt.path===handoff&&handoffReceipt.revision===sha256HexSyncText(stagedText)
+      : handoffReceipt===null&&stagedText===null;
     return {
       discoveredAuthoringRecords: (discovered === 0 || isDeepStrictEqual(observedIds.slice().sort(), [...sources.keys()].sort())),
       selectedAuthorizedTrees: wanted ? !!selected && isDeepStrictEqual(selected.choice, wanted) : opened === null,
       observedCurrentCompiler: wanted
-        ? !!selected && !!receipt && await current(selected, receipt) && currentConfirmed
+        ? !!selected&&!!confirmed&&await current(selected,confirmed)&&currentConfirmed
         : selected === null && confirmations.length === 0,
+      returnedAuthoringArtifacts: isDeepStrictEqual(artifact,handoffReceipt)&&(!wanted||!!selected&&!!receipt&&await current(selected,receipt)),
       verifiedAuthoringFindings: wanted
         ? !!actual && !!receipt && !!receipt.review.findings?.every(({ recovery }) => typeof recovery === "string" && recovery.trim()) &&
           actual.status === disposition(receipt) && actual.status === world.expected.status &&
@@ -243,9 +244,14 @@ export async function prepareOpenAuthoringGoal(
     };
   }
 
-  async function archive(checks: Awaited<ReturnType<typeof verifyOutcome>>) {
+  async function archive(checks: Awaited<ReturnType<typeof verifyOutcome>>, value?:unknown, invocation?:InvocationObservations) {
     const handoffText = await fs.exists(handoff) ? String(await fs.readFile(handoff, "utf8")) : null;
     return {
+      outcomeContract:{effects:{checks:["discoveredAuthoringRecords", "selectedAuthorizedTrees", "observedCurrentCompiler", "retainedAuthoringSources", "verifiedAuthoringHandoff", "rejectedStaleAuthoringReceipt"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["verifiedAuthoringFindings", "returnedAuthoringArtifacts"],required:!world.expected.stage,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.verifiedAuthoringFindings&&checks.returnedAuthoringArtifacts)?[{required:!world.expected.stage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnAuthoringGoal",source:"workOnAuthoringGoal.nl"},value:value}]:[],
+
       caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks,
       passed: Object.values(checks).every(Boolean), confirmations: [...confirmations],
       readbacks: structuredClone(opened?.reads ?? []), receipt: structuredClone(confirmed),
@@ -253,8 +259,8 @@ export async function prepareOpenAuthoringGoal(
     };
   }
 
-  async function verify(report: unknown) {
-    return archive(await verifyOutcome(readReview(report)));
+  async function verify(report: unknown, invocation?:InvocationObservations) {
+    return archive(await verifyOutcome(readReview(report)),report,invocation);
   }
 
   return { services, verify, async qualify() {
@@ -285,7 +291,7 @@ export async function prepareOpenAuthoringGoal(
       const supplied = structuredClone(outcome);
       supplied.receipt.review.candidateRevision = "earlier-revision";
       checks.rejectedStaleAuthoringReceipt = checks.rejectedStaleAuthoringReceipt &&
-        !(await verifyOutcome(supplied)).observedCurrentCompiler && (!world.edit || rejectedStale);
+        !(await verifyOutcome(supplied)).returnedAuthoringArtifacts && (!world.edit || rejectedStale);
     }
     return archive(checks);
   } };

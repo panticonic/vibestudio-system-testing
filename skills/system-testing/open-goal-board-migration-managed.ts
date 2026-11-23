@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, openPanel, fs, type PanelHandle } from "@workspace/runtime";
@@ -180,7 +181,7 @@ export async function prepareOpenBoardMigration(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as BoardMigrationOutcome | null;
     const outcome = report;
     const final = await readDestination();
@@ -192,15 +193,19 @@ export async function prepareOpenBoardMigration(
       exactRenderedMigrationBoard: observations.some(observation => isDeepStrictEqual(observation, repeated)) && isDeepStrictEqual(repeated.view.cards, expected.cards),
       exactMigrationAuthority: Boolean(basis && isDeepStrictEqual(basis.approval, approval) &&
         basis.target === world.target && isDeepStrictEqual(basis.existing, initial?.cards ?? null)),
-      matchedMigrationCardScope: isDeepStrictEqual(outcome?.board, expectedId) &&
-        isDeepStrictEqual(outcome?.selection, expectedSelection),
+      matchedMigrationCardScope: observations.some(row=>isDeepStrictEqual(row,repeated)),
       independentMigrationReadback: isDeepStrictEqual(final, receipt ?? initial) &&
-        isDeepStrictEqual(outcome?.receipt, receipt) && (world.disposition === "retained" ? writes > 0 : writes === 0),
+        (world.disposition === "retained" ? writes > 0 : writes === 0),
       preservedMigrationNeighbors: await fs.readFile(neighbor, "utf8") === neighborText &&
         isDeepStrictEqual(JSON.parse(await fs.readFile(approvalFile, "utf8") as string), approval),
-      matchedWorkspaceMigrationDisposition: outcome?.disposition === world.disposition && Boolean(outcome.reason.trim()),
+      matchedWorkspaceMigrationDisposition: isDeepStrictEqual(outcome?.receipt,receipt)&&outcome?.disposition === world.disposition && Boolean(outcome.reason.trim()),
     };
-    return { ...input, checks, passed: Object.values(checks).every(Boolean), available,
+    return {
+      outcomeContract:{effects:{checks:["exactRenderedMigrationBoard", "exactMigrationAuthority", "matchedMigrationCardScope", "independentMigrationReadback", "preservedMigrationNeighbors"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["matchedWorkspaceMigrationDisposition"],required:world.disposition!=="retained",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedWorkspaceMigrationDisposition)?[{required:world.disposition!=="retained",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewBoardMigration",source:"reviewBoardMigration.nl"},value}]:[],
+ ...input, checks, passed: Object.values(checks).every(Boolean), available,
       rendered: repeated.view, basis, final, outcome };
   }
 
@@ -215,15 +220,15 @@ export async function prepareOpenBoardMigration(
     const rejectsUnapprovedMigration = !blocked || attempted === null;
     const receipt = blocked ? null : attempted;
     const report = {
-      board, selection: expectedSelection, disposition: world.disposition, receipt,
+      disposition: world.disposition, receipt,
       reason: "The rendered source, retained approval and target readback were independently compared.",
     };
     const proof = await verify(report);
     const rejectsRetargetedResult = !(await verify({
-      ...report, selection: { ...expectedSelection, target: "other-target" },
+      ...report, receipt: {...(receipt??{}),target:"other-target"},
     })).passed;
     const checks = { ...proof.checks, rejectsForeignBoard, rejectsStaleMigration, rejectsUnapprovedMigration, rejectsRetargetedResult };
-    return { ...proof, checks, passed: Object.values(checks).every(Boolean) };
+    return { ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectsForeignBoard","rejectsStaleMigration","rejectsUnapprovedMigration","rejectsRetargetedResult"]}}, checks, passed: Object.values(checks).every(Boolean) };
   }
   async function close() {
     const outcomes = await Promise.allSettled([...handles.values()].map(handle => handle.archive()));

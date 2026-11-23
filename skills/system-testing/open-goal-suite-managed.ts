@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { rpc } from "@workspace/runtime";
@@ -71,7 +72,7 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Report | null;
     const review = report?.review;
     const expectedRoute = world.routes.find(route => route.id === expected.choice.routeId)!;
@@ -80,11 +81,11 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
     const checks = {
       discoveredSuites: routes.length > 1 && routes.some(route => route.id === expectedRoute.id &&
         route.stateHash === current.stateHash && route.runtime === current.runtime),
-      selectedAuthorizedSuite: isDeepStrictEqual(selected, expected.choice) &&
-        isDeepStrictEqual(report?.selection, selected) && report?.status === "suite-reviewed" &&
-        review?.decision?.next === (verifyMode ? "run-assignment" : "report-plan"),
+      selectedAuthorizedSuite: isDeepStrictEqual(selected, expected.choice),
       currentSuitePlan: Boolean(seenPlan && seenPlan.contextId === contextId && seenPlan.stateHash === current.stateHash &&
-        seenPlan.target === current.target && seenPlan.suite === current.suite && isDeepStrictEqual(review?.plan, seenPlan)),
+        seenPlan.target === current.target && seenPlan.suite === current.suite ),
+      returnedSuiteReview: report?.status==="suite-reviewed"&&review?.decision?.next===(verifyMode?"run-assignment":"report-plan")&&isDeepStrictEqual(review?.plan,seenPlan)&&isDeepStrictEqual(review?.execution,executed??null)&&
+        (verifyMode?review?.result?.outcome===(expected.status==="no-tests"?"no-match":"verified"):review?.result===null),
       identifiedApproval: review?.decision?.route?.runtime === expected.runtime &&
         review.decision.route.nativeApproval === (expected.runtime === "native"),
       checkedSuiteReceipt: verifyMode ? runAttempts === 1 && Boolean(executed?.current &&
@@ -94,12 +95,15 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
         executed.receipt.suite === current.suite && executed.receipt.stateHash === current.stateHash &&
         /^[a-f0-9]{64}$/u.test(executed.reportDigest ?? "") && /^[a-f0-9]{64}$/u.test(executed.executionDigest ?? "") &&
         executed.artifactKey && executed.failed === 0 &&
-        (expected.status === "no-tests" ? executed.passed === 0 : (executed.passed ?? 0) > 0) &&
-        isDeepStrictEqual(review?.execution, executed) &&
-        review?.result?.outcome === (expected.status === "no-tests" ? "no-match" : "verified"))
-        : runAttempts === 0 && review?.execution === null && review.result === null,
+        (expected.status === "no-tests" ? executed.passed === 0 : (executed.passed ?? 0) > 0))
+        : runAttempts === 0,
     };
-    return { goal, contextId, caseId, passed: Object.values(checks).every(Boolean), checks, routes,
+    return {
+      outcomeContract:{effects:{checks:["discoveredSuites", "selectedAuthorizedSuite", "currentSuitePlan", "checkedSuiteReceipt"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["returnedSuiteReview", "identifiedApproval"],required:true,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.returnedSuiteReview&&checks.identifiedApproval)?[{required:true,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"verifyWorkspaceSuite",source:"verifyWorkspaceSuite.nl"},value:value}]:[],
+ goal, contextId, caseId, passed: Object.values(checks).every(Boolean), checks, routes,
       selected, plan: seenPlan, execution: executed, runAttempts };
   }
 
@@ -110,7 +114,7 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
     const plan = await services.testSuitePlanRead.resolve(request.operationId);
     const verifyMode = expected.choice.mode === "verify";
     const execution = verifyMode ? await services.testSuiteVerificationRun.run(request.operationId, plan.stateHash) : null;
-    return verify({ status: "suite-reviewed", selection: expected.choice, review: {
+    return verify({ status: "suite-reviewed", review: {
       plan, decision: { route: { runtime: plan.runtime, nativeApproval: plan.runtime === "native" },
         next: verifyMode ? "run-assignment" : "report-plan" },
       execution, result: execution ? { outcome: execution.status === "no-tests" ? "no-match" : "verified" } : null,

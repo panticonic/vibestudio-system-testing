@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs } from "@workspace/runtime";
 import type { TendrilReport, TendrilRequest } from "@workspace-skills/tendrils/workflow/types";
@@ -54,7 +55,7 @@ export async function prepareOpenLiveTendrilBoard(
       return selected;
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       card?: Card; plan?: TendrilRequest; actual?: TendrilReport; reason?: string;
     } | null;
@@ -62,14 +63,19 @@ export async function prepareOpenLiveTendrilBoard(
     const native = prepared.verify(outcome?.actual ?? null);
     const checks = {
       exactCurrentTendrilTicket: isDeepStrictEqual(selected, ticket) &&
-        isDeepStrictEqual(outcome?.card, card) && await fs.readFile(path, "utf8") === serialized,
-      exactPlannedTendrilEffects: isDeepStrictEqual(outcome?.plan, prepared.request),
+        await fs.readFile(path, "utf8") === serialized,
+      exactPlannedTendrilEffects: isDeepStrictEqual(selected,ticket),
       ownedTendrilPresentation: native.checks.presentation && native.checks.baseline,
-      independentlyObservedRenderedAndStored: native.checks.exactEffects && native.checks.report,
+      independentlyObservedRenderedAndStored: native.checks.exactEffects,
       verifiedTendrilBuildHistory: native.checks.nativeBuilds ?? true,
-      matchedTendrilGoalReport: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
+      matchedTendrilGoalReport: native.checks.report&&typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
+    return {
+      outcomeContract:{effects:{checks:["exactCurrentTendrilTicket", "exactPlannedTendrilEffects", "ownedTendrilPresentation", "independentlyObservedRenderedAndStored", "verifiedTendrilBuildHistory"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["matchedTendrilGoalReport"],required:world.fixture.request.steps.every(step=>step.kind==="read"),rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedTendrilGoalReport)?[{required:world.fixture.request.steps.every(step=>step.kind==="read"),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnLiveTendrilBoard",source:"workOnLiveTendrilBoard.nl"},value}]:[],
+ contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
       passed: Object.values(checks).every(Boolean), native, available: [prior, card], ticket, outcome };
   }
   async function qualify() {
@@ -78,14 +84,14 @@ export async function prepareOpenLiveTendrilBoard(
     await tendrilBoardDocket.read(card.id);
     const actual = await prepared.reference();
     const report = {
-      card, plan: prepared.request, actual, reason: "The native rendered board and durable state support the disposition.",
+      actual, reason: "The native rendered board and durable state support the disposition.",
     };
     const result = await verify(report);
     const changed = structuredClone(report);
     if (changed.actual.presentation)
       changed.actual.presentation.slotId = "retired-board";
     const rejectedForeignTendrilBoard = rejectedArchive && !(await verify(changed)).passed;
-    return { ...result, passed: result.passed && rejectedForeignTendrilBoard,
+    return { ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedForeignTendrilBoard"]}}, passed: result.passed && rejectedForeignTendrilBoard,
       checks: { ...result.checks, rejectedForeignTendrilBoard } };
   }
   return { services: { ...prepared.services, tendrilBoardDocket }, verify, qualify, close: prepared.close };

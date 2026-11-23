@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   compareUtf16CodeUnits,
@@ -692,7 +693,7 @@ export async function prepareOpenAssetIntegrity(
         ? [{ id: file.id, digest: file.digest, output: asset.output }]
         : [];
     });
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const current = await assertHead();
@@ -737,7 +738,7 @@ export async function prepareOpenAssetIntegrity(
         checkedRevisions.every(Boolean) &&
         seen.get(sourceToken)?.state.kind === "event",
       joinedAssetIntegrityFinding:
-        outcome?.approved === sourceToken &&
+        isDeepStrictEqual(outcome?.receipt,receipt)&&outcome?.approved === sourceToken &&
         outcome.working === currentToken &&
         isDeepStrictEqual(outcome.findings, findings),
       preservedOwnedAssetBasis:
@@ -767,17 +768,20 @@ export async function prepareOpenAssetIntegrity(
             receipt &&
             isDeepStrictEqual(receipt.files, requested) &&
             receipt.manifestDigest === sha256HexSyncText(output) &&
-            isDeepStrictEqual(outcome?.receipt, receipt) &&
             isDeepStrictEqual(await fs.readdir(directory), ["verified"]) &&
             attempts.some(attempt => (attempt.result as Stage).status === "staged" &&
               isDeepStrictEqual((attempt.result as {receipt?:Receipt}).receipt, receipt)),
           )
         : receipt === null &&
-          outcome?.receipt === null &&
           (await fs.readdir(directory)).length === 0 &&
           attempts.every(attempt => (attempt.result as Stage).status !== "staged"),
     };
     return {
+      outcomeContract:{effects:{checks:["boundAssetHistory", "preservedOwnedAssetBasis", "independentlyReadExactRecovery"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["joinedAssetIntegrityFinding", "matchedAssetDisposition"],required:world.expected.copies.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.joinedAssetIntegrityFinding&&checks.matchedAssetDisposition)?[{required:world.expected.copies.length===0,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewAssetIntegrity",source:"reviewAssetIntegrity.nl"},value:value}]:[],
+
       contextId,
       caseId: input.caseId,
       goal: world.goal,
@@ -850,7 +854,7 @@ export async function prepareOpenAssetIntegrity(
     };
     const proof = await verify(outcome);
     return {
-      ...proof,
+      ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnassignedAssetEvidence"]}},
       passed: proof.passed && rejectedAlias && rejectedSource,
       checks: {
         ...proof.checks,

@@ -302,7 +302,7 @@ export async function prepareOpenNotificationState(
     };
     return {
       ...proof,
-      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedForeignLane", "rejectedStaleAck", "rejectedWrongOutput"]]}},
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignLane","rejectedStaleAck","rejectedWrongOutput"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

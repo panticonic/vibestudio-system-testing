@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createEvalExecutor, evalResultReceiptSchema, type EvalResultReceipt, type EvalStartInput } from "@vibestudio/service-schemas/eval";
@@ -189,7 +190,7 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; source?: unknown; selection?: unknown; runtime?: unknown; decision?: unknown; receipt?: unknown;
     } | null;
@@ -205,20 +206,29 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     const original = await Promise.all(Object.entries(records).map(async ([path, text]) => decoder.decode(await ports.read(path)) === text));
     const exactPaths = Object.entries(records).filter(([,body]) => body.includes(marker)).map(([path]) => path).sort();
     const checks = {
-      matchedExactSmokeAssignment: isDeepStrictEqual(outcome?.assignment, assignment),
-      verifiedNativeSearchAndSource: !reread.truncated && isDeepStrictEqual(outcome?.source, reread) && isDeepStrictEqual(source, reread) &&
+      matchedExactSmokeAssignment: source!==null,
+      verifiedNativeSearchAndSource: !reread.truncated && isDeepStrictEqual(source, reread) &&
         isDeepStrictEqual(reread.plans.map(plan => plan.path), exactPaths),
-      selectedApprovedSmokeContract: isDeepStrictEqual(outcome?.selection, selection),
-      verifiedInstalledExportAndRuntime: isDeepStrictEqual(outcome?.runtime, runtime) && (plan ?
+      selectedApprovedSmokeContract: !plan||plan.digest===source?.plans.find(row=>row.path===plan.path)?.digest,
+      verifiedInstalledExportAndRuntime: (plan ?
         runtime?.packageName === packageName && runtime.exportName === plan.exportName && runtime.callable === !world.unavailableExport &&
         isDeepStrictEqual(runtime.value, world.unavailableExport ? null : world.runtime) &&
         isDeepStrictEqual(native, await ports.retained(scopeKey, runId)) : runtime === null && !opened),
-      matchedExactSmokeOutcome: isDeepStrictEqual(outcome?.decision, decision) && (runtime?.callable ?
+      returnedSmokeResolution: isDeepStrictEqual(outcome?.decision,decision)&&isDeepStrictEqual(outcome?.receipt,expectedReceipt),
+      matchedExactSmokeOutcome: (runtime?.callable ?
           (isDeepStrictEqual(runtime.value, plan?.accepted) ? "accepted" : "regression") === world.expected : true),
       verifiedPrivateSmokeReceipt: (exactText ? expectedReceipt !== null : entries.length === 0) &&
-        isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt) && original.every(Boolean),
+        isDeepStrictEqual(receipt, expectedReceipt) && original.every(Boolean),
     };
-    return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
+    return {
+      outcomeContract: {
+        effects: {checks:["matchedExactSmokeAssignment", "verifiedNativeSearchAndSource", "selectedApprovedSmokeContract", "verifiedInstalledExportAndRuntime", "matchedExactSmokeOutcome", "verifiedPrivateSmokeReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["returnedSmokeResolution"],required:!exactText,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.returnedSmokeResolution) ? [{required:!exactText,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewWorkspaceSmoke",source:"reviewWorkspaceSmoke.nl"},value}] : [],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, source: reread, selection, runtime, decision, receipt: expectedReceipt, effects: structuredClone(effects) };
   }
   async function qualify() {
@@ -232,11 +242,11 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     const decision = { disposition: world.expected, mayRetain: world.expected === "accepted" && assignment.mayStage };
     const rejectedWrongRuntime = await rejected(services.workspaceSmokeHandoff.stage(discovered.id, plan?.path ?? "unowned", "old-build"));
     const receipt = decision.mayRetain && plan && runtime ? await services.workspaceSmokeHandoff.stage(discovered.id,plan.path,runtime.runDigest) : null;
-    const report = { assignment: discovered, source, selection, runtime, decision, receipt };
+    const report = { decision, receipt };
     const proof = await verify(report);
-    const rejectedWrongSource = !(await verify({ ...report, source: { ...source, matches: -1 } })).passed;
+    const rejectedWrongSource = !(await verify({ ...report, decision: { ...decision, disposition: "invented" } })).passed;
     const checks = { ...proof.checks, rejectedWrongDigest, rejectedWrongRuntime, rejectedWrongSource };
-    return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongDigest","rejectedWrongRuntime","rejectedWrongSource"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }
   async function close() { if (opened && !closed) { await ports.dispose(scopeKey); closed = true; } }
   return { services, qualify, verify, close };

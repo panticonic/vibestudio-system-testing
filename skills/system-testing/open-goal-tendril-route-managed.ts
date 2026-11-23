@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { includesEvidence } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -439,7 +440,7 @@ export async function prepareOpenTendrilRoute(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const result = value as Outcome | null;
     const outcome = result;
     const { expected } = world;
@@ -521,7 +522,7 @@ export async function prepareOpenTendrilRoute(
             main.board.revision !== initial.revision
           : !raced && main.board.revision === initial.revision),
       matchedTendrilDecision: Boolean(
-        outcome?.status === expected.decision &&
+        isDeepStrictEqual(outcome?.receipt,retained)&&outcome?.status === expected.decision &&
         isDeepStrictEqual(outcome.finding, finding) &&
         typeof outcome.reason === "string" &&
         outcome.reason.trim() &&
@@ -533,10 +534,8 @@ export async function prepareOpenTendrilRoute(
         ? Boolean(
             bytes &&
             retained &&
-            outcome &&
             finding &&
             isDeepStrictEqual(files, ["route-evidence.json"]) &&
-            isDeepStrictEqual(outcome.receipt, retained) &&
             bytes ===
               JSON.stringify({
                 schema: "vibestudio.tendril-route-evidence/1",
@@ -546,8 +545,7 @@ export async function prepareOpenTendrilRoute(
             retained.sha256 === sha256HexSyncText(bytes) &&
             retained.revision === finding.revision,
           )
-        : outcome?.receipt === null &&
-          bytes === null &&
+        : bytes === null &&
           retained === null &&
           files.length === 0 &&
           journal.every((row) => row.method !== "retain"),
@@ -557,6 +555,11 @@ export async function prepareOpenTendrilRoute(
       ),
     };
     return {
+      outcomeContract:{effects:{checks:["discoveredOwnedTendrilRoutes", "joinedDurableTendrilAudience", "checkedCurrentTendrilProjection", "retainedOnlyExactLocalTendrilEvidence", "protectedTendrilWorkspaceHead"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["matchedTendrilDecision"],required:!expected.retain,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedTendrilDecision)?[{required:!expected.retain,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewTendrilRoute",source:"reviewTendrilRoute.nl"},value:value}]:[],
+
       caseId: input.caseId,
       contextId: input.contextId,
       goal: world.goal,
@@ -643,7 +646,7 @@ export async function prepareOpenTendrilRoute(
     const proof = await verify(outcome);
     const rejectedForeignTendrilEvidence = foreign && scoped;
     return {
-      ...proof,
+      ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignTendrilEvidence"]}},
       passed: proof.passed && rejectedForeignTendrilEvidence,
       checks: { ...proof.checks, rejectedForeignTendrilEvidence },
     };

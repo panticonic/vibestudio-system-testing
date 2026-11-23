@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -260,7 +261,7 @@ export async function prepareRetainedBuildIncident(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const primaryEntry = world.expected.current ? slots.get("current") : null;
@@ -308,24 +309,29 @@ export async function prepareRetainedBuildIncident(
     }));
     const actualCurrent = primaryEntry?.saved;
     const checks = {
-      exactOwnedCheckpointCatalog: isDeepStrictEqual(outcome?.subject, subject) && immutable.every(Boolean),
+      exactOwnedCheckpointCatalog: immutable.every(Boolean),
       nativeObservationAndProvenance: metadata.every(entry => entry.retained) &&
         expectedSaved.every(entry => observed.has(entry.card.id)) &&
         measurements.every(entry => isDeepStrictEqual(entry.selected, entry.observation)),
-      verifiedPerformanceAndDiagnosis: matched(outcome?.current, actualCurrent) && matched(outcome?.baseline, oldEntry?.saved) &&
-        (!actualCurrent || (world.content === "broken" ?
+      verifiedPerformanceAndDiagnosis: (!actualCurrent || (world.content === "broken" ?
           actualCurrent.observation?.status === "failed" && Boolean(actualCurrent.diagnostic && actualCurrent.diagnostic.line > 0 &&
           (actualCurrent.diagnostic.file === sourcePath || actualCurrent.diagnostic.file.endsWith("/" + sourcePath))) :
           actualCurrent.observation?.status === "ok" && !!actualCurrent.observation.targets.length &&
           (world.focus !== "initial-payload" || actualCurrent.observation.targets.some(target => target.target === "runtime" && !!target.payload)))),
-      exactFindingAndEvidenceBoundary: outcome?.focus === world.focus && outcome.disposition?.finding === (world.expected.blocker ? "held" : world.focus) &&
+      exactFindingAndEvidenceBoundary: isDeepStrictEqual(outcome?.handoff,stored)&&matched(outcome?.current,actualCurrent)&&matched(outcome?.baseline,oldEntry?.saved)&&outcome?.disposition?.finding === (world.expected.blocker ? "held" : world.focus) &&
         outcome.disposition?.blocker === world.expected.blocker && Boolean(outcome.disposition?.reason?.trim()),
-      exactLocalHandoff: handoff && isDeepStrictEqual(outcome?.handoff, stored) &&
+      exactLocalHandoff: handoff &&
         scratchBefore.every(name => afterOutputs.includes(name)),
       protectedWorkingAndMain: post.mainEventId === before.mainEventId && isDeepStrictEqual(post.workingHead, currentHead) &&
         currentSources.every(({ source, text }) => text === (source === primary ? nowText : scopes.get(source))),
     };
-    return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{
+        effects:{checks:["exactOwnedCheckpointCatalog", "nativeObservationAndProvenance", "verifiedPerformanceAndDiagnosis", "exactLocalHandoff", "protectedWorkingAndMain"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["exactFindingAndEvidenceBoundary"],required:true,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.exactFindingAndEvidenceBoundary)?[{required:true,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewRetainedBuildIncident",source:"reviewRetainedBuildIncident.nl"},value:value}]:[],
+ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       effects, subject, current: actualCurrent?.card ?? null, baseline: oldEntry?.saved.card ?? null, metadata, handoff: stored };
   }
 

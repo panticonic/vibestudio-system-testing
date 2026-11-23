@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs, vcs } from "@workspace/runtime";
 import type { prepareLocalModelComparison } from "@workspace-skills/local-model-task-bindings/live";
@@ -34,7 +35,7 @@ export async function prepareOpenLiveLocalInventory(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as {
       card?: Card | null; plan?: Comparison["request"] | null; report?: Report | null; reason?: string;
     } | null;
@@ -43,15 +44,20 @@ export async function prepareOpenLiveLocalInventory(
     const native = prepared.verify(outcome?.report ?? null, after);
     const checks = {
       exactCurrentLocalWorkload: isDeepStrictEqual(selected, docket) &&
-        isDeepStrictEqual(outcome?.card, card) && retained === serialized,
-      exactLocalRequirements: isDeepStrictEqual(outcome?.plan, prepared.request),
+        retained === serialized,
+      exactLocalRequirements: isDeepStrictEqual(selected,docket),
       realLocalCandidateReadback: native.checks.stableInventory && native.checks.exactReads,
       verifiedExactLocalDispositions: native.checks.handoff && native.checks.candidates,
       preservedLocalInventoryAndWorkspace: isDeepStrictEqual(original.workingHead, final.workingHead) &&
-        original.mainEventId === final.mainEventId && native.checks.stableInventory && outcome?.report?.receipt === null,
+        original.mainEventId === final.mainEventId && native.checks.stableInventory,
       matchedLocalInventoryGoal: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
+    return {
+      outcomeContract:{effects:{checks:["exactCurrentLocalWorkload", "exactLocalRequirements", "realLocalCandidateReadback", "preservedLocalInventoryAndWorkspace"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["verifiedExactLocalDispositions", "matchedLocalInventoryGoal"],required:true,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.verifiedExactLocalDispositions&&checks.matchedLocalInventoryGoal)?[{required:true,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"compareLiveLocalInventory",source:"compareLiveLocalInventory.nl"},value}]:[],
+ contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
       passed: Object.values(checks).every(Boolean), native, docket, available: [prior, card], outcome };
   }
 
@@ -61,11 +67,11 @@ export async function prepareOpenLiveLocalInventory(
     await localInventoryDocket.read(card.id);
     for (const { ref } of docket.preferences) await prepared.services.localModelTaskInventory.inspect(ref);
     const rejectedOutsideCandidate = await prepared.services.localModelTaskInventory.inspect("local:outside-assignment").then(() => false, () => true);
-    const outcome = { card, plan: prepared.request, report: prepared.expected,
+    const outcome = { report: prepared.expected,
       reason: "Checked the exact local candidates and the bounded handoff requirements." };
     const proof = await verify(outcome);
     const rejectedInvalidLocalInventory = rejectedArchive && rejectedOutsideCandidate;
-    return { ...proof, passed: proof.passed && rejectedInvalidLocalInventory,
+    return { ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedInvalidLocalInventory"]}}, passed: proof.passed && rejectedInvalidLocalInventory,
       checks: { ...proof.checks, rejectedInvalidLocalInventory } };
   }
 

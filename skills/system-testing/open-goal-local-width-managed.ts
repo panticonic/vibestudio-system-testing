@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -155,6 +156,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
   const lookedUp = new Set<string>();
   let inventoryReads = 0;
   let stored: Handoff | null = null;
+  let stagedText: string | null = null;
   const remember = <T>(service: string, method: string, args: unknown[], result: T): T => {
     effects.push(structuredClone({ service, method, args, result }));
     return structuredClone(result);
@@ -213,6 +215,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
           return remember("localWidthHandoff", "stage", [finding], null);
         const text = packet(current, finding.reason);
         const saved = await scratch.scratchHandoffWrite.stage(text);
+        if(saved)stagedText=text;
         if (saved) stored = { ...saved, sha256: sha256HexSyncText(text) };
         return remember("localWidthHandoff", "stage", [finding], stored);
       },
@@ -234,7 +237,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
       });
   }
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const actual = await evidence();
@@ -250,20 +253,25 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     if (shouldStage && stored && added.length === 1 && stageCount === 1) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
-      handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" && body === packet(actual, outcome?.finding?.reason ?? "") &&
+      handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" && body === stagedText &&
         bytes.length === stored.bytes && sha256HexSyncText(body) === stored.sha256;
     }
     const checks = {
-      retainedExactMachineScope: isDeepStrictEqual(outcome?.survey, actual.survey) && filesIntact.every(Boolean),
-      appliedInstalledReadiness: inventoryReads >= 1 && matchesReadiness(outcome?.readiness, actual.rows),
-      boundActualProviderAndWidth: Boolean(outcome?.finding && isDeepStrictEqual(factOnly(outcome.finding), fact)) &&
-        isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
-      exactEvidenceDisposition: outcome?.finding?.disposition === world.expected && Boolean(outcome.finding.reason?.trim()),
-      verifiedExactLocalHandoff: handoff && isDeepStrictEqual(outcome?.handoff, stored) &&
+      retainedExactMachineScope: filesIntact.every(Boolean),
+      appliedInstalledReadiness: inventoryReads >= 1&&effects.some(effect=>effect.service==="localModels"&&matchesReadiness(effect.result,actual.rows)),
+      boundActualProviderAndWidth: isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
+      exactEvidenceDisposition: isDeepStrictEqual(outcome?.handoff,stored)&&Boolean(outcome?.finding&&isDeepStrictEqual(factOnly(outcome.finding),fact))&&outcome?.finding?.disposition === world.expected && Boolean(outcome.finding.reason?.trim()),
+      verifiedExactLocalHandoff: handoff &&
         baselineOutputs.every(name => afterOutputs.includes(name)),
       preservedWorkspaceState: before.mainEventId === post.mainEventId && isDeepStrictEqual(before.workingHead, post.workingHead),
     };
-    return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{
+        effects:{checks:["retainedExactMachineScope", "appliedInstalledReadiness", "boundActualProviderAndWidth", "verifiedExactLocalHandoff", "preservedWorkspaceState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["exactEvidenceDisposition"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.exactEvidenceDisposition)?[{required:!shouldStage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewLocalExecutionWidth",source:"reviewLocalExecutionWidth.nl"},value:value}]:[],
+ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       effects, survey: actual.survey, finding: fact, handoff: stored };
   }
 
@@ -284,7 +292,13 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     const finding = { ...selected.fact, reason: "Compare exact current selectable model and verified execution evidence." };
     const handoff = world.release === "include-hold" || (world.release === "verified" && finding.disposition === "verified")
       ? await services.localWidthHandoff.stage(finding) : null;
-    return verify({ survey, readiness, finding, handoff });
+    const result = {finding,handoff};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,finding:{...finding,disposition:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
 
   return { services, verify, qualify };

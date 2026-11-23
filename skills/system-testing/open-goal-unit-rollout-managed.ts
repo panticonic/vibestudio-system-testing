@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
@@ -200,7 +201,7 @@ export async function prepareOpenUnitRollout(
     },
   };
 
-  async function verify(value: unknown, negatives?: { foreign: boolean; protectedPolicy: boolean }) {
+  async function verify(value: unknown, invocation?: InvocationObservations, negatives?: { foreign: boolean; protectedPolicy: boolean }) {
     const envelope = value as Report | null;
     const report = envelope;
     const current = await tail();
@@ -221,7 +222,7 @@ export async function prepareOpenUnitRollout(
       verified.check.count === declaredCount && verified.check.runtime === (target.kind === "worker" ? "workerd" : "browser") &&
       typeof verified.check.receipt === "string" && Boolean(verified.check.receipt) : verified === null;
     const activeCheck = world.expected.check ? checks.find(({ id, observed }) => id === target.id &&
-      observed.revision === (state.commit?.verifiedRevision ?? finalRevision) && isDeepStrictEqual(report?.check, observed))?.observed : null;
+      observed.revision === (state.commit?.verifiedRevision ?? finalRevision))?.observed : null;
     const reason = typeof report?.reason === "string" ? report.reason.toLowerCase() : null;
     const repaired = edits.some(({ id, result }) => id === target.id && result.status === "applied");
     const actualCommit = current.committed.kind === "event" ? current.committed.eventId : null;
@@ -238,15 +239,19 @@ export async function prepareOpenUnitRollout(
       preservedConcurrentRolloutEdit: raceOk,
       independentNativeRolloutCheck: Boolean(counted && finalObservation.revision === finalRevision &&
         (world.expected.check ? activeCheck?.check?.status === world.expected.check && activeCheck.build.stateHash === finalObservation.build.stateHash
-          : report?.check === null && checks.length === 0)),
-      exactLocalRolloutEvent: world.expected.release ? Boolean(state.commit && actualCommit === state.commit.eventId && current.clean &&
-        isDeepStrictEqual(report?.release, state.commit)) : state.commit === null && isDeepStrictEqual(current.committed, baseline.committed) && report?.release === null,
-      matchedRolloutOutcome: report?.unitId === target.id &&
+          : checks.length === 0)),
+      exactLocalRolloutEvent: world.expected.release ? Boolean(state.commit && actualCommit === state.commit.eventId && current.clean) : state.commit === null && isDeepStrictEqual(current.committed, baseline.committed),
+      matchedRolloutOutcome: isDeepStrictEqual(report?.release,state.commit)&&report?.unitId === target.id &&
         report.status === world.expected.status && report.revision === finalRevision &&
         Boolean(reason && (world.expected.mentions ?? []).every(terms => terms.some(term => reason.includes(term)))),
       ...(negatives ? { rejectedForeignRolloutUnit: negatives.foreign, rejectedProtectedSourceEdit: negatives.protectedPolicy } : {}),
     };
     return {
+      outcomeContract:{effects:{checks:[...["discoveredExactRolloutUnit", "attestedInitialNativeState", "exactObservedRepair", "preservedFixturePolicy", "preservedConcurrentRolloutEdit", "independentNativeRolloutCheck", "exactLocalRolloutEvent"],...(negatives?["rejectedForeignRolloutUnit", "rejectedProtectedSourceEdit"]:[])],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["matchedRolloutOutcome"],required:!world.expected.repair&&!world.expected.release,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(acceptance.matchedRolloutOutcome)?[{required:!world.expected.repair&&!world.expected.release,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"repairWorkspaceUnit",source:"repairWorkspaceUnit.nl"},value:value}]:[],
+
       contextId, caseId: input.caseId, goal: world.goal, checks: acceptance, passed: Object.values(acceptance).every(Boolean),
       discoveries, observations, readbacks, edits, candidateChecks: checks, commits, race: state.race,
       independent: { build: finalObservation, check: verified, initial: seededBuild, initialCheck: seededCheck, protectedChecks,
@@ -304,8 +309,8 @@ export async function prepareOpenUnitRollout(
       }
       const reason = (world.expected.mentions ?? []).map(([word]) => word).join("; ") || "The exact current unit report is retained";
       return verify({
-        status: world.expected.status, unitId: id, revision: revisionOf((await tail()).workingHead), check: result, release, reason,
-      }, { foreign, protectedPolicy });
+        status: world.expected.status, unitId: id, revision: revisionOf((await tail()).workingHead), release, reason,
+      }, undefined, { foreign, protectedPolicy });
     },
   };
 }

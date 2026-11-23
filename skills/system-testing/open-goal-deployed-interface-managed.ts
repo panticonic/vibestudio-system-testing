@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -241,7 +242,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const scopeIntact = decoder.decode(await readBytes(reviewPath, 24 * 1024)) === scopeBytes;
@@ -267,17 +268,22 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     const expectedSurvey = { subjects, review };
     const checks = {
       inspectedExactInstalledDefinition: methods("interfaceEvidence").includes("inspect") &&
-        isDeepStrictEqual(observations.get(assigned.id), current) && isDeepStrictEqual(outcome?.observation, current),
-      verifiedExactProviderBoundary: exactRoute && isDeepStrictEqual(outcome?.architecture, architecture),
-      honoredRetainedReviewScope: scopeIntact && (!discovered || isDeepStrictEqual(discovered, expectedSurvey)) &&
-        isDeepStrictEqual(outcome?.survey, expectedSurvey),
-      distinguishedDeployedDefinition: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+        isDeepStrictEqual(observations.get(assigned.id), current),
+      verifiedExactProviderBoundary: exactRoute,
+      honoredRetainedReviewScope: scopeIntact && (!discovered || isDeepStrictEqual(discovered, expectedSurvey)),
+      distinguishedDeployedDefinition: isDeepStrictEqual(outcome?.handoff,stored)&& outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
-      verifiedExactLocalHandoff: handoff && isDeepStrictEqual(outcome?.handoff, stored) &&
+      verifiedExactLocalHandoff: handoff &&
         priorOutputs.every(name => afterOutputs.includes(name)),
       preservedWorkspaceState: after.mainEventId === initial.mainEventId && isDeepStrictEqual(after.workingHead, initial.workingHead),
     };
-    return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{
+        effects:{checks:["inspectedExactInstalledDefinition", "verifiedExactProviderBoundary", "honoredRetainedReviewScope", "verifiedExactLocalHandoff", "preservedWorkspaceState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["distinguishedDeployedDefinition"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.distinguishedDeployedDefinition)?[{required:!shouldStage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewDeployedInterface",source:"reviewDeployedInterface.nl"},value:value}]:[],
+ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       effects: structuredClone(effects), survey: expectedSurvey, observation: current, architecture, decision, handoff: stored };
   }
 
@@ -292,7 +298,13 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     const decision = decisionFor(observation, survey.review, architecture);
     const handoff = canStage(survey.review, decision) ? await services.interfaceReviewHandoff.stage(observation, decision) : null;
     const finding = { decision, reason: "Compare the current installed source and active definition with the retained review." };
-    return verify({ survey, observation, architecture, finding, handoff });
+    const result = {finding,handoff};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
 
   return { services, verify, qualify };

@@ -1,3 +1,4 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import { expect, it } from "vitest";
 import {
   mkdtemp,
@@ -89,6 +90,7 @@ it("accepts repeated authentic probes, but rejects foreign slots, stale revision
   try {
     const proof = await prepared.qualify();
     expect(proof.passed).toBe(true);
+    expect(assessSemanticOutcome(proof).passed).toBe(true);
     const finding = proof.finding!;
     const value = {
         status: world.expected.decision,

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs, rpc } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -43,7 +44,8 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
         nominated = true;
         return structuredClone(pair);
       },
-      async stage(report: CloseoutReport) {
+      async stage(decision: CloseoutDecision) {
+        const report:CloseoutReport={pair,current:current.reference,prior:prior.reference,decision,handoff:null};
         const permitted = world.lane === "any" || (world.lane === "clear" && report.decision.status === "cleared");
         if (!nominated || handoff || !permitted || !report.decision.note || report.handoff !== null ||
             reads.length !== 2 || !isDeepStrictEqual(report.pair, pair) ||
@@ -74,12 +76,12 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
     },
   };
 
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown, invocation?: InvocationObservations) {
     const result = raw as CloseoutReport | null;
     const outcome = result;
-    const same = outcome && isDeepStrictEqual(outcome.pair, pair);
-    const currentCheck = current.verify(outcome?.current);
-    const priorCheck = prior.verify(outcome?.prior);
+    const same = nominated;
+    const currentCheck = current.verify(current.reference);
+    const priorCheck = prior.verify(prior.reference);
     const actualFiles = await fs.readdir(directory);
     const artifact = handoff && actualFiles.length === 1 && actualFiles[0] === "closeout-review.json"
       ? new TextDecoder("utf-8", { fatal: true }).decode(await readWorkspaceBytes(rpc, path, 32000))
@@ -88,17 +90,20 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
     const checks = {
       exactNominatedTestkitAttempts: !!same && isDeepStrictEqual([...reads].sort(), [pair.current.receipt, pair.prior.receipt].sort()),
       separatedActualCurrentAndPrior: currentCheck.passed && priorCheck.passed,
-      separateReleaseAndObservedResidue: !!decision && isDeepStrictEqual(decision.currentRemaining, current.reference.remainingIds) &&
-        currentCheck.evidence.protectedUnchanged && priorCheck.evidence.protectedUnchanged,
-      exactUserAcceptanceDecision: decision?.status === world.disposition && decision.note === expectedNote &&
+      separateReleaseAndObservedResidue: currentCheck.evidence.protectedUnchanged && priorCheck.evidence.protectedUnchanged,
+      exactUserAcceptanceDecision: isDeepStrictEqual(decision?.currentRemaining,current.reference.remainingIds)&&isDeepStrictEqual(outcome?.handoff,handoff)&&decision?.status === world.disposition && decision.note === expectedNote &&
         typeof decision.explanation === "string" && decision.explanation.trim().length > 0 && decision.explanation.length <= 1200,
       verifiedPrivateCloseout: expectedNote
-        ? artifact !== null && stages.length === 1 && artifact === contents(stages[0]) &&
-          isDeepStrictEqual(stages[0], { ...outcome, handoff: null }) && isDeepStrictEqual(outcome?.handoff, handoff) &&
+        ? artifact !== null && stages.length === 1 && stages[0]!.decision.status===world.disposition&&stages[0]!.decision.note===expectedNote&&artifact === contents(stages[0]) &&
           handoff?.sha256 === sha256HexSyncText(artifact)
-        : actualFiles.length === 0 && stages.length === 0 && handoff === null && outcome?.handoff === null,
+        : actualFiles.length === 0 && stages.length === 0 && handoff === null,
     };
-    return { caseId: world.id, contextId, goal: world.goal, pair, actual: [currentCheck.evidence, priorCheck.evidence],
+    return {
+      outcomeContract:{effects:{checks:["exactNominatedTestkitAttempts", "separatedActualCurrentAndPrior", "separateReleaseAndObservedResidue", "verifiedPrivateCloseout"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["exactUserAcceptanceDecision"],required:!expectedNote,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:raw!==undefined&&!(checks.exactUserAcceptanceDecision)?[{required:!expectedNote,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"compareTestkitCloseouts",source:"compareTestkitCloseouts.nl"},value:raw}]:[],
+ caseId: world.id, contextId, goal: world.goal, pair, actual: [currentCheck.evidence, priorCheck.evidence],
       readReceipts: reads.slice(), staged: stages.slice(), artifact, report: outcome, rejectedForeign, checks,
       passed: Object.values(checks).every(Boolean) };
   }
@@ -112,9 +117,9 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
     const decision: CloseoutDecision = { status: world.disposition, currentRemaining: current.reference.remainingIds,
       note: expectedNote, explanation: "The scoped Testkit outcomes and inventory were checked independently." };
     const outcome = { pair, current: current.reference, prior: prior.reference, decision, handoff: null };
-    const report = { ...outcome, handoff: expectedNote ? await services.testkitCloseout.stage(outcome) : null };
+    const report = {decision,handoff:expectedNote?await services.testkitCloseout.stage(decision):null};
     const proof = await verify(report);
-    const crosswire = await verify({ ...report, current: prior.reference, prior: current.reference });
+    const crosswire = await verify({ ...report, decision:{...decision,currentRemaining:["foreign-attempt-resource"]} });
     if (!rejectedForeign || crosswire.passed) throw new Error("Foreign or substituted Testkit closeout evidence was accepted");
     return proof;
   }

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   compareUtf16CodeUnits,
@@ -398,7 +399,7 @@ export async function prepareOpenTemplateMigration(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const wrapper = value as MigrationReport | null;
     const output =
       wrapper;
@@ -455,7 +456,6 @@ export async function prepareOpenTemplateMigration(
         ),
       readExactOwnedMigrationSources:
         world.expected.reads.every((id) => liveReads.has(id)) &&
-        isDeepStrictEqual(output?.readIds, expectedReadIds) &&
         expectedRecords.every(
           (row) =>
             row &&
@@ -481,21 +481,10 @@ export async function prepareOpenTemplateMigration(
             nativePrepared.operationId === decisionBasis.commandId &&
             nativePrepared.target.url === examples &&
             nativePrepared.target.commit === decisionBasis.incomingCommit &&
-            events.templatePreparations === 1 &&
-            output?.candidate?.status ===
-              (nativePrepared.conflicts.length
-                ? "resolve-conflicts"
-                : "validate-candidate") &&
-            output?.candidate?.operationId === nativePrepared.operationId &&
-            isDeepStrictEqual(output?.candidate?.offer, offerReceipt) &&
-            isDeepStrictEqual(
-              output?.candidate?.candidate,
-              candidateReadback.review,
-            ),
+            events.templatePreparations === 1
           )
         : !decisionBasis &&
-          events.templatePreparations === 0 &&
-          output?.candidate === null,
+          events.templatePreparations === 0,
       preservedProtectedTemplateDeployment:
         after.mainEventId === initial.mainEventId &&
         isDeepStrictEqual(after.workingHead, ownershipHead) &&
@@ -513,23 +502,24 @@ export async function prepareOpenTemplateMigration(
             actualReceipt &&
             receiptText === expectedReceipt &&
             handoff.sha256 === sha256HexSyncText(receiptText) &&
-            handoff.bytes === actualReceipt.length &&
-            isDeepStrictEqual(output?.handoff, handoff),
+            handoff.bytes === actualReceipt.length,
           )
         : events.handoffs === 0 &&
-          output?.handoff === null &&
           !(await fs.readdir(directory)).includes("migration.json"),
       exactMigrationDisposition:
-        output?.status === world.expected.status &&
+        isDeepStrictEqual(output?.handoff,handoff)&&output?.status === world.expected.status &&
         output.candidateId === world.expected.candidateId &&
-        output.deployedMain === initial.mainEventId &&
-        output.dossierRevision === observedRevision &&
         typeof output.answer === "string" &&
         world.expected.facts.every((term) =>
           output.answer.toLowerCase().includes(term.toLowerCase()),
         ),
     };
     return {
+      outcomeContract:{effects:{checks:["observedExactTemplateDeployment", "readExactOwnedMigrationSources", "matchedNativeCandidateOwnership", "preservedProtectedTemplateDeployment", "honoredChangedDossier", "verifiedLocalMigrationHandoff"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["exactMigrationDisposition"],required:!nativePrepared&&!handoff,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.exactMigrationDisposition)?[{required:!nativePrepared&&!handoff,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewTemplateMigration",source:"reviewTemplateMigration.nl"},value:value}]:[],
+
       contextId,
       caseId: input.caseId,
       goal: world.goal,
@@ -624,20 +614,16 @@ export async function prepareOpenTemplateMigration(
       const report: MigrationReport = {
         status: world.expected.status,
         candidateId: world.expected.candidateId,
-        deployedMain: live.mainEvent,
-        dossierRevision: live.revision,
-        readIds: reads.map((value) => value.id),
-        candidate,
         handoff: local,
         answer: world.expected.facts.join(" · "),
       };
       const envelope = report;
       const result = await verify(envelope);
       const rejectedForgedResult = !(
-        await verify({ ...report, deployedMain: "wrong-protected-main" })
+        await verify({ ...report, candidateId: "wrong-candidate" })
       ).passed;
       return {
-        ...result,
+        ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedStale","rejectedWrongRecipient","rejectedForgedResult"]}},
         checks: {
           ...result.checks,
           rejectedAlias,

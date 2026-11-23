@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -342,7 +343,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const last = await observe();
@@ -395,8 +396,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     const checks = {
       matchedStableSourceIdentity: first?.repository === repository && first.workingRevision === revision(prepared.workingHead) &&
         manifest.id === baselineManifest.id && manifest.text === (alignedAtEnd ? json(destinationManifest) : baselineManifest.text) &&
-        entry.id === baselineEntry.id && entry.digest === baselineEntry.digest &&
-        isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.observed, first),
+        entry.id === baselineEntry.id && entry.digest === baselineEntry.digest,
       verifiedExactPlacement: current.layout === (shouldMove ? "moved" : declaredLayout) &&
         (current.layout === "original" || alignedAtEnd ? current.compatiblePanel : current.actualSource === null) &&
         (current.layout !== "moved" || alignedAtEnd && current.actualSource === destination ||
@@ -405,21 +405,24 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
           isDeepStrictEqual(await readFile(client, last.before.workingHead, collision.repositoryId, manifestPath), collisionManifest)),
       verifiedCompatibleCallerLinks: changes && last.document.id === originalGuide.id &&
         (!shouldUpdate || !staleLinks(current).length) && last.source.note === expectedNote,
-      matchedLocalMigrationPlan: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      matchedLocalMigrationPlan: isDeepStrictEqual(outcome?.move,moved)&&isDeepStrictEqual(outcome?.identity,aligned)&&isDeepStrictEqual(outcome?.consumers,updated)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200 &&
         sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
       verifiedExactMutationReceipts: (moved?.status ?? null) === expectedMove && (aligned?.status ?? null) === expectedAlign &&
         (updated?.status ?? null) === expectedUpdate && [moved, aligned, updated].every(receipt =>
           receipt === null || (receipt.status === "state-changed" ? receipt.operation === null :
-            !!receipt.operation?.applicationId && receipt.operation.changeIds.length === 1)) &&
-        isDeepStrictEqual(outcome?.move, moved) && isDeepStrictEqual(outcome?.identity, aligned) &&
-        isDeepStrictEqual(outcome?.consumers, updated) && isDeepStrictEqual(outcome?.current, current),
+            !!receipt.operation?.applicationId && receipt.operation.changeIds.length === 1)),
       preservedCoeditsAndNeighbors: neighbor.id === neighborBefore.id && neighbor.digest === neighborBefore.digest &&
         last.before.mainEventId === initial.mainEventId &&
         ([expectedMove, expectedAlign, expectedUpdate].some(value => value !== null)
           ? current.workingRevision !== revision(prepared.workingHead) : current.workingRevision === revision(prepared.workingHead)),
     };
-    return { caseId: world.id, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{effects:{checks:["matchedStableSourceIdentity", "verifiedExactPlacement", "verifiedCompatibleCallerLinks", "verifiedExactMutationReceipts", "preservedCoeditsAndNeighbors"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["matchedLocalMigrationPlan"],required:![expectedMove,expectedAlign,expectedUpdate].some(value=>value!==null),rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedLocalMigrationPlan)?[{required:![expectedMove,expectedAlign,expectedUpdate].some(value=>value!==null),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"migratePanelSource",source:"migratePanelSource.nl"},value:value}]:[],
+ caseId: world.id, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       assignment, observed: first, current, decision, move: moved, identity: aligned, consumers: updated, effects: structuredClone(effects) };
   }
   async function qualify() {
