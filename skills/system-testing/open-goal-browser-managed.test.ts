@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import {createHash} from "node:crypto";
+import {observeInvocation} from "./observed-invocation.js";
 import { act, render, cleanup } from "@testing-library/react";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -63,6 +65,20 @@ it("checks a revision before activating and verifies the independently observed 
     rows: [{ label: edited.label, state: edited.state, detail: edited.detail }] };
   expect((await prepared.verify(reply)).passed).toBe(true);
   expect((await prepared.verify({ ...reply, revision: before.revision })).outcomeDimensions.returnedValue.passed).toBe(false);
+  const value={...reply,rows:[]},texts=new Map<string,string>();
+  const rows=[{id:"root",parent:null,kind:"crisp",value},
+    {id:"correct-action",parent:"root",kind:"agent",value:{kind:"act",control:control.id}},
+    {id:"wrong-terminal-selection",parent:"root",kind:"agent",value:{kind:"report",labels:["unrelated row"]}}];
+  const calls=rows.map(row=>{const text=JSON.stringify(row.value),hash=createHash("sha256").update(text).digest("hex");texts.set(hash,text);return {callId:row.id,summary:{run_id:"run",owner_key:"owner",owner_kind:"eval"},record:{call_id:row.id,parent_call_id:row.parent,definition:{name:row.id,source:row.id==="root"?"workInBrowser.ts":"workInBrowser/choosePanelAction.nl"},executor:{kind:row.kind,model_id:row.kind==="agent"?"test:offline":null},cost:{model_requests:row.kind==="agent"?1:0},outcome:"done",output:{complete:true,hash}}};});
+  const invocation=observeInvocation({evalRunId:"run",rootCallIds:["root"],captureErrors:[],calls},async hash=>texts.get(hash)??null);
+  const partial=await prepared.verify(value,invocation);
+  expect(partial.outcomeDimensions.effects.passed).toBe(true);
+  expect(partial.passed).toBe(true);
+  expect(partial.incorrectReturnValues.some(row=>row.definition.name==="wrong-terminal-selection")).toBe(true);
+  expect(partial.incorrectReturnValues.some(row=>row.definition.name==="correct-action")).toBe(false);
+  cleanup();
+  expect((await bind(world).qualify()).passed).toBe(true);
+
 });
 
 it("allows observation of the checklist and denies changes on a read-only goal", async () => {

@@ -661,7 +661,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     if ("path" in altered) altered.path = "foreign-caretaker.json";
     else altered.action = "invented" as typeof altered.action;
     const wrong = await verify(altered);
-    const rejectedAlteredEvidence = rejectedAlias && !wrong.passed;
+    const rejectedAlteredEvidence = rejectedAlias && !wrong.outcomeDimensions.returnedValue.passed;
     return {
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

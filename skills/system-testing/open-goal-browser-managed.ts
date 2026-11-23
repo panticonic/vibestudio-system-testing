@@ -140,7 +140,16 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const returned = [...(Array.isArray(report?.rows) ? report.rows : [])]
       .sort((left, right) => left.label.localeCompare(right.label));
     const changes = attempts.filter(item => item.result === "activated");
+    const choices=invocation?await invocation.returns(call=>call.definition.source.endsWith("workInBrowser/choosePanelAction.nl")):[];
+    const expectedLabels=[...new Set(world.expected.labels)].sort();
+    const incorrectSelections=choices.filter(call=>{
+      const choice=call.value;
+      if(!choice||typeof choice!=="object"||!("kind" in choice)||choice.kind!=="report")return false;
+      return !("labels" in choice)||!Array.isArray(choice.labels)||choice.labels.some(label=>typeof label!=="string")||
+        !isDeepStrictEqual([...new Set(choice.labels)].sort(),expectedLabels);
+    }).map(call=>({callId:call.callId,checks:["incidentalBrowserSelection"],required:false,definition:call.definition,value:call.value,valueJson:call.valueJson}));
     const checks = {
+      incidentalBrowserSelection:incorrectSelections.length===0,
       discoveredBrowser: Boolean(before && before.view.heading === world.heading &&
         isDeepStrictEqual(before.view.rows.map(stateOf), start)),
       readBackBrowser: Boolean(before && inspections.at(-1)?.view.revision === after.view.revision &&
@@ -164,8 +173,8 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract:{effects:{checks:["discoveredBrowser", "readBackBrowser", "exactPanelOutcome", "respectedBrowserAuthority"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["reportedVisibleRows"],required:expectedChanges.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
-        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:[],
+        incidentalValues:{checks:["incidentalBrowserSelection"],rationale:"An independently observed incorrect terminal row selection is held at its actual sampled definition; correct prior actions and native effects remain usable."}},
+      incorrectReturnValues:incorrectSelections,
  passed: Object.values(checks).every(Boolean), ...input, goal, panelId: panel.id,
       inspections, attempts: structuredClone(attempts), after, checks };
   }
@@ -189,7 +198,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const control = view.rows.flatMap(row => row.controls)[0]?.id ?? "missing-control";
     const rejectsControlAlias = await services.goalBrowser.activate(`./${control}`, view.revision) === "unavailable" &&
       (await observe()).view.revision === view.revision;
-    const checks = { ...verified.checks, rejectsControlAlias, rejectsWrongReadback: !negative.passed };
+    const checks = { ...verified.checks, rejectsControlAlias, rejectsWrongReadback: !negative.outcomeDimensions.returnedValue.passed };
     return { ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsControlAlias","rejectsWrongReadback"]}}, checks, passed: Object.values(checks).every(Boolean) };
   }
   return { goal, services, verify, qualify };

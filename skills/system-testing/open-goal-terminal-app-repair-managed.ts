@@ -581,7 +581,7 @@ async function verifyNativeApplication(raw: unknown, observations?: InvocationOb
           : { buildKey: "not-authorized" },
       });
     const rejectedAlteredEvidence =
-      rejectedAlias && !wrong.passed && !altered.passed;
+      rejectedAlias && !wrong.outcomeDimensions.returnedValue.passed && !altered.outcomeDimensions.returnedValue.passed;
     return {
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

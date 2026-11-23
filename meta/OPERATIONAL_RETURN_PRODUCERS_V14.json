@@ -1329,7 +1329,16 @@
         "reportedVisibleRows"
       ],
       "contributions": [],
-      "nativeOnlyReason": "The typed root returns exact native output receipts/DOM rows, not an NL-generated copy; semantic selection stays in trace and is judged by native effects."
+      "nativeOnlyReason": "The typed root returns exact native DOM rows; semantic terminal label selection is checked independently on actual recorded choosePanelAction NL returns, rather than inferred from copied public rows.",
+      "incidentalChildChecks": [
+        {
+          "checks": [
+            "incidentalBrowserSelection"
+          ],
+          "producerSourceSuffix": "workInBrowser/choosePanelAction.nl",
+          "selector": "actual report-kind returns only; compare actual selected labels against native expected labels; act-kind and correct terminal choices remain unmasked"
+        }
+      ]
     },
     {
       "entry": "verifyWorkspaceSuite",
@@ -1414,5 +1423,20 @@
       "reviewLocalPresentation (plain-text notes)"
     ],
     "remaining": "Searched all owned verifier sources for expected reason/finding/terms/summary/citation predicates, then traced the keyword-bearing artifact cases to their actual saved bytes/native receipts. No additional public-only expected textual-fact requirement was found in that scope. This does not formally prove arbitrary unconstrained prose quality; independent task review remains relevant."
+  },
+  "optionalReturnQualificationAudit": {
+    "unit": "vibe-v14-optional-qualifier-browser-b",
+    "tests": 86,
+    "files": 12,
+    "result": "passed",
+    "peakMiB": 350,
+    "fixes": [
+      "browser",
+      "dictation",
+      "grimoire-scene",
+      "pdf",
+      "terminal-app-repair"
+    ],
+    "rule": "A forged optional public value fails returnedValue; independently correct native effects continue to satisfy the goal. Local-presentation display.passed is the native effect result, not an optional public answer."
   }
 }

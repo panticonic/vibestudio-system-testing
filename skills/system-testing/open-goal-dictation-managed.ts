@@ -280,7 +280,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const report = {plan,review:review?.result??null,handoff:receipt};
     const positive = await verify(report);
     const altered = await verify({...report,plan:{...plan,through:-1}});
-    return {...positive,passed:positive.passed && !altered.passed};
+    return {...positive,passed:positive.passed && !altered.outcomeDimensions.returnedValue.passed};
   }
   return {goal:world.goal,services,verify,qualify};
 }
