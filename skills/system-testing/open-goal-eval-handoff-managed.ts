@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { RuntimeFs, VcsClient } from "@workspace/runtime";
@@ -183,7 +186,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
     },
   };
 
-  async function verifyOutcome(outcome: EvalRecoveryResult | null, negative: boolean,nativeOnly=false) {
+  async function verifyOutcome(outcome: EvalRecoveryResult | null, negative: boolean,nativeOnly=false,invocation?:InvocationObservations) {
     const reported = outcome?.status === "reviewed" ? outcome : null;
     const expected = world.expected;
     const admitted = [...records.values()];
@@ -250,12 +253,13 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
       checks.returnedEvalResult=isDeepStrictEqual(reported?.result??null,expectedResult);
       checks.returnedEvalArtifact=isDeepStrictEqual(reported?.artifact??null,artifact);
     }
-    return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    const contract:SemanticOutcomeContract={effects:{checks:["discoveredOwnedEvalJobs", "keptOriginalEvalReceipts", "boundIndependentBlobReadback", "replayedSameNativeIdentity", "authorizedExactEvalRetry", "verifiedRetainedEvalScratch", "protectedOwnedEvalContext"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:nativeOnly?[]:["returnedEvalReviews", "reconciledEvalHandoff", "returnedEvalResult"],required:!nativeOnly,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:nativeOnly?[]:["returnedEvalArtifact"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    return assessObservedApplicationOutcome({ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       attempts: ownedCases, originalRuns: admitted.map(record => ({ card: record.card, terminal: record.native.terminal, runDigest: record.native.runDigest,
         resultDigest: record.native.receipt?.resultDigest ?? null,
         sourceDigest: record.native.admission.source.kind === "inline" ? sha256HexSyncText(record.native.admission.source.code) : null,
         physicallyStored: record.native.physicallyStored })),
-      journals: [...journalReads], readbacks: [...blobReads], retry: admittedRetry, artifact: staged, artifactText: staged ? written : null };
+      journals: [...journalReads], readbacks: [...blobReads], retry: admittedRetry, artifact: staged, artifactText: staged ? written : null },contract,outcome,invocation);
   }
 
   async function refuseForeign() {
@@ -294,9 +298,9 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
   }
   return { services, qualify, close: native.close,
     async verifyObserved(){return verifyOutcome(null,await refuseForeign(),true);},
-    async verify(report: unknown) {
+    async verify(report: unknown,invocation?:InvocationObservations) {
       const value = report as EvalRecoveryResult | null;
-      return verifyOutcome(value ?? null, await refuseForeign());
+      return verifyOutcome(value ?? null, await refuseForeign(),false,invocation);
     } };
 }
 

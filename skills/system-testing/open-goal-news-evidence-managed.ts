@@ -1,3 +1,5 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -405,7 +407,11 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     return {plan:{...native.plan,explanation},readers:reads.map(({selection,input})=>({selection,input,result:reviewReader(input)})),
       schedule:native.schedule,briefing:native.briefing,sources:sources.flatMap(entry=>entry.value?[entry.value]:[]),handoff};
   }
-  async function verifyObserved() {return verifyEvidence(null,true);}
+  async function verifyObserved() {
+    const proof=await verifyEvidence(null,true);
+    const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"Only actual native journal, source, reader, authority and retained byte observations are assessed here."},returnedValue:{checks:[],required:false,rationale:"This native observation primitive receives no application return value."}};
+    return assessObservedApplicationOutcome(proof,contract,undefined);
+  }
   async function verify(raw:unknown,observations?:InvocationObservations) {
     const returned=raw as ReturnType<typeof result>|null;
     const report=await referenceEvidence(returned?.explanation??"");
@@ -413,7 +419,11 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const text=returned?.explanation;
     const exactReturnedFindings=isDeepStrictEqual(raw,result(report))&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text));
     const observedChildReturns=observations ? await observations.returns(call=>/reviewNewsEvidence(?:\.nl)?$/.test(call.definition.name)||/reviewNewsEvidence\.nl$/.test(call.definition.source)):[];
-    return {...proof,observedChildReturns,checks:{...proof.checks,exactReturnedFindings},passed:proof.passed&&exactReturnedFindings};
+    const {handoff:returnedHandoff,...returnedFindings}=returned??{};
+    const {handoff:expectedHandoff,...expectedFindings}=result(report);
+    const checks={...proof.checks,exactRequestedNewsFindings:isDeepStrictEqual(returnedFindings,expectedFindings)&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text)),returnedNewsReceipt:isDeepStrictEqual(returnedHandoff,expectedHandoff)};
+    const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"The actual native edition, reader windows, originals, authority and retained private bytes establish effects."},returnedValue:{checks:["exactRequestedNewsFindings"],required:true,rationale:"The caller requested the news findings and citation handles."},incidentalValues:{checks:["returnedNewsReceipt"],rationale:"An echo of the native retained handoff is optional presentation."}};
+    return assessObservedApplicationOutcome({...proof,observedChecks:checks,observedChildReturns,checks,passed:proof.passed&&exactReturnedFindings},contract,raw,observations);
   }
   async function qualify() {
     await services.newsEvidenceIndex.list();

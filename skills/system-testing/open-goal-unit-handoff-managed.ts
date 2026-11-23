@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -309,7 +312,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       evidenceIds: ids, components };
   }
 
-  async function verify(report: Report | null) {
+  async function verify(report: Report | null,invocation?:InvocationObservations) {
     const after = await vcs.status({ contextId });
     const protectedUnchanged = after.mainEventId === before.mainEventId;
     const current = expected && await packageAt(after.workingHead, expected.unit);
@@ -352,18 +355,19 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       ...(world.lifecycle ? ["unitHandoff.lifecycle"] : []),
       ...(wantIdentity ? ["unitIdentity.observe", "unitIdentity.resolve"] : []), ...(mustStage ? ["unitIdentity.stage"] : [])];
     const checks = {
+      observedOwnedUnitEvidence:scope?.unit?.path===(selectedPath??undefined)&&(!wantDesign||!!nativeDesign)&&(!wantIdentity||!!nativeIdentity)&&(!world.lifecycle||!!lifecycle),
       owned_selection: !!report && report.path === selectedPath && scope?.unit?.path === (selectedPath ?? undefined),
       manifest_versions: designBound,
       build_lifecycle: lifecycleBound,
       catalog_and_artwork: identityBound,
       local_effect_and_protected_main: workingScope && protectedUnchanged && decoysUnchanged &&
         protectedManifest?.contentHash === expected?.main?.contentHash,
-      conclusion: report?.decision === decision && !!report.reason.trim() &&
-        isDeepStrictEqual(calls.map(call => call.service + "." + call.method), expectedCalls),
+      conclusion: report?.decision === decision && !!report.reason.trim(),
     };
-    return { caseId: world.id, contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    const contract:SemanticOutcomeContract={effects:{checks:["observedOwnedUnitEvidence", "local_effect_and_protected_main"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["owned_selection", "manifest_versions", "build_lifecycle", "catalog_and_artwork", "conclusion"],required:!mustStage,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    return assessObservedApplicationOutcome({ caseId: world.id, contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       unitHandoff: { calls: structuredClone(calls), report, working: revisionOf(after.workingHead),
-        protectedEvent: after.mainEventId, target: selectedPath, expect: { decision, finding, action, mustStage } } };
+        protectedEvent: after.mainEventId, target: selectedPath, expect: { decision, finding, action, mustStage } } },contract,report,invocation);
   }
 
   async function reference() {

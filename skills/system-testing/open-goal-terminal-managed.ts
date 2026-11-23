@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -289,7 +292,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
       closed = true;
     }
   }
-  async function verifyOutcome(outcome: Report | null, negative: boolean) {
+  async function verifyOutcome(outcome: Report | null, negative: boolean,invocation?:InvocationObservations) {
     const final = world!.expected;
     const after = await vcs.status();
     const ids = (await list()).map(item => item.sessionId);
@@ -312,6 +315,8 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
       })) && isDeepStrictEqual(check.held, wantedHeld);
     const last=events.at(-1);
     const checks = {
+      returnedTerminalHandoff:isDeepStrictEqual(outcome?.handoff,staged),
+      returnedTerminalChecks:isDeepStrictEqual(outcome?.checkReport,check),
       returnedTerminalState:isDeepStrictEqual(outcome?.terminal,last?("to" in last?last.to:null):initial)&&isDeepStrictEqual(outcome?.exit,last&&"exit" in last?last.exit:null)&&outcome?.retired===(last?.operation==="retire"&&last.absentFromRegistry),
       exactLiveChecklist: !!initial && !!latest && isDeepStrictEqual(initial.checked, sorted(world!.initial)) &&
         isDeepStrictEqual(latest.checked, final.end)  && steps.length === final.sequence.length &&
@@ -344,12 +349,11 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
               event.exit.signal !== null || (event.exit.code !== null && event.exit.code !== 0));
         }),
       exactTerminalDiscovery: await discovery.verify(outcome?.discovery ?? null, world!.discovery),
-      exactNativeChecks: (world!.checks ? !!nativeChecks : check === null) && isDeepStrictEqual(outcome?.checkReport, check),
+      exactNativeChecks: (world!.checks ? !!nativeChecks : check === null),
       verifiedLocalHandoff: expectedStaging ? !!staged && !!retained && retained.length === staged.bytes &&
         handoffNames.length === 1 && staged.path === `/.tmp/${handoffNames[0]}/handoff.json` &&
         new TextDecoder("utf-8", { fatal: true }).decode(retained) === stagedText &&
-        typeof stagedText === "string" && sha256HexSyncText(stagedText) === staged.sha256 &&
-        isDeepStrictEqual(outcome?.handoff, staged) : staged === null && outcome?.handoff === null && handoffNames.length === 0,
+        typeof stagedText === "string" && sha256HexSyncText(stagedText) === staged.sha256 : staged === null && handoffNames.length === 0,
       protectedOwnedContext: initial && !ids.includes(initial.sessionId) &&
         events.every(event => event.operation !== "retire" || event.absentFromRegistry) &&
         after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead, before.workingHead) && opened?.note === await memo(),
@@ -357,19 +361,20 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
         new TextEncoder().encode(outcome.summary.explanation).length <= 480 && final.evidence.every(rule => rule.test(outcome.summary.explanation)),
       rejectedForeignAction: negative,
     };
-    return { caseId: input.caseId, contextId: input.contextId, goal: world!.goal, checks,
+    const contract:SemanticOutcomeContract={effects:{checks:["exactLiveChecklist", "verifiedTerminalContinuity", "exactNativeExit", "exactNativeChecks", "verifiedLocalHandoff", "protectedOwnedContext", "rejectedForeignAction"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["returnedTerminalState", "returnedTerminalChecks", "exactTerminalDiscovery", "resultGrounded"],required:!!world!.discovery||!!world!.checks||events.length===0,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedTerminalHandoff"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    return assessObservedApplicationOutcome({ caseId: input.caseId, contextId: input.contextId, goal: world!.goal, checks,
       passed: Object.values(checks).every(value => value === true), initial, opened, events: structuredClone(events),
-      observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText };
+      observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText },contract,outcome,invocation);
   }
 
   async function rejectBadInput() {
     return await services.openTerminalInput.change({ item: "4" as ItemKey, checked: true, input: "key" }) === null;
   }
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as Report | null;
     const negative = await rejectBadInput();
     await close();
-    return verifyOutcome(report ?? null, negative);
+    return verifyOutcome(report ?? null, negative,invocation);
   }
   async function qualify() {
     const opening = await services.openTerminalRead.open();
@@ -406,7 +411,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
       summary: { disposition: world!.expected.disposition, explanation: world!.expected.explanation } };
     const proof = await verifyOutcome(report, negative);
     const altered = await verifyOutcome({ ...report, terminal: {...opening.screen,ptyId:"other-pty"} }, negative);
-    return { ...proof, passed: proof.passed && !altered.passed };
+    return { ...proof, passed: proof.passed && !altered.outcomeDimensions.returnedValue.passed };
   }
   return { goal: world.goal, services, qualify, verify, close };
 }

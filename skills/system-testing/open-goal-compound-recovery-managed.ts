@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -215,7 +218,7 @@ export async function prepareCompoundRecoveryHandoff(
     });
   }
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const evalProof = await recovery.verifyObserved();
@@ -236,13 +239,14 @@ export async function prepareCompoundRecoveryHandoff(
     let exactArtifact = false;
     if (target === "staged" && stored && actualRecovered) {
       const bytes = await readBytes(stored.path, stored.bytes);
-      exactArtifact = bytes.length === stored.bytes && isDeepStrictEqual(candidate?.artifact, stored) &&
+      exactArtifact = bytes.length === stored.bytes &&
         addedOutputs.length === 1 && stored.path === "/.tmp/" + addedOutputs[0] + "/handoff.json" &&
         exactAnswers(decoder.decode(bytes), actualRecovered);
-    } else if (target !== "staged") exactArtifact = stored === null && addedOutputs.length === 0 && !candidate?.artifact;
+    } else if (target !== "staged") exactArtifact = stored === null && addedOutputs.length === 0;
 
     const post = await vcs.status();
     const checks = {
+      returnedOperationalArtifact:isDeepStrictEqual(candidate?.artifact??null,stored),
       joinedExactNativeRecovery: evalProof.passed && (!neededPolicy || (actualRecovered !== null && usedDigest === nativeRead &&
         decoder.decode(await readBytes(recoveredPath, 24 * 1024)) === actualRecovered)),
       honoredPrerequisiteAndOrder: !rejectionBeforeDependency && exactPreparedBody && (expectedReads ? !!accepted && observedSources.size === 2 :
@@ -259,8 +263,9 @@ export async function prepareCompoundRecoveryHandoff(
           isDeepStrictEqual(candidate.unanswered, target === "unanswered" ? world.questions.filter(q => !q.exact.length).map(q => q.text) : []) :
           candidate === null),
     };
-    return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks,
-      passed: Object.values(checks).every(Boolean), effects, status: target, directive: actualPosition, artifact: stored, evalProof };
+    const contract:SemanticOutcomeContract={effects:{checks:["joinedExactNativeRecovery", "honoredPrerequisiteAndOrder", "preservedCurrentDirective", "checkedIndependentSource", "verifiedExactOperationalHandoff", "protectedWorkingMain"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["exactCompoundDisposition"],required:target!=="staged",rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedOperationalArtifact"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    return assessObservedApplicationOutcome({ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks,
+      passed: Object.values(checks).every(Boolean), effects, status: target, directive: actualPosition, artifact: stored, evalProof },contract,value,invocation);
   }
 
   async function qualify() {

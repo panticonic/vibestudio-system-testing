@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { vcs } from "@workspace/runtime";
 import { openSpectroliteVault } from "./open-goal-spectrolite-worlds.js";
@@ -85,7 +88,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const wrapper = value as {source:Bound["source"]|null;holdReason:string|null;vault:unknown}|null;
     const result = wrapper;
     const pdfResult = await pdf.verifyObserved({ allowWorkingHeadChange: mayEdit });
@@ -98,18 +101,19 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const reason = typeof result?.holdReason === "string" ? result.holdReason.trim().toLowerCase() : "";
     const checks = {
       exactOriginalPdf: pdfResult.passed,
-      verifiedHandoff: mayEdit ? !!bound && !!attestedReport && result?.holdReason===null && isDeepStrictEqual(result?.source, bound.source) && bound.source.document === world.pdf.expected.document &&
-        isDeepStrictEqual(selectedQuotes, expectedQuotes)
-        : !bound && result?.source===null && result?.vault===null && pdfResult.passed && reason.length > 0,
-      exactWorkingVault: mayEdit ? vaultResult?.passed === true
+      nativePdfHandoff: mayEdit ? !!bound&&!!attestedReport&&bound.source.document===world.pdf.expected.document&&isDeepStrictEqual(selectedQuotes,expectedQuotes):!bound&&pdfResult.passed,
+      verifiedHandoff:mayEdit?result?.holdReason===null&&isDeepStrictEqual(result?.source,bound?.source):result?.source===null&&result?.vault===null&&reason.length>0,
+      returnedVaultFindings:mayEdit?vaultResult?.outcomeDimensions.returnedValue.passed===true:true,
+      exactWorkingVault: mayEdit ? vaultResult?.outcomeDimensions.effects.passed === true
         : isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
-        vaultResult?.passed === true && typeof coedited === "string" && coedited.includes(concurrent.append)
+        vaultResult?.outcomeDimensions.effects.passed === true && typeof coedited === "string" && coedited.includes(concurrent.append)
         : !concurrentReceipt && (mayEdit ? attempts.some(attempt => attempt.outcome === "written") : attempts.length === 0),
       protectedHeads: initial.mainEventId === after.mainEventId && isDeepStrictEqual(initial.committed, after.committed),
     };
-    return { passed: Object.values(checks).every(Boolean), checks, contextId, caseId, panelId, goal,
-      proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } };
+    const contract:SemanticOutcomeContract={effects:{checks:["exactOriginalPdf", "nativePdfHandoff", "exactWorkingVault", "concurrentRevision", "protectedHeads"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["verifiedHandoff", "returnedVaultFindings"],required:!mayEdit,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), checks, contextId, caseId, panelId, goal,
+      proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation);
   }
 
   async function qualify() {
@@ -128,7 +132,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const outcome = handoff.status === "bound" ? (await vault.reference()).outcome : null;
     const result={source:handoff.status==="bound"?handoff.source:null,holdReason:handoff.status==="hold"?handoff.reason:null,vault:outcome};
     const verified = await verify(result);
-    const rejectedInventedSource=!(await verify({...result,source:{document:"invented",digest:"invented",citations:[]}})).passed;
+    const rejectedInventedSource=!(await verify({...result,source:{document:"invented",digest:"invented",citations:[]}})).outcomeDimensions.returnedValue.passed;
     const checks = { ...verified.checks, exactPdfReference: reference.verification.passed,
       rejectsForgedQuotation, rejectsPrematureVaultMutation,rejectedInventedSource };
     return { ...verified, checks, passed: Object.values(checks).every(Boolean) };

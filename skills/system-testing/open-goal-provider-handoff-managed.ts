@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -232,7 +235,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     return first.state === "absent" ? "not-listed" : "unconfirmed";
   }
 
-  async function proof(outcome: ProviderGoalReport | null, rejected: boolean) {
+  async function proof(outcome: ProviderGoalReport | null, rejected: boolean,invocation?:InvocationObservations) {
     const wanted = world.expected;
     const plan = outcome?.plan;
     const latest = await ports.read(mainLane);
@@ -246,6 +249,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     const text = bytes ? new TextDecoder("utf-8", { fatal: true }).decode(bytes) : null;
     const transition = observedTransition(first, latest);
     const checks = {
+      returnedProviderReceipt:isDeepStrictEqual(outcome?.handoff,staged),
       exactApprovalVisibility: transition === wanted.transition,
       discoveredOwnedConversation: targetReads.length === 2 && plan?.channelId === card.channelId && plan.requestId === request.id,
       exactRetainedProviderFrontier: isDeepStrictEqual(targetReads[0], first) && isDeepStrictEqual(targetReads[1], latest) &&
@@ -261,16 +265,17 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
         isDeepStrictEqual(outputs[0]?.result, actualOutput) :
         plan?.output === null && (wanted.reason === "readback-unavailable" ?
           outputs.length === 1 && outputs[0]?.message === result && outputs[0]?.result === null : outputs.length === 0),
-      exactScopedHandoff: wanted.stage ? !!staged && !!bytes && typeof text === "string" && !!plan &&
+      exactScopedHandoff: wanted.stage ? !!staged && !!bytes && typeof text === "string" &&
         handoffs.length === 1 && staged.path === `/.tmp/${handoffs[0]}/handoff.json` &&
-        exact(JSON.parse(text).request) && text === body(plan) && text === artifact &&
-        sha256HexSyncText(text) === staged.sha256 && staged.bytes === bytes.length && isDeepStrictEqual(outcome?.handoff, staged) :
-        outcome?.handoff === null && staged === null && handoffs.length === 0,
+        exact(JSON.parse(text).request) && text === artifact &&
+        sha256HexSyncText(text) === staged.sha256 && staged.bytes === bytes.length :
+        staged === null && handoffs.length === 0,
       protectedOwnedProviderWorkspace: current.mainEventId === before.mainEventId && isDeepStrictEqual(current.workingHead, before.workingHead),
       rejectedUnownedEvidence: rejected,
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks, passed: Object.values(checks).every(value => value === true),
-      card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact };
+    const contract:SemanticOutcomeContract={effects:{checks:["exactApprovalVisibility", "exactScopedHandoff", "protectedOwnedProviderWorkspace", "rejectedUnownedEvidence"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["discoveredOwnedConversation", "exactRetainedProviderFrontier", "exactProviderAttributionAndResult", "independentProviderOutput"],required:true,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedProviderReceipt"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    return assessObservedApplicationOutcome({ contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks, passed: Object.values(checks).every(value => value === true),
+      card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact },contract,outcome,invocation);
   }
   async function rejectUnowned() {
     const foreign = `foreign-${crypto.randomUUID()}`;
@@ -278,9 +283,9 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
       await services.retainedProviderOutput.read(foreign, foreign) === null &&
       await services.retainedProviderHandoff.stage({ channelId: foreign, disposition: "ready" } as ProviderPlan) === null;
   }
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as ProviderGoalReport | null;
-    return proof(report ?? null, await rejectUnowned());
+    return proof(report ?? null, await rejectUnowned(),invocation);
   }
   async function qualify() {
     await services.retainedConversationIndex.list();
