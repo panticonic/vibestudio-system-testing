@@ -3,7 +3,7 @@ import { isDeepStrictEqual as equal } from "node:util";
 import { compareUtf16CodeUnits } from "@vibestudio/content-addressing";
 import { contextId, fs, vcs, type VcsClient } from "@workspace/runtime";
 import type {
-  CoordinatedRevisionReport, RevisionAuthority, RevisionDraft, RevisionFile, RevisionPlan, RevisionReadback,
+  CoordinatedRevisionResult, RevisionDraft, RevisionFile, RevisionPlan, RevisionReadback,
   RevisionReceipt, RevisionScope,
 } from "@workspace-skills/open-coordinated-revision/types";
 import { serializeSystemTestError } from "./structured-error.js";
@@ -128,19 +128,8 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       return file.text===text?[]:[{path,version:file.version,text}];
     });
   }
-  const observationLines=(scope:RevisionScope)=>scope.files.map(({path,version,text})=>path+" @ "+version+"\n"+text);
-  function validAuthority(result:RevisionAuthority|null|undefined,observed:RevisionScope,required:boolean){
-    return !!result&&Array.isArray(result.required)&&result.required.length>=1&&result.required.length<=8&&
-      new Set(result.required).size===result.required.length&&equal(result.observed,observationLines(observed))&&
-      Array.isArray(result.supported)&&Array.isArray(result.missing)&&
-      equal(ordered([...result.supported,...result.missing]),ordered(result.required))&&(!required||result.missing.length===0);
-  }
-  function exactPlan(plan:RevisionPlan|null|undefined,status:RevisionPlan["status"],wanted:RevisionDraft[]){
-    return plan?.status===status&&sameEvidenceMembers(plan.destinations,wanted)&&typeof plan.explanation==="string"&&
-      !!plan.explanation.trim()&&plan.explanation.length<=850;
-  }
   async function verify(raw:unknown) {
-    const value=raw as CoordinatedRevisionReport|null;
+    const value=raw as CoordinatedRevisionResult|null;
     const report=value;
     const status=await ports.vcs.status();
     const actual=await observe(status.workingHead);
@@ -155,24 +144,15 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const expectedRace={...original,...changedByOther};
     const snapshotBytes=(rows:RevisionFile[],expected:Record<string,string>)=>equal(Object.fromEntries(rows.map(({path,text})=>[path,text])),expected);
     const checks={
-      exactCoordinatedDocumentScope:!!first&&equal(report?.initial,first.scope)&&equal(first.state,base)&&snapshotBytes(first.scope.files,original),
-      exactCoordinatedAuthority:!!first&&validAuthority(report?.initialAuthority,first.scope,initialPlan==="ready")&&
-        (after?validAuthority(report?.updatedAuthority,after.scope,world.next?.status==="ready"):report?.updatedAuthority===null),
-      exactCoordinatedDrafts:!!first&&exactPlan(report?.plan,initialPlan,firstDrafts)&&
-        (after?!!world.next&&exactPlan(report?.reconciled,world.next.status,finalEdits):report?.reconciled===null),
-      exactNativeRevisionRace:world.concurrent?!!after&&!!actualRace&&snapshotBytes(actualRace,expectedRace)&&
-        equal(after.scope.files,actualRace)&&equal(report?.updated,after.scope)&&equal(after.state,reporterRaceState):
-        !after&&!actualRace&&report?.updated===null,
+      exactCoordinatedDocumentScope:!!first&&equal(first.state,base)&&snapshotBytes(first.scope.files,original),
+      exactCoordinatedAuthority:report?.status===(world.next?.status ?? initialPlan),
+      exactCoordinatedDrafts:attempts.filter(attempt=>attempt.receipt.status==="applied").every(attempt=>sameEvidenceMembers(attempt.drafts,finalEdits)),
+      exactNativeRevisionRace:world.concurrent?!!after&&!!actualRace&&snapshotBytes(actualRace,expectedRace)&&equal(after.scope.files,actualRace)&&equal(after.state,reporterRaceState):!after&&!actualRace,
       exactAtomicRevisionBasis:world.concurrent?
-        (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&
-          attempt.head===after?.scope.head&&equal(report?.final,attempt.receipt)):
-          report?.final===null&&attempts.every(attempt=>attempt.receipt.status!=="applied")):
-        report?.final===null&&(initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope.head&&
-          attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)&&equal(report?.first,attempt.receipt)):
-          attempts.every(attempt=>attempt.receipt.status!=="applied")&&report?.first===null),
-      independentlyVerifiedRevisionBatch:!!finalRead&&equal(report?.readback,finalRead)&&equal(actual,finalRead.files)&&
-        finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&
-        actual.every(file=>first?.scope.files.some(old=>old.path===file.path&&old.fileId===file.fileId)),
+        (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&attempt.head===after?.scope.head):attempts.every(attempt=>attempt.receipt.status!=="applied")):
+        (initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope.head&&attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)):attempts.every(attempt=>attempt.receipt.status!=="applied")),
+      independentlyVerifiedRevisionBatch:!!finalRead&&report?.head===finalRead.head&&equal(report?.documents,finalRead.files.map(({path,version})=>({path,version})))&&
+        typeof report?.explanation==="string"&&!!report.explanation.trim()&&equal(actual,finalRead.files)&&finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&actual.every(file=>first?.scope.files.some(old=>old.path===file.path&&old.fileId===file.fileId)),
       exactRevisionEvidenceGuide:guide===guideRevision(await ports.guide()),
       protectedRevisionMain:equal(await ports.vcs.mainState(),protectedMain)&&
         finalRead?.protectedMain===protectedMain.eventId&&status.mainEventId===protectedMain.eventId&&
@@ -185,11 +165,6 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
   async function qualify() {
     const api=services.nativeCoordinatedRevision;
     const initial=await api.discover();
-    const authority=(observed:RevisionScope,held:boolean):RevisionAuthority=>{
-      const requirement="Use the exact applicable authority from the assigned workspace";
-      return {required:[requirement],observed:observationLines(observed),
-        supported:held?[]:[requirement],missing:held?[requirement]:[]};
-    };
     const plan=(seen:RevisionScope,status:RevisionPlan["status"],updated:boolean):RevisionPlan=>({status,
       destinations:status==="ready"?expectedDrafts(seen,updated):[],explanation:"Compared exact observed authority and native revision facts."});
     const initialPlan=plan(initial,world.initial??"ready",false);
@@ -197,10 +172,11 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const updated=first?.status==="changed"?await api.discover():null;
     const reconciled=updated?plan(updated,world.next!.status,true):null;
     const final=updated&&reconciled?.status==="ready"?await api.revise(updated.head,reconciled.destinations):null;
-    return verify({
-      initial,initialAuthority:authority(initial,world.initial==="held"),plan:initialPlan,first,updated,
-      updatedAuthority:updated?authority(updated,world.next?.status==="held"):null,reconciled,final,readback:await api.readback(),
-    });
+    const readback=await api.readback();
+    const result={status:(reconciled ?? initialPlan).status,head:readback.head,documents:readback.files.map(({path,version})=>({path,version})),explanation:(reconciled ?? initialPlan).explanation};
+    const proof=await verify(result);
+    const rejectedInventedDocument=!(await verify({...result,documents:[{path:"invented",version:"invented"}]})).passed;
+    return {...proof,passed:proof.passed&&rejectedInventedDocument,rejectedInventedDocument};
   }
   return {services,verify,qualify};
 }
