@@ -1,3 +1,4 @@
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -344,7 +345,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       } finally {writing=false;}
     }},
   };
-  async function verifyEvidence(raw:unknown) {
+  async function verifyEvidence(raw:unknown,nativeOnly=false) {
     const report=raw as NewsEvidenceReport|null;
     const outcome=report;
     const latest=await ports.read(lane);
@@ -370,20 +371,20 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
         isDeepStrictEqual(snapshots[1],readerProjection(latest))&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.messageId)))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
-      exactNewsAuthority:!!plan&&plan.readerMessage===independent.boundary.message&&plan.channelId===scope.channelId&&plan.topic===topic&&
+      exactNewsAuthority:(nativeOnly || !!plan&&plan.readerMessage===independent.boundary.message&&plan.channelId===scope.channelId&&plan.topic===topic)&&
         (readAllowed||(!reads.length&&!sources.length)),
       exactNewsReaderWindows:sameEvidenceMembers(reads,verifiedReads.map(({selection,input})=>({selection,input})))&&
-        Array.isArray(outcome?.readers)&&sameEvidenceMembers(outcome.readers,verifiedReads),
+        (nativeOnly || Array.isArray(outcome?.readers)&&sameEvidenceMembers(outcome.readers,verifiedReads)),
       independentlyReadNewsSources:sameEvidenceMembers(sources,originals)&&
-        Array.isArray(outcome?.sources)&&sameEvidenceMembers(outcome.sources,originals.flatMap(entry=>entry.value?[entry.value]:[])),
-      exactNewsCadence:isDeepStrictEqual(outcome?.schedule,independent.schedule)&&independent.schedule.result.findings[0]?.code===expected.schedule,
-      groundedNewsEdition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
+        (nativeOnly || Array.isArray(outcome?.sources)&&sameEvidenceMembers(outcome.sources,originals.flatMap(entry=>entry.value?[entry.value]:[]))),
+      exactNewsCadence:(nativeOnly || isDeepStrictEqual(outcome?.schedule,independent.schedule))&&independent.schedule.result.findings[0]?.code===expected.schedule,
+      groundedNewsEdition:nativeOnly ? independent.plan.reason===expected.reason&&independent.plan.action===expected.action : !!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
         isDeepStrictEqual(outcome?.briefing,independent.briefing)&&plan.reason===expected.reason&&plan.action===expected.action&&
         typeof plan.explanation==="string"&&byteCount(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedPrivateNewsHandoff:expected.action==="stage"?!!outcome&&!!handoff&&!!artifact&&!!written&&files.length===1&&
-        handoff.path===`/.tmp/${files[0]}/handoff.json`&&!!stagedEvidence&&isDeepStrictEqual(JSON.parse(body(outcome)),JSON.parse(body(stagedEvidence)))&&artifact===body(stagedEvidence)&&handoff.sha256===sha256HexSyncText(artifact)&&
-        handoff.bytes===written.length&&isDeepStrictEqual(handoff,outcome.handoff):
-        files.length===0&&handoff===null&&outcome?.handoff===null,
+      verifiedPrivateNewsHandoff:expected.action==="stage"?(nativeOnly||!!outcome)&&!!handoff&&!!artifact&&!!written&&files.length===1&&
+        handoff.path===`/.tmp/${files[0]}/handoff.json`&&!!stagedEvidence&&(nativeOnly||!!outcome&&isDeepStrictEqual(JSON.parse(body(outcome)),JSON.parse(body(stagedEvidence))))&&artifact===body(stagedEvidence)&&handoff.sha256===sha256HexSyncText(artifact)&&
+        handoff.bytes===written.length&&(nativeOnly||!!outcome&&isDeepStrictEqual(handoff,outcome.handoff)):
+        files.length===0&&handoff===null&&(nativeOnly||outcome?.handoff===null),
       preservedNewsWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedNewsRetarget:await services.newsEvidenceJournal.read(foreign)===null&&
         await services.newsEvidenceReader.read(foreign,{kind:"saved"})===null&&
@@ -398,18 +399,21 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       readers:report.readers.map(reader=>reader.result),schedule:report.schedule.result,briefing:report.briefing?.result??null,
       sources:report.sources.map(({articleId,url,digest})=>({articleId,url,digest})),handoff:report.handoff};
   }
-  async function observedEvidence(explanation=world.expected.explanation):Promise<NewsEvidenceReport> {
+  async function referenceEvidence(explanation=world.expected.explanation):Promise<NewsEvidenceReport> {
     const latest=await ports.read(lane);
     const native=normalized(latest,sources);
     return {plan:{...native.plan,explanation},readers:reads.map(({selection,input})=>({selection,input,result:reviewReader(input)})),
       schedule:native.schedule,briefing:native.briefing,sources:sources.flatMap(entry=>entry.value?[entry.value]:[]),handoff};
   }
-  async function verify(raw:unknown) {
+  async function verifyObserved() {return verifyEvidence(null,true);}
+  async function verify(raw:unknown,observations?:InvocationObservations) {
     const returned=raw as ReturnType<typeof result>|null;
-    const report=await observedEvidence(returned?.explanation??"");
-    const proof=await verifyEvidence(report);
-    const exactReturnedFindings=isDeepStrictEqual(raw,result(report));
-    return {...proof,checks:{...proof.checks,exactReturnedFindings},passed:proof.passed&&exactReturnedFindings};
+    const report=await referenceEvidence(returned?.explanation??"");
+    const proof=await verifyObserved();
+    const text=returned?.explanation;
+    const exactReturnedFindings=isDeepStrictEqual(raw,result(report))&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text));
+    const observedChildReturns=observations ? await observations.returns(call=>/reviewNewsEvidence(?:\.nl)?$/.test(call.definition.name)||/reviewNewsEvidence\.nl$/.test(call.definition.source)):[];
+    return {...proof,observedChildReturns,checks:{...proof.checks,exactReturnedFindings},passed:proof.passed&&exactReturnedFindings};
   }
   async function qualify() {
     await services.newsEvidenceIndex.list();
@@ -435,5 +439,5 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const forged=await verify({...result(outcome),topic:"another-reader"});
     return {...accepted,passed:accepted.passed&&!forged.passed,report:result(outcome),evidence:outcome};
   }
-  return {goal:world.goal,services,verify,verifyEvidence,observedEvidence,qualify};
+  return {goal:world.goal,services,verify,verifyObserved,verifyEvidence,referenceEvidence,qualify};
 }

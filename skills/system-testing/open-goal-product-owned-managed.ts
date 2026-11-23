@@ -1,3 +1,4 @@
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, vcs } from "@workspace/runtime";
@@ -257,13 +258,13 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
       },
     },
   };
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,observations?:InvocationObservations) {
     const report = reportOf<NewsReport>(raw);
-    const basis = await news.observedEvidence();
+    const basis = await news.referenceEvidence();
     const staged=calls.findLast(call=>call.service==="newsEditionReview"&&call.method==="stage"&&call.result!==null);
     const presentation=staged?.args[3] as PresentationReport|null|undefined;
     const plan = report?.plan;
-    const proof = basis && await news.verifyEvidence(basis);
+    const proof = await news.verifyObserved();
     const verifiedBasis = proof?.passed === true && basis?.handoff === null;
     const latest = await currentDesk();
     const body = artifact && await readText(ports, artifact.path);
@@ -282,7 +283,7 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
         isDeepStrictEqual(await ports.status({ contextId: input.contextId }), workspace),
     };
     return { ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      productReview: { calls: structuredClone(calls), report, news: proof, body } };
+      productReview: { calls: structuredClone(calls), report, news: proof, body, observedChildReturns:observations ? await observations.returns(call=>/reviewNewsEvidence(?:\.nl)?$/.test(call.definition.name)||/reviewNewsEvidence\.nl$/.test(call.definition.source)):[] } };
   }
   async function qualify() {
     const desk = await services.newsEditionReview.readDesk();
