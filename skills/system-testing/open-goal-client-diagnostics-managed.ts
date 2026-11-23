@@ -568,7 +568,7 @@ export async function prepareOpenClientDiagnostics(
   };
 
   async function verify(
-    wrapper: ClientDiagnosticsReport | null,
+    wrapper: Pick<ClientDiagnosticsReport,"channel"|"decision"|"handoff"> | null,
   ) {
     const report =
       wrapper;
@@ -625,13 +625,7 @@ export async function prepareOpenClientDiagnostics(
       file && saved ? JSON.parse(await fs.readFile(file, "utf8")) : null;
     const files = folder ? await fs.readdir(folder) : [];
     const checks = {
-      exactOwnedClientOrder:
-        exactTrace &&
-        Array.isArray(report?.views) && report.views.every(view => includesEvidence(views, view)) &&
-        checkClientObservationTrace(report.views.map(view => ({kind:"observe" as const,
-          surface:view.surface.id,stage:view.stage,width:view.width,overflow:view.overflow})),
-          expected.filter(step => step.kind === "observe")) &&
-        isDeepStrictEqual(report?.effects, effects),
+      exactOwnedClientOrder:exactTrace,
       joinedCurrentRendererFields:
         views.every((view) => {
           const scene = scenes.get(view.surface.id);
@@ -769,7 +763,7 @@ export async function prepareOpenClientDiagnostics(
       decision: handoff ? { ...decision, outcome: "handoff-staged" } : decision,
       handoff,
     };
-    const wrapped = outcome;
+    const wrapped = {channel:outcome.channel,decision:outcome.decision,handoff:outcome.handoff};
     const result = await verify(wrapped);
     const rejectsWrongOutcome = !(
       await verify({

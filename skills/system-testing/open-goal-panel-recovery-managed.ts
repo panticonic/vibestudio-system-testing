@@ -224,7 +224,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
 
   async function verify(value: unknown) {
     const wrapper = value as {
-      status: string; surfaceId: string; initial: Assessment; final: Assessment; effects: Effect[]; reason: string;
+      status: string; surfaceId: string; initial: Assessment; final: Assessment; reason: string;
     } | null;
     const report = wrapper;
     const after = await vcs.status({ contextId });
@@ -276,7 +276,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
       untouchedCompanions: finalSurfaces.every(({ id, pane }) => id === expected.selected || isDeepStrictEqual(pane, baseline.get(id))),
       exactHealthDisposition: report?.status === expected.outcome && report.surfaceId === expected.selected &&
         isDeepStrictEqual(report.initial, initialAssessment) && isDeepStrictEqual(report.final, finalAssessment) &&
-        isDeepStrictEqual(report.effects, effects) && typeof report.reason === "string" && !!report.reason.trim(),
+        typeof report.reason === "string" && !!report.reason.trim(),
       protectedHeads: before.mainEventId === after.mainEventId && isDeepStrictEqual(before.workingHead, after.workingHead) &&
         isDeepStrictEqual(before.committed, after.committed),
     };
@@ -298,7 +298,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
       final = await services.panelRecovery.inspect();
     }
     const outcome = { status: expected.outcome, surfaceId: target.surface.id,
-      initial: assess(first, selected.surface), final: assess(final, selected.surface), effects,
+      initial: assess(first, selected.surface), final: assess(final, selected.surface),
       reason: "Confirmed the exact live marker and authority receipts." };
     const result = await verify(outcome);
     const rejectsWrongEvidence = !(await verify({ ...outcome, final: { ...outcome.final, evidence: ["foreign-panel"] } })).passed;

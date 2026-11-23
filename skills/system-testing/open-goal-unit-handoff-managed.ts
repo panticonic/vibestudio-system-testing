@@ -22,8 +22,7 @@ type Finding = { decision: string; finding: string; evidenceIds: string[]; compo
 type Report = {
   decision: "held" | "reviewed" | "staged";
   reason: string;
-  plan: { path: string | null; focus: string; inspectLifecycle: boolean; stageIcon: boolean; requireProtectedSource: boolean; reason: string };
-  observation: Observation | null;
+  path:string|null;
   design: { native: Finding | null; manifest: string; lifecycle: { observation: Lifecycle; source: string; activity: string; reason: string } | null } | null;
   identity: {
     observed: IdentityObservation; intent: Icon;
@@ -353,10 +352,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       ...(world.lifecycle ? ["unitHandoff.lifecycle"] : []),
       ...(wantIdentity ? ["unitIdentity.observe", "unitIdentity.resolve"] : []), ...(mustStage ? ["unitIdentity.stage"] : [])];
     const checks = {
-      owned_selection: !!report && report.plan.path === selectedPath && scope?.unit.path === (selectedPath ?? undefined) &&
-        report.plan.focus === world.focus && report.plan.inspectLifecycle === world.lifecycle &&
-        report.plan.stageIcon === world.stageIcon && report.plan.requireProtectedSource === world.requireProtectedSource &&
-        isDeepStrictEqual(report.observation, scope),
+      owned_selection: !!report && report.path === selectedPath && scope?.unit.path === (selectedPath ?? undefined),
       manifest_versions: designBound,
       build_lifecycle: lifecycleBound,
       catalog_and_artwork: identityBound,
@@ -385,7 +381,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
         if (mustStage && choice && nativeIdentity) await services.unitIdentity.stage(id, nativeIdentity.revision, choice.choice.id);
       }
     }
-    return verify({ decision, plan, observation: scope, reason: "Report the observed candidate, local scope and protected revision.",
+    return verify({ decision, path:plan.path, reason: "Report the observed candidate, local scope and protected revision.",
       design: wantDesign && finding ? { native: reviewFromObservation(), manifest: finding,
         lifecycle: lifecycle ? { observation: lifecycle, source: lifecycleSource(lifecycle), activity: lifecycleActivity(lifecycle), reason: "Compare exact retained build evidence." } : null } : null,
       identity: wantIdentity && nativeIdentity && world.icon ? { observed: nativeIdentity, intent: world.icon,

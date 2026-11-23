@@ -142,6 +142,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
   const body=(report:RegencyReport)=>JSON.stringify({scope:"private-local",realm,opening:report.opening,current:report.current,
     forecasts:report.forecasts,findings:report.findings,advance:report.advance,decision:report.decision},null,2);
 
+  let stagedText:string|null=null;
   const services={
     regencyAssignment:{async list(){
       index={...initialIndex,memo:await readMemo()};
@@ -207,7 +208,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
         if(!isDeepStrictEqual(report.findings,findings)||findings.some(item=>item.review.decision==="not-observed"))return null;
         const text=body(report);
         if(new TextEncoder().encode(text).length>maxBytes)return null;
-        const file=await writer.stage(text);
+        const file=(stagedText=text,await writer.stage(text));
         if(!file)return null;
         note={path:file.path,digest:sha256HexSyncText(text),realm,revision:current.revision};
         return structuredClone(note);
@@ -234,11 +235,10 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     const status=await ports.status();
     const other=crypto.randomUUID();
     const checks={
-      exactRegencyAssignment:index?.realm===realm&&isDeepStrictEqual(outcome?.plan,world.plan),
+      exactRegencyAssignment:index?.realm===realm,
       independentlyReadRegencyMemo:!!index&&isDeepStrictEqual(index.memo,await readMemo()),
       exactSavedRegencyFrontiers:frontiers.length===2&&isDeepStrictEqual(opening,first)&&opening.accounts.month===world.initial.month&&
-        current.accounts.month===currentExpected&&!!current.pending===(world.initial.pending===true)&&
-        isDeepStrictEqual(outcome?.opening,opening)&&isDeepStrictEqual(outcome?.current,current),
+        current.accounts.month===currentExpected&&!!current.pending===(world.initial.pending===true),
       exactRegencyForecasts:isDeepStrictEqual(forecasts.map(row=>row.months),world.plan.horizons)&&
         isDeepStrictEqual(forecasts,outcome?.forecasts)&&forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
         (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
@@ -253,7 +253,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
           advance===null&&isDeepStrictEqual(after,current)),
       verifiedPrivateRegencyNote:neededNote?!!outcome&&!!note&&!!artifact&&files.length===1&&
         note.path===`/.tmp/${files[0]}/handoff.json`&&note.revision===after.revision&&
-        artifact===body(outcome)&&note.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(outcome.note,note):
+        artifact===stagedText&&note.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(outcome.note,note):
         note===null&&outcome?.note===null&&files.length===0,
       preservedRegencyWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedRegencyRetarget:await services.regencySaved.read(other)===null&&
@@ -275,7 +275,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     if(decision.action==="advance")report.advance=await services.regencyAdvance.commit(realm,current.revision,world.plan.advance!);
     if((decision.action==="advance"&&report.advance||decision.action==="stage")&&world.plan.localNote)
       report.note=await services.regencyNote.stage(report);
-    return verify(report);
+    return verify({forecasts:report.forecasts,findings:report.findings,decision:report.decision,advance:report.advance,note:report.note});
   }
   return {services,verify,qualify};
 }

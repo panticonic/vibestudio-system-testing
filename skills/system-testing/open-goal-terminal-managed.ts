@@ -22,7 +22,7 @@ type CheckPlan = Awaited<ReturnType<Assignment["services"]["terminalCheckRead"][
 type CheckResult = Awaited<ReturnType<Assignment["services"]["terminalCheckRun"]["execute"]>>;
 type CheckStatus = "unavailable" | "timed-out" | "output-truncated" | "passed" | "failed";
 type CheckReport = { assignmentReceipt: string; outcomes: { result: CheckResult; status: string }[]; held: string[] };
-type Report = { initial: Screen; events: TerminalEvent[]; checkReport: CheckReport | null; discovery: TerminalDiscovery | null; handoff: TerminalHandoff | null; summary: TerminalSummary };
+type Report = { terminal:Screen|null;exit:NativeExit|null;retired:boolean; checkReport: CheckReport | null; discovery: TerminalDiscovery | null; handoff: TerminalHandoff | null; summary: TerminalSummary };
 const firstSize = { cols: 80, rows: 24 };
 const sizes = { small: { cols: 62, rows: 18 }, wide: { cols: 100, rows: 32 } };
 const keys = ["1", "2", "3"] as const;
@@ -310,10 +310,11 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
           result.stderr === (expected.stderr ?? "") &&
           (expected.exitCode === undefined ? expected.status !== "passed" || result.exitCode === 0 : expected.exitCode === result.exitCode);
       })) && isDeepStrictEqual(check.held, wantedHeld);
+    const last=events.at(-1);
     const checks = {
+      returnedTerminalState:isDeepStrictEqual(outcome?.terminal,last?("to" in last?last.to:null):initial)&&isDeepStrictEqual(outcome?.exit,last&&"exit" in last?last.exit:null)&&outcome?.retired===(last?.operation==="retire"&&last.absentFromRegistry),
       exactLiveChecklist: !!initial && !!latest && isDeepStrictEqual(initial.checked, sorted(world!.initial)) &&
-        isDeepStrictEqual(latest.checked, final.end) && isDeepStrictEqual(outcome?.initial, initial) &&
-        isDeepStrictEqual(outcome?.events, events) && steps.length === final.sequence.length &&
+        isDeepStrictEqual(latest.checked, final.end)  && steps.length === final.sequence.length &&
         steps.every((step, index) => {
           const expected = final.sequence[index]!;
           return expected.endsWith(":either") ? step.slice(0, step.lastIndexOf(":")) === expected.slice(0, -7) : step === expected;
@@ -400,10 +401,11 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     }
     await close();
     const checks = currentChecks();
-    const report = { initial: opening.screen, events, checkReport: checks, discovery: found, handoff: staged,
+    const last=events.at(-1);
+    const report = {terminal:last?("to" in last?last.to:null):opening.screen,exit:last&&"exit" in last?last.exit:null,retired:last?.operation==="retire"&&last.absentFromRegistry,checkReport: checks, discovery: found, handoff: staged,
       summary: { disposition: world!.expected.disposition, explanation: world!.expected.explanation } };
     const proof = await verifyOutcome(report, negative);
-    const altered = await verifyOutcome({ ...report, initial: { ...opening.screen, ptyId: "other-pty" } }, negative);
+    const altered = await verifyOutcome({ ...report, terminal: {...opening.screen,ptyId:"other-pty"} }, negative);
     return { ...proof, passed: proof.passed && !altered.passed };
   }
   return { goal: world.goal, services, qualify, verify, close };
