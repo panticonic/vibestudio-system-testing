@@ -12,7 +12,7 @@ async function prepare(caseId: string) {
     match: matchUrlBoundCredentialCandidates, binding: findCredentialBinding,
     audience: findMatchingUrlAudience, lifecycle: credentialLifecycle,
   }, {
-    contextId: "owned", fs: { mkdtemp: async () => "/scratch", writeFile: async (path:string,text:string) => {saved.set(path,text);}, readdir: async () => saved.size?["evidence-handoff-proof"]:[] },
+    contextId: "owned", fs: { mkdtemp: async () => "/scratch", writeFile: async (path:string,text:string) => {saved.set(path,text);}, readdir: async () => saved.has("/.tmp/evidence-handoff-proof/handoff.json")?["evidence-handoff-proof"]:[] },
     status: async () => ({ mainEventId: "unchanged", workingHead: { kind: "event", eventId: "unchanged" } }),
     open: async () => ({ key: "channel" }),
     append: async (_lane: unknown, _context: string, additions: unknown[]) => additions.map(selection => {
@@ -22,7 +22,7 @@ async function prepare(caseId: string) {
     read: async () => ({ channelId: "channel", through: rows.length, rows: structuredClone(rows) }),
     readBytes: async (path:string) => {const text=saved.get(path);if(text===undefined)throw new Error("No scratch artifact was requested");return new TextEncoder().encode(text);},
   } as never);
-  return {...prepared,readArtifact:()=>JSON.parse(saved.values().next().value??"null")};
+  return {...prepared,readArtifact:()=>JSON.parse(saved.get("/.tmp/evidence-handoff-proof/handoff.json")??"null")};
 }
 async function open(caseId: string) {
   const prepared = await prepare(caseId), s = prepared.services;
