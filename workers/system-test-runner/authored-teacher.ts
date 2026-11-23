@@ -154,7 +154,8 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
       teacher = utilityValue;
       try {
         const actualResult = teacher.report;
-        const observations = observeInvocation(teacher, hash => createNatlangRecordsClient(rpc).getValue(hash));
+        const records = createNatlangRecordsClient(rpc);
+        const observations = observeInvocation(teacher, hash => records.getValue(hash));
         verification = await prepared.verify(actualResult, observations);
         verification = {
           ...assessSemanticOutcome(verification, ${JSON.stringify(options.outcomeContract)}),
