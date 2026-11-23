@@ -17,7 +17,7 @@ type Basis = { documents: Document[]; authorization: string; currentRevision: st
 type Decision = { action: string; path: string | null; approval: string | null; reason: string };
 type Write = { status: "written" | "changed" | "held"; path: string | null; version: string | null };
 type Attribution = { kind: "attribution"; origin: "external-import"; references: string[]; supportedIntent: string | null; boundary: string };
-type GoogleReport = { calendar: CalendarReport; decision: Decision; attribution: Attribution; write: Write | null };
+type GoogleReport = {decision:Decision;attribution:Attribution;write:Write|null};
 type Desk = { id: string; revision: string; title: string; topic: string; format: string; facts: string; grant: string };
 type EditorPlan = { action: string; format: string; revision: string; reason: string };
 type Receipt = { path: string; bytes: number; sha256: string };
@@ -132,7 +132,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     const report = reportOf<GoogleReport>(raw);
     const current = await basis();
     const workspace = await ports.status({ contextId: input.contextId });
-    const calendarReport = report?.calendar;
+    const calendarReport = await calendar.observedEvidence();
     const decision = report?.decision;
     const calendarProof = calendarReport && await calendar.verify(calendarReport);
     const targetNow = current.documents.find(doc => doc.path === target)!;
@@ -166,7 +166,10 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
       if (write.status === "changed") write = await apply(await services.googleRunbook.read());
       await services.googleRunbook.read();
     }
-    return verify({ calendar: scheduled, decision, attribution: mapping(scheduled, original), write });
+    const result={decision,attribution:mapping(scheduled,original),write};
+    const proof=await verify(result);
+    const rejectedInventedWrite=!(await verify({...result,write:{status:"written",path:"invented",version:"invented"}})).passed;
+    return {...proof,passed:proof.passed&&rejectedInventedWrite,rejectedInventedWrite};
   }
   return { services, verify, qualify };
 }
