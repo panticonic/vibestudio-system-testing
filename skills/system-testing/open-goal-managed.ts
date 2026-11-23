@@ -123,7 +123,6 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       return { url: page.url, digest: page.digest, text: read.text, exact: read.exact };
     }));
     const date = new Date(snapshotTime).toISOString().slice(0, 10);
-    const answer = normalize(result?.research?.statements?.map(({ text }) => text).join(" ") ?? "");
     const citationSources = citations.flatMap(({ url, quote, retrieved }) => {
       const source = fetched.find(page => page.url === url && cache.some(readback =>
         readback.url === url && readback.digest === page.digest && readback.exact && normalize(readback.text).includes(normalize(quote))));
@@ -146,9 +145,9 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
         cache.some((page) => page.url === url && normalize(page.text).includes(normalize(quote)))),
 
     };
-    const semanticReviewInput = {kind:"public-claims",actual:{goal,answer,
+    const semanticReviewInput = {kind:"public-claims",actual:{goal,answer:JSON.stringify(result?.research??null),
       citations:citations.map(({url,quote})=>({url,quote})),sourceScope:null,
-      sources:cache.map(source=>({url:source.url,title:fetched.find(item=>item.url===source.url)?.page.title??"",sha256:source.digest,text:source.text}))}};
+      sources:cache.map(source=>({url:source.url,title:fetched.find(item=>item.url===source.url)?.page.title??"",retrieved:date,sha256:source.digest,text:source.text}))}};
     return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks,
       semanticReviewRequired:true,semanticReviewInput };
   }

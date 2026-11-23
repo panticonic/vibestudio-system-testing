@@ -68,8 +68,10 @@ function world({
         rationale: "These tasks request bookmark and panel changes or preservation. The final native library and panel readbacks independently establish those effects.",
       },
       returnedValue: {
-        checks: ["reportedArtifactEvidence"], required: false,
-        rationale: "The authored goals request persistent workspace effects. The incidental held flags in the returned receipt are not a requested user answer.",
+        checks: ["reportedArtifactEvidence"], required: libraryHeld || collectionHeld,
+        rationale: libraryHeld || collectionHeld
+          ? "This authored goal requires a grounded hold decision when the owned evidence cannot identify a unique authorized change; independently checked native effects alone cannot supply that requested answer."
+          : "The authored goal requests persistent workspace effects, established by independent final native readbacks.",
       },
     },
     kind: "personal-artifacts",

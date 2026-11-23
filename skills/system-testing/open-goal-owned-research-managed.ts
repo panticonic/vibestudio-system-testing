@@ -161,9 +161,9 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       passed: Object.values(checks).every(Boolean), origin: endpoint.origin, searches, attempted, reads,
       fetched: [...pages.values()], fetchReceipts, cacheReceipts, readback, document,
       semanticReviewRequired:true,semanticReviewInput:{kind:"public-claims",actual:{goal:world!.goal,
-        answer:statements.map(statement=>statement.text).join("\n"),citations:cites.map(({url,quote})=>({url,quote})),
+        answer:JSON.stringify(research??null),citations:cites.map(({url,quote})=>({url,quote})),
         sourceScope:[...entries.keys()],sources:readback.map(source=>({url:source.url,
-          title:[...pages.values()].find(page=>page.url===source.url)?.title??"",sha256:source.digest,text:source.text}))}} };
+          title:[...pages.values()].find(page=>page.url===source.url)?.title??"",retrieved:date,sha256:source.digest,text:source.text}))}} };
   }
 
   async function qualify() {

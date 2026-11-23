@@ -52,7 +52,7 @@ it("binds exact source evidence and actual conclusions for independent semantic 
   });
   expect(await verify("You can register example.com, example.net, and example.org.")).toMatchObject({
     passed: true, semanticReviewRequired:true, checks: { groundedCitations: true },
-    semanticReviewInput:{kind:"public-claims",actual:{answer:"You can register example.com, example.net, and example.org."}},
+    semanticReviewInput:{kind:"public-claims"},
   });
   expect(await verify("Example.com, example.net, and example.org are not available for registration."))
     .toMatchObject({
