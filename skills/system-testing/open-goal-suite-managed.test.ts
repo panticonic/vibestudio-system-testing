@@ -1,3 +1,4 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import { beforeEach, expect, it, vi } from "vitest";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
@@ -66,7 +67,10 @@ it("retains a genuine no-match receipt and rejects an invented success", async (
     plan: proof.plan, decision: { route: { runtime: "native", nativeApproval: true }, next: "run-assignment" },
     execution: proof.execution, result: { outcome: "verified" },
   } });
-  expect(forged.checks.checkedSuiteReceipt).toBe(false);
+  expect(forged.checks.checkedSuiteReceipt).toBe(true);
+  expect(forged.checks.returnedSuiteReview).toBe(false);
+  expect(assessSemanticOutcome(forged).passed).toBe(false);
+  expect(forged.incorrectReturnValues).toHaveLength(1);
 });
 
 it("keeps the oracle's filter private while enforcing the workspace's execution grant", async () => {

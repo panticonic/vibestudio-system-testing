@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { PanelCdpSessionReceipt, PanelHandle } from "@workspace/runtime";
@@ -103,7 +104,7 @@ export function prepareBrowserGoal(panel: PanelHandle, input: GoalInput, world: 
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Report | null;
     const after = await observe();
     const before = inspections[0];
@@ -138,7 +139,12 @@ export function prepareBrowserGoal(panel: PanelHandle, input: GoalInput, world: 
       reportedVisibleRows: report?.status === (expectedChanges.length ? "changed" : "observed") &&
         report.revision === after.view.revision && isDeepStrictEqual(returned, selected),
     };
-    return { passed: Object.values(checks).every(Boolean), ...input, goal, panelId: panel.id,
+    return {
+      outcomeContract:{effects:{checks:["discoveredBrowser", "readBackBrowser", "exactPanelOutcome", "respectedBrowserAuthority"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["reportedVisibleRows"],required:expectedChanges.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.reportedVisibleRows)?[{required:expectedChanges.length===0,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workInBrowser",source:"workInBrowser.nl"},value:value}]:[],
+ passed: Object.values(checks).every(Boolean), ...input, goal, panelId: panel.id,
       inspections, attempts: structuredClone(attempts), after, checks };
   }
   async function qualify() {
@@ -162,7 +168,7 @@ export function prepareBrowserGoal(panel: PanelHandle, input: GoalInput, world: 
     const rejectsControlAlias = await services.goalBrowser.activate(`./${control}`, view.revision) === "unavailable" &&
       (await observe()).view.revision === view.revision;
     const checks = { ...verified.checks, rejectsControlAlias, rejectsWrongReadback: !negative.passed };
-    return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
+    return { ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsControlAlias","rejectsWrongReadback"]}}, checks, passed: Object.values(checks).every(Boolean) };
   }
   return { goal, services, verify, qualify };
 }

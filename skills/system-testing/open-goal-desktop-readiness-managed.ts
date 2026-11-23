@@ -485,7 +485,7 @@ export async function prepareDesktopReadiness(
     };
     return {
       ...proof,
-      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedDesk", "rejectedAdmission", "rejectedWrongReadback"]]}},
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedDesk","rejectedAdmission","rejectedWrongReadback"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

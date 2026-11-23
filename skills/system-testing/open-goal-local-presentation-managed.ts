@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
@@ -285,7 +286,7 @@ export async function prepareOpenLocalPresentation(
     },
   };
 
-  async function verify(report: unknown) {
+  async function verify(report: unknown, invocation?: InvocationObservations) {
     const resolved = report as Outcome | null;
     const outcome = resolved;
     const { target, requirements, holds, notes } = world.expected;
@@ -385,6 +386,11 @@ export async function prepareOpenLocalPresentation(
         isDeepStrictEqual(await checkPanel(), initialPanel),
     };
     return {
+      outcomeContract:{effects:{checks:["discoveredPresentationRecords", "retainedSourceIntegrity", "joinedCurrentPresentationRevision", "independentlyVerifiedPresentationDom", "protectedPresentationHeadUnchanged"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["matchedPresentationDisposition"],required:Boolean(holds),rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:report!==undefined&&!(checks.matchedPresentationDisposition)?[{required:Boolean(holds),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewLocalPresentation",source:"reviewLocalPresentation.nl"},value:report}]:[],
+
       contextId: input.contextId,
       caseId: input.caseId,
       goal: world.goal,
@@ -458,7 +464,7 @@ export async function prepareOpenLocalPresentation(
     const rejectedForeignPresentation =
       rejectedAlias && (!original || rejectedWrongRevision);
     return {
-      ...proof,
+      ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignPresentation"]}},
       passed: proof.passed && rejectedForeignPresentation,
       checks: { ...proof.checks, rejectedForeignPresentation },
     };

@@ -606,7 +606,7 @@ export async function prepareSkillMaintenance(
     const checks = { ...result.checks, rejectedAlias, rejectedWrongReadback };
     return {
       ...result,
-      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,...["rejectedAlias", "rejectedWrongReadback"]]}},
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedWrongReadback"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMissionsClient } from "@vibestudio/service-schemas/clients/missionsClient";
 import { missionRevisionDigest, type MissionRecord, type MissionTrigger } from "@vibestudio/automation/mission";
@@ -246,7 +247,7 @@ export async function prepareOwnedAutomationActivation(
   type Outcome={evidence:Evidence;plan:Plan|null;decision:Choice;
     activation:Awaited<ReturnType<typeof activate>>|null;readback:ReturnType<typeof projection>|null};
 
-  async function verify(raw:unknown) {
+  async function verify(raw: unknown, invocation?: InvocationObservations) {
     const report=raw as Outcome|null;
     const outcome=report;
     const final=await observe();
@@ -259,26 +260,25 @@ export async function prepareOwnedAutomationActivation(
     const runs=nativeId?(await missions.listRuns(nativeId,{limit:5})).items:[];
     const actual=native?projection(native):null;
     const commitWitness=journal.find(row=>row.service==="automationActivationCommit");
-    const exactPlan=expectsPlan ? outcome?.plan?.kind==="launch" && outcome.plan.executor==="eval" &&
-      outcome.plan.conversation==="fresh" && outcome.plan.operations.length===0 && isDeepStrictEqual(outcome.plan.trigger,desired)
-      : outcome?.plan===null;
+    const committed=commitWitness?.result as Awaited<ReturnType<typeof activate>>|undefined;
+    const submittedPlan=commitWitness?.args[1] as Plan|null|undefined;
+    const exactPlan=!commitWitness||!!submittedPlan&&submittedPlan.kind==="launch"&&submittedPlan.executor==="eval"&&submittedPlan.conversation==="fresh"&&submittedPlan.operations.length===0&&isDeepStrictEqual(submittedPlan.trigger,desired);
     const checks={
-      exactRetainedActivationEvidence: !!observed && isDeepStrictEqual(outcome?.evidence,observed) &&
+      exactRetainedActivationEvidence: !!observed &&
         observed.owner===owner && observed.current===stableSha256Hex(JSON.stringify(firstConsent)),
-      exactOwnedActivationPlan: exactPlan===true && outcome?.decision?.basis===expectedBasis &&
-        outcome.decision.action===(launches||profile==="moved"?"activate":"hold") && Boolean(outcome.decision.reason.trim()) &&
-        isDeepStrictEqual(outcome.decision.consent,launches||profile==="moved"?observed?.records[0]:null),
+      exactOwnedActivationPlan: exactPlan===true,
+      returnedActivationDecision: outcome?.decision?.basis===expectedBasis&&outcome.decision.action===(launches||profile==="moved"?"activate":"hold")&&Boolean(outcome.decision.reason?.trim())&&isDeepStrictEqual(outcome?.activation,commitWitness?.result??null),
       currentConsentEnforced: profile==="moved" ? moved && final.current!==observed?.current &&
-        final.records[0]?.state==="withdrawn" && outcome?.activation?.status==="moved" &&
-        outcome.activation.evidenceRevision===final.current && outcome.activation.receipt===null && isDeepStrictEqual(outcome.activation,commitWitness?.result)
-        : final.current===observed?.current && (launches ? outcome?.activation?.status==="activated" &&
-          isDeepStrictEqual(outcome.activation,commitWitness?.result) : outcome?.activation===null && !commitWitness),
+        final.records[0]?.state==="withdrawn" && committed?.status==="moved" &&
+        committed?.evidenceRevision===final.current && committed?.receipt===null && !!commitWitness
+        : final.current===observed?.current && (launches ? committed?.status==="activated" &&
+          !!commitWitness : !commitWitness),
       independentlyReadNativeDefinition: launches ? actual?.owner===owner && !!native && native.revision===1 &&
         native.revisionDigest===missionRevisionDigest(charter,native.authorityPlan.digest) &&
         isDeepStrictEqual(native.charter,charter) && actual.state==="active" &&
-        actual.nextRunAt===(nativeTrigger.kind==="schedule"?futureAnchor:null) && isDeepStrictEqual(outcome?.activation?.receipt,receipt) &&
-        isDeepStrictEqual(capturedRead,actual) && isDeepStrictEqual(outcome?.readback,actual)
-        : outcome?.readback===null && !capturedRead &&
+        actual.nextRunAt===(nativeTrigger.kind==="schedule"?futureAnchor:null) && isDeepStrictEqual(committed?.receipt,receipt) &&
+        isDeepStrictEqual(capturedRead,actual)
+        : !capturedRead &&
           (profile==="already-active"?!!existing&&isDeepStrictEqual(projection(existing),actual):native===null),
       deduplicatedLaunchAndNoDispatch: ownedRows.length===Number(launches||profile==="already-active") &&
         launchCalls===(profile==="retry"?2:launches?1:0) &&
@@ -287,7 +287,12 @@ export async function prepareOwnedAutomationActivation(
       protectedExistingAutomationDefinitions: initialMissionIds.every(existing=>visibleIds.has(existing)) &&
         term?.missionId===initialDefault.missionId && term.revisionDigest===initialDefault.revisionDigest,
     };
-    return {caseId:world.id,contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{effects:{checks:["exactRetainedActivationEvidence", "exactOwnedActivationPlan", "currentConsentEnforced", "independentlyReadNativeDefinition", "deduplicatedLaunchAndNoDispatch", "protectedExistingAutomationDefinitions"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["returnedActivationDecision"],required:!launches,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:raw!==undefined&&!(checks.returnedActivationDecision)?[{required:!launches,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"activateOwnedAutomation",source:"activateOwnedAutomation.nl"},value:raw}]:[],
+caseId:world.id,contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
       evidence:observed,final,actual,receipt,launchCalls,runs,initialMissionIds,ownedRows,journal:structuredClone(journal)};
   }
 
@@ -307,11 +312,11 @@ export async function prepareOwnedAutomationActivation(
         rejectedReceiptAlias=false;
       } catch { /* Exact receipt mismatch. */ }
     }
-    const report={evidence,plan,decision:choice,activation,readback};
+    const report={decision:{action:choice.action,basis:choice.basis,reason:choice.reason},activation};
     const proof=await verify(report);
-    const rejectedChangedClaim=!(await verify({...report,evidence:{...evidence,current:"prior-edition"}})).passed;
+    const rejectedChangedClaim=!(await verify({...report,activation:{...(activation??{}),receipt:{missionId:"different-owned-job"}}})).passed;
     const rejectedApprovalAliases=wrong.status==="held"&&wrong.receipt===null&&rejectedReceiptAlias&&rejectedChangedClaim;
-    return {...proof,passed:proof.passed&&rejectedApprovalAliases,checks:{...proof.checks,rejectedApprovalAliases},report};
+    return {...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedApprovalAliases"]}},passed:proof.passed&&rejectedApprovalAliases,checks:{...proof.checks,rejectedApprovalAliases},report};
   }
   return {services,verify,qualify,close};
 }

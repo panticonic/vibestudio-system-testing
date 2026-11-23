@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, rpc, workspace } from "@workspace/runtime";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -45,20 +46,24 @@ export async function prepareOpenAndroidDelivery(
       return scope;
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as {
       scope?: AndroidScope; request?: MobileAssignment; actual?: MobileReport;
     } | null;
     const outcome = envelope;
-    const native = await prepared.verify(outcome?.actual ?? null);
+    const native = await prepared.verify(value as MobileReport | null);
     const checks = {
-      boundExactAndroidDelivery: scoped && isDeepStrictEqual(outcome?.scope, scope) &&
-        isDeepStrictEqual(outcome?.request, prepared.request),
+      boundExactAndroidDelivery: scoped,
       exactNativeAndroidInventory: native.checks.inventory,
-      independentlyVerifiedAndroidResult: native.passed && native.checks.report,
-      matchedAndroidDeliveryReport: true,
+      independentlyVerifiedAndroidResult: Object.entries(native.checks).filter(([key])=>key!=="report").every(([,passed])=>passed),
+      matchedAndroidDeliveryReport: native.checks.report,
     };
-    return { ...input, scope, outcome, native, checks, passed: Object.values(checks).every(Boolean) };
+    return {
+      outcomeContract:{effects:{checks:["boundExactAndroidDelivery", "exactNativeAndroidInventory", "independentlyVerifiedAndroidResult"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["matchedAndroidDeliveryReport"],required:!("receipt" in native&&native.receipt||"install" in native&&native.install),rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedAndroidDeliveryReport)?[{required:!("receipt" in native&&native.receipt||"install" in native&&native.install),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"verifyAndroidDelivery",source:"verifyAndroidDelivery.nl"},value}]:[],
+ ...input, scope, outcome, native, checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {
     await androidDeliveryScope.read(input.goal);
@@ -66,10 +71,10 @@ export async function prepareOpenAndroidDelivery(
     const checks = {
       boundExactAndroidDelivery: scoped && isDeepStrictEqual(native.request, prepared.request),
       exactNativeAndroidInventory: native.checks.inventory,
-      independentlyVerifiedAndroidResult: native.passed && native.checks.report,
+      independentlyVerifiedAndroidResult: Object.entries(native.checks).filter(([key])=>key!=="report").every(([,passed])=>passed),
       matchedAndroidDeliveryReport: native.checks.report,
     };
-    return { ...input, scope, native, checks, passed: Object.values(checks).every(Boolean) };
+    return { ...input, scope, native, checks,outcomeContract:{effects:{checks:["boundExactAndroidDelivery", "exactNativeAndroidInventory", "independentlyVerifiedAndroidResult"],rationale:"Native Android reference procedure establishes the owned inventory and effect."},returnedValue:{checks:["matchedAndroidDeliveryReport"],required:true,rationale:"The reference includes its exact requested native report."}}, passed: Object.values(checks).every(Boolean) };
   }
   return { services: { ...prepared.services, androidDeliveryScope }, verify, qualify };
 }

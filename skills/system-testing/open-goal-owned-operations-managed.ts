@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { createOwnedOperations, verifyOwnedOperations } from "@workspace/natlang-services";
@@ -126,7 +127,7 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
     },
   };
 
-  async function verify(value: unknown): Promise<OpenGoalDomainVerification & {
+  async function verify(value: unknown, invocation?: InvocationObservations): Promise<OpenGoalDomainVerification & {
     docket: Docket; effects: Effects; audit: ReturnType<typeof owned.audit>; outcome: Outcome | null; artifact: Receipt | null;
   }> {
     const report = value as Outcome | null;
@@ -140,8 +141,8 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
     const independentBytes = staged ? text.decode(await readWorkspaceBytes(rpc, staged.result.path, MAX_DOCKET_BYTES)) : null;
     const checks = {
       exactCurrentOwnedDocket: list.length > 0 && list.every(rows => isDeepStrictEqual(rows, [retiredReread.docket, reread.docket])) &&
-        reads.some(observed => isDeepStrictEqual(observed, reread)) && isDeepStrictEqual(outcome?.docket, current),
-      exactBoundRoleDisposition: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0 &&
+        reads.some(observed => isDeepStrictEqual(observed, reread)),
+      exactBoundRoleDisposition: isDeepStrictEqual(outcome?.dossier,staged?.result??null)&&typeof outcome?.reason === "string" && outcome.reason.trim().length > 0 &&
         (held ? outcome.disposition === "held" && outcome.operation === null :
           outcome.disposition === "reviewed" && !!outcome.operation && verifyOwnedOperations(audit, world.expected, outcome.operation).passed),
       preservedAuthorization: held
@@ -149,12 +150,17 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
         : audit.programRequestedCleanup && audit.remainingContextIds.length === 0 && audit.remainingEntityIds.length === 0,
       actualPrivateDossierReadback: expectedDossier
         ? dossiers.length === 1 && !!staged && independentBytes === staged.record &&
-          sha256HexSyncText(independentBytes) === staged.result.digest && isDeepStrictEqual(outcome?.dossier, staged.result)
-        : dossiers.length === 0 && !(await fs.exists(`${directory}/private-readiness.json`)) && outcome?.dossier === null,
+          sha256HexSyncText(independentBytes) === staged.result.digest
+        : dossiers.length === 0 && !(await fs.exists(`${directory}/private-readiness.json`)),
       preservedWorkspaceHead: isDeepStrictEqual(initialHead, (await vcs.status({ contextId })).workingHead) &&
         isDeepStrictEqual(retiredReread.docket, retired) && isDeepStrictEqual(reread.request, world.request),
     };
     return {
+      outcomeContract:{effects:{checks:["exactCurrentOwnedDocket", "preservedAuthorization", "actualPrivateDossierReadback", "preservedWorkspaceHead"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["exactBoundRoleDisposition"],required:!expectedDossier,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.exactBoundRoleDisposition)?[{required:!expectedDossier,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"coordinateOwnedOperations",source:"coordinateOwnedOperations.nl"},value}]:[],
+
       contextId: input.contextId, caseId: input.caseId, goal: input.goal,
       passed: Object.values(checks).every(Boolean), checks, docket: current, effects: { list, reads, dossiers },
       audit, outcome, artifact: staged?.result ?? null,
@@ -211,7 +217,7 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
     };
     const result = await verify(outcome);
     return {
-      ...result, passed: result.passed && deniedRetiredEdition,
+      ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"deniedRetiredEdition"]}}, passed: result.passed && deniedRetiredEdition,
       checks: { ...result.checks, deniedRetiredEdition },
     };
   }

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import type { WorkspaceRuntime } from "@workspace/runtime/hosted";
 import type { RuntimeEntityHandle } from "@vibestudio/shared/runtime/entitySpec";
@@ -254,7 +255,7 @@ export async function prepareOpenLocalDelivery(
   function requiredEvidence() {
     return world.expected.evidence.map(key => observations.get(laneByKey(key).room.id)?.prior);
   }
-  async function verify(value: unknown, negatives?: { foreign: boolean; wrongAttempt: boolean }) {
+  async function verify(value: unknown, invocation?: InvocationObservations, negatives?: { foreign: boolean; wrongAttempt: boolean }) {
     const envelope = value as Result | null;
     const outcome = envelope;
     const sent = state.sent;
@@ -272,7 +273,7 @@ export async function prepareOpenLocalDelivery(
       const expectedRecipientIds = expectedRecipient ? lane.probes.filter(probe => probe.ref === expectedRecipient).map(probe => probe.participantId) : [];
       const report = lane.history
         ? { status: "delivered", messageId: lane.history.receipt.messageId, content: lane.history.content }
-        : followUp ? { status: "delivered", messageId: outcome?.delivery?.readback?.messageId, content: outcome?.delivery?.readback?.content }
+        : followUp ? { status: "delivered", messageId: sent?.readback?.messageId, content: sent?.readback?.content }
         : { status: "held", clarification: "This lane remained without another accepted message.", messageId: null };
       return verifyOutcome({ expectedStatus: expectedRecipient ? "delivered" : "held", expectedRecipientIds,
         ownedChannelIds, ownedProbeIds, requiredFacts: lane.spec.prior ? [lane.spec.prior.content] : followUp?.facts ?? [],
@@ -297,16 +298,20 @@ export async function prepareOpenLocalDelivery(
         return current.length === expected.size && new Set(current.map(entry => entry.participantId)).size === expected.size &&
           current.every(({ participantId, handle, kind }) => isDeepStrictEqual({ handle, kind }, expected.get(participantId)));
       }),
-      verifiedOriginalLocalReceipts: Array.isArray(outcome?.evidence) && wanted.length === world.expected.evidence.length &&
-        wanted.every(item => item.acknowledged) && isDeepStrictEqual(sorted(outcome.evidence), sorted(wanted)),
-      matchedLocalDeliveryDecision: outcome?.status === world.expected.status && Boolean(reason && (world.expected.mentions ?? []).every(group => group.some(term => reason.includes(term)))),
+      verifiedOriginalLocalReceipts: wanted.length === world.expected.evidence.length &&
+        wanted.every(item => item.acknowledged),
+      matchedLocalDeliveryDecision: isDeepStrictEqual(outcome?.delivery,sent?{attempt:sent.attempt,readback:sent.readback}:null)&&outcome?.status === world.expected.status && Boolean(reason && (world.expected.mentions ?? []).every(group => group.some(term => reason.includes(term)))),
       exactLocalRecipientAndReadback: world.expected.send ? Boolean(sent?.didRead && sent.readback?.acknowledged &&
         sent.lane.spec.key === world.expected.send.room && sent.to === ref(world.expected.send.recipient) &&
-        isDeepStrictEqual(outcome?.delivery, { attempt: sent.attempt, readback: sent.readback }) &&
-        sent.attempt.response === (sent.lane.spec.lostAcknowledgement ? "interrupted" : "submitted")) : sent === null && outcome?.delivery === null,
+        sent.attempt.response === (sent.lane.spec.lostAcknowledgement ? "interrupted" : "submitted")) : sent === null,
       ...(negatives ? { rejectedForeignLocalRoom: negatives.foreign, rejectedForeignLocalAttempt: negatives.wrongAttempt } : {}),
     };
     return {
+      outcomeContract:{effects:{checks:[...["discoveredOwnedDeliveryRooms", "exactObservedDeliveryScope", "independentlyJoinedLocalDelivery", "preservedOwnedLocalRosters", "verifiedOriginalLocalReceipts", "exactLocalRecipientAndReadback"],...(negatives?["rejectedForeignLocalRoom", "rejectedForeignLocalAttempt"]:[])],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["matchedLocalDeliveryDecision"],required:!world.expected.send,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedLocalDeliveryDecision)?[{required:!world.expected.send,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workTowardLocalDelivery",source:"workTowardLocalDelivery.nl"},value:value}]:[],
+
       contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       catalog, observations: [...observations.values()], attempt: sent?.attempt ?? null, readback: sent?.readback ?? null,
       nativeProofs, boundaries, rosterReadbacks,
@@ -335,8 +340,8 @@ export async function prepareOpenLocalDelivery(
       }
       const reason = (world.expected.mentions ?? []).map(([term]) => term).join("; ") || "Exact local delivery result verified";
       return verify({
-        status: world.expected.status, delivery, reason, evidence: requiredEvidence(),
-      }, { foreign, wrongAttempt });
+        status: world.expected.status, delivery, reason,
+      }, undefined, { foreign, wrongAttempt });
     },
   };
 }

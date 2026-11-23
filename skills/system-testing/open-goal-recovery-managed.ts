@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
@@ -208,7 +209,7 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
     });
   }
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as RecoveryReport | null;
     const report = envelope;
     const citations = expectedCitations();
@@ -237,7 +238,6 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
     }));
     const reason = report?.review?.reason;
     const hasArtifact = Boolean(artifact && handoffText && stagedReview &&
-      isDeepStrictEqual(stagedReview, report?.review) &&
       handoffText === formatHandoff(stagedReview) && await fs.readFile(artifact.path, "utf8") === handoffText &&
       artifact.sha256 === sha256HexSyncText(handoffText));
     const checks = {
@@ -246,13 +246,17 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
         world.expected.reads.map(({ key, status }) => [session(key).source.id, status])),
       boundNativeReplay: replays.every(Boolean),
       preservedRetainedChannels: channelReads.every(({ matched }) => matched),
-      groundedRecoveryDecision: report?.review?.disposition === world.expected.disposition && isDeepStrictEqual(report.review.citations, citations) &&
+      groundedRecoveryDecision: isDeepStrictEqual(report?.handoff,artifact)&&report?.review?.disposition === world.expected.disposition && isDeepStrictEqual(report.review.citations, citations) &&
         typeof reason === "string" && !!reason.trim() &&
         (world.expected.reason ?? []).every((term) => reason.toLowerCase().includes(term.toLowerCase())),
-      verifiedRecoveryHandoff: isDeepStrictEqual(report?.handoff, artifact) &&
-        (world.expected.stage ? hasArtifact : artifact === null),
+      verifiedRecoveryHandoff: world.expected.stage ? hasArtifact : artifact === null,
     };
-    return { contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{effects:{checks:["discoveredRetainedSources", "exactReplayScope", "boundNativeReplay", "preservedRetainedChannels", "verifiedRecoveryHandoff"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["groundedRecoveryDecision"],required:!world.expected.stage,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.groundedRecoveryDecision)?[{required:!world.expected.stage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverSessionGoal",source:"recoverSessionGoal.nl"},value:value}]:[],
+ contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       catalog, observed: [...observed.values()], durable: channelReads, artifact, handoffText };
   }
 

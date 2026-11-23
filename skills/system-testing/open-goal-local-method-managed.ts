@@ -522,7 +522,7 @@ export async function prepareOpenLocalMethod(
       const rejectedAlteredEvidence = denied === 2 && rejected;
       return {
         ...verification,
-      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},
         passed: verification.passed && rejectedAlteredEvidence,
         checks: { ...verification.checks, rejectedAlteredEvidence },
         referenceReport: report,

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { Buffer } from "node:buffer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -214,7 +215,7 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
       },
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; evidence?: unknown; pick?: unknown; recovery?: unknown;
     } | null;
@@ -238,20 +239,24 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
       (expectedStatus === "unadmitted" ? evidence.failureCode === "invalid_tool_arguments" :
         native?.success === false && (expectedStatus !== "timed-out" || evidence.failureCode === "eval_deadline_exceeded"));
     const checks = {
-      matchedSameTurnAssignment: isDeepStrictEqual(outcome?.assignment, assignment) && evidence?.scopeId === scopeId,
-      verifiedExactNativeAttempt: !!evidence && isDeepStrictEqual(outcome?.evidence, evidence) &&
+      matchedSameTurnAssignment: evidence?.scopeId === scopeId,
+      verifiedExactNativeAttempt: !!evidence &&
         isDeepStrictEqual(admittedAttempt, currentReceipt) && evidence.status === expectedStatus && failureVisible,
       verifiedRetainedCheckpointAndWindow: !!evidence && isDeepStrictEqual(evidence.checkpoint, candidate(checkpoint)) &&
         isDeepStrictEqual(evidence.window, expectedWindow) && isDeepStrictEqual(evidence.compact, world.mode === "compact" ? candidate(initial) : null) &&
         evidence.returnKind === (expectedWindow ? "window" : world.mode === "compact" ? "compact" : "none"),
-      matchedAuthorizedSameTurnRecovery: isDeepStrictEqual(outcome?.pick, pick),
-      verifiedUsefulResultAndBoundedRetry: isDeepStrictEqual(outcome?.recovery, expectedRecovery) &&
-        isDeepStrictEqual(delivery, expectedRecovery) && isDeepStrictEqual(recovery, actualRecovery) &&
+      matchedAuthorizedSameTurnRecovery: isDeepStrictEqual(outcome?.pick,pick)&&isDeepStrictEqual(outcome?.recovery,expectedRecovery),
+      verifiedUsefulResultAndBoundedRetry: isDeepStrictEqual(delivery, expectedRecovery) && isDeepStrictEqual(recovery, actualRecovery) &&
         (pick.decision === "narrow" ? !!actualRecovery && candidate(outputPacket(actualRecovery.result))?.digest === hash(wanted) : !actualRecovery),
       preservedExactOwnedScope: !!diagnosticStable && actualSource?.data === JSON.stringify(initial) &&
         (checkpoint ? actualCheckpoint?.data === JSON.stringify(checkpoint) : actualCheckpoint === null),
     };
-    return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
+    return {
+      outcomeContract:{effects:{checks:["matchedSameTurnAssignment", "verifiedExactNativeAttempt", "verifiedRetainedCheckpointAndWindow", "verifiedUsefulResultAndBoundedRetry", "preservedExactOwnedScope"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["matchedAuthorizedSameTurnRecovery"],required:pick.decision==="held",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedAuthorizedSameTurnRecovery)?[{required:pick.decision==="held",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverSameTurnEval",source:"recoverSameTurnEval.nl"},value}]:[],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, evidence, pick, recovery: expectedRecovery, effects: structuredClone(effects) };
   }
   async function qualify() {
@@ -264,13 +269,11 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
     const rejectedUnneededRetry = pick.decision === "narrow" ||
       await rejects(service.sameTurnEvalRecovery.resolve(assigned.id, evidence.runId, "narrow"));
     const recovery = pick.decision === "held" ? null : await service.sameTurnEvalRecovery.resolve(assigned.id, evidence.runId, pick.decision);
-    const report = { assignment: assigned, evidence, pick, recovery };
+    const report = { pick, recovery };
     const verified = await verify(report);
-    const rejectedWrongRevision = !(await verify({ ...report, assignment: {
-      ...assigned, revision: "different-revision",
-    } })).passed;
+    const rejectedWrongRevision = !(await verify({ ...report, recovery: {...(recovery??{}),scopeId:"other-scope"} })).passed;
     const checks = { ...verified.checks, rejectedWrongScope, rejectedWrongAttempt, rejectedUnneededRetry, rejectedWrongRevision };
-    return { ...verified, passed: Object.values(checks).every(Boolean), checks, report };
+    return { ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectedWrongScope","rejectedWrongAttempt","rejectedUnneededRetry","rejectedWrongRevision"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }
   async function close() {
     if (!scopeOpened || closed) return;

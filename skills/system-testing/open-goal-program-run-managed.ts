@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import type { ProgramDescription } from "@workspace/natlang/describe-types";
@@ -291,27 +292,31 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
     const signedValid = world.expected.signed
       ? !!envelope && typeof text === "string" && !!signed && signed.receiptId === lastSeen?.id && signed.sha256 === sha256HexSyncText(text) &&
         envelope.payload.schema === "vibestudio.signed-program-output/1" && isDeepStrictEqual(envelope.payload.attempt, recorded.at(-1)) &&
-        await verifySignature(envelope) && isDeepStrictEqual(result?.signed, signed)
-      : text === null && signed === null && (result?.signed ?? null) === null;
+        await verifySignature(envelope)
+      : text === null && signed === null;
     const tampered = envelope ? { ...envelope, payload: { ...envelope.payload, attempt: { ...envelope.payload.attempt, output: "altered" } } } : null;
     return {
       discoveredRuntimePrograms: sources.every(Boolean),
       inspectedCurrentCallable: (world.expected.inspected ? inspections.length > 0 : inspections.length === 0) && inspections.every(item => item.programId === wanted) &&
         (latest?.evidence.compiler !== "passed" || latest.callable === "check"),
       ranAuthorizedSamples: nativeCheck,
-      verifiedNativeOutputReceipts: wanted ? Boolean(result && lastEvidence && result.programId === wanted && result.review.kind === "program" &&
-        result.review.next === world.expected.next && nextStep(lastEvidence) === world.expected.next &&
-        result.review.basis === (lastEvidence.execution?.id ?? lastEvidence.path) && isDeepStrictEqual(result.receipts, observations)) :
+      verifiedNativeOutputReceipts: wanted ? Boolean(result && lastEvidence && result.programId === wanted && nextStep(lastEvidence) === world.expected.next &&
+        isDeepStrictEqual(result.receipts, observations)&&isDeepStrictEqual(result.signed,signed)) :
         outcome?.status === "unresolved" && outcome.reason === "program-unavailable" && observations.length === 0,
       preservedRuntimeSource: sources.every(Boolean) && edited === Boolean(world.edit) && post.mainEventId === before.mainEventId && isDeepStrictEqual(post.workingHead, before.workingHead),
       verifiedSignedOutput: signedValid,
       rejectedForeignRuntimeEvidence: negative && (!tampered || !await verifySignature(tampered)),
     };
   }
-  async function proof(outcome: ProgramRunReport | null, negative: boolean) {
+  async function proof(outcome: ProgramRunReport | null, negative: boolean, invocation?: InvocationObservations) {
     const checks = await verifyOutcome(outcome, negative);
     const signedText = await fs.exists(outputPath) ? await fs.readFile(outputPath, "utf8") : null;
-    return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{effects:{checks:["discoveredRuntimePrograms", "inspectedCurrentCallable", "ranAuthorizedSamples", "preservedRuntimeSource", "verifiedSignedOutput", "rejectedForeignRuntimeEvidence"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["verifiedNativeOutputReceipts"],required:!world.expected.signed,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+      incorrectReturnValues:outcome!==undefined&&!(checks.verifiedNativeOutputReceipts)?[{required:!world.expected.signed,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnProgramRunGoal",source:"workOnProgramRunGoal.nl"},value:outcome}]:[],
+ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       inspections: structuredClone(inspections), attempts: structuredClone([...attempts.values()]),
       observations: structuredClone(observations), signed: structuredClone(signed), signedText };
   }
@@ -319,10 +324,10 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
     const id = `foreign-${crypto.randomUUID()}`;
     return await services.programExecution.read(id) === null && await services.programReceiptSigner.stage(id) === null;
   }
-  async function verify(report: unknown) {
+  async function verify(report: unknown, invocation?: InvocationObservations) {
     const review = report as ProgramRunReport | null;
     const outcome = review ?? null;
-    return proof(outcome, await rejectForeignEvidence());
+    return proof(outcome, await rejectForeignEvidence(),invocation);
   }
   async function qualify() {
     await services.programRunCatalog.list();
@@ -353,7 +358,7 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
       evidence = refreshed.evidence;
     }
     const artifact = world.expected.signed ? await services.programReceiptSigner.stage(observations.at(-1)!.id) : null;
-    return proof({ status: "reviewed", programId: projectId, review: { kind: "program", next: nextStep(evidence), basis: evidence.execution?.id ?? evidence.path },
+    return proof({ status: "reviewed", programId: projectId,
       receipts: structuredClone(observations), signed: artifact }, rejectedOld && await rejectForeignEvidence());
   }
   return { services, verify, qualify };
