@@ -30,7 +30,21 @@ export function observeInvocation(
 ): InvocationObservations {
   if (capture.captureErrors.length || capture.rootCallIds.length !== 1 || !capture.calls.length)
     throw new Error("Cannot inspect an incomplete invocation capture");
-  const byId = new Map(capture.calls.map(call => [call.callId, structuredClone(call)]));
+  // Captures also carry full prompts, replies and events. Keep only references
+  // needed for verification instead of cloning that large retained payload.
+  const byId = new Map(capture.calls.map(call => {
+    if (!call.record) throw new Error("Missing invocation record");
+    return [call.callId, {
+      callId: call.callId,
+      summary: { run_id: call.summary.run_id, owner_key: call.summary.owner_key, owner_kind: call.summary.owner_kind },
+      record: {
+        call_id: call.record.call_id, parent_call_id: call.record.parent_call_id,
+        definition: { name: call.record.definition.name, source: call.record.definition.source },
+        outcome: call.record.outcome,
+        output: call.record.output ? { complete: call.record.output.complete, hash: call.record.output.hash } : null,
+      },
+    }] as const;
+  }));
   const owner = capture.calls[0].summary;
   if (byId.size !== capture.calls.length) throw new Error("Duplicate invocation record");
   for (const call of byId.values()) {

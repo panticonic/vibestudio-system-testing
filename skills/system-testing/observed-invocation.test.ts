@@ -24,6 +24,14 @@ it("reads complete content-addressed outputs lazily without prescribing helper c
   (returned[0].value as { nested: number[] }).nested.push(3);
   expect((await observations.returns())[0].value).toEqual(JSON.parse(text));
 });
+it("does not copy retained prompts, replies or events while inspecting return references", async () => {
+  const value = capture();
+  Object.defineProperty(value.calls[0].record, "model_turns", {
+    enumerable: true, get() { throw new Error("Unnecessary full teacher payload read"); },
+  });
+  const observations = observeInvocation(value, async () => text);
+  expect((await observations.returns())[0].value).toEqual(JSON.parse(text));
+});
 it("rejects missing or corrupt full values instead of using a preview", async () => {
   for (const value of [null, "{}"])
     await expect(observeInvocation(capture(), async () => value).returns()).rejects.toThrow(/Missing or corrupt/);
