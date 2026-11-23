@@ -35,9 +35,9 @@ it("rejects an incomplete News edition while retaining the native workspace chec
     const result = await prepared.verify(outcome);
     expect(result.checks).toMatchObject({
       current_news_edition: false,
-      exact_basis_attribution: false,
       preserved_workspace: true,
     });
+    expect(result.outcomeDimensions.incidentalValues?.checks.exact_basis_attribution).toBe(false);
     expect(result.passed).toBe(false);
   }
   expect(verify).toHaveBeenCalledTimes(2);
@@ -53,9 +53,9 @@ it("rejects an incomplete runbook report without reading missing decision or Cal
   expect(result.checks).toMatchObject({
     current_calendar: false,
     runbook_authority: false,
-    exact_basis_attribution: false,
     preserved_workspace: true,
   });
+  expect(result.outcomeDimensions.incidentalValues?.checks.exact_basis_attribution).toBe(false);
   expect(result.passed).toBe(false);
   expect(verify).not.toHaveBeenCalled();
 });
