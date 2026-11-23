@@ -65,6 +65,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
   const lane=await ports.open(owner,brief.title);
   const nearbyBriefs=world.seeds.some(seed=>seed.otherBrief)?
     [{...brief,id:"another-market-brief",project:"County market preview"}]:[];
+  let discovered=false;
   const index:ImageIndex={channelId:lane.key,owner,briefs:[...nearbyBriefs,brief]};
   const ids=new Map(world.seeds.map((seed,i)=>[seed.label,`candidate-${i+1}-${crypto.randomUUID()}`]));
   const version=(label:string)=>ids.get(label)??"unknown";
@@ -169,7 +170,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     providerEvidence:"retained-fixture",explanation:report.decision.explanation,
   },null,2);
   const services={
-    imageCandidateBriefs:{async list(){return structuredClone(index);}},
+    imageCandidateBriefs:{async list(){discovered=true;return structuredClone(index);}},
     imageCandidateJournal:{async read(channelId:string){
       if(channelId!==lane.key)return null;
       return serializeByKey(journalReads, channelId, async () => {
@@ -233,7 +234,8 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
       world.expected.evidence.every(term=>text.toLowerCase().includes(term.toLowerCase()));
   }
   async function verify(raw:unknown) {
-    const report=raw as ImageReport|null;
+    const returned=raw as {candidates?:ImageAssessment["candidates"];originals?:ImageReport["reads"];decision?:ImageReport["decision"];handoff?:ImageReport["handoff"]}|null;
+    const report={plan:exactPlan(),assessment:{queue:reads.map(read=>read.candidateId),candidates:returned?.candidates},reads:returned?.originals,decision:returned?.decision,handoff:returned?.handoff} as ImageReport;
     const outcome=report;
     const latest=await ports.read(lane);
     const goalPlan=exactPlan();
@@ -254,7 +256,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
       exactImageFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],project(initial))&&
         isDeepStrictEqual(snapshots[1],project(latest))&&seeded.size===latest.rows.length&&
         latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))&&new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
-      exactImageBrief:isDeepStrictEqual(outcome?.plan,goalPlan),
+      exactImageBrief:discovered&&snapshots.length===2,
       groundedImageAssessment:isDeepStrictEqual(outcome?.assessment?.queue,queue)&&
         Array.isArray(assessed)&&assessed.length===idsInScope.size&&new Set(assessed.map(value=>value.id)).size===assessed.length&&
         assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&
@@ -294,7 +296,10 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
       decision:{action:world.expected.action,candidateId:world.expected.label?version(world.expected.label):null,
         explanation:world.expected.evidence.join(" / ")},handoff:null};
     if(outcome.decision.action==="stage")outcome.handoff=await services.imageCandidateHandoff.stage(outcome);
-    return verify(outcome);
+    const result={candidates:outcome.assessment.candidates,originals:outcome.reads,decision:outcome.decision,handoff:outcome.handoff};
+    const proof=await verify(result);
+    const rejectedInventedOriginal=!(await verify({...result,originals:[{candidateId:"invented",status:"verified",original:null}]})).passed;
+    return {...proof,passed:proof.passed&&rejectedInventedOriginal,rejectedInventedOriginal};
   }
   return {services,verify,qualify};
 }

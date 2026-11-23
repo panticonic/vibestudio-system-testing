@@ -122,6 +122,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
   let busy=false;
   let savedRead:PacketDocument|null=null;
   let receipt:PacketReceipt|null=null;
+  let stagedReport:PacketReport|null=null;
   const attempts:{proposal:PacketDocument;result:PacketWrite}[]=[];
   const sources:PacketSource[]=[];
   let active:{binding:Binding;data:Uint8Array;digest:string;selected:PacketSource} | null=null;
@@ -306,6 +307,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
         if(new TextEncoder().encode(text).length>byteLimit)return null;
         const result=await writer.stage(text);
         if(!result)return null;
+        stagedReport=structuredClone(report);
         receipt={path:result.path,digest:sha256HexSyncText(text),candidateVersion:latest.version,missionRevision:report.current.mission.revision};
         return structuredClone(receipt);
       } finally {busy=false;}
@@ -313,7 +315,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
   };
 
   async function verify(raw:unknown) {
-    const wrapper=raw as PacketReport|null;
+    const wrapper=raw as {document?:{path:string;version:string};decision?:PacketDecision;note?:PacketReceipt|null}|null;
     const report=wrapper;
     const view=await status();
     const stored=(await file(view.workingHead,candidatePath)).doc;
@@ -342,7 +344,6 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       world.race?coedited():initial;
     const proposedText=world.operation==="review"||world.topology==="no-approval"||world.topology==="missing-page"||world.topology==="partial-evidence"?
       null:corrected(initial);
-    const revised=world.race==="unrelated-edit"?corrected(initial)+otherAddition:world.race==="already-done"?corrected(initial):null;
     const writtenAttempts=attempts.filter(item=>item.result.status==="written");
     const v=report?.decision;
     const files=(await listOwnedScratchEntries(ports.fs)).filter(path=>path.startsWith("evidence-handoff-")&&!originalFiles.has(path));
@@ -350,22 +351,19 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const foreign=crypto.randomUUID();
     const checks={
       exactOwnedEditorialMission:
-        isDeepStrictEqual(report?.plan,plan)&&isDeepStrictEqual(snapshots.at(-1)?.mission,await currentMission()),
+        !!listed&&isDeepStrictEqual(snapshots.at(-1)?.mission,await currentMission()),
       exactEditorialFrontiers:snapshots.length===(world.race?2:1)&&isDeepStrictEqual(snapshots[0]?.candidate,firstDoc)&&
-        isDeepStrictEqual(report?.opening,snapshots[0])&&isDeepStrictEqual(report?.current,snapshots.at(-1))&&
         (!world.race||snapshots[1]?.candidate.text===coedited()),
-      exactApprovedPdfEvidence:proofSources.length===snapshots.length&&proofSources.every(Boolean)&&isDeepStrictEqual(report?.sources,sources),
-      minimalEditorialProposal:proposedText===null?report?.edit?.proposed===null:report?.edit?.proposed?.text===proposedText&&
-        report.edit.proposed.path===candidatePath&&report.edit.proposed.version===firstDoc.version,
-      preservedCoeditorBoundary:raceObserved===Boolean(world.race)&&report?.edit?.revised===revised&&
+      exactApprovedPdfEvidence:proofSources.length===snapshots.length&&proofSources.every(Boolean),
+      minimalEditorialProposal:proposedText===null?attempts.length===0:proposedText===firstDoc.text||attempts.some(item=>item.proposal.text===proposedText&&item.proposal.path===candidatePath&&item.proposal.version===firstDoc.version),
+      preservedCoeditorBoundary:raceObserved===Boolean(world.race)&&
         (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate.version):writtenAttempts.length===0),
-      verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead)&&isDeepStrictEqual(stored,report?.edit?.stored)&&
-        isDeepStrictEqual(report.edit.attempts,attempts.map(item=>item.result)),
+      verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead)&&report?.document?.path===stored.path&&report.document.version===stored.version,
       groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&
         v.explanation.length<=650&&world.terms.every(term=>v.explanation.toLowerCase().includes(term.toLowerCase())),
       verifiedPrivateEditorialNote:stageExpected?!!report&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.candidateVersion===stored.version&&
-        artifact===body(report)&&receipt.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(receipt,report.note):
+        !!stagedReport&&artifact===body(stagedReport)&&receipt.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(receipt,report.note):
         receipt===null&&files.length===0&&report?.note===null,
       protectedEditorialSources:(await file(view.workingHead,previewPath)).doc.text===previewText&&
         (await file(view.workingHead,protectedPath)).doc.text===protectedCopy&&view.mainEventId===originalHead.mainEventId&&
@@ -375,7 +373,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
         await services.editorialHandoff.stage({decision:{write:true}} as PacketReport)===null,
     };
     return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      listed,snapshots,plan,sources,attempts,stored,edit:report?.edit??null,decision:v??null,note:receipt,artifact};
+      listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact};
   }
 
   async function qualify() {
@@ -420,7 +418,10 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const decision:PacketDecision={status:world.end,write:stageExpected,explanation:world.terms.join(" / ")};
     const report:PacketReport={plan,opening,current,sources,decision,note:null,edit:{stored,proposed,revised,attempts:attempts.map(item=>item.result)}};
     if(stageExpected)report.note=await services.editorialHandoff.stage(report);
-    return verify(report);
+    const result={document:{path:stored.path,version:stored.version},decision,note:report.note};
+    const proof=await verify(result);
+    const rejectedInventedDocument=!(await verify({...result,document:{path:"invented",version:"invented"}})).passed;
+    return {...proof,passed:proof.passed&&rejectedInventedDocument,rejectedInventedDocument};
   }
   return {services,verify,qualify};
 }
