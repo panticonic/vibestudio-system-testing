@@ -1,0 +1,715 @@
+{
+  "schema": "natlang.domain-return-producers/1",
+  "modules": [
+    {
+      "oracle": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "bindings": [
+        {
+          "line": 324,
+          "evidence": "index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"groundedIntegrationDisposition\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnApiReadinessGoal/decideApiReadiness.nl\",\"producerPath\":[]},{\"checks\":[\"explicitQuietIntegration\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnApiReadinessGoal/reviewQuietCredentials.nl\",\"producerPath\":[\"result\"]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-asset-integrity-managed.ts",
+      "bindings": [
+        {
+          "line": 706,
+          "evidence": "...(directPlanFinding?[{checks:[\"matchedAssetDisposition\"],rootPath:[\"reason\"],producerSourceSuffix:\"reviewAssetIntegrity/planRecovery.nl\",producerPath:[\"reason\"]}]:[]),"
+        },
+        {
+          "line": 707,
+          "evidence": "...proof.findings.map((_,index)=>({checks:[`assetFinding:${index}`],rootPath:[\"findings\",index],producerSourceSuffix:\"reviewAssetIntegrity/compareAsset.nl\",producerPath:[]})),"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-audience-response-managed.ts",
+      "bindings": [
+        {
+          "line": 172,
+          "evidence": "report:report??null,observed},contract,raw,invocation,[{\"checks\":[\"boundedGroundedAudienceAnswer\"],\"rootPath\":[\"answer\"],\"producerSourceSuffix\":\"chooseAudienceResponse/answerFromRecord.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "bindings": [
+        {
+          "line": 285,
+          "evidence": "index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact},contract,rawReport,invocation,[{\"checks\":[\"returnedBranchAssessment\"],\"rootPath\":[\"branch\"],\"producerSourceSuffix\":\"workOnBridgeDelivery/assessRetainedBranch.nl\"},{\"checks\":[\"groundedBranchDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnBridgeDelivery/decideLocalDelivery.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-capability-plan-managed.ts",
+      "bindings": [
+        {
+          "line": 317,
+          "evidence": "memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } },{effects:{checks:[\"observedLiveCatalog\",\"verifiedCapabilityHandoff\",\"protectedCapabilityWorkspace\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"boundExactMethodSchemas\",\"loadedInstalledKnowledge\",\"exactCapabilitySourceRevision\",\"reconciledPlanningEvidence\",\"respectedNegativeScope\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[\"returnedCapabilityReceipt\"],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},outcome,invocation,[{\"checks\":[\"boundExactMethodSchemas\",\"loadedInstalledKnowledge\",\"exactCapabilitySourceRevision\",\"reconciledPlanningEvidence\",\"respectedNegativeScope\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnCapabilityGoal/workspace/synthesizeCapabilityPlan.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "bindings": [
+        {
+          "line": 338,
+          "evidence": "index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"groundedChatDeliveryReview\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnChatContinuity/reviewChatContinuity/policy/reviewConversation.nl\"},{\"checks\":[\"groundedChatContinuityDisposition\"],\"rootPath\":[\"disposition\"],\"producerSourceSuffix\":\"workOnChatContinuity/decideChatContinuity.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-compound-recovery-managed.ts",
+      "bindings": [
+        {
+          "line": 268,
+          "evidence": "passed: Object.values(checks).every(Boolean), effects, status: target, directive: actualPosition, artifact: stored, evalProof },contract,value,invocation,[{\"checks\":[\"exactCompoundDisposition\"],\"rootPath\":[],\"producerSourceSuffix\":\"workOnRecoveryHandoff.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-coordinated-revision-managed.ts",
+      "bindings": [
+        {
+          "line": 167,
+          "evidence": "report:report??null,attempts,guideRevision:guide},contract,raw,invocation,[{checks:[\"returnedRevisionExplanation\",\"exactCoordinatedAuthority\"],rootPath:[\"explanation\"],producerSourceSuffix:attempts[0]?.receipt.status===\"changed\"?\"reviseCoordinatedDocuments/reconcileCoordinatedRevision.nl\":\"reviseCoordinatedDocuments/planCoordinatedRevision.nl\",producerPath:[\"explanation\"]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "bindings": [
+        {
+          "line": 196,
+          "evidence": "checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) },contract,value,invocation,[{\"checks\":[\"matchedOwnedDevelopmentAssignment\"],\"rootPath\":[\"runId\"],\"producerSourceSuffix\":\"reviewDevelopmentAudit/chooseDevelopmentRun.nl\",\"producerPath\":[\"runId\"]},{\"checks\":[\"matchedRepairReadiness\"],\"rootPath\":[\"assessment\"],\"producerSourceSuffix\":\"reviewDevelopmentAudit/assessDevelopmentRepair.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-dictation-managed.ts",
+      "bindings": [
+        {
+          "line": 268,
+          "evidence": "thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactOwnedDictation\",\"exactDictationSelection\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnDictationHandoffGoal/decideDictationHandoff.nl\",\"producerPath\":[]},{\"checks\":[\"exactInstalledDraft\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnDictationHandoffGoal/reviewRetainedDictation/dictation/reviewDictation/prepareDraft.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-editorial-managed.ts",
+      "bindings": [
+        {
+          "line": 382,
+          "evidence": "listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact},contract,raw,invocation,[{\"checks\":[\"groundedEditorialDisposition\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnEditorialPacket/decideEditorialHandoff.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-eval-handoff-managed.ts",
+      "bindings": [
+        {
+          "line": 263,
+          "evidence": "journals: [...journalReads], readbacks: [...blobReads], retry: admittedRetry, artifact: staged, artifactText: staged ? written : null },contract,outcome,invocation,[...perReviewChecks.map((_,index)=>({checks:[`returnedEvalReview${index}`],rootPath:[\"reviews\",index],producerSourceSuffix:\"workOnEvalHandoffGoal/reviewer/reviewEvalRecovery.nl\",producerPath:[]})),{checks:[\"reconciledEvalHandoff\"],rootPath:[\"decision\"],producerSourceSuffix:\"workOnEvalHandoffGoal/decideEvalHandoff.nl\",producerPath:[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-gad-durable-question-managed.ts",
+      "bindings": [
+        {
+          "line": 102,
+          "evidence": "passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:[\"exactIndividualPublications\",\"exactRetainedRoster\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"exactQuestionDisposition\",\"exactParticipantDisposition\",\"derivedReadOnlyHandoff\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},raw,invocation,[{\"checks\":[\"exactQuestionDisposition\"],\"rootPath\":[\"question\"],\"producerSourceSuffix\":\"reviewDurableQuestion/reviewQuestion/interpretQuestion.nl\",\"producerPath\":[]},{\"checks\":[\"exactParticipantDisposition\"],\"rootPath\":[\"participant\"],\"producerSourceSuffix\":\"reviewDurableQuestion/reviewParticipant/evaluateRoster.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-image-candidate-managed.ts",
+      "bindings": [
+        {
+          "line": 288,
+          "evidence": "candidateId:selected,queue},contract,raw,invocation,[{\"checks\":[\"groundedImageAssessment\"],\"rootPath\":[\"candidates\"],\"producerSourceSuffix\":\"workOnImageCandidateGoal/assessImageAttempts.nl\",\"producerPath\":[\"candidates\"]},{\"checks\":[\"groundedImageDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnImageCandidateGoal/decideImageHandoff.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-installed-package-managed.ts",
+      "bindings": [
+        {
+          "line": 341,
+          "evidence": "const authored:readonly ApplicationReturnContribution[]=[{\"checks\": [\"returnedPackageFinding\"], \"rootPath\": [\"finding\"], \"producerSourceSuffix\": \"reviewInstalledPackage/decidePackage.nl\", \"producerPath\": []}, {\"checks\": [\"returnedPackageRepair\"], \"rootPath\": [\"repair\"], \"producerSourceSuffix\": \"reviewInstalledPackage/restorePackage.nl\", \"producerPath\": []}, {\"checks\": [\"returnedPackageVerification\"], \"rootPath\": [\"verification\"], \"producerSourceSuffix\": \"reviewInstalledPackage/reviewVerification.nl\", \"producerPath\": []}];"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-intent-discovery-managed.ts",
+      "bindings": [
+        {
+          "line": 205,
+          "evidence": "const authored:readonly ApplicationReturnContribution[]=[{\"checks\":[\"exactIntentOutcome\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"discoverScopedIntent/concludeIntentReview.nl\",\"producerPath\":[]}];"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "bindings": [
+        {
+          "line": 248,
+          "evidence": "request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactLaunchDecision\"],\"rootPath\":[\"result\"],\"producerSourceSuffix\":\"reconcilePanelLaunchState/concludeLaunchState.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "bindings": [
+        {
+          "line": 432,
+          "evidence": "{checks:[\"returnedNewsPlan\"],rootPath:[\"explanation\"],producerSourceSuffix:\"reviewNewsEvidence/decideNewsEvidenceHandoff.nl\",producerPath:[\"explanation\"]},"
+        },
+        {
+          "line": 433,
+          "evidence": "{checks:[\"returnedNewsSchedule\"],rootPath:[\"schedule\"],producerSourceSuffix:\"reviewNewsEvidence/reviewNewsOwnerCadence/installed/reviewers/reviewSchedule.nl\",producerPath:[]},"
+        },
+        {
+          "line": 434,
+          "evidence": "{checks:[\"returnedNewsBriefing\"],rootPath:[\"briefing\"],producerSourceSuffix:\"reviewNewsEvidence/groundNewsEdition/reviewNewsDevelopments.nl\",producerPath:[\"result\"]},"
+        },
+        {
+          "line": 435,
+          "evidence": "...expectedFindings.readers.map((_,index)=>({checks:[`returnedNewsReader${index}`],rootPath:[\"readers\",index],producerSourceSuffix:\"reviewNewsEvidence/reviewNewsReaderWindow/installed/reviewers/readReader.nl\",producerPath:[]}))"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-owned-preview-managed.ts",
+      "bindings": [
+        {
+          "line": 289,
+          "evidence": "artifact: { current: current.artifactDigest, prior: reviewed.artifactDigest, source: current.privateReceipt.sourceStateHash } },{effects:{checks:[\"exactOwnedLaunch\",\"exactApprovedArtifact\",\"exactHostJournal\",\"exactProviderEffects\",\"correctDisposition\",\"protectedHeads\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"returnedPreviewResult\"],required:Boolean(expected.hold),rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},value,invocation,[{\"checks\":[\"returnedPreviewResult\"],\"rootPath\":[],\"producerSourceSuffix\":\"publishOwnedPreviewGoal/deliverPreview.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-panel-recovery-managed.ts",
+      "bindings": [
+        {
+          "line": 288,
+          "evidence": "observations: inspections, effects: structuredClone(effects), finalSurfaces },contract,value,invocation,[{\"checks\":[\"exactHealthDisposition\"],\"rootPath\":[\"reason\"],\"producerSourceSuffix\":\"recoverPanelGoal/recoverSurface.nl\",\"producerPath\":[\"reason\"]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-pdf-managed.ts",
+      "bindings": [
+        {
+          "line": 408,
+          "evidence": "return assessObservedApplicationOutcome({...report,checks:{...report.checks,independentNativeObservations:native.passed}},pdfOutcomeContract([\"independentNativeObservations\"],Object.keys(report.checks).filter(name=>name.startsWith(\"returnedPdfLayout\"))),value,invocation,[...Object.keys(report.checks).filter(name=>name.startsWith(\"returnedPdfLayout\")).map((name,index)=>({checks:[name],rootPath:[\"layouts\",index],producerSourceSuffix:\"reviewPdfLayout.nl\",producerPath:[]})),{checks:[\"exactSelection\"],rootPath:[\"selection\"],producerSourceSuffix:\"workOnPdfGoal/choosePdfScope.nl\",producerPath:[]},{checks:[\"textEvidence\"],rootPath:[\"text\"],producerSourceSuffix:\"extractPdfEvidence.nl\",producerPath:[]},{checks:[\"groundedRecommendation\"],rootPath:[\"recommendation\"],producerSourceSuffix:\"workOnPdfGoal/recommendPdfAction.nl\",producerPath:[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-pdf-vault-managed.ts",
+      "bindings": [
+        {
+          "line": 116,
+          "evidence": "proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{\"checks\":[\"verifiedHandoff\"],\"rootPath\":[\"source\"],\"producerSourceSuffix\":\"authorizePdfVaultHandoff.nl\",\"producerPath\":[\"source\"]},{\"checks\":[\"verifiedHandoff\"],\"rootPath\":[\"holdReason\"],\"producerSourceSuffix\":\"authorizePdfVaultHandoff.nl\",\"producerPath\":[\"reason\"]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "bindings": [
+        {
+          "line": 355,
+          "evidence": "index,snapshots,resolution,ownerRead,independent,probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"verifiedWelcomeTour\"],\"rootPath\":[\"tour\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl\",\"producerPath\":[]},{\"checks\":[\"verifiedWelcomeRetry\"],\"rootPath\":[\"probe\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl\",\"producerPath\":[]},{\"checks\":[\"exactWelcomeResource\",\"exactWelcomeDecision\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/decideWelcomeNextStep.nl\",\"producerPath\":[]},{\"checks\":[\"verifiedWelcomeOwner\"],\"rootPath\":[\"setup\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-portfolio-managed.ts",
+      "bindings": [
+        {
+          "line": 321,
+          "evidence": "decision:decision??null,note:receipt,artifact},contract,raw,invocation,[{\"checks\":[\"exactInstalledGardenCriteria\"],\"rootPath\":[\"garden\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/reviewPortfolioGarden.nl\",\"producerPath\":[]},{\"checks\":[\"exactInstalledRealmCriteria\"],\"rootPath\":[\"realm\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/reviewPortfolioRealm.nl\",\"producerPath\":[]},{\"checks\":[\"groundedPortfolioDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/decidePortfolioDelivery.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "bindings": [
+        {
+          "line": 278,
+          "evidence": "card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact },contract,outcome,invocation,[{\"checks\":[\"discoveredOwnedConversation\",\"exactRetainedProviderFrontier\",\"exactProviderAttributionAndResult\",\"independentProviderOutput\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnProviderHandoffGoal/decideProviderHandoff.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-publication-managed.ts",
+      "bindings": [
+        {
+          "line": 293,
+          "evidence": "journal, reads: { preflight: preflightReads, revision: revisionReads } },{effects:{checks:[\"discoveredLaunchRecord\",\"choseExactReview\",\"boundWebsiteReadback\",\"rereadCurrentAndRetainedPackage\",\"localJournalUnchanged\",\"protectedHeads\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"returnedPublicationScope\",\"exactPreflight\",\"exactRevision\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},value,invocation,[{\"checks\":[\"returnedPublicationScope\"],\"rootPath\":[\"choice\"],\"producerSourceSuffix\":\"workTowardPublicationGoal/choosePublicationScope.nl\",\"producerPath\":[]},{\"checks\":[\"exactPreflight\"],\"rootPath\":[\"preflight\"],\"producerSourceSuffix\":\"preflightPublication.nl\",\"producerPath\":[]},{\"checks\":[\"exactRevision\"],\"rootPath\":[\"revision\"],\"producerSourceSuffix\":\"reviewPublicationRevision.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-reconciliation-managed.ts",
+      "bindings": [
+        {
+          "line": 286,
+          "evidence": "},{effects:{checks:[\"recoveredRetainedReconciliation\",\"observedOwnedIntegration\",\"verifiedNativeIntegration\",\"protectedNeighborAndMain\",\"honoredRevisionOrWindowRace\",\"retainedVerifiedIntegrationEvidence\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"matchedReconciliationHandoff\"],required:expectedStatus!==\"integrated\"&&scenario.expected.handoff!==\"staged\",rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},value,invocation,[{\"checks\":[\"matchedReconciliationHandoff\"],\"rootPath\":[\"integration\"],\"producerSourceSuffix\":\"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl\",\"producerPath\":[\"integration\"]},{\"checks\":[\"matchedReconciliationHandoff\"],\"rootPath\":[\"archive\"],\"producerSourceSuffix\":\"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl\",\"producerPath\":[\"archive\"]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-regency-managed.ts",
+      "bindings": [
+        {
+          "line": 273,
+          "evidence": "index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation,[...findings.map((_,index)=>({checks:[`exactRegencyFinding${index}`],rootPath:[\"findings\",index],producerSourceSuffix:\"workOnRegencyBriefing/qualifyRegencyClaim.nl\",producerPath:[]})),{\"checks\":[\"groundedRegencyAction\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnRegencyBriefing/decideRegencyAction.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "bindings": [
+        {
+          "line": 255,
+          "evidence": "brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactMemoryCitations\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"reviewRetainedMemory/judgeMemoryClaim.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "bindings": [
+        {
+          "line": 233,
+          "evidence": "offer,snapshots,authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactRouteConclusion\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"chooseAuthorizedEvidenceRoute/concludeEvidenceRoute.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-specialist-managed.ts",
+      "bindings": [
+        {
+          "line": 340,
+          "evidence": "index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"verifiedArtifactAndImpact\"],\"rootPath\":[\"history\",\"result\"],\"producerSourceSuffix\":\"workOnSpecialistHandoffGoal/reviewSpecialistHistory/development/planAgenticChange/reviewImpact/reviewHistory.nl\",\"producerPath\":[]},{\"checks\":[\"exactCurrentSpecialist\",\"exactOriginalAttempt\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnSpecialistHandoffGoal/decideSpecialistHandoff.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-terminal-managed.ts",
+      "bindings": [
+        {
+          "line": 367,
+          "evidence": "observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText },contract,outcome,invocation,[{\"checks\":[\"resultGrounded\"],\"rootPath\":[\"summary\"],\"producerSourceSuffix\":\"workOnTerminalGoal/composeTerminalOutcome.nl\",\"producerPath\":[]},{\"checks\":[\"returnedTerminalChecks\"],\"rootPath\":[\"checkReport\"],\"producerSourceSuffix\":\"workOnTerminalGoal/checks/runTerminalChecks.nl\",\"producerPath\":[]},{\"checks\":[\"exactTerminalDiscovery\"],\"rootPath\":[\"discovery\"],\"producerSourceSuffix\":\"workOnTerminalGoal/terminal/discoverTerminalOptions.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-unit-handoff-managed.ts",
+      "bindings": [
+        {
+          "line": 370,
+          "evidence": "protectedEvent: after.mainEventId, target: selectedPath, expect: { decision, finding, action, mustStage } } },contract,report,invocation,[{\"checks\":[\"owned_selection\"],\"rootPath\":[\"path\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"plan\",\"path\"]},{\"checks\":[\"manifest_versions\"],\"rootPath\":[\"design\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"design\"]},{\"checks\":[\"build_lifecycle\"],\"rootPath\":[\"design\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"design\"]},{\"checks\":[\"catalog_and_artwork\"],\"rootPath\":[\"identity\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"identity\"]},{\"checks\":[\"conclusion\"],\"rootPath\":[\"reason\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"reason\"]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
+      "bindings": [
+        {
+          "line": 344,
+          "evidence": "observed, reads: [...read.values()], buildReceipts: [...established.values()], handoff: staged, durableText },{effects:{checks:[\"observedExactAssemblyScope\",\"verifiedNativePackageSources\",\"verifiedPinnedBuildReadback\",\"verifiedLocalDraft\",\"protectedManagedHeads\",\"rejectedUnownedAssembly\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"exactDependencyDecision\",\"returnedAssemblyBuilds\",\"groundedRolloutDisposition\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[\"returnedAssemblyReceipt\"],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},outcome,invocation,[{\"checks\":[\"exactDependencyDecision\",\"returnedAssemblyBuilds\",\"groundedRolloutDisposition\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnAssemblyGoal/decideAssemblyOutcome.nl\",\"producerPath\":[]}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "bindings": [
+        {
+          "line": 243,
+          "evidence": "required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactGroundedClaimSupport\"],\"rootPath\":[\"support\"],\"producerSourceSuffix\":\"reviewWorkspaceClaims/verifyClaimSupport/evidenceRules/checkSupport.nl\"},{\"checks\":[\"exactGroundedClaimDisposition\"],\"rootPath\":[\"disposition\"],\"producerSourceSuffix\":\"reviewWorkspaceClaims/summarizeClaimReview.nl\"}]);"
+        }
+      ]
+    },
+    {
+      "oracle": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "bindings": [
+        {
+          "line": 266,
+          "evidence": "brief:freshBrief,lens:expectedLens,evidence,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactConfigDisposition\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"reconcileWorkspaceConfig/reviewConfigDisposition.nl\"}]);"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Authored source suffixes select only actual hash-checked sampled NL calls under crisp ancestry.",
+    "Per-item Eval, Regency, News reader and PDF layout checks preserve correct sibling targets.",
+    "Native receipt echoes, VCS handles, exact byte digests and rendered handles have no sampled NL producer when typed composition returns them directly.",
+    "Retained semantic NL public roots use actual-root custody; native-only typed results use root custody with no fabricated NL generation.",
+    "Prepared content project actual result is a typed projection of retained native project state; see Base skills/open-user-goal/prepareContentProject.ts and its application result helper.",
+    "Root-owned packet/runbook/Calendar producers are maintained in their product-owned oracle module."
+  ],
+  "applicationEntries": [
+    {
+      "callable": "prepareContentProject",
+      "entry": "skills/open-user-goal/prepareContentProject.ts",
+      "oracle": "skills/system-testing/open-goal-prepared-content-project-managed.ts",
+      "custody": "native typed result handles or Root-owned native product contract",
+      "sourceEvidence": "skills/open-user-goal/prepareContentProject.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "generateOwnedIllustration",
+      "entry": "skills/open-user-goal/generateOwnedIllustration.ts",
+      "oracle": "skills/system-testing/open-goal-native-image-managed.ts",
+      "custody": "native typed result handles or Root-owned native product contract",
+      "sourceEvidence": "skills/open-user-goal/generateOwnedIllustration.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reviewDevelopmentAudit",
+      "entry": "skills/open-user-goal/reviewDevelopmentAudit.ts",
+      "oracle": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reviewDevelopmentAudit.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reviseCoordinatedDocuments",
+      "entry": "skills/open-user-goal/reviseCoordinatedDocuments.ts",
+      "oracle": "skills/system-testing/open-goal-coordinated-revision-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reviseCoordinatedDocuments.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnNewsEvidenceGoal",
+      "entry": "skills/open-user-goal/workOnNewsEvidenceGoal.ts",
+      "oracle": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnNewsEvidenceGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "prepareNewsEditionReview",
+      "entry": "skills/open-user-goal/prepareNewsEditionReview.ts",
+      "oracle": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "custody": "native typed result handles or Root-owned native product contract",
+      "sourceEvidence": "skills/open-user-goal/prepareNewsEditionReview.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnImageCandidateGoal",
+      "entry": "skills/open-user-goal/workOnImageCandidateGoal.ts",
+      "oracle": "skills/system-testing/open-goal-image-candidate-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnImageCandidateGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnEditorialPacket",
+      "entry": "skills/open-user-goal/workOnEditorialPacket.ts",
+      "oracle": "skills/system-testing/open-goal-editorial-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnEditorialPacket.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "answerWorkspaceQuestion",
+      "entry": "skills/open-user-goal/answerWorkspaceQuestion.nl",
+      "oracle": "skills/system-testing/open-goal-outcome-workspace-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-user-goal/answerWorkspaceQuestion.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "investigatePublicQuestion",
+      "entry": "skills/open-user-goal/investigatePublicQuestion.nl",
+      "oracle": "skills/system-testing/open-goal-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-user-goal/investigatePublicQuestion.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "answerFromAssignedPublicSources",
+      "entry": "skills/open-user-goal/answerFromAssignedPublicSources.nl",
+      "oracle": "skills/system-testing/open-goal-owned-research-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-user-goal/answerFromAssignedPublicSources.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "reviseWorkspaceDocument",
+      "entry": "skills/open-user-goal/reviseWorkspaceDocument.nl",
+      "oracle": "skills/system-testing/open-goal-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-user-goal/reviseWorkspaceDocument.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "reviseFromPublicResearch",
+      "entry": "skills/open-user-goal/reviseFromPublicResearch.nl",
+      "oracle": "skills/system-testing/open-goal-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-user-goal/reviseFromPublicResearch.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "reconcileGoogleRunbook",
+      "entry": "skills/open-user-goal/reconcileGoogleRunbook.ts",
+      "oracle": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "custody": "native typed result handles or Root-owned native product contract",
+      "sourceEvidence": "skills/open-user-goal/reconcileGoogleRunbook.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "correctVaultFromPdf",
+      "entry": "skills/open-user-goal/correctVaultFromPdf.ts",
+      "oracle": "skills/system-testing/open-goal-pdf-vault-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/correctVaultFromPdf.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reconcileWorkspaceConfig",
+      "entry": "skills/open-user-goal/reconcileWorkspaceConfig.ts",
+      "oracle": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reconcileWorkspaceConfig.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "chooseAudienceResponse",
+      "entry": "skills/open-user-goal/chooseAudienceResponse.ts",
+      "oracle": "skills/system-testing/open-goal-audience-response-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/chooseAudienceResponse.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reviewRetainedMemory",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "oracle": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reviewRetainedMemory.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "chooseAuthorizedEvidenceRoute",
+      "entry": "skills/open-user-goal/chooseAuthorizedEvidenceRoute.ts",
+      "oracle": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/chooseAuthorizedEvidenceRoute.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reconcilePanelLaunchState",
+      "entry": "skills/open-user-goal/reconcilePanelLaunchState.ts",
+      "oracle": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reconcilePanelLaunchState.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reviewWorkspaceClaims",
+      "entry": "skills/open-user-goal/reviewWorkspaceClaims.ts",
+      "oracle": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reviewWorkspaceClaims.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnBridgeDelivery",
+      "entry": "skills/open-user-goal/workOnBridgeDelivery.ts",
+      "oracle": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnBridgeDelivery.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnChatContinuity",
+      "entry": "skills/open-user-goal/workOnChatContinuity.ts",
+      "oracle": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnChatContinuity.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnDemoPortfolio",
+      "entry": "skills/open-user-goal/workOnDemoPortfolio.ts",
+      "oracle": "skills/system-testing/open-goal-portfolio-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnDemoPortfolio.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnRegencyBriefing",
+      "entry": "skills/open-user-goal/workOnRegencyBriefing.ts",
+      "oracle": "skills/system-testing/open-goal-regency-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnRegencyBriefing.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnApiReadinessGoal",
+      "entry": "skills/open-user-goal/workOnApiReadinessGoal.ts",
+      "oracle": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnApiReadinessGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnPersonalWelcomeGoal",
+      "entry": "skills/open-user-goal/workOnPersonalWelcomeGoal.ts",
+      "oracle": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnPersonalWelcomeGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "reviewUnitHandoffGoal",
+      "entry": "skills/open-user-goal/reviewUnitHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-unit-handoff-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/reviewUnitHandoffGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnSpecialistHandoffGoal",
+      "entry": "skills/open-user-goal/workOnSpecialistHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-specialist-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnSpecialistHandoffGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnDictationHandoffGoal",
+      "entry": "skills/open-user-goal/workOnDictationHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-dictation-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnDictationHandoffGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnProviderHandoffGoal",
+      "entry": "skills/open-user-goal/workOnProviderHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnProviderHandoffGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "recoverOperatingHandoff",
+      "entry": "skills/open-user-goal/recoverOperatingHandoff.ts",
+      "oracle": "skills/system-testing/open-goal-compound-recovery-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/recoverOperatingHandoff.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnTerminalGoal",
+      "entry": "skills/open-user-goal/workOnTerminalGoal.ts",
+      "oracle": "skills/system-testing/open-goal-terminal-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnTerminalGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnLocalReconciliationGoal",
+      "entry": "skills/open-user-goal/workOnLocalReconciliationGoal.ts",
+      "oracle": "skills/system-testing/open-goal-reconciliation-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnLocalReconciliationGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnCapabilityGoal",
+      "entry": "skills/open-user-goal/workOnCapabilityGoal.ts",
+      "oracle": "skills/system-testing/open-goal-capability-plan-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnCapabilityGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "recoverOwnedTask",
+      "entry": "skills/open-owned-task-recovery/recoverOwnedTask.nl",
+      "oracle": "skills/system-testing/open-goal-owned-task-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-owned-task-recovery/recoverOwnedTask.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "reviewDurableQuestion",
+      "entry": "skills/gad-context/natlang/reviewDurableQuestion.ts",
+      "oracle": "skills/system-testing/open-goal-gad-durable-question-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/gad-context/natlang/reviewDurableQuestion.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnClientDiagnostics",
+      "entry": "skills/gad-context/natlang/workOnClientDiagnostics.nl",
+      "oracle": "skills/system-testing/open-goal-client-diagnostics-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/gad-context/natlang/workOnClientDiagnostics.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "workOnAssemblyGoal",
+      "entry": "skills/open-user-goal/workOnAssemblyGoal.ts",
+      "oracle": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnAssemblyGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "recoverScheduledAutomation",
+      "entry": "skills/open-owned-scheduled-recovery/recoverScheduledAutomation.nl",
+      "oracle": "skills/system-testing/open-goal-scheduled-recovery-managed.ts",
+      "custody": "actual semantic NL root",
+      "sourceEvidence": "skills/open-owned-scheduled-recovery/recoverScheduledAutomation.nl:1",
+      "nativeOnlyValueReason": null
+    },
+    {
+      "callable": "workOnEvalHandoffGoal",
+      "entry": "skills/open-user-goal/workOnEvalHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-eval-handoff-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/open-user-goal/workOnEvalHandoffGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "recoverPanelGoal",
+      "entry": "skills/panel-health/recoverPanelGoal.ts",
+      "oracle": "skills/system-testing/open-goal-panel-recovery-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/panel-health/recoverPanelGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "publishOwnedPreviewGoal",
+      "entry": "skills/publish-preflight/publishOwnedPreviewGoal.ts",
+      "oracle": "skills/system-testing/open-goal-owned-preview-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/publish-preflight/publishOwnedPreviewGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workOnPdfGoal",
+      "entry": "skills/pdf-intake/workOnPdfGoal.ts",
+      "oracle": "skills/system-testing/open-goal-pdf-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/pdf-intake/workOnPdfGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    },
+    {
+      "callable": "workTowardPublicationGoal",
+      "entry": "skills/publish-preflight/workTowardPublicationGoal.ts",
+      "oracle": "skills/system-testing/open-goal-publication-managed.ts",
+      "custody": "actual typed root and explicit sampled child contributions",
+      "sourceEvidence": "skills/publish-preflight/workTowardPublicationGoal.ts:1",
+      "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
+    }
+  ]
+}

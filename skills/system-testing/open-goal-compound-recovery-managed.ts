@@ -265,7 +265,7 @@ export async function prepareCompoundRecoveryHandoff(
     };
     const contract:SemanticOutcomeContract={effects:{checks:["joinedExactNativeRecovery", "honoredPrerequisiteAndOrder", "preservedCurrentDirective", "checkedIndependentSource", "verifiedExactOperationalHandoff", "protectedWorkingMain"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["exactCompoundDisposition"],required:target!=="staged",rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedOperationalArtifact"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
     return assessObservedApplicationOutcome({ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks,
-      passed: Object.values(checks).every(Boolean), effects, status: target, directive: actualPosition, artifact: stored, evalProof },contract,value,invocation);
+      passed: Object.values(checks).every(Boolean), effects, status: target, directive: actualPosition, artifact: stored, evalProof },contract,value,invocation,[{"checks":["exactCompoundDisposition"],"rootPath":[],"producerSourceSuffix":"workOnRecoveryHandoff.nl","producerPath":[]}]);
   }
 
   async function qualify() {

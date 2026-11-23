@@ -275,7 +275,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactApprovalVisibility", "exactScopedHandoff", "protectedOwnedProviderWorkspace", "rejectedUnownedEvidence"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["discoveredOwnedConversation", "exactRetainedProviderFrontier", "exactProviderAttributionAndResult", "independentProviderOutput"],required:true,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedProviderReceipt"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
     return assessObservedApplicationOutcome({ contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks, passed: Object.values(checks).every(value => value === true),
-      card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact },contract,outcome,invocation);
+      card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact },contract,outcome,invocation,[{"checks":["discoveredOwnedConversation","exactRetainedProviderFrontier","exactProviderAttributionAndResult","independentProviderOutput"],"rootPath":["plan"],"producerSourceSuffix":"workOnProviderHandoffGoal/decideProviderHandoff.nl","producerPath":[]}]);
   }
   async function rejectUnowned() {
     const foreign = `foreign-${crypto.randomUUID()}`;

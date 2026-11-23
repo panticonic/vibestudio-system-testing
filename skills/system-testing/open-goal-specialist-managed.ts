@@ -337,7 +337,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     };
     const contract:SemanticOutcomeContract={"effects": {"checks": ["exactSpecialistFrontiers", "exactSpecialistHandoff", "preservedSpecialistContext", "rejectedForeignSpecialist"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactCurrentSpecialist", "exactOriginalAttempt", "verifiedArtifactAndImpact"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:input.contextId,caseId:input.caseId,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
-      index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact},contract,raw,invocation);
+      index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact},contract,raw,invocation,[{"checks":["verifiedArtifactAndImpact"],"rootPath":["history","result"],"producerSourceSuffix":"workOnSpecialistHandoffGoal/reviewSpecialistHistory/development/planAgenticChange/reviewImpact/reviewHistory.nl","producerPath":[]},{"checks":["exactCurrentSpecialist","exactOriginalAttempt"],"rootPath":["plan"],"producerSourceSuffix":"workOnSpecialistHandoffGoal/decideSpecialistHandoff.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.ownedSpecialistIndex.list();

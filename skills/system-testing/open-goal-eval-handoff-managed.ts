@@ -208,7 +208,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
       const settled = target.journal === "cancelled-native" ? observation.terminal === "cancelled" && readback === null : actual.journal === target.journal;
       return settled && observation.attempt.role === target.role && actual.effect === target.effect;
     });
-    const returnedReviews=ownedCases.every((observation,index)=>{
+    const perReviewChecks=ownedCases.map((observation,index)=>{
       const attempt=journalReads.get(observation.attempt.runId),readback=blobReads.get(observation.attempt.runId)??null,candidate=reported?.reviews[index];
       if(!attempt||!candidate)return false;
       const actual=measureEffect(attempt,readback);
@@ -248,18 +248,19 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
       const selected=expectedRun?ownedCases.find(observation=>observation.attempt.runId===expectedRun.card.runId):null;
       const readback=selected?blobReads.get(selected.attempt.runId):null;
       const expectedResult=selected&&readback&&selected.resultDigest?{jobId:selected.jobId,runId:selected.attempt.runId,runDigest:selected.runDigest,resultDigest:selected.resultDigest,readback}:null;
-      checks.returnedEvalReviews=returnedReviews;
+      checks.returnedEvalReviews=reported?.reviews.length===ownedCases.length;
+      for(const [index,passed] of perReviewChecks.entries())checks[`returnedEvalReview${index}`]=passed;
       checks.reconciledEvalHandoff=expected.active ? reported?.jobId===jobId&&reported.reviews.length===expected.observations.length&&isDeepStrictEqual(reported.decision,expectedDecision) : outcome?.status==="unresolved"&&outcome.reason==="job-unavailable"&&trials.size===0;
       checks.returnedEvalResult=isDeepStrictEqual(reported?.result??null,expectedResult);
       checks.returnedEvalArtifact=isDeepStrictEqual(reported?.artifact??null,artifact);
     }
-    const contract:SemanticOutcomeContract={effects:{checks:["discoveredOwnedEvalJobs", "keptOriginalEvalReceipts", "boundIndependentBlobReadback", "replayedSameNativeIdentity", "authorizedExactEvalRetry", "verifiedRetainedEvalScratch", "protectedOwnedEvalContext"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:nativeOnly?[]:["returnedEvalReviews", "reconciledEvalHandoff", "returnedEvalResult"],required:!nativeOnly,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:nativeOnly?[]:["returnedEvalArtifact"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    const contract:SemanticOutcomeContract={effects:{checks:["discoveredOwnedEvalJobs", "keptOriginalEvalReceipts", "boundIndependentBlobReadback", "replayedSameNativeIdentity", "authorizedExactEvalRetry", "verifiedRetainedEvalScratch", "protectedOwnedEvalContext"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:nativeOnly?[]:["returnedEvalReviews", "reconciledEvalHandoff", "returnedEvalResult", ...perReviewChecks.map((_,index)=>`returnedEvalReview${index}`)],required:!nativeOnly,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:nativeOnly?[]:["returnedEvalArtifact"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
     return assessObservedApplicationOutcome({ caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       attempts: ownedCases, originalRuns: admitted.map(record => ({ card: record.card, terminal: record.native.terminal, runDigest: record.native.runDigest,
         resultDigest: record.native.receipt?.resultDigest ?? null,
         sourceDigest: record.native.admission.source.kind === "inline" ? sha256HexSyncText(record.native.admission.source.code) : null,
         physicallyStored: record.native.physicallyStored })),
-      journals: [...journalReads], readbacks: [...blobReads], retry: admittedRetry, artifact: staged, artifactText: staged ? written : null },contract,outcome,invocation);
+      journals: [...journalReads], readbacks: [...blobReads], retry: admittedRetry, artifact: staged, artifactText: staged ? written : null },contract,outcome,invocation,[...perReviewChecks.map((_,index)=>({checks:[`returnedEvalReview${index}`],rootPath:["reviews",index],producerSourceSuffix:"workOnEvalHandoffGoal/reviewer/reviewEvalRecovery.nl",producerPath:[]})),{checks:["reconciledEvalHandoff"],rootPath:["decision"],producerSourceSuffix:"workOnEvalHandoffGoal/decideEvalHandoff.nl",producerPath:[]}]);
   }
 
   async function refuseForeign() {

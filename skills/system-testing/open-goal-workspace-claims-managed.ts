@@ -1,5 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
 import type {InvocationObservations} from "./observed-invocation.js";
-import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs, type VcsClient } from "@workspace/runtime";
@@ -227,7 +228,8 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
           world.test==="prior"?readback.previous.hash:readback.current?.hash??null),
       exactAuthorityPreflight:authority.operationId==="exact-status-read"&&authority.decision==="allowed"&&authority.leaves.every(
         leaf=>leaf.status==="granted"||leaf.tier==="open"),
-      exactGroundedClaimPartition:isDeepStrictEqual(report?.support,support)&&report?.disposition?.status===disposition(support)&&
+      exactGroundedClaimSupport:isDeepStrictEqual(report?.support,support),
+      exactGroundedClaimDisposition:report?.disposition?.status===disposition(support)&&
         typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim()&&report.disposition.summary.length<=650,
       independentlyPreservedClaimContext:isDeepStrictEqual(before,after)&&after.mainEventId===initial.mainEventId,
       exactPrivateClaimNote:world.note?!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===stagedText&&
@@ -235,11 +237,10 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       rejectedClaimRetarget:await services.workspaceClaimRead.read(archive)===null&&await services.workspaceClaimRead.observe(archive)===null,
       exactInstalledClaimGuide:guide.includes("A green build")&&revision===guideRevision(await ports.guide()),
     };
-    const contract:SemanticOutcomeContract={effects:{checks:["exactClaimScope", "independentSemanticEvidence", "exactTestkitClaimInput", "exactAuthorityPreflight", "independentlyPreservedClaimContext", "exactPrivateClaimNote", "rejectedClaimRetarget", "exactInstalledClaimGuide"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactGroundedClaimPartition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedClaimHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-    const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
-    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>isDeepStrictEqual(row.value,raw)).map(({definition,value})=>({definition,value,required:contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name])})) : [];
-    return assessSemanticOutcome({incorrectReturnValues,passed:Object.values(checks).every(Boolean),checks,contextId:owner,caseId:world.id,goal:world.goal,index,packet,choice,evidence,
-      required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact},contract);
+    const contract:SemanticOutcomeContract={effects:{checks:["exactClaimScope", "independentSemanticEvidence", "exactTestkitClaimInput", "exactAuthorityPreflight", "independentlyPreservedClaimContext", "exactPrivateClaimNote", "rejectedClaimRetarget", "exactInstalledClaimGuide"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactGroundedClaimSupport","exactGroundedClaimDisposition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedClaimHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+
+    return assessObservedApplicationOutcome({passed:Object.values(checks).every(Boolean),checks,contextId:owner,caseId:world.id,goal:world.goal,index,packet,choice,evidence,
+      required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact},contract,raw,invocation,[{"checks":["exactGroundedClaimSupport"],"rootPath":["support"],"producerSourceSuffix":"reviewWorkspaceClaims/verifyClaimSupport/evidenceRules/checkSupport.nl"},{"checks":["exactGroundedClaimDisposition"],"rootPath":["disposition"],"producerSourceSuffix":"reviewWorkspaceClaims/summarizeClaimReview.nl"}]);
   }
 
   async function qualify() {

@@ -292,6 +292,16 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const proposedRationale = report?.recommendation?.rationale;
     const rationale = typeof proposedRationale === "string" ? proposedRationale.toLowerCase() : "";
     const snapshot = publicDocuments(documents);
+    const layoutChecks=Object.fromEntries(layouts.map((layout,index)=>[`returnedPdfLayout${index}`,(({ page, kind, order }) => {
+          const raw = reads.find(item => item.pageNumber === page);
+          const answer = report?.layouts?.find(answer => answer.pageNumber === page);
+          if (!raw || !answer || raw.digest !== source?.digest || raw.width !== 500 || raw.height !== 200) return false;
+          const entries = exactEntries(raw, order);
+          return raw.rows.flat().length === order.length && entries.every(Boolean) &&
+            answer.digest === raw.digest && answer.pageNumber === page && answer.layout?.kind === kind &&
+            typeof answer.layout.basis === "string" && !!answer.layout.basis.trim() &&
+            answer.reading?.status === "ordered" && isDeepStrictEqual(answer.reading.entries, entries);
+        })(layout)]));
     const checks = {
       originalFiles: documents.length === sources.length &&
         revision === sha256HexSyncText(JSON.stringify(snapshot)) &&
@@ -315,17 +325,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
           claims.noMatchLines ?? [],
         )) :
         report?.text === null && textProbes.length === 0 && !textReads.length,
-      layoutEvidence: reads.length === layouts.length && Array.isArray(report?.layouts) &&
-        report.layouts.length === layouts.length && layouts.every(({ page, kind, order }) => {
-          const raw = reads.find(item => item.pageNumber === page);
-          const answer = report.layouts.find(answer => answer.pageNumber === page);
-          if (!raw || !answer || raw.digest !== source?.digest || raw.width !== 500 || raw.height !== 200) return false;
-          const entries = exactEntries(raw, order);
-          return raw.rows.flat().length === order.length && entries.every(Boolean) &&
-            answer.digest === raw.digest && answer.pageNumber === page && answer.layout?.kind === kind &&
-            typeof answer.layout.basis === "string" && !!answer.layout.basis.trim() &&
-            answer.reading?.status === "ordered" && isDeepStrictEqual(answer.reading.entries, entries);
-        }),
+      layoutEvidence: reads.length===layouts.length&&Array.isArray(report?.layouts)&&report.layouts.length===layouts.length,
+      ...layoutChecks,
       renderedEvidence: sameEvidenceMembers([...renders.keys()], expected.render) &&
         Array.isArray(report?.rendered) && sameEvidenceMembers(report.rendered, [...renders.values()]) &&
         retained.every(({ pageNumber, digest, mimeType, ...raster }) => {
@@ -397,14 +398,14 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     return {outcome,verification:assessSemanticOutcome({...verified,checks},pdfOutcomeContract(["independentNativeObservations","observerSlotValidated","unreadObservationRejected","nativeObservationsRetained","aliasRejected","rejectsUnverifiedReport"]))};
   }
 
-    function pdfOutcomeContract(extraEffects:readonly string[]=[]) {
+    function pdfOutcomeContract(extraEffects:readonly string[]=[],extraReturned:readonly string[]=(expected.layouts??[]).map((_,index)=>`returnedPdfLayout${index}`)) {
     return {effects:{checks:["originalFiles","protectedHeads",...extraEffects],rationale:"Original PDF bytes, native selection/read/layout/raster observations and protected VCS head are independent application facts."},
-      returnedValue:{checks:["exactSelection","textEvidence","layoutEvidence","renderedEvidence","groundedRecommendation"],required:true,rationale:"The user asks for PDF text, layout and rendering findings with exact citations, rather than only a side effect."},
+      returnedValue:{checks:["exactSelection","textEvidence","layoutEvidence","renderedEvidence","groundedRecommendation",...extraReturned],required:true,rationale:"The user asks for PDF text, layout and rendering findings with exact citations, rather than only a side effect."},
       incidentalValues:{checks:[],rationale:"A known wrong requested PDF answer is bound to its actual captured source and value."}};
   }
   async function verify(value:unknown,invocation?:InvocationObservations,options:{allowWorkingHeadChange?:boolean}={}) {
     const report=await verifyEvidence(value,options),native=await verifyObserved(options);
-    return assessObservedApplicationOutcome({...report,checks:{...report.checks,independentNativeObservations:native.passed}},pdfOutcomeContract(["independentNativeObservations"]),value,invocation);
+    return assessObservedApplicationOutcome({...report,checks:{...report.checks,independentNativeObservations:native.passed}},pdfOutcomeContract(["independentNativeObservations"],Object.keys(report.checks).filter(name=>name.startsWith("returnedPdfLayout"))),value,invocation,[...Object.keys(report.checks).filter(name=>name.startsWith("returnedPdfLayout")).map((name,index)=>({checks:[name],rootPath:["layouts",index],producerSourceSuffix:"reviewPdfLayout.nl",producerPath:[]})),{checks:["exactSelection"],rootPath:["selection"],producerSourceSuffix:"workOnPdfGoal/choosePdfScope.nl",producerPath:[]},{checks:["textEvidence"],rootPath:["text"],producerSourceSuffix:"extractPdfEvidence.nl",producerPath:[]},{checks:["groundedRecommendation"],rootPath:["recommendation"],producerSourceSuffix:"workOnPdfGoal/recommendPdfAction.nl",producerPath:[]}]);
   }
     return { goal, services, verify, verifyObserved, observedEvidence, attestCitations, reference, qualify: async () => (await reference()).verification };
 }

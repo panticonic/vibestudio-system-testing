@@ -1,5 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
 import type {InvocationObservations} from "./observed-invocation.js";
-import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { gitUpstreamStatusRowSchema, type GitUpstreamStatusRow } from "@vibestudio/service-schemas/gitInterop";
@@ -279,10 +280,9 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
         await services.branchDeliveryRead.operation(id,"wrong.txt")===null&&await services.branchDeliveryWrite.commit(archiveId,working)===null,
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactBranchProject", "exactLiveLocalBridge", "exactSemanticFileChain", "exactLocalBranchCommit", "exactPrivateBranchHandoff", "protectedBranchMain", "rejectedBranchRetarget", "retainedBranchAuthority"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedBranchAssessment", "groundedBranchDecision", "returnedBranchCommit"],required:!expectedCommit,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedBranchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-    const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
-    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>isDeepStrictEqual(row.value,rawReport)).map(({definition,value})=>({definition,value,required:contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name])})) : [];
-    return assessSemanticOutcome({incorrectReturnValues,caseId:world.id,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact},contract);
+
+    return assessObservedApplicationOutcome({caseId:world.id,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact},contract,rawReport,invocation,[{"checks":["returnedBranchAssessment"],"rootPath":["branch"],"producerSourceSuffix":"workOnBridgeDelivery/assessRetainedBranch.nl"},{"checks":["groundedBranchDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnBridgeDelivery/decideLocalDelivery.nl"}]);
   }
 
   async function qualify() {

@@ -421,9 +421,19 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const observedChildReturns=observations ? await observations.returns(call=>/reviewNewsEvidence(?:\.nl)?$/.test(call.definition.name)||/reviewNewsEvidence\.nl$/.test(call.definition.source)):[];
     const {handoff:returnedHandoff,...returnedFindings}=returned??{};
     const {handoff:expectedHandoff,...expectedFindings}=result(report);
-    const checks={...proof.checks,exactRequestedNewsFindings:isDeepStrictEqual(returnedFindings,expectedFindings)&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text)),returnedNewsReceipt:isDeepStrictEqual(returnedHandoff,expectedHandoff)};
-    const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"The actual native edition, reader windows, originals, authority and retained private bytes establish effects."},returnedValue:{checks:["exactRequestedNewsFindings"],required:true,rationale:"The caller requested the news findings and citation handles."},incidentalValues:{checks:["returnedNewsReceipt"],rationale:"An echo of the native retained handoff is optional presentation."}};
-    return assessObservedApplicationOutcome({...proof,observedChecks:checks,observedChildReturns,checks,passed:proof.passed&&exactReturnedFindings},contract,raw,observations);
+    const readerChecks=Object.fromEntries(expectedFindings.readers.map((reader,index)=>[`returnedNewsReader${index}`,isDeepStrictEqual(returned?.readers?.[index],reader)]));
+    const checks={...proof.checks,...readerChecks,
+      exactRequestedNewsFindings:returned?.readers?.length===expectedFindings.readers.length&&isDeepStrictEqual(returned?.sources,expectedFindings.sources),
+      returnedNewsPlan:returned?.topic===expectedFindings.topic&&returned?.action===expectedFindings.action&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text)),
+      returnedNewsSchedule:isDeepStrictEqual(returned?.schedule,expectedFindings.schedule),
+      returnedNewsBriefing:isDeepStrictEqual(returned?.briefing,expectedFindings.briefing),returnedNewsReceipt:isDeepStrictEqual(returnedHandoff,expectedHandoff)};
+    const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"The actual native edition, reader windows, originals, authority and retained private bytes establish effects."},returnedValue:{checks:["exactRequestedNewsFindings","returnedNewsPlan","returnedNewsSchedule","returnedNewsBriefing",...Object.keys(readerChecks)],required:true,rationale:"The caller requested the news findings and citation handles."},incidentalValues:{checks:["returnedNewsReceipt"],rationale:"An echo of the native retained handoff is optional presentation."}};
+    return assessObservedApplicationOutcome({...proof,observedChecks:checks,observedChildReturns,checks,passed:proof.passed&&exactReturnedFindings},contract,raw,observations,[
+      {checks:["returnedNewsPlan"],rootPath:["explanation"],producerSourceSuffix:"reviewNewsEvidence/decideNewsEvidenceHandoff.nl",producerPath:["explanation"]},
+      {checks:["returnedNewsSchedule"],rootPath:["schedule"],producerSourceSuffix:"reviewNewsEvidence/reviewNewsOwnerCadence/installed/reviewers/reviewSchedule.nl",producerPath:[]},
+      {checks:["returnedNewsBriefing"],rootPath:["briefing"],producerSourceSuffix:"reviewNewsEvidence/groundNewsEdition/reviewNewsDevelopments.nl",producerPath:["result"]},
+      ...expectedFindings.readers.map((_,index)=>({checks:[`returnedNewsReader${index}`],rootPath:["readers",index],producerSourceSuffix:"reviewNewsEvidence/reviewNewsReaderWindow/installed/reviewers/readReader.nl",producerPath:[]}))
+    ]);
   }
   async function qualify() {
     await services.newsEvidenceIndex.list();

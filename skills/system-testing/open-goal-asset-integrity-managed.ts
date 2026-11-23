@@ -1,3 +1,4 @@
+import {assetFindingContributions} from "./operational-return-contributions.js";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
@@ -700,7 +701,9 @@ export async function prepareOpenAssetIntegrity(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["joinedAssetIntegrityFinding","matchedAssetDisposition"],"rootPath":["reason"],"producerSourceSuffix":"reviewAssetIntegrity/planRecovery.nl","producerPath":["reason"]}];
+    const semanticPlans=invocation?await invocation.returns(call=>call.definition.source.endsWith("reviewAssetIntegrity/planRecovery.nl")):[];
+    const directPlanFinding=semanticPlans.some(row=>row.value&&typeof row.value==="object"&&"reason" in row.value);
+    const authored:readonly ApplicationReturnContribution[]=assetFindingContributions(proof.findings.length,directPlanFinding);
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){
@@ -762,7 +765,8 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       joinedAssetIntegrityFinding:
         isDeepStrictEqual(outcome?.receipt,receipt)&&outcome?.approved === sourceToken &&
         outcome.working === currentToken &&
-        isDeepStrictEqual(outcome.findings, findings),
+        Array.isArray(outcome.findings)&&outcome.findings.length===findings.length,
+      ...Object.fromEntries(findings.map((finding,index)=>[`assetFinding:${index}`,isDeepStrictEqual(outcome?.findings?.[index],finding)])),
       preservedOwnedAssetBasis:
         isDeepStrictEqual(current, working) &&
         isDeepStrictEqual(
@@ -800,7 +804,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     return {
       outcomeContract:{effects:{checks:["boundAssetHistory", "preservedOwnedAssetBasis", "independentlyReadExactRecovery"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["joinedAssetIntegrityFinding", "matchedAssetDisposition"],required:world.expected.copies.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        returnedValue:{checks:["joinedAssetIntegrityFinding", "matchedAssetDisposition",...findings.map((_,index)=>`assetFinding:${index}`)],required:world.expected.copies.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
 

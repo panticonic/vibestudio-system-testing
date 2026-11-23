@@ -1,3 +1,4 @@
+import {packageResultContributions} from "./operational-return-contributions.js";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
@@ -338,7 +339,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedPackageResult"],"rootPath":["finding"],"producerSourceSuffix":"reviewInstalledPackage/decidePackage.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=packageResultContributions;
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){
@@ -379,7 +380,9 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         isDeepStrictEqual(observed.baselineValue, currentValue(baseline.value, world.key)) &&
         isDeepStrictEqual(observed.workingValue, currentValue(before.value, world.key)),
       honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods),
-      returnedPackageResult: isDeepStrictEqual(outcome?.repair,attempt)&&verificationMatches(outcome?.verification,plan)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      returnedPackageRepair: isDeepStrictEqual(outcome?.repair,attempt),
+      returnedPackageVerification: verificationMatches(outcome?.verification,plan),
+      returnedPackageFinding: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedLocalManifestEffect: exactEffect && (attempt?.status ?? null) === expectedAttempt &&
         (!attempt || isDeepStrictEqual(attempt.observation, final.observation)),
@@ -391,7 +394,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract:{
         effects:{checks:["boundOwnedInstallation", "usedExactPackageBaseline", "honoredReviewAssignment", "verifiedLocalManifestEffect", "exactStateVerificationPlan", "preservedProtectedAndNeighbors"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["returnedPackageResult"],required:expectedAttempt!=="restored",rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        returnedValue:{checks:["returnedPackageFinding","returnedPackageRepair","returnedPackageVerification"],required:expectedAttempt!=="restored",rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,

@@ -84,3 +84,12 @@ it("retains separate custody for multiple failed fields and complete uncertainty
  const uncertain=await assessObservedApplicationOutcome({passed:false,checks:{nativeWrite:true,optional:false,required:false}},rules,value,observation,[{checks:["optional"],rootPath:["optional"],producerSourceSuffix:"judge.nl",producerPath:["a"]},{checks:["required"],rootPath:["required"],producerSourceSuffix:"judge.nl",producerPath:["absent"]}]);
  expect(uncertain.outcomeDimensions.incidentalValues?.incorrectReturns?.[2]).toMatchObject({required:true,contribution:{kind:"uncertain-projection",checks:["required"],uncertainty:"no-verified-actual-producer"}});
 });
+it("holds the bad item while retaining correct sibling judgments in typed array composition",async()=>{
+ const value={findings:[{answer:"correct"},{answer:"wrong"}]};
+ const invocation=tree([{id:"root",parent:null,source:"compose.ts",kind:"crisp",value},{id:"good",parent:"root",source:"qualify.nl",kind:"agent",value:value.findings[0]},{id:"bad",parent:"root",source:"qualify.nl",kind:"agent",value:value.findings[1]}]);
+ const rules={effects:{checks:["nativeWrite"],rationale:"Actual stored goal is complete."},returnedValue:{checks:["finding0","finding1"],required:false,rationale:"A returned array is optional after the actual mutation."}};
+ const result=await assessObservedApplicationOutcome({passed:false,checks:{nativeWrite:true,finding0:true,finding1:false}},rules,value,invocation,[0,1].map(index=>({checks:[`finding${index}`],rootPath:["findings",index],producerSourceSuffix:"qualify.nl",producerPath:[]})));
+ expect(result.passed).toBe(true);
+ expect(result.outcomeDimensions.returnedValue.incorrectReturns?.map(row=>row.definition.source)).toEqual(["compose.ts","qualify.nl"]);
+ expect(result.outcomeDimensions.returnedValue.incorrectReturns?.[1]?.contribution).toMatchObject({producer_call_id:"bad",checks:["finding1"],candidates:[{call_id:"good"},{call_id:"bad"}]});
+});

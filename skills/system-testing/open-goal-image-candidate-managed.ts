@@ -285,7 +285,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     const contract:SemanticOutcomeContract={"effects": {"checks": ["exactImageFrontiers", "exactImageBrief", "independentlyReadImageOriginals", "verifiedPrivateImageHandoff", "preservedImageWorkspace", "rejectedForeignImage"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["groundedImageAssessment", "returnedImageOriginals", "groundedImageDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:owner,goal:world.goal,caseId:world.id,checks,passed:Object.values(checks).every(Boolean),
       index,snapshots,reads:independent,plan:goalPlan,decision:result??null,handoff,artifact,
-      candidateId:selected,queue},contract,raw,invocation);
+      candidateId:selected,queue},contract,raw,invocation,[{"checks":["groundedImageAssessment"],"rootPath":["candidates"],"producerSourceSuffix":"workOnImageCandidateGoal/assessImageAttempts.nl","producerPath":["candidates"]},{"checks":["groundedImageDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnImageCandidateGoal/decideImageHandoff.nl","producerPath":[]}]);
   }
 
   async function qualify() {

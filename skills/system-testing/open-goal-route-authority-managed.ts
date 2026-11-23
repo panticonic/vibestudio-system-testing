@@ -1,5 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
 import type {InvocationObservations} from "./observed-invocation.js";
-import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
 import {contextId,fs,rpc,vcs,type VcsClient} from "@workspace/runtime";
@@ -227,10 +228,9 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
         await services.routeEvidenceHandoff.stage({} as OwnedRouteReview)===null,
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactRouteDiscovery", "exactScopedRoutePreflight", "exactCanonicalOriginCeiling", "selectedExactLocalAuthority", "nativeRouteReadback", "preservedExactProtectedBasis", "exactPrivateRouteNote", "rejectedRouteRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedRouteReadback", "exactRouteConclusion"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedRouteHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-    const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
-    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>exact(row.value,raw)).map(({definition,value})=>({definition,value,required:contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name])})) : [];
-    return assessSemanticOutcome({incorrectReturnValues,contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      offer,snapshots,authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract);
+
+    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      offer,snapshots,authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactRouteConclusion"],"rootPath":["outcome"],"producerSourceSuffix":"chooseAuthorizedEvidenceRoute/concludeEvidenceRoute.nl"}]);
   }
   async function qualify(){
     await services.routeEvidenceRead.discover();

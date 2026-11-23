@@ -113,7 +113,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactOriginalPdf", "nativePdfHandoff", "exactWorkingVault", "concurrentRevision", "protectedHeads"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["verifiedHandoff", "returnedVaultFindings"],required:!mayEdit,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
     return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), checks, contextId, caseId, panelId, goal,
-      proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation);
+      proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{"checks":["verifiedHandoff"],"rootPath":["source"],"producerSourceSuffix":"authorizePdfVaultHandoff.nl","producerPath":["source"]},{"checks":["verifiedHandoff"],"rootPath":["holdReason"],"producerSourceSuffix":"authorizePdfVaultHandoff.nl","producerPath":["reason"]}]);
   }
 
   async function qualify() {

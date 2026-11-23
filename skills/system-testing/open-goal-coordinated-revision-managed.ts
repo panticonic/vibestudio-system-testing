@@ -154,16 +154,17 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       exactAtomicRevisionBasis:world.concurrent?
         (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&attempt.head===after?.scope?.head):attempts.every(attempt=>attempt.receipt.status!=="applied")):
         (initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope?.head&&attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)):attempts.every(attempt=>attempt.receipt.status!=="applied")),
-      returnedRevisionHandles:!!finalRead&&report?.head===finalRead.head&&equal(report?.documents,finalRead.files.map(({path,version})=>({path,version})))&&typeof report?.explanation==="string"&&!!report.explanation.trim(),
+      returnedRevisionHandles:!!finalRead&&report?.head===finalRead.head&&equal(report?.documents,finalRead.files.map(({path,version})=>({path,version}))),
+      returnedRevisionExplanation:typeof report?.explanation==="string"&&!!report.explanation.trim(),
       independentlyVerifiedRevisionBatch:!!finalRead&&equal(actual,finalRead.files)&&finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&actual.every(file=>first?.scope?.files?.some(old=>old.path===file.path&&old.fileId===file.fileId)),
       exactRevisionEvidenceGuide:guide===guideRevision(await ports.guide()),
       protectedRevisionMain:equal(await ports.vcs.mainState(),protectedMain)&&
         finalRead?.protectedMain===protectedMain.eventId&&status.mainEventId===protectedMain.eventId&&
         equal(status.committed,baseStatus.committed),
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactCoordinatedDocumentScope", "exactCoordinatedDrafts", "exactNativeRevisionRace", "exactAtomicRevisionBasis", "independentlyVerifiedRevisionBatch", "exactRevisionEvidenceGuide", "protectedRevisionMain"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactCoordinatedAuthority", "returnedRevisionHandles"], "required": !attempts.some(attempt=>attempt.receipt.status==="applied"), "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactCoordinatedDocumentScope", "exactCoordinatedDrafts", "exactNativeRevisionRace", "exactAtomicRevisionBasis", "independentlyVerifiedRevisionBatch", "exactRevisionEvidenceGuide", "protectedRevisionMain"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactCoordinatedAuthority", "returnedRevisionHandles", "returnedRevisionExplanation"], "required": !attempts.some(attempt=>attempt.receipt.status==="applied"), "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      report:report??null,attempts,guideRevision:guide},contract,raw,invocation);
+      report:report??null,attempts,guideRevision:guide},contract,raw,invocation,[{checks:["returnedRevisionExplanation","exactCoordinatedAuthority"],rootPath:["explanation"],producerSourceSuffix:attempts[0]?.receipt.status==="changed"?"reviseCoordinatedDocuments/reconcileCoordinatedRevision.nl":"reviseCoordinatedDocuments/planCoordinatedRevision.nl",producerPath:["explanation"]}]);
   }
 
   async function qualify() {

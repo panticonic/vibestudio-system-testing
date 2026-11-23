@@ -379,7 +379,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     };
     const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedEditorialMission", "exactEditorialFrontiers", "exactApprovedPdfEvidence", "minimalEditorialProposal", "preservedCoeditorBoundary", "verifiedEditorialReadback", "verifiedPrivateEditorialNote", "protectedEditorialSources", "rejectedEditorialRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedEditorialDocument", "groundedEditorialDisposition"], "required": writtenAttempts.length===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact},contract,raw,invocation);
+      listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact},contract,raw,invocation,[{"checks":["groundedEditorialDisposition"],"rootPath":["decision"],"producerSourceSuffix":"workOnEditorialPacket/decideEditorialHandoff.nl","producerPath":[]}]);
   }
 
   async function qualify() {

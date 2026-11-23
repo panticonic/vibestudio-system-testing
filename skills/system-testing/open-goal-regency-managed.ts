@@ -246,7 +246,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       returnedRegencyForecasts:isDeepStrictEqual(forecasts,outcome?.forecasts),
       exactRegencyForecasts:isDeepStrictEqual(forecasts.map(row=>row.months),world.plan.horizons)&&forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
         (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
-      exactInstalledRegencyFindings:isDeepStrictEqual(outcome?.findings,findings)&&
+      exactInstalledRegencyFindings:outcome?.findings?.length===findings.length&&
         isDeepStrictEqual(findings.map(item=>item.review.decision),world.expected),
       groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string"&&result.explanation.length<=700&&
         world.terms.every(term=>result.explanation.toLowerCase().includes(term.toLowerCase())),
@@ -266,9 +266,11 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
         await services.regencyAdvance.commit(other,"different",1)===null&&
         await services.regencyNote.stage({decision:{action:"stage"}} as RegencyReport)===null,
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactRegencyForecasts", "verifiedRegencyAdvance", "exactRegencyAssignment", "independentlyReadRegencyMemo", "exactSavedRegencyFrontiers", "verifiedPrivateRegencyNote", "preservedRegencyWorkspace", "rejectedRegencyRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedRegencyForecasts", "exactInstalledRegencyFindings", "groundedRegencyAction", "returnedRegencyAdvance"], "required": neededAdvance===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const findingChecks=Object.fromEntries(findings.map((finding,index)=>[`exactRegencyFinding${index}`,isDeepStrictEqual(outcome?.findings?.[index],finding)]));
+    Object.assign(checks,findingChecks);
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactRegencyForecasts", "verifiedRegencyAdvance", "exactRegencyAssignment", "independentlyReadRegencyMemo", "exactSavedRegencyFrontiers", "verifiedPrivateRegencyNote", "preservedRegencyWorkspace", "rejectedRegencyRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedRegencyForecasts", "exactInstalledRegencyFindings", ...Object.keys(findingChecks), "groundedRegencyAction", "returnedRegencyAdvance"], "required": neededAdvance===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation);
+      index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation,[...findings.map((_,index)=>({checks:[`exactRegencyFinding${index}`],rootPath:["findings",index],producerSourceSuffix:"workOnRegencyBriefing/qualifyRegencyClaim.nl",producerPath:[]})),{"checks":["groundedRegencyAction"],"rootPath":["decision"],"producerSourceSuffix":"workOnRegencyBriefing/decideRegencyAction.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.regencyAssignment.list();

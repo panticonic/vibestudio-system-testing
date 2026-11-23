@@ -265,7 +265,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     };
     const contract:SemanticOutcomeContract={"effects": {"checks": ["verifiedDictationFrontiers", "verifiedLocalCorrection", "preservedDraftAndMain", "rejectedForeignDictation"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactOwnedDictation", "exactDictationSelection", "exactInstalledDraft"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({passed:Object.values(checks).every(Boolean),contextId:input.contextId,caseId:world.id,goal:world.goal,checks,
-      thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation);
+      thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation,[{"checks":["exactOwnedDictation","exactDictationSelection"],"rootPath":["plan"],"producerSourceSuffix":"workOnDictationHandoffGoal/decideDictationHandoff.nl","producerPath":[]},{"checks":["exactInstalledDraft"],"rootPath":["review"],"producerSourceSuffix":"workOnDictationHandoffGoal/reviewRetainedDictation/dictation/reviewDictation/prepareDraft.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.retainedDictationIndex.list();

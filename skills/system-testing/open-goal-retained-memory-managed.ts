@@ -1,5 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
 import type {InvocationObservations} from "./observed-invocation.js";
-import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { logIdForChannel } from "@vibestudio/trajectory-identity";
@@ -249,10 +250,9 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
           handoff===null&&notes.length===0,
       };
       const contract:SemanticOutcomeContract={effects:{checks:["exactRetainedMemoryScope", "exactBoundedNativeRecall", "independentlyReadMemorySources", "protectedMemoryScope", "exactPrivateMemoryHandoff"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactMemoryCitations"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedMemoryHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-      const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
-    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>equal(row.value,raw)).map(({definition,value})=>({definition,value,required:contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name])})) : [];
-    return assessSemanticOutcome({incorrectReturnValues,contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-        brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact},contract);
+
+    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+        brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactMemoryCitations"],"rootPath":["outcome"],"producerSourceSuffix":"reviewRetainedMemory/judgeMemoryClaim.nl"}]);
     }
     async function qualify(){
       const api=services.nativeRetainedMemory;

@@ -285,7 +285,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
     };
     const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedDiscovery", "validRecoveryTransitions", "boundRendererReadback", "untouchedCompanions", "protectedHeads"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactHealthDisposition"], "required": effects.length===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, catalog: discovered, binding,
-      observations: inspections, effects: structuredClone(effects), finalSurfaces },contract,value,invocation);
+      observations: inspections, effects: structuredClone(effects), finalSurfaces },contract,value,invocation,[{"checks":["exactHealthDisposition"],"rootPath":["reason"],"producerSourceSuffix":"recoverPanelGoal/recoverSurface.nl","producerPath":["reason"]}]);
   }
 
   async function qualify() {

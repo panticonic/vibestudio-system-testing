@@ -321,7 +321,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     };
     const contract:SemanticOutcomeContract={"effects": {"checks": ["exactIntegrationFrontiers", "trustedIntegrationSelection", "observedIntegrationLifecycles", "verifiedPrivateIntegrationNote", "preservedIntegrationWorkspace", "rejectedForeignIntegration"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["explicitQuietIntegration", "groundedIntegrationDisposition"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({caseId:input.caseId,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation);
+      index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation,[{"checks":["groundedIntegrationDisposition"],"rootPath":["plan"],"producerSourceSuffix":"workOnApiReadinessGoal/decideApiReadiness.nl","producerPath":[]},{"checks":["explicitQuietIntegration"],"rootPath":["review"],"producerSourceSuffix":"workOnApiReadinessGoal/reviewQuietCredentials.nl","producerPath":["result"]}]);
   }
   async function qualify() {
     await services.quietIntegrationIndex.list();

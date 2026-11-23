@@ -193,7 +193,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     };
     const contract:SemanticOutcomeContract={"effects": {"checks": ["verifiedExactNativeRunPair", "verifiedNativeCheckpointCursors", "verifiedOwnedRepairTransition", "preservedNeighborAndPriorRun"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["matchedOwnedDevelopmentAssignment", "matchedRepairReadiness"], "required": !shouldKeep, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), caseId: world.id, goal: world.goal, contextId: input.contextId,
-      checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) },contract,value,invocation);
+      checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) },contract,value,invocation,[{"checks":["matchedOwnedDevelopmentAssignment"],"rootPath":["runId"],"producerSourceSuffix":"reviewDevelopmentAudit/chooseDevelopmentRun.nl","producerPath":["runId"]},{"checks":["matchedRepairReadiness"],"rootPath":["assessment"],"producerSourceSuffix":"reviewDevelopmentAudit/assessDevelopmentRepair.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.developmentAuditEvidence.discover();

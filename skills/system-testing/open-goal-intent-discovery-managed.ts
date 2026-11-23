@@ -1,3 +1,4 @@
+import {intentOutcomeContributions} from "./operational-return-contributions.js";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type {InvocationObservations} from "./observed-invocation.js";
 import {isDeepStrictEqual} from "node:util";
@@ -202,7 +203,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["exactIntentOutcome","returnedIntentNote"],"rootPath":["outcome"],"producerSourceSuffix":"discoverScopedIntent/concludeIntentReview.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=intentOutcomeContributions;
     const contributions=authored.filter(binding=>{
       let current:unknown=raw;
       for(const key of binding.rootPath){
