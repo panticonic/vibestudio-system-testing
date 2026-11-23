@@ -1,5 +1,8 @@
 import { readFile, readdir, access } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import {createRequire} from "node:module";
+import {resolve} from "node:path";
+import {pathToFileURL} from "node:url";
 import { beforeEach, expect, it, vi } from "vitest";
 
 const runtime = vi.hoisted(() => ({
@@ -14,7 +17,8 @@ vi.mock("@workspace/runtime", () => runtime);
 import { prepareUnitHandoff } from "./open-goal-unit-handoff-managed.js";
 import { openUnitHandoffWorlds, type OpenUnitHandoffWorld } from "./open-goal-unit-handoff-worlds.js";
 
-const base = new URL("../../../base/", import.meta.url);
+const {requireDevelopmentTemplateCheckout}=createRequire(resolve(process.cwd(),"package.json"))("./src/dev/developmentTemplateConfig.cjs");
+const base=pathToFileURL(`${requireDevelopmentTemplateCheckout(process.cwd(),"base")}/`);
 const utf8 = (path: string) => readFile(new URL(path, base), "utf8");
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 const protectedHead = { kind: "event", eventId: "protected-main" };
