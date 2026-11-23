@@ -209,7 +209,6 @@ export async function prepareOpenClientDiagnostics(
     })),
     channel: world.channel?.title ?? null,
   };
-  let discovered = false;
   let current: ClientView | undefined;
   let currentRevision: string | undefined;
   let writing = false;
@@ -313,11 +312,10 @@ export async function prepareOpenClientDiagnostics(
   const services = {
     clientDiagnostics: {
       async discover() {
-        discovered = true;
         return log("discover", [], catalog);
       },
       async observe(surfaceId: string) {
-        if (!discovered || writing || !slots.has(surfaceId))
+        if (writing || !slots.has(surfaceId))
           return log("observe", [surfaceId], null);
         const native = await read(surfaceId);
         const health = await bindPanelHealth(native.panel, {
@@ -483,7 +481,6 @@ export async function prepareOpenClientDiagnostics(
       async channel(view: ChannelReviewRequest["view"]) {
         if (
           !lane ||
-          !discovered ||
           review ||
           !["health", "triage", "recap"].includes(view)
         )

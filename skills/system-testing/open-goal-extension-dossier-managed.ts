@@ -255,7 +255,9 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
   const services = {
     extensionReleaseRead: {
       async source(id: string) {
-        if (!discovery || source) throw new Error("Discover one exact owned extension release first");
+        if (id !== bound.request.operationId) throw new Error("Read the exact owned extension release");
+        discovery ??= await currentAssignment();
+        if (source) return structuredClone(source);
         source = await bound.services.extensionReleaseRead.source(id);
         return capture("extensionReleaseRead", "source", [id], source);
       },
@@ -266,7 +268,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     },
     extensionDossierRead: {
       async discover() {
-        if (discovery) throw new Error("This assignment was already discovered");
+        if (discovery) return structuredClone(discovery);
         discovery = await currentAssignment();
         return capture("extensionDossierRead", "discover", [], discovery);
       },
@@ -275,8 +277,8 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
         return capture("extensionDossierRead", "candidate", [id], candidate.delta);
       },
       async history(id: string) {
-        requireObserved(id);
-        if (!candidate) throw new Error("Compare this candidate before reading its retained release history");
+        if (id !== bound.request.operationId) throw new Error("Read the exact owned release history");
+        discovery ??= await currentAssignment();
         history = await currentHistory(discovery!.owner);
         return capture("extensionDossierRead", "history", [id], history);
       },

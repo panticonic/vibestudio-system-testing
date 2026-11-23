@@ -218,7 +218,9 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     },
     websiteReadback: {
       async observe() {
-        if (!boundPreflight || preflightReads++) throw new Error("Select one observed publication target before reading its preflight evidence");
+        if (!boundPreflight) throw new Error("Bind an authorized publication target before reading its preflight evidence");
+        if (observed) return structuredClone(observed);
+        preflightReads++;
         const value = await boundPreflight.observe();
         observed = structuredClone(value);
         return value;

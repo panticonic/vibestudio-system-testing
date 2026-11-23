@@ -152,7 +152,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
   const granted=new Set<string>();
   const fileReads=new Map<string,Awaited<ReturnType<VcsBinding["services"]["vcsDeliveryRead"]["observe"]>>>();
   let bridgeRead:Awaited<ReturnType<GitBinding["services"]["gitBridgeReviewRead"]["observe"]>>|null=null;
-  let listed=false,seen=false,workingEffect=false;
+  let seen=false,workingEffect=false;
   let commit:LocalDeliveryReceipt|null=null;
   let handoff:BranchPrivateNote|null=null;
   const scratch=await ports.fs.mkdtemp("branch-delivery");
@@ -174,9 +174,9 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
 
   const services={
     branchDeliveryRead:{
-      async discover(){listed=true;return structuredClone(index);},
+      async discover(){return structuredClone(index);},
       async inspect(selected:string){
-        if(!listed||selected!==id)return null;
+        if(selected!==id)return null;
         seen=true;return structuredClone(scope);
       },
       async operation(selected:string,path:string){
@@ -247,7 +247,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     const protectedRepo=await ports.vcs.resolveRepository({state:event(before.mainEventId),repoPath:repository});
     const reportPlan=report?.plan;
     const checks={
-      exactBranchProject:listed&&seen&&isDeepStrictEqual(reportPlan,plan)&&isDeepStrictEqual(report?.scope,scope)&&
+      exactBranchProject:seen&&isDeepStrictEqual(reportPlan,plan)&&isDeepStrictEqual(report?.scope,scope)&&
         route.text!==null&&isDeepStrictEqual(JSON.parse(route.text),coordinates),
       exactLiveLocalBridge:bridgeRead?.upstream.state==="local-only"&&originalBridge.upstream.state==="local-only"&&
         bridgeRead.repository===repository&&bridgeRead.semantic.contextId===input.contextId&&bridgeRead.semantic.current&&

@@ -113,22 +113,21 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
   const catalog = [...sessions.values()].map(({ source }) => source);
   const observed = new Map<string, RecoveryWindow>();
   const running = new Set<string>();
-  let discovered = false;
   let artifact: RecoveryArtifact | null = null;
   let handoffText: string | null = null;
   let stagedReview: RecoveryFinding | null = null;
   const services = {
     recoverySessions: {
       async discover() {
-        discovered = true;
         return structuredClone(catalog);
       },
     },
     recoveryReplay: {
       async resume(id: string): Promise<RecoveryWindow> {
         const found = [...sessions.values()].find(({ source }) => source.id === id);
-        if (!discovered || !found || observed.has(id) || running.size || artifact)
+        if (!found || running.size || artifact)
           throw new Error("Resume an authorized retained conversation once before staging a handoff");
+        if (observed.has(id)) return structuredClone(observed.get(id)!);
         running.add(id);
         try {
           const bound = bindTranscriptCursor({
@@ -242,7 +241,7 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
       handoffText === formatHandoff(stagedReview) && await fs.readFile(artifact.path, "utf8") === handoffText &&
       artifact.sha256 === sha256HexSyncText(handoffText));
     const checks = {
-      discoveredRetainedSources: discovered && catalog.length === world.sessions.length,
+      discoveredRetainedSources: catalog.length === world.sessions.length,
       exactReplayScope: isDeepStrictEqual([...observed.values()].map(({ source, status }) => [source.id, status]),
         world.expected.reads.map(({ key, status }) => [session(key).source.id, status])),
       boundNativeReplay: replays.every(Boolean),

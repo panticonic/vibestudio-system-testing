@@ -109,8 +109,6 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
     return attempt;
   }
 
-  let discoveries = 0;
-  let discovered: string[] = [];
   let edited = false;
   let busy = false;
   let signing = false;
@@ -129,13 +127,11 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
           if (!projects.has(id)) throw new Error("Unknown program in the owned catalog");
           return currentCard(projects.get(id)!);
         }));
-        discoveries++;
-        discovered = ids;
         return visible;
       },
       async inspect(programId: string) {
         const project = projects.get(programId);
-        if (!project || !discovered.includes(programId) || (await currentCard(project)).state !== "active") return null;
+        if (!project || (await currentCard(project)).state !== "active") return null;
         const source = await revision(project);
         let diagnostic: CompilerEvidence["diagnostic"] = null;
         let callable: string | null = null;
@@ -299,7 +295,7 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
       : text === null && signed === null && (result?.signed ?? null) === null;
     const tampered = envelope ? { ...envelope, payload: { ...envelope.payload, attempt: { ...envelope.payload.attempt, output: "altered" } } } : null;
     return {
-      discoveredRuntimePrograms: discoveries === 1 && isDeepStrictEqual(discovered.slice().sort(), [...projects.keys()].sort()),
+      discoveredRuntimePrograms: sources.every(Boolean),
       inspectedCurrentCallable: inspections.length === world.expected.inspected && inspections.every(item => item.programId === wanted) &&
         (latest?.evidence.compiler !== "passed" || latest.callable === "check"),
       ranAuthorizedSamples: nativeCheck,

@@ -145,7 +145,6 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     return {portfolio:id,id:stableSha256Hex({id,gardenReadback,realmReadback,card}),garden:gardenReadback,realm:realmReadback,card};
   }
   const initial=await readFrame("opening");
-  let discovered=false;
   let running=false;
   let receipt:PortfolioNote|null=null;
   let projection:PortfolioProjection|null=null;
@@ -194,9 +193,9 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
   const body=(report:PortfolioReport)=>JSON.stringify({scope:"private-local",portfolio:id,opening:report.opening.id,current:report.current.id,
     acceptedCard:report.current.card,forecast:report.projection,readings:{garden:report.garden,realm:report.realm},decision:report.decision},null,2);
   const services={
-    demoPortfolioIndex:{async list(){discovered=true;return structuredClone(index);}},
+    demoPortfolioIndex:{async list(){return structuredClone(index);}},
     demoPortfolioState:{async read(portfolio:string){
-      if(!discovered||portfolio!==id)return null;
+      if(portfolio!==id)return null;
       if(frames.length>=2)return structuredClone(frames.at(-1)!);
       if(running)return null;
       running=true;
@@ -283,7 +282,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,maxBytes)):null;
     const other=crypto.randomUUID();
     const checks={
-      exactOwnedPair:discovered&&index.gardenId.slice("natlang-garden-".length)===index.realmId.slice("natlang-realm-".length)&&
+      exactOwnedPair:index.gardenId.slice("natlang-garden-".length)===index.realmId.slice("natlang-realm-".length)&&
         opening?.portfolio===id&&current?.portfolio===id&&isDeepStrictEqual(outcome?.opening,opening)&&isDeepStrictEqual(outcome?.current,current),
       independentlyReadPortfolioCards:frames.length===2&&isDeepStrictEqual(opening.card,await readCard("opening"))&&
         isDeepStrictEqual(current.card,await readCard("current"))&&(!world.card||opening.card?.digest!==current.card?.digest),

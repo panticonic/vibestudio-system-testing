@@ -123,9 +123,6 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
   const described = new Map<string, DetailedCapability>();
   const sought = new Map<string, boolean>();
   const loaded = new Map<string, InstalledKnowledge>();
-  let searchCalls = 0;
-  let describeCalls = 0;
-  let loadCalls = 0;
   const services = {
     docPlanContext: {
       async observe() {
@@ -138,7 +135,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     },
     docPlanCatalog: {
       async search(query: CatalogQuery) {
-        if (++searchCalls > 6 || !query || typeof query.query !== "string" ||
+        if (!query || typeof query.query !== "string" ||
             !query.query.trim() || !boundedText(query.query, 128) ||
             !["service", "runtime", "workspace"].includes(query.surface)) return [];
         const hits = await rpc.call("main", mainRpcMethods["docs.search"], [query.query, { surface: query.surface, limit: 8 }]);
@@ -148,7 +145,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         });
       },
       async describe(id: string) {
-        if (!seen.has(id) || ++describeCalls > 6) return null;
+        if (typeof id !== "string" || !boundedText(id, 512)) return null;
         const entry = await liveDescription(id);
         if (entry) described.set(id, entry);
         return entry;
@@ -158,8 +155,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         return overview;
       },
       async availableMethod(name: string) {
-        if (typeof name !== "string" || !methodName.test(name) || !boundedText(name, 120) ||
-            (!sought.has(name) && sought.size >= 3)) {
+        if (typeof name !== "string" || !methodName.test(name) || !boundedText(name, 120)) {
           throw new Error("Use an exact bounded main RPC method name");
         }
         const entry = await rpc.call("main", mainRpcMethods["docs.describe"], [capabilityId(name)]);
@@ -170,10 +166,11 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     },
     docPlanSkills: {
       async load(dirPath: string, focus: string[]) {
-        const row = installed?.slice(0, 128).find(skill => skill.dirPath === dirPath);
+        installed ??= await skillIndex();
+        sourceRevision ??= (await vcs.status()).workingHead;
+        const row = installed.slice(0, 128).find(skill => skill.dirPath === dirPath);
         if (!row || row.skillPath !== `${dirPath}/SKILL.md` || !Array.isArray(focus) || !focus.length ||
-            focus.length > 6 || focus.some(term => typeof term !== "string" || !boundedText(term, 80)) ||
-            ++loadCalls > 4) return null;
+            focus.length > 6 || focus.some(term => typeof term !== "string" || !boundedText(term, 80))) return null;
         const raw = await readSkill(dirPath);
         if (!raw || !sourceRevision) return null;
         const exact = await versionedSkill(dirPath, sourceRevision);
@@ -273,7 +270,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     return {
       observedLiveCatalog: !!installed && currentMemo !== undefined &&
         isDeepStrictEqual(currentMemo, await memo()) &&
-        expectedIds.every(id => seen.has(id)),
+        expectedIds.every(id => described.has(id)),
       boundExactMethodSchemas: valid &&
         isDeepStrictEqual(plan.steps.map(step => step.id), expectedIds) &&
         plan.steps.every((step, index) => {

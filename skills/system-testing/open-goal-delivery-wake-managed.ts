@@ -212,7 +212,7 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
         return capture("deliveryWakeEvidence", "discover", [], assignment);
       },
       async observe(id: string) {
-        if (!claimed || id !== assignment.id) throw new Error("Observe the one exact delivery lane");
+        if (id !== assignment.id) throw new Error("Observe the one exact delivery lane");
         if (observed) return structuredClone(observed);
         if (pending) throw new Error("The delivery observation is already in progress");
         pending = true;

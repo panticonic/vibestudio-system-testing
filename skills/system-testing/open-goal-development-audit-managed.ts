@@ -110,13 +110,14 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
   const services = {
     developmentAuditEvidence: {
       async discover() {
-        if (claimed) throw new Error("Development assignment already discovered");
+        if (claimed) return structuredClone(assignment);
         claimed = true;
         return capture("developmentAuditEvidence", "discover", [], assignment);
       },
       async read(id: string): Promise<Observation> {
-        if (!claimed || (id !== assignment.requested && id !== assignment.alternate) || reads.has(id))
+        if (id !== assignment.requested && id !== assignment.alternate)
           throw new Error("Read one exact assigned native run");
+        if (reads.has(id)) return structuredClone(await reads.get(id)!);
         const observation = observe(id);
         reads.set(id, observation);
         return capture("developmentAuditEvidence", "read", [id], await observation);

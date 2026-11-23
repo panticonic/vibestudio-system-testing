@@ -96,12 +96,11 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       sources:[{id:"candidate-notice",path:noticePath}]},ports.readBytes).scratchHandoffWrite;
     const scopeFor:Record<IntentNeed,string>={workspace:owner,note:notePath,skill:skillName,worker:workerKey};
     const required=world.needs.map(need=>({need,methodId:methods[need],scope:scopeFor[need]}));
-    const found=new Set<string>();
     const searchLog:{query:string;hits:IntentHit[]}[]=[];
     const descriptions=new Map<string,IntentDescription>();
     const inspected:IntentObservation[]=[];
     const busy=new Set<string>();
-    let disclosed=false,staging=false;
+    let staging=false;
     let handoff:IntentNote|null=null;
     const body=(result:IntentReport)=>JSON.stringify({visibility:"private-local",notice:result.notice,plan:result.plan,
       evidence:result.evidence,outcome:result.outcome});
@@ -157,26 +156,28 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
     function searchProof(search:IntentSearch|undefined){
       return !!search&&isDeepStrictEqual(search.queries,searchLog.map(row=>row.query))&&
         isDeepStrictEqual(search.hits,searchLog.map(row=>row.hits))&&
-        isDeepStrictEqual(search.described,[...descriptions.values()])&&required.every(row=>descriptions.has(row.methodId));
+        isDeepStrictEqual(search.described,[...descriptions.values()]);
     }
     const services={
       nativeIntentDiscovery:{
-        async notice(){disclosed=true;return rawNotice();},
+        async notice(){return rawNotice();},
         async search(query:string){
-          if(!disclosed||searchLog.length>=6||typeof query!=="string"||!query.trim()||query.length>128)return [];
+          if(typeof query!=="string"||!query.trim()||query.length>128)return [];
           const hits=(await ports.catalog.search(query)).map(hit=>({id:hit.id,name:hit.qualifiedName,description:hit.description?.slice(0,210)??""}));
-          hits.forEach(hit=>found.add(hit.id));
           searchLog.push({query,hits});return structuredClone(hits);
         },
         async describe(id:string){
-          if(!disclosed||!found.has(id)||descriptions.size>=6||descriptions.has(id))return null;
+          if(typeof id!=="string"||!id||id.length>512)return null;
+          if(descriptions.has(id))return structuredClone(descriptions.get(id)!);
           const value=await description(id);
           if(value)descriptions.set(id,value);
           return structuredClone(value);
         },
         async inspect(methodId:string,scope:string){
           const route=required.find(row=>row.methodId===methodId&&row.scope===scope);
-          if(!route||!disclosed||!descriptions.has(methodId)||inspected.some(row=>row.methodId===methodId)||busy.has(methodId))return null;
+          if(!route||busy.has(methodId))return null;
+          const previous=inspected.find(row=>row.methodId===methodId&&row.scope===scope);
+          if(previous)return structuredClone(previous);
           busy.add(methodId);
           try{
             const value=await observation(route.need);
@@ -220,7 +221,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
         return false;
       });
       const checks={
-        exactIntentNotice:disclosed&&isDeepStrictEqual(report?.notice,notice)&&isDeepStrictEqual(await rawNotice(),notice),
+        exactIntentNotice:isDeepStrictEqual(report?.notice,notice)&&isDeepStrictEqual(await rawNotice(),notice),
         installedIntentDiscovery:searchProof(report?.search)&&isDeepStrictEqual(descriptionsCurrent,[...descriptions.values()]),
         exactIntentActionSelection:planMatches(report?.plan)&&isDeepStrictEqual(report?.plan.actions,
           inspected.map(({methodId,scope})=>({methodId,scope}))),

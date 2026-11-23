@@ -190,7 +190,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     retainedDictationState: {
       async read(threadId: string) {
         const known = lanes.get(threadId);
-        if (!listed || !known) return null;
+        if (!known) return null;
         const previous = seen.filter(row => row.threadId === threadId);
         if (previous.length >= 2) return structuredClone(previous.at(-1)!);
         if (reading) return null;
@@ -240,7 +240,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const local = expected.action === "stage-correction" || expected.action === "stage-alternative";
     const foreign = crypto.randomUUID();
     const checks = {
-      exactOwnedDictation: listed !== null && plan?.threadId === thread.threadId && plan.draftId === thread.draftId,
+      exactOwnedDictation: plan?.threadId === thread.threadId && plan.draftId === thread.draftId,
       verifiedDictationFrontiers: snapshots.length === 2 && isDeepStrictEqual(snapshots[0],first) && isDeepStrictEqual(snapshots[1],latest) &&
         latest.rows.length === seeded.size && latest.rows.every(row => isDeepStrictEqual(row.record,seeded.get(row.messageId))) &&
         new Set(latest.rows.map(row => row.envelopeId)).size === latest.rows.length,

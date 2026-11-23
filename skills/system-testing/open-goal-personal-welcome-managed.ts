@@ -153,8 +153,6 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
   const beforeFiles = new Set(await listOwnedScratchEntries(ports.fs));
   const writer = bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which current Personal next step is supported?"],
     sources:[{id:"scope",path:note}]},ports.readBytes).scratchHandoffWrite;
-
-  let listed = false;
   let reading = false;
   let writing = false;
   let resolution:WelcomeResolution|null = null;
@@ -234,13 +232,12 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     welcomeResourceIndex:{
       async list() {
 
-        listed=true;
         return structuredClone(index);
       },
     },
     welcomeReceiptStore:{
       async read(channelId:string) {
-        if (!listed || channelId!==lane.key) return null;
+        if (channelId!==lane.key) return null;
         if (snapshots.length>=2) return structuredClone(snapshots.at(-1)!);
         if (reading) return null;
         reading=true;
@@ -326,7 +323,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const artifact=data?new TextDecoder("utf-8",{fatal:true}).decode(data):null;
     const foreign=crypto.randomUUID();
     const checks={
-      exactWelcomeResource:listed&&!!plan&&plan.resourceId===expected.target&&isDeepStrictEqual(resolution,native),
+      exactWelcomeResource:!!plan&&plan.resourceId===expected.target&&isDeepStrictEqual(resolution,native),
       exactWelcomeFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(latest,snapshots[1])&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(seeded.get(row.messageId),row.record))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,

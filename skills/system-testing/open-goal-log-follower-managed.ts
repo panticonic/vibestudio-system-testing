@@ -213,12 +213,13 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
   const services = {
     logFollowerEvidence: {
       async discover() {
-        if (claimed) throw new Error("Discover one owned log-follow assignment");
+        if (claimed) return structuredClone(assignment);
         claimed = true;
         return save("logFollowerEvidence", "discover", [], assignment);
       },
       async observe(id: string) {
-        if (id !== assignment.id || !claimed || proof || pending) throw new Error("Observe the exact assigned log stream once");
+        if (id !== assignment.id || pending) throw new Error("Observe the exact assigned log stream once");
+        if (proof) return structuredClone(proof);
         pending = true;
         try { proof = await nativeCapture(); return save("logFollowerEvidence", "observe", [id], proof); }
         finally { pending = false; }

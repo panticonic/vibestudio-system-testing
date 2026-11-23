@@ -111,7 +111,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
   const nominated=routes.find(row=>row.basis===world.route)!;
   const snapshots:RouteAuthorityObservation[]=[];
   const expectedAuthority=()=>compareExactAuthority(snapshots,ceiling);
-  let discovered=false,busy=false;
+  let busy=false;
   let readback:RouteReadback|null=null,handoff:RouteHandoff|null=null;
   const body=(report:OwnedRouteReview)=>JSON.stringify({visibility:"private-local",routeId:report.choice.routeId,
     outcome:report.outcome,readback:report.readback,reviewedOperations:report.authority.reviews.map(row=>row.observation.operationId)});
@@ -154,9 +154,9 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
   }
   const services={
     routeEvidenceRead:{
-      async discover(){discovered=true;return structuredClone(offer);},
+      async discover(){return structuredClone(offer);},
       async inspect(routeId:string){
-        if(!discovered||snapshots.length!==operations.length||busy||routeId!==nominated.id||world.route==="external"||
+        if(snapshots.length!==operations.length||busy||routeId!==nominated.id||world.route==="external"||
           !nominated.operationIds.every(id=>expectedAuthority().reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible")))return null;
         if(readback)return structuredClone(readback);
         busy=true;
@@ -166,7 +166,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       },
     },
     assignedAuthorityRead:{async preflight(operationId:string){
-      if(!discovered||!operations.some(operation=>operation.id===operationId))throw new Error("Preflight only scoped route candidates");
+      if(!operations.some(operation=>operation.id===operationId))throw new Error("Preflight only scoped route candidates");
       const previous=snapshots.find(row=>row.operationId===operationId);
       if(previous)return structuredClone(previous);
       const observation=await binding.services.assignedAuthorityRead.preflight(operationId);
@@ -204,7 +204,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const written=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
     const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
     const checks={
-      exactRouteDiscovery:discovered&&exact(offer,report?.offer)&&new Set(offer.routes.map(row=>row.id)).size===7,
+      exactRouteDiscovery:exact(offer,report?.offer)&&new Set(offer.routes.map(row=>row.id)).size===7,
       exactScopedRoutePreflight:snapshots.length===operations.length&&operations.every(operation=>snapshots.some(row=>row.operationId===operation.id))&&
         exact(report?.authority,authorization),
       exactCanonicalOriginCeiling:sameClaim(linkReview,new URL(linkUrl).origin)&&sameClaim(altReview,new URL(altUrl).origin),

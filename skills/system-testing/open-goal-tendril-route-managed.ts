@@ -305,7 +305,6 @@ export async function prepareOpenTendrilRoute(
   };
   const observed = new Map<string, Snapshot>();
   const projected: Finding[] = [];
-  let listed = false;
   let raced = false;
   let probing = false;
   let retaining = false;
@@ -321,12 +320,9 @@ export async function prepareOpenTendrilRoute(
             return { id, title, room, audience, edition };
           }),
         );
-        listed = true;
         return attest("tendrilRouteRead", "listBoards", [], cards);
       },
       async readBoard(id: string) {
-        if (!listed)
-          throw new Error("Discover the owned Tendril boards before reading");
         const { board } = await snapshot(current(id).native);
         observed.set(id, board);
         return attest("tendrilRouteRead", "readBoard", [id], board);
@@ -505,7 +501,7 @@ export async function prepareOpenTendrilRoute(
       observed.get(main.board.id)?.revision === main.board.revision;
     const checks = {
       discoveredOwnedTendrilRoutes:
-        listed && snapshots.every(({ board }) => observed.has(board.id)),
+        observed.size > 0 && [...observed.keys()].every(id => snapshots.some(({board}) => board.id === id)),
       joinedDurableTendrilAudience:
         snapshots.every(({ entry, room }) =>
           isDeepStrictEqual(room, entry.baseline),

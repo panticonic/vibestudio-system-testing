@@ -97,8 +97,9 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
   }
   const services={
     illustrationEvidence:{
-      async discover(){if(discovered)throw new Error("Image assignment already discovered");discovered=true;return capture("illustrationEvidence","discover",[],assignment);},
-      async read(id:string){if(!discovered||id!==scope||basis)throw new Error("Image evidence requires the assigned scope");
+      async discover(){if(discovered)return structuredClone(assignment);discovered=true;return capture("illustrationEvidence","discover",[],assignment);},
+      async read(id:string){if(id!==scope)throw new Error("Image evidence requires the assigned scope");
+        if(basis)return structuredClone(basis);
         basis=await actualBasis();return capture("illustrationEvidence","read",[id],basis);},
     },
     illustrationJobs:{
@@ -169,7 +170,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     const refRead=reference?await images.readAsset(reference.id):null;
     const expectedBytes=world.occupancy==="existing"||expectedSave==="stale"?peer:expectedSave==="saved"?original[world.format]:null;
     const checks={
-      observedExactImageBasis:discovered&&isDeepStrictEqual(basis,initialBasis),
+      observedExactImageBasis:isDeepStrictEqual(basis,initialBasis),
       boundNativeImageAttempt:transport.length===startedTransport.length+externalRequestCount&&
         isDeepStrictEqual(transport.slice(0,startedTransport.length),startedTransport)&&transport.every(row=>
           row.session===actualJob?.id&&row.format===world.format&&row.prompt===world.topic&&

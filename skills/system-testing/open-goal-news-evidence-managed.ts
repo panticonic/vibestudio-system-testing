@@ -192,8 +192,6 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
   const baseFiles=new Set(await listOwnedScratchEntries(ports.fs));
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which original evidence supports this private note?"],
     sources:[{id:"scope",path:policyPath}]},ports.readBytes).scratchHandoffWrite;
-
-  let listed=false;
   let busy=false;
   let writing=false;
   let handoff:NewsEvidenceArtifact|null=null;
@@ -280,9 +278,9 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       plan:report.plan,readerWindows:report.readers,schedule:report.schedule,briefing:report.briefing,sources:report.sources});
   }
   const services={
-    newsEvidenceIndex:{async list(){listed=true;return structuredClone(index);}},
+    newsEvidenceIndex:{async list(){return structuredClone(index);}},
     newsEvidenceJournal:{async read(channelId:string){
-      if(!listed||channelId!==lane.key)return null;
+      if(channelId!==lane.key)return null;
       if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
       if(busy)return null;
       busy=true;
@@ -362,7 +360,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const foreign=crypto.randomUUID();
     const plan=outcome?.plan;
     const checks={
-      exactNewsFrontiers:listed&&snapshots.length===2&&isDeepStrictEqual(snapshots[0],readerProjection(initial))&&
+      exactNewsFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],readerProjection(initial))&&
         isDeepStrictEqual(snapshots[1],readerProjection(latest))&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.messageId)))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,

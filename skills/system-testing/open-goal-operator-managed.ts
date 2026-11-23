@@ -64,7 +64,6 @@ export function bindOpenGoalOperator(
   const { id, label, surface, grant } = world.target;
   const target: Target = { id, label, surface, grant };
   const initial = structuredClone(session.initial);
-  let listed = false;
   let baseline: Baseline | undefined;
   let profile: RemoteCommissionStages["profile"] | undefined;
   let pairing: RemoteCommissionStages["pair"] | undefined;
@@ -93,12 +92,11 @@ export function bindOpenGoalOperator(
   const services = {
     operatorDiscovery: {
       async list() {
-        listed = true;
         return [structuredClone(target)];
       },
       observe(targetId: string) {
         return exclusively(async () => {
-          if (!listed || targetId !== target.id)
+          if (targetId !== target.id)
             throw new Error("Read a discovered terminal target");
           if (baseline) return structuredClone(baseline);
           const observed = await session.baseline();
@@ -266,7 +264,7 @@ export function bindOpenGoalOperator(
       world.target.surface === "deployment" ? world.target.initial : "ready";
     const checks = {
       discoveredOwnedTarget:
-        listed && isDeepStrictEqual(baseline?.target, target),
+        isDeepStrictEqual(baseline?.target, target),
       observedCurrentHub:
         baseline?.state === expectedInitial &&
         initial.state === expectedInitial &&

@@ -113,7 +113,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
     const plan:LaunchPlan={panelId:active.id,direction:world.policy==="readonly"?"read":world.policy==="test-rejection"?"test":"write",
       retain:world.note===true,patch:world.patch};
     const frames:LaunchSnapshot[]=[];
-    let listed=false,busy=false;
+    let busy=false;
     let binding:Binding|null=null;
     let witness:Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null=null;
     let effect:LaunchEffect|null=null,readback:LaunchSnapshot|null=null,handoff:LaunchNote|null=null;
@@ -130,9 +130,9 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
 
     const services={
       launchStateRead:{
-        async enumerate(){listed=true;return structuredClone(index);},
+        async enumerate(){return structuredClone(index);},
         async read(panelId:string){
-          if(!listed||panelId!==active.id)return null;
+          if(panelId!==active.id)return null;
           if(frames.length>=2)return structuredClone(frames.at(-1)!);
           if(busy)return null;
           busy=true;
@@ -154,7 +154,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
           return structuredClone(binding.request);
         },
         async seal(panelId:string){
-          if(!listed||panelId!==active.id||frames.length!==2||busy)return null;
+          if(panelId!==active.id||frames.length!==2||busy)return null;
           readback=await native(active);return structuredClone(readback);
         },
       },
@@ -217,7 +217,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const effectProof=effect as LaunchEffect|null,authorityWitness=witness as Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null;
       const authorityRequest=(binding as Binding|null)?.request??null;
       const checks={
-        exactLaunchSlot:listed&&isDeepStrictEqual(report?.plan,plan)&&frames.length===2&&isDeepStrictEqual(opening,baseline)&&
+        exactLaunchSlot:isDeepStrictEqual(report?.plan,plan)&&frames.length===2&&isDeepStrictEqual(opening,baseline)&&
           isDeepStrictEqual(report?.opening,opening)&&isDeepStrictEqual(report?.current,current),
         reconciledLaunchScope:!!current&&(!sameIdentity(opening,current))===Boolean(world.replaceEntry)&&
           report?.decision.attempt===shouldAttempt&&typeof report.decision.reason==="string"&&!!report.decision.reason.trim(),

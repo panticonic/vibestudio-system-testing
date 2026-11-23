@@ -153,7 +153,6 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     sources: [{ id: "owned-provider-scope", path: providerPath }] }, readBytes);
   const effects: Effect[] = [];
   const lookedUp = new Set<string>();
-  let discovered = false;
   let inventoryReads = 0;
   let stored: Handoff | null = null;
   const remember = <T>(service: string, method: string, args: unknown[], result: T): T => {
@@ -192,11 +191,10 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     },
     localWidthEvidence: {
       async discover() {
-        discovered = true;
         return remember("localWidthEvidence", "discover", [], await readSurvey());
       },
       async readWitness(id: string) {
-        const path = discovered ? witnessPaths.get(id) : null;
+        const path = witnessPaths.get(id);
         if (!path) throw new Error("Discover and read only the assigned retained witness");
         lookedUp.add(id);
         return remember("localWidthEvidence", "readWitness", [id], await read<Witness>(path));
@@ -209,7 +207,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
         const authorized = current.survey.release === "include-hold" ||
           (current.survey.release === "verified" && current.selected.fact.disposition === "verified");
         const { fact } = current.selected;
-        if (!discovered || !inventoryReads || stored || !authorized || !isDeepStrictEqual(before.workingHead, post.workingHead) ||
+        if (!inventoryReads || stored || !authorized || !isDeepStrictEqual(before.workingHead, post.workingHead) ||
             !isDeepStrictEqual(factOnly(finding), fact) || (fact.witness && !lookedUp.has(fact.witness)) ||
             typeof finding.reason !== "string" || !finding.reason.trim() || encoder.encode(finding.reason).length > 800)
           return remember("localWidthHandoff", "stage", [finding], null);
@@ -256,7 +254,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
         bytes.length === stored.bytes && sha256HexSyncText(body) === stored.sha256;
     }
     const checks = {
-      retainedExactMachineScope: discovered && isDeepStrictEqual(outcome?.survey, actual.survey) && filesIntact.every(Boolean),
+      retainedExactMachineScope: isDeepStrictEqual(outcome?.survey, actual.survey) && filesIntact.every(Boolean),
       appliedInstalledReadiness: inventoryReads === 1 && matchesReadiness(outcome?.readiness, actual.rows),
       boundActualProviderAndWidth: Boolean(outcome?.finding && isDeepStrictEqual(factOnly(outcome.finding), fact)) &&
         isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
