@@ -196,6 +196,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
   let busy=false;
   let writing=false;
   let handoff:NewsEvidenceArtifact|null=null;
+  let stagedEvidence:NewsEvidenceReport|null=null;
   const snapshots:NewsEvidenceSnapshot[]=[];
   const reads:{selection:ReaderSelection;input:ReaderEvidence}[]=[];
   const sources:{message:string;value:SourceReadback|null}[]=[];
@@ -337,6 +338,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
         if(byteCount(text)>max)return null;
         const receipt=await writer.stage(text);
         if(!receipt)return null;
+        stagedEvidence=structuredClone(report);
         handoff={...receipt,sha256:sha256HexSyncText(text)};
         return structuredClone(handoff);
       } finally {writing=false;}
@@ -379,7 +381,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
         isDeepStrictEqual(outcome?.briefing,independent.briefing)&&plan.reason===expected.reason&&plan.action===expected.action&&
         typeof plan.explanation==="string"&&byteCount(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
       verifiedPrivateNewsHandoff:expected.action==="stage"?!!outcome&&!!handoff&&!!artifact&&!!written&&files.length===1&&
-        handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===body(outcome)&&handoff.sha256===sha256HexSyncText(artifact)&&
+        handoff.path===`/.tmp/${files[0]}/handoff.json`&&!!stagedEvidence&&isDeepStrictEqual(JSON.parse(body(outcome)),JSON.parse(body(stagedEvidence)))&&artifact===body(stagedEvidence)&&handoff.sha256===sha256HexSyncText(artifact)&&
         handoff.bytes===written.length&&isDeepStrictEqual(handoff,outcome.handoff):
         files.length===0&&handoff===null&&outcome?.handoff===null,
       preservedNewsWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
