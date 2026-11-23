@@ -13,7 +13,10 @@ import type {
   TestCase,
   TestSuiteResult,
   TestSuiteResultEntry,
+  RetainedTestEvidence,
 } from "./types.js";
+import { retainedSystemTestEntry } from "./completed-evidence-retention.js";
+export { retainedSystemTestEntry } from "./completed-evidence-retention.js";
 import { isUnexpectedToolFailure } from "./tool-failure-classification.js";
 import {
   failedSystemTestNames,
@@ -103,6 +106,8 @@ export interface SystemTestRunOptions {
   ) => void;
   /** Periodic, non-blocking record used by the CLI to inspect a running case. */
   onInspectionUpdate?: (record: SystemTestRunRecord) => void | Promise<void>;
+  /** Acknowledge durable full evidence before releasing completed packets from RAM. */
+  retainCompletedResult?: (entry: TestSuiteResultEntry, record: SystemTestRunRecord) => Promise<RetainedTestEvidence>;
   /**
    * Judges the report claims tests declare: the Base `claimCheck` program, which the runner's eval loads with its
    * natlang provider. A selected test that declares claims fails validation without it.
@@ -431,8 +436,8 @@ export async function runSystemTests(
       });
       publishInBackground("progress", publishProgress("running"));
     },
-    onTestResult: (entry) => {
-      completedEntries.push(entry);
+    onTestResult: async (entry, aggregate) => {
+      const position = completedEntries.push(entry) - 1;
       running.delete(entry.test.name);
       completed.push({
         name: entry.test.name,
@@ -448,10 +453,22 @@ export async function runSystemTests(
           ? { channelId: entry.execution.provenance.channelId }
           : {}),
       });
+      let retained: RetainedTestEvidence | undefined;
+      if (options.retainCompletedResult) {
+        const suite = aggregate;
+        retained = await options.retainCompletedResult(entry, {
+          schemaVersion: SYSTEM_TEST_RUN_SCHEMA_VERSION, runId: options.runId,
+          status: "running", startedAt, updatedAt: new Date().toISOString(),
+          config: runConfig(options, selected, model, concurrency, testTimeoutMs, runner),
+          provenance, summary: summarizeRun(options.runId, suite, "running", notInstalled), suite,
+        });
+        completedEntries[position] = retainedSystemTestEntry(entry, retained);
+      }
       // Progress is observability, not execution ownership. A malformed or
       // temporarily unavailable inspector must never abort the remaining
       // suite after the test itself has already reached a terminal state.
       publishInBackground("progress", publishProgress("running"));
+      return retained;
     },
   });
   let inspectionPublishing = false;

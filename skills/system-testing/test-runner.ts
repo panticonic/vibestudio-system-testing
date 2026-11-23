@@ -7,7 +7,9 @@ import type {
   TestResult,
   TestSuiteResultEntry,
   ToolFailureSummary,
+  RetainedTestEvidence,
 } from "./types.js";
+import { retainedSystemTestEntry } from "./completed-evidence-retention.js";
 import {
   classifyBuiltInToolFailure,
   isUnexpectedToolFailure,
@@ -80,7 +82,7 @@ export class TestRunner {
       onTestResult?: (
         entry: TestSuiteResultEntry,
         aggregate: TestSuiteResult,
-      ) => MaybePromise<void>;
+      ) => MaybePromise<void | RetainedTestEvidence>;
       concurrency?: number;
       testTimeoutMs?: number;
       /** Judges the report claims tests declare (`TestCase.reportClaims`). */
@@ -182,7 +184,7 @@ export class TestRunner {
       results[index] = entry;
       this.opts?.onTestEnd?.(test, result, execution);
       if (this.opts?.onTestResult) {
-        await this.opts.onTestResult(
+        const retained = await this.opts.onTestResult(
           entry,
           this.buildSuiteResult(
             tests.length,
@@ -191,6 +193,7 @@ export class TestRunner {
             startTime,
           ),
         );
+        if (retained) results[index] = retainedSystemTestEntry(entry, retained);
       }
     };
 
@@ -200,6 +203,9 @@ export class TestRunner {
         if (!claim) return;
         try {
           await runAt(claim.index);
+        } catch (error) {
+          this.cancel(error instanceof Error ? error : new Error(String(error)));
+          throw error;
         } finally {
           for (const resource of claim.resources)
             activeResources.delete(resource);
@@ -209,7 +215,10 @@ export class TestRunner {
     };
 
     try {
-      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+      const outcomes = await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
+      const failures = outcomes.filter((outcome): outcome is PromiseRejectedResult => outcome.status === "rejected");
+      if (failures.length === 1) throw failures[0]!.reason;
+      if (failures.length) throw new AggregateError(failures.map(outcome => outcome.reason), "System-test workers failed");
     } finally {
       if (this.wakeSuiteSchedulers === wakeSchedulers)
         this.wakeSuiteSchedulers = null;

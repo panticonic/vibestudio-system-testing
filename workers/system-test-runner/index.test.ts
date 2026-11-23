@@ -170,6 +170,25 @@ async function recordOwner() {
 }
 
 describe("system-test durable execution ownership", () => {
+  it("reads full original pages and passing-run inspection without hydrating full packets", async () => {
+    const owner = await recordOwner();
+    const record = runRecord("completed", "2026-09-28T00:00:02.000Z");
+    record.suite.results[0]!.execution.messages[0]!.content = "x".repeat(65535) + "🦦" + "original evidence ".repeat(10000);
+    await owner.store(record);
+    const hydrate = vi.spyOn(owner.instance as unknown as { requirePersistedRecord: (...args: unknown[]) => never }, "requirePersistedRecord")
+      .mockImplementation(() => { throw new Error("Full packet hydration was not needed"); });
+    let text = "", length = Infinity;
+    while (text.length < length) {
+      const page = await owner.call("readSystemTestTrajectoryPage", record.runId, "large-evidence", true, text.length, 32768);
+      expect(page.chunk.length).toBeLessThanOrEqual(32768);
+      length = page.length;
+      text += page.chunk;
+    }
+    expect(JSON.parse(text)).toEqual(record.suite.results[0]);
+    await expect(owner.call("inspectSystemTestRun", record.runId)).resolves.toMatchObject({ diagnostics: { failureCount: 0 } });
+    expect(hydrate).not.toHaveBeenCalled();
+  });
+
   it("keeps a large checkpoint inspectable and retains terminal evidence after disposal and a late update", async () => {
     const owner = await recordOwner();
     const running = runRecord("running", "2026-09-28T00:00:01.000Z");

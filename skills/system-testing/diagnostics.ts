@@ -99,6 +99,7 @@ export interface DiagnosticConversationItem {
 }
 
 export interface FailureDiagnostic {
+  retainedEvidence?: TestSuiteResultEntry["retainedEvidence"];
   name: string;
   category: string;
   passed: boolean;
@@ -181,7 +182,7 @@ export interface FailureReport {
   failures: FailureDiagnostic[];
 }
 
-const DEFAULT_LIMITS = {
+export const DEFAULT_LIMITS = {
   failures: 3,
   messages: 6,
   invocations: 8,
@@ -268,6 +269,7 @@ function summarizeFailure(
   );
 
   return {
+    ...(entry.retainedEvidence ? { retainedEvidence: entry.retainedEvidence } : {}),
     name: entry.test.name,
     category: entry.test.category,
     passed: entry.result.passed,

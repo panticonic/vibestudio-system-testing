@@ -113,6 +113,7 @@ import {localMessagingInputSchema,localMessagingQualificationSchema,type LocalMe
 import {localMessagingQualificationCode,localMessagingTeacherCode} from "./local-messaging-teacher.js";
 import {ownedDossierQualificationInput,ownedOperationsInputSchema,type OwnedDossierQualificationInput,type OwnedOperationsInput,type OwnedOperationsResult} from "@workspace-skills/system-testing/owned-operations-contract";
 import {ownedOperationsTeacherCode, qualifyHeldReleaseDossierCode} from "./owned-operations-teacher.js";
+import { DEFAULT_LIMITS as SYSTEM_TEST_DIAGNOSTIC_LIMITS } from "@workspace-skills/system-testing/diagnostics";
 import { contentProjectTeacherInputSchema, contentProjectInputSchema, type ContentProjectTeacherInput, type ContentProjectInput, type ContentProjectResult, type ContentProjectReceiver } from "@workspace-skills/system-testing/content-project-contract";
 import { createVcsClient } from "@workspace/runtime/vcs-client";
 import { prepareWorkspaceIntegration, verifyWorkspaceIntegration, exerciseWorkspaceIntegration,
@@ -350,6 +351,7 @@ function systemTestEvalCode(
       systemTestTrajectory,
       systemTestProgressCheckpoint,
       SYSTEM_TEST_DURABLE_HEARTBEAT_LIMIT,
+      retainedSystemTestEntry,
     } from "@workspace-skills/system-testing/cli";
     const { blobstore, rpc } = await import("@workspace/runtime");
     const { systemTestRunnerRpcMethods } = await import("@workspace-workers/system-test-runner/contract");
@@ -364,16 +366,21 @@ function systemTestEvalCode(
     let checkpointCompletedCount = -1;
     let lastRunRecord = null;
     const retainedEntries = new Map();
-    const persistRunRecord = async (record) => {
+    const persistRunRecord = async (record, completedEntries) => {
       const completedNames = new Set((lastProgress?.completed || []).map(entry => entry.name));
-      const entries = record.suite.results.filter(entry => record.status !== "running" || completedNames.has(entry.test.name));
+      const entries = completedEntries ?? record.suite.results.filter(entry => record.status !== "running" || completedNames.has(entry.test.name));
       for (const entry of entries) {
         if (retainedEntries.has(entry.test.name)) continue;
+        if (entry.retainedEvidence) throw new Error("Cannot replace full system-test evidence with an aggregate projection");
         const stored = await blobstore.putText(JSON.stringify(entry));
         retainedEntries.set(entry.test.name, { testName: entry.test.name, digest: stored.digest, size: stored.size });
       }
       const header = { ...record, suite: { ...record.suite, results: [] } };
       await rpc.call(recordOwner, systemTestRunnerRpcMethods.storeSystemTestRunCheckpoint, [progressKey, header, entries.map(entry => retainedEntries.get(entry.test.name))]);
+      return { ...record, suite: { ...record.suite, results: record.suite.results.map(entry => {
+        const evidence = retainedEntries.get(entry.test.name);
+        return evidence ? retainedSystemTestEntry(entry, evidence) : entry;
+      }) } };
     };
     // EvalDO durably stores each progress payload with a 64 KiB ceiling. Leave
     // room for its event envelope and encoded strings instead of measuring
@@ -400,11 +407,17 @@ function systemTestEvalCode(
         claimJudge,
         contextId: ctx.contextId,
         onProgress: publishProgress,
+        retainCompletedResult: async (entry, completedRecord) => {
+          lastRunRecord = await persistRunRecord(completedRecord, completedRecord.suite.results);
+          const evidence = retainedEntries.get(entry.test.name);
+          if (!evidence) throw new Error("Completed system-test evidence was not retained");
+          return { digest: evidence.digest, size: evidence.size };
+        },
         onInspectionUpdate: async (liveRecord) => {
           lastRunRecord = liveRecord;
           const completedCount = lastProgress?.completed?.length ?? 0;
           if (completedCount !== checkpointCompletedCount) {
-            await persistRunRecord(liveRecord);
+            lastRunRecord = await persistRunRecord(liveRecord);
             checkpointCompletedCount = completedCount;
           }
           const limits = { failures: 2, messages: 4, invocations: 6, debugEvents: 6, text: 300 };
@@ -431,8 +444,7 @@ function systemTestEvalCode(
           }
         }),
       });
-      lastRunRecord = record;
-      await persistRunRecord(record);
+      lastRunRecord = await persistRunRecord(record);
       return { runId: record.runId };
     } catch (error) {
       const prior = lastProgress && typeof lastProgress === "object"
@@ -610,7 +622,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         !isRecord(entry["test"]) ||
         entry["test"]["name"] !== reference.testName ||
         !isRecord(entry["execution"]) ||
-        !isRecord(entry["result"])
+        !isRecord(entry["result"]) || entry["retainedEvidence"] !== undefined
       )
         throw new Error(
           `System-test entry ${runId}/${reference.testName} has an invalid identity`,
@@ -5115,10 +5127,17 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     runId: string,
     testName?: string,
   ): Promise<unknown> {
-    return inspectSystemTestRun(
-      this.requirePersistedRecord(runId, testName),
-      testName ? { testName } : undefined,
-    );
+    if (testName) return inspectSystemTestRun(this.requirePersistedRecord(runId, testName), { testName });
+    const { record, entryNames } = this.requirePersistedHeader(runId);
+    const failed = new Set([...record.summary.failedTests, ...record.summary.testsWithUnexpectedToolFailures]);
+    const names = entryNames.filter(name => failed.has(name));
+    // Hydrate one selected failure at a time, rather than every full packet in a run.
+    const failures = names.slice(0, SYSTEM_TEST_DIAGNOSTIC_LIMITS.failures).map(name =>
+      JSON.parse(JSON.stringify(inspectSystemTestRun(this.requirePersistedRecord(runId, name), { testName: name }))));
+    return { ...(inspectSystemTestRun(record) as Record<string, unknown>), diagnostics: {
+      failureCount: names.length, shownFailureCount: failures.length,
+      truncatedFailureCount: names.length - failures.length, failures,
+    } };
   }
 
   @rpc({
@@ -5146,6 +5165,32 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       limit < 1
     ) {
       throw new Error("Invalid system-test trajectory page range");
+    }
+    if (full) {
+      this.requirePersistedHeader(runId);
+      const entry = this.sql.exec<{ length: number; page_count: number }>(
+        "SELECT length, page_count FROM system_test_entries WHERE run_id = ? AND test_name = ?", runId, testName,
+      ).toArray()[0];
+      if (!entry) throw new Error(`Missing retained system-test entry ${runId}/${testName}`);
+      if (offset >= entry.length)
+        return systemTestTrajectoryPageSchema.parse({ length: entry.length, encoding: "plain-string", chunk: "" });
+      const end = Math.min(entry.length, offset + Math.min(limit, 128 * 1024));
+      let position = 0, chunk = "";
+      // Page boundaries avoid splitting surrogate pairs, so use actual JS lengths.
+      // Each SQL read and the output remain bounded; never parse/stringify the full entry.
+      for (let index = 0; position < end && index < entry.page_count; index++) {
+        const page = this.sql.exec<{ page_text: string }>(
+          "SELECT page_text FROM system_test_entry_pages WHERE run_id = ? AND test_name = ? AND page_index = ?",
+          runId, testName, index,
+        ).toArray()[0];
+        if (!page) throw new Error(`Missing retained system-test page ${runId}/${testName}/${index}`);
+        const next = position + page.page_text.length;
+        if (next > offset) chunk += page.page_text.slice(Math.max(0, offset - position), end - position);
+        position = next;
+      }
+      if (offset < entry.length && chunk.length !== end - offset)
+        throw new Error(`Truncated retained system-test entry ${runId}/${testName}`);
+      return systemTestTrajectoryPageSchema.parse({ length: entry.length, encoding: "plain-string", chunk });
     }
     const text = JSON.stringify(
       systemTestTrajectory(

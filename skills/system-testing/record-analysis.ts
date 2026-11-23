@@ -27,7 +27,10 @@ export function systemTestTrajectory(
   options?: { full?: boolean; limits?: Partial<DiagnosticLimits> },
 ): unknown {
   const entry = requireEntry(record, testName);
-  if (options?.full) return entry;
+  if (options?.full) {
+    if (entry.retainedEvidence) throw new Error("Read the durable original for full system-test evidence");
+    return entry;
+  }
   return summarizeEntry(entry, options?.limits);
 }
 

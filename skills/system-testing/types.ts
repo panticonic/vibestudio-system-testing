@@ -364,10 +364,14 @@ export interface TestResult {
   details?: Record<string, unknown>;
 }
 
+export type RetainedTestEvidence = { digest: string; size: number };
+
 export interface TestSuiteResultEntry {
   test: { name: string; category: string; description: string; prompt: string };
   result: TestResult;
   execution: TestExecutionResult;
+  /** In-memory aggregate only; read the durable original for full evidence. */
+  retainedEvidence?: RetainedTestEvidence;
 }
 
 export interface TestSuiteResult {
