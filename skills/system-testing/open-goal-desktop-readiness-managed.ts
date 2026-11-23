@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import type { SupervisionChange } from "@vibestudio/shared/events";
 import type * as DesktopUpdateModel from "@workspace/client-update-core";
@@ -349,20 +350,10 @@ export async function prepareDesktopReadiness(
   };
   type Window = ReturnType<typeof observeWindow>;
   type Updates = Awaited<ReturnType<typeof observeUpdates>>;
-  type Outcome = {
-    scope: string;
-    evidence: {
-      desk: typeof desk;
-      admission: unknown;
-      window: Window;
-      updates: Updates;
-    };
-    decision: { action: string; reason: string };
-  };
 
-  async function verify(report: unknown) {
-    const envelope = report as Outcome | null;
-    const outcome = envelope;
+
+  async function verify(report: unknown, observations?: InvocationObservations) {
+    const outcome = report as {action:string;reason:string} | null;
     const sourceRead = journal.find((row) => row.method === "observe")
       ?.result as SourceEvidence | undefined;
     const exactAdmission = sourceRead && expectedAdmission(sourceRead);
@@ -382,6 +373,14 @@ export async function prepareDesktopReadiness(
         rows.some(row => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, value))
       );
     };
+    const childReturns = observations ? await observations.returns(call =>
+      call.definition.source.includes("reviewDesktopReadiness/clientDevelopment/") &&
+      (call.definition.name === "chooseNext" || call.definition.name === "reviewClientAdmission")) : [];
+    const incorrectReturnValues = exactAdmission ? childReturns.filter(call => {
+      const decision = call.definition.name === "chooseNext" ? call.value :
+        (call.value as {decision?:unknown}|null)?.decision;
+      return !isDeepStrictEqual(decision, exactAdmission.decision);
+    }).map(call => ({required:false,definition:call.definition,value:call.value})) : [];
     const checks = {
       exactDesktopClientSource:
         sourceRead?.contextId === input.contextId &&
@@ -397,11 +396,9 @@ export async function prepareDesktopReadiness(
         sourceRead.published.id === clientId &&
         sourceRead.published.runtime === "web" &&
         sourceRead.published.abi === "web-host-1" &&
-        matched("observe", [desk.operationId], sourceRead) &&
-        isDeepStrictEqual(outcome?.evidence.admission?.source, exactAdmission?.source) &&
-        isDeepStrictEqual(outcome?.evidence.admission?.host, exactAdmission?.host),
+        matched("observe", [desk.operationId], sourceRead) && matched("discover",[],[desk,neighbor]),
       incidentalDesktopAdmissionClassification:
-        outcome?.evidence.admission?.decision === exactAdmission?.decision,
+        incorrectReturnValues.length === 0,
       exactResponsivePlacement:
         matched("readWindow", [desk.id], window) &&
         window.status === (expected.layout ?? "restored") &&
@@ -412,8 +409,7 @@ export async function prepareDesktopReadiness(
         (expected.leftParked === undefined ||
           isDeepStrictEqual(pane?.parkedLeft, expected.leftParked)) &&
         (expected.rightParked === undefined ||
-          isDeepStrictEqual(pane?.parkedRight, expected.rightParked)) &&
-        isDeepStrictEqual(outcome?.evidence.window, window),
+          isDeepStrictEqual(pane?.parkedRight, expected.rightParked)),
       exactRetainedDesktopOffer:
         matched("readUpdates", [desk.id], updates) &&
         updates.portCalls === 0 &&
@@ -428,29 +424,21 @@ export async function prepareDesktopReadiness(
         isDeepStrictEqual(
           updates.notices.map((row) => row.title),
           expected.notices ?? [],
-        ) &&
-        isDeepStrictEqual(outcome?.evidence.updates, updates),
+        ),
       matchedDesktopReadinessDecision:
-        outcome?.scope === "owned-desktop-readiness-fixture" &&
-        outcome.decision.action === expected.action &&
-        Boolean(outcome.decision.reason.trim()) &&
-        isDeepStrictEqual(outcome.evidence.desk, desk) &&
-        matched("discover", [], [desk, neighbor]),
+        outcome?.action === expected.action &&
+        typeof outcome.reason === "string" && Boolean(outcome.reason.trim()),
       preservedDesktopWorkspaceHeads:
         final.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(final.workingHead, baseline.workingHead),
     };
-    const incidentalCorrect = checks.incidentalDesktopAdmissionClassification;
-    const incorrectReturnValues = incidentalCorrect ? [] : [
-      {required:false,definition:{name:"chooseNext",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission/chooseNext.nl"},value:outcome?.evidence.admission?.decision},
-      {required:false,definition:{name:"reviewClientAdmission",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission.nl"},value:outcome?.evidence.admission},
-      {definition:{name:"reviewDesktopReadiness",source:"reviewDesktopReadiness.nl"},value:outcome},
-    ].filter(item=>item.value!==undefined);
+    if(outcome!==undefined&&!checks.matchedDesktopReadinessDecision)incorrectReturnValues.push({required:true,
+      definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewDesktopReadiness",source:"reviewDesktopReadiness.nl"},value:outcome});
     return {
       incorrectReturnValues,
       outcomeContract:{
-        effects:{checks:Object.keys(checks).filter(name=>name!=="incidentalDesktopAdmissionClassification"),rationale:"Native source, layout, build distinction, requested answer and protected workspace are required by this desktop goal."},
-        returnedValue:{checks:[],required:true,rationale:"The requested layout and version answer is required and checked with native facts."},
+        effects:{checks:["exactDesktopClientSource","exactResponsivePlacement","exactRetainedDesktopOffer","preservedDesktopWorkspaceHeads"],rationale:"Native source, layout, build distinction, requested answer and protected workspace are required by this desktop goal."},
+        returnedValue:{checks:["matchedDesktopReadinessDecision"],required:true,rationale:"The requested layout and version answer is required and checked with native facts."},
         incidentalValues:{checks:["incidentalDesktopAdmissionClassification"],rationale:"An unused internal client admission recommendation is not the requested layout/build answer; retain and exclude its known incorrect generated values."},
       },
       contextId: input.contextId,
@@ -484,17 +472,10 @@ export async function prepareDesktopReadiness(
     );
     const window = await services.desktopReadiness.readWindow(desk.id);
     const updates = await services.desktopReadiness.readUpdates(desk.id);
-    const report = {
-        scope: "owned-desktop-readiness-fixture",
-        evidence: { desk, admission, window, updates },
-        decision: {
-          action: world.expected.action,
-          reason: "Current scoped desktop evidence.",
-        },
-      };
+    const report = {action:world.expected.action,reason:"Current scoped desktop evidence."};
     const proof = await verify(report);
     const negative = structuredClone(report);
-    negative.evidence.window.deskId = neighbor.id;
+    negative.action = "invented" as typeof negative.action;
     const rejectedWrongReadback = !(await verify(negative)).passed;
     const checks = {
       ...proof.checks,
@@ -504,6 +485,7 @@ export async function prepareDesktopReadiness(
     };
     return {
       ...proof,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedDesk", "rejectedAdmission", "rejectedWrongReadback"]]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

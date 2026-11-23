@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { stableSha256Hex } from "@vibestudio/content-addressing";
 import type { RuntimeEntityHandle } from "@vibestudio/shared/runtime/entitySpec";
@@ -383,17 +384,9 @@ export async function prepareOpenLocalMethod(
         },
       },
     };
-    type Outcome = {
-      scope: string;
-      card: typeof card;
-      evidence: typeof current;
-      plan: Plan;
-      attempt: Attempt | null;
-      terminal: Terminal | null;
-    };
-    async function verify(value: unknown) {
-      const envelope = value as Outcome | null;
-      const out = envelope;
+
+    async function verify(value: unknown, observations?: InvocationObservations) {
+      const result = value as Terminal | {action:string;finding:string} | null;
       const expectedAction = expectedActions[world.profile];
       const expectsCall = ["request", "recover"].includes(expectedAction);
       const expected = await readTerminal(expectsCall);
@@ -412,25 +405,19 @@ export async function prepareOpenLocalMethod(
         );
       };
       const checks = {
+        returnedMethodValue: expectsCall ? !!expected&&isDeepStrictEqual(result,expected) :
+          !!result&&"action" in result&&result.action===expectedAction&&typeof result.finding==="string"&&!!result.finding.trim(),
         exactOwnedMethodLane: Boolean(
-          out &&
-          isDeepStrictEqual(out.card, card) &&
-          isDeepStrictEqual(out.evidence, latest) &&
+
           exact(read, "discover", [], [card, archive]) &&
           exact(read, "inspect", [key], latest) &&
           latest.current === (world.profile !== "moved") &&
           Boolean(latest.provider) ===
             !["moved", "no-provider"].includes(world.profile),
         ),
-        groundedMethodDisposition: Boolean(
-          out?.scope === scope &&
-          out.plan.action === expectedAction &&
-          out.plan.method === world.method &&
-          out.plan.finding.trim(),
-        ),
+        groundedMethodDisposition: !expectsCall || expected?.method===world.method,
         exactDispatchOrRetainedRead: Boolean(
-          out &&
-          isDeepStrictEqual(out.attempt, attempted) &&
+
           (expectedAction === "request"
             ? attempted?.transport === transport &&
               attempted.invocation === invocation &&
@@ -451,8 +438,7 @@ export async function prepareOpenLocalMethod(
             : latest.retained === null),
         ),
         exactNativeTerminalAndExecution: Boolean(
-          out &&
-          isDeepStrictEqual(out.terminal, expected) &&
+
           exact(
             read,
             "settle",
@@ -467,6 +453,14 @@ export async function prepareOpenLocalMethod(
         ),
       };
       return {
+      outcomeContract: {
+        effects: {checks:["exactOwnedMethodLane", "groundedMethodDisposition", "exactDispatchOrRetainedRead", "exactNativeTerminalAndExecution"],rationale:"Actual native invocation ownership, terminal settlement and execution counts establish the exchange."},
+        returnedValue: {checks:["returnedMethodValue"],required:true,rationale:"The requested exact method result or specific hold finding is application data."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedMethodValue) ? [{
+        required:true,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reconcileOwnedMethodCall",source:"reconcileOwnedMethodCall.nl"},value:result,
+      }] : [],
         contextId: input.contextId,
         caseId: world.id,
         goal: world.goal,
@@ -512,21 +506,10 @@ export async function prepareOpenLocalMethod(
         evidence.basis,
         attempt?.transport ?? retained?.transport ?? null,
       );
-      const report = {
-          scope,
-          card,
-          evidence,
-          plan: {
-            action,
-            method: card.method,
-            finding: "Retained the exact native local method evidence.",
-          },
-          attempt,
-          terminal,
-        };
+      const report = terminal ?? {action,finding:"The current owned lane determines this disposition."};
       const verification = await verify(report);
       const wrong = structuredClone(report);
-      wrong.evidence.basis = "foreign";
+      if ("invocation" in wrong) wrong.invocation = "foreign"; else wrong.action = "invented" as typeof wrong.action;
       const rejected = !(await verify(wrong)).passed;
       if (terminal) {
         if ((await send()) !== "submitted")
@@ -539,6 +522,7 @@ export async function prepareOpenLocalMethod(
       const rejectedAlteredEvidence = denied === 2 && rejected;
       return {
         ...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
         passed: verification.passed && rejectedAlteredEvidence,
         checks: { ...verification.checks, rejectedAlteredEvidence },
         referenceReport: report,

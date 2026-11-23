@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   canonicalSnapshotDigest,
@@ -572,19 +573,11 @@ export async function prepareOpenSystemCandidate(
       },
     },
   };
-  type Outcome = {
-    scope: string;
-    card: typeof card;
-    frontier: Awaited<ReturnType<typeof frontier>>;
-    preview: Preview;
-    plan: Plan;
-    gate: Gate;
-    receipt: Receipt | null;
-    readback: Readback;
-  };
-  async function verify(value: unknown) {
-    const envelope = value as Outcome | null;
-    const out = envelope;
+
+  async function verify(value: unknown, observations?: InvocationObservations) {
+    const result = value as Receipt | {decision:string;finding:string} | null;
+    const plan = journal.filter(row=>row.service===write&&row.method==="record").at(-1)?.args[3] as Plan | undefined;
+    const finding = plan ?? (result&&"decision" in result ? result : null);
     const actual = await frontier();
     const exactPreview = await preview(actual);
     const end = await event();
@@ -613,40 +606,30 @@ export async function prepareOpenSystemCandidate(
     };
     const target = exactPreview.coordinate.id;
     const checks = {
+      returnedCandidateValue: world.record ? !!receipt&&isDeepStrictEqual(result,receipt) :
+        finding?.decision===world.decision&&typeof finding.finding==="string"&&!!finding.finding.trim(),
       exactSystemCandidateFrontier: Boolean(
-        out &&
-        isDeepStrictEqual(out.card, card) &&
-        isDeepStrictEqual(out.frontier, actual) &&
+
         exact(read, "discover", [], [card, older]) &&
         exact(read, "compare", [key, working.eventId], actual) &&
         actual.coordinates.length >= 2 &&
         actual.installedDigest === (await readInstalled()),
       ),
       exactNativeCoordinateAndSides: Boolean(
-        out &&
-        isDeepStrictEqual(out.preview, exactPreview) &&
+
         exact(read, "preview", [key, working.eventId, target], exactPreview) &&
         exactPreview.coordinate.status === nativeStatuses[world.mode],
       ),
       currentSystemReview: Boolean(
-        out &&
         gate &&
-        isDeepStrictEqual(out.gate, gate) &&
         exact(read, "confirm", [key, working.eventId, target], gate) &&
         gate.event === end &&
         gate.current === !world.moves &&
         (end === working.eventId) === !world.moves,
       ),
       scopedPrivateDiagnosis: Boolean(
-        out?.scope === scope &&
-        out.plan.decision === world.decision &&
-        out.plan.record === world.record &&
-        out.plan.finding.trim() &&
-        isDeepStrictEqual(
-          out.plan.proof,
-          world.moves ? [end] : digests(exactPreview),
-        ) &&
-        isDeepStrictEqual(out.receipt, receipt) &&
+        (world.record ? !!plan&&plan.decision===world.decision&&!!plan.finding.trim()&&plan.record&&
+          isDeepStrictEqual(plan.proof,world.moves?[end]:digests(exactPreview)) : true) &&
         (world.record
           ? receipt &&
             body &&
@@ -660,7 +643,7 @@ export async function prepareOpenSystemCandidate(
               deltaId,
               at: end,
               coordinate: target,
-              plan: out.plan,
+              plan: plan!,
               evidence: {
                 base: exactPreview.base.status,
                 ours: exactPreview.ours.status,
@@ -671,7 +654,7 @@ export async function prepareOpenSystemCandidate(
             exact(
               write,
               "record",
-              [key, working.eventId, target, out.plan],
+              [key, working.eventId, target, plan!],
               receipt,
             )
           : !receipt &&
@@ -680,9 +663,7 @@ export async function prepareOpenSystemCandidate(
             journal.every((row) => row.service !== write)),
       ),
       independentReadbackAndProtectedMain: Boolean(
-        out &&
         readback &&
-        isDeepStrictEqual(out.readback, readback) &&
         exact(read, "readback", [key, path], readback) &&
         readback.main === initial.mainEventId &&
         readback.event === end &&
@@ -690,6 +671,14 @@ export async function prepareOpenSystemCandidate(
       ),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["exactSystemCandidateFrontier", "exactNativeCoordinateAndSides", "currentSystemReview", "scopedPrivateDiagnosis", "independentReadbackAndProtectedMain"],rationale:"The native comparison and exact retained review note establish the private handoff."},
+        returnedValue: {checks:["returnedCandidateValue"],required:!world.record,rationale:"A read-only candidate finding is required; a returned retained-note reference is optional."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedCandidateValue) ? [{
+        required:!world.record,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"triageSystemTemplate",source:"triageSystemTemplate.nl"},value:result,
+      }] : [],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -754,22 +743,14 @@ export async function prepareOpenSystemCandidate(
       key,
       saved?.path ?? null,
     );
-    const report = {
-        scope,
-        card,
-        frontier: state,
-        preview: viewed,
-        plan,
-        gate: confirmed,
-        receipt: saved,
-        readback,
-      };
+    const report = saved ?? {decision:plan.decision,finding:plan.finding};
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.readback.main = "foreign";
+    if ("path" in altered) altered.path="foreign-candidate.json"; else altered.decision="invented" as typeof altered.decision;
     const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
     return {
       ...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,

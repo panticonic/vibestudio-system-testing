@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type {
@@ -437,18 +438,9 @@ export async function prepareSkillMaintenance(
     },
   };
 
-  type Outcome = {
-    scope: string;
-    observation: typeof observation;
-    authoring: unknown;
-    gate: unknown;
-    decision: { action: string; reason: string };
-    receipt: unknown;
-    final: NativeSkillCheck;
-  };
-  async function verify(report: unknown) {
-    const envelope = report as Outcome | null;
-    const outcome = envelope;
+
+  async function verify(report: unknown, observations?: InvocationObservations) {
+    const result = report as {disposition?:string;before?:string;after?:string;paths?:string[];action?:string;reason?:string} | null;
     const finalStatus = await status();
     const retainedArchive = await view(finalStatus.workingHead, archivePath);
     const after = await view(finalStatus.workingHead, workingPath);
@@ -502,24 +494,20 @@ export async function prepareSkillMaintenance(
         criterion,
       );
     const checks = {
+      returnedMaintenanceValue: withPatch ? !!proof&&isDeepStrictEqual(result,proof) :
+        result?.action===world.action&&typeof result.reason==="string"&&!!result.reason.trim(),
       exactSkillSourceAndOriginalWitness:
         read("discover", [], cards) &&
         read("inspect", [currentCard.id], observation) &&
-        isDeepStrictEqual(outcome?.observation, observation) &&
         original.check.satisfied === (world.action === "keep-current") &&
         (await native.retained(original.retained)),
       exactInstalledAuthoringReview:
         read("inspect", [currentCard.id], observation) &&
         journal.some((row) => row.service === "authoringCompiler" && row.method === "inspect") &&
         compiled?.revision === working.revision &&
-        authoring !== undefined &&
-        isDeepStrictEqual(outcome?.authoring, authoring),
+        authoring !== undefined,
       matchedSkillMaintenanceDecision:
-        outcome?.scope === "owned-working-skill" &&
-        outcome.decision.action === world.action &&
-        Boolean(outcome.decision.reason.trim()) &&
         gate?.status === expectedGate &&
-        isDeepStrictEqual(outcome.gate, gate) &&
         read("confirm", [currentCard.id, working.revision], gate),
       exactScopedSemanticSkillPatch:
         isDeepStrictEqual(changedPaths, expectedPaths) &&
@@ -529,7 +517,6 @@ export async function prepareSkillMaintenance(
             proof.after === after.revision &&
             isDeepStrictEqual([...(proof.paths ?? [])].sort(), expectedPaths)
           : proof === undefined) &&
-        isDeepStrictEqual(outcome?.receipt, proof ?? null) &&
         isDeepStrictEqual(retainedArchive.items, archive.items) &&
         finalStatus.mainEventId === baseline.mainEventId &&
         (!world.advance ||
@@ -543,10 +530,17 @@ export async function prepareSkillMaintenance(
         final.check.satisfied === compilerReadback.satisfied &&
         isDeepStrictEqual(final.check.failures, compilerReadback.failures) &&
         final.check.revision === after.revision &&
-        (await native.retained(final.retained)) &&
-        isDeepStrictEqual(outcome?.final, final.check),
+        (await native.retained(final.retained)),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["exactSkillSourceAndOriginalWitness", "exactInstalledAuthoringReview", "matchedSkillMaintenanceDecision", "exactScopedSemanticSkillPatch", "exactSkillCompilerReadback"],rationale:"Actual skill bytes, authorization, compiler readback and protected workspace establish repair."},
+        returnedValue: {checks:["returnedMaintenanceValue"],required:!withPatch,rationale:"A held or current-skill diagnosis is requested; an additional patch receipt is optional."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedMaintenanceValue) ? [{
+        required:!withPatch,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"maintainWorkspaceSkill",source:"maintainWorkspaceSkill.nl"},value:result,
+      }] : [],
       contextId,
       caseId: world.id,
       goal: world.goal,
@@ -604,25 +598,15 @@ export async function prepareSkillMaintenance(
     const final = await services.skillMaintenanceEvidence.readback(
       currentCard.id,
     );
-    const report = {
-        scope: "owned-working-skill",
-        observation: observed,
-        authoring,
-        gate,
-        decision: {
-          action: world.action,
-          reason: "Exact retained skill contract and owned working revision.",
-        },
-        receipt,
-        final,
-      };
+    const report = receipt ?? {action:world.action,reason:"Exact retained skill contract and owned working revision."};
     const result = await verify(report);
     const wrong = structuredClone(report);
-    wrong.final.revision = "other-head";
+    if ("after" in wrong) wrong.after="other-head"; else wrong.action="invented" as typeof wrong.action;
     const rejectedWrongReadback = !(await verify(wrong)).passed;
     const checks = { ...result.checks, rejectedAlias, rejectedWrongReadback };
     return {
       ...result,
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,...["rejectedAlias", "rejectedWrongReadback"]]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

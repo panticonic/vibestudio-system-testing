@@ -1,3 +1,4 @@
+import type {InvocationObservations} from "../system-testing/observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { ReadyClientSchema } from "@vibestudio/service-schemas/clients";
@@ -73,9 +74,7 @@ type Evidence = {
 type Outcome = {
   profile: string;
   action: string;
-  scope: string;
   reason: string;
-  evidence: Evidence;
 };
 const issue = {
   exact: null,
@@ -493,7 +492,7 @@ export async function prepareOpenMobileContinuity(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, observations?:InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const id = current.profile.id;
@@ -503,8 +502,9 @@ export async function prepareOpenMobileContinuity(
       [...scopedRecords.keys()].map(read),
     );
     const originalDeclaration = await readDeclaration(fs);
+    const nativeChecks=expectedEvidence(current,durable);
     const checks = {
-      ...expectedEvidence(current, durable),
+      ...nativeChecks,
       discoveredScopedMobileProfile:
         listed &&
         [...scopedRecords.keys()].every((id) => observedProfiles.has(id)) &&
@@ -523,10 +523,8 @@ export async function prepareOpenMobileContinuity(
         );
       }),
       matchedBoundMobileDecision:
-        outcome?.scope === "owned-fixture" &&
-        outcome.profile === id &&
+        outcome?.profile === id &&
         outcome.action === world.expected.action &&
-        isDeepStrictEqual(outcome.evidence, durable) &&
         typeof outcome.reason === "string" &&
         world.expected.terms.every((term) =>
           outcome.reason.toLowerCase().includes(term),
@@ -541,6 +539,13 @@ export async function prepareOpenMobileContinuity(
         ),
     };
     return {
+      outcomeContract:{
+        effects:{checks:[...Object.keys(nativeChecks),"discoveredScopedMobileProfile","joinedExactMobileObservations","preservedMobileSourceAndScope"],rationale:"This native-only evidence function and source/profile readback establish current device/build/route facts."},
+        returnedValue:{checks:["matchedBoundMobileDecision"],required:true,rationale:"The requested next safe mobile action and its specific reason are application data."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted answers are excluded from supervision."},
+      },
+      incorrectReturnValues:outcome!==undefined&&!checks.matchedBoundMobileDecision?[{required:true,
+        definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewMobileContinuity",source:"reviewMobileContinuity.nl"},value:outcome}]:[],
       contextId: input.contextId,
       caseId: input.caseId,
       goal: world.goal,
@@ -571,16 +576,16 @@ export async function prepareOpenMobileContinuity(
     ]);
     const outcome = {
       profile: id,
-      scope: "owned-fixture",
       action: world.expected.action,
       reason: world.expected.terms.join(" "),
-      evidence: { build, cache, transport, routes },
     };
     const proof = await verify(outcome);
+    const rejectedForeignResult = !(await verify({...outcome,profile:"outside-device"})).passed;
     return {
       ...proof,
-      passed: proof.passed && rejectedAlias,
-      checks: { ...proof.checks, rejectedMobileProfileAlias: rejectedAlias },
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedMobileProfileAlias", "rejectedForeignResult"]]}},
+      passed: proof.passed && rejectedAlias && rejectedForeignResult,
+      checks: { ...proof.checks, rejectedMobileProfileAlias: rejectedAlias, rejectedForeignResult },
     };
   }
   return { goal: world.goal, services, verify, qualify, close };

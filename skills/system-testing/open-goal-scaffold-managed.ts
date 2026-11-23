@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   sha256HexSyncText,
@@ -416,20 +417,14 @@ export async function prepareOpenScaffold(
     },
   };
   type Readback = Awaited<ReturnType<typeof services.scaffoldRead.readback>>;
-  type Outcome = {
-    scope: string;
-    card: typeof card;
-    options: Awaited<ReturnType<typeof optionsFor>>;
-    plan: Plan;
-    receipt: Receipt | null;
-    readback: Readback;
-  };
-  async function verify(value: unknown) {
-    const envelope = value as Outcome | null;
+
+  async function verify(value: unknown, observations?: InvocationObservations) {
+    const result = value as Receipt | {disposition:string;finding:string} | null;
     const final = await status();
     const current = await optionsFor(initial);
     const actual = await units();
-    const out = envelope;
+    const draft = journal.findLast(row => row.service === write && row.method === "prepare");
+    const disposition = result && "disposition" in result ? result : null;
     const readback = journal.find((row) => row.method === "readback")
       ?.result as Readback | undefined;
     const staging = world.disposition === "prepare";
@@ -447,14 +442,14 @@ export async function prepareOpenScaffold(
       );
     };
     const checks = {
+      returnedScaffoldValue: staging ? !!receipt && isDeepStrictEqual(result,receipt) :
+        disposition?.disposition === world.disposition && !!disposition.finding?.trim(),
       scopedOwnedScaffoldBrief: Boolean(
-        out &&
-        isDeepStrictEqual(out.card, card) &&
+
         exact(read, "discover", [], [card, archive]),
       ),
       observedInstalledScaffoldChoices: Boolean(
-        out &&
-        isDeepStrictEqual(out.options, current) &&
+
         exact(read, "options", [key], current) &&
         current.protectedMain === before.mainEventId &&
         (world.workspace === "examples") === Boolean(current.svelteSource) &&
@@ -464,15 +459,9 @@ export async function prepareOpenScaffold(
             )
           : !current.occupied.length),
       ),
-      selectedOutcomeAppropriateStarter: Boolean(
-        out?.scope === scope &&
-        out.plan.disposition === world.disposition &&
-        isDeepStrictEqual(out.plan.kinds, world.kinds) &&
-        out.plan.finding.trim().length > 0,
-      ),
+      selectedOutcomeAppropriateStarter: staging ? !!draft&&isDeepStrictEqual(draft.args[2],world.kinds) : true,
       exactNativeScaffoldDraft: Boolean(
-        out &&
-        isDeepStrictEqual(out.receipt, receipt) &&
+
         (staging
           ? receipt &&
             retained &&
@@ -523,9 +512,7 @@ export async function prepareOpenScaffold(
             journal.every((row) => row.service !== write)),
       ),
       independentVcsReadbackAndMain: Boolean(
-        out &&
         readback &&
-        isDeepStrictEqual(out.readback, readback) &&
         exact(read, "readback", [key, receipt?.draft ?? null], readback) &&
         readback.main === before.mainEventId &&
         readback.draft === stableSha256Hex(final.workingHead) &&
@@ -536,6 +523,14 @@ export async function prepareOpenScaffold(
       ),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["scopedOwnedScaffoldBrief", "observedInstalledScaffoldChoices", "selectedOutcomeAppropriateStarter", "exactNativeScaffoldDraft", "independentVcsReadbackAndMain"],rationale:"The owned native draft and its persisted units establish preparation."},
+        returnedValue: {checks:["returnedScaffoldValue"],required:!staging,rationale:"Advice-only goals require the scaffold finding; a returned draft handle is optional when the draft exists."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedScaffoldValue) ? [{
+        required:!staging,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"prepareOwnedScaffold",source:"prepareOwnedScaffold.nl"},value:result,
+      }] : [],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -570,17 +565,11 @@ export async function prepareOpenScaffold(
       key,
       staged?.draft ?? null,
     );
-    const report = {
-        scope,
-        card,
-        options: inventory,
-        plan,
-        receipt: staged,
-        readback,
-      };
+    const report = staged ?? {disposition:plan.disposition,finding:plan.finding};
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.readback.main = "retired";
+    if ("draft" in altered) altered.draft = "foreign-draft";
+    else altered.disposition = "invented" as typeof altered.disposition;
     const rejectedChangedMain = !(await verify(altered)).passed;
     const rejectedUnapprovedDraft = staged
       ? true
@@ -589,6 +578,7 @@ export async function prepareOpenScaffold(
     const rejectedAlteredEvidence = denied && rejectedChangedMain && rejectedUnapprovedDraft;
     return {
       ...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { workspaceReadinessFromLog } from "@vibestudio/shared/mobileWorkspaceReadiness";
 import { PhoneProviderSchema } from "@vibestudio/service-schemas/phoneProvisioning";
@@ -376,20 +377,9 @@ export async function preparePhoneFirstRun(
     evidenceIds: string[];
     guidance: string | null;
   };
-  type Outcome = {
-    scope: string;
-    decision: { action: string; reason: string };
-    evidence: {
-      card: typeof card;
-      assignment: typeof assignment;
-      startup: ReturnType<typeof readPhases>;
-      build: Awaited<ReturnType<typeof buildEvidence>>;
-      resume: ReadyReport | null;
-    };
-  };
-  async function verify(report: unknown) {
-    const envelope = report as Outcome | null;
-    const outcome = envelope;
+
+  async function verify(report: unknown, observations?: InvocationObservations) {
+    const outcome = report as {action:string;reason:string} | null;
     const phases = readPhases(world, id, targetId);
     const build = await buildEvidence();
     const { expected } = world;
@@ -414,7 +404,6 @@ export async function preparePhoneFirstRun(
       ?.result as
       | Awaited<ReturnType<typeof services.phoneSetupRead.readiness>>
       | undefined;
-    const resume = outcome?.evidence?.resume;
     const checks = {
       exactPhoneDesktopEligibility:
         match("phoneFirstRun", "discover", [], [card, archived]) &&
@@ -422,9 +411,7 @@ export async function preparePhoneFirstRun(
         isDeepStrictEqual(
           desktops.map((value) => value.providerId),
           expected.eligible ?? [],
-        ) &&
-        isDeepStrictEqual(outcome?.evidence?.assignment, assignment) &&
-        isDeepStrictEqual(outcome?.evidence?.card, card),
+        ),
       preservedOwnedPairing:
         paired === "owned"
           ? Boolean(
@@ -438,36 +425,33 @@ export async function preparePhoneFirstRun(
                 start,
               ) &&
               match("phoneSetupRead", "readiness", [start.receipt], readback) &&
-              readback.state === expected.ready &&
-              resume?.status === "workspace-" + expected.ready &&
-              resume.pairedDeviceId === targetId &&
-              isDeepStrictEqual(resume.evidenceIds, [
-                start.receipt,
-                readback.receipt,
-              ]),
+              readback.state === expected.ready,
             )
-          : start === undefined && readback === undefined && resume === null,
+          : start === undefined && readback === undefined,
       exactScopedMobileDebugPhases:
         phases.status === (expected.phases ?? "unavailable") &&
-        match("phoneFirstRun", "phases", [id], phases) &&
-        isDeepStrictEqual(outcome?.evidence?.startup, phases),
+        match("phoneFirstRun", "phases", [id], phases),
       exactInstalledReactNativeDeclaration:
         build.runtime === "react-native" &&
         build.abi === build.expectedAbi &&
         build.providerPackage === "@workspace-extensions/react-native" &&
-        match("phoneFirstRun", "provider", [id], build) &&
-        isDeepStrictEqual(outcome?.evidence?.build, build),
+        match("phoneFirstRun", "provider", [id], build),
+      returnedPhoneDecision: outcome?.action===expected.action&&typeof outcome.reason==="string"&&!!outcome.reason.trim(),
       matchedReadOnlyPhoneDisposition:
-        outcome?.scope === "owned-phone-eligibility-rehearsal" &&
-        outcome.decision?.action === expected.action &&
-        typeof outcome.decision.reason === "string" &&
-        Boolean(outcome.decision.reason.trim()) &&
         after.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(after.workingHead, baseline.workingHead) &&
         unwantedOperations === 0 &&
         (paired === "owned" || journal.every(({ service }) => service !== "phoneSetupRead")),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["exactPhoneDesktopEligibility", "preservedOwnedPairing", "exactScopedMobileDebugPhases", "exactInstalledReactNativeDeclaration", "matchedReadOnlyPhoneDisposition"],rationale:"Native pairing, installed declaration, phases and unchanged workspace are independent facts."},
+        returnedValue: {checks:["returnedPhoneDecision"],required:true,rationale:"The user asks for the safe next phone setup step."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: outcome!==undefined&&!(checks.returnedPhoneDecision) ? [{
+        required:true,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"planPhoneFirstRun",source:"planPhoneFirstRun.nl"},value:outcome,
+      }] : [],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -477,7 +461,6 @@ export async function preparePhoneFirstRun(
       assignment,
       phases,
       build,
-      resume,
       journal: structuredClone(journal),
       unwantedOperations,
     };
@@ -506,21 +489,15 @@ export async function preparePhoneFirstRun(
         guidance: null,
       };
     }
-    const report = {
-        scope: "owned-phone-eligibility-rehearsal",
-        evidence: { card, assignment, startup, build, resume },
-        decision: {
-          action: world.expected.action,
-          reason: "Exact retained phone setup evidence.",
-        },
-      };
+    const report = {action:world.expected.action,reason:"Exact retained phone setup evidence."};
     const result = await verify(report);
     const wrong = structuredClone(report);
-    wrong.evidence.build.provider = "extensions/foreign";
+    wrong.action = "invented" as typeof wrong.action;
     const rejectedForeignProof = !(await verify(wrong)).passed;
     const checks = { ...result.checks, rejectedArchive, rejectedForeignProof };
     return {
       ...result,
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,...["rejectedArchive", "rejectedForeignProof"]]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

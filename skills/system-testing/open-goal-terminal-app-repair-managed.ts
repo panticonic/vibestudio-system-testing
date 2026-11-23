@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import type { VcsClient } from "@workspace/runtime";
 import { createUnitRepair } from "@workspace/natlang-services";
@@ -429,18 +430,8 @@ export async function prepareOpenTerminalAppRepair(
     },
   };
 
-  async function verify(raw: unknown) {
-    const envelope = raw as {
-        app: unknown;
-        initial: unknown;
-        plans: { status: string; edits: Edits; reason: string }[];
-        applied: unknown;
-        final: unknown;
-        artifact: unknown;
-        outcome: string;
-        explanation: string;
-      } | null;
-    const report = envelope;
+  async function verify(raw: unknown, observations?: InvocationObservations) {
+    const report = raw as {artifact:unknown;outcome:string;explanation:string}|null;
     const end = await independent.unitRepair.observe();
     const protectedAfter = await independent.unitRepair.readSource(
       end.revision,
@@ -466,33 +457,22 @@ export async function prepareOpenTerminalAppRepair(
       (entry) => entry.service === "terminalRepairApply",
     );
     const checks = {
+      returnedTerminalRepair: report?.outcome===disposition&&typeof report.explanation==="string"&&!!report.explanation.trim()&&
+        isDeepStrictEqual(report.artifact,kept?artifact:null),
       exactOwnedTerminalSource:
         !!initial &&
-        isDeepStrictEqual(report?.app, app) &&
-        isDeepStrictEqual(report?.initial, initial.public) &&
         evidence.revision === initial.evidence.revision &&
         initial.public.observed.sources.some(
           (row) => row.path === entry && row.text === original.broken,
         ),
       authorizedRepairOrHold:
-        report === disposition &&
-        report.plans.length === 1 &&
-        report.plans[0]?.status === expectedPlan &&
-        Boolean(report.plans[0]?.reason.trim()) &&
-        Boolean(report.explanation?.trim()) &&
-        isDeepStrictEqual(report.applied, applied ? [applied] : []) &&
-        (expectedPlan === "repair"
-          ? edits.length === 1 &&
-            isDeepStrictEqual(edits[0]?.args[2], report.plans[0]?.edits)
-          : edits.length === 0 && report.plans[0]?.edits.length === 0),
+        (expectedPlan === "repair" ? edits.length===1&&!!applied : edits.length===0),
       exactNativeTestAndArtifact: kept
         ? Boolean(
             rechecked &&
             proven(rechecked.evidence) &&
             artifact &&
             isDeepStrictEqual(independentArtifact, artifact) &&
-            isDeepStrictEqual(report?.artifact, artifact) &&
-            isDeepStrictEqual(report?.final, final?.public) &&
             final?.evidence.revision === end.revision &&
             final.evidence.tests?.receipt.artifactKey ===
               rechecked.evidence.tests?.receipt.artifactKey &&
@@ -500,8 +480,6 @@ export async function prepareOpenTerminalAppRepair(
               rechecked.evidence.tests?.receipt.executionDigest,
           )
         : !artifact &&
-          report?.artifact === null &&
-          report?.final === null &&
           final === null,
       protectedOriginalTestAndMain:
         isDeepStrictEqual(protectedBefore, protectedAfter) &&
@@ -518,6 +496,14 @@ export async function prepareOpenTerminalAppRepair(
               actualSource === original.broken),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["exactOwnedTerminalSource", "authorizedRepairOrHold", "exactNativeTestAndArtifact", "protectedOriginalTestAndMain"],rationale:"The actual terminal source, original native suite and bound artifact establish the repair."},
+        returnedValue: {checks:["returnedTerminalRepair"],required:!kept,rationale:"A blocked repair explanation is requested; a receipt copy is optional once the app is repaired and verified."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: report!==undefined&&!(checks.returnedTerminalRepair) ? [{
+        required:!kept,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnTerminalApp",source:"workOnTerminalApp.nl"},value:report,
+      }] : [],
       contextId,
       caseId: world.id,
       goal: world.goal,
@@ -564,30 +550,10 @@ export async function prepareOpenTerminalAppRepair(
     const artifact = kept
       ? await services.terminalRepairArtifact.read(app.id, revision)
       : null;
-    const report = {
-        app,
-        initial,
-        plans: [
-          {
-            status: repairing
-              ? "repair"
-              : world.mode === "already-ready"
-                ? "existing"
-                : world.mode,
-            edits,
-            reason:
-              "Use the current terminal source and current authorization.",
-          },
-        ],
-        applied: effect ? [effect] : [],
-        final,
-        artifact,
-        outcome: world.mode === "repair" ? "verified" : world.mode,
-        explanation:
-          "Only the exact current candidate and its native evidence establish this disposition.",
-      };
+    const report = {artifact,outcome:world.mode === "repair" ? "verified" : world.mode,
+      explanation:"Only the exact current candidate and its native evidence establish this disposition."};
     const verification = await verify(report);
-    const wrong = await verify({ ...report, app: prior });
+    const wrong = await verify({ ...report, outcome: "invented" });
     const altered = await verify({
         ...report,
         artifact: artifact
@@ -598,6 +564,7 @@ export async function prepareOpenTerminalAppRepair(
       rejectedAlias && !wrong.passed && !altered.passed;
     return {
       ...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,
