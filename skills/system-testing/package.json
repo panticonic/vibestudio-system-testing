@@ -48,6 +48,7 @@
   },
   "exports": {
     "./semantic-outcome-contract": "./semantic-outcome-contract.ts",
+    "./observed-application-outcome": "./observed-application-outcome.ts",
     "./remote-deployment-managed": "./remote-deployment-managed.ts",
     "./remote-commission-managed": "./remote-commission-managed.ts",
     "./approval-transition-managed": "./approval-transition-managed.ts",

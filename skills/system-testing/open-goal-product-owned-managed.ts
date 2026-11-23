@@ -1,4 +1,5 @@
 import type {InvocationObservations} from "./observed-invocation.js";
+import { assessObservedApplicationOutcome } from "./observed-application-outcome.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, vcs } from "@workspace/runtime";
@@ -129,7 +130,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     return attribute(selected ? "calendar:" + selected.calendarId + "/" + selected.eventId : null,
       "runbook:" + original.currentRevision, world.action === "revise" ? approvalId : null, "private-workspace");
   };
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown, invocation?: InvocationObservations) {
     const report = reportOf<GoogleReport>(raw);
     const current = await basis();
     const workspace = await ports.status({ contextId: input.contextId });
@@ -142,6 +143,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     const writingCalls = calls.filter(call => call.method === "apply");
     const checks = {
       current_calendar: calendarProof.passed === true && calendarProof.handoff === null,
+      read_runbook_basis: bases.length > 0,
       runbook_authority: decision?.action === world.action && decision.path === target &&
         decision.approval === approvalId && typeof decision.reason === "string" && !!decision.reason.trim(),
       exact_basis_attribution: calendarProof.passed === true && !!bases[0] &&
@@ -149,14 +151,22 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
           ? "calendar:" + selectedCalendar.calendarId + "/" + selectedCalendar.eventId : null,
           "runbook:" + bases[0].currentRevision, world.action === "revise" ? approvalId : null, "private-workspace")),
       exact_runbook_result: targetNow.text === wanted && (world.action === "revise"
-        ? !!applied && isDeepStrictEqual(report?.write, applied) && applied.version === targetNow.version &&
+        ? !!applied && applied.version === targetNow.version &&
           writingCalls.some(call => isDeepStrictEqual(call.result, applied)) && (!world.coedit || coedited)
-        : !applied && report?.write === null && !writingCalls.length),
+        : !applied),
+      returned_runbook_receipt: isDeepStrictEqual(report?.write, applied),
       preserved_workspace: isDeepStrictEqual(workspace, originalWorkspace) && current.documents.every(doc =>
         doc.path === target || doc.text === source[doc.path as keyof typeof source]),
     };
-    return { ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      productReview: { calls: structuredClone(calls), bases, report, calendar: calendarProof } };
+    return assessObservedApplicationOutcome({ ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+      productReview: { calls: structuredClone(calls), bases, report, calendar: calendarProof } }, {
+        effects: { checks: ["current_calendar", "read_runbook_basis", "exact_runbook_result", "preserved_workspace"],
+          rationale: "Actual Calendar reads, issued runbook evidence, native guarded writes and exact retained files establish the requested private effect." },
+        returnedValue: { checks: world.action === "revise" ? [] : ["runbook_authority"], required: world.action !== "revise",
+          rationale: "An inspection or authorization-preserving hold needs its actual decision; a completed edit is established by the retained document." },
+        incidentalValues: { checks: ["exact_basis_attribution", "returned_runbook_receipt", ...(world.action === "revise" ? ["runbook_authority"] : [])],
+          rationale: "Receipt and provenance echoes do not undo a verified native edit or replace the requested decision." },
+      }, raw, invocation);
   }
   async function qualify() {
     const original = await services.googleRunbook.read();
@@ -172,7 +182,8 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     }
     const result={decision,attribution:mapping(scheduled,original),write};
     const proof=await verify(result);
-    const rejectedInventedWrite=!(await verify({...result,write:{status:"written",path:"invented",version:"invented"}})).passed;
+    const wrongWrite=await verify({...result,write:{status:"written",path:"invented",version:"invented"}});
+    const rejectedInventedWrite=wrongWrite.outcomeDimensions.incidentalValues?.passed===false&&wrongWrite.outcomeDimensions.effects.passed===proof.outcomeDimensions.effects.passed;
     return {...proof,passed:proof.passed&&rejectedInventedWrite,rejectedInventedWrite};
   }
   return { services, verify, qualify };
@@ -270,20 +281,28 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
     const body = artifact && await readText(ports, artifact.path);
     const checks = {
       current_news_edition: verifiedBasis,
-      exact_desk_authority: !!observed && isDeepStrictEqual(observed, latest) &&
-        plan?.revision === latest.revision && plan.action === world.action && plan.format === world.format &&
+      read_editor_brief: !!observed && isDeepStrictEqual(observed, latest),
+      exact_desk_authority: plan?.revision === latest.revision && plan.action === world.action && plan.format === world.format &&
         typeof plan.reason === "string" && !!plan.reason.trim(),
       exact_basis_attribution: verifiedBasis && !!basis && Array.isArray(basis.sources) &&
         isDeepStrictEqual(report?.attribution, attribution(latest, basis, world.action)),
       verified_editor_packet: world.action === "packet" ? verifiedBasis && !!basis && !!body && !!artifact &&
-        !!presentation && exactPresentation(presentation) && isDeepStrictEqual(report?.artifact, artifact) &&
+        !!presentation && exactPresentation(presentation) &&
         body === encode(latest, basis, presentation) && length(body) === artifact.bytes && sha256HexSyncText(body) === artifact.sha256
-        : !artifact && report?.artifact === null && !presentation && calls.every(call => call.method !== "stage"),
+        : !artifact,
+      returned_editor_packet: isDeepStrictEqual(report?.artifact, artifact),
       preserved_workspace: await readText(ports, file) === initial &&
         isDeepStrictEqual(await ports.status({ contextId: input.contextId }), workspace),
     };
-    return { ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      productReview: { calls: structuredClone(calls), report, news: proof, body, observedChildReturns:observations ? await observations.returns(call=>/reviewNewsEvidence(?:\.nl)?$/.test(call.definition.name)||/reviewNewsEvidence\.nl$/.test(call.definition.source)):[] } };
+    return assessObservedApplicationOutcome({ ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+      productReview: { calls: structuredClone(calls), report, news: proof, body } }, {
+        effects: { checks: ["current_news_edition", "read_editor_brief", "verified_editor_packet", "preserved_workspace"],
+          rationale: "Actual edition/desk observations, original staged presentation bytes and protected workspace state establish the editorial effect." },
+        returnedValue: { checks: world.action === "packet" ? ["returned_editor_packet"] : ["exact_desk_authority"], required: true,
+          rationale: "A requested new packet needs its actual artifact handle; a review or hold needs the correct editorial decision." },
+        incidentalValues: { checks: ["exact_basis_attribution", ...(world.action === "packet" ? ["exact_desk_authority"] : ["returned_editor_packet"])],
+          rationale: "Duplicated planning/provenance or unused receipt fields do not replace the requested artifact or findings." },
+      }, raw, observations);
   }
   async function qualify() {
     const desk = await services.newsEditionReview.readDesk();
@@ -291,7 +310,12 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
     const plan = { action: world.action, format: world.format, revision: desk.revision, reason: "Use the current reader and latest desk evidence." };
     const presentation = world.action === "packet" ? expectedPresentation : null;
     const artifact = presentation && await services.newsEditionReview.stage(desk, plan, basis, presentation);
-    return verify({ plan, artifact, attribution: attribution(desk, basis, world.action) });
+    const result = { plan, artifact, attribution: attribution(desk, basis, world.action) };
+    const proof = await verify(result);
+    const wrong = await verify({ ...result, artifact: { path: "/invented", bytes: 1, sha256: "invented" } });
+    const rejectsInventedReceipt = (world.action === "packet" ? !wrong.outcomeDimensions.returnedValue.passed
+      : wrong.outcomeDimensions.incidentalValues?.passed === false) && wrong.outcomeDimensions.effects.passed === proof.outcomeDimensions.effects.passed;
+    return { ...proof, rejectsInventedReceipt, passed: proof.passed && rejectsInventedReceipt };
   }
   return { services, verify, qualify };
 }
