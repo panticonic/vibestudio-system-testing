@@ -1,3 +1,6 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -228,7 +231,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const wrapper = value as {
       status: string; targetId: string; reason: string | null; preflight: { status: string; blockers: string[] } | null;
       receipt: PublicationReceipt | null; hosted: Hosted | null;
@@ -253,15 +256,13 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
     const checks = {
       exactOwnedLaunch: !!discovered && isDeepStrictEqual(fresh, discovered) &&
         isDeepStrictEqual(fresh.facts, ownedPreviewLaunchFacts(world)) && visible &&
-        result?.targetId === expected.targetId && binding?.targetId === expected.targetId,
+        binding?.targetId === expected.targetId,
       exactApprovedArtifact: final.artifactDigest === current.artifactDigest &&
         final.privateReceipt.sourceStateHash === current.privateReceipt.sourceStateHash &&
         (world.revisedCaption ? reviewed.artifactDigest !== current.artifactDigest : reviewed.artifactDigest === current.artifactDigest) &&
-        (binding?.hold ? result?.preflight === null && !observation
-          : !!observation && isDeepStrictEqual(result?.preflight?.blockers, blockers(observation)) &&
-            result?.preflight?.status === (expected.hold ? "blocked" : "ready-for-review")),
+        (binding?.hold ? !observation : !!observation&&(expected.hold?blockers(observation).length>0:blockers(observation).length===0)),
       exactHostJournal: expected.hold ? !starts.length && !phases.length && !nativeReceipt && !retained
-        : !!nativeReceipt && isDeepStrictEqual(nativeReceipt, retained) && isDeepStrictEqual(result?.receipt, nativeReceipt) &&
+        : !!nativeReceipt && isDeepStrictEqual(nativeReceipt, retained) &&
           nativeReceipt.operationId === active?.intent?.operationId && nativeReceipt.artifactDigest === current.artifactDigest &&
           nativeReceipt.destination === binding?.targetId && nativeReceipt.environment === "preview" &&
           isDeepStrictEqual(starts.map(({ phase }) => phase), world.seed ? ["submitted"] : world.fault === "submit-once" ? ["prepared", "uploaded"] : ["prepared"]) &&
@@ -275,17 +276,17 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
         isDeepStrictEqual(advances.map(({ status }) => status), expected.advances) &&
         isDeepStrictEqual(readbacks.slice(0, expected.readbacks.length).map(({ status }) => status), expected.readbacks) &&
         readbacks.slice(expected.readbacks.length).every(readback => isDeepStrictEqual(readback, readbacks.at(-1))) &&
-        (expected.hold ? selectedHold === expected.hold && result?.status === "held" && result.reason === expected.hold &&
-          result.receipt === null && result.hosted === null
-          : result?.status === "published" && result.reason === null && isDeepStrictEqual(result.hosted, readbacks.at(-1)) &&
-            (world.seed ? isDeepStrictEqual(seededReceipt, nativeReceipt) : true)),
+        (expected.hold?selectedHold===expected.hold:!world.seed||isDeepStrictEqual(seededReceipt,nativeReceipt)),
+      returnedPreviewResult: result?.targetId===expected.targetId&&isDeepStrictEqual(result?.receipt,nativeReceipt)&&
+        (binding?.hold?result?.preflight===null:isDeepStrictEqual(result?.preflight?.blockers,observation?blockers(observation):null)&&result?.preflight?.status===(expected.hold?"blocked":"ready-for-review"))&&
+        (expected.hold?result?.status==="held"&&result.reason===expected.hold&&result.hosted===null:result?.status==="published"&&result.reason===null&&isDeepStrictEqual(result.hosted,readbacks.at(-1))),
       protectedHeads: initial.mainEventId === after.mainEventId && isDeepStrictEqual(initial.workingHead, after.workingHead) &&
         isDeepStrictEqual(initial.committed, after.committed),
     };
-    return { passed: Object.values(checks).every(Boolean), contextId, caseId, panelId, goal, checks,
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), contextId, caseId, panelId, goal, checks,
       transport: "owned-file-backed-vercel-preview", discovery: discovered ? discoveryFor(discovered) : null, binding: binding ?? null,
       observation: observation ?? null, advances, readbacks, attempted: { ...attempted }, nativeReceipt, seededReceipt, files, starts, phases, uploads, submissions, store,
-      artifact: { current: current.artifactDigest, prior: reviewed.artifactDigest, source: current.privateReceipt.sourceStateHash } };
+      artifact: { current: current.artifactDigest, prior: reviewed.artifactDigest, source: current.privateReceipt.sourceStateHash } },{effects:{checks:["exactOwnedLaunch","exactApprovedArtifact","exactHostJournal","exactProviderEffects","correctDisposition","protectedHeads"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["returnedPreviewResult"],required:Boolean(expected.hold),rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
   }
 
   async function qualify() {
@@ -318,8 +319,8 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
           !active?.provider?.currentReceipt() && !(await fs.readdir(directory)).length;
       }
     }
-    const checks = { ...result.checks, rejectsDestinationAlias, rejectsRevisionAlias, rejectsUnapprovedAdvance: !hold || rejectsUnapprovedAdvance };
-    return { ...result, checks, passed: Object.values(checks).every(Boolean) };
+    const checks = { ...result.observedChecks, rejectsDestinationAlias, rejectsRevisionAlias, rejectsUnapprovedAdvance: !hold || rejectsUnapprovedAdvance };
+    return assessSemanticOutcome({...result,checks,observedChecks:checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsRevisionAlias","rejectsUnapprovedAdvance"]}});
   }
 
   return { goal, services, verify, qualify };

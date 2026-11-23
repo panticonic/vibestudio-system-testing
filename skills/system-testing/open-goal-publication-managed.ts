@@ -1,3 +1,6 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -236,7 +239,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const wrapper = value as unknown | null;
     const report = wrapper as {
           status?: string; choice?: Choice;
@@ -255,8 +258,8 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     const checks = {
       discoveredLaunchRecord: !!discovery && isDeepStrictEqual(discovery.facts, fresh.facts) &&
         isDeepStrictEqual(discovery.facts, publicationGoalLaunchFacts(world)),
-      choseExactReview: isDeepStrictEqual(selected, expected.choice) && report?.status === "reviewed" &&
-        isDeepStrictEqual(report.choice, selected),
+      choseExactReview: isDeepStrictEqual(selected, expected.choice),
+      returnedPublicationScope: report?.status==="reviewed"&&isDeepStrictEqual(report.choice,selected),
       boundWebsiteReadback: latest.panelId === panelId && snapshot.panelId === panelId && latest.attemptId === renderer.attemptId &&
         latest.buildKey === renderer.buildKey && snapshot.buildKey === latest.buildKey && snapshot.attemptId === latest.attemptId &&
         snapshot.runtimeEntityId === latest.runtimeEntityId && snapshot.document.text.includes(world.title) &&
@@ -283,11 +286,11 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
         journal.length === world.targets.filter(target => target.journal).length,
       protectedHeads: initial.mainEventId === state.mainEventId && isDeepStrictEqual(initial.workingHead, state.workingHead),
     };
-    return { passed: Object.values(checks).every(Boolean), contextId, caseId, panelId, goal, source, checks,
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), contextId, caseId, panelId, goal, source, checks,
       selected, observations: { preflight: observed ?? null, revision: compared ?? null },
       artifact: { current: current.artifactDigest, prior: prior.artifactDigest, sourceStateHash: current.privateReceipt.sourceStateHash },
       renderer: { attemptId: latest.attemptId, buildKey: latest.buildKey, snapshotAttemptId: snapshot.attemptId },
-      journal, reads: { preflight: preflightReads, revision: revisionReads } };
+      journal, reads: { preflight: preflightReads, revision: revisionReads } },{effects:{checks:["discoveredLaunchRecord","choseExactReview","boundWebsiteReadback","rereadCurrentAndRetainedPackage","localJournalUnchanged","protectedHeads"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["returnedPublicationScope","exactPreflight","exactRevision"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
   }
 
   async function qualify() {
@@ -307,8 +310,8 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
       status: "reviewed", choice, preflight, revision: comparison ? { ...revisionOutcome(comparison), comparison,
         reason: "Compare the exact package and destination receipts." } : null,
     });
-    const checks = { ...verified.checks, rejectsDestinationAlias, rejectsStaleReview };
-    return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
+    const checks = { ...verified.observedChecks, rejectsDestinationAlias, rejectsStaleReview };
+    return assessSemanticOutcome({...verified,checks,observedChecks:checks},{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsStaleReview"]}});
   }
 
   return { goal, services, verify, qualify };

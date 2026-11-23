@@ -1,3 +1,5 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
@@ -118,6 +120,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
   let sourceRevision: WorkspaceRevision | null = null;
   let installed: SkillRow[] | undefined;
   let overview: ServiceOverview | null = null;
+  let stagedBody:string|null=null;
   let staged: CapabilityHandoff | null = null;
   const seen = new Set<string>();
   const described = new Map<string, DetailedCapability>();
@@ -192,6 +195,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         if (!boundedText(text, reportBytes)) return null;
         const receipt = await handoff.stage(text);
         if (!receipt) return null;
+        stagedBody=text;
         staged = { ...receipt, sha256: sha256HexSyncText(text) };
         return staged;
       },
@@ -260,12 +264,12 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     const after = await vcs.status();
     const stagedNames = (await listOwnedScratchEntries(fs)).filter(name => folderName.test(name) && !initialHandoffs.includes(name));
     const expectedReceipt = stageAuthorized && !foundMissing;
-    let retained = !staged && !outcome?.handoff && stagedNames.length === 0;
-    if (expectedReceipt && staged && valid && isDeepStrictEqual(staged, outcome?.handoff) &&
+    let retained = !staged && stagedNames.length === 0;
+    if (expectedReceipt && staged &&
         stagedNames.length === 1 && staged.path === `/.tmp/${stagedNames[0]}/handoff.json`) {
       const bytes = await readWorkspaceBytes(rpc, staged.path, reportBytes);
       const text = workspaceText.decode(bytes);
-      retained = bytes.length === staged.bytes && text === artifactBody(plan) && sha256HexSyncText(text) === staged.sha256;
+      retained = bytes.length === staged.bytes && text === stagedBody && sha256HexSyncText(text) === staged.sha256;
     }
     return {
       observedLiveCatalog: !!installed && currentMemo !== undefined &&
@@ -289,25 +293,32 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         isDeepStrictEqual(plan.missing, foundMissing ? [foundMissing] : []) &&
         plan.status === (foundMissing ? "hold" : "ready"),
       verifiedCapabilityHandoff: retained && (!!staged === expectedReceipt),
+      returnedCapabilityReceipt:isDeepStrictEqual(outcome?.handoff,staged),
       protectedCapabilityWorkspace: after.mainEventId === before.mainEventId &&
         isDeepStrictEqual(after.workingHead, before.workingHead),
     };
   }
-  async function proof(outcome: CapabilityGoalReport | null) {
+  async function proof(outcome: CapabilityGoalReport | null,invocation?:InvocationObservations) {
     const foreignId = `workspace:unobserved.${crypto.randomUUID()}`;
     const unknownSkill = `skills/unknown-${crypto.randomUUID()}`;
     const refused = await services.docPlanCatalog.describe(foreignId) === null &&
       await services.docPlanSkills.load(unknownSkill, ["lookup"]) === null &&
       await services.docPlanHandoff.stage({ ...outcome?.plan, status: "hold" } as CapabilityPlan) === null;
     const checks = await verifyEvidence(outcome, refused);
-    return { caseId: assignment.id, contextId: input.contextId, goal: assignment.goal,
+    // Validate the plan actually saved in the private artifact, even when a later public copy differs.
+    const artifactChecks=stagedBody?await verifyEvidence({plan:JSON.parse(stagedBody).plan,handoff:staged},refused):null;
+    checks.verifiedCapabilityHandoff&&=!staged||!!artifactChecks&&[
+      artifactChecks.boundExactMethodSchemas,artifactChecks.loadedInstalledKnowledge,
+      artifactChecks.exactCapabilitySourceRevision,artifactChecks.reconciledPlanningEvidence,artifactChecks.respectedNegativeScope,
+    ].every(value=>value===true);
+    return assessObservedApplicationOutcome({ caseId: assignment.id, contextId: input.contextId, goal: assignment.goal,
       checks, passed: Object.values(checks).every(Boolean),
       observed: { docIds: byCapabilityId([...seen]), described: [...described.values()], loaded: [...loaded.values()],
-        memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } };
+        memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } },{effects:{checks:["observedLiveCatalog","verifiedCapabilityHandoff","protectedCapabilityWorkspace"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["boundExactMethodSchemas","loadedInstalledKnowledge","exactCapabilitySourceRevision","reconciledPlanningEvidence","respectedNegativeScope"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:["returnedCapabilityReceipt"],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},outcome,invocation);
   }
-  async function verify(report: unknown) {
+  async function verify(report: unknown,invocation?:InvocationObservations) {
     const response = report as CapabilityGoalReport | null;
-    return proof(response ?? null);
+    return proof(response ?? null,invocation);
   }
   async function qualify() {
     const opening = await services.docPlanContext.observe();
