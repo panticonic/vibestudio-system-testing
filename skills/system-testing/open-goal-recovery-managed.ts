@@ -262,7 +262,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const reason = report?.review?.reason;
     const actualHandoffText=artifact?await fs.readFile(artifact.path,"utf8"):null;
     const hasArtifact = Boolean(artifact && handoffText && stagedReview &&
-      handoffText === formatHandoff(stagedReview) && actualHandoffText === handoffText &&
+      handoffText === formatHandoff(stagedReview) && typeof actualHandoffText==="string" && actualHandoffText === handoffText &&
       recoveryHandoffMatches(actualHandoffText,{disposition:world.expected.disposition,citations,reason:world.expected.reason}) &&
       artifact.sha256 === sha256HexSyncText(handoffText));
     const checks = {
