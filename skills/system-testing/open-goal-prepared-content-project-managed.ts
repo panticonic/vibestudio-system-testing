@@ -1,3 +1,4 @@
+import {projectAuthorizationEvidence} from "./project-authorization-evidence.js";
 import { createScopedProjectDraft } from "./scoped-project-draft.js";
 import { sameProjectSourceSelection } from "./project-source-identity.js";
 import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
@@ -283,15 +284,18 @@ export async function prepareOpenPreparedContentProject(
     const artifact = mutating ? await verifyContentProject(vcs,{
       contextId,repoPath,before,request:expectedRequest,disposition:expectedOutcome as "committed"|"draft",
     }) : null;
-    const journalStep = (service:string,method:string) => journal.findLast(entry=>entry.service===service && entry.method===method && entry.result!==null);
-    const observedScope=journalStep("contentProjectScope","confirm")?.result ?? null;
+    const journalStep = (service:string,method:string) => journal.findLast(entry=>entry.service===service && entry.method===method && entry.result!=null);
+    const authorityEvidence=projectAuthorizationEvidence(journal,authorization?.receipt);
+    const observedScope=authorityEvidence.admittedScope ?? journalStep("contentProjectScope","confirm")?.result ?? null;
     const prepared=journalStep("contentProjectDraft","prepare");
     const written=journalStep("contentProjectDraft","write");
     const committed=journalStep("contentProjectCommit","commit");
     const independentlyRead = artifact?.semanticReviewInput?.actual;
     const verifiedState = independentlyRead?.state;
     const scopedWrites = (
-      !!prepared && !!written && !!authorization?.written &&
+      !!prepared && !!written && !!authorization?.written && authorityEvidence.effectsUseAdmittedReceipt &&
+      prepared.args[0]===authorization.receipt && written.args[0]===authorization.receipt &&
+      (!committed || committed.args[0]===authorization.receipt) &&
       (written.result as Snapshot).repositoryId === repository?.repositoryId &&
       (written.result as Snapshot).repoPath === repoPath
     );
