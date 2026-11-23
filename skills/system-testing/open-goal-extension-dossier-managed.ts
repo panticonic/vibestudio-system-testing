@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -301,7 +302,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const found = await currentAssignment();
@@ -323,21 +324,27 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     const expectedMethods = ["discover", "source", "runtime", "candidate", "history", ...(shouldStage ? ["stage"] : [])];
     const checks = {
       boundOriginalOwnerScope: decoder.decode(originalScope) === scopeBytes && isDeepStrictEqual(discovery, found) &&
-        isDeepStrictEqual(outcome?.assignment, found) && sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
+        sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
       usedExactInstalledReleaseReview: isDeepStrictEqual(source, review.source.observation) &&
-        isDeepStrictEqual(runtime, review.runtime.observation) && isDeepStrictEqual(outcome?.review, review),
-      verifiedPackageDifference: isDeepStrictEqual(candidate, compared) && isDeepStrictEqual(outcome?.candidate, compared) &&
+        isDeepStrictEqual(runtime, review.runtime.observation),
+      verifiedPackageDifference: isDeepStrictEqual(candidate, compared) &&
         compared.delta.workingDigest === review.source.observation.working?.hash &&
         compared.delta.publishedDigest === review.source.observation.published?.hash,
-      reconciledNativeReleaseHistory: isDeepStrictEqual(history, active) && isDeepStrictEqual(outcome?.history, active),
-      respectedLocalReleaseDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      reconciledNativeReleaseHistory: isDeepStrictEqual(history, active),
+      respectedLocalReleaseDecision: isDeepStrictEqual(outcome?.dossier,stored)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
-      verifiedExactDossier: note && isDeepStrictEqual(outcome?.dossier, stored) && preexisting.every(name => afterOutputs.includes(name)),
+      verifiedExactDossier: note && preexisting.every(name => afterOutputs.includes(name)),
       preservedProtectedSourceAndRuntime: after.mainEventId === initial.mainEventId &&
         isDeepStrictEqual(after.workingHead, assigned.workingHead) && baselineReview.runtime.observation.activeEv === review.runtime.observation.activeEv &&
         baselineReview.runtime.observation.identity === review.runtime.observation.identity,
     };
-    return { caseId: input.caseId, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{
+        effects:{checks:["boundOriginalOwnerScope", "usedExactInstalledReleaseReview", "verifiedPackageDifference", "reconciledNativeReleaseHistory", "verifiedExactDossier", "preservedProtectedSourceAndRuntime"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["respectedLocalReleaseDecision"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.respectedLocalReleaseDecision)?[{required:!shouldStage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewExtensionDossier",source:"reviewExtensionDossier.nl"},value:value}]:[],
+ caseId: input.caseId, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       assignment: found, review, candidate: compared, history: active, decision, dossier: stored, effects: structuredClone(effects) };
   }
 
@@ -352,7 +359,13 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     if (!candidate) throw new Error("Reference candidate was not observed");
     const decision = decisionFor(assignment, review, candidate, history);
     const dossier = canStage(assignment, decision) ? await services.extensionDossierWrite.stage(decision) : null;
-    return verify({ assignment, review, candidate, history, finding: { decision, reason: "Exact package, current release and retained owner scope." }, dossier });
+    const result = {finding:{decision,reason:"Exact package, current release and retained owner scope."},dossier};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
 
   return { services, verify, qualify };

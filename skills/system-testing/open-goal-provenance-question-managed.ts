@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { VcsSearchResult, VcsStateNodeRef, VcsWalkResult } from "@vibestudio/service-schemas/vcs";
@@ -167,7 +168,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       affected:blocked?[]:sortedPaths,withdrawn:blocked?[]:undonePaths,reasons:blocked||!world.reason?[]:[world.reason]};
     return {assignment,phrase:searchText,candidates:candidates??[],selection,evidence,answer};
   }
-  async function verify(value:unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const actual=value as unknown|null;
     const after=await status();
     const rereads=await Promise.all([...nextValues].map(async ([path,expected])=>{
@@ -187,9 +188,17 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
         isDeepStrictEqual(withdrawn.map(item=>item.path),undonePaths)&&withdrawn.every(item=>item.reason===world.reason)&&
         nativeProof.length===undonePaths.length&&nativeProof.every(entry=>entry.node.kind==="work-unit"&&entry.node.workUnitId===counterWork),
       preservedLocalQuestionScope: after.clean&&isDeepStrictEqual(after.workingHead,head)&&isDeepStrictEqual(await owner.mainState(),main)&&rereads.every(Boolean),
-      matchedRecordedQuestionReport: isDeepStrictEqual(actual,scoped),
+      matchedRecordedQuestionReport: isDeepStrictEqual(actual,scoped.answer),
     };
-    return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),
+    return {
+      outcomeContract: {
+        effects: {checks:["retrievedVisibleRecordedIntent", "verifiedExactWorkCohort", "verifiedNativeCounteractionRationale", "preservedLocalQuestionScope"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["matchedRecordedQuestionReport"],required:true,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.matchedRecordedQuestionReport) ? [{required:true,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewRecordedQuestion",source:"reviewRecordedQuestion.nl"},value}] : [],
+caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),
       native:{head,repositoryId,originalWork:proposed.workUnitId,counterWork,search:rawSearch,walks:[...nativeCounteractions]}};
   }
   async function qualify() {
@@ -203,11 +212,11 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       const result=await services.recordedQuestionGraph.cohort(assignment.id,ref);
       await services.recordedQuestionGraph.rejections(assignment.id,ref,result);
     }
-    const report=expectedReport();
+    const report=expectedReport().answer;
     const proof=await verify(report);
-    const rejectedInventedScope=!(await verify({...report,answer:{...report.answer,affected:["other-local-scope"]}})).passed;
+    const rejectedInventedScope=!(await verify({...report,affected:["other-local-scope"]})).passed;
     const checks={...proof.checks,rejectedUnknownReference,rejectedInventedScope};
-    return {...proof,checks,passed:Object.values(checks).every(Boolean),report};
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnknownReference","rejectedInventedScope"]}},...proof,checks,passed:Object.values(checks).every(Boolean),report};
   }
   return {services,qualify,verify};
 }

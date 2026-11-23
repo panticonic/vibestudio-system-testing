@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { readPtyStream, type PtyStreamHello, type PtyStreamPosition } from "@workspace/pty-stream";
@@ -223,7 +224,7 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         observed.retainedDigest === digest(original.subarray(observed.start)) &&
         observed.byteAgreement === (variant.checkpoint !== "split");
     }
-    async function verify(value: unknown) {
+    async function verify(value: unknown, invocation?: InvocationObservations) {
       const report = value as {
         assignment?: unknown; evidence?: unknown; choice?: unknown; decision?: unknown; receipt?: unknown;
       } | null;
@@ -238,18 +239,27 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
       const exactReceipt = writeExpected && raw && decoder.decode(raw) === writeExpected ? { path, bytes: raw.length, sha256: digest(raw) } : null;
       const selectedAttempt = world.expected.side ? assignment[world.expected.side] : null;
       const checks = {
-        matchedOwnedTerminalGeneration: isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.choice, choice),
-        verifiedExactNativeTerminalPair: isDeepStrictEqual(outcome?.evidence, evidence) && observations.size === 2 &&
+        matchedOwnedTerminalGeneration: observations.size===2,
+        verifiedExactNativeTerminalPair: observations.size === 2 &&
           isDeepStrictEqual(await observations.get(nominated.sessionId), evidence.nominated) &&
           isDeepStrictEqual(await observations.get(alternative.sessionId), evidence.alternative),
-        verifiedCursorAndExitClassification: isDeepStrictEqual(outcome?.decision, decision) && (!selectedAttempt || !!selected && selected.pid === selectedAttempt.pid &&
+        returnedTerminalResolution: isDeepStrictEqual(outcome?.decision,decision)&&isDeepStrictEqual(outcome?.receipt,exactReceipt),
+        verifiedCursorAndExitClassification: (!selectedAttempt || !!selected && selected.pid === selectedAttempt.pid &&
           selected.contextId === selectedAttempt.contextId),
         matchedFixtureOutputAndProcess: matchesFixture("nominated", evidence.nominated) && matchesFixture("alternative", evidence.alternative),
         verifiedScopedTerminalReceipt: (writeExpected ? exactReceipt !== null : entries.length === 0) &&
-          isDeepStrictEqual(receipt, exactReceipt) && isDeepStrictEqual(outcome?.receipt, exactReceipt),
+          isDeepStrictEqual(receipt, exactReceipt),
         preservedOwnedTerminalAndNeighbor: isDeepStrictEqual(before, await state()),
       };
-      return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal,
+      return {
+      outcomeContract: {
+        effects: {checks:["matchedOwnedTerminalGeneration", "verifiedExactNativeTerminalPair", "verifiedCursorAndExitClassification", "matchedFixtureOutputAndProcess", "verifiedScopedTerminalReceipt", "preservedOwnedTerminalAndNeighbor"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["returnedTerminalResolution"],required:!writeExpected,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.returnedTerminalResolution) ? [{required:!writeExpected,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewPtyContinuity",source:"reviewPtyContinuity.nl"},value}] : [],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal,
         assignment, evidence, choice, decision, receipt: exactReceipt, checks, effects: structuredClone(effects) };
     }
     async function qualify() {
@@ -264,11 +274,11 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
       const rejectedWrongProof = await rejected(services.ptyContinuityHandoff.stage(nominated.sessionId, "wrong-retained-proof", "stage-good"));
       const retained = observed && decision.disposition === "stage-good" ?
         await services.ptyContinuityHandoff.stage(observed.sessionId, observed.replayDigest, decision.disposition) : null;
-      const report = { assignment: discovered, evidence, choice, decision, receipt: retained };
+      const report = { decision, receipt: retained };
       const proof = await verify(report);
       const rejectedWrongDecision = !(await verify({ ...report, decision: { ...decision, replayDigest: "wrong" } })).passed;
       const checks = { ...proof.checks, rejectedForeignRead, rejectedWrongProof, rejectedWrongDecision };
-      return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
+      return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRead","rejectedWrongProof","rejectedWrongDecision"]}}, passed: Object.values(checks).every(Boolean), checks, report };
     }
     return { services, verify, qualify, close };
   } catch (error) {

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -240,7 +241,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report, expected = world.expected;
     const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
@@ -259,18 +260,22 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
     const expectedBytes = selected && hasHandoff ? dossier(expected.outcome, selected.id, nativeCases) : null;
     const expectedMethods = ["discover", "compare", ...nativeCases.map(() => "inspectCase"), ...(hasHandoff ? ["stage"] : [])];
     const checks = {
-      retainedNativeRunPair: isDeepStrictEqual(compared, finalPair) && isDeepStrictEqual(outcome?.runs, finalPair) &&
-        isDeepStrictEqual(outcome?.assignment, assigned),
-      matchedOwnedBuildAndAttempt: isDeepStrictEqual(outcome?.choice, expectedChoice) && reviewedId === (selected?.id ?? null),
-      exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases) && Array.isArray(outcome?.cases) && sameEvidenceMembers(outcome.cases, nativeCases),
-      matchedReleaseDisposition: outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
+      retainedNativeRunPair: isDeepStrictEqual(compared, finalPair),
+      matchedOwnedBuildAndAttempt: reviewedId === (selected?.id ?? null),
+      exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases),
+      matchedReleaseDisposition: isDeepStrictEqual(outcome?.handoff,receipt)&&outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
         typeof outcome.assessment.reason === "string" && outcome.assessment.reason.trim().length > 0 && outcome.assessment.reason.length <= 1400,
       verifiedPrivateHandoff: expectedBytes ? raw !== null && decode.decode(raw) === expectedBytes && !!receipt &&
-        receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) &&
-        isDeepStrictEqual(outcome?.handoff, receipt) : entries.length === 0 && receipt === null && outcome?.handoff === null,
+        receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) : entries.length === 0 && receipt === null,
       noSuiteRerunOrUnassignedCase: sameEvidenceMembers(effects.map(item => item.method), expectedMethods),
     };
-    return { caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
+    return {
+      outcomeContract:{
+        effects:{checks:["retainedNativeRunPair", "matchedOwnedBuildAndAttempt", "exactRequiredCaseEvidence", "verifiedPrivateHandoff", "noSuiteRerunOrUnassignedCase"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["matchedReleaseDisposition"],required:!hasHandoff,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedReleaseDisposition)?[{required:!hasHandoff,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewSystemRelease",source:"reviewSystemRelease.nl"},value:value}]:[],
+ caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
       cases: nativeCases, assessment: outcome?.assessment, handoff: receipt, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
@@ -284,7 +289,13 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
       reason: "Reviewed the retained target, terminal state, exact case evidence and authorized local release use." };
     const handoff = ["stage-acceptance", "stage-diagnostics"].includes(assessment.disposition) ?
       await services.systemReleaseHandoff.stage(assigned.id, choice.runId, assessment.disposition, cases) : null;
-    return verify({ assignment: assigned, runs, choice, cases, assessment, handoff });
+    const result = {assessment,handoff};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
   return { services, qualify, verify };
 }

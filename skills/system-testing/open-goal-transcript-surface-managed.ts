@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { AGENTIC_EVENT_PAYLOAD_KIND, AGENTIC_PROTOCOL_VERSION, agenticEventSchema, createInitialChannelViewState,
   pubsubAgenticEventToEnvelope, reduceChannelView, type AgenticEvent } from "@workspace/agentic-protocol";
@@ -204,7 +205,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
       },
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as unknown | null;
     const after = await readLane(primary, ports.context, owner, key), afterOther = await readLane(other, ports.context, owner, key);
     const approved = await scan();
@@ -224,7 +225,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
       !published && (!world.race ? isDeepStrictEqual(resulting, baseline.view) : resulting.bar?.key === "next-shift");
     const baselineSibling = effect === "publish-inline" || effect === "refresh-inline" ? baseline.view.bar : baseline.view.card;
     const finalSibling = effect === "publish-inline" || effect === "refresh-inline" ? resulting.bar : resulting.card;
-    const outcome = { assignment, approvals: approved, selection, replay, decision, receipt };
+    const outcome = { decision, receipt };
     const checks = {
       boundCurrentTranscriptApproval: isDeepStrictEqual(approvals, approved),
       provedCurrentNativeSurface: approval ? isDeepStrictEqual(replay, baseline.view) : replay === null,
@@ -235,7 +236,15 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
       verifiedProjectedTranscriptEffect: expectation === world.expected && Boolean(projected),
       matchedTranscriptSurfaceReport: isDeepStrictEqual(report, outcome),
     };
-    return { caseId: world.id, contextId: input.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
+    return {
+      outcomeContract: {
+        effects: {checks:["boundCurrentTranscriptApproval", "provedCurrentNativeSurface", "exactScopedTranscriptDelta", "verifiedProjectedTranscriptEffect"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["matchedTranscriptSurfaceReport"],required:!published,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.matchedTranscriptSurfaceReport) ? [{required:!published,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewTranscriptSurface",source:"reviewTranscriptSurface.nl"},value}] : [],
+ caseId: world.id, contextId: input.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       ...outcome, native: { before: baseline.view, after: resulting, neighbor: neighboring.view, coordinates: difference.map(row => ({ id: row.id, envelope: row.messageId, owner: row.senderId, type: row.type })) }, effects: structuredClone(effects) };
   }
   async function qualify() {
@@ -248,11 +257,11 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     const wrongSurface = effect === "clear-bar" ? "display-bar" : "clear-bar";
     const rejectedWrongEffect = await reject(() => services.transcriptMutation.apply(id, approval?.id ?? "unowned", baseline.view.cursor, wrongSurface));
     if (approval && replay && effect !== "none") await services.transcriptMutation.apply(id, approval.id, (replay as Read["view"]).cursor, effect);
-    const report = { assignment, approvals, selection, replay, decision, receipt };
+    const report = { decision, receipt };
     const proof = await verify(report);
     const rejectedInventedEffect = !(await verify({ ...report, decision: { effect: "none", reason: "invented" } })).passed;
     const checks = { ...proof.checks, rejectedWrongScope, rejectedWrongCursor, rejectedWrongEffect, rejectedInventedEffect };
-    return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongScope","rejectedWrongCursor","rejectedWrongEffect","rejectedInventedEffect"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }
   return { services, qualify, verify };
 }

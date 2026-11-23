@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -217,7 +218,7 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const [current, head, intact, filenames] = await Promise.all([
@@ -237,21 +238,26 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     const checks = {
       selectedExactWorkspaceAndObject: inspected?.object.workspace === workspace &&
         inspected?.object.id === assignment.document && inspected?.object.digest === digest(original.body) &&
-        isDeepStrictEqual(outcome?.assignment, assignment) &&
         effects.some(effect => effect.service === "workspaceShareEvidence" && effect.method === "inspect" &&
           isDeepStrictEqual(effect.result, inspected)),
       readExactMembershipAndRole: isDeepStrictEqual(inspected?.member, current.member) &&
-        isDeepStrictEqual(inspected?.session, current.session) && isDeepStrictEqual(outcome?.observation, current),
+        isDeepStrictEqual(inspected?.session, current.session),
       reconciledExactInviteAndRevision: inspected?.invitation.currentRevision === projection.currentRevision &&
         inspected?.invitation.member === projection.member && isDeepStrictEqual(inspected?.invitation, current.invitation) &&
         isDeepStrictEqual(inspected?.approval, auth),
-      matchedLocalScopeDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      matchedLocalScopeDecision: isDeepStrictEqual(outcome?.handoff,staged)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
-      verifiedPrivateHandoff: exactNote && isDeepStrictEqual(outcome?.handoff, staged),
+      verifiedPrivateHandoff: exactNote,
       preservedSharedAndNeighborState: intact && priorOutputs.every(name => filenames.includes(name)) &&
         before.mainEventId === head.mainEventId && isDeepStrictEqual(before.workingHead, head.workingHead),
     };
-    return { caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean),
+    return {
+      outcomeContract:{
+        effects:{checks:["selectedExactWorkspaceAndObject", "readExactMembershipAndRole", "reconciledExactInviteAndRevision", "verifiedPrivateHandoff", "preservedSharedAndNeighborState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["matchedLocalScopeDecision"],required:!allowWrite,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedLocalScopeDecision)?[{required:!allowWrite,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewWorkspaceShare",source:"reviewWorkspaceShare.nl"},value:value}]:[],
+ caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean),
       checks, assignment, observation: current, decision, handoff: staged, effects: structuredClone(effects) };
   }
   async function qualify() {
@@ -259,9 +265,13 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     const observation = await services.workspaceShareEvidence.inspect(assignment.document);
     const decision = decisionFor(observation);
     const handoff = canStage(decision) ? await services.workspaceShareHandoff.stage(observation, decision) : null;
-    return verify({
-      assignment, observation, finding: { decision, reason: "Join the live membership, exact inbox evidence, current artifact and local object role." }, handoff,
-    });
+    const result = {finding:{decision,reason:"Reviewed the exact current object, membership, invitation and authority."},handoff};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
   return { services, qualify, verify };
 }

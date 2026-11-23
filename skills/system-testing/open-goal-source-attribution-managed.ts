@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -310,7 +311,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
           return item ? [item] : [];
         }) })), conclusion: reportConclusion(), receipt };
   }
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as ReturnType<typeof assembleReport> | null;
     const after = await status(), mainAfter = await owner.mainState();
     const entries = await ports.entries(directory);
@@ -330,13 +331,22 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
       verifiedOwnedSourceReceipt: (receipt?.status ?? null) === expectedStatus && (requiresReceipt ?
         isDeepStrictEqual(entries, ["source-attribution.json"]) && receipt?.path === output &&
         receipt.sha256 === hash(Buffer.from(await ports.read(output)).toString("utf8")) : entries.length === 0),
-      matchedSourceAttributionReport: isDeepStrictEqual(report, assembleReport()),
+      matchedSourceAttributionReport: isDeepStrictEqual(report, {conclusion:reportConclusion(),receipt}),
     };
     const proof = { ...assembleReport(), effects: structuredClone(effects), native: { repositoryId, importedState, observed, authoredChanges, source, after: after.workingHead } };
-    return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, ...proof };
+    return {
+      outcomeContract: {
+        effects: {checks:["readExactCurrentSource", "tracedExactGraphOwner", "preservedWorkspaceSources", "verifiedOwnedSourceReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["matchedSourceAttributionReport"],required:true,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.matchedSourceAttributionReport) ? [{required:true,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewSourceAttribution",source:"reviewSourceAttribution.nl"},value}] : [],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, ...proof };
   }
   async function qualify() {
-    const report = await reference();
+    const working = await reference();
+    const report = {conclusion:working.conclusion,receipt:working.receipt};
     const proof = await verify(report);
     async function rejected(run: () => Promise<unknown>) {
       try { await run(); return false; } catch { return true; }
@@ -348,7 +358,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     const rejectedWrongLineage = report.conclusion.claims.length ? !(await verify(altered)).passed :
       !(await verify({ ...report, conclusion: { disposition: "supported", claims: [] } })).passed;
     const checks = { ...proof.checks, rejectedForeignRoot, rejectedStaleState, rejectedWrongLineage };
-    return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRoot","rejectedStaleState","rejectedWrongLineage"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }
   return { services, qualify, verify };
 }

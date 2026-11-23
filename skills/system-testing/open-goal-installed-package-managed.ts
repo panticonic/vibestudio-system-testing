@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -330,7 +331,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
       typeof value.decision.route.explanation === "string" && value.decision.route.explanation.trim().length > 0);
   }
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const final = await observe();
@@ -351,22 +352,27 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     }
     const checks = {
       boundOwnedInstallation: observed?.operationId === operationId && observed.source === world.source &&
-        observed.workingRevision === revision(prepared.workingHead) && observed.workingDigest === before.digest &&
-        isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.observed, observed),
+        observed.workingRevision === revision(prepared.workingHead) && observed.workingDigest === before.digest,
       usedExactPackageBaseline: observed?.baselineDigest === baseline.digest && observed.mainRevision === initial.mainEventId &&
         isDeepStrictEqual(observed.baselineValue, currentValue(baseline.value, world.key)) &&
         isDeepStrictEqual(observed.workingValue, currentValue(before.value, world.key)),
-      honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods) &&
-        outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods),
+      returnedPackageResult: isDeepStrictEqual(outcome?.repair,attempt)&&verificationMatches(outcome?.verification,plan)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedLocalManifestEffect: exactEffect && (attempt?.status ?? null) === expectedAttempt &&
-        (!attempt || isDeepStrictEqual(attempt.observation, final.observation)) && isDeepStrictEqual(outcome?.repair, attempt),
-      exactStateVerificationPlan: isDeepStrictEqual(resolved, plan) && verificationMatches(outcome?.verification, plan),
+        (!attempt || isDeepStrictEqual(attempt.observation, final.observation)),
+      exactStateVerificationPlan: isDeepStrictEqual(resolved, plan),
       preservedProtectedAndNeighbors: final.start.mainEventId === initial.mainEventId &&
         untouchedMain.digest === baseline.digest && neighbor.digest === protectedNeighbor.digest &&
         neighbor.repositoryId === protectedNeighbor.repositoryId,
     };
-    return { caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
+    return {
+      outcomeContract:{
+        effects:{checks:["boundOwnedInstallation", "usedExactPackageBaseline", "honoredReviewAssignment", "verifiedLocalManifestEffect", "exactStateVerificationPlan", "preservedProtectedAndNeighbors"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["returnedPackageResult"],required:expectedAttempt!=="restored",rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.returnedPackageResult)?[{required:expectedAttempt!=="restored",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewInstalledPackage",source:"reviewInstalledPackage.nl"},value:value}]:[],
+ caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       effects: structuredClone(effects), assignment, observed, decision, repair: attempt, plan };
   }
 
@@ -382,9 +388,13 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     const verification: Verification | null = plan ? { plan, decision: { next: "report-plan", route: {
       runtime: plan.runtime, nativeApproval: plan.runtime === "native", explanation: "The installed manifest designates this verification runner.",
     } }, execution: null, result: null } : null;
-    return verify({
-      assignment, observed, finding: { decision, reason: "Compare the exact installed unit and authorized protected package field." }, repair, verification,
-    });
+    const result = {finding:{decision,reason:"Reviewed the exact installed package and authorized local change."},repair,verification};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,repair:{status:"invented"},finding:{decision:"invented",reason:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
 
   return { services, verify, qualify };

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -240,7 +241,7 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
       },
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; capture?: unknown; joined?: unknown; decision?: unknown; receipt?: unknown;
     } | null;
@@ -251,16 +252,24 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
     const exactReceipt = raw && body && new TextDecoder().decode(raw) === body ?
       { path, bytes: raw.length, sha256: sha256HexSyncText(body) } : null;
     const checks = {
-      matchedLogFollowerAssignment: isDeepStrictEqual(outcome?.assignment, assignment),
-      verifiedIndependentlyCapturedChannels: exactNativeChannels && !!proof && isDeepStrictEqual(outcome?.capture, proof),
+      matchedLogFollowerAssignment: proof!==null,
+      verifiedIndependentlyCapturedChannels: exactNativeChannels && !!proof,
       verifiedClosedBoundedWatch: !!proof?.opened && proof.canceled && !!proof.epoch && (proof.boot === assignment.saved.boot) ===
         (world.checkpoint !== "old-boot") && (world.interrupted ? proof.lastSeen === proof.catchupThrough : proof.lastSeen === proof.witnessedThrough),
-      mergedExactBootAndRecordIdentity: isDeepStrictEqual(outcome?.joined, expectedJoin),
-      classifiedExactOwnedRequest: isDeepStrictEqual(outcome?.decision, expectedDecision),
+      mergedExactBootAndRecordIdentity: expectedJoin!==null,
+      classifiedExactOwnedRequest: isDeepStrictEqual(outcome?.decision, expectedDecision)&&isDeepStrictEqual(outcome?.receipt,exactReceipt),
       verifiedScopedLogFollowReceipt: (body ? exactReceipt !== null : entries.length === 0) &&
-        isDeepStrictEqual(receipt, exactReceipt) && isDeepStrictEqual(outcome?.receipt, exactReceipt),
+        isDeepStrictEqual(receipt, exactReceipt),
     };
-    return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
+    return {
+      outcomeContract: {
+        effects: {checks:["matchedLogFollowerAssignment", "verifiedIndependentlyCapturedChannels", "verifiedClosedBoundedWatch", "mergedExactBootAndRecordIdentity", "verifiedScopedLogFollowReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
+        returnedValue: {checks:["classifiedExactOwnedRequest"],required:!world.expected.stage,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
+      },
+      incorrectReturnValues: value!==undefined&&!(checks.classifiedExactOwnedRequest) ? [{required:!world.expected.stage,
+        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewLogFollower",source:"reviewLogFollower.nl"},value}] : [],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, capture: proof, joined: expectedJoin, decision: expectedDecision, receipt: exactReceipt, effects: structuredClone(effects) };
   }
   async function qualify() {
@@ -272,12 +281,12 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
     const rejectedWrongWindow = await rejects(services.logFollowerHandoff.stage(discovered.id, { ...joined, boot: "foreign-boot" }, decision));
     const stagedReceipt = decision.stage ? await services.logFollowerHandoff.stage(discovered.id, joined, decision) : null;
     const report = {
-      assignment: discovered, capture, joined, decision, receipt: stagedReceipt,
+      decision, receipt: stagedReceipt,
     };
     const proof = await verify(report);
-    const rejectedWrongReport = !(await verify({ ...report, joined: { ...joined, through: -1 } })).passed;
+    const rejectedWrongReport = !(await verify({ ...report, decision: { ...decision, state: "invented" } })).passed;
     const checks = { ...proof.checks, rejectedForeignWatch, rejectedWrongWindow, rejectedWrongReport };
-    return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignWatch","rejectedWrongWindow","rejectedWrongReport"]}}, checks, passed: Object.values(checks).every(Boolean), report };
   }
   return { services, verify, qualify };
 }

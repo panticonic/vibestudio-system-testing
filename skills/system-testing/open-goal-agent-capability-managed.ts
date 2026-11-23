@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import {
@@ -253,7 +254,7 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
     },
   };
 
-  async function verify(input: unknown) {
+  async function verify(input: unknown, invocation?: InvocationObservations) {
     const report = input as Outcome | null;
     const outcome = report;
     const observed = viewed.get(current.card.id);
@@ -278,22 +279,27 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
           isDeepStrictEqual(receipt.result.returnValue, { revision: currentView.notebook.revision, saved: true }));
     }
     const checks = {
-      selectedExactOwnedAttempts: viewed.size === 2 && !!observed && viewed.has(prior.card.id) &&
-        isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.evidence, { current: observed, prior: earlier }),
+      selectedExactOwnedAttempts: viewed.size === 2 && !!observed && viewed.has(prior.card.id)&&isDeepStrictEqual(viewed.get(current.card.id),observed),
       verifiedNativeAdmissionAndFailure: observed?.runDigest === currentView.runDigest && observed?.resultDigest === currentView.resultDigest &&
         observed?.completeEvents === currentView.completeEvents && observed?.invocationStatus === currentView.invocationStatus &&
         isDeepStrictEqual(viewed.get(prior.card.id), earlier),
       verifiedConsoleAndNotebookEvidence: isDeepStrictEqual(observed?.console, currentView.console) &&
         observed?.notebook.revision === readRecord(originalValues[0]![notebookKey]!).revision &&
         observed?.notebook.settledDigest === hash(originalValues[0]![current.mode === "large-output" ? "ownedLargeResult" : notebookKey]!),
-      respectedRecoveryDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      respectedRecoveryDecision: isDeepStrictEqual(outcome?.continuation,continued?.receipt??null)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
-      verifiedExactContinuation: exactEffect && isDeepStrictEqual(outcome?.continuation, continued?.receipt ?? null) &&
+      verifiedExactContinuation: exactEffect &&
         effects.filter(effect => effect.service === "agentCapabilityContinue").length === (mayContinue ? 1 : 0),
       preservedOtherState: keys.every(key => after[0]![key] === originalValues[0]![key]) && isDeepStrictEqual(after.slice(1), originalValues.slice(1)) &&
         initial.mainEventId === head.mainEventId && isDeepStrictEqual(initial.workingHead, head.workingHead),
     };
-    return { caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
+    return {
+      outcomeContract:{
+        effects:{checks:["selectedExactOwnedAttempts", "verifiedNativeAdmissionAndFailure", "verifiedConsoleAndNotebookEvidence", "verifiedExactContinuation", "preservedOtherState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["respectedRecoveryDecision"],required:!mayContinue,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:input!==undefined&&!(checks.respectedRecoveryDecision)?[{required:!mayContinue,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverAgentCapability",source:"recoverAgentCapability.nl"},value:input}]:[],
+ caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       effects: structuredClone(effects), assignment, evidence: { current: observed, prior: earlier }, decision, continuation: continued?.receipt ?? null };
   }
   async function qualify() {
@@ -303,9 +309,13 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
     const decision = decisionFor(a);
     const continuation = decision === "confirm-continuation" || decision === "retry-exact-step"
       ? await services.agentCapabilityContinue.apply(a.attempt.id, a.resultDigest, a.notebook.revision, decision) : null;
-    return verify({
-      assignment, evidence: { current: a, prior: b }, finding: { decision, reason: "Use the exact admitted action and current durable notebook evidence." }, continuation,
-    });
+    const result = {finding:{decision,reason:"Use the exact admitted action and current durable notebook evidence."},continuation};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
   return { services, verify, qualify, close: native.close };
 }

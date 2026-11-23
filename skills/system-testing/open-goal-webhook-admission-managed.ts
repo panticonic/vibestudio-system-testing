@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -259,7 +260,7 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
       },
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const out = report;
     const final = await observe(), finalRows = await retainedRows();
@@ -272,21 +273,26 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
     const expectedNote = wantStage && expectedBinding.row ? audit(expectedBinding.row) : null;
     const actual = leafNames.includes(outputName) ? await artifacts.read(outputPath, limit) : null;
     const checks = {
-      matchedOwnedRegistrationReceipt: isDeepStrictEqual(out?.assignment, assignment) && isDeepStrictEqual(final.witness, witness) &&
+      matchedOwnedRegistrationReceipt: isDeepStrictEqual(final.witness, witness) &&
         final.retainedDigest === retainedDigest,
-      exactNativeActiveAndTombstone: isDeepStrictEqual(observed, final) && isDeepStrictEqual(out?.evidence, final),
-      exactCurrentBinding: isDeepStrictEqual(out?.binding, expectedBinding),
-      matchedAdmissionDisposition: out?.assessment?.disposition === world.expected && typeof out.assessment.reason === "string" &&
+      exactNativeActiveAndTombstone: isDeepStrictEqual(observed, final),
+      exactCurrentBinding: isDeepStrictEqual(match(final), expectedBinding),
+      matchedAdmissionDisposition: isDeepStrictEqual(out?.handoff,handoff)&&out?.assessment?.disposition === world.expected && typeof out.assessment.reason === "string" &&
         out.assessment.reason.trim().length > 0 && out.assessment.reason.length <= 1400,
       verifiedScopedPrivateAudit: isDeepStrictEqual(leafNames, wantedNames) &&
         (expectedNote ? actual && decoder.decode(actual) === expectedNote && handoff?.path === outputPath &&
-          handoff.bytes === actual.length && handoff.sha256 === hash(expectedNote) : handoff === null && actual === null) &&
-        isDeepStrictEqual(out?.handoff, handoff),
+          handoff.bytes === actual.length && handoff.sha256 === hash(expectedNote) : handoff === null && actual === null),
       preservedNativeRegistryAndRedaction: isDeepStrictEqual(baseline, finalRows) &&
         final.history.every(row => !row.hasSecret && row.verifierKind === "oidc-jwt") &&
         sameEvidenceMembers(effects.map(effect => effect.method), wantStage ? ["discover", "inspect", "stage"] : ["discover", "inspect"]),
     };
-    return { caseId: world.id, contextId: owner, goal: world.goal, assignment, evidence: final, binding: expectedBinding,
+    return {
+      outcomeContract:{
+        effects:{checks:["matchedOwnedRegistrationReceipt", "exactNativeActiveAndTombstone", "exactCurrentBinding", "verifiedScopedPrivateAudit", "preservedNativeRegistryAndRedaction"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        returnedValue:{checks:["matchedAdmissionDisposition"],required:!wantStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      incorrectReturnValues:value!==undefined&&!(checks.matchedAdmissionDisposition)?[{required:!wantStage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewWebhookAdmission",source:"reviewWebhookAdmission.nl"},value:value}]:[],
+ caseId: world.id, contextId: owner, goal: world.goal, assignment, evidence: final, binding: expectedBinding,
       assessment: out?.assessment, handoff, effects: structuredClone(effects), checks,
       passed: Object.values(checks).every(Boolean) };
   }
@@ -297,9 +303,13 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
     const assessment = { disposition: assess(binding), reason: "Review the scoped registration, its retained receipt and declared metadata." };
     const handoff = assessment.disposition === "stage-audit" ?
       await services.webhookAdmissionHandoff.stage(assignment.id, evidence.retainedDigest, binding.row, assessment.disposition) : null;
-    return verify({
-      assignment, evidence, binding, assessment, handoff,
-    });
+    const result = {assessment,handoff};
+    const proof = await verify(result);
+    const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:"invented"}})).passed;
+    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
   }
   return { services, qualify, verify, close };
 }
