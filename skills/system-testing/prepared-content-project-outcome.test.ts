@@ -6,7 +6,8 @@ it("retains a privately written draft even when the final value honestly request
   const checks = Object.fromEntries(contract.effects.checks.map(name => [name, true]));
   const result = assessSemanticOutcome({passed:false, checks:{...checks, correctOutcomeReport:false}}, contract);
   expect(result.passed).toBe(true);
-  expect(result.outcomeDimensions.returnedValue).toEqual({required:false, passed:false, checks:{correctOutcomeReport:false}});
+  expect(result.outcomeDimensions.returnedValue).toEqual({required:false, passed:true, checks:{}});
+  expect(result.outcomeDimensions.incidentalValues).toEqual({passed:false,checks:{correctOutcomeReport:false},incorrectReturns:[]});
   for (const name of contract.effects.checks)
     expect(assessSemanticOutcome({passed:false,checks:{...checks,[name]:false,correctOutcomeReport:true}},contract).passed).toBe(false);
 });
