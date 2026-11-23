@@ -144,7 +144,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["exactAuthenticatedCliGateway","boundAuthorizedCliContinuation","matchedCliRouteDisposition"],"rootPath":["gateway"],"producerSourceSuffix":"reviewRemoteRoute.nl","producerPath":[]},{"checks":["exactAuthenticatedCliGateway","boundAuthorizedCliContinuation","matchedCliRouteDisposition"],"rootPath":["continuation"],"producerSourceSuffix":"planCliContinuation.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks": ["exactAuthenticatedCliGateway"], "rootPath": ["gateway"], "producerSourceSuffix": "reviewRemoteRoute.nl", "producerPath": []}, {"checks": ["boundAuthorizedCliContinuation"], "rootPath": ["continuation"], "producerSourceSuffix": "planCliContinuation.nl", "producerPath": []}];
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){

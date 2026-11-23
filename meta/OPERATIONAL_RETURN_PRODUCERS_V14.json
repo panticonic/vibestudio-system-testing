@@ -88,8 +88,7 @@
       "contributions": [
         {
           "checks": [
-            "exactIntentOutcome",
-            "returnedIntentNote"
+            "exactIntentOutcome"
           ],
           "rootPath": [
             "outcome"
@@ -149,9 +148,7 @@
       "contributions": [
         {
           "checks": [
-            "exactAuthenticatedCliGateway",
-            "boundAuthorizedCliContinuation",
-            "matchedCliRouteDisposition"
+            "exactAuthenticatedCliGateway"
           ],
           "rootPath": [
             "gateway"
@@ -161,9 +158,7 @@
         },
         {
           "checks": [
-            "exactAuthenticatedCliGateway",
-            "boundAuthorizedCliContinuation",
-            "matchedCliRouteDisposition"
+            "boundAuthorizedCliContinuation"
           ],
           "rootPath": [
             "continuation"
@@ -486,7 +481,8 @@
           "producerPath": []
         }
       ],
-      "nativeOnlyReason": null
+      "nativeOnlyReason": null,
+      "condition": "Decision branch binds decideSkillMaintenance; actual prepared receipt branch binds prepareSkillRepair."
     },
     {
       "entry": "reviewDesktopReadiness",
@@ -568,7 +564,6 @@
       "contributions": [
         {
           "checks": [
-            "joinedAssetIntegrityFinding",
             "matchedAssetDisposition"
           ],
           "rootPath": [
@@ -577,10 +572,27 @@
           "producerSourceSuffix": "reviewAssetIntegrity/planRecovery.nl",
           "producerPath": [
             "reason"
-          ]
+          ],
+          "condition": "Actual observed plan has a reason; native copy/hold receipt renderings are not NL plan returns."
+        },
+        {
+          "checks": [
+            "assetFinding:<index>"
+          ],
+          "rootPath": [
+            "findings",
+            "<index>"
+          ],
+          "producerSourceSuffix": "reviewAssetIntegrity/compareAsset.nl",
+          "producerPath": []
         }
       ],
-      "nativeOnlyReason": null
+      "nativeOnlyReason": null,
+      "checksPattern": [
+        "joinedAssetIntegrityFinding",
+        "matchedAssetDisposition",
+        "assetFinding:<index>"
+      ]
     },
     {
       "entry": "reviewTendrilRoute",
@@ -648,17 +660,39 @@
       "entry": "reviewInstalledPackage",
       "file": "skills/system-testing/open-goal-installed-package-managed.ts",
       "checks": [
-        "returnedPackageResult"
+        "returnedPackageFinding",
+        "returnedPackageRepair",
+        "returnedPackageVerification"
       ],
       "contributions": [
         {
           "checks": [
-            "returnedPackageResult"
+            "returnedPackageFinding"
           ],
           "rootPath": [
             "finding"
           ],
           "producerSourceSuffix": "reviewInstalledPackage/decidePackage.nl",
+          "producerPath": []
+        },
+        {
+          "checks": [
+            "returnedPackageRepair"
+          ],
+          "rootPath": [
+            "repair"
+          ],
+          "producerSourceSuffix": "reviewInstalledPackage/restorePackage.nl",
+          "producerPath": []
+        },
+        {
+          "checks": [
+            "returnedPackageVerification"
+          ],
+          "rootPath": [
+            "verification"
+          ],
+          "producerSourceSuffix": "reviewInstalledPackage/reviewVerification.nl",
           "producerPath": []
         }
       ],
@@ -1327,11 +1361,11 @@
       "errors": 0
     },
     "targeted": {
-      "unit": "vibe-v14-52-native-regressions-e",
-      "tests": 77,
-      "passed": 77,
-      "peakMiB": 347,
-      "includes": "Actual typed composition execution, native browser/desktop/transcript/phone/suite/authoring checks, source-bound projection with unrelated equal-valued negative, incidental child preservation."
+      "unit": "vibe-v14-52-aggregate-regressions-a",
+      "tests": 82,
+      "passed": 82,
+      "peakMiB": 355.9,
+      "includes": "Actual composition races, source-bound selective per-field/per-item masks, no false masking of correct package findings/asset comparisons/intent answers, native fixtures and actual incidental child holds."
     },
     "limitations": [
       "System Android observation bridge is separately owned by Root.",
