@@ -1,3 +1,4 @@
+import {deliveredFactsMatch} from "./retained-task-content.js";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
@@ -325,6 +326,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedLocalDeliveryDecision: isDeepStrictEqual(outcome?.delivery,sent?{attempt:sent.attempt,readback:sent.readback}:null)&&outcome?.status === world.expected.status && Boolean(reason && (world.expected.mentions ?? []).every(group => group.some(term => reason.includes(term)))),
       exactLocalRecipientAndReadback: world.expected.send ? Boolean(sent?.didRead && sent.readback?.acknowledged &&
         sent.lane.spec.key === world.expected.send.room && sent.to === ref(world.expected.send.recipient) &&
+        deliveredFactsMatch(sent.readback.content,world.expected.send.facts) &&
         sent.attempt.response === (sent.lane.spec.lostAcknowledgement ? "interrupted" : "submitted")) : sent === null,
       ...(negatives ? { rejectedForeignLocalRoom: negatives.foreign, rejectedForeignLocalAttempt: negatives.wrongAttempt } : {}),
     };

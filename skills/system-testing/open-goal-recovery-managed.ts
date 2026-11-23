@@ -1,3 +1,4 @@
+import {recoveryHandoffMatches} from "./retained-task-content.js";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
@@ -259,8 +260,10 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       };
     }));
     const reason = report?.review?.reason;
+    const actualHandoffText=artifact?await fs.readFile(artifact.path,"utf8"):null;
     const hasArtifact = Boolean(artifact && handoffText && stagedReview &&
-      handoffText === formatHandoff(stagedReview) && await fs.readFile(artifact.path, "utf8") === handoffText &&
+      handoffText === formatHandoff(stagedReview) && actualHandoffText === handoffText &&
+      recoveryHandoffMatches(actualHandoffText,{disposition:world.expected.disposition,citations,reason:world.expected.reason}) &&
       artifact.sha256 === sha256HexSyncText(handoffText));
     const checks = {
       discoveredRetainedSources: catalog.length === world.sessions.length,

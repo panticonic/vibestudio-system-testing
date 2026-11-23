@@ -1361,10 +1361,10 @@
       "errors": 0
     },
     "targeted": {
-      "unit": "vibe-v14-52-aggregate-regressions-a",
-      "tests": 82,
-      "passed": 82,
-      "peakMiB": 355.9,
+      "unit": "vibe-v14-52-retained-content-a",
+      "tests": 85,
+      "passed": 85,
+      "peakMiB": 356.3,
       "includes": "Actual composition races, source-bound selective per-field/per-item masks, no false masking of correct package findings/asset comparisons/intent answers, native fixtures and actual incidental child holds."
     },
     "limitations": [
@@ -1372,5 +1372,47 @@
       "Complete final public-signature compilation is performed on the integrated source by Root; original nine errors are corrected in Base27173a7.",
       "Full live native worlds across every one of these52 APIs were not run by this strand."
     ]
+  },
+  "persistedContentAudit": {
+    "apis": 52,
+    "findingsActedOn": [
+      {
+        "entry": "recoverSessionGoal",
+        "path": "skills/system-testing/open-goal-recovery-managed.ts",
+        "fix": "Parse actual retained handoff JSON and independently check requested disposition, exact native citations and required reason facts."
+      },
+      {
+        "entry": "workTowardLocalDelivery",
+        "path": "skills/system-testing/open-goal-local-delivery-managed.ts",
+        "fix": "Independently check actual acknowledged native message body for the quoted facts the user explicitly requested."
+      }
+    ],
+    "existingSavedAuthority": [
+      {
+        "entry": "reviewAssetIntegrity",
+        "reason": "Native copies are binary assets; independentlyReadExactRecovery compares exact manifest/files, bytes and selected originals, not generated prose."
+      },
+      {
+        "entry": "reviewTendrilRoute",
+        "reason": "Retained artifact contains native route projection, revision, audience and utterance, checked independently; optional reason is not persisted."
+      },
+      {
+        "entry": "reviewTemplateMigration",
+        "reason": "Persisted JSON is compared against independently built exact recipient/candidate/status/source/deployment facts; public answer is not the saved artifact."
+      },
+      {
+        "entry": "repairWorkspaceUnit",
+        "reason": "Native saved output is actual working code/local event, checked by current full compiler/runtime checks and exact commit revision; public explanation is separate."
+      },
+      {
+        "entry": "workOnAuthoringGoal",
+        "reason": "Retained handoff is bound to independently compiled candidate/baseline revisions and findings, not an optional later generic summary."
+      }
+    ],
+    "queryOnlyTermDomains": [
+      "reviewMobileContinuity",
+      "reviewLocalPresentation (plain-text notes)"
+    ],
+    "remaining": "Searched all owned verifier sources for expected reason/finding/terms/summary/citation predicates, then traced the keyword-bearing artifact cases to their actual saved bytes/native receipts. No additional public-only expected textual-fact requirement was found in that scope. This does not formally prove arbitrary unconstrained prose quality; independent task review remains relevant."
   }
 }
