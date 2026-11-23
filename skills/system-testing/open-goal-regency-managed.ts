@@ -237,6 +237,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     const artifact=note?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(note.path,maxBytes)):null;
     const status=await ports.status();
     const other=crypto.randomUUID();
+    const artifactDecision=(()=>{try{return artifact?JSON.parse(artifact)?.decision:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.note,note),
       exactRegencyAssignment:index?.realm===realm,
@@ -256,7 +257,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
           isDeepStrictEqual(advance.committed,after)&&isDeepStrictEqual(
             {...after.accounts,id:selectedForecast.accounts.id},selectedForecast.accounts)&&inPlay.at(-1)?.id===advance.id:
           advance===null&&isDeepStrictEqual(after,current)),
-      verifiedPrivateRegencyNote:neededNote?!!note&&!!artifact&&files.length===1&&
+      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision?.action===world.action&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.length<=700&&world.terms.every(term=>artifactDecision.explanation.toLowerCase().includes(term.toLowerCase())))&&!!note&&!!artifact&&files.length===1&&
         note.path===`/.tmp/${files[0]}/handoff.json`&&note.revision===after.revision&&
         artifact===stagedText&&note.digest===sha256HexSyncText(artifact):
         note===null&&files.length===0,

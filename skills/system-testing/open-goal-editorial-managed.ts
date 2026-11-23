@@ -352,6 +352,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const files=(await listOwnedScratchEntries(ports.fs)).filter(path=>path.startsWith("evidence-handoff-")&&!originalFiles.has(path));
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,byteLimit)):null;
     const foreign=crypto.randomUUID();
+    const artifactDecision=(()=>{try{return artifact?JSON.parse(artifact)?.decision:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(report?.note,receipt),
       exactOwnedEditorialMission:
@@ -366,7 +367,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       returnedEditorialDocument:report?.document?.path===stored.path&&report.document.version===stored.version,
       groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&
         v.explanation.length<=650&&world.terms.every(term=>v.explanation.toLowerCase().includes(term.toLowerCase())),
-      verifiedPrivateEditorialNote:stageExpected?!!receipt&&!!artifact&&files.length===1&&
+      verifiedPrivateEditorialNote:stageExpected?!!(artifactDecision?.status===world.end&&artifactDecision.write===stageExpected&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.length<=650&&world.terms.every(term=>artifactDecision.explanation.toLowerCase().includes(term.toLowerCase())))&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.candidateVersion===stored.version&&
         !!stagedReport&&artifact===body(stagedReport)&&receipt.digest===sha256HexSyncText(artifact):
         receipt===null&&files.length===0,
