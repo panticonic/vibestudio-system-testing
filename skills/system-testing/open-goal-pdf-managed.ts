@@ -292,7 +292,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const proposedRationale = report?.recommendation?.rationale;
     const rationale = typeof proposedRationale === "string" ? proposedRationale.toLowerCase() : "";
     const snapshot = publicDocuments(documents);
-    const layoutChecks=Object.fromEntries(layouts.map((layout,index)=>[`returnedPdfLayout${index}`,(({ page, kind, order }) => {
+    const layoutChecks=Object.fromEntries(layouts.map((layout,index)=>[`returnedPdfLayout${index}`,(()=>{
+          const {page,kind,order}=layout;
           const raw = reads.find(item => item.pageNumber === page);
           const answer = report?.layouts?.find(answer => answer.pageNumber === page);
           if (!raw || !answer || raw.digest !== source?.digest || raw.width !== 500 || raw.height !== 200) return false;
@@ -301,7 +302,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
             answer.digest === raw.digest && answer.pageNumber === page && answer.layout?.kind === kind &&
             typeof answer.layout.basis === "string" && !!answer.layout.basis.trim() &&
             answer.reading?.status === "ordered" && isDeepStrictEqual(answer.reading.entries, entries);
-        })(layout)]));
+        })()]));
     const checks = {
       originalFiles: documents.length === sources.length &&
         revision === sha256HexSyncText(JSON.stringify(snapshot)) &&
