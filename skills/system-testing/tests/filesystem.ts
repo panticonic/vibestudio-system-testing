@@ -347,6 +347,7 @@ export const filesystemTests: TestCase[] = [
     description: "Write arbitrary bytes atomically and read them back through bounded base64",
     category: "filesystem",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "In the disposable project, add asset.bin containing exactly the four bytes 00 ff 01 fe. Read it back losslessly through a bounded file read and explain what survived. Do not publish it.",
     validation: "harness",
@@ -357,7 +358,7 @@ export const filesystemTests: TestCase[] = [
     description: "Append content to a file and verify all content is present",
     category: "filesystem",
     prompt:
-      "Keep two entries in a temporary scratch log: ‘First observation.’ and ‘Second observation.’. Add the second by appending, then verify both entries remain in order.",
+      "Write ‘First observation.’ to a temporary scratch log. Then open the log in append mode, add ‘Second observation.’, and verify both entries remain in order.",
     validate: appendLogEvidence,
   },
   {
@@ -441,6 +442,7 @@ export const filesystemTests: TestCase[] = [
               record["removed"] === true ||
               record["cleaned"] === true ||
               record["gone"] === true ||
+              (record["rootGone"] === true && record["childGone"] === true) ||
               Object.entries(record).some(
                 ([key, value]) => /exists.*after|after.*exists/iu.test(key) && value === false
               )

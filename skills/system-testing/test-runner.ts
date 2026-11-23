@@ -1,4 +1,5 @@
 import { agentToolFailureSchema } from "@workspace/agentic-protocol";
+import { isRpcAbortedBy } from "@vibestudio/rpc";
 import type {
   ReportClaimJudge,
   TestCase,
@@ -34,6 +35,7 @@ import {
 } from "./validation-failure.js";
 import { channelDeliveryLatencyViolations } from "./delivery-latency.js";
 import { judgeReportClaims, reportClaimsOf } from "./report-claims.js";
+import { publishedEventForContext } from "./tests/_helpers.js";
 import type { SystemTestJsonValue } from "./structured-error.js";
 import {
   assertAgentGoalPrompt,
@@ -45,6 +47,13 @@ import {
 } from "./agent-message.js";
 
 const AGENT_INTERRUPT_TIMEOUT_MS = 30_000;
+const PROTECTED_MAIN_RESOURCE = "vcs:protected-main";
+
+function mainAccess(test: TestCase): "publish" | "snapshot" | null {
+  if (test.resources?.includes(PROTECTED_MAIN_RESOURCE)) return "publish";
+  if (!test.workspaceRepoFixture) return null;
+  return test.agentContext === "fork" ? "snapshot" : "publish";
+}
 
 type MaybePromise<T> = T | Promise<T>;
 type RunSuiteFilter = {
@@ -85,6 +94,11 @@ export class TestRunner {
       testTimeoutMs?: number;
       /** Judges the report claims tests declare (`TestCase.reportClaims`). */
       claimJudge?: ReportClaimJudge;
+      runAgentCellCompaction?: (
+        signal: AbortSignal,
+        contextId: string,
+        turns: number,
+      ) => Promise<TestExecutionResult>;
     },
   ) {
     if (!runner) {
@@ -131,11 +145,12 @@ export class TestRunner {
     );
     const pending = new Set(filtered.map((_test, index) => index));
     const activeResources = new Set<string>();
+    let activeMainSnapshots = 0;
     let scheduleWaiters: Array<() => void> = [];
 
     const resourcesFor = (test: TestCase): string[] => [
       ...new Set([
-        ...(test.workspaceRepoFixture ? ["vcs:protected-main"] : []),
+        ...(mainAccess(test) === "publish" ? [PROTECTED_MAIN_RESOURCE] : []),
         ...(test.category === "workers" ? ["category:workers"] : []),
         ...(test.resources ?? []).filter(Boolean),
       ]),
@@ -149,16 +164,25 @@ export class TestRunner {
     const claimRunnable = async (): Promise<{
       index: number;
       resources: string[];
+      access: ReturnType<typeof mainAccess>;
     } | null> => {
       for (;;) {
         if (this.cancelled) return null;
         for (const index of pending) {
-          const resources = resourcesFor(filtered[index]!);
+          const test = filtered[index]!;
+          const resources = resourcesFor(test);
+          const access = mainAccess(test);
           if (resources.some((resource) => activeResources.has(resource)))
+            continue;
+          // Creating a snapshot checks its basis against main. Keep publishers
+          // out while private cases verify that basis and retire their copies.
+          if (access === "publish" && activeMainSnapshots > 0) continue;
+          if (access === "snapshot" && activeResources.has(PROTECTED_MAIN_RESOURCE))
             continue;
           pending.delete(index);
           for (const resource of resources) activeResources.add(resource);
-          return { index, resources };
+          if (access === "snapshot") activeMainSnapshots += 1;
+          return { index, resources, access };
         }
         if (pending.size === 0) return null;
         await new Promise<void>((resolve) => scheduleWaiters.push(resolve));
@@ -203,6 +227,7 @@ export class TestRunner {
         } finally {
           for (const resource of claim.resources)
             activeResources.delete(resource);
+          if (claim.access === "snapshot") activeMainSnapshots -= 1;
           wakeSchedulers();
         }
       }
@@ -295,12 +320,14 @@ export class TestRunner {
       (test.timeoutMs === null
         ? Infinity
         : (test.timeoutMs ?? DEFAULT_SYSTEM_TEST_TIMEOUT_MS));
-    const testDeadline = startTime + testTimeoutMs;
     const testRunner =
       typeof this.runner.forTest === "function"
         ? this.runner.forTest(test.name, {
             workspaceRepoFixture: test.workspaceRepoFixture,
             authorityPolicy: test.authorityPolicy,
+            ...(mainAccess(test) === "snapshot"
+              ? { allowFixturePublication: false }
+              : {}),
           })
         : this.runner;
     let session: HeadlessSession | undefined;
@@ -331,6 +358,10 @@ export class TestRunner {
         workspaceRepoFixtureState =
           await testRunner.prepareWorkspaceRepoFixture();
       }
+      orchestrationController.signal.throwIfAborted();
+      // Provisioning the disposable workspace is a prerequisite. Count its
+      // elapsed time in the result without charging it to the scenario.
+      const testDeadline = (workspaceRepoFixtureState ? Date.now() : startTime) + testTimeoutMs;
       if (workspaceRepoFixtureState?.kind === "draft-repair-panel") {
         enterPhase("fixture-baseline");
         const { contextId, repoPath } = workspaceRepoFixtureState;
@@ -444,7 +475,7 @@ export class TestRunner {
           if (
             observation.status === "rejected" &&
             observation.reason !== terminalError &&
-            observation.reason !== controller.signal.reason
+            !isRpcAbortedBy(observation.reason, controller.signal.reason)
           )
             failures.push(observation.reason);
           if (failures.length > 1) {
@@ -483,7 +514,7 @@ export class TestRunner {
       // drives panels, and waits on the harness. Only the turns carried the
       // test deadline, so anything else that failed to settle ran forever —
       // one cdp scenario held a run in `orchestration` for five and a half
-      // hours. `timeoutMs` bounds the test, not just its turns.
+      // hours. The scenario budget covers orchestration as well as the turns.
       const execution =
         usesPanelRepairTeacher(test)
           ? await (async (): Promise<TestExecutionResult> => {
@@ -521,6 +552,9 @@ export class TestRunner {
             ? await this.withTimeout(
                 test.orchestrate({
                   runner: testRunner,
+                  ...(this.opts?.runAgentCellCompaction
+                    ? { runAgentCellCompaction: this.opts.runAgentCellCompaction }
+                    : {}),
                   signal: orchestrationController.signal,
                   remainingTimeMs,
                   diagnostics: orchestrationDiagnostics,
@@ -538,7 +572,9 @@ export class TestRunner {
                 orchestrationController,
               )
             : await (async (): Promise<TestExecutionResult> => {
-                session = await testRunner.spawn();
+                session = await testRunner.spawn(
+                  test.agentContext ? { context: test.agentContext } : undefined,
+                );
                 enterPhase("agent-turn");
                 const { modelExecutionEvidence } = await sendAndCapture(
                   session,
@@ -560,47 +596,41 @@ export class TestRunner {
       execution.submittedInputs = submittedInputs;
       execution.modelExecutionEvidence ??=
         execution.snapshot?.modelExecutionEvidence;
-      if (workspaceRepoFixtureState) {
-        // Validators run before teardown, but they still need the harness-owned
-        // fixture identity to prove calls target this exact seeded receiver.
-        execution.diagnostics = {
-          ...execution.diagnostics,
-          workspaceRepoFixture: { ...workspaceRepoFixtureState },
-        };
-      }
-      if (workspaceRepoFixtureState?.section === "workers") {
-        enterPhase("validation");
-        execution.diagnostics = {
-          ...execution.diagnostics,
-          fixtureRuntimeEntities:
-            await testRunner.observeFixtureRuntimeEntities(
-              workspaceRepoFixtureState,
-            ),
-        };
-      }
-      if (workspaceRepoFixtureState?.kind === "draft-repair-panel") {
-        enterPhase("validation");
-        const { contextId, repoPath } = workspaceRepoFixtureState;
-        if (execution.provenance?.contextId !== contextId) {
-          throw new Error(
-            "Panel repair must run in its seeded workspace context.",
-          );
-        }
-        execution.diagnostics = {
-          ...execution.diagnostics,
-          panelDraftBaseline: orchestrationDiagnostics["panelDraftBaseline"],
-          panelDraftVerification: await observePanelDraft(
-            testRunner,
-            contextId,
-            repoPath,
-          ),
-        };
-      }
-
       const validationExecution = await materializeValidationEvidence(
         execution,
         testRunner.validationEvidenceReader,
       );
+      if (workspaceRepoFixtureState) {
+        const agentContextId = validationExecution.provenance?.contextId;
+        const publishedFixtureEventId = agentContextId
+          ? publishedEventForContext(validationExecution, agentContextId)
+          : undefined;
+        if (publishedFixtureEventId) {
+          workspaceRepoFixtureState = { ...workspaceRepoFixtureState, publishedFixtureEventId };
+        }
+        // Validators need the harness-owned fixture identity before teardown.
+        const fixtureDiagnostics: Record<string, unknown> = {
+          workspaceRepoFixture: { ...workspaceRepoFixtureState },
+        };
+        if (workspaceRepoFixtureState.section === "workers") {
+          enterPhase("validation");
+          fixtureDiagnostics["fixtureRuntimeEntities"] =
+            await testRunner.observeFixtureRuntimeEntities(workspaceRepoFixtureState);
+        }
+        if (workspaceRepoFixtureState.kind === "draft-repair-panel") {
+          enterPhase("validation");
+          const { contextId, repoPath } = workspaceRepoFixtureState;
+          if (execution.provenance?.contextId !== contextId) {
+            throw new Error("Panel repair must run in its seeded workspace context.");
+          }
+          fixtureDiagnostics["panelDraftBaseline"] = orchestrationDiagnostics["panelDraftBaseline"];
+          fixtureDiagnostics["panelDraftVerification"] =
+            await observePanelDraft(testRunner, contextId, repoPath);
+        }
+        execution.diagnostics = { ...execution.diagnostics, ...fixtureDiagnostics };
+        validationExecution.diagnostics = { ...validationExecution.diagnostics, ...fixtureDiagnostics };
+      }
+
       validationExecution.toolFailures = classifyToolFailures(
         collectToolFailures(validationExecution),
         test.expectedToolFailures,
@@ -685,6 +715,23 @@ export class TestRunner {
             taskOutcome: result,
             unexpectedToolFailures: unexpected,
           },
+        };
+      }
+      const reportedCleanup = [
+        ...new Set([
+          ...(execution.cleanupErrors ?? []),
+          ...(execution.cleanupFailures ?? []).map((failure) => failure.error.message),
+        ]),
+      ];
+      if (reportedCleanup.length > 0) {
+        const reason = `Test cleanup failed: ${reportedCleanup.join("; ")}`;
+        execution.error ??= reason;
+        execution.failure ??= execution.cleanupFailures?.[0] ??
+          systemTestFailure("orchestration-cleanup", new Error(reportedCleanup.join("; ")));
+        result = {
+          passed: false,
+          reason: result.passed ? reason : `${result.reason ?? "Requested outcome was not established"}; ${reason}`,
+          details: { ...(result.details ?? {}), taskOutcome: result, cleanupErrors: reportedCleanup },
         };
       }
       outcome = { result, execution };
@@ -893,8 +940,17 @@ export class TestRunner {
       if (workspaceRepoFixtureState) {
         enterPhase("workspace-fixture-cleanup");
         try {
+          const agentContextId = outcome?.execution.provenance?.contextId;
+          // The fixture runner and agent may share a context ID while owning
+          // separate working copies. Attribute main from the agent's receipt.
+          const publishedFixtureEventId = workspaceRepoFixtureState.publishedFixtureEventId ??
+            (outcome && agentContextId
+              ? publishedEventForContext(outcome.execution, agentContextId)
+              : undefined);
           const fixtureCleanup = await testRunner.cleanupWorkspaceRepoFixture(
-            workspaceRepoFixtureState,
+            publishedFixtureEventId
+              ? { ...workspaceRepoFixtureState, publishedFixtureEventId }
+              : workspaceRepoFixtureState,
             (phase) => enterPhase(`workspace-fixture-cleanup:${phase}`),
           );
           if (outcome) {
@@ -970,12 +1026,15 @@ export class TestRunner {
         try {
           await promise;
         } catch (settlementError) {
-          if (settlementError !== error && settlementError !== deadlineError)
+          if (!isRpcAbortedBy(settlementError, deadlineError))
             throw new AggregateError(
-              [error, settlementError],
+              [deadlineError, settlementError],
               `${message}; owned operation failed during cancellation`,
             );
         }
+        // An abort listener may reject synchronously before the timer's race
+        // rejection. The expired deadline remains the authoritative reason.
+        throw deadlineError;
       }
       throw error;
     } finally {

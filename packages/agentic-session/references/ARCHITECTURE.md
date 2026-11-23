@@ -28,7 +28,7 @@
   - convenience: createWithAgent() connects the headless client, then subscribes the agent
   - Uses the same agent worker prompt and tool surface as panel sessions;
     UI tools naturally drop out because no panel is advertising them.
-  - The agent's `eval` runs server-side in its own per-channel EvalDO, so it
+  - The agent's `eval` runs server-side in its own per-channel eval kernel, so it
     works with no panel and needs no session-side sandbox.
 ```
 
@@ -111,7 +111,7 @@ React binding (useChatStore/useAgenticChat), HeadlessSession, or an Ink UI
 ```
 
 For a headless session, the owning Durable Object supplies the resident receiver
-registrar. EvalDO injects that registrar into its active execution RPC object;
+registrar. eval kernel injects that registrar into its active execution RPC object;
 importing a registry in guest/userland code is not equivalent because it belongs
 to a different module graph. The registration exists only for the active
 operation. Missing receivers leave mailbox work retryable, while a new
@@ -122,7 +122,7 @@ Resident mailbox sequence is ordered but intentionally not globally contiguous:
 self-authored and unaddressed channel events do not become recipient work. A
 resident client therefore never interprets a global log-sequence gap as loss or
 issues replay repair from inside the delivery callback. Completeness comes from
-the channel's durable per-participant lane. When the owner is EvalDO, each
+the channel's durable per-participant lane. When the owner is eval kernel, each
 finite callback re-enters the exact active eval execution context and eval
 terminalization revokes the receiver and drains callbacks already in flight.
 
@@ -159,7 +159,7 @@ HeadlessSession provides two teardown paths:
 
 The session does **not** own the agent's REPL scope or `db`. The agent's `eval`
 tool dispatches to the server-side `eval` service, which runs the code in a
-per-owner, per-channel `EvalDO`. That DO holds the persistent REPL `scope` (and a
+per-owner, per-channel eval kernel. That DO holds the persistent REPL `scope` (and a
 synchronous in-DO SQLite `db`) in its own storage and survives across turns
 regardless of whether any panel or headless session is connected.
 

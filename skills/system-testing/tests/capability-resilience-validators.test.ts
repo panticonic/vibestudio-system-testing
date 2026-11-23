@@ -691,7 +691,7 @@ describe("edge and harness semantic validators", () => {
             ].join("\n"),
             {
               missingImportError:
-                'Module "definitely-missing" not available in EvalDO; use the imports parameter.',
+                'Module "definitely-missing" not available in EvalKernel; use the imports parameter.',
               sandboxStillWorks: true,
             }
           ),

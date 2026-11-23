@@ -19,10 +19,10 @@ import {
 } from "../panel-authority.js";
 import { getToolCalls, type InvocationCardPayloadLike } from "./_helpers.js";
 import {
+  committedPreparation,
   preparedProject,
   publishedPreparation,
   publishedCommits,
-  committedPreparation,
 } from "./_project-evidence.js";
 import {
   completedScenarioEvidence,
@@ -277,21 +277,19 @@ function validatePanelFork(result: TestExecutionResult) {
       record["dryRun"] === false &&
       typeof record["source"] === "string",
   );
-  if (!fork || !committedPreparation(result, fork))
+  if (!fork || !publishedPreparation(result, fork))
     return {
       passed: false,
       reason:
-        "No prepared panel-fork application was joined to its exact local commit",
+        "No prepared panel fork was joined to its exact committed and published event",
     };
-  // The task asks for a saved, working copy, not a particular planning sequence.
-  // Preparation and its exact commit prove delivery; a dry run is optional.
   return hasBootReadyPanelEvidence(base.evidence.evalValues) ||
     hasReadyCapturedPanel(base.evidence.calls, String(fork["created"]))
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "The committed fork returned no matching boot-ready rendered-panel inspection",
+          "The published fork returned no matching boot-ready rendered-panel inspection",
       };
 }
 
@@ -370,25 +368,24 @@ function validateProjectCommit(result: TestExecutionResult) {
   const base = completedScenarioEvidence(result, []);
   if (!base.passed) return base;
   const calls = getToolCalls(result);
-  const creationIndex = calls.findIndex((call) => {
-    if (call.name !== "eval") return false;
-    const returned = invocationReturnValue(call);
-    return (
-      call.execution?.status === "complete" &&
-      call.execution.isError !== true &&
-      String(call.arguments?.["code"] ?? "").includes("prepareProjects") &&
-      returned.present &&
-      walkRecords([returned.value]).some((record) =>
-        createdProject(record, "packages"),
-      )
-    );
-  });
-  if (creationIndex < 0) {
+  const creations = calls.flatMap((call, index) =>
+    call.name === "eval" && details(call) &&
+    String(call.arguments?.["code"] ?? "").includes("prepareProjects")
+      ? returnedRecords(call).filter((record) => createdProject(record, "packages"))
+        .map((record) => ({ record, index }))
+      : []
+  );
+  const creation = creations[0];
+  if (!creation || new Set(creations.map(({ record }) => record["created"])).size !== 1 ||
+      !committedPreparation(result, creation.record) || publishedCommits(result).length > 0) {
     return {
       passed: false,
-      reason: "No completed eval returned the created package identity",
+      reason: "No single package preparation was joined to a private commit",
     };
   }
+  const creationIndex = creation.index;
+  const createdPath = String(creation.record["created"]);
+  const preparedContext = (creation.record["preparation"] as Record<string, unknown>)["contextId"];
   for (
     let mutationIndex = creationIndex + 1;
     mutationIndex < calls.length;
@@ -411,12 +408,14 @@ function validateProjectCommit(result: TestExecutionResult) {
       continue;
     }
     const path = mutationCall.arguments?.["path"];
-    if (typeof path !== "string" || !path.startsWith("packages/")) continue;
+    if (typeof path !== "string" || !path.startsWith(`${createdPath}/`)) continue;
     for (const call of calls.slice(mutationIndex + 1)) {
       const committed = commitResult(call);
-      const event = committed?.["event"];
+      if (!committed) continue;
+      const event = committed["event"];
       if (
-        Array.isArray(committed?.["committedApplicationIds"]) &&
+        committed["contextId"] === preparedContext &&
+        Array.isArray(committed["committedApplicationIds"]) &&
         committed["committedApplicationIds"].includes(applicationId) &&
         isRecord(event) &&
         event["kind"] === "event" &&
@@ -1431,8 +1430,9 @@ export const projectLifecycleTests: TestCase[] = [
       "inspect-created-project-panel",
     ),
     resources: [PANEL_AUTOMATION_RESOURCE],
+    timeoutMs: 15 * 60_000,
     prompt:
-      "Create and publish a brand-new isolated panel project, then open it for use.",
+      "Create a brand-new isolated panel project, preview it privately before publishing, then publish it and open the published panel for use.",
     validate: validatePanelCreate,
   },
   {
@@ -1452,6 +1452,7 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Fork and open a panel project",
     category: "project-lifecycle",
     workspaceRepoFixture: BUILDABLE_PANEL_WITH_DERIVED_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: panelControlAuthorityPolicy(
       "inspect-forked-project-panel",
       [
@@ -1467,7 +1468,7 @@ export const projectLifecycleTests: TestCase[] = [
         },
       ],
     ),
-    resources: [PANEL_AUTOMATION_RESOURCE],
+    resources: [PANEL_AUTOMATION_RESOURCE, "vcs:protected-main"],
     prompt:
       "Create and publish a separate panel based on the provided panel project, leave the original unchanged, and open the published copy to confirm it works.",
     validate: validatePanelFork,
@@ -1477,6 +1478,7 @@ export const projectLifecycleTests: TestCase[] = [
     description: "Dry-run a worker fork",
     category: "project-lifecycle",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Preview a separate copy of the existing worker and confirm the original remains unchanged.",
     validate: validateWorkerForkPlan,
@@ -1493,7 +1495,8 @@ export const projectLifecycleTests: TestCase[] = [
     name: "commit-existing-project",
     description: "Create, change, and commit a package project",
     category: "project-lifecycle",
-    workspaceRepoFixture: CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    workspaceRepoFixture: { ...CREATED_PACKAGE_WORKSPACE_REPO_FIXTURE, privateCommit: true },
+    agentContext: "fork",
     prompt:
       "Create an isolated package project, make one follow-up change, and commit that change.",
     validate: validateProjectCommit,
@@ -1542,6 +1545,7 @@ export const projectLifecycleTests: TestCase[] = [
       "Build, debug, polish, and publish a To-Do panel through the live UI",
     category: "project-lifecycle",
     workspaceRepoFixture: CREATED_PANEL_WORKSPACE_REPO_FIXTURE,
+    timeoutMs: 15 * 60_000,
     // The task deliberately induces a source diagnostic. Its failed report is
     // completed verification evidence; the validator requires a later clean check.
     authorityPolicy: panelControlAuthorityPolicy("inspect-created-panel", [
@@ -1555,7 +1559,7 @@ export const projectLifecycleTests: TestCase[] = [
     ]),
     resources: [PANEL_AUTOMATION_RESOURCE],
     prompt:
-      "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, capture and visually inspect a screenshot so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, capture and visually inspect a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
+      "Build a simple, polished To-Do list as a brand-new isolated panel. Begin with two small deliberate defects—one compiler error and one obvious usability problem—so the development loop has real failures to find. Observe the compiler defect through a structured compile or build check, then diagnose and repair only that failure while leaving the usability defect intact. Launch the compile-clean but visibly flawed panel, capture and visually inspect a screenshot so your UX repair is based on the rendered pixels rather than DOM text alone. Repair the usability defect in a separate source edit. Refresh the same running panel with the repaired source, capture and visually inspect a second screenshot, exercise the add, complete, filter, and delete flows in the live UI, and publish the finished result. For completion, verify that the actual checkbox is checked and that the item appears under the completed filter. If you also check the remaining count, use the post-action count, which decreases by one. Make the final experience keyboard-friendly, responsive, visually polished, and free of runtime or console errors. Report the defects you observed and concrete final verification.",
     validate: validateTodoDebugLoop,
   },
 ];

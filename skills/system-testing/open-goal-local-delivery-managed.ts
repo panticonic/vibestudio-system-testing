@@ -44,8 +44,18 @@ const ref = (handle: string) => `@${handle}`;
 const textBlock = (blocks: readonly { type: string; content?: string }[]) => blocks
   .filter(({ type }) => type === "text").map(({ content }) => content).join("\n");
 
-function completedMessage(event: ChannelEvent, senderId: string) {
-  if (event.senderId !== senderId || event.type !== "agentic.trajectory.v1/event") return null;
+function deliveredEvent(envelope: unknown): Pick<ChannelEvent, "id" | "senderId" | "type" | "payload"> | null {
+  if (!envelope || typeof envelope !== "object" || !("kind" in envelope) || envelope.kind !== "log" ||
+      !("event" in envelope)) return null;
+  const { event } = envelope;
+  if (!event || typeof event !== "object" || !("id" in event) || typeof event.id !== "number" ||
+      !("senderId" in event) || typeof event.senderId !== "string" ||
+      !("type" in event) || typeof event.type !== "string" || !("payload" in event)) return null;
+  return { id: event.id, senderId: event.senderId, type: event.type, payload: event.payload };
+}
+
+function completedMessage(event: Pick<ChannelEvent, "id" | "senderId" | "type" | "payload"> | null, senderId: string) {
+  if (!event || event.senderId !== senderId || event.type !== "agentic.trajectory.v1/event") return null;
   const payload = event.payload as { kind?: string; causality?: { messageId?: string }; payload?: {
     to?: { kind: string; participantId?: string }[]; blocks?: { type: string; content?: string }[];
   } } | undefined;
@@ -129,7 +139,7 @@ export async function prepareOpenLocalDelivery(
     const acknowledged = probes.some(probe => probe.participantId === target.participantId && probe.channelId === lane.key &&
       probe.deliveries.some(delivery => delivery.channelId === lane.key && delivery.participantId === target.participantId &&
         delivery.subscriptionRevision === probe.subscriptionRevision && delivery.eventSequence === raw.seq &&
-        completedMessage(delivery.envelope.event, lane.sender.id)?.id === raw.id));
+        completedMessage(deliveredEvent(delivery.envelope), lane.sender.id)?.id === raw.id));
     return { roomId: lane.room.id, channelId: lane.key, messageId: raw.id, senderId: lane.sender.id,
       recipientRef: receipt.to, content, sequence: raw.seq, acknowledged };
   }

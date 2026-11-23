@@ -34,6 +34,22 @@ interface ToolStep {
   result?: unknown;
 }
 
+function permissionInventoryJournal() {
+  return {
+    protocol: "workspace-operations.v1",
+    truncated: false,
+    entries: [{
+      type: "permissions.inventory",
+      receipt: {
+        protocol: "permission-inventory-observation.v1",
+        method: "permissions.list",
+        total: 383,
+        counts: { capability: 383, "credential-use": 0, "browser-site": 0 },
+      },
+    }],
+  };
+}
+
 function extensionJournal(transport: "invoke" | "invokeProvider", result: Record<string, unknown>) {
   return {
     protocol: "workspace-operations.v1",
@@ -333,6 +349,7 @@ describe("eval authority lifecycle validators", () => {
       code: "return await services.permissions.list();",
       authority: { effects: "read-only", requests: [permissionsRead] },
       returnValue: [],
+      operationJournal: permissionInventoryJournal(),
     };
     expect(validator.validate(execution("Read permissions only.", [discovery, read])).passed).toBe(
       true
@@ -375,6 +392,7 @@ describe("eval authority lifecycle validators", () => {
               requests: [permissionsRead],
             },
             returnValue: [],
+            operationJournal: permissionInventoryJournal(),
           },
         ])
       ).passed
@@ -386,6 +404,7 @@ describe("eval authority lifecycle validators", () => {
             code: "return await services.permissions.list();",
             authority: { effects: "read-only", approvals: "pregranted-only" },
             returnValue: [],
+            operationJournal: permissionInventoryJournal(),
           },
         ])
       ).passed
@@ -514,6 +533,7 @@ describe("eval authority lifecycle validators", () => {
     const read: EvalStep = {
       code: "return await services.permissions.list();",
       returnValue: [],
+      operationJournal: permissionInventoryJournal(),
     };
     expect(validator.validate(execution("Read permissions.", [prepare, read])).passed).toBe(true);
     expect(validator.validate(execution("Read permissions.", [read, prepare])).passed).toBe(false);
@@ -525,6 +545,7 @@ describe("eval authority lifecycle validators", () => {
     const result = execution("Read the actual inventory.", [
       {
         code: 'import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc"; return await rpc.call("main", mainRpcMethods["permissions.list"], []);',
+        operationJournal: permissionInventoryJournal(),
         authority: {
           preauthorize: [{ service: "permissions", method: "list", args: [] }],
         },
@@ -556,14 +577,16 @@ describe("eval authority lifecycle validators", () => {
         preauthorize: [{ service: "permissions", method: "list", args: [] }],
       },
     };
+    calls[0]!.result = { details: { returnValue: 1 } };
     expect(validator.validate(result).passed).toBe(false);
   });
 
-  it("accepts a real bounded permissions inventory instead of requiring an unbounded return", () => {
+  it("uses native inventory evidence independently of guest syntax and return shape", () => {
     const validator = scenario(evalLifecycleTests, "eval-exact-authority");
     const read: EvalStep = {
       code: "return await services.permissions.list();",
       authority: { effects: "read-only", requests: [permissionsRead] },
+      operationJournal: permissionInventoryJournal(),
       returnValue: {
         truncated: true,
         scopeKey: "$lastLargeReturn",
@@ -574,11 +597,29 @@ describe("eval authority lifecycle validators", () => {
       },
     };
     expect(validator.validate(execution("Read permissions.", [read])).passed).toBe(true);
+    for (const returnValue of [{ count: 383, rows: [] }, { count: 383 }, undefined]) {
+      expect(validator.validate(execution("Read permissions.", [{
+        ...read,
+        returnValue,
+      }])).passed).toBe(true);
+    }
+    expect(validator.validate(execution("Read permissions.", [{
+      ...read,
+      code: "const list = services.permissions.list; const rows = await list(); return { count: rows.length };",
+      returnValue: { count: 383 },
+    }])).passed).toBe(true);
+    // A read with a summarized result must still be checked for attenuation.
+    expect(validator.validate(execution("Read permissions.", [read, {
+      ...read,
+      authority: { effects: "read-only" },
+      returnValue: { count: 383 },
+    }])).passed).toBe(false);
     expect(
       validator.validate(
         execution("Read permissions.", [
           {
             ...read,
+            operationJournal: undefined,
             returnValue: {
               truncated: true,
               scopeKey: "$lastLargeReturn",
@@ -591,6 +632,19 @@ describe("eval authority lifecycle validators", () => {
         ])
       ).passed
     ).toBe(false);
+    // Neither code text nor a guest-returned receipt proves a protected read.
+    expect(validator.validate(execution("Read permissions.", [{
+      ...read,
+      operationJournal: undefined,
+      returnValue: permissionInventoryJournal(),
+    }])).passed).toBe(false);
+    expect(validator.validate(execution("Read permissions.", [{
+      ...read,
+      operationJournal: {
+        ...permissionInventoryJournal(),
+        entries: [{ type: "permissions.inventory", receipt: { method: "permissions.list" } }],
+      },
+    }])).passed).toBe(false);
   });
 
   it("binds preauthorization to the exact invocation arguments", () => {
@@ -606,6 +660,7 @@ describe("eval authority lifecycle validators", () => {
               preauthorize: [{ service: "permissions", method: "list", args: [] }],
             },
             returnValue: [],
+            operationJournal: permissionInventoryJournal(),
           },
         ])
       ).passed
@@ -627,6 +682,7 @@ describe("eval authority lifecycle validators", () => {
               ],
             },
             returnValue: [],
+            operationJournal: permissionInventoryJournal(),
           },
         ])
       ).passed
@@ -1163,6 +1219,20 @@ describe("filesystem semantic validators", () => {
         ])
       ).passed
     ).toBe(true);
+  });
+
+  it("accepts separate absence checks for the removed root and child", () => {
+    const validator = scenario(filesystemTests, "remove");
+    const verify = (childGone: boolean) => validator.validate(
+      execution("I checked the root and its child after removing the tree.", [
+        {
+          code: "await fs.mkdir(child); await fs.rm(root, { recursive: true }); return { rootGone: !await fs.exists(root), childGone: !await fs.exists(child) };",
+          returnValue: { rootGone: true, childGone },
+        },
+      ]),
+    );
+    expect(verify(true).passed).toBe(true);
+    expect(verify(false).passed).toBe(false);
   });
 
   it("accepts a concrete symbolic-link observation without a synthetic supported field", () => {
@@ -1854,6 +1924,39 @@ describe("eval lifecycle semantic validators", () => {
     ).toBe(false);
   });
 
+  it("accepts a deadline-settled spin followed by an answered run, and nothing less", () => {
+    const answered = (override: Record<string, unknown> = {}): TestExecutionResult => ({
+      duration: 0,
+      messages: [],
+      diagnostics: {
+        evalDeadlineRecovery: {
+          spun: {
+            runId: "run-1",
+            terminal: { status: "done", result: { failureCode: "eval_deadline_exceeded" } },
+          },
+          next: {
+            runId: "run-2",
+            terminal: { status: "done", result: { success: true, returnValue: 42 } },
+          },
+          ...override,
+        },
+      },
+    });
+    const validator = scenario(evalLifecycleTests, "eval-deadline-recovery");
+    expect(validator.validate(answered()).passed).toBe(true);
+    expect(
+      validator.validate(
+        answered({ spun: { runId: "run-1", terminal: { status: "running" } } }),
+      ).passed,
+    ).toBe(false);
+    expect(
+      validator.validate(
+        answered({ next: { runId: "run-2", terminal: { status: "running" } } }),
+      ).passed,
+    ).toBe(false);
+    expect(validator.validate(execution("It recovered.", [])).passed).toBe(false);
+  });
+
   it("requires one original eval result after an observed live vessel abort", () => {
     const validator = scenario(evalLifecycleTests, "eval-agent-replay");
     const recovered = execution("The durable eval returned once.", [
@@ -2236,6 +2339,21 @@ describe("absent recipient messaging", () => {
       }),
     } as (typeof result.messages)[number]);
     expect(validator.validate(result).passed).toBe(false);
+  });
+});
+
+describe("child steering", () => {
+  it("requires one of each count and an exact child delivery", () => {
+    const test = scenario(messagingTests, "steer-a-running-child");
+    const notify: ToolStep = {
+      name: "notify",
+      arguments: { to: ["run:@child"], content: "Also count the lines." },
+      result: { details: { sent: [{ runId: "run:child" }] } },
+    };
+    const report = "- **Markdown files:** 3\n- **Total lines:** 292";
+    expect(test.validate(directExecution(report, [notify])).passed).toBe(true);
+    expect(test.validate(directExecution(report, [])).passed).toBe(false);
+    expect(test.validate(directExecution(`${report}\nTotal lines: 300`, [notify])).passed).toBe(false);
   });
 });
 

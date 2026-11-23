@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TestExecutionResult } from "../types.js";
 import { vcsTests } from "./vcs.js";
+import { publishedEventForContext } from "./_helpers.js";
 
 function invocation(
   id: string,
@@ -46,6 +47,22 @@ function execution(
     ],
   } as TestExecutionResult;
 }
+
+it("only attributes protected publication to the exact agent working copy", () => {
+  const push = (contextId: string, eventId: string, mainEventId: string) =>
+    invocation(eventId, "vcs", { operation: "push" }, {
+      operation: "push",
+      result: { contextId, eventId, mainEventId },
+    });
+  const observed = execution("Published the fixture.", [
+    push("context:agent", "event:fixture", "event:fixture"),
+    push("context:unrelated", "event:other", "event:other"),
+    push("context:agent", "event:unpublished", "event:other"),
+  ]);
+
+  expect(publishedEventForContext(observed, "context:agent")).toBe("event:fixture");
+  expect(publishedEventForContext(observed, "context:missing")).toBeUndefined();
+});
 
 function mutation(applicationId: string, changeId: string) {
   return {

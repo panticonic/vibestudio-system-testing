@@ -9,7 +9,7 @@ events and title come from the same chat core the panel UI uses; `session.chat`
 exposes it.
 
 The session is a channel client only. The agent's own tools — including `eval`
-(server-side in the agent's per-channel `EvalDO`), file tools, and web tools —
+(server-side in the agent's per-channel eval kernel), file tools, and web tools —
 come from the agent worker, not from this session. The session registers no
 default tool methods; it observes the durable channel title for reports.
 
@@ -33,7 +33,7 @@ interface HeadlessSessionConfig {
 ```
 
 The headless client has no browser sandbox configuration. The agent evaluates
-code in its own server-side `EvalDO`.
+code in its own server-side eval kernel.
 
 When passing `config: { clientId, rpc }`, `rpc` must be the normal runtime
 client shape used by panels/workers/eval: it includes `selfId`,

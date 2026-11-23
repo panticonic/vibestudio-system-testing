@@ -368,6 +368,8 @@ function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
       call.execution?.status === "complete" &&
       call.execution.isError !== true,
   );
+  const retirementIntent =
+    'stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name"';
   const historicalDecisionEvidence = calls.some((call) => {
     const target = call.arguments?.["target"];
     const envelope = isRecord(call.execution?.result) ? call.execution.result : null;
@@ -387,10 +389,51 @@ function requireHistoricalDecisionEvidence(result: TestExecutionResult) {
       authoredChanges.length > 0 && authoredChanges.every((edge) => edge[1] === target) &&
       importedRepositories.length > 0 && importedRepositories.every((edge) => edge[1] === target) &&
       /external snapshot generated:"system-test:\/\/vcs-sizable-history-memory-recall\//u.test(text) &&
-      /stated: "Retire the Harbor Lantern rollout codename after launch so support and audit records consistently use the public Retention Service name"/u.test(text)
+      text.includes(retirementIntent)
     );
   });
-  return historicalDecisionEvidence
+  if (historicalDecisionEvidence) return answer;
+
+  const decisions = new Set<string>();
+  const workByApplication = new Map<string, string>();
+  const committedApplications = new Set<string>();
+  const cohortCommits: Array<{ commit: string; work: string }> = [];
+  const inspectedCommits = new Set<string>();
+  const retirementCommit = "Retire Harbor Lantern after launch; use Retention Service in support and audit records";
+  for (const call of calls) {
+    const target = call.arguments?.["target"];
+    const envelope = call.execution?.result;
+    const details = isRecord(envelope) && isRecord(envelope["details"]) ? envelope["details"] : null;
+    if (typeof target !== "string" || details?.["ref"] !== target) continue;
+    const text = protocolText(call);
+    if (details["subjectKind"] === "work-unit" && details["walk"] === "cause" &&
+        text.includes(`${retirementIntent} · work unit · import · ${target} ← import boundary`)) {
+      decisions.add(target);
+    }
+    if (details["subjectKind"] === "work-unit" && details["walk"] === "cohort" &&
+        text.includes(`${retirementIntent} · work unit · import · ${target}`)) {
+      const cohortCommit = text.split("\n").find((line) =>
+        line.trimStart().startsWith(`commit · ${retirementCommit} · `));
+      const commitRef = cohortCommit?.match(/(@r[0-9a-z]+-[0-9a-f]{4})$/u)?.[1];
+      if (commitRef) cohortCommits.push({ commit: commitRef, work: target });
+    }
+    if (details["subjectKind"] === "application") {
+      const edge = /application (@r[0-9a-z]+-[0-9a-f]{4}) —applies-work→ work-unit (@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
+      if (edge?.[1] === target) workByApplication.set(target, edge[2]!);
+    }
+    if (details["subjectKind"] === "event" &&
+        text.includes(`node · event · commit · message "${retirementCommit}"`) &&
+        text.includes(`event ${target} —caused-by→ command `)) {
+      inspectedCommits.add(target);
+      const edge = /event (@r[0-9a-z]+-[0-9a-f]{4}) —committed-by→ application (@r[0-9a-z]+-[0-9a-f]{4})/u.exec(text);
+      if (edge?.[1] === target) committedApplications.add(edge[2]!);
+    }
+  }
+  const matchedApplication = [...workByApplication].some(([application, work]) =>
+    committedApplications.has(application) && decisions.has(work));
+  const matchedCohort = cohortCommits.some(({ commit, work }) =>
+    inspectedCommits.has(commit) && decisions.has(work));
+  return matchedApplication || matchedCohort
     ? answer
     : {
         passed: false,
@@ -519,8 +562,9 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Recover a retired project fact and its rationale from a sizable semantic history",
     category: "vcs-advanced",
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
-      "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer?",
+      "The disposable historical project no longer names its rollout codename. What was that codename, why was it retired, and which recorded evidence supports the answer? If you find it by following provenance, inspect the exact retirement commit as well as the decision that led to it.",
 
     validate: requireHistoricalDecisionEvidence,
   },
@@ -530,6 +574,7 @@ export const vcsAdvancedTests: TestCase[] = [
       "Explain a current edited-file value using an older decision in a sizable semantic history",
     category: "vcs-advanced",
     workspaceRepoFixture: HISTORICAL_CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Review src/retention-policy.ts in the disposable historical project. Why is archiveWindowDays 21 rather than 14, and did the later history reverse that decision? Ground the answer in the workspace's recorded evidence.",
 
@@ -540,6 +585,7 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Use explicit file transfers and verify their distinct provenance semantics",
     category: "vcs-advanced",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Create two small source files in the disposable project. Reorganize them so one moves to a nested location and the other is duplicated, then explain what happened to their identities and history.",
     validate: (result) => {
@@ -554,6 +600,7 @@ export const vcsAdvancedTests: TestCase[] = [
     category: "vcs-advanced",
     resources: ["vcs:protected-main"],
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt: `${CAUSALITY_PROMPT} Read the finished file before answering so its exact-coordinate workspace memory is part of your evidence.`,
     validate: (result) => {
       const base = checked(result, []);
@@ -570,6 +617,7 @@ export const vcsAdvancedTests: TestCase[] = [
       "Explain an imported line using exact native facts and an honest external boundary",
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Who changed an untouched line in the disposable project, and what can we actually establish about why it is here?",
     validate: (result) => {
@@ -586,6 +634,7 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Distinguish new native intent from untouched imported origin in one file",
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt: MIXED_IMPORT_PROMPT,
     validate: (result) => {
       const base = checked(result, []);
@@ -605,8 +654,9 @@ export const vcsAdvancedTests: TestCase[] = [
     description: "Counteract exact semantic changes without erasing their history",
     category: "vcs-advanced",
     workspaceRepoFixture: BUILDABLE_PACKAGE_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
-      "Change and commit one existing line in the disposable project, then undo that change while preserving the record of both changes. Commit the undo and explain what the history shows.",
+      "Change and commit one existing line in the disposable project. Use the change from that edit as the undo target so both changes stay in history. Pass the exact change reference itself without its display label. Commit the undo, reread the restored file, verify the working copy is clean, and explain what the history shows.",
     validate: (result) => {
       const base = checked(result, ["vcs.edit", "vcs.revert", "vcs.commit", "vcs.status"]);
       return base.passed ? requireRevertEvidence(result) : base;

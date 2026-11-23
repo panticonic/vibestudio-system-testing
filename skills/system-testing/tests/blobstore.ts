@@ -131,6 +131,29 @@ function textRoundTripChecked(result: Parameters<typeof noIncompleteInvocations>
   return noIncompleteInvocations(result);
 }
 
+function materializedFilesObserved(
+  files: readonly { path: string; contentHash: string }[],
+  entries: readonly Record<string, unknown>[],
+): boolean {
+  const first = files[0];
+  if (!first) return false;
+  const suffix = `/${first.path}`;
+  const reads = new Map(
+    entries.flatMap((entry) =>
+      entry["type"] === "fs.read" && entry["method"] === "fs.readFile" &&
+      typeof entry["path"] === "string" && typeof entry["contentDigest"] === "string"
+        ? [[entry["path"], entry["contentDigest"]] as const]
+        : [],
+    ),
+  );
+  for (const [path, digest] of reads) {
+    if (digest !== first.contentHash || !path.endsWith(suffix)) continue;
+    const root = path.slice(0, -suffix.length);
+    if (root && files.every((file) => reads.get(`${root}/${file.path}`) === file.contentHash)) return true;
+  }
+  return false;
+}
+
 function treeLifecycleChecked(result: Parameters<typeof noIncompleteInvocations>[0]) {
   const entries = nativeBlobEntries(result);
   const trees: NativeBlobTreeObservation[] = entries.flatMap((entry) => {
@@ -148,6 +171,7 @@ function treeLifecycleChecked(result: Parameters<typeof noIncompleteInvocations>
       tree.method === "putTree" ? [tree.treeHash, ...(tree.stateHash ? [tree.stateHash] : [])] : []
     )
   );
+  const usedScopedMaterialization = /\bblobstore\.materializeTree\s*\(/u.test(successfulEvalCode(result));
   const verified = trees.some((listing) => {
     if (
       listing.method !== "listTree" ||
@@ -178,11 +202,23 @@ function treeLifecycleChecked(result: Parameters<typeof noIncompleteInvocations>
           diff.diff.changed.length === 1 &&
           diff.diff.added.length === 0 &&
           diff.diff.removed.length === 0 &&
-          trees.some(
-            (materialized) =>
-              materialized.method === "materializeTree" &&
-              (materialized.ref === diff.from || materialized.ref === diff.to) &&
-              materialized.written + materialized.unchanged >= files.length
+          (
+            trees.some(
+              (materialized) =>
+                materialized.method === "materializeTree" &&
+                (materialized.ref === diff.from || materialized.ref === diff.to) &&
+                materialized.written + materialized.unchanged >= files.length
+            ) ||
+            (usedScopedMaterialization &&
+              (
+                materializedFilesObserved(files, entries) ||
+                materializedFilesObserved(files.map((file) => {
+                  const change = diff.diff.changed[0]!;
+                  return change.path === file.path
+                    ? { ...file, contentHash: change.toContentHash }
+                    : file;
+                }), entries)
+              ))
           )
       )
     );
@@ -246,7 +282,7 @@ export const blobstoreTests: TestCase[] = [
     description: "Build, list, diff, and materialize an immutable blob file tree",
     category: "blobstore",
     prompt:
-      "Build a small immutable file tree from a few files, inspect and read it, create a second version with one changed file, and explain the resulting tree difference. Materialize one version into the sandbox and confirm the expected files arrived.",
+      "In one sandbox evaluation, build a small immutable file tree and a second version with one changed file. Keep the treeHash strings returned by putPathTree. In a later evaluation in the same sandbox, list the first tree by hash with an options object, then read one original file from the blob store using its contentHash. Compare the two trees. Use blobstore.materializeTree to copy one version into the sandbox and read each resulting file as UTF-8. Explain the difference and confirm each file arrived.",
     validate: treeLifecycleChecked,
     reportClaims: [
       { id: "tree", claim: "An immutable file tree was built.", match: /tree/iu },

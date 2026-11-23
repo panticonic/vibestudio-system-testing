@@ -1,3 +1,4 @@
+import { vcsMethods } from "@vibestudio/service-schemas/vcs";
 import { parse } from "@babel/parser";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
@@ -12,7 +13,7 @@ const BUILDABLE_EXTENSION = {
   kind: "buildable-extension",
   section: "extensions",
 } as const;
-const BUILDABLE_APP = { kind: "buildable-app", section: "apps" } as const;
+const BUILDABLE_APP = { kind: "buildable-app", section: "terminal-apps" } as const;
 const OPTIMIZABLE_PANEL = {
   kind: "optimizable-panel",
   section: "panels",
@@ -91,7 +92,7 @@ function createPort(
             : published
               ? "event:import"
               : "event:main";
-  const status = vi.fn(async ({ contextId }: { contextId: string }) => {
+  const status = vi.fn<WorkspaceRepoFixturePort["vcs"]["status"]>(async ({ contextId }) => {
     const committedEventId =
       contextId === "context:1"
         ? prepared || taskCreatedRepositories.length > 0
@@ -433,7 +434,7 @@ function createPort(
         "event:local": ["event:local", "event:import", "event:main"],
         "event:external": ["event:external", "event:import", "event:main"],
       };
-      const ids = histories[root.eventId] ?? [];
+      const ids = (histories[root.eventId] ?? []).slice(1);
       const offset = cursor ? Number(cursor) : 0;
       const end = Math.min(offset + limit, ids.length);
       return {
@@ -699,7 +700,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
   });
 
-  it("observes a created worker through its committed task lineage before cleanup", async () => {
+  it("observes a published worker when the fixture has a different working copy", async () => {
     const fake = createPort();
     const fixture = new WorkspaceRepoFixtureLifecycle(
       fake.port,
@@ -713,7 +714,17 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     const state = await fixture.prepare();
     await expect(fixture.observeRepositories(state)).rejects.toThrow("found 0");
     fake.createTaskRepositories(["workers/task-created"]);
-    await expect(fixture.observeRepositories(state)).resolves.toEqual([
+    const status = await fake.status({ contextId: state.contextId });
+    fake.status.mockResolvedValueOnce({
+      ...status,
+      committed: event("event:main"),
+      workingHead: event("event:main"),
+      mainRelation: "behind",
+    });
+    await expect(fixture.observeRepositories({
+      ...state,
+      publishedFixtureEventId: "event:task",
+    })).resolves.toEqual([
       {
         repositoryId: "repository:task-created:0",
         repoPath: "workers/task-created",
@@ -762,6 +773,22 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
     });
     expect(fake.revert).not.toHaveBeenCalled();
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
+  });
+
+  it("retires a private creation fixture when protected main stayed at its basis", async () => {
+    const fake = createPort();
+    const fixture = new WorkspaceRepoFixtureLifecycle(fake.port, "local-package", null, {
+      kind: "created-repository",
+      section: "packages",
+      privateCommit: true,
+    });
+    const state = await fixture.prepare();
+    await expect(fixture.cleanup(state)).resolves.toMatchObject({
+      creationScopeError: null,
+      publishedFixtureRemoved: null,
+    });
+    expect(fake.inspect).not.toHaveBeenCalled();
+    expect(fake.destroyContext).toHaveBeenCalledWith(state.contextId);
   });
 
   it("owns one atomically published panel and worker store", async () => {
@@ -1092,7 +1119,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       `policyRevision = ${SIZABLE_HISTORY_FIXTURE_REVISIONS}`,
     );
 
+    fake.inspect.mockClear();
     await fixture.cleanup(state);
+    expect(fake.inspect).not.toHaveBeenCalled();
     expect(fake.destroyContext).toHaveBeenCalledWith("context:1");
   });
 
@@ -1166,9 +1195,9 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       label: "app",
       fixture: BUILDABLE_APP,
       repoName: "system-test-app",
-      repoPath: "apps/system-test-app",
-      packageName: "@workspace-apps/system-test-app",
-      skillPath: "skills/appdev/SKILL.md",
+      repoPath: "terminal-apps/system-test-app",
+      packageName: "@workspace-terminal-apps/system-test-app",
+      skillPath: "skills/terminal-apps/SKILL.md",
       expectedFiles: [
         "SKILL.md",
         "assets/icon.svg",
@@ -1226,6 +1255,8 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
         });
       }
       if (scenario.fixture.kind === "buildable-app") {
+        const [snapshot] = fake.importSnapshot.mock.calls[0]!;
+        expect(vcsMethods.importSnapshot.args.safeParse([snapshot]).success).toBe(true);
         expect(seededText).toContain('"capability": "context.boundary"');
         expect(seededText).toContain('"evidence": "bounded-dynamic"');
       }
@@ -1390,9 +1421,7 @@ describe("WorkspaceRepoFixtureLifecycle", () => {
       ([input]) => input.node.kind === "repository",
     );
     expect(repositoryInspections).toEqual([]);
-    expect(fake.history).toHaveBeenCalledWith(
-      expect.objectContaining({ root: event("event:main"), direction: "past" }),
-    );
+    expect(fake.history).not.toHaveBeenCalled();
   });
 
   it("refuses a fixture whose inspected import work does not match its requested snapshot", async () => {

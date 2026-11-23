@@ -199,8 +199,9 @@ export const messagingTests: TestCase[] = [
 
     timeoutMs: 600_000,
     prompt:
-      "Delegate to a subagent to count the markdown files under the skills directory in the background. " +
-      "Once it is under way, tell it you also want the total line count, then give me both numbers.",
+      "Delegate to a subagent to count the Markdown files under /skills/messaging, including its subdirectories, in the background. " +
+      "Once it is under way, tell it you also want the total line count for those files. " +
+      "Report only the two resolved counts on separate lines labeled ‘Markdown files’ and ‘Total lines’.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;
@@ -228,12 +229,17 @@ export const messagingTests: TestCase[] = [
             "The steering send resolved to no exact run, so it cannot have reached one child",
         };
       }
-      const final = findLastAgentMessage(result);
-      if (!/\d/u.test(final)) {
+      const report = findLastAgentMessage(result).replaceAll("**", "");
+      const lines = report.split("\n").map((line) => line.trim()).filter(Boolean);
+      if (
+        lines.length !== 2 ||
+        !lines.some((line) => /^(?:[-*] )?Markdown files:\s*[1-9]\d*$/iu.test(line)) ||
+        !lines.some((line) => /^(?:[-*] )?Total lines:\s*[1-9]\d*$/iu.test(line))
+      ) {
         return {
           passed: false,
           reason:
-            "The supervisor reported no numbers, so the corrected work never came back",
+            "The supervisor did not report exactly one Markdown file count and one total line count",
         };
       }
       return { passed: true };
@@ -244,7 +250,7 @@ export const messagingTests: TestCase[] = [
     description:
       "A message for someone who is not in the conversation is held back, with the roster resolved exactly, and the user is told who can be reached",
     category: "messaging",
-    prompt: "Let Dana from accounting know the quarterly report is ready for review.",
+    prompt: "Let Dana from accounting know the quarterly report is ready for review. Resolve Dana’s name using the messaging skill before attempting delivery, and tell me if you cannot reach them.",
     validate: (result) => {
       const base = validateAgentCompletionReport(result);
       if (!base.passed) return base;

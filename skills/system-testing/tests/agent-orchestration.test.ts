@@ -287,6 +287,23 @@ describe("agent orchestration scenarios", () => {
       { incorporatedChangeCount: 0 },
     ];
     expect(mergeTest.validate(emptyMerge).passed).toBe(false);
+    const adoptedMerge = structuredClone(emptyMerge);
+    const adoption = (
+      adoptedMerge.messages.find((message) => message.id === "merge-child")! as
+        ReturnType<typeof invocation>
+    ).invocation.execution.result.details;
+    adoption["initialWorkingHead"] = { kind: "event", eventId: "workspace-event:parent" };
+    adoption["workingHead"] = { kind: "application", applicationId: "application:merged" };
+    adoption["merges"] = [
+      {
+        applicationId: "application:merged",
+        incorporatedChangeCount: 0,
+        outcomes: [{ status: "adopt", attribution: { theirs: [{ changeId: "change:child" }] } }],
+      },
+    ];
+    expect(mergeTest.validate(adoptedMerge).passed).toBe(true);
+    adoption["initialWorkingHead"] = adoption["workingHead"];
+    expect(mergeTest.validate(adoptedMerge).passed).toBe(false);
     const foreignMerge = structuredClone(directMerge);
     const foreignReceipt = foreignMerge.messages.find(
       (message) => message.id === "merge-child",

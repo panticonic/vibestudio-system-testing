@@ -27,6 +27,7 @@ type ExecutableScaffold = {
   section: "panels" | "workers" | "packages" | "skills";
   fixture: WorkspaceRepoCreationScope;
   template?: "agentic";
+  timeoutMs?: number;
   requiresUnits?: TestCase["requiresUnits"];
   authorityPolicy?: TestCase["authorityPolicy"];
 };
@@ -87,6 +88,8 @@ const EXECUTABLE_SCAFFOLDS: ExecutableScaffold[] = [
     section: "workers",
     fixture: CREATED_WORKER_WORKSPACE_REPO_FIXTURE,
     template: "agentic",
+    // A cold publish checks the new worker and its affected consumers.
+    timeoutMs: 15 * 60_000,
     authorityPolicy: AGENTIC_WORKER_TEST_AUTHORITY_POLICY,
   },
   {
@@ -278,6 +281,7 @@ export const scaffoldMatrixTests: TestCase[] = [
       category: "scaffold-matrix",
 
       workspaceRepoFixture: variant.fixture,
+      ...(variant.timeoutMs !== undefined ? { timeoutMs: variant.timeoutMs } : {}),
       requiresUnits: variant.requiresUnits,
       ...(variant.section === "panels"
         ? {

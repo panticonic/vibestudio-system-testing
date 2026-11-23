@@ -7,6 +7,7 @@ type Receiver = Pick<SystemTestRunnerDO,
   | "runPanelTeacher"
   | "runWorkspaceIntegrationTeacher"
   | "runUnitRepairTeacher"
+  | "runAgentCellCompaction"
 >;
 export const systemTestRunnerRpcMethods = createReceiverRpcMethods<Receiver>([
   "storeSystemTestRunCheckpoint",
@@ -14,4 +15,5 @@ export const systemTestRunnerRpcMethods = createReceiverRpcMethods<Receiver>([
   "runPanelTeacher",
   "runUnitRepairTeacher",
   "runWorkspaceIntegrationTeacher",
+  "runAgentCellCompaction",
 ]);

@@ -1,11 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
-import type {
-  bindInstalledMobileScenario,
-  inspectInternalAndroidApp,
-  listMobileDebugDevices,
-} from "../mobile-system-testing/live-bindings.js";
+import type { mobileNativeMethods } from "@vibestudio/service-schemas/mobileNative";
+import type { z } from "zod";
+import type { MobileScenarioBinder } from "../mobile-system-testing/bindings.js";
 import type {
   AppReadback,
   InstallReceipt,
@@ -16,10 +14,13 @@ import type {
 import { androidInstallWorlds } from "./android-install-worlds.js";
 
 type Input = { contextId: string; caseId: string };
+type NativeResult<Method extends "listDevices" | "verify"> = z.output<
+  (typeof mobileNativeMethods)[Method]["returns"]
+>;
 type NativePorts = {
-  bind: typeof bindInstalledMobileScenario;
-  inventory: typeof listMobileDebugDevices;
-  verifyApp: typeof inspectInternalAndroidApp;
+  bind: MobileScenarioBinder;
+  inventory(): Promise<NativeResult<"listDevices">>;
+  verifyApp(device: string): Promise<NativeResult<"verify">>;
 };
 
 export async function prepareManagedAndroidInstall(

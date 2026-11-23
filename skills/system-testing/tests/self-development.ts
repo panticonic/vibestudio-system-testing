@@ -335,20 +335,28 @@ function validateChildEval(result: TestExecutionResult) {
   const instance = object(attachedRun?.["instance"]);
   const started = checked.receipt.operations.find(
     ({ service, method }) =>
-      service === "attachedHosts" && method === "eval.start",
+      service === "attachedHosts" && method === "dynamicCode.admit",
   );
-  const startedRunId = object(started?.result)?.["runId"];
+  const admission = object(started?.result);
+  const startedRunId = admission?.["runId"];
+  // The attached-host protocol carries service calls only, so the child's host service admits the run
+  // (its session entity, nonce and exact start input) and the admission is released through the same
+  // exact-generation route; the run itself is started on the entity by a caller that can reach it.
+  const admitted =
+    typeof admission?.["hostId"] === "string" &&
+    typeof admission["nonce"] === "string" &&
+    validDigest(admission["runDigest"]) &&
+    object(admission["start"])?.["runId"] === startedRunId;
   const resultRecord = checked.rows.find(
     (row) =>
       row["developmentRunId"] === attachedRun?.["runId"] &&
       row["attachedHostSessionId"] === route?.["sessionId"] &&
       row["evalRunId"] === startedRunId &&
-      object(row["evalSnapshot"])?.["status"] === "done" &&
-      object(object(row["evalSnapshot"])?.["result"])?.["success"] === true,
+      object(row["release"])?.["released"] === true,
   );
   const invoked = checked.receipt.operations.some(
     ({ service, method }) =>
-      service === "attachedHosts" && method === "eval.get",
+      service === "attachedHosts" && method === "dynamicCode.release",
   );
   return attachedRun &&
     route &&
@@ -357,13 +365,14 @@ function validateChildEval(result: TestExecutionResult) {
     validDigest(instance["executionDigest"]) &&
     typeof startedRunId === "string" &&
     startedRunId.length > 0 &&
+    admitted &&
     resultRecord &&
     invoked
     ? { passed: true, reason: undefined }
     : {
         passed: false,
         reason:
-          "Ordinary attached-host eval result is not joined to its exact run, route, generation, and eval id",
+          "Ordinary attached-host dynamic-code admission is not joined to its exact run, route, generation, and eval id",
       };
 }
 
@@ -1051,36 +1060,33 @@ async function childEval(context: TestOrchestrationContext) {
     async (receipt, run, attachedSessionId) => {
       const runId = `system-test-child-eval-${crypto.randomUUID()}`;
       const scopeKey = `system-test-child-eval-${crypto.randomUUID()}`;
-      const started = await context.runner.callAttachedDevelopmentHost(attachedSessionId, "eval", "start", [
-        {
-          scope: { key: scopeKey, lifecycle: "finite" },
-          runId,
-          source: { kind: "inline", code: "return 42;" },
-        },
-      ]);
-      operation(receipt, "attachedHosts", "eval.start", started);
-      const deadline =
-        Date.now() + Math.min(context.remainingTimeMs() ?? 30_000, 30_000);
-      let terminal: Record<string, unknown> | null = null;
-      while (Date.now() < deadline) {
-        terminal = object(await context.runner.callAttachedDevelopmentHost(
+      const started = await context.runner.callAttachedDevelopmentHost(
+        attachedSessionId,
+        "dynamicCode",
+        "admit",
+        [
+          {
+            scope: { key: scopeKey, lifecycle: "finite" },
+            runId,
+            source: { kind: "inline", code: "return 42;" },
+          },
+        ],
+      );
+      operation(receipt, "attachedHosts", "dynamicCode.admit", started);
+      const hostId = object(started)?.["hostId"];
+      const released = object(
+        await context.runner.callAttachedDevelopmentHost(
           attachedSessionId,
-          "eval",
-          "get",
-          [{ scopeKey, runId }],
-        ));
-        if (
-          terminal?.["status"] === "done" ||
-          terminal?.["status"] === "cancelled"
-        )
-          break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      operation(receipt, "attachedHosts", "eval.get", {
+          "dynamicCode",
+          "release",
+          [{ runId, hostId }],
+        ),
+      );
+      operation(receipt, "attachedHosts", "dynamicCode.release", {
         developmentRunId: run["runId"],
         attachedHostSessionId: attachedSessionId,
         evalRunId: runId,
-        evalSnapshot: terminal,
+        release: released,
       });
     },
   );

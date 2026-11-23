@@ -1,15 +1,46 @@
-import type { OpenGoogleHandoffWorld } from "@workspace-skills/open-google-handoff-goal/managed";
-
-type Provider = OpenGoogleHandoffWorld["provider"];
-type Thread = Provider["threads"][number];
-type Mail = Thread["messages"][number];
-type File = Provider["files"][number];
-type FileState = Exclude<File["initial"], number>;
-type Permission = Exclude<NonNullable<FileState["permissions"]>[number], number>[number];
-type Expected = OpenGoogleHandoffWorld["expected"];
-type Decision = Expected["decision"];
-type Intent = Expected["reviews"][number];
-type Stage = OpenGoogleHandoffWorld["canStage"];
+// The catalog is installed in every test workspace. These data shapes do
+// not require the Google Workspace runtime used for the routed cases.
+type Mail = {
+  id: string;
+  from: string;
+  subject: string;
+  body: string;
+  receivedAt: string;
+  multipart?: boolean;
+};
+type Thread = { id: string; messages: readonly Mail[]; next?: readonly Mail[] | number; status?: number };
+type Permission = {
+  id: string;
+  type: string;
+  role: string;
+  emailAddress?: string;
+  domain?: string;
+  deleted?: boolean;
+  permissionDetails?: Array<{ role: string; inherited: boolean }>;
+};
+type FileState = {
+  metadata: { id: string; name: string; mimeType: string; version: string; trashed?: boolean };
+  bytes?: string | number;
+  permissions?: ReadonlyArray<readonly Permission[] | number>;
+};
+type File = { id: string; initial: FileState | number; next?: FileState | number };
+type Provider = {
+  pages: ReadonlyArray<readonly string[] | number>;
+  nextPages?: ReadonlyArray<readonly string[] | number>;
+  threads: readonly Thread[];
+  files: readonly File[];
+};
+type Decision = {
+  status: "ready" | "held" | "incomplete" | "stale";
+  reason: "approved" | "withdrawn" | "unresolved" | "missing" | "inaccessible" | "trashed" |
+    "shortcut" | "audience" | "content" | "provider" | "changed";
+  mailIds: string[];
+  assetIds: string[];
+  facts?: Array<{ fileId: string; quote: string }>;
+};
+type Intent = { messageId: string; fileId: string; mode: "metadata" | "content" | "audience" | "content-and-audience" };
+type Stage = "none" | "ready" | "decision";
+type Verification = { before: Decision; result: "current" | "changed" | "unavailable" };
 const text = "text/plain";
 const docs = "application/vnd.google-apps.document";
 const shortcut = "application/vnd.google-apps.shortcut";
@@ -44,7 +75,7 @@ const provider = (threads: readonly Thread[], files: readonly File[] = [], pages
 function scenario(
   id: string, sourceGroup: string, goal: string, world: Provider, decision: Decision,
   reviews: readonly Intent[], canStage: Stage, options: {
-    heldOut?: boolean; verify?: Expected["verify"]; stage?: boolean;
+    heldOut?: boolean; verify?: Verification; stage?: boolean;
   } = {},
 ) {
   const verify = options.verify ?? (decision.status === "ready" || decision.status === "held" ? { before: decision, result: "current" as const } : undefined);

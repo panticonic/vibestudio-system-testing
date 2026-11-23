@@ -51,7 +51,7 @@ export const BUILDABLE_EXTENSION_WORKSPACE_REPO_FIXTURE = {
 
 export const BUILDABLE_APP_WORKSPACE_REPO_FIXTURE = {
   kind: "buildable-app",
-  section: "apps",
+  section: "terminal-apps",
 } as const satisfies WorkspaceRepoCreationScope;
 
 export const BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE = {
@@ -197,8 +197,9 @@ export interface TestCase {
    */
   requiresUnits?: readonly string[];
   /**
-   * Case-specific end-to-end budget. Use this only when the user-visible
-   * operation has an intrinsically longer deadline than the catalog default.
+   * Case-specific scenario budget after repository fixture preparation.
+   * Use this only when the user-visible operation has an intrinsically longer
+   * deadline than the catalog default.
    * null means no elapsed-time deadline. An explicit run-level timeout
    * still takes precedence.
    */
@@ -237,6 +238,8 @@ export interface TestCase {
    * This keeps fixture mechanics out of the user-like prompt.
    */
   workspaceRepoFixture?: WorkspaceRepoCreationScope;
+  /** Give a single agent its own seeded copy for a fixture task that stays private. */
+  agentContext?: "fork";
   /**
    * Optional custom orchestration for tests that need multiple independent
    * headless agents, ordered phases, or other harness-level setup that a single
@@ -290,6 +293,12 @@ export type ReportClaimJudge = (
 ) => Promise<{ satisfied: boolean; verdicts: ReportClaimVerdict[] }>;
 
 export interface TestOrchestrationContext {
+  /** Installed worker owns operations that require a durable code identity. */
+  runAgentCellCompaction?: (
+    signal: AbortSignal,
+    contextId: string,
+    turns: number,
+  ) => Promise<TestExecutionResult>;
   runner: HeadlessRunner;
   /** The test owns this cancellation boundary. Awaited orchestration work must
    * settle on abort and finish its owned cleanup before returning. */

@@ -1334,25 +1334,8 @@ function requireInstalledWorkspaceServiceConsumerEvidence(
     };
   }
 
-  const createdHandles = [
-    ...base.evidence.evalCode.matchAll(
-      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+(?:workers\.create|runtime\.createEntity)\s*\(/gu,
-    ),
-  ].map((match) => match[1]!);
-  const calledCreatedTarget = createdHandles.some((handle) => {
-    const escaped = handle.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    return new RegExp(
-      `\\brpc\\.call(?:<[^>]*>)?\\s*\\(\\s*${escaped}\\.(?:id|targetId)\\s*,`,
-      "u",
-    ).test(base.evidence.evalCode);
-  });
-  if (createdHandles.length === 0 || !calledCreatedTarget) {
-    return {
-      passed: false,
-      reason:
-        "The proof did not execute and call the context-built installed unit",
-    };
-  }
+  // Native lifecycle and RPC receipts join the actual target across cells,
+  // including handles retained in scope or accessed through another binding.
   const repoName =
     result.diagnostics?.["workspaceRepoFixture"] &&
     typeof result.diagnostics["workspaceRepoFixture"] === "object" &&
@@ -1446,6 +1429,7 @@ export const workerTests: TestCase[] = [
     description: "Create a worker instance",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Temporarily start a worker, confirm that it exists, and leave no instance behind.",
     validate: (result) => {
@@ -1483,6 +1467,7 @@ export const workerTests: TestCase[] = [
     description: "Create a worker and then destroy it",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Check that a harmless temporary worker can be started successfully, then leave no worker instance behind.",
     validate: (result) => {
@@ -1502,6 +1487,7 @@ export const workerTests: TestCase[] = [
     description: "Call a method on a Durable Object worker",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Start the provided disposable Durable Object worker with a non-secret probe value, call its harmless probe method, report the observed result, and leave no instance behind.",
     validate: (result) => {
@@ -1510,7 +1496,17 @@ export const workerTests: TestCase[] = [
         ["runtime.createEntity", "rpc.call", "runtime.retireEntity"],
       ]);
       if (!base.passed) return base;
-      if (!hasDurableObjectProbeStateArgs(base.evidence.evalCode)) {
+      // Each eval has its own lexical scope. Joining cells before parsing
+      // makes valid repeated local declarations look like a syntax error.
+      if (
+        !base.evidence.calls.some(
+          (call) =>
+            call.name === "eval" &&
+            call.execution?.status === "complete" &&
+            call.execution.isError !== true &&
+            hasDurableObjectProbeStateArgs(String(call.arguments?.["code"] ?? "")),
+        )
+      ) {
         return {
           passed: false,
           reason:
@@ -1574,6 +1570,7 @@ export const workerTests: TestCase[] = [
       "A Durable Object's own storage persists data across separate calls",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "Check whether a tiny disposable Durable Object preserves a couple of stored rows into a later call, then leave no Durable Object instance behind.",
     validate: requireSqlPersistenceEvidence,
@@ -1583,8 +1580,9 @@ export const workerTests: TestCase[] = [
     description: "Create a worker with environment variables",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
-      "Run a disposable worker with a non-secret probe setting, tell me what the worker itself observes, and leave no worker instance behind.",
+      "Check the disposable worker's contract for its descriptor and probe method. Run the worker with a non-secret probe setting, tell me what the worker itself observes, and leave no worker instance behind.",
     validate: (result) => {
       const base = lifecycleEvidence(result, [
         ["workers.create", "env", "workers.destroy"],
@@ -1628,6 +1626,7 @@ export const workerTests: TestCase[] = [
     description: "Author and consume a private RPC service in the task context",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: ({ workspaceRepoFixture }) => {
       const repoName = workspaceRepoFixture?.repoName;
       if (!repoName) {
@@ -1660,6 +1659,7 @@ export const workerTests: TestCase[] = [
       "Installed workspace code consumes a context-local userland service",
     category: "workers",
     workspaceRepoFixture: BUILDABLE_REGULAR_WORKER_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: {
       authority: [
         {

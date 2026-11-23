@@ -21,6 +21,14 @@ const missionsRpcMethods = createRpcMethods(
   "",
 );
 
+const projectPulseTimezone = "America/New_York";
+const localYear = new Intl.DateTimeFormat("en", {
+  timeZone: projectPulseTimezone,
+  year: "numeric",
+}).format(new Date());
+export const PROJECT_PULSE_END = `${Number(localYear) + 1}-01-01T00:00:00-05:00`;
+const projectPulseEndTimestamp = Date.parse(PROJECT_PULSE_END);
+
 function semanticUnitInspection(
   result: Parameters<typeof noIncompleteInvocations>[0],
   requiredCode: RegExp[],
@@ -118,8 +126,9 @@ function unitListInspection(result: Parameters<typeof noIncompleteInvocations>[0
     };
   }
   const final = findLastAgentMessage(result);
+  const inventoryLabel = "(?:(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)|live\\s+(?:runtime\\s+)?executions?)";
   const countPattern = new RegExp(
-    `\\b${roster.entities.length}\\b[^.\\n]{0,40}\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b|\\b(?:running\\s+)?(?:workspace\\s+)?(?:units?|entities)\\b[^.\\n]{0,40}\\b${roster.entities.length}\\b`,
+    `\\b${roster.entities.length}\\b[^.\\n]{0,40}\\b${inventoryLabel}\\b|\\b${inventoryLabel}\\b[^.\\n]{0,40}\\b${roster.entities.length}\\b`,
     "iu"
   );
   if (
@@ -895,8 +904,8 @@ function isDailyProjectPulseLaunch(value: unknown): boolean {
     // both. Grading one of them grades transcription, not whether the agent
     // scheduled the automation the request asked for.
     /^5\s+5\s+\*\s+\*\s+(?:4|THU)$/iu.test(String(trigger["expression"] ?? "")) &&
-    trigger["timezone"] === "America/New_York" &&
-    trigger["untilAt"] === Date.UTC(2027, 0, 1, 5) &&
+    trigger["timezone"] === projectPulseTimezone &&
+    trigger["untilAt"] === projectPulseEndTimestamp &&
     trigger["maxRuns"] === 12 &&
     ((action?.["kind"] === "prompt" &&
       typeof action["text"] === "string" &&
@@ -924,7 +933,7 @@ export const unitDiagnosticsTests: TestCase[] = [
     description: "List running workspace units and inspect one of them",
     category: "unit-diagnostics",
     prompt:
-      "Which workspace units are currently running? Inspect one representative unit in more detail and summarize what you observed.",
+      "Which workspace units are currently running? Report the number of live entities returned by supervision, then use a separate supervision detail lookup on one exact entity and summarize what you observed.",
     validate: unitListInspection,
   },
   {
@@ -940,7 +949,7 @@ export const unitDiagnosticsTests: TestCase[] = [
     description: "Report the version history of a workspace unit",
     category: "unit-diagnostics",
     prompt:
-      "Pick a workspace app and tell me how many retained versions it has and whether any version is currently active. If one is active, identify it.",
+      "Use the installed-unit catalog through services.build to pick a workspace extension. Use the typed main RPC method runtime.supervision.versions with its exact catalog name. Tell me how many retained versions it has and whether any version is currently active. If one is active, identify it.",
     validate: (result) =>
       semanticUnitInspection(
         result,
@@ -976,7 +985,7 @@ export const unitDiagnosticsTests: TestCase[] = [
       "Agent launches an active finite timezone-aware calendar automation without publishing a worker",
     category: "unit-diagnostics",
     prompt:
-      "Please start an automation called ‘Daily project pulse’ that checks project status every Thursday at 5:05 a.m. America/New_York time and posts a concise update. Have it stop at midnight New York time when 2027 begins or after 12 runs, whichever comes first. Keep it offline and start it now. Tell me where I can inspect or stop it.",
+      `Please start an automation called ‘Daily project pulse’ that checks project status every Thursday at 5:05 a.m. ${projectPulseTimezone} time and posts a concise update. Have it stop at the New Year’s midnight (${PROJECT_PULSE_END}, exactly ${projectPulseEndTimestamp} milliseconds since the Unix epoch) or after 12 runs, whichever comes first. Activate the schedule now with a single launch, keep it offline, and tell me where I can inspect or stop it.`,
     authorityPolicy: {
       authority: [
         {

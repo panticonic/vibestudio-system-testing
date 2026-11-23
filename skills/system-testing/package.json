@@ -23,9 +23,40 @@
           },
           "tier": "gated",
           "evidence": "exact"
+        },
+        {
+          "capability": "userland:workers/missions/missions.edit#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic"
+        },
+        {
+          "capability": "userland:workers/missions/missions.run#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "gated",
+          "evidence": "bounded-dynamic"
+        },
+        {
+          "capability": "userland:workers/missions/missions.retire#*",
+          "resource": {
+            "kind": "exact",
+            "key": "mission:do:workers/missions:MissionsDO:workspace-missions"
+          },
+          "tier": "critical",
+          "evidence": "bounded-dynamic"
         }
       ],
       "serviceRequests": [
+        {
+          "protocol": "vibestudio.channel.v1",
+          "availability": "required"
+        },
         {
           "protocol": "vibestudio.development.v1",
           "availability": "optional"
@@ -41,6 +72,10 @@
         {
           "protocol": "vibestudio.images.v1",
           "availability": "optional"
+        },
+        {
+          "protocol": "vibestudio.workspace-source.v1",
+          "availability": "required"
         }
       ],
       "provides": []
@@ -301,7 +336,8 @@
     "./owned-operations-contract": "./owned-operations-contract.ts",
     "./owned-operations-worlds": "./owned-operations-worlds.ts",
     "./local-messaging": "./local-messaging/fixture.ts",
-    "./local-messaging-contract": "./local-messaging/contract.ts"
+    "./local-messaging-contract": "./local-messaging/contract.ts",
+    "./agent-cell-compaction": "./agent-cell-compaction.ts"
   },
   "dependencies": {
     "@workspace-skills/open-audience-response": "workspace:*",
@@ -385,6 +421,7 @@
     "@workspace/model-catalog": "workspace:*",
     "@workspace/agentic-do": "workspace:*",
     "@workspace/pty-stream": "workspace:*",
+    "@vibestudio/rpc": "workspace:*",
     "@workspace-workers/local-messaging-fixture": "workspace:*",
     "@workspace-workers/notification-state-fixture": "workspace:*",
     "@workspace/pubsub": "workspace:*"
@@ -418,6 +455,15 @@
     "@workspace-skills/github": "workspace:*",
     "@workspace-skills/open-adventure-journey-runtime": "workspace:*",
     "@workspace-skills/spectrolite-review-fixtures": "workspace:*",
+    "@workspace-extensions/pdf-ingest": "workspace:*",
+    "@workspace-skills/automations": "workspace:*",
+    "@workspace-skills/conversation-evidence-review": "workspace:*",
+    "@workspace-skills/device-and-terminal-review": "workspace:*",
+    "@workspace-skills/media-and-import-review": "workspace:*",
+    "@workspace-skills/session-test-review": "workspace:*",
+    "@workspace-skills/template-candidate": "workspace:*",
+    "@workspace-skills/templates": "workspace:*",
+    "@workspace-skills/workspace-unit-design": "workspace:*",
     "@workspace-skills/messaging": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*",
     "@workspace-clients/mobile-browser": "workspace:*"

@@ -3,6 +3,7 @@ import {
   type TestCase,
 } from "../types.js";
 import type { ManagedProvenanceHistoryReceiver } from "../provenance-history-contract.js";
+import type { qualifyManagedProvenanceHistory } from "../provenance-history-managed.js";
 import { managedProvenanceHistoryWorlds } from "../provenance-history-worlds.js";
 
 type Teacher = Awaited<
@@ -10,11 +11,7 @@ type Teacher = Awaited<
     ManagedProvenanceHistoryReceiver["runManagedProvenanceHistoryTeacher"]
   >
 >;
-type Qualification = Awaited<
-  ReturnType<
-    ManagedProvenanceHistoryReceiver["qualifyManagedProvenanceHistory"]
-  >
->;
+type Qualification = Awaited<ReturnType<typeof qualifyManagedProvenanceHistory>>;
 const settings = {
   category: "project-lifecycle",
   explicitOnly: true,

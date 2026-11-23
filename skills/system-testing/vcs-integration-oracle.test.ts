@@ -23,6 +23,7 @@ const fixture: IntegrationOracleFixture = {
 
 function client(
   options: {
+    working?: boolean;
     wrongHistory?: boolean;
     extraField?: boolean;
     convergent?: boolean;
@@ -33,7 +34,11 @@ function client(
 ) {
   return {
     async status() {
-      return { workingHead: head, mainEventId: "protected" };
+      return {
+        workingHead: options.working ? { kind: "application", applicationId: "merge" } : head,
+        mainEventId: "protected",
+        integrating: [],
+      };
     },
     async readFile(input: { file: { fileId: string } }) {
       const fileId = input.file.fileId;
@@ -61,7 +66,13 @@ function client(
         nextCursor: null,
       };
     },
-    async inspect() {
+    async inspect({ node }: { node: { kind: string } }) {
+      if (node.kind === "event")
+        return { node: { kind: "event", value: { decisionIds: ["merged"], parentEventIds: ["seed"] } } };
+      if (node.kind === "application")
+        return { node: { kind: "application", value: { basis: fixture.commonSeedEvent, workUnitId: "merge-work" } } };
+      if (node.kind === "work-unit")
+        return { node: { kind: "work-unit", value: { decisionIds: ["merged"] } } };
       return {
         node: {
           kind: "decision",
@@ -90,6 +101,8 @@ it("checks the exact content and attributable integration history for every file
     "settings/routes.json",
     "settings/limits.json",
   ]);
+  await expect(verifyWorkspaceIntegration(client({ working: true }), fixture))
+    .resolves.toMatchObject({ passed: true });
 
   const missingDecision = await verifyWorkspaceIntegration(
     client({ wrongHistory: true }),

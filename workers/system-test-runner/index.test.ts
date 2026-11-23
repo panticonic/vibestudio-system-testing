@@ -8,6 +8,8 @@ import { wireCallerFor } from "@vibestudio/rpc/internal";
 import { createMainRpcCaller } from "@vibestudio/service-schemas/mainRpc";
 import { createTestDO } from "@vibestudio/durable/test-utils";
 import { evalRuntimeId } from "@vibestudio/shared/evalRuntimeIdentity";
+import { withRpcAbortSignal } from "@vibestudio/rpc";
+import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { rpcMethodAuthority } from "@vibestudio/rpc";
 import {
   failedSystemTestRunRecord,
@@ -21,7 +23,13 @@ import {
   SystemTestRunnerDO,
 } from "./index.js";
 
+vi.mock("@workspace-skills/system-testing/agent-cell-compaction", () => ({
+  runAgentCellCompaction: vi.fn(),
+}));
+
 class TestSystemTestRunnerDO extends SystemTestRunnerDO {
+  residentsForTest() { return this.residentSessionDiagnostics(); }
+  callerForTest() { return this.rpcCallerId; }
   wireCallerForTest() {
     return wireCallerFor(this.rpc);
   }
@@ -131,7 +139,7 @@ async function recordOwner() {
   const blobs = new Map<string, Uint8Array>();
   const rpcCall = vi.fn(
     async (_target: string, method: string, args: unknown[]) => {
-      if (method === "eval.dispose") return { ok: true };
+      if (method === "dynamicCode.dispose") return { ok: true };
       const bytes = blobs.get(args[0] as string);
       if (!bytes) throw new Error("Missing test blob");
       if (method === "blobstore.stat") return { size: bytes.length, mtime: 0 };
@@ -182,7 +190,7 @@ describe("system-test durable execution ownership", () => {
       owner.call("releaseSystemTestRunExecution", running.runId),
     ).rejects.toThrow("still active");
     expect(
-      owner.rpcCall.mock.calls.some(([, method]) => method === "eval.dispose"),
+      owner.rpcCall.mock.calls.some(([, method]) => method === "dynamicCode.dispose"),
     ).toBe(false);
     const terminal = runRecord("completed", "2026-09-28T00:00:02.000Z");
     await owner.store(terminal);
@@ -592,4 +600,23 @@ describe("retained System release handoff reference", () => {
       .rejects.toThrow(/unstable retained/);
     expect(fixture.evidence.size).toBe(0);
   });
+});
+
+it("gives the native soak a real owner-local registrar and a registered independent RPC view", async () => {
+  const { runAgentCellCompaction } = await import("@workspace-skills/system-testing/agent-cell-compaction");
+  const owner = await recordOwner();
+  const result = { messages: [], duration: 0 };
+  vi.mocked(runAgentCellCompaction).mockImplementationOnce(async (wire, _signal, turns) => {
+    expect(turns).toBe(10000);
+    expect(owner.instance.callerForTest()).toBeNull();
+    const registration = wire.registerResidentSession("probe-channel", async () => {}, { targetId: "probe-channel-owner" });
+    expect(owner.instance.residentsForTest().active).toBe(1);
+    registration.close();
+    expect(owner.instance.residentsForTest().active).toBe(0);
+    const view = withRpcAbortSignal(wire, new AbortController().signal);
+    // Constructing and calling the normal schema view must preserve its transport owner.
+    await expect(view.call("main", mainRpcMethods["dynamicCode.dispose"], [{ scopeKey: "probe" }])).resolves.toEqual({ ok: true });
+    return result;
+  });
+  expect(await owner.call("runAgentCellCompaction", 10000)).toEqual(result);
 });

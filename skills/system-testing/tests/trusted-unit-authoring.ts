@@ -36,7 +36,7 @@ const focusedVerificationAuthority: TestAuthorityPolicy = {
 
 function requireTrustedUnitRepair(
   result: TestExecutionResult,
-  section: "apps" | "extensions",
+  section: "terminal-apps" | "extensions",
 ) {
   const incomplete = noIncompleteInvocations(result);
   if (!incomplete.passed) return incomplete;
@@ -136,6 +136,7 @@ export const trustedUnitAuthoringTests: TestCase[] = [
       "Repair a trusted extension through its documented edit, focused-test, and build workflow",
     category: "extensions",
     workspaceRepoFixture: BUILDABLE_EXTENSION_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: focusedVerificationAuthority,
     prompt:
       'The disposable status extension keeps reporting "waiting" even though it is ready. Please fix it.',
@@ -148,10 +149,11 @@ export const trustedUnitAuthoringTests: TestCase[] = [
       "Repair a trusted terminal app through its documented edit, focused-test, and build workflow",
     category: "apps",
     workspaceRepoFixture: BUILDABLE_APP_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     authorityPolicy: focusedVerificationAuthority,
     prompt:
       'The disposable terminal app still prints "booting" after startup has completed. Please fix it.',
 
-    validate: (result) => requireTrustedUnitRepair(result, "apps"),
+    validate: (result) => requireTrustedUnitRepair(result, "terminal-apps"),
   },
 ];

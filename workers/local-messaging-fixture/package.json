@@ -29,7 +29,20 @@
       ]
     },
     "authority": {
-      "requests": [],
+      "requests": [
+        {
+          "capability": "context.boundary",
+          "resource": { "kind": "prefix", "prefix": "context/" },
+          "tier": "critical",
+          "evidence": "bounded-dynamic"
+        },
+        {
+          "capability": "context.clone",
+          "resource": { "kind": "exact", "key": "context.clone" },
+          "tier": "gated",
+          "evidence": "exact"
+        }
+      ],
       "provides": [],
       "serviceRequests": []
     }

@@ -72,6 +72,8 @@ managedIntegrationHandoffTests.push({
   prompt: goal,
   explicitOnly: true,
   validation: "harness",
+  // The qualification opens and retires a fresh integration workspace for each case.
+  timeoutMs: 20 * 60_000,
   async orchestrate(context) {
     const started = Date.now();
     const cases: { id: string; qualification: Qualified }[] = [];

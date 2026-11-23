@@ -2,21 +2,28 @@ import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
-import type { phoneSetup } from "@workspace-skills/phone-setup";
-import type { bindInstalledMobileScenario } from "../mobile-system-testing/live-bindings.js";
+import type {
+  PhoneDeviceDiscovery, PhoneProvider, PhoneWorkspaceReadinessSchema,
+} from "@vibestudio/service-schemas/phoneProvisioning";
+import type { z } from "zod";
+import type { MobileScenarioBinder } from "../mobile-system-testing/bindings.js";
 import type {
   MobileAssignment, MobileInventory, MobileReport, PairReceipt, WorkspaceReadback,
 } from "../mobile-system-testing/scenario/types.js";
 import { androidPairWorlds } from "./android-pair-worlds.js";
 
 type Input = { contextId: string; caseId: string };
-type Phone = Awaited<ReturnType<typeof phoneSetup>>;
+type Phone = {
+  providers(): Promise<PhoneProvider[]>;
+  devices(providerId: string, platform: "android"): Promise<PhoneDeviceDiscovery>;
+  readiness(deviceId: string): Promise<z.output<typeof PhoneWorkspaceReadinessSchema>>;
+};
 
 export async function prepareManagedAndroidPair(
   input: Input,
   workspace: string,
   phone: Phone,
-  bind: typeof bindInstalledMobileScenario,
+  bind: MobileScenarioBinder,
   assignment?: { id: string; goal: string; mode: (typeof androidPairWorlds)[number]["mode"] },
 ) {
   const world = requireAssignedWorld(assignment ? [assignment] : androidPairWorlds, input.caseId, "Unknown Android pairing case");

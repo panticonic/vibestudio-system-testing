@@ -220,6 +220,12 @@ describe("semantic system-test validators", () => {
                 contentHash: digest,
                 mode: 33188,
               },
+              {
+                path: "nested/second.txt",
+                kind: "file",
+                contentHash: "e".repeat(64),
+                mode: 33188,
+              },
             ],
             completeness: "complete",
           },
@@ -263,18 +269,18 @@ describe("semantic system-test validators", () => {
           protocol: "blob-tree-observation.v1",
           method: "materializeTree",
           ref: first,
-          written: 1,
+          written: 2,
           unchanged: 0,
         },
       },
     ];
-    const run = (entries: unknown[]) =>
+    const run = (entries: unknown[], code = "return await inspectTreeVersions();") =>
       execution(
         "The tree difference changes one file. I materialized the files successfully.",
         [
           {
             name: "eval",
-            arguments: { code: "return await inspectTreeVersions();" },
+            arguments: { code },
             execution: {
               status: "complete",
               result: {
@@ -303,6 +309,23 @@ describe("semantic system-test validators", () => {
     const unrelated = structuredClone(rows);
     Object.assign(unrelated[5]!.receipt, { ref: `state:${"f".repeat(64)}` });
     expect(test.validate(run(unrelated)).passed).toBe(false);
+
+    const hit = (path: string, contentDigest: string) => ({
+      type: "fs.read", method: "fs.readFile", path, contentDigest,
+    });
+    const code = "await blobstore.materializeTree(version, scratch);";
+    const readback = [
+      ...rows.slice(0, -1),
+      hit("scratch/tree/note.txt", "f".repeat(64)),
+      hit("scratch/tree/nested/second.txt", "e".repeat(64)),
+    ];
+    expect(test.validate(run(readback, code)).passed).toBe(true);
+    expect(test.validate(run(readback.slice(0, -1), code)).passed).toBe(false);
+    expect(test.validate(run([
+      ...readback.slice(0, -1),
+      hit("scratch/other/nested/second.txt", "e".repeat(64)),
+    ], code)).passed).toBe(false);
+    expect(test.validate(run(readback)).passed).toBe(false);
   });
 
   it("verifies native webhook counts and lifecycle identities without requiring guest return flags", () => {

@@ -37,7 +37,7 @@ export type WorkspaceRepoSection =
   | "workers"
   | "panels"
   | "extensions"
-  | "apps";
+  | "terminal-apps";
 
 export const SIZABLE_HISTORY_FIXTURE_REVISIONS = 36;
 
@@ -56,7 +56,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "provenance-record"; section: "projects" }
   | { kind: "buildable-package"; section: "packages" }
   | { kind: "buildable-extension"; section: "extensions" }
-  | { kind: "buildable-app"; section: "apps" }
+  | { kind: "buildable-app"; section: "terminal-apps" }
   | { kind: "buildable-worker"; section: "workers" }
   | { kind: "buildable-regular-worker"; section: "workers" }
   | { kind: "unit-repair-worker"; section: "workers"; fault: UnitRepairFault }
@@ -72,7 +72,7 @@ export type WorkspaceRepoCreationScope =
   | { kind: "open-goal-browser-panel"; section: "panels"; caseId: string }
   | { kind: "presentation-preview-panel"; section: "panels"; caseId: string }
   | { kind: "optimizable-panel"; section: "panels" }
-  | { kind: "created-repository"; section: WorkspaceRepoSection }
+  | { kind: "created-repository"; section: WorkspaceRepoSection; privateCommit?: true }
   | {
       kind: "created-repositories";
       section: WorkspaceRepoSection;
@@ -100,6 +100,7 @@ export interface WorkspaceRepoFixtureRepository {
 }
 
 type WorkspaceRepoFixtureStateBase = {
+  publishedFixtureEventId?: string;
   testName: string;
   contextId: string;
   taskBaseEventId: string;
@@ -197,7 +198,7 @@ export class WorkspaceRepoFixtureLifecycle {
       );
     const events = await this.taskFirstParentEvents(
       state,
-      status.committed.eventId,
+      state.publishedFixtureEventId ?? status.committed.eventId,
     );
     const changes = await this.inspectTaskChanges(
       await this.taskWorkNewestFirst(events),
@@ -532,15 +533,30 @@ export class WorkspaceRepoFixtureLifecycle {
           "Workspace fixture task context has no committed event for attribution",
         );
       }
-      onPhase?.("task-first-parent-events");
-      const taskEvents = await this.taskFirstParentEvents(
-        state,
-        taskStatus.committed.eventId,
-      );
+      // An explicitly private test verifies the authored commit in its own
+      // trajectory. Teardown can retire its copy once main is still at basis.
+      const privateWorkStayedLocal =
+        state.kind === "created-repository" && state.privateCommit === true &&
+        state.publishedFixtureEventId === undefined &&
+        taskStatus.mainEventId === state.taskBaseEventId;
       const needsCreationScope =
-        state.kind === "created-repository" ||
-        state.kind === "created-repositories" ||
-        state.kind === "buildable-panel-with-derived";
+        !privateWorkStayedLocal &&
+        (state.kind === "created-repository" ||
+          state.kind === "created-repositories" ||
+          state.kind === "buildable-panel-with-derived");
+      // If main still points at the fixture's original event, none of its
+      // private descendants reached main. Inspect ancestry only for a
+      // creation-scope check or when there is publication to attribute.
+      const needsAncestry = needsCreationScope ||
+        state.publishedFixtureEventId !== undefined ||
+        taskStatus.mainEventId !== state.taskBaseEventId;
+      onPhase?.("task-first-parent-events");
+      const taskEvents = needsAncestry
+        ? await this.taskFirstParentEvents(
+            state,
+            state.publishedFixtureEventId ?? taskStatus.committed.eventId,
+          )
+        : [];
       const scopedTaskChanges = needsCreationScope
         ? await this.inspectTaskChanges(
             await this.taskWorkNewestFirst(taskEvents),
@@ -551,7 +567,7 @@ export class WorkspaceRepoFixtureLifecycle {
         state,
         scopedTaskChanges?.createdRepositories ?? [],
       );
-      creationScopeError = creationScope.error;
+      creationScopeError = privateWorkStayedLocal ? null : creationScope.error;
       onPhase?.("published-boundary");
       const publishedBoundary =
         taskEvents.length === 0
@@ -1009,6 +1025,8 @@ export class WorkspaceRepoFixtureLifecycle {
       state.taskBaseEventId,
       ...taskEvents.map((event) => event.eventId),
     ]);
+    // A past timeline starts with the parents of its root.
+    if (taskEventIds.has(mainEventId)) return mainEventId;
     let cursor: string | undefined;
     do {
       const page = await this.port.vcs.history({
@@ -1798,14 +1816,14 @@ function buildableAppFiles(
       path: "package.json",
       content: `${JSON.stringify(
         {
-          name: `@workspace-apps/${repoName}`,
+          name: `@workspace-terminal-apps/${repoName}`,
           version: "0.0.0",
           private: true,
           type: "module",
           vibestudio: {
-            displayName: `System Test ${repoName}`,
+            title: `System Test ${repoName}`,
             icon: "./assets/icon.svg",
-            app: { target: "terminal", entry: "index.ts" },
+            entry: "index.ts",
             // The scenario that repairs this unit is asked to keep its focused
             // unit test aligned, and is granted native test execution to do it.
             // Without a declared suite the build refuses to run the test file
@@ -1862,7 +1880,7 @@ function trustedUnitSkillFile(
   kind: "app" | "extension",
 ): { path: string; content: string } {
   const noun = kind === "app" ? "terminal app" : "status extension";
-  const skill = kind === "app" ? "appdev" : "extensiondev";
+  const skill = kind === "app" ? "terminal-apps" : "extensiondev";
   return {
     path: "SKILL.md",
     content: [

@@ -185,6 +185,9 @@ export interface HeadlessWithAgentConfig extends HeadlessSessionConfig {
 }
 
 const HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS = 30_000;
+// Retiring an owned subtree archives each participant cell before releasing
+// it. Concurrent successful closures can spend over 40 seconds in that work.
+const HEADLESS_CONTEXT_RETIREMENT_RPC_TIMEOUT_MS = 90_000;
 
 export interface HeadlessWaitOptions {
   timeoutMs?: number;
@@ -439,6 +442,7 @@ export class HeadlessSession {
           await destroyHeadlessAgentContext({
             rpcCall: config.rpcCall,
             contextId: agentContextId,
+            timeoutMs: HEADLESS_CONTEXT_RETIREMENT_RPC_TIMEOUT_MS,
           });
         } catch (cleanupError) {
           cleanupErrors.push(cleanupError);
@@ -929,7 +933,7 @@ export class HeadlessSession {
         ? async (target, method, args, options) =>
             rpcCall(target, method, args, {
               ...options,
-              timeoutMs: HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS,
+              timeoutMs: options?.timeoutMs ?? HEADLESS_LIFECYCLE_RPC_TIMEOUT_MS,
             })
         : null;
 
@@ -952,6 +956,7 @@ export class HeadlessSession {
         await destroyHeadlessAgentContext({
           rpcCall: lifecycleRpcCall,
           contextId,
+          timeoutMs: HEADLESS_CONTEXT_RETIREMENT_RPC_TIMEOUT_MS,
         }).catch((err) => {
           this.recordCleanupError("destroyHeadlessAgentContext", err);
         });

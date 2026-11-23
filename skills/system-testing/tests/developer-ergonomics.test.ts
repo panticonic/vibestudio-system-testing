@@ -164,7 +164,15 @@ describe("developer ergonomics scenarios", () => {
     });
   });
 
-  it("accepts the eval transport's direct typed error data", () => {
+  it.each(["direct", "nested"])("accepts %s typed eval error data", (form) => {
+    const errorData = {
+      code: "recoverable_infrastructure_probe",
+      failureKind: "infrastructure",
+      recovery: {
+        action: "reobserve",
+        instruction: "Continue this same turn.",
+      },
+    };
     const recoverable = call(
       "recoverable-infrastructure",
       "eval",
@@ -173,14 +181,7 @@ describe("developer ergonomics scenarios", () => {
         success: false,
         failureCode: "recoverable_infrastructure_probe",
         failureKind: "infrastructure",
-        errorData: {
-          code: "recoverable_infrastructure_probe",
-          failureKind: "infrastructure",
-          recovery: {
-            action: "reobserve",
-            instruction: "Continue this same turn.",
-          },
-        },
+        ...(form === "nested" ? { error: { errorData } } : { errorData }),
       },
       true,
     );

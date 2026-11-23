@@ -15,13 +15,8 @@ export interface ManagedProvenanceHistoryReceiver {
     teacher: PanelTeacherResult;
     verification: Verification;
   }>;
-  qualifyManagedProvenanceHistory(input: ProvenanceHistoryInput): Promise<{
-    verification: Verification;
-    rejectedWrongCoordinate: boolean;
-  }>;
 }
 export const managedProvenanceHistoryMethods =
   createReceiverRpcMethods<ManagedProvenanceHistoryReceiver>([
     "runManagedProvenanceHistoryTeacher",
-    "qualifyManagedProvenanceHistory",
   ]);

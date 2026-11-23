@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { rpcCallerAbortedError } from "@vibestudio/rpc";
 import type { ChatMessage } from "@workspace/agentic-core";
 import {
   findSystemTestImplementationInspections,
@@ -59,134 +60,165 @@ function remoteRpcFailure(message: string, handle: string): Error {
 }
 
 describe("TestRunner", () => {
-  it("adds pending invocation and lifecycle context to headless timeouts", async () => {
-    const lifecycleMessage = {
-      id: "turn:waiting",
-      senderId: "agent-1",
-      content: "Waiting for model credential approval",
-      contentType: "lifecycle",
-      kind: "system",
-      complete: true,
-      lifecycle: {
-        status: "waiting",
-        reason: "model_credential_required",
-        title: "Waiting for model credential approval",
-      },
-    } satisfies ChatMessage;
-    const diagnosticMessage = {
-      id: "diagnostic:empty",
-      senderId: "agent-1",
-      content: "Assistant message had no visible content.",
-      contentType: "diagnostic",
-      kind: "system",
-      complete: true,
-      diagnostic: {
-        code: "message_empty",
-        severity: "warning",
-        title: "No assistant response",
-      },
-    } satisfies ChatMessage;
-    const messages = [lifecycleMessage, diagnosticMessage];
-    const cleanupOrder: string[] = [];
-    let waitSignal: AbortSignal | undefined;
-    const session = {
-      channelId: "chat-timeout",
-      agentTargetId: "agent-target-timeout",
-      messages,
-      sendAndWait: vi.fn(
-        (
-          _prompt: string,
-          opts?: {
-            signal?: AbortSignal;
-          },
-        ) => {
-          waitSignal = opts?.signal;
-          return new Promise((_resolve, reject) => {
-            const abort = () => reject(opts?.signal?.reason);
-            if (opts?.signal?.aborted) abort();
-            else opts?.signal?.addEventListener("abort", abort, { once: true });
-          });
+  it.each(["identity", "rpc", "mixed", "foreign"] as const)(
+    "adds pending invocation and lifecycle context to headless timeouts (%s)",
+    async (cancellation) => {
+      const lifecycleMessage = {
+        id: "turn:waiting",
+        senderId: "agent-1",
+        content: "Waiting for model credential approval",
+        contentType: "lifecycle",
+        kind: "system",
+        complete: true,
+        lifecycle: {
+          status: "waiting",
+          reason: "model_credential_required",
+          title: "Waiting for model credential approval",
         },
-      ),
-      captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
-      snapshot: vi.fn(() => ({
+      } satisfies ChatMessage;
+      const diagnosticMessage = {
+        id: "diagnostic:empty",
+        senderId: "agent-1",
+        content: "Assistant message had no visible content.",
+        contentType: "diagnostic",
+        kind: "system",
+        complete: true,
+        diagnostic: {
+          code: "message_empty",
+          severity: "warning",
+          title: "No assistant response",
+        },
+      } satisfies ChatMessage;
+      const messages = [lifecycleMessage, diagnosticMessage];
+      const cleanupOrder: string[] = [];
+      let waitSignal: AbortSignal | undefined;
+      const session = {
         channelId: "chat-timeout",
+        agentTargetId: "agent-target-timeout",
+        messages,
+        sendAndWait: vi.fn(
+          (
+            _prompt: string,
+            opts?: {
+              signal?: AbortSignal;
+            },
+          ) => {
+            waitSignal = opts?.signal;
+            return new Promise((_resolve, reject) => {
+              const abort = () => {
+                const reason = opts?.signal?.reason;
+                reject(
+                  cancellation === "identity"
+                    ? reason
+                    : cancellation === "rpc"
+                      ? rpcCallerAbortedError(reason)
+                      : cancellation === "mixed"
+                        ? new AggregateError([
+                            rpcCallerAbortedError(reason),
+                            new Error("actual cleanup failed"),
+                          ])
+                        : rpcCallerAbortedError(
+                            new Error("different cancellation owner"),
+                          ),
+                );
+              };
+              if (opts?.signal?.aborted) abort();
+              else opts?.signal?.addEventListener("abort", abort, { once: true });
+            });
+          },
+        ),
+        captureModelExecutionEvidence: vi.fn(async () => modelEvidence()),
+        snapshot: vi.fn(() => ({
+          channelId: "chat-timeout",
+          agentEntityId: "agent-entity-timeout",
+          agentTargetId: "agent-target-timeout",
+          agentContextId: "ctx-timeout",
+          messages,
+          invocations: [{ id: "call-eval", name: "eval", status: "pending" }],
+          debugEvents: [],
+          cleanupErrors: [],
+          participants: {},
+          connected: true,
+          duration: 10,
+        })),
+        interrupt: vi.fn(async () => {
+          cleanupOrder.push("interrupt");
+        }),
+        close: vi.fn(async () => {
+          cleanupOrder.push("close");
+        }),
+      };
+      const runner = {
+        modelRef: TEST_MODEL,
+        closeOwnedDevelopmentSessions: vi.fn(async () => []),
+        spawn: vi.fn(async () => session),
+        collectDiagnostics: vi.fn(async () => ({})),
+      } as unknown as HeadlessRunner;
+      const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
+
+      const { result, execution } = await tester.runOne({
+        name: "timeout-test",
+        category: "test",
+        description: "timeout",
+        prompt: "hang",
+        validate: () => ({ passed: true }),
+      });
+
+      expect(result.passed).toBe(false);
+      expect(execution.error).toContain(
+        'Timed out waiting for agent to finish test "timeout-test"',
+      );
+      expect(execution.error).toContain("Pending invocations: eval:pending.");
+      expect(execution.error).toContain(
+        'Last lifecycle: waiting reason=model_credential_required "Waiting for model credential approval".',
+      );
+      expect(execution.error).toContain(
+        'Last diagnostic: code=message_empty "No assistant response".',
+      );
+      expect(waitSignal?.aborted).toBe(true);
+      if (cancellation === "identity" || cancellation === "rpc") {
+        expect(execution.error).not.toContain(
+          "owned operation failed during cancellation",
+        );
+        expect(execution.error).not.toContain(
+          "agent cancellation or observation failed",
+        );
+      } else {
+        expect(execution.error).toContain(
+          "owned operation failed during cancellation",
+        );
+      }
+      expect(runner.collectDiagnostics).toHaveBeenCalledWith({
+        channelId: "chat-timeout",
+      });
+      expect(session.close).toHaveBeenCalledWith({
+        onPhase: expect.any(Function),
+      });
+      expect(session.interrupt).toHaveBeenCalledWith("agent-target-timeout", {
+        timeoutMs: 30_000,
+      });
+      expect(cleanupOrder).toEqual(["interrupt", "close"]);
+      expect(session.captureModelExecutionEvidence).toHaveBeenCalledOnce();
+      expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
+      expect(execution.provenance).toEqual({
+        channelId: "chat-timeout",
+        branchId: "main",
         agentEntityId: "agent-entity-timeout",
         agentTargetId: "agent-target-timeout",
-        agentContextId: "ctx-timeout",
-        messages,
-        invocations: [{ id: "call-eval", name: "eval", status: "pending" }],
-        debugEvents: [],
-        cleanupErrors: [],
-        participants: {},
-        connected: true,
-        duration: 10,
-      })),
-      interrupt: vi.fn(async () => {
-        cleanupOrder.push("interrupt");
-      }),
-      close: vi.fn(async () => {
-        cleanupOrder.push("close");
-      }),
-    };
-    const runner = {
-      modelRef: TEST_MODEL,
-      closeOwnedDevelopmentSessions: vi.fn(async () => []),
-      spawn: vi.fn(async () => session),
-      collectDiagnostics: vi.fn(async () => ({})),
-    } as unknown as HeadlessRunner;
-    const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
-
-    const { result, execution } = await tester.runOne({
-      name: "timeout-test",
-      category: "test",
-      description: "timeout",
-      prompt: "hang",
-      validate: () => ({ passed: true }),
-    });
-
-    expect(result.passed).toBe(false);
-    expect(execution.error).toContain(
-      'Timed out waiting for agent to finish test "timeout-test"',
-    );
-    expect(execution.error).toContain("Pending invocations: eval:pending.");
-    expect(execution.error).toContain(
-      'Last lifecycle: waiting reason=model_credential_required "Waiting for model credential approval".',
-    );
-    expect(execution.error).toContain(
-      'Last diagnostic: code=message_empty "No assistant response".',
-    );
-    expect(waitSignal?.aborted).toBe(true);
-    expect(runner.collectDiagnostics).toHaveBeenCalledWith({
-      channelId: "chat-timeout",
-    });
-    expect(session.close).toHaveBeenCalledWith({
-      onPhase: expect.any(Function),
-    });
-    expect(session.interrupt).toHaveBeenCalledWith("agent-target-timeout", {
-      timeoutMs: 30_000,
-    });
-    expect(cleanupOrder).toEqual(["interrupt", "close"]);
-    expect(session.captureModelExecutionEvidence).toHaveBeenCalledOnce();
-    expect(execution.modelExecutionEvidence).toEqual(modelEvidence());
-    expect(execution.provenance).toEqual({
-      channelId: "chat-timeout",
-      branchId: "main",
-      agentEntityId: "agent-entity-timeout",
-      agentTargetId: "agent-target-timeout",
-      contextId: "ctx-timeout",
-    });
-    expect(execution.trajectoryReview).toEqual({
-      required: true,
-      agentReportedOutcome: "unspecified",
-      invocationCount: 1,
-      modelCallCount: 1,
-      unexpectedToolFailureCount: 0,
-      repeatedFailureOperations: [],
-      potentialConfusionSignals: ["missing-completion-report"],
-      frequentOperations: [],
-    });
-  });
+        contextId: "ctx-timeout",
+      });
+      expect(execution.trajectoryReview).toEqual({
+        required: true,
+        agentReportedOutcome: "unspecified",
+        invocationCount: 1,
+        modelCallCount: 1,
+        unexpectedToolFailureCount: 0,
+        repeatedFailureOperations: [],
+        potentialConfusionSignals: ["missing-completion-report"],
+        frequentOperations: [],
+      });
+    },
+  );
 
   it.each([false, true])(
     "keeps the original test failure and active session when diagnostics collection fails (orchestrated: %s)",
@@ -1192,7 +1224,7 @@ describe("TestRunner", () => {
     });
   });
 
-  it("shares one timeout budget across every orchestrated phase", async () => {
+  it.each([false, true])("shares one scenario budget with fixture setup %s", async (hasFixture) => {
     let now = 10_000;
     const dateNow = vi.spyOn(Date, "now").mockImplementation(() => now);
     const timeout = vi.spyOn(globalThis, "setTimeout");
@@ -1215,6 +1247,16 @@ describe("TestRunner", () => {
     const runner = {
       modelRef: TEST_MODEL,
       closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      prepareWorkspaceRepoFixture: vi.fn(async () => {
+        now += 1_500;
+        return { kind: "content", contextId: "context:fixture" };
+      }),
+      cleanupWorkspaceRepoFixture: vi.fn(async () => ({
+        publishedFixtureRemoved: null,
+        unexpectedPublishedRepositoriesRemoved: [],
+        counteractedChangeIds: [],
+      })),
+      withTaskResources: (prompt: string) => prompt,
       spawn: vi.fn(async () => session),
       collectDiagnostics: vi.fn(async () => ({})),
     } as unknown as HeadlessRunner;
@@ -1227,6 +1269,7 @@ describe("TestRunner", () => {
         category: "test",
         description: "one shared deadline",
         prompt: "unused",
+        ...(hasFixture ? { workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE } : {}),
         orchestrate: async ({
           runner: orchestrationRunner,
           remainingTimeMs,
@@ -1331,17 +1374,17 @@ describe("TestRunner", () => {
     expect(unrelatedRanWhileGitActive).toBe(true);
   });
 
-  it("serializes workspace repository fixtures while unrelated tests remain concurrent", async () => {
-    let activeSetups = 0;
-    let maxActiveSetups = 0;
-    let unrelatedRanWhileFixtureActive = false;
+  it("lets private fixtures run together without racing protected main", async () => {
+    const activeFixtures = new Set<string>();
+    const overlaps = new Map<string, string[]>();
     const unrelatedStarted = deferred<void>();
+    const secondPrivateStarted = deferred<void>();
     const session = (testName: string) => ({
       channelId: crypto.randomUUID(),
       messages: [] as ChatMessage[],
       sendAndWait: vi.fn(async () => {
         if (testName === "unrelated") {
-          unrelatedRanWhileFixtureActive = activeSetups === 1;
+          overlaps.set(testName, [...activeFixtures]);
           unrelatedStarted.resolve();
         }
       }),
@@ -1366,10 +1409,11 @@ describe("TestRunner", () => {
         closeOwnedDevelopmentSessions: vi.fn(async () => []),
         withTaskResources: (prompt: string) => prompt,
         prepareWorkspaceRepoFixture: vi.fn(async () => {
-          activeSetups += 1;
-          maxActiveSetups = Math.max(maxActiveSetups, activeSetups);
+          overlaps.set(testName, [...activeFixtures]);
+          activeFixtures.add(testName);
           if (testName === "alpha") await unrelatedStarted.promise;
-          activeSetups -= 1;
+          if (testName === "private-a") await secondPrivateStarted.promise;
+          if (testName === "private-b") secondPrivateStarted.resolve();
           return {
             kind: "content" as const,
             section: "projects" as const,
@@ -1386,11 +1430,14 @@ describe("TestRunner", () => {
         }),
         spawn: vi.fn(async () => session(testName)),
         collectDiagnostics: vi.fn(async () => ({})),
-        cleanupWorkspaceRepoFixture: vi.fn(async () => ({
-          publishedFixtureRemoved: null,
-          unexpectedPublishedRepositoriesRemoved: [],
-          counteractedChangeIds: [],
-        })),
+        cleanupWorkspaceRepoFixture: vi.fn(async () => {
+          activeFixtures.delete(testName);
+          return {
+            publishedFixtureRemoved: null,
+            unexpectedPublishedRepositoriesRemoved: [],
+            counteractedChangeIds: [],
+          };
+        }),
       })),
     } as unknown as HeadlessRunner;
     const tester = new TestRunner(runner, { testTimeoutMs: 1_000 });
@@ -1413,13 +1460,25 @@ describe("TestRunner", () => {
     };
 
     const suite = await tester.runSuite(
-      [fixtureTest("alpha"), fixtureTest("beta"), unrelatedTest],
+      [
+        fixtureTest("alpha"),
+        { ...fixtureTest("private-a"), agentContext: "fork" },
+        { ...fixtureTest("private-b"), agentContext: "fork" },
+        fixtureTest("beta"),
+        unrelatedTest,
+      ],
       { concurrency: 3 },
     );
 
-    expect(suite.passed).toBe(3);
-    expect(maxActiveSetups).toBe(1);
-    expect(unrelatedRanWhileFixtureActive).toBe(true);
+    expect(suite.passed).toBe(5);
+    expect(overlaps.get("alpha")).toEqual([]);
+    expect(overlaps.get("unrelated")).toEqual(["alpha"]);
+    expect(overlaps.get("private-a")).toEqual([]);
+    expect(overlaps.get("private-b")).toEqual(["private-a"]);
+    expect(overlaps.get("beta")).toEqual([]);
+    expect(runner.forTest).toHaveBeenCalledWith("private-a", expect.objectContaining({
+      allowFixturePublication: false,
+    }));
   });
 
   it.each([null, "Expected one task-created repository, found none"])(
@@ -1546,6 +1605,32 @@ describe("TestRunner", () => {
   it("surfaces workspace repo fixture teardown failures as infrastructure failures", async () => {
     const messages = [
       {
+        id: "published-fixture",
+        senderId: "agent",
+        senderMetadata: { type: "agent" },
+        kind: "message",
+        complete: true,
+        contentType: "invocation",
+        content: JSON.stringify({
+          id: "push-fixture",
+          name: "vcs",
+          arguments: { operation: "push" },
+          execution: {
+            status: "complete",
+            result: {
+              details: {
+                operation: "push",
+                result: {
+                  contextId: "context:fixture-test",
+                  eventId: "event:published-fixture",
+                  mainEventId: "event:published-fixture",
+                },
+              },
+            },
+          },
+        }),
+      },
+      {
         id: "answer-fixture",
         senderId: "agent",
         senderMetadata: { type: "agent" },
@@ -1563,7 +1648,7 @@ describe("TestRunner", () => {
         channelId: "chat-fixture",
         agentEntityId: "agent-fixture",
         agentTargetId: "target-fixture",
-        agentContextId: "ctx-fixture",
+        agentContextId: "context:fixture-test",
         messages,
         invocations: [],
         debugEvents: [],
@@ -1627,6 +1712,10 @@ describe("TestRunner", () => {
       validate: () => ({ passed: true }),
     });
 
+    expect(childRunner.cleanupWorkspaceRepoFixture).toHaveBeenCalledWith(
+      { ...fixtureState, publishedFixtureEventId: "event:published-fixture" },
+      expect.any(Function),
+    );
     expect(result).toMatchObject({
       passed: false,
       reason:
@@ -2445,3 +2534,32 @@ describe("report claims", () => {
     expect(second.execution.validationFailure?.phase).toBe("validation");
   });
 });
+
+it.each(["message", "structured"] as const)(
+  "rejects reported orchestration cleanup failures while retaining native evidence (%s)",
+  async (kind) => {
+    const failure = {
+      phase: "case-context-retirement",
+      error: { name: "Error", message: "database is locked", errorKind: "internal" as const },
+    };
+    const execution: TestExecutionResult = {
+      messages: [], duration: 1,
+      diagnostics: { nativeTurns: 65, modelCalls: 0 },
+      ...(kind === "message" ? { cleanupErrors: ["database is locked"] } : { cleanupFailures: [failure] }),
+    };
+    const runner = {
+      modelRef: TEST_MODEL,
+      closeOwnedDevelopmentSessions: vi.fn(async () => []),
+      collectDiagnostics: vi.fn(async () => ({})),
+    } as unknown as HeadlessRunner;
+    const tester = new TestRunner(runner, { testTimeoutMs: 1000 });
+    const outcome = await tester.runOne({
+      name: "reported-cleanup-failure", category: "test", description: "cleanup evidence", prompt: "Harness-owned native workload.",
+      validation: "harness", orchestrate: async () => execution,
+      validate: () => ({ passed: true }),
+    });
+    expect(outcome.result.passed).toBe(false);
+    expect(outcome.result.reason).toContain("database is locked");
+    expect(outcome.execution.diagnostics).toMatchObject({ nativeTurns: 65, modelCalls: 0 });
+  },
+);

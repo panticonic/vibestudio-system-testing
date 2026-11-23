@@ -158,6 +158,7 @@ export const smokeTests: TestCase[] = [
       "Agent writes a note, rediscovers it through content search, and verifies the exact content",
     category: "smoke",
     workspaceRepoFixture: CONTENT_WORKSPACE_REPO_FIXTURE,
+    agentContext: "fork",
     prompt:
       "In the disposable project, leave a small note containing the distinctive text agentic-file-tools-smoke, then verify that you can rediscover and read the exact note by searching the workspace. Tell me what you observed. Do not publish it.",
     validation: "harness",
