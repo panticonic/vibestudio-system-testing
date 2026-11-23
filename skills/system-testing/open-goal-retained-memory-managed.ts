@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { logIdForChannel } from "@vibestudio/trajectory-identity";
@@ -232,6 +233,7 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
       const nativeCheck=evidence!==null&&await auditEvidence(evidence);
       const checks={
+        returnedMemoryHandoff:equal(report?.handoff,handoff),
         exactRetainedMemoryScope:observed.brief&&evidence!==null,
         exactBoundedNativeRecall:evidence!==null&&
           evidence.leads.every(inScope)&&(expected.kinds.includes("commit")?events.every(event=>eventSet().includes(event)):eventSet().length===0),
@@ -240,13 +242,14 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
         protectedMemoryScope:equal(await ports.vcs.status(),before)&&equal(await ports.vcs.mainState(),main)&&
           (await services.nativeRetainedMemory.transcript("foreign-"+lane.key)).length===0&&
           await services.nativeRetainedMemory.archivedFile("foreign-"+main.eventId)===null,
-        exactPrivateMemoryHandoff:world.private?!!report&&!!artifact&&!!handoff&&notes.length===1&&
+        exactPrivateMemoryHandoff:world.private?!!artifact&&!!handoff&&notes.length===1&&
           handoff.path===`/.tmp/${notes[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
-          equal(report.handoff,handoff)&&artifact===stagedText:
-          handoff===null&&report?.handoff===null&&notes.length===0,
+          artifact===stagedText:
+          handoff===null&&notes.length===0,
       };
-      return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-        brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact};
+      const contract:SemanticOutcomeContract={effects:{checks:["exactRetainedMemoryScope", "exactBoundedNativeRecall", "independentlyReadMemorySources", "protectedMemoryScope", "exactPrivateMemoryHandoff"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactMemoryCitations"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedMemoryHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+      return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+        brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact},contract);
     }
     async function qualify(){
       const api=services.nativeRetainedMemory;
@@ -264,7 +267,7 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       const handoff=world.private?await services.nativeMemoryHandoff.stage(brief,plan,evidence,outcome):null;
       const application={outcome,handoff};
     const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,disposition:"invented"}})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,disposition:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
     }
     return {services,verify,qualify,close};

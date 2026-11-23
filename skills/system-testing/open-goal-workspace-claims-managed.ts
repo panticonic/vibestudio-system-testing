@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs, type VcsClient } from "@workspace/runtime";
@@ -214,6 +215,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     const artifact=handoff?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(handoff.path,limit)):null;
     const actualOutcome=({pass:"passed",prior:"passed",unrelated:"passed",fail:"failed",skipped:"skipped"} as const)[world.test];
     const checks={
+      returnedClaimHandoff:isDeepStrictEqual(report?.handoff,handoff),
       exactClaimScope:selected&&
         packet.packetHash===readback.packetHash&&isDeepStrictEqual(readback.packet,stored),
       independentSemanticEvidence:observed&&isDeepStrictEqual(capture,readback)&&
@@ -227,14 +229,14 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       exactGroundedClaimPartition:isDeepStrictEqual(report?.support,support)&&report?.disposition.status===disposition(support)&&
         typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim()&&report.disposition.summary.length<=650,
       independentlyPreservedClaimContext:isDeepStrictEqual(before,after)&&after.mainEventId===initial.mainEventId,
-      exactPrivateClaimNote:world.note?!!report&&!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===stagedText&&
-        handoff.path===`/.tmp/${scratchFiles[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
-        isDeepStrictEqual(report.handoff,handoff):handoff===null&&report?.handoff===null&&scratchFiles.length===0,
+      exactPrivateClaimNote:world.note?!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===stagedText&&
+        handoff.path===`/.tmp/${scratchFiles[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&scratchFiles.length===0,
       rejectedClaimRetarget:await services.workspaceClaimRead.read(archive)===null&&await services.workspaceClaimRead.observe(archive)===null,
       exactInstalledClaimGuide:guide.includes("A green build")&&revision===guideRevision(await ports.guide()),
     };
-    return {passed:Object.values(checks).every(Boolean),checks,contextId:owner,caseId:world.id,goal:world.goal,index,packet,choice,evidence,
-      required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactClaimScope", "independentSemanticEvidence", "exactTestkitClaimInput", "exactAuthorityPreflight", "independentlyPreservedClaimContext", "exactPrivateClaimNote", "rejectedClaimRetarget", "exactInstalledClaimGuide"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactGroundedClaimPartition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedClaimHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    return assessSemanticOutcome({passed:Object.values(checks).every(Boolean),checks,contextId:owner,caseId:world.id,goal:world.goal,index,packet,choice,evidence,
+      required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact},contract);
   }
 
   async function qualify() {
@@ -246,7 +248,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     if(world.note)report.handoff=await services.workspaceClaimHandoff.stage(report);
     const application={support:report.support,disposition:report.disposition,handoff:report.handoff};
     const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};

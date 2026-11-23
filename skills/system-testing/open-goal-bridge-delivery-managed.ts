@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { gitUpstreamStatusRowSchema, type GitUpstreamStatusRow } from "@vibestudio/service-schemas/gitInterop";
@@ -248,6 +249,8 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     const protectedRepo=await ports.vcs.resolveRepository({state:event(before.mainEventId),repoPath:repository});
     const reportPlan=report?.plan;
     const checks={
+      returnedBranchHandoff:isDeepStrictEqual(report?.handoff,handoff),
+      returnedBranchCommit:isDeepStrictEqual(report?.commit,commit),
       exactBranchProject:seen&&
         route.text!==null&&isDeepStrictEqual(JSON.parse(route.text),coordinates),
       exactLiveLocalBridge:bridgeRead?.upstream.state==="local-only"&&originalBridge.upstream.state==="local-only"&&
@@ -261,21 +264,22 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
           !row.file.protectedMain;
       }),
       retainedBranchAuthority:raw===recovered&&retainedDigest===recoveredDigest&&isDeepStrictEqual(scope.retained,parseRetainedBranch(recovered))&&
-        classifyRetainedBranch(scope)===world.condition&&branch?.status===world.condition&&!!branch.explanation.trim(),
+        classifyRetainedBranch(scope)===world.condition,
+      returnedBranchAssessment:branch?.status===world.condition&&!!branch.explanation.trim(),
       groundedBranchDecision:decision?.status===world.result&&!!decision.explanation.trim()&&decision.explanation.length<=900,
-      exactLocalBranchCommit:expectedCommit?!!commit&&isDeepStrictEqual(report?.commit,commit)&&after.contextId===input.contextId&&
+      exactLocalBranchCommit:expectedCommit?!!commit&&after.contextId===input.contextId&&
         after.committed.eventId===commit.eventId&&isDeepStrictEqual(after.workingHead,after.committed)&&after.clean&&
         after.committed.eventId!==before.committed.eventId&&committedFiles.every((file,i)=>isDeepStrictEqual(file,priorFiles[i])):
-        commit===null&&report?.commit===null&&isDeepStrictEqual(after,before),
-      exactPrivateBranchHandoff:world.handoff?!!report&&!!handoff&&!!artifact&&candidates.length===1&&
-        handoff.path===`/.tmp/${candidates[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact)&&
-        isDeepStrictEqual(report.handoff,handoff):handoff===null&&report?.handoff===null&&candidates.length===0,
+        commit===null&&isDeepStrictEqual(after,before),
+      exactPrivateBranchHandoff:world.handoff?!!handoff&&!!artifact&&candidates.length===1&&
+        handoff.path===`/.tmp/${candidates[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&candidates.length===0,
       protectedBranchMain:after.mainEventId===initial.mainEventId&&originalBridge.semantic.mainRepositoryId===null,
       rejectedBranchRetarget:await services.branchDeliveryRead.inspect(archiveId)===null&&
         await services.branchDeliveryRead.operation(id,"wrong.txt")===null&&await services.branchDeliveryWrite.commit(archiveId,working)===null,
     };
-    return {caseId:world.id,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactBranchProject", "exactLiveLocalBridge", "exactSemanticFileChain", "exactLocalBranchCommit", "exactPrivateBranchHandoff", "protectedBranchMain", "rejectedBranchRetarget", "retainedBranchAuthority"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedBranchAssessment", "groundedBranchDecision", "returnedBranchCommit"],required:!expectedCommit,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedBranchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    return assessSemanticOutcome({caseId:world.id,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact},contract);
   }
 
   async function qualify() {
@@ -304,7 +308,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     if(world.handoff)report.handoff=await services.branchDeliveryWrite.retain(report);
     const application={branch:report.branch,decision:report.decision,commit:report.commit,handoff:report.handoff};
     const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,decision:{...application.decision,status:"invented"}})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,decision:{...application.decision,status:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};

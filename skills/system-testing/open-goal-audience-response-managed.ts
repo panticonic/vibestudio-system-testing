@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, vcs, type PanelHandle } from "@workspace/runtime";
@@ -150,20 +151,22 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const observed=rich&&prepared&&receipt?await display(prepared,receipt.revision):!rich?await display([]):null;
     const operated=world.model&&world.probe!==undefined&&observed?.passed?await ports.probe(panel,world.model,world.probe):null;
     const checks={
+      returnedAudienceReceipt:equal(report?.receipt,receipt),
       exactAudienceRecord:equal(record,current)&&equal(current,{...original,revision:sha256HexSyncText(originalBytes)}),
       appropriateAudienceFormat:rich ? !!prepared&&!!receipt : !sent&&!receipt,
       boundedGroundedAudienceAnswer:validAnswer(report?.answer),
       verifiedNativeAudienceRendering:!!observed?.passed&&observed.panelAttempt===active.attempt&&observed.buildKey===active.build&&
-        (rich?!!prepared&&!!receipt&&wrote===1&&equal(report?.receipt,receipt)&&
+        (rich?!!prepared&&!!receipt&&wrote===1&&
           equal(observed.mdxDigests,receipt.mdxDigests)&&observed.rendered.revision===receipt.revision&&
           equal(state.views,prepared.map(({id,mdx})=>({id,mdx}))):
-          !prepared&&!sent&&!receipt&&wrote===0&&report?.receipt===null&&
+          !prepared&&!sent&&!receipt&&wrote===0&&
           observed.rendered.revision===null&&observed.rendered.ids.length===0&&equal(state,panelBefore)),
       verifiedAudienceInteraction:equal(operated,interaction())&&(!rich||equal(receipt?.interaction,operated)),
       preservedAudienceState:equal(await ports.head(),before)&&equal(await binding(),active),
     };
-    return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      report:report??null,observed};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactAudienceRecord", "appropriateAudienceFormat", "verifiedNativeAudienceRendering", "verifiedAudienceInteraction", "preservedAudienceState"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["boundedGroundedAudienceAnswer"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedAudienceReceipt"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      report:report??null,observed},contract);
   }
   async function qualify(){
     const record=await services.nativeAudienceResponse.readRecord();
@@ -173,7 +176,7 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const rejected=await services.nativeAudienceResponse.render(record.id,"stale",prepared??{presentation:null,modelId:null})===null;
     const receipt=prepared?await services.nativeAudienceResponse.render(record.id,record.revision,prepared):null;
     const accepted=await verify({answer,receipt});
-    const rejectsIncorrectApplicationReturn=!(await verify({answer:{facts:[],text:""},receipt})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({answer:{facts:[],text:""},receipt})).outcomeDimensions.returnedValue.passed;
     return {...accepted,rejected,rejectsIncorrectApplicationReturn,passed:accepted.passed&&rejected&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify,close};

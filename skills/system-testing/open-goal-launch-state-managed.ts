@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
 import {createWorkspaceStateClient} from "@vibestudio/service-schemas/clients/workspaceStateClient";
@@ -218,6 +219,8 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const effectProof=effect as LaunchEffect|null,authorityWitness=witness as Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null;
       const authorityRequest=(binding as Binding|null)?.request??null;
       const checks={
+        returnedLaunchHandoff:isDeepStrictEqual(report?.handoff,handoff),
+        returnedLaunchReadback:isDeepStrictEqual(report?.readback,readback),
         exactLaunchSlot:frames.length===2&&isDeepStrictEqual(opening,baseline),
         reconciledLaunchScope:!!current&&(!sameIdentity(opening,current))===Boolean(world.replaceEntry)&&
           shouldAttempt===!!effectProof,
@@ -226,20 +229,20 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
         exactNativePatchResult:shouldAttempt?!!effectProof&&effectProof.basis===current?.digest&&
           (world.outcome==="applied"?effectProof.kind==="saved"&&isDeepStrictEqual(effectProof.state,expected):
             effectProof.kind==="invalid"&&effectProof.state===null):effectProof===null,
-        independentLaunchReadback:!!readback&&isDeepStrictEqual(final,readback)&&isDeepStrictEqual(report?.readback,final)&&
+        independentLaunchReadback:!!readback&&isDeepStrictEqual(final,readback)&&
           !!current&&sameIdentity(current,final)&&isDeepStrictEqual(final.state,expected),
         exactLaunchDecision:report?.result?.status===world.outcome&&typeof report.result.summary==="string"&&
           !!report.result.summary.trim()&&report.result.summary.length<=650,
         protectedLaunchSiblings:isDeepStrictEqual(archive,archiveAfter)&&isDeepStrictEqual(status,initial),
-        exactPrivateLaunchNote:world.note?!!report&&!!artifact&&!!handoff&&written.length===1&&
-          handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact)&&
-          isDeepStrictEqual(handoff,report.handoff):handoff===null&&report?.handoff===null&&written.length===0,
+        exactPrivateLaunchNote:world.note?!!artifact&&!!handoff&&written.length===1&&
+          handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&written.length===0,
         rejectedLaunchRetarget:await services.launchStateRead.read(alternate.id)===null&&
           await services.launchStateRead.seal(alternate.id)===null&&await services.launchStateWrite.patch(alternate.id,baseline.digest,plan.patch)===null,
       };
       await close();
-      return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),index,plan,frames,readback,
-        request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact};
+      const contract:SemanticOutcomeContract={effects:{checks:["exactLaunchSlot", "reconciledLaunchScope", "exactLaunchPreflight", "exactNativePatchResult", "independentLaunchReadback", "protectedLaunchSiblings", "exactPrivateLaunchNote", "rejectedLaunchRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedLaunchReadback", "exactLaunchDecision"],required:!shouldAttempt,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedLaunchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+      return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),index,plan,frames,readback,
+        request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact},contract);
     }
     async function qualify(){
       await services.launchStateRead.enumerate();
@@ -264,7 +267,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       if(world.note)report.handoff=await services.launchStateWrite.stage(report);
       const application={readback:report.readback,result:report.result,handoff:report.handoff};
     const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,result:{...application.result,status:"invented"}})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,result:{...application.result,status:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
     }
     return {services,verify,qualify,close};

@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -301,6 +302,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         newWorker.endedRevision!==null&&newWorker.endedRevision>oldWorker.revision&&newWorker.revision>newWorker.endedRevision:
       world.worker==="stable"?!!newWorker?.active&&isDeepStrictEqual(oldWorker,newWorker):oldWorker===null&&newWorker===null;
     const checks={
+      returnedChatHandoff:isDeepStrictEqual(report?.handoff,handoff),
       exactOwnedChatSelection:frames.length===2&&index.scopes.every(row=>row.contextId===owner)&&
         opening?.channelId===active.key&&current?.channelId===active.key,
       exactChatFrontiers:!!opening&&!!current&&opening.through<=current.through&&
@@ -315,20 +317,22 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         isDeepStrictEqual(retainedWorkerRelationship(independentlyRead.events,newWorker.participantId),
           {active:newWorker.active,revision:newWorker.revision,endedRevision:newWorker.endedRevision,handle:newWorker.handle}))&&
         retired.every(row=>row.status==="fulfilled"),
-      groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review)&&proof.review.ready===(world.status==="ready"),
+      nativeChatReadiness:proof.review.ready===(world.status==="ready"),
+      groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review),
       groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
         typeof decision.explanation==="string"&&decision.explanation.length<=650&&
         world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivateChatHandoff:shouldWrite?!!report&&!!handoff&&!!artifact&&files.length===1&&
+      verifiedPrivateChatHandoff:shouldWrite?!!handoff&&!!artifact&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
-        handoff.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(report.handoff,handoff):
-        handoff===null&&files.length===0&&report?.handoff===null,
+        handoff.digest===sha256HexSyncText(artifact):
+        handoff===null&&files.length===0,
       preservedChatWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedChatRetarget:await services.chatContinuityState.read(alternate.key)===null&&
         await services.chatContinuityHandoff.stage({disposition:{write:true}} as ChatContinuityReport)===null,
     };
-    return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactOwnedChatSelection", "exactChatFrontiers", "independentDurableChatReceipt", "exactFirstPartyChatProjection", "exactNativeChatWorker", "verifiedPrivateChatHandoff", "preservedChatWorkspace", "rejectedChatRetarget", "nativeChatReadiness"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["groundedChatDeliveryReview", "groundedChatContinuityDisposition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedChatHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact},contract);
   }
   async function qualify() {
     await services.chatContinuityIndex.list();
@@ -341,7 +345,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     if(shouldWrite)report.handoff=await services.chatContinuityHandoff.stage(report);
     const application={review:report.evidence.review,disposition:report.disposition,handoff:report.handoff};
     const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};

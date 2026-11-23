@@ -1,3 +1,4 @@
+import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { basename } from "node:path";
 import YAML from "yaml";
@@ -241,6 +242,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const artifact=handoff?asText(await ports.readBytes(handoff.path,sizeLimit)):null;
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
     const checks={
+      returnedConfigHandoff:equal(report?.handoff,handoff),
       exactConfigBrief:equal(observation.brief,freshBrief),
       scopedConfigLens:evidence!==null,
       exactLiveWorkspaceConfig:equal(evidence?.active,independent.active),
@@ -252,13 +254,13 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
       preservedProtectedConfig:equal(currentStatus,before)&&equal(currentMain,initialMain),
       constrainedConfigEvidence:await services.nativeWorkspaceConfig.inspectActive(["not-a-field" as ConfigQuestion])===null&&
         await services.nativeWorkspaceConfig.inspectDependencies("foreign-"+initialMain.eventId)===null,
-      exactPrivateConfigNote:authorized({...outcome,summary:""})?!!report&&!!artifact&&!!handoff&&files.length===1&&
+      exactPrivateConfigNote:authorized({...outcome,summary:""})?!!artifact&&!!handoff&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
-        artifact===stagedText&&
-        equal(report.handoff,handoff):handoff===null&&report?.handoff===null&&files.length===0,
+        artifact===stagedText:handoff===null&&files.length===0,
     };
-    return {contextId:owner,caseId:world.id,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
-      brief:freshBrief,lens:expectedLens,evidence,outcome:report?.outcome??null,handoff,artifact};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactConfigBrief", "scopedConfigLens", "exactLiveWorkspaceConfig", "exactProtectedConfigHistory", "exactProtectedTemplateDependencies", "preservedProtectedConfig", "constrainedConfigEvidence", "exactPrivateConfigNote"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactConfigDisposition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedConfigHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
+      brief:freshBrief,lens:expectedLens,evidence,outcome:report?.outcome??null,handoff,artifact},contract);
   }
 
   async function qualify() {
@@ -274,7 +276,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const handoff=authorized(outcome)?await services.nativeConfigHandoff.stage(brief,expectedLens,evidence,outcome):null;
     const application={outcome,handoff};
     const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,noteStatus:"invented"}})).passed;
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,noteStatus:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};
