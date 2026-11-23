@@ -510,6 +510,14 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
       capability: { kind: "prefix" as const, prefix: "userland:extensions/shell/native.shell.execute#" },
       resource: { kind: "exact" as const, key: "native.shell:extension:@workspace-extensions/shell" },
       tier: "gated" as const, decision: "task" as const,
+    }, {
+      // The fixture port is assigned by the OS after launch. The model-facing
+      // port still admits only its exact owned endpoint/nonce URLs; native
+      // Chromium separately prepares and grants the exact requested origin.
+      ruleId: "read-launched-owned-loopback-research-fixture",
+      capability: { kind: "exact" as const, key: "network.connect" },
+      resource: { kind: "prefix" as const, prefix: "http://127.0.0.1:" },
+      tier: "gated" as const, decision: "task" as const,
     }] },
   } : {}),
   name: `open-goal-${qualification ? "oracle-" : ""}${world.id}`,
