@@ -187,21 +187,21 @@
       "oracle": "skills/system-testing/open-goal-pdf-managed.ts",
       "bindings": [
         {
-          "line": 408,
+          "line": 409,
           "evidence": "return assessObservedApplicationOutcome({...report,checks:{...report.checks,independentNativeObservations:native.passed}},pdfOutcomeContract([\"independentNativeObservations\"],Object.keys(report.checks).filter(name=>name.startsWith(\"returnedPdfLayout\"))),value,invocation,[...Object.keys(report.checks).filter(name=>name.startsWith(\"returnedPdfLayout\")).map((name,index)=>({checks:[name],rootPath:[\"layouts\",index],producerSourceSuffix:\"reviewPdfLayout.nl\",producerPath:[]})),{checks:[\"exactSelection\"],rootPath:[\"selection\"],producerSourceSuffix:\"workOnPdfGoal/choosePdfScope.nl\",producerPath:[]},{checks:[\"textEvidence\"],rootPath:[\"text\"],producerSourceSuffix:\"extractPdfEvidence.nl\",producerPath:[]},{checks:[\"groundedRecommendation\"],rootPath:[\"recommendation\"],producerSourceSuffix:\"workOnPdfGoal/recommendPdfAction.nl\",producerPath:[]}]);"
         }
       ],
-      "sourceSha256": "66021df65fd720459051b8850371bd96f0b519b64eed8b929e3cb63fd4be8f9d"
+      "sourceSha256": "290bd366a7bc8c2732c10cd51e76e7fe76d0b4c76873d108969deaa4b9e65fea"
     },
     {
       "oracle": "skills/system-testing/open-goal-pdf-vault-managed.ts",
       "bindings": [
         {
-          "line": 116,
-          "evidence": "proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{checks:[\"verifiedHandoff\"],rootPath:mayEdit?[\"source\"]:[\"holdReason\"],producerSourceSuffix:\"authorizePdfVaultHandoff.nl\",producerPath:mayEdit?[\"source\"]:[\"reason\"]}]);"
+          "line": 119,
+          "evidence": "proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{checks:[\"returnedVaultReview\"],rootPath:[\"vault\",\"review\"],producerSourceSuffix:\"workTowardVaultGoal/reviewCurrentVault.nl\",producerPath:[]},{checks:[\"returnedVaultOutcome\"],rootPath:[\"vault\",\"reason\"],producerSourceSuffix:\"workTowardVaultGoal/chooseVaultStep.nl\",producerPath:[\"reason\"]},{checks:[\"verifiedHandoff\"],rootPath:mayEdit?[\"source\"]:[\"holdReason\"],producerSourceSuffix:\"authorizePdfVaultHandoff.nl\",producerPath:mayEdit?[\"source\"]:[\"reason\"]}]);"
         }
       ],
-      "sourceSha256": "005b39ea21dcfa5bdd6d5262d6504d82db020684120ab8651fe1023d68485d40"
+      "sourceSha256": "19aef99a57dbff491a2c2c4a1d87c5284bb899d3769430b9461cd0f32abd7704"
     },
     {
       "oracle": "skills/system-testing/open-goal-personal-welcome-managed.ts",
