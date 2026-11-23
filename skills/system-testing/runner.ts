@@ -1,3 +1,5 @@
+import { openScheduledRecoveryWorlds } from "./open-goal-scheduled-recovery-worlds.js";
+import { validateNativeStartupDiagnostic, type NativeStartupDiagnostic } from "./native-startup-diagnostic.js";
 import { openGoalGoogleSetupWorlds } from "./open-goal-google-setup-worlds.js";
 import { openClientDiagnosticsWorlds } from "./open-goal-client-diagnostics-worlds.js";
 import { managedDeploymentMethods } from "./remote-deployment-managed.js";
@@ -2200,9 +2202,10 @@ export class HeadlessRunner {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
     }
   }
-  async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false):
+  async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false, startupDiagnostic?: NativeStartupDiagnostic):
     ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
-    const request = { caseId, goal, executorModel: this.modelRef, qualification };
+    validateNativeStartupDiagnostic({caseId,goal,qualification,startupDiagnostic},openScheduledRecoveryWorlds.find(world=>world.id===caseId));
+    const request = { caseId, goal, executorModel: this.modelRef, qualification, ...(startupDiagnostic ? {startupDiagnostic} : {}) };
     if (openLiveTendrilBoardWorlds.some(({ id }) => id === caseId))
       return this.withOwnedTendril(signal, (owner, contextId, tendrilChannelId) =>
         rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [{ ...request, contextId, tendrilChannelId }], { signal }));

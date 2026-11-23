@@ -1,3 +1,4 @@
+import { validateNativeStartupDiagnostic, nativeStartupDiagnosticCode } from "@workspace-skills/system-testing/native-startup-diagnostic";
 import type { ManagedDeploymentReceiver } from "@workspace-skills/system-testing/remote-deployment-managed";
 import type { RemoteCommissionReceiver } from "@workspace-skills/system-testing/remote-commission-managed";
 import type { ManagedApprovalTransitionReceiver } from "@workspace-skills/system-testing/approval-transition-managed";
@@ -3704,6 +3705,11 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
 
   @rpc({website:{kind:"closed",reason:"Runs a user goal in an owned system-test context."},requires:SYSTEM_TEST_OPERATOR,effect:{kind:"open"},tier:"open",sensitivity:"write"})
   async runOpenGoalTeacher(input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    const startupDiagnostic = validateNativeStartupDiagnostic(input,openScheduledRecoveryWorlds.find(world=>world.id===input.caseId));
+    const diagnosticStage = (phase: string, extra: Record<string, unknown> = {}) => {
+      if (startupDiagnostic) console.info(JSON.stringify({schema:"native-startup-diagnostic-event/1",epoch:startupDiagnostic.epoch,side:"worker",phase,at:Date.now(),...extra}));
+    };
+    diagnosticStage("receiver-method-entered");
     const assembly = openAssemblyWorlds.some(({ id }) => id === input.caseId);
     const templateMigration = openTemplateMigrationWorlds.some(({ id }) => id === input.caseId);
     const capabilityPlan = capabilityPlanWorlds.some(({ id }) => id === input.caseId);
@@ -3797,7 +3803,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     if (scheduledRecovery) {
       const owner = await this.integrationFixtureIdentity();
       if (owner.contextId !== input.contextId) throw new Error("Scheduled recovery belongs to another context");
+      diagnosticStage("seed-before");
       scheduledSeed = await seedOwnedScheduledRecovery(this.rpc, scheduledRecovery);
+      diagnosticStage("seed-after",{missionIds:scheduledSeed.items.map(item=>item.record.missionId),states:scheduledSeed.items.map(item=>item.record.state)});
     }
     const compoundRecovery = openCompoundRecoveryWorlds.find(({ id }) => id === input.caseId);
     const personalWelcome = personalWelcomeWorlds.some(({ id }) => id === input.caseId);
@@ -4326,6 +4334,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
           caseId: input.caseId, contextId: input.contextId, phase: "utility.eval", event: "started",
         });
       const approvals = apiReadiness || webhookAdmission || assignedPublicBrief ? "pregranted-only" as const : undefined;
+      if (startupDiagnostic) {
+        diagnosticStage("utility-before");
+        return await this.runHarnessUtility("teacher", (runId, evalScope) => {
+          diagnosticStage("utility-source-ready",{runId,evalScope});
+          return nativeStartupDiagnosticCode({epoch:startupDiagnostic.epoch,contextId:input.contextId,caseId:input.caseId,runId,evalScope});
+        }, approvals) as Awaited<ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]>>;
+      }
       if (input.qualification) return await this.runHarnessUtility("teacher", (_runId, evalScope) => {
         registerActivation(evalScope);
         return `
@@ -4351,7 +4366,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       releaseActivation?.();
       if (scheduledSeed) {
         try {
+          diagnosticStage("seed-cleanup-before");
           await closeOwnedScheduledRecovery(this.rpc, scheduledSeed.items);
+          diagnosticStage("seed-cleanup-after");
         } catch (cleanup) {
           if (operationError !== undefined)
             throw new AggregateError([operationError, cleanup], "Scheduled recovery and cleanup both failed");

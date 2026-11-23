@@ -301,7 +301,8 @@
     "./owned-operations-contract": "./owned-operations-contract.ts",
     "./owned-operations-worlds": "./owned-operations-worlds.ts",
     "./local-messaging": "./local-messaging/fixture.ts",
-    "./local-messaging-contract": "./local-messaging/contract.ts"
+    "./local-messaging-contract": "./local-messaging/contract.ts",
+    "./native-startup-diagnostic": "./native-startup-diagnostic.ts"
   },
   "dependencies": {
     "@workspace-skills/open-audience-response": "workspace:*",

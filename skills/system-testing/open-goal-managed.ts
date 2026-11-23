@@ -1,3 +1,4 @@
+import type { NativeStartupDiagnostic, NativeStartupAcknowledgement } from "./native-startup-diagnostic.js";
 import { credentials, fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -291,10 +292,12 @@ export type OpenGoalDomainVerification = {
   checks: Record<string, boolean>;
 };
 export interface OpenGoalReceiver {
-  runOpenGoalTeacher(input: Input & { goal: string; executorModel: string; qualification?: boolean; news?: NewsInput }):
+  runOpenGoalTeacher(input: Input & { goal: string; executorModel: string; qualification?: boolean; startupDiagnostic?: NativeStartupDiagnostic; news?: NewsInput }):
     Promise<{
       contextId: string;
       teacher: PanelTeacherResult | null;
+      diagnosticOnly?: true;
+      startupDiagnostic?: NativeStartupAcknowledgement;
       verification: Verification | OpenGoalDomainVerification | null;
       verificationErrors: { phase: "verification" | "retirement"; message: string }[];
     }>;

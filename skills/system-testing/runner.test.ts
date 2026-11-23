@@ -1203,3 +1203,31 @@ describe("HeadlessRunner", () => {
     expect(diagnostics).not.toHaveProperty("buildProvenanceError");
   });
 });
+
+
+describe("native startup diagnostic owner route", () => {
+  it("uses the normal scheduled world context and worker fork with no agent session", async () => {
+    const { openScheduledRecoveryWorlds } = await import("./open-goal-scheduled-recovery-worlds.js");
+    const world = openScheduledRecoveryWorlds.find(world => world.id === "scheduled-recovery-retime-without-release")!;
+    const expected = {contextId:"native-diag-context",teacher:null,verification:null,verificationErrors:[],diagnosticOnly:true};
+    mocks.rpc.call.mockReset();mocks.createWithAgent.mockClear();
+    mocks.rpc.call.mockImplementation(async (_target,method,args) => {
+      if (method.name === "runtime.createContext") return {contextId:"native-diag-context"};
+      if (method.name === "runtime.createEntity") return {id:"native-diag-owner",contextId:"native-diag-context"};
+      if (method.name === "runOpenGoalTeacher") {
+        expect(_target).toBe("native-diag-owner");
+        expect(args[0]).toMatchObject({caseId:world.id,goal:world.goal,qualification:true,startupDiagnostic:{epoch:"native_epoch_123"},contextId:"native-diag-context"});
+        return expected;
+      }
+      if (method.name === "runtime.destroyContext") return undefined;
+      throw new Error("Unexpected diagnostic RPC: "+method.name);
+    });
+    const runner = new HeadlessRunner("outer-context");
+    expect(await runner.runOpenGoal(world,new AbortController().signal,true,{epoch:"native_epoch_123"})).toEqual(expected);
+    expect(mocks.createWithAgent).not.toHaveBeenCalled();
+    expect(mocks.rpc.call).toHaveBeenCalledWith("main",mainRpcMethods["runtime.destroyContext"],[{contextId:"native-diag-context",recursive:true}]);
+    mocks.rpc.call.mockClear();
+    await expect(runner.runOpenGoal({...world,goal:"changed"},new AbortController().signal,true,{epoch:"native_epoch_123"})).rejects.toThrow("exact scheduled world");
+    expect(mocks.rpc.call).not.toHaveBeenCalled();
+  });
+});
