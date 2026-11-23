@@ -353,11 +353,11 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       exactOwnedEditorialMission:
         !!listed&&isDeepStrictEqual(snapshots.at(-1)?.mission,await currentMission()),
       exactEditorialFrontiers:snapshots.length===(world.race?2:1)&&isDeepStrictEqual(snapshots[0]?.candidate,firstDoc)&&
-        (!world.race||snapshots[1]?.candidate.text===coedited()),
+        (!world.race||snapshots[1]?.candidate?.text===coedited()),
       exactApprovedPdfEvidence:proofSources.length===snapshots.length&&proofSources.every(Boolean),
       minimalEditorialProposal:proposedText===null?attempts.length===0:proposedText===firstDoc.text||attempts.some(item=>item.proposal.text===proposedText&&item.proposal.path===candidatePath&&item.proposal.version===firstDoc.version),
       preservedCoeditorBoundary:raceObserved===Boolean(world.race)&&
-        (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate.version):writtenAttempts.length===0),
+        (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate?.version):writtenAttempts.length===0),
       verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead)&&report?.document?.path===stored.path&&report.document.version===stored.version,
       groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&
         v.explanation.length<=650&&world.terms.every(term=>v.explanation.toLowerCase().includes(term.toLowerCase())),

@@ -75,7 +75,7 @@ function reviewReader(input:ReaderEvidence):Review {
   if (overview.setup==="needs-user-preferences") return found("waiting","preferences-needed",overview.id);
   if ((view==="inbox"||view==="backlog")&&overview.untriagedCount>0&&!pages.some(page=>page.articleIds.length))
     return found("waiting","triage-pending",overview.id);
-  if (overview.enabledFeeds>0&&overview.failedFeeds===overview.enabledFeeds&&view==="inbox"&&!pages.at(-1)?.articleIds.length)
+  if (overview.enabledFeeds>0&&overview.failedFeeds===overview.enabledFeeds&&view==="inbox"&&!pages.at(-1)?.articleIds?.length)
     return found("attention","enabled-feeds-failing",overview.id);
   const populated=pages.some(page=>page.articleIds.length||page.briefingIds?.length);
   return found("ready",populated?"loaded-to-end":"empty-loaded-view",...pages.map(page=>page.id));
@@ -270,8 +270,8 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
   function normalized(current:NewsEvidenceSnapshot,observed:{message:string;value:SourceReadback|null}[]) {
     const boundary=authority(scope,current);
     const briefing=boundary.reason==="verified-reader"?evidence(current,observed):null;
-    const reason=boundary.reason!=="verified-reader"?boundary.reason:briefing?.result.findings[0]?.code??"edition-unobserved";
-    const action:NewsEvidencePlan["action"]=briefing?.result.status==="ready"?
+    const reason=boundary.reason!=="verified-reader"?boundary.reason:briefing?.result?.findings[0]?.code??"edition-unobserved";
+    const action:NewsEvidencePlan["action"]=briefing?.result?.status==="ready"?
       scope.mayStage&&["grounded-development","material-follow-up"].includes(reason)?"stage":"report":"hold";
     return {plan:{channelId:lane.key,through:current.through,readerMessage:boundary.message,topic,reason,action},
       briefing,schedule:exactSchedule(current),boundary};

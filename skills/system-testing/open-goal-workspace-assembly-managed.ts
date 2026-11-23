@@ -181,7 +181,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
           !["add-runtime", "remove-runtime"].includes(change.action)) return null;
       const owner = read.get(change.unit);
       const dependency = read.get(change.dependency);
-      const sourceFile = owner?.files.find(file => file.path === "package.json");
+      const sourceFile = owner?.files?.find(file => file.path === "package.json");
       if (!owner || !dependency || !sourceFile) return null;
       const draft = drafts.get(change.unit) ?? { path: `${owner.unit.repoPath}/package.json`,
         before: sourceFile.contentHash, manifest: JSON.parse(sourceFile.text) as Record<string, unknown> };

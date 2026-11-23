@@ -203,7 +203,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       busy=true;
       try {
         const current=snapshot(await store.read());
-        if(current.revision!==(advance?.committed.revision??frontiers[1].revision))return null;
+        if(current.revision!==(advance?.committed?.revision??frontiers[1].revision))return null;
         const findings=world.plan.claims.map(claim=>finding(claim,report.opening,report.current,report.forecasts));
         if(!isDeepStrictEqual(report.findings,findings)||findings.some(item=>item.review.decision==="not-observed"))return null;
         const text=body(report);

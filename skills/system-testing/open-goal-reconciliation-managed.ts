@@ -124,7 +124,7 @@ export async function prepareOpenReconciliation(
         const reachable = scratch && token(current.workingHead) === head && head === mergeHead &&
           (await readWindow(current.workingHead)).window === "open";
         const comparison = reachable ? await vcs.compare({ target: current.workingHead, source: incoming }) : null;
-        const complete = comparison?.resolution.complete && comparison.resolution.concluded &&
+        const complete = comparison?.resolution?.complete && comparison.resolution.concluded &&
           comparison.resolution.remainingCoordinateCount === 0 && token((await status()).workingHead) === head;
         if (complete) release = head;
         return remember("reconciliationWindow", "release", [head], complete ? request : null);

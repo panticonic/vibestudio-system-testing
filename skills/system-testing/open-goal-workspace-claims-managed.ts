@@ -105,7 +105,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       read(candidate.eventId,contractPath),read(prior.eventId,contractPath),read(candidate.eventId,assertionsPath),
       ports.vcs.resolveRepository({state:state(status.mainEventId),repoPath}),
     ]);
-    if(packet?.content.kind!=="text"||previous?.content.kind!=="text"||(current&&current.content.kind!=="text")||protectedRepo)
+    if(packet?.content?.kind!=="text"||previous?.content?.kind!=="text"||(current&&current.content.kind!=="text")||protectedRepo)
       throw new Error("The owned acceptance packet or local policy escaped its scope");
     return {current:current?{fileId:current.fileId,hash:current.contentHash,value:JSON.parse(current.content.text) as Policy}:null,
       previous:{fileId:previous.fileId,hash:previous.contentHash,value:JSON.parse(previous.content.text) as Policy},
@@ -124,7 +124,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
         return;
       }
       const observed=await read(requestEvent,contractPath);
-      if(observed?.content.kind!=="text")return fail("Policy file is absent at this exact state");
+      if(observed?.content?.kind!=="text")return fail("Policy file is absent at this exact state");
       checkedHash=observed.contentHash;
       const policy=JSON.parse(observed.content.text) as Policy;
       if(policy.value!==expectedValue)fail("Candidate policy did not match its declared contract");
@@ -156,8 +156,8 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
   function expectedSupport(facts:Awaited<ReturnType<typeof nativeFacts>>,after:Status) {
     const supported=new Set<Claim>();
     if(candidate.eventId!==prior.eventId&&after.committed.eventId===candidate.eventId)supported.add("state");
-    if(facts.current?.value.value===world.targetValue)supported.add("value");
-    if(facts.current?.value.preservation&&facts.current.value.preservation===facts.previous.value.preservation)supported.add("preserved");
+    if(facts.current?.value?.value===world.targetValue)supported.add("value");
+    if(facts.current?.value?.preservation&&facts.current.value.preservation===facts.previous.value.preservation)supported.add("preserved");
     if(test.at===candidate.eventId&&test.name===testName&&test.status==="passed"&&test.checkedHash&&test.checkedHash===facts.current?.hash)
       supported.add("native");
     if(authority.operationId==="exact-status-read"&&authority.decision==="allowed")supported.add("read-eligible");
@@ -227,7 +227,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
           world.test==="prior"?readback.previous.hash:readback.current?.hash??null),
       exactAuthorityPreflight:authority.operationId==="exact-status-read"&&authority.decision==="allowed"&&authority.leaves.every(
         leaf=>leaf.status==="granted"||leaf.tier==="open"),
-      exactGroundedClaimPartition:isDeepStrictEqual(report?.support,support)&&report?.disposition.status===disposition(support)&&
+      exactGroundedClaimPartition:isDeepStrictEqual(report?.support,support)&&report?.disposition?.status===disposition(support)&&
         typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim()&&report.disposition.summary.length<=650,
       independentlyPreservedClaimContext:isDeepStrictEqual(before,after)&&after.mainEventId===initial.mainEventId,
       exactPrivateClaimNote:world.note?!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===stagedText&&

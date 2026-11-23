@@ -202,7 +202,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
           if (latest.checked.includes(item)) throw new Error("The new checklist was not initially empty");
           latest = await write({ item, checked: true, input: "key" }, latest);
         }
-        opened = { screen: latest, grants, note: await memo(), checkOperationId: assignment?.request.operationId ?? null,
+        opened = { screen: latest, grants, note: await memo(), checkOperationId: assignment?.request?.operationId ?? null,
           discoveryAvailable: !!world.discovery };
         return structuredClone(opened);
       }),
@@ -305,7 +305,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     const nativeChecks = check && wanted.length === checkResults.length &&
       wanted.every(row => checkResults.some(result => {
         const expected = row.expected!;
-        return result.id === row.id && result.receipt === `${assignment?.request.operationId}:check:${row.id}` &&
+        return result.id === row.id && result.receipt === `${assignment?.request?.operationId}:check:${row.id}` &&
           classification(result) === expected.status && result.stdout === expected.stdout &&
           result.stderr === (expected.stderr ?? "") &&
           (expected.exitCode === undefined ? expected.status !== "passed" || result.exitCode === 0 : expected.exitCode === result.exitCode);

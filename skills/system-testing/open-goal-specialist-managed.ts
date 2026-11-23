@@ -104,7 +104,7 @@ function joinOriginal(scope: SpecialistScope, handle: string | null, membership:
   if (current.state === "cancelled") return {...ids,reason:"cancelled-attempt"};
   if (current.state === "failed") return {...ids,reason:"failed-attempt"};
   if (current.state === "running") return {...ids,reason:"awaiting-settlement"};
-  if (result?.record.kind !== "result") return {...ids,reason:"unlinked-result"};
+  if (result?.record?.kind !== "result") return {...ids,reason:"unlinked-result"};
   const original = result.record;
   if (!exact(original)) return {...ids,reason:"wrong-scope"};
   if ([current,original].some(record=>record.provider !== scope.requiredProvider)) return {...ids,reason:"provider-mismatch"};
@@ -301,7 +301,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const foreign = crypto.randomUUID();
     const checks = {
       exactCurrentSpecialist: !!plan && plan.handle === expected.handle &&
-        (expected.handle ? member?.request.handle === expected.handle &&
+        (expected.handle ? member?.request?.handle === expected.handle &&
           isDeepStrictEqual(member.observed,selected) &&
           isDeepStrictEqual(outcome?.membership,membership) :
           outcome?.membership === null),
@@ -315,7 +315,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
         independent.resultMessage === (expected.result ? issued.get(expected.result) : null) &&
         typeof plan.explanation === "string" && bytes(plan.explanation) <= 600 && expected.claims.every(check=>check.test(plan.explanation)),
       verifiedArtifactAndImpact: independent.artifact ? !!result && !!outcome && historyFindings(outcome.history,result) &&
-        outcome.history?.result.persistedContract === expected.history && artifactReads.length === 1 &&
+        outcome.history?.result?.persistedContract === expected.history && artifactReads.length === 1 &&
         artifactReads[0]!.message === independent.resultMessage && isDeepStrictEqual(artifactReads[0]!.value,independent.artifact) :
         outcome?.history === null && (independent.reason === "readback-unavailable" ?
           artifactReads.length === 1 && artifactReads[0]!.message === independent.resultMessage && artifactReads[0]!.value === null :

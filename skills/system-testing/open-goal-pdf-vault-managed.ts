@@ -53,7 +53,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       changes: [{ kind: "text-edit", repositoryId: repository.repositoryId, fileId: file.fileId,
         edits: [{ start: at, end: at, text: concurrent.append }] }] });
     const read = await vcs.readFile({ state: edited.workingHead, repositoryId: repository.repositoryId, file: { kind: "path", path: concurrent.path } });
-    if (!edited.changeIds.length || read?.content.kind !== "text" || read.content.text !== file.content.text + concurrent.append)
+    if (!edited.changeIds.length || read?.content?.kind !== "text" || read.content.text !== file.content.text + concurrent.append)
       throw new Error("The concurrent edit could not be read back from its exact workspace head.");
     concurrentReceipt = { previous: workingHead, next: edited.workingHead, text: read.content.text };
   }
@@ -92,7 +92,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const vaultResult = mayEdit ? await vault.verify(result?.vault) : null;
     const after = await vcs.status({ contextId });
     const expectedQuotes = world.pdf.expected.text?.quotes ?? [];
-    const selectedQuotes = bound?.source.citations.map(({ page, quote }) => ({ page, text: quote }));
+    const selectedQuotes = bound?.source?.citations?.map(({ page, quote }) => ({ page, text: quote }));
     const attempts = vaultResult?.revisionAttempts ?? [];
     const coedited = concurrent && vaultResult?.workingFiles[concurrent.path];
     const reason = typeof result?.holdReason === "string" ? result.holdReason.trim().toLowerCase() : "";
@@ -114,7 +114,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
 
   async function qualify() {
     const reference = await pdf.reference();
-    const quoteIndices = reference.outcome.text?.citations.map((_, index) => index) ?? [];
+    const quoteIndices = reference.outcome.text?.citations?.map((_, index) => index) ?? [];
     const forged = structuredClone(reference.outcome);
     const quotation = forged.text?.citations[0];
     if (quotation) quotation.quote += " Altered.";

@@ -1,3 +1,5 @@
+import {referenceObserver} from "./observer-slot-control.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId as activeContext, rpc, runtime } from "@workspace/runtime";
 import { prepareOpenLocalDelivery } from "./open-goal-local-delivery-managed.js";
@@ -205,7 +207,7 @@ export async function prepareOwnedTaskRecovery(
     },
   };
 
-  async function verify(value: unknown, controls?: { foreignCard: boolean; wrongAttempt: boolean }) {
+  async function verifyEvidence(value: unknown, controls?: { foreignCard: boolean; wrongAttempt: boolean }) {
     const report = value as Outcome | null;
     const outcome = report;
     const observed = await taskView(primary.id);
@@ -294,10 +296,11 @@ export async function prepareOwnedTaskRecovery(
       delivery = { attempt, readback: await services.ownedTaskHandoff.read(attempt.attemptId) };
     }
     const original = world.expected.selected ? matched.get(roomFor(world.expected.selected).id)?.receipt ?? null : null;
-    return verify({
-      task: task.task.id, revision: task.revision, status: task.status, original, delivery,
-      reason: world.expected.reason.join(" ") || "Actual current task evidence verified",
-    }, { foreignCard, wrongAttempt });
+    const outcome={task:task.task.id,revision:task.revision,status:task.status,original,delivery,reason:world.expected.reason.join(" ")||"Actual current task evidence verified"};
+    const proof=await verifyEvidence(outcome,{foreignCard,wrongAttempt});
+    const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
+    return {...proof,observerSlotValidated,passed:proof.passed&&observerSlotValidated};
   }
-  return { goal: world.goal, services, verify, qualify, close: local.close };
+  async function verify(value:unknown,_invocation?:InvocationObservations){return verifyEvidence(value);}
+    return { goal: world.goal, services, verify, qualify, close: local.close };
 }

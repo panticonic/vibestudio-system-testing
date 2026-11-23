@@ -135,7 +135,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
         notesVisible:specific.wrongNotes?!expectedNotes:expectedNotes}};
     }
     if (specific.kind === "owner") return {...common,kind:"owner",state:specific.state,observed:specific.observed!==false};
-    if (specific.kind === "probe") return {...common,kind:"probe",state:specific.state,digest:probeConfig?.input.digest ?? sha256HexSyncText("retained local probe")};
+    if (specific.kind === "probe") return {...common,kind:"probe",state:specific.state,digest:probeConfig?.input?.digest ?? sha256HexSyncText("retained local probe")};
     if (specific.kind === "welcome") return {...common,kind:"welcome",state:"retained"};
     return {...common,...specific};
   }
@@ -170,7 +170,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const route = scopeValid && row.record.kind==="selection" && resource.kind==="setup" ?
       installed.route(resource.id,row.record.action):null;
     const permit = scopeValid && row.record.kind==="probe" && row.record.state==="interrupted" && scope.mayRetry &&
-      row.record.digest === probeConfig?.input.digest && nativeProbe;
+      row.record.digest === probeConfig?.input?.digest && nativeProbe;
     return {resourceId:resource.id,route,scene:scene?{id:scene.id,title:scene.title,eyebrow:scene.eyebrow,position:scene.position}:null,
       sceneCount:installed.deck.length,guidance:scene?[...scene.notes]:[],probe:permit?permit.request:null};
   }
@@ -178,7 +178,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const rows = resources.filter(resource=>resource.kind==="setup"&&resource.id!=="first-run:welcome").map(resource=>{
       const row = current.rows.findLast(row=>row.record.kind==="owner"&&row.record.resourceId===resource.id&&
         row.record.contextId===scope.contextId&&row.record.revision===scope.revision&&row.record.sender===ownerSender(resource.id));
-      return row?.record.kind==="owner" ? {id:resource.id,state:row.record.state,observed:row.record.observed} :
+      return row?.record?.kind==="owner" ? {id:resource.id,state:row.record.state,observed:row.record.observed} :
         {id:resource.id,state:"unknown" as const,observed:false};
     });
     return {receipt:sha256HexSyncText(JSON.stringify({scope,through:current.through,rows,route:resolved.route})),rows,route:resolved.route};
@@ -207,7 +207,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       expectedSetup({goal:world.goal,intent:scope.intent},observeOwner(current,resolved)):null;
     const tour = row && resolved && resource?.kind==="tour" && evidence.reason==="verified-current" ?
       expectedTour(world.goal,row,resolved):null;
-    const reason = tour?.result.stage==="mismatch"?"tour-frame-mismatch":
+    const reason = tour?.result?.stage==="mismatch"?"tour-frame-mismatch":
       evidence.reason==="retry-ready"&&probe?"local-retry-complete":evidence.reason;
     const supported = ["verified-current","welcome-retained","separate-workspace","preference-preserved","needs-verification",
       "owner-unknown","already-complete","local-retry-complete"].includes(reason);

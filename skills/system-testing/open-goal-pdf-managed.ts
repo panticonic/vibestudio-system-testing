@@ -1,3 +1,5 @@
+import {referenceObserver} from "./observer-slot-control.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -213,7 +215,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     for (const index of indices) {
       const citation = report.text.citations?.[index];
       const span = citation && textReads.find(receipt => receipt.digest === source?.digest &&
-        receipt.pages.some(page => page.number === citation.page))?.pages.find(page => page.number === citation.page)?.lines[citation.line];
+        receipt.pages.some(page => page.number === citation.page))?.pages?.find(page => page.number === citation.page)?.lines[citation.line];
       if (!span || span.text !== citation.quote || !isDeepStrictEqual(span.bounds, citation.bounds) ||
           span.source !== citation.source || span.confidence !== citation.confidence) return null;
       citations.push({ page: citation.page, line: citation.line, quote: citation.quote });
@@ -272,7 +274,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
       documents: snapshot, ...observedEvidence() };
   }
 
-  async function verify(value: unknown, { allowWorkingHeadChange = false } = {}) {
+  async function verifyEvidence(value: unknown, { allowWorkingHeadChange = false } = {}) {
     const wrapper = value as Partial<PdfGoalReport> | null;
     const report = wrapper?.status === "inspected" ? wrapper : null;
     const [documents, after] = await Promise.all([readDocuments(), vcs.status({ contextId })]);
@@ -380,17 +382,19 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const outcome: PdfGoalReport = { status: "inspected", document: request.document, selection: choice,
       missingPages: request.missingPages, text, layouts, rendered,
       recommendation: { action: expected.action, rationale: expected.evidenceTerms.join(", ") } };
-    const verified = await verify(outcome);
+    const verified = await verifyEvidence(outcome);
     const nativeVerified = await verifyObserved();
+    const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
     const copiedObservations = observedEvidence();
     copiedObservations.observations.text.length = 0;
     const nativeObservationsRetained = observedEvidence().observations.text.length === textReads.length;
     const wrong: PdfGoalReport = { ...outcome, selection: { ...choice, document: `./${choice.document}` },
       recommendation: { action: "needs-review", rationale: "Unverified." } };
-    const negative = await verify(wrong);
-    const checks = { ...verified.checks, independentNativeObservations: nativeVerified.passed, unreadObservationRejected, nativeObservationsRetained, aliasRejected, rejectsUnverifiedReport: !negative.passed };
+    const negative = await verifyEvidence(wrong);
+    const checks = { ...verified.checks, independentNativeObservations: nativeVerified.passed, observerSlotValidated, unreadObservationRejected, nativeObservationsRetained, aliasRejected, rejectsUnverifiedReport: !negative.passed };
     return { outcome, verification: { ...verified, checks, passed: Object.values(checks).every(Boolean) } };
   }
 
-  return { goal, services, verify, verifyObserved, observedEvidence, attestCitations, reference, qualify: async () => (await reference()).verification };
+  async function verify(value:unknown,_invocation?:InvocationObservations,options:{allowWorkingHeadChange?:boolean}={}){return verifyEvidence(value,options);}
+    return { goal, services, verify, verifyObserved, observedEvidence, attestCitations, reference, qualify: async () => (await reference()).verification };
 }

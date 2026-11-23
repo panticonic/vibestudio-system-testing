@@ -98,9 +98,9 @@ const capture = `(() => {
   return {
     id: row.dataset.clientId, stage: row.dataset.clientStage, instance: row.dataset.clientInstance,
     audience: row.dataset.clientAudience, device: row.dataset.clientDevice,
-    title: row.querySelector("h1")?.textContent.trim(),
-    version: row.querySelector('[data-panel-health="version"]')?.textContent.trim(),
-    text: row.querySelector('[data-panel-health="message"]')?.textContent.trim(),
+    title: row.querySelector("h1")?.textContent?.trim(),
+    version: row.querySelector('[data-panel-health="version"]')?.textContent?.trim(),
+    text: row.querySelector('[data-panel-health="message"]')?.textContent?.trim(),
     width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth,
     controls: Array.from(row.querySelectorAll("button[data-client-control]"))
       .map(button => ({id:button.dataset.clientControl,label:button.textContent.trim(),enabled:!button.disabled})),
@@ -238,7 +238,7 @@ export async function prepareOpenClientDiagnostics(
     ? await createOwnedHeadlessChannel(input.contextId, world.channel.title)
     : null;
   const sent =
-    lane && world.channel?.messages.length
+    lane && world.channel?.messages?.length
       ? await withOwnedChannelClient(lane, input.contextId, async (client) => {
           const ids: string[] = [];
           for (const [index, text] of world.channel!.messages.entries())
@@ -381,7 +381,7 @@ export async function prepareOpenClientDiagnostics(
       async apply(viewId: string, action: ClientViewAction) {
         const issued = issuedViews.get(viewId);
         if (issued) { current = issued.view; currentRevision = issued.revision; }
-        const currentSurface = current?.surface.id;
+        const currentSurface = current?.surface?.id;
         const finish = (status: ClientActionReceipt["status"]) => {
           const result = { status, id: crypto.randomUUID() };
           effects.push(result);
@@ -437,7 +437,7 @@ export async function prepareOpenClientDiagnostics(
                 return finish("changed");
               const clicked = await session.page.evaluate<boolean>(`(() => {
                 const row=document.querySelector(${JSON.stringify(root)});
-                if (row?.dataset.clientStage !== ${JSON.stringify(dom.stage)} || row.dataset.clientInstance !== ${JSON.stringify(dom.instance)}) return false;
+                if (row?.dataset?.clientStage !== ${JSON.stringify(dom.stage)} || row.dataset.clientInstance !== ${JSON.stringify(dom.instance)}) return false;
                 const control=Array.from(row.querySelectorAll("button[data-client-control]:enabled")).find(button=>button.dataset.clientControl===${JSON.stringify(action.control)});
                 if (!control) return false;
                 control.click();
@@ -616,7 +616,7 @@ export async function prepareOpenClientDiagnostics(
               isDeepStrictEqual(report.channel.health.evidence, nativeHealth) &&
               report.channel.health.status === "investigate" &&
               nativeFollow?.inspector === "inspectChannelRoster" &&
-              roster?.summary.activeParticipants === 0 &&
+              roster?.summary?.activeParticipants === 0 &&
               isDeepStrictEqual(report.channel.followUp, nativeFollow) &&
               report.channel.conversation === null,
             )
@@ -660,7 +660,7 @@ export async function prepareOpenClientDiagnostics(
       exactOwnedGadEvidence:
         channelExact && isDeepStrictEqual(await durableTail(), durable),
       resolvedClientGoal:
-        report?.decision.outcome === world.expected.outcome &&
+        report?.decision?.outcome === world.expected.outcome &&
         typeof report.decision.answer === "string" &&
         world.expected.citations.every((text) =>
           report.decision.answer.includes(text),

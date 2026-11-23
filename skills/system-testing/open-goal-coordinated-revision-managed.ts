@@ -79,7 +79,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       async revise(head:string,drafts:RevisionDraft[]){
         const last=snapshots.at(-1);
         if(inFlight||!last||last.scope.head!==head||
-          !Array.isArray(drafts)||drafts.length===0||world.initial||attempts.at(-1)?.receipt.status==="applied")
+          !Array.isArray(drafts)||drafts.length===0||world.initial||attempts.at(-1)?.receipt?.status==="applied")
           return mark("unavailable",(await ports.vcs.status()).workingHead);
         const paths=drafts.map(({path})=>path);
         if(new Set(paths).size!==paths.length||drafts.some(row=>{
@@ -149,10 +149,10 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       exactCoordinatedDrafts:attempts.filter(attempt=>attempt.receipt.status==="applied").every(attempt=>sameEvidenceMembers(attempt.drafts,finalEdits)),
       exactNativeRevisionRace:world.concurrent?!!after&&!!actualRace&&snapshotBytes(actualRace,expectedRace)&&equal(after.scope.files,actualRace)&&equal(after.state,reporterRaceState):!after&&!actualRace,
       exactAtomicRevisionBasis:world.concurrent?
-        (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&attempt.head===after?.scope.head):attempts.every(attempt=>attempt.receipt.status!=="applied")):
-        (initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope.head&&attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)):attempts.every(attempt=>attempt.receipt.status!=="applied")),
+        (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&attempt.head===after?.scope?.head):attempts.every(attempt=>attempt.receipt.status!=="applied")):
+        (initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope?.head&&attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)):attempts.every(attempt=>attempt.receipt.status!=="applied")),
       independentlyVerifiedRevisionBatch:!!finalRead&&report?.head===finalRead.head&&equal(report?.documents,finalRead.files.map(({path,version})=>({path,version})))&&
-        typeof report?.explanation==="string"&&!!report.explanation.trim()&&equal(actual,finalRead.files)&&finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&actual.every(file=>first?.scope.files.some(old=>old.path===file.path&&old.fileId===file.fileId)),
+        typeof report?.explanation==="string"&&!!report.explanation.trim()&&equal(actual,finalRead.files)&&finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&actual.every(file=>first?.scope?.files?.some(old=>old.path===file.path&&old.fileId===file.fileId)),
       exactRevisionEvidenceGuide:guide===guideRevision(await ports.guide()),
       protectedRevisionMain:equal(await ports.vcs.mainState(),protectedMain)&&
         finalRead?.protectedMain===protectedMain.eventId&&status.mainEventId===protectedMain.eventId&&

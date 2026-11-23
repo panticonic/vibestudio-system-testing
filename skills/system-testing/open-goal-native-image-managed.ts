@@ -147,7 +147,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
                 content:{kind:"bytes",base64:exactImage.base64},mode:0o644}]});
             writeState=write.workingHead;
             const reopened=await read(write.workingHead,path);
-            if(write.changeIds.length!==1||reopened?.content.kind!=="bytes"||reopened.content.base64!==exactImage.base64||hex(reopened.content.base64)!==digest)
+            if(write.changeIds.length!==1||reopened?.content?.kind!=="bytes"||reopened.content.base64!==exactImage.base64||hex(reopened.content.base64)!==digest)
               throw new Error("Semantic workspace original differs from retained content");
             saved={status:"saved",head:stateKey(write.workingHead),path:assignment.path,digest};
           }
@@ -183,13 +183,13 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
         originalRead.asset.provenance.responseModel==="owned-image-transport"):
         !outcome?.original&&!originalRead,
       preservedAuthorizedWorkspace:(saved?.status??null)===expectedSave&&isDeepStrictEqual(final.workingHead,writeState??start)&&
-        isDeepStrictEqual(main,await vcs.mainState())&&untouched?.content.kind==="text"&&untouched.content.text===canary&&
-        (expectedBytes===null?output===null:output?.content.kind==="bytes"&&output.content.base64===expectedBytes)&&
+        isDeepStrictEqual(main,await vcs.mainState())&&untouched?.content?.kind==="text"&&untouched.content.text===canary&&
+        (expectedBytes===null?output===null:output?.content?.kind==="bytes"&&output.content.base64===expectedBytes)&&
         (!reference||isDeepStrictEqual(refRead?.asset,reference)&&refRead?.base64===imageFixtureBytes.png[2]),
       matchedNativeImageReport:isDeepStrictEqual(value,{outcome,saved}),
     };
     return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report(),
-      native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset.digest??null},effects:structuredClone(effects)};
+      native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset?.digest??null},effects:structuredClone(effects)};
   }
   async function qualify(){
     await services.illustrationEvidence.discover();await services.illustrationEvidence.read(scope);

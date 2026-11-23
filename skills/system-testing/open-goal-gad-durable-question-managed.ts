@@ -71,15 +71,15 @@ export function bindOpenGadDurableQuestion(
     const native = await readNative();
     const expectedMessage = expected.message === null ? null : native.messages[expected.message];
     const expectedMember = expected.member === null ? null :
-      roster?.members.find(row => row.participantId === native.roster[expected.member!]?.participantId);
+      roster?.members?.find(row => row.participantId === native.roster[expected.member!]?.participantId);
     const ready = expected.question === "current" && expected.participant === "confirmed";
-    const currentRoster = roster?.members.filter(member => member.leftAt === null).map(member => member.participantId).sort();
+    const currentRoster = roster?.members?.filter(member => member.leftAt === null).map(member => member.participantId).sort();
     const rosterMatches = !!roster && roster.members.length === native.roster.length && native.roster.every(entry =>
       roster!.members.some(member => member.participantId === entry.participantId && member.handle === entry.handle &&
         member.displayName === entry.displayName && member.kind === "agent" && !!member.joinedAt &&
         (member.leftAt !== null) === entry.inactive));
     const historyMatches = history?.complete ? isDeepStrictEqual(history.messages, native.messages) :
-      expected.question === "history-incomplete" && !!history?.messages.length && history.messages.length < native.messages.length &&
+      expected.question === "history-incomplete" && !!history?.messages?.length && history.messages.length < native.messages.length &&
       isDeepStrictEqual(history.messages, native.messages.slice(-history.messages.length));
     const checks = {
       exactIndividualPublications: !!history && history.channelId === channelId && historyMatches &&
@@ -253,12 +253,12 @@ export async function prepareOpenGadDurableQuestion(
         const members = await reviewReaders.inspectChannelRoster({channelId,limit:24});
         frontier = {
           message: row && {channelId:row.channelId,envelopeId:row.envelopeId,sequence:row.seq,
-            messageId:observed?.causality?.messageId,senderId:row.from.id,role:observed?.payload.role},
+            messageId:observed?.causality?.messageId,senderId:row.from.id,role:observed?.payload?.role},
           roster: members.rows.map(entry=>({id:entry.participant_id,leftAt:entry.left_at})),
         };
         const exactMessage = !last ||
           (row?.channelId===channelId && row.envelopeId===last.envelopeId && row.seq===last.sequence &&
-            row.from.id===last.senderId && observed?.payload.role==="user" &&
+            row.from.id===last.senderId && observed?.payload?.role==="user" &&
             observed.causality?.messageId===last.messageId);
         const exactRoster = members.rows.length===roster.length &&
           roster.every(expected=>members.rows.some(entry=>entry.channel_id===channelId &&

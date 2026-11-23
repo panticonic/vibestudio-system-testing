@@ -163,12 +163,12 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       dependencyMode: typeof extension?.dependencyMode === "string" ? extension.dependencyMode : null,
       icon: typeof config?.icon === "string" ? config.icon : null };
   }
-  const expectedManifests = expected?.unit.kind === "extension" ? {
+  const expectedManifests = expected?.unit?.kind === "extension" ? {
     working: manifestAnchor(expected.working.text, expected.working.contentHash, expected.unit),
     protectedMain: manifestAnchor(expected.main.text, expected.main.contentHash, expected.unit),
   } : null;
-  const workingError = expected?.unit.kind === "extension" ? validation(expected.working.text, expected.unit, nameOf(expected.unit)) : null;
-  const mainError = expected?.unit.kind === "extension" ? validation(expected.main.text, expected.unit, nameOf(expected.unit)) : null;
+  const workingError = expected?.unit?.kind === "extension" ? validation(expected.working.text, expected.unit, nameOf(expected.unit)) : null;
+  const mainError = expected?.unit?.kind === "extension" ? validation(expected.main.text, expected.unit, nameOf(expected.unit)) : null;
   const equalManifests = !!expected && expected.working.contentHash === expected.main.contentHash;
   const editGrant = !!expected && !workingError && (world.grant === "working-icon" ||
     world.grant === "protected-match-icon" && equalManifests);
@@ -323,7 +323,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
         iconFrom(current.text) === expectedIcon?.icon && currentArtwork === expectedArtwork &&
         isDeepStrictEqual([...nativeChange.changedFiles].sort(), Object.hasOwn(expectedIcon!.files, "assets/icon.svg")
           ? ["assets/icon.svg", "package.json"] : ["package.json"])
-      : !nativeChange && isDeepStrictEqual(after.workingHead, working) && current?.contentHash === expected?.working.contentHash;
+      : !nativeChange && isDeepStrictEqual(after.workingHead, working) && current?.contentHash === expected?.working?.contentHash;
     const designBound = wantDesign ? !!nativeDesign && !!expected && !!report?.design &&
       isDeepStrictEqual(scope?.manifest, expectedManifests) &&
       nativeDesign.workingRevision === revisionOf(working) && nativeDesign.mainRevision === before.mainEventId &&
@@ -337,7 +337,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       nativeIdentity.repoPath === expected.unit.path && nativeIdentity.revision === revisionOf(working) &&
       nativeIdentity.icon === originalIcon && nativeIdentity.artworkDigest === originalArtwork &&
       isDeepStrictEqual(report.identity.observed, nativeIdentity) && isDeepStrictEqual(report.identity.intent, world.icon) &&
-      (expectedIcon ? nativeCandidate?.choice.id === targetIconId && nativeCandidate.declaration === expectedIcon.icon &&
+      (expectedIcon ? nativeCandidate?.choice?.id === targetIconId && nativeCandidate.declaration === expectedIcon.icon &&
         nativeCandidate.artworkDigest === expectedArtwork : nativeCandidate === null) &&
       isDeepStrictEqual(report.identity.assessment, { candidate: nativeCandidate, next }) &&
       isDeepStrictEqual(report.identity.change, nativeChange) && report.identity.outcome === action
@@ -352,12 +352,12 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       ...(world.lifecycle ? ["unitHandoff.lifecycle"] : []),
       ...(wantIdentity ? ["unitIdentity.observe", "unitIdentity.resolve"] : []), ...(mustStage ? ["unitIdentity.stage"] : [])];
     const checks = {
-      owned_selection: !!report && report.path === selectedPath && scope?.unit.path === (selectedPath ?? undefined),
+      owned_selection: !!report && report.path === selectedPath && scope?.unit?.path === (selectedPath ?? undefined),
       manifest_versions: designBound,
       build_lifecycle: lifecycleBound,
       catalog_and_artwork: identityBound,
       local_effect_and_protected_main: workingScope && protectedUnchanged && decoysUnchanged &&
-        protectedManifest?.contentHash === expected?.main.contentHash,
+        protectedManifest?.contentHash === expected?.main?.contentHash,
       conclusion: report?.decision === decision && !!report.reason.trim() &&
         isDeepStrictEqual(calls.map(call => call.service + "." + call.method), expectedCalls),
     };

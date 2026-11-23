@@ -324,7 +324,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     const knowledge: KnowledgeCitation[] = [];
     for (const expected of assignment.knowledge ?? []) {
       const recovered = await services.docPlanSkills.load(expected.dirPath, expected.focus);
-      const passage = recovered?.excerpts.find(excerpt => expected.supports.test(excerpt.text));
+      const passage = recovered?.excerpts?.find(excerpt => expected.supports.test(excerpt.text));
       if (!recovered || !passage) throw new Error(`Reference installed guidance is unavailable: ${expected.dirPath}`);
       const match = expected.supports.exec(passage.text)!;
       const from = Math.max(0, match.index - 60);

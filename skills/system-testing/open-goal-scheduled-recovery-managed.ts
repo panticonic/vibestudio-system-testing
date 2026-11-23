@@ -1,3 +1,5 @@
+import {referenceObserver} from "./observer-slot-control.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMissionsClient, type MissionRpc } from "@vibestudio/service-schemas/clients/missionsClient";
 import { MISSION_REVISION_CHANGED, missionRevisionDigest } from "@vibestudio/automation/mission";
@@ -234,10 +236,10 @@ export async function prepareOwnedScheduledRecovery(
   async function approval(schedule: Schedule, receipt: Receipt, change?: Change) {
     const retainedDecision = (await replay(input, decision.native, drivers.rpc)).flatMap(row => {
       const original = originals.find(entry => isDeepStrictEqual(entry.receipt, row));
-      return original?.record.schedule === schedule.id ? [original] : [];
+      return original?.record?.schedule === schedule.id ? [original] : [];
     }).at(-1);
     if (!readLanes.has(decision.lane.id) || !isDeepStrictEqual(retainedDecision?.receipt, receipt) ||
-        retainedDecision?.record.disposition !== "approved" || retainedDecision.record.owner !== schedule.owner ||
+        retainedDecision?.record?.disposition !== "approved" || retainedDecision.record.owner !== schedule.owner ||
         retainedDecision.record.digest !== schedule.digest || (change && !isDeepStrictEqual(retainedDecision.record.change, change)))
       return null;
     return retainedDecision.record;
@@ -361,7 +363,7 @@ export async function prepareOwnedScheduledRecovery(
     },
   };
 
-  async function verify(value: unknown, controls?: { foreignSchedule: boolean; wrongAttempt: boolean }) {
+  async function verifyEvidence(value: unknown, controls?: { foreignSchedule: boolean; wrongAttempt: boolean }) {
     const report = value as ScheduledOutcome | null;
     const outcome = report;
     const results = await Promise.all(seed.items.map(item => readOwned(missions, item)));
@@ -434,7 +436,7 @@ export async function prepareOwnedScheduledRecovery(
         nativeRevisionConflict === (world.interruption === "schedule-revision") &&
         (!expectedRace || successors.some(
         entry => entry.status === (world.interruption === "dependency" ? "held" : "changed"))) &&
-        (!originals[world.expected.entry ?? -1]?.record.prerequisite || observed.has(prerequisite.record.missionId)) &&
+        (!originals[world.expected.entry ?? -1]?.record?.prerequisite || observed.has(prerequisite.record.missionId)) &&
         (world.interruption !== "dependency" || observed.get(prerequisite.record.missionId)?.state === "paused"),
       independentlyRecoveredLocalHandoff: isDeepStrictEqual(outcome?.delivery, delivery) &&
         (world.expected.handoff ? nativeHandoff :
@@ -474,7 +476,10 @@ export async function prepareOwnedScheduledRecovery(
     }
     const outcome = { schedule, authorization, delivery,
       reason: world.expected.reason.join(" ") || "Current owned schedule independently confirmed" };
-    return verify(outcome, { foreignSchedule, wrongAttempt });
+    const proof=await verifyEvidence(outcome,{foreignSchedule,wrongAttempt});
+    const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
+    return {...proof,observerSlotValidated,passed:proof.passed&&observerSlotValidated};
   }
-  return { goal: world.goal, services, verify, qualify };
+  async function verify(value:unknown,_invocation?:InvocationObservations){return verifyEvidence(value);}
+    return { goal: world.goal, services, verify, qualify };
 }

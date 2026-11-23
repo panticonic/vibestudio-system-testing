@@ -24,8 +24,8 @@ const readDom = `() => {
     markers.set(id, [...(markers.get(id) ?? []), node.textContent.trim()]);
   }
   return {
-    stage: root.getAttribute("data-stage"), title: root.querySelector("h1")?.textContent.trim(),
-    audience: root.querySelector("[data-audience]")?.textContent.trim(),
+    stage: root.getAttribute("data-stage"), title: root.querySelector("h1")?.textContent?.trim(),
+    audience: root.querySelector("[data-audience]")?.textContent?.trim(),
     instance: root.getAttribute("data-instance"),
     markers: [...markers].map(([id, values]) => ({ id, values })),
     controls: [...root.querySelectorAll("button[data-recovery-control]:enabled")].map(node =>
@@ -195,7 +195,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
                 return true;
               })()`);
               if (clicked) {
-                const stage = surface.frames[live.dom.stage]?.controls.find(({ id }) => id === action.control)?.next;
+                const stage = surface.frames[live.dom.stage]?.controls?.find(({ id }) => id === action.control)?.next;
                 if (!stage) throw new Error("Native control had no matching scoped transition.");
                 await session.page.waitForSelector(`[data-panel-recovery][data-stage=${JSON.stringify(stage)}]`);
               }
@@ -240,7 +240,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
     const target = finalSurfaces.find(({ id }) => id === expected.selected);
     const first = inspections[0];
     const last = inspections.at(-1);
-    const events = inspections.filter((item, i) => i === 0 || item.view.revision !== inspections[i - 1]?.view.revision);
+    const events = inspections.filter((item, i) => i === 0 || item.view.revision !== inspections[i - 1]?.view?.revision);
     const initialAssessment = first && assess(first.view, surface);
     const finalAssessment = last && assess(last.view, surface);
     const expectedCatalog = world.surfaces.map(({ id, title, audience, authorized }) => ({ id, title, audience, authorized }));
@@ -252,13 +252,13 @@ export async function prepareOpenPanelRecovery(input: Input) {
         : isDeepStrictEqual(first.read.generation, target.pane.generation) && first.read.dom.instance === target.pane.dom.instance));
     const checks = {
       exactOwnedDiscovery: isDeepStrictEqual(discovered?.surfaces, expectedCatalog) &&
-        binding?.surface.id === expected.selected && baseline.size === world.surfaces.length &&
+        binding?.surface?.id === expected.selected && baseline.size === world.surfaces.length &&
         world.surfaces.every(item => {
           const pane = baseline.get(item.id);
           return pane && pane.dom.stage === item.initial && exactFrame(pane, item.frames[item.initial]);
         }),
       validRecoveryTransitions: Boolean(surface.ownerRevision) === ownerRevisionApplied &&
-        first?.read.dom.stage === surface.initial && last?.read.dom.stage === expected.stages.at(-1) &&
+        first?.read?.dom?.stage === surface.initial && last?.read?.dom?.stage === expected.stages.at(-1) &&
         events.every(({ read, view }) => {
           const frame = surface.frames[read.dom.stage];
           return frame && exactFrame(read, frame) && view.health.phase === "ready" &&
@@ -266,13 +266,13 @@ export async function prepareOpenPanelRecovery(input: Input) {
               view.health.diagnostics.filter(({ message }) => message.startsWith("panel-recovery: ")).map(({ level, message }) => ({ level, message })),
               frame.logs);
         }),
-      boundRendererReadback: checkNativeGeneration && target?.pane.revision === last?.view.revision &&
-        target?.pane.generation.panelId === target?.snapshot.panelId &&
-        target?.pane.generation.attemptId === target?.snapshot.attemptId &&
-        target?.pane.generation.buildKey === target?.snapshot.buildKey &&
-        target?.pane.generation.runtimeEntityId === target?.snapshot.runtimeEntityId &&
-        target?.snapshot.text.includes(target.pane.dom.title) && target.snapshot.text.includes(target.pane.dom.audience) &&
-        target?.pane.dom.markers.every(({ values }) => values.every(text => target.snapshot.text.includes(text))) === true,
+      boundRendererReadback: checkNativeGeneration && target?.pane?.revision === last?.view?.revision &&
+        target?.pane?.generation?.panelId === target?.snapshot?.panelId &&
+        target?.pane?.generation?.attemptId === target?.snapshot?.attemptId &&
+        target?.pane?.generation?.buildKey === target?.snapshot?.buildKey &&
+        target?.pane?.generation?.runtimeEntityId === target?.snapshot?.runtimeEntityId &&
+        target?.snapshot?.text?.includes(target.pane.dom.title) && target.snapshot.text.includes(target.pane.dom.audience) &&
+        target?.pane?.dom?.markers?.every(({ values }) => values.every(text => target.snapshot.text.includes(text))) === true,
       untouchedCompanions: finalSurfaces.every(({ id, pane }) => id === expected.selected || isDeepStrictEqual(pane, baseline.get(id))),
       exactHealthDisposition: report?.status === expected.outcome && report.surfaceId === expected.selected &&
         isDeepStrictEqual(report.initial, initialAssessment) && isDeepStrictEqual(report.final, finalAssessment) &&

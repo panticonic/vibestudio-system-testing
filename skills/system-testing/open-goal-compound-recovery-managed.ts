@@ -162,7 +162,7 @@ export async function prepareCompoundRecoveryHandoff(
     },
     scratchHandoffRead: {
       async read(id: string) {
-        if (!binding || !accepted?.sources.some(source => source.id === id)) {
+        if (!binding || !accepted?.sources?.some(source => source.id === id)) {
           rejectionBeforeDependency = true;
           return effect("scratchHandoffRead", "read", [id], null);
         }
@@ -173,7 +173,7 @@ export async function prepareCompoundRecoveryHandoff(
     },
     scratchHandoffWrite: {
       async stage(body: string) {
-        if (!binding || !accepted?.sources.every(source => observedSources.get(source.id))) {
+        if (!binding || !accepted?.sources?.every(source => observedSources.get(source.id))) {
           rejectionBeforeDependency = true;
           return effect("scratchHandoffWrite", "stage", [body], null);
         }
@@ -222,7 +222,7 @@ export async function prepareCompoundRecoveryHandoff(
     const actualPosition = await readDirective();
     const target = world.expected.status;
     const nativeChoice = evalProof.originalRuns.find(candidate => candidate.card.role === world.eval.expected.use);
-    const nativeRead = nativeChoice ? readbacks.get([...opened.values()].find(o => o.attempt.runId === nativeChoice.card.runId)?.request.operationId ?? "") : null;
+    const nativeRead = nativeChoice ? readbacks.get([...opened.values()].find(o => o.attempt.runId === nativeChoice.card.runId)?.request?.operationId ?? "") : null;
     const actualRecovered = nativeRead ? await native.readText(nativeRead) : null;
     const candidate = outcome?.handoff;
     const stageCalls = effects.filter(row => row.service === "scratchHandoffWrite" && row.method === "stage");
@@ -291,7 +291,7 @@ export async function prepareCompoundRecoveryHandoff(
     let position = await services.recoveryHandoffLink.discover();
     let status: CompoundStatus = selected ? "held-policy" : "held-eval";
     let handoff: HandoffResult | null = null;
-    if (selected?.observation.resultDigest && selected.review.readback && position.disposition === "requested" &&
+    if (selected?.observation?.resultDigest && selected.review.readback && position.disposition === "requested" &&
         position.recipient === world.requestedRecipient) {
       const { observation, review } = selected;
       const acquisition = await services.recoveryHandoffLink.prepare(job.id, observation.attempt.runId,

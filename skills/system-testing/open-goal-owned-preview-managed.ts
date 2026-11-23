@@ -47,7 +47,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
     const file = await vcs.readFile({
       state: workingHead, repositoryId: repository.repositoryId, file: { kind: "path", path: "launch-review.json" },
     });
-    if (file?.content.kind !== "text") throw new Error("The owned preview launch record is absent.");
+    if (file?.content?.kind !== "text") throw new Error("The owned preview launch record is absent.");
     const facts = JSON.parse(file.content.text) as Launch;
     if (!facts.title || !Array.isArray(facts.labels) || !Array.isArray(facts.destinations) ||
         facts.destinations.length < 2 || new Set(facts.destinations.map(({ id }) => id)).size !== facts.destinations.length)
@@ -87,11 +87,11 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
     seededReceipt = await active.deploy();
     if (seededReceipt.phase !== "submitted") throw new Error("The retained preview operation did not submit.");
   }
-  const baseline = active?.provider.trace;
-  const baselineUploads = baseline?.uploads.length ?? 0;
-  const baselineSubmissions = baseline?.submissions.length ?? 0;
-  const baselineStarts = baseline?.starts.length ?? 0;
-  const baselineProgress = baseline?.progress.length ?? 0;
+  const baseline = active?.provider?.trace;
+  const baselineUploads = baseline?.uploads?.length ?? 0;
+  const baselineSubmissions = baseline?.submissions?.length ?? 0;
+  const baselineStarts = baseline?.starts?.length ?? 0;
+  const baselineProgress = baseline?.progress?.length ?? 0;
 
   let discovered: Awaited<ReturnType<typeof readLaunch>> | undefined;
   function discoveryFor(launch: Awaited<ReturnType<typeof readLaunch>>) {
@@ -194,7 +194,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
       },
       async readback(operationId: string): Promise<Hosted> {
         attempted.readback++;
-        const receipt = active?.provider.currentReceipt();
+        const receipt = active?.provider?.currentReceipt();
         if (!active || binding?.operationId !== operationId || receipt?.phase !== "submitted" ||
             busy || !advances.length)
           throw new Error("Read back only the exact submitted owned preview.");
@@ -234,17 +234,17 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
       receipt: PublicationReceipt | null; hosted: Hosted | null;
     } | null;
     const result = wrapper;
-    const retained = active?.provider.currentReceipt() ?? null;
+    const retained = active?.provider?.currentReceipt() ?? null;
     const nativeReceipt = !expected.hold && active && retained?.phase === "submitted" ? await begin(active.intent) : null;
     const [final, fresh, after, snapshot, store, files] = await Promise.all([
       packageWebsite(rpc, source, ref), readLaunch(), vcs.status({ contextId }), panel.snapshot(), fs.readdir(directory),
       active && nativeReceipt ? hostedFiles(active, nativeReceipt) : [],
     ]);
-    const trace = active?.provider.trace;
-    const starts = trace?.starts.slice(baselineStarts) ?? [];
-    const phases = trace?.progress.slice(baselineProgress) ?? [];
-    const uploads = trace?.uploads.slice(baselineUploads) ?? [];
-    const submissions = trace?.submissions.slice(baselineSubmissions) ?? [];
+    const trace = active?.provider?.trace;
+    const starts = trace?.starts?.slice(baselineStarts) ?? [];
+    const phases = trace?.progress?.slice(baselineProgress) ?? [];
+    const uploads = trace?.uploads?.slice(baselineUploads) ?? [];
+    const submissions = trace?.submissions?.slice(baselineSubmissions) ?? [];
     const expectedFiles = final.files.map(({ path, bytes, sha256 }) => ({ path, size: bytes.length, sha256 }));
     const selectedHold = binding?.hold ?? (observation ? blockers(observation)[0] : undefined);
     const visible = snapshot.buildKey === renderer.buildKey && snapshot.attemptId === renderer.attemptId &&
@@ -262,7 +262,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
             result?.preflight?.status === (expected.hold ? "blocked" : "ready-for-review")),
       exactHostJournal: expected.hold ? !starts.length && !phases.length && !nativeReceipt && !retained
         : !!nativeReceipt && isDeepStrictEqual(nativeReceipt, retained) && isDeepStrictEqual(result?.receipt, nativeReceipt) &&
-          nativeReceipt.operationId === active?.intent.operationId && nativeReceipt.artifactDigest === current.artifactDigest &&
+          nativeReceipt.operationId === active?.intent?.operationId && nativeReceipt.artifactDigest === current.artifactDigest &&
           nativeReceipt.destination === binding?.targetId && nativeReceipt.environment === "preview" &&
           isDeepStrictEqual(starts.map(({ phase }) => phase), world.seed ? ["submitted"] : world.fault === "submit-once" ? ["prepared", "uploaded"] : ["prepared"]) &&
           isDeepStrictEqual(phases.map(({ phase }) => phase), world.seed ? [] : ["uploaded", "submitted"]),
@@ -315,7 +315,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
       try { await services.ownedPreviewPublication.advance(chosen.operationId ?? "unbound"); }
       catch (error) {
         rejectsUnapprovedAdvance = error instanceof Error && error.message.includes("approved") &&
-          !active?.provider.currentReceipt() && !(await fs.readdir(directory)).length;
+          !active?.provider?.currentReceipt() && !(await fs.readdir(directory)).length;
       }
     }
     const checks = { ...result.checks, rejectsDestinationAlias, rejectsRevisionAlias, rejectsUnapprovedAdvance: !hold || rejectsUnapprovedAdvance };

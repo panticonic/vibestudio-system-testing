@@ -164,9 +164,9 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
   const handoffWriter=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What supports the exact local delivery step?"],
     sources:[{id:"policy",path:source}]},ports.readBytes).scratchHandoffWrite;
   async function canCommit(){
-    if(world.action!=="commit"||classifyRetainedBranch(scope)!=="aligned"||bridgeRead?.upstream.state!=="local-only")return false;
+    if(world.action!=="commit"||classifyRetainedBranch(scope)!=="aligned"||bridgeRead?.upstream?.state!=="local-only")return false;
     const delivery=fileReads.get(specPath),release=fileReads.get(notePath);
-    if(!delivery?.file.hasLocalDifference||!release?.file.hasLocalDifference||!delivery.current||!release.current)return false;
+    if(!delivery?.file?.hasLocalDifference||!release?.file?.hasLocalDifference||!delivery.current||!release.current)return false;
     const [contract,summary]=await Promise.all(files.map(path=>readText(before.workingHead,path)));
     return contract.text===approvedText(world.target)&&summary.text===releaseText(world.target);
   }
@@ -254,7 +254,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
       returnedBranchCommit:isDeepStrictEqual(report?.commit,commit),
       exactBranchProject:seen&&
         route.text!==null&&isDeepStrictEqual(JSON.parse(route.text),coordinates),
-      exactLiveLocalBridge:bridgeRead?.upstream.state==="local-only"&&originalBridge.upstream.state==="local-only"&&
+      exactLiveLocalBridge:bridgeRead?.upstream?.state==="local-only"&&originalBridge.upstream.state==="local-only"&&
         bridgeRead.repository===repository&&bridgeRead.semantic.contextId===input.contextId&&bridgeRead.semantic.current&&
         bridgeRead.semantic.workingRepositoryId===repo?.repositoryId&&!protectedRepo&&bridgeRead.semantic.mainRepositoryId===null,
       exactSemanticFileChain:files.every((path,i)=>{

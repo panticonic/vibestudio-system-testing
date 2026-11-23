@@ -135,7 +135,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     if(basis==="working"&&!exact((await ports.vcs.status()).workingHead,state))
       throw new Error("The exact working basis moved before the local read");
     const row=await ports.vcs.readFile({state,repositoryId,file:{kind:"path",path}});
-    if(row?.content.kind!=="text")return [null];
+    if(row?.content?.kind!=="text")return [null];
     return [parseRecord(basis,state.kind==="event"?state.eventId:state.applicationId,row.content.text,row.contentHash)];
   }
   function matchesChoice(choice:RouteChoice|undefined) {
@@ -218,7 +218,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       nativeRouteReadback:world.route==="external"?readback===null:
         !!fresh&&!!readback&&readback.routeId===nominated.id&&exact(fresh,readback.records),
       preservedExactProtectedBasis:exact(after,before)&&after.mainEventId===initial.mainEventId,
-      exactRouteConclusion:report?.outcome.status===intendedOutcome()&&typeof report.outcome.summary==="string"&&
+      exactRouteConclusion:report?.outcome?.status===intendedOutcome()&&typeof report.outcome.summary==="string"&&
         !!report.outcome.summary.trim()&&report.outcome.summary.length<=650,
       exactPrivateRouteNote:world.note?!!handoff&&!!artifact&&written.length===1&&
         handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):

@@ -99,7 +99,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
           const document = current.documents.find(doc => doc.path === target)!;
           const selected = review?.decision?.selection;
           const time = selected?.startsAt?.slice(11, 16);
-          const venue = selected?.description.replace(/^Venue: /u, "");
+          const venue = selected?.description?.replace(/^Venue: /u, "");
           const workspace = await ports.status({ contextId: input.contextId });
           if (current.authorization !== "private-draft" || !time || !venue ||
               !approved.includes(time + " UTC") || !approved.includes(venue) || !(await calendar.verify(review)).passed ||
@@ -135,7 +135,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     const workspace = await ports.status({ contextId: input.contextId });
     const decision = report?.decision;
     const calendarProof = await calendar.verifyObserved();
-    const selectedCalendar = calendarProof.readback?.observed.status === "current"
+    const selectedCalendar = calendarProof.readback?.observed?.status === "current"
       ? calendarProof.readback.observed.record : null;
     const targetNow = current.documents.find(doc => doc.path === target)!;
     const wanted = world.action === "revise" ? world.after + (world.coedit ?? "") : world.before;
@@ -226,7 +226,7 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
     return view.rendered.mdx === renderComponent(view.rendered).mdx;
   }
   const encode = (desk: Desk, basis: NewsEvidenceReport, presentation: PresentationReport) =>
-    JSON.stringify({ desk, edition: basis.briefing?.input.briefingId ?? null, through: basis.plan.through,
+    JSON.stringify({ desk, edition: basis.briefing?.input?.briefingId ?? null, through: basis.plan.through,
       articles: basis.sources.map(({ articleId, url, digest }) => ({ articleId, url, digest })), presentation }, null, 2) + "\n";
   const attribution = (desk: Desk, basis: NewsEvidenceReport, action: string) =>
     attribute(basis.sources[0]?.url ?? null, "edition:" + desk.revision, action === "packet" ? desk.id : null, "private-news-review");

@@ -60,14 +60,14 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
     const text = `${seed.text}\nOwned workspace ${input.contextId}.\n`;
     const gatePath = `${directory}/retry-prerequisite.txt`;
     const original = seed.role === "retry" ? [...records.values()].find(record => record.seed.role === "latest") : null;
-    const retryGate: EvalRetryGate | undefined = original?.native.request.retryGate ??
+    const retryGate: EvalRetryGate | undefined = original?.native?.request?.retryGate ??
       (world.allowRetry && seed.role === "latest" ? { path: gatePath, blocked: seed.mode === "cancelled-empty" ? "park" : "reject" } : undefined);
     if (retryGate && seed.role === "latest") await fs.writeFile(retryGate.path, "pending");
     const run = await native.run({ contextId: input.contextId, runId, text, mode: seed.mode, ...(retryGate ? { retryGate } : {}) });
     if (retryGate && seed.role === "latest") await fs.writeFile(retryGate.path, "ready");
     const card: EvalAttemptCard = { runId, role: seed.role, label: seed.label, authority: seed.authority };
     const bound = bindEvalRecovery({ goal: world.goal, contextId: input.contextId, runId,
-      result: { success: run.terminal === "returned", operationJournal: run.receipt?.result.operationJournal }, expectedText: text,
+      result: { success: run.terminal === "returned", operationJournal: run.receipt?.result?.operationJournal }, expectedText: text,
       allowReadback: seed.allowReadback && seed.authority === "approved" && run.terminal !== "cancelled" });
     const record = { seed, native: run, card, bound };
     records.set(runId, record);
@@ -90,7 +90,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
   function retryIsSafe(record: Retained) {
     if (!world.allowRetry || record.seed.role !== "latest" || record.seed.authority !== "approved" || record.native.physicallyStored) return false;
     if (record.native.terminal === "cancelled") return record.seed.mode === "cancelled-empty";
-    const journal = record.native.receipt?.result.operationJournal;
+    const journal = record.native.receipt?.result?.operationJournal;
     return record.native.terminal === "failed" && !!journal && !journal.truncated && !journal.entries.some(entry =>
       entry["type"] === "blob-text.observation" && (entry["receipt"] as { method?: string } | undefined)?.method === "putText");
   }
@@ -288,7 +288,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
     const decision = chosen ? { action: "use" as const, runId: chosen.observation.attempt.runId } :
       { action: "hold" as const, reason: world.expected.hold! };
     const staged = world.expected.stage && chosen ? await services.openEvalHandoff.stage(jobId, chosen.observation.attempt.runId) : null;
-    const readback=chosen?.review.readback;
+    const readback=chosen?.review?.readback;
     const output=chosen&&readback&&readback.observedDigest!==null&&readback.size!==null&&chosen.observation.resultDigest ? {jobId,runId:chosen.observation.attempt.runId,runDigest:chosen.observation.runDigest,resultDigest:chosen.observation.resultDigest,readback:{digest:readback.digest,observedDigest:readback.observedDigest,size:readback.size}}:null;
     return verifyOutcome({ status: "reviewed", jobId, reviews:observed.map(trial=>trial.review),decision,result:output, artifact: staged }, negative);
   }

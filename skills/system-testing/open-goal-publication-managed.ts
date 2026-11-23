@@ -43,7 +43,7 @@ export async function seedPublicationRevision(
   const repo = await vcs.resolveRepository({ state: workingHead, repoPath: source });
   if (!repo) throw new Error("The owned website source is absent");
   const file = await vcs.readFile({ state: workingHead, repositoryId: repo.repositoryId, file: { kind: "path", path: "copy.ts" } });
-  const text = file?.content.kind === "text" ? file.content.text : "";
+  const text = file?.content?.kind === "text" ? file.content.text : "";
   const start = text.indexOf(world.caption);
   if (!file || start < 0 || text.indexOf(world.caption, start + 1) >= 0)
     throw new Error("The retained website caption is absent or ambiguous");
@@ -63,7 +63,7 @@ async function readLaunchFacts({ source, contextId }: Input) {
   const receipt = await vcs.readFile({
     state: workingHead, repositoryId: repo.repositoryId, file: { kind: "path", path: "launch-review.json" },
   });
-  if (receipt?.content.kind !== "text") throw new Error("The owned launch review is absent");
+  if (receipt?.content?.kind !== "text") throw new Error("The owned launch review is absent");
   const facts = JSON.parse(receipt.content.text) as Facts;
   if (!facts.title || !Array.isArray(facts.labels) || !Array.isArray(facts.targets) ||
       facts.targets.length < 2 || new Set(facts.targets.map(({ id }) => id)).size !== facts.targets.length)
@@ -199,7 +199,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
             approvedPaths: [".nojekyll", "index.html", "vibestudio-build.json",
               ...(target.review?.entryApproved === false ? [] : [current.entryArtifact])],
             presentationProbes: basis.facts.labels,
-            operationId: receipt?.intent.operationId ?? null,
+            operationId: receipt?.intent?.operationId ?? null,
           }, {
             readPackage, readPanel,
             readPublication: async () => receipt ? { receipt: await begin(receipt.intent), readyUrl: null, verified: null } : null,

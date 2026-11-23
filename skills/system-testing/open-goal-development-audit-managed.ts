@@ -49,10 +49,10 @@ function summarize(native: NonNullable<NativeRead>, events: DevelopmentRunEvent[
     id: run.runId, session: run.sessionId, sessionState: session.state, contextEffect: session.contextEffect,
     snapshot: run.snapshot.snapshotDigest, snapshotMatchesSession: run.snapshot.contextId === session.contextId,
     planMatches, state: run.state, commitPoint: run.commitPoint, updatedAt: run.updatedAt, terminalAt: run.terminalAt,
-    attention: run.repair?.attention ?? null, primary: run.repair?.primaryFailure.code ?? null,
-    cleanup: run.repair?.cleanupFailures.map(item => item.code ?? item.message) ?? [],
-    executionRoot: run.repair?.knownEffects.executionRoot ?? null, process: run.repair?.knownEffects.process ?? null,
-    artifact: run.repair?.knownEffects.artifact ?? null, artifactDigest: run.artifact?.artifactDigest ?? null,
+    attention: run.repair?.attention ?? null, primary: run.repair?.primaryFailure?.code ?? null,
+    cleanup: run.repair?.cleanupFailures?.map(item => item.code ?? item.message) ?? [],
+    executionRoot: run.repair?.knownEffects?.executionRoot ?? null, process: run.repair?.knownEffects?.process ?? null,
+    artifact: run.repair?.knownEffects?.artifact ?? null, artifactDigest: run.artifact?.artifactDigest ?? null,
     instanceGeneration: run.instance?.generationId ?? null, phase: run.repair?.phase ?? null,
     journal: events.map(({ sequence, at, kind, payload }) => {
       const body = payload as { code?: unknown; snapshot?: unknown } | null;
@@ -64,8 +64,8 @@ function summarize(native: NonNullable<NativeRead>, events: DevelopmentRunEvent[
 type Observation = ReturnType<typeof summarize> | null;
 type Pair = { requested: Observation; alternate: Observation };
 const checkpointSequences = (run: Observation) => [
-  run?.journal.findLast(entry => entry.kind === "diagnostic" && entry.code === "CHECKPOINT")?.sequence,
-  run?.journal.findLast(entry => entry.kind === "cleanup" && entry.code === "CLEANUP")?.sequence,
+  run?.journal?.findLast(entry => entry.kind === "diagnostic" && entry.code === "CHECKPOINT")?.sequence,
+  run?.journal?.findLast(entry => entry.kind === "cleanup" && entry.code === "CLEANUP")?.sequence,
 ].filter((sequence): sequence is number => sequence !== undefined);
 function canonicalReceipt(run: DevelopmentRun, event: DevelopmentRunEvent) {
   return { runId: run.runId, snapshot: run.snapshot.snapshotDigest, updatedAt: run.updatedAt, sequence: event.sequence, attention: "kept" as const };
