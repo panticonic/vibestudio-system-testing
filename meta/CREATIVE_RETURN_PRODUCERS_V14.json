@@ -8,20 +8,8 @@
           "line": 324,
           "evidence": "index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"groundedIntegrationDisposition\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnApiReadinessGoal/decideApiReadiness.nl\",\"producerPath\":[]},{\"checks\":[\"explicitQuietIntegration\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnApiReadinessGoal/reviewQuietCredentials.nl\",\"producerPath\":[\"result\"]}]);"
         }
-      ]
-    },
-    {
-      "oracle": "skills/system-testing/open-goal-asset-integrity-managed.ts",
-      "bindings": [
-        {
-          "line": 706,
-          "evidence": "...(directPlanFinding?[{checks:[\"matchedAssetDisposition\"],rootPath:[\"reason\"],producerSourceSuffix:\"reviewAssetIntegrity/planRecovery.nl\",producerPath:[\"reason\"]}]:[]),"
-        },
-        {
-          "line": 707,
-          "evidence": "...proof.findings.map((_,index)=>({checks:[`assetFinding:${index}`],rootPath:[\"findings\",index],producerSourceSuffix:\"reviewAssetIntegrity/compareAsset.nl\",producerPath:[]})),"
-        }
-      ]
+      ],
+      "sourceSha256": "4e70490b52d7606f3b1a55b4927671ee27a3c9a6a3c1c3fb16b6ee940144e41a"
     },
     {
       "oracle": "skills/system-testing/open-goal-audience-response-managed.ts",
@@ -30,7 +18,8 @@
           "line": 172,
           "evidence": "report:report??null,observed},contract,raw,invocation,[{\"checks\":[\"boundedGroundedAudienceAnswer\"],\"rootPath\":[\"answer\"],\"producerSourceSuffix\":\"chooseAudienceResponse/answerFromRecord.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "924536aeaa85859b8dc55fde3ef8091a73c028045c1a8e87d8bc92ac77925566"
     },
     {
       "oracle": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
@@ -39,7 +28,8 @@
           "line": 285,
           "evidence": "index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact},contract,rawReport,invocation,[{\"checks\":[\"returnedBranchAssessment\"],\"rootPath\":[\"branch\"],\"producerSourceSuffix\":\"workOnBridgeDelivery/assessRetainedBranch.nl\"},{\"checks\":[\"groundedBranchDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnBridgeDelivery/decideLocalDelivery.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "ab5fe8fcc35b80b9c0c78b2a99dc1a3390d5baed0338cc48359650585a11eb2d"
     },
     {
       "oracle": "skills/system-testing/open-goal-capability-plan-managed.ts",
@@ -48,7 +38,8 @@
           "line": 317,
           "evidence": "memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } },{effects:{checks:[\"observedLiveCatalog\",\"verifiedCapabilityHandoff\",\"protectedCapabilityWorkspace\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"boundExactMethodSchemas\",\"loadedInstalledKnowledge\",\"exactCapabilitySourceRevision\",\"reconciledPlanningEvidence\",\"respectedNegativeScope\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[\"returnedCapabilityReceipt\"],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},outcome,invocation,[{\"checks\":[\"boundExactMethodSchemas\",\"loadedInstalledKnowledge\",\"exactCapabilitySourceRevision\",\"reconciledPlanningEvidence\",\"respectedNegativeScope\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnCapabilityGoal/workspace/synthesizeCapabilityPlan.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "4228e834740f596c9fce789f3a3c9edf6d7649f77e43a20570bab06d47bcbdb9"
     },
     {
       "oracle": "skills/system-testing/open-goal-chat-continuity-managed.ts",
@@ -57,7 +48,8 @@
           "line": 338,
           "evidence": "index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"groundedChatDeliveryReview\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnChatContinuity/reviewChatContinuity/policy/reviewConversation.nl\"},{\"checks\":[\"groundedChatContinuityDisposition\"],\"rootPath\":[\"disposition\"],\"producerSourceSuffix\":\"workOnChatContinuity/decideChatContinuity.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "25be343d22aae9f201a9e75a44208760131043ed4f0abea17dd025df1b3af04f"
     },
     {
       "oracle": "skills/system-testing/open-goal-compound-recovery-managed.ts",
@@ -66,7 +58,8 @@
           "line": 268,
           "evidence": "passed: Object.values(checks).every(Boolean), effects, status: target, directive: actualPosition, artifact: stored, evalProof },contract,value,invocation,[{\"checks\":[\"exactCompoundDisposition\"],\"rootPath\":[],\"producerSourceSuffix\":\"workOnRecoveryHandoff.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "6440a25f37a14fad5ad603c4422b846cd6cc041995a44f7cd7aa784fcd2d7816"
     },
     {
       "oracle": "skills/system-testing/open-goal-coordinated-revision-managed.ts",
@@ -75,7 +68,8 @@
           "line": 167,
           "evidence": "report:report??null,attempts,guideRevision:guide},contract,raw,invocation,[{checks:[\"returnedRevisionExplanation\",\"exactCoordinatedAuthority\"],rootPath:[\"explanation\"],producerSourceSuffix:attempts[0]?.receipt.status===\"changed\"?\"reviseCoordinatedDocuments/reconcileCoordinatedRevision.nl\":\"reviseCoordinatedDocuments/planCoordinatedRevision.nl\",producerPath:[\"explanation\"]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "3af305baed2595050b0450ad2757e47a6d3ee4d6119f69039647ac2a298b81dc"
     },
     {
       "oracle": "skills/system-testing/open-goal-development-audit-managed.ts",
@@ -84,7 +78,8 @@
           "line": 196,
           "evidence": "checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) },contract,value,invocation,[{\"checks\":[\"matchedOwnedDevelopmentAssignment\"],\"rootPath\":[\"runId\"],\"producerSourceSuffix\":\"reviewDevelopmentAudit/chooseDevelopmentRun.nl\",\"producerPath\":[\"runId\"]},{\"checks\":[\"matchedRepairReadiness\"],\"rootPath\":[\"assessment\"],\"producerSourceSuffix\":\"reviewDevelopmentAudit/assessDevelopmentRepair.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "4ae3772298b4ce2bac15bb7bf66aba5a482eca2382022d2ebf662ee4deafe11f"
     },
     {
       "oracle": "skills/system-testing/open-goal-dictation-managed.ts",
@@ -93,7 +88,8 @@
           "line": 268,
           "evidence": "thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactOwnedDictation\",\"exactDictationSelection\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnDictationHandoffGoal/decideDictationHandoff.nl\",\"producerPath\":[]},{\"checks\":[\"exactInstalledDraft\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnDictationHandoffGoal/reviewRetainedDictation/dictation/reviewDictation/prepareDraft.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "d823ed1b10cd64ce42671e0e7a8cb665032f9970c71f060cb4903c90c4655018"
     },
     {
       "oracle": "skills/system-testing/open-goal-editorial-managed.ts",
@@ -102,7 +98,8 @@
           "line": 382,
           "evidence": "listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact},contract,raw,invocation,[{\"checks\":[\"groundedEditorialDisposition\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnEditorialPacket/decideEditorialHandoff.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "f38a6377d3b9ffdbf36519490661f6d1a34fcbc86eb90efab8f1eef5e51ecfe1"
     },
     {
       "oracle": "skills/system-testing/open-goal-eval-handoff-managed.ts",
@@ -111,7 +108,8 @@
           "line": 263,
           "evidence": "journals: [...journalReads], readbacks: [...blobReads], retry: admittedRetry, artifact: staged, artifactText: staged ? written : null },contract,outcome,invocation,[...perReviewChecks.map((_,index)=>({checks:[`returnedEvalReview${index}`],rootPath:[\"reviews\",index],producerSourceSuffix:\"workOnEvalHandoffGoal/reviewer/reviewEvalRecovery.nl\",producerPath:[]})),{checks:[\"reconciledEvalHandoff\"],rootPath:[\"decision\"],producerSourceSuffix:\"workOnEvalHandoffGoal/decideEvalHandoff.nl\",producerPath:[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "b87df9876cfabfcab4fee16122cc97ddfdf124aa46579082c4e88f89827f2048"
     },
     {
       "oracle": "skills/system-testing/open-goal-gad-durable-question-managed.ts",
@@ -120,7 +118,8 @@
           "line": 102,
           "evidence": "passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:[\"exactIndividualPublications\",\"exactRetainedRoster\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"exactQuestionDisposition\",\"exactParticipantDisposition\",\"derivedReadOnlyHandoff\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},raw,invocation,[{\"checks\":[\"exactQuestionDisposition\"],\"rootPath\":[\"question\"],\"producerSourceSuffix\":\"reviewDurableQuestion/reviewQuestion/interpretQuestion.nl\",\"producerPath\":[]},{\"checks\":[\"exactParticipantDisposition\"],\"rootPath\":[\"participant\"],\"producerSourceSuffix\":\"reviewDurableQuestion/reviewParticipant/evaluateRoster.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "3368c66cf4ffd7b52d30d32f785315ab3e72139c24cfed94ea08239458ae50af"
     },
     {
       "oracle": "skills/system-testing/open-goal-image-candidate-managed.ts",
@@ -129,25 +128,8 @@
           "line": 288,
           "evidence": "candidateId:selected,queue},contract,raw,invocation,[{\"checks\":[\"groundedImageAssessment\"],\"rootPath\":[\"candidates\"],\"producerSourceSuffix\":\"workOnImageCandidateGoal/assessImageAttempts.nl\",\"producerPath\":[\"candidates\"]},{\"checks\":[\"groundedImageDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnImageCandidateGoal/decideImageHandoff.nl\",\"producerPath\":[]}]);"
         }
-      ]
-    },
-    {
-      "oracle": "skills/system-testing/open-goal-installed-package-managed.ts",
-      "bindings": [
-        {
-          "line": 341,
-          "evidence": "const authored:readonly ApplicationReturnContribution[]=[{\"checks\": [\"returnedPackageFinding\"], \"rootPath\": [\"finding\"], \"producerSourceSuffix\": \"reviewInstalledPackage/decidePackage.nl\", \"producerPath\": []}, {\"checks\": [\"returnedPackageRepair\"], \"rootPath\": [\"repair\"], \"producerSourceSuffix\": \"reviewInstalledPackage/restorePackage.nl\", \"producerPath\": []}, {\"checks\": [\"returnedPackageVerification\"], \"rootPath\": [\"verification\"], \"producerSourceSuffix\": \"reviewInstalledPackage/reviewVerification.nl\", \"producerPath\": []}];"
-        }
-      ]
-    },
-    {
-      "oracle": "skills/system-testing/open-goal-intent-discovery-managed.ts",
-      "bindings": [
-        {
-          "line": 205,
-          "evidence": "const authored:readonly ApplicationReturnContribution[]=[{\"checks\":[\"exactIntentOutcome\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"discoverScopedIntent/concludeIntentReview.nl\",\"producerPath\":[]}];"
-        }
-      ]
+      ],
+      "sourceSha256": "9919e8d8cde5ac4cf99aeb280ff6b1bb6fefe96b7a1af8d31328edaa7d10bc1e"
     },
     {
       "oracle": "skills/system-testing/open-goal-launch-state-managed.ts",
@@ -156,7 +138,8 @@
           "line": 248,
           "evidence": "request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactLaunchDecision\"],\"rootPath\":[\"result\"],\"producerSourceSuffix\":\"reconcilePanelLaunchState/concludeLaunchState.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "ccdefeb73400fe079c3abfd2ae3d665f9f030833b3b7744c0f651460b32f5974"
     },
     {
       "oracle": "skills/system-testing/open-goal-news-evidence-managed.ts",
@@ -177,7 +160,8 @@
           "line": 435,
           "evidence": "...expectedFindings.readers.map((_,index)=>({checks:[`returnedNewsReader${index}`],rootPath:[\"readers\",index],producerSourceSuffix:\"reviewNewsEvidence/reviewNewsReaderWindow/installed/reviewers/readReader.nl\",producerPath:[]}))"
         }
-      ]
+      ],
+      "sourceSha256": "93f896bf658bc5b39e7254a1ea04be58052af222bfb08173fbea678445819420"
     },
     {
       "oracle": "skills/system-testing/open-goal-owned-preview-managed.ts",
@@ -186,7 +170,8 @@
           "line": 289,
           "evidence": "artifact: { current: current.artifactDigest, prior: reviewed.artifactDigest, source: current.privateReceipt.sourceStateHash } },{effects:{checks:[\"exactOwnedLaunch\",\"exactApprovedArtifact\",\"exactHostJournal\",\"exactProviderEffects\",\"correctDisposition\",\"protectedHeads\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"returnedPreviewResult\"],required:Boolean(expected.hold),rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},value,invocation,[{\"checks\":[\"returnedPreviewResult\"],\"rootPath\":[],\"producerSourceSuffix\":\"publishOwnedPreviewGoal/deliverPreview.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "4861f95016c98648ba05d5763a7fff41574901e745dbcb8f39eeee9db1f7f01d"
     },
     {
       "oracle": "skills/system-testing/open-goal-panel-recovery-managed.ts",
@@ -195,7 +180,8 @@
           "line": 288,
           "evidence": "observations: inspections, effects: structuredClone(effects), finalSurfaces },contract,value,invocation,[{\"checks\":[\"exactHealthDisposition\"],\"rootPath\":[\"reason\"],\"producerSourceSuffix\":\"recoverPanelGoal/recoverSurface.nl\",\"producerPath\":[\"reason\"]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "da1ec7c44ff1a991acd0438df14ad4cf9d6294437f762cd8a3b166a087e57391"
     },
     {
       "oracle": "skills/system-testing/open-goal-pdf-managed.ts",
@@ -204,16 +190,18 @@
           "line": 408,
           "evidence": "return assessObservedApplicationOutcome({...report,checks:{...report.checks,independentNativeObservations:native.passed}},pdfOutcomeContract([\"independentNativeObservations\"],Object.keys(report.checks).filter(name=>name.startsWith(\"returnedPdfLayout\"))),value,invocation,[...Object.keys(report.checks).filter(name=>name.startsWith(\"returnedPdfLayout\")).map((name,index)=>({checks:[name],rootPath:[\"layouts\",index],producerSourceSuffix:\"reviewPdfLayout.nl\",producerPath:[]})),{checks:[\"exactSelection\"],rootPath:[\"selection\"],producerSourceSuffix:\"workOnPdfGoal/choosePdfScope.nl\",producerPath:[]},{checks:[\"textEvidence\"],rootPath:[\"text\"],producerSourceSuffix:\"extractPdfEvidence.nl\",producerPath:[]},{checks:[\"groundedRecommendation\"],rootPath:[\"recommendation\"],producerSourceSuffix:\"workOnPdfGoal/recommendPdfAction.nl\",producerPath:[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "66021df65fd720459051b8850371bd96f0b519b64eed8b929e3cb63fd4be8f9d"
     },
     {
       "oracle": "skills/system-testing/open-goal-pdf-vault-managed.ts",
       "bindings": [
         {
           "line": 116,
-          "evidence": "proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{\"checks\":[\"verifiedHandoff\"],\"rootPath\":[\"source\"],\"producerSourceSuffix\":\"authorizePdfVaultHandoff.nl\",\"producerPath\":[\"source\"]},{\"checks\":[\"verifiedHandoff\"],\"rootPath\":[\"holdReason\"],\"producerSourceSuffix\":\"authorizePdfVaultHandoff.nl\",\"producerPath\":[\"reason\"]}]);"
+          "evidence": "proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{checks:[\"verifiedHandoff\"],rootPath:mayEdit?[\"source\"]:[\"holdReason\"],producerSourceSuffix:\"authorizePdfVaultHandoff.nl\",producerPath:mayEdit?[\"source\"]:[\"reason\"]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "005b39ea21dcfa5bdd6d5262d6504d82db020684120ab8651fe1023d68485d40"
     },
     {
       "oracle": "skills/system-testing/open-goal-personal-welcome-managed.ts",
@@ -222,7 +210,8 @@
           "line": 355,
           "evidence": "index,snapshots,resolution,ownerRead,independent,probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"verifiedWelcomeTour\"],\"rootPath\":[\"tour\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl\",\"producerPath\":[]},{\"checks\":[\"verifiedWelcomeRetry\"],\"rootPath\":[\"probe\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl\",\"producerPath\":[]},{\"checks\":[\"exactWelcomeResource\",\"exactWelcomeDecision\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/decideWelcomeNextStep.nl\",\"producerPath\":[]},{\"checks\":[\"verifiedWelcomeOwner\"],\"rootPath\":[\"setup\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "652a2101e57496d7788b58e6875666f43b7c425de3cbf8bd9df6541bf964cae9"
     },
     {
       "oracle": "skills/system-testing/open-goal-portfolio-managed.ts",
@@ -231,7 +220,8 @@
           "line": 321,
           "evidence": "decision:decision??null,note:receipt,artifact},contract,raw,invocation,[{\"checks\":[\"exactInstalledGardenCriteria\"],\"rootPath\":[\"garden\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/reviewPortfolioGarden.nl\",\"producerPath\":[]},{\"checks\":[\"exactInstalledRealmCriteria\"],\"rootPath\":[\"realm\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/reviewPortfolioRealm.nl\",\"producerPath\":[]},{\"checks\":[\"groundedPortfolioDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/decidePortfolioDelivery.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "a21b45096c6e9b6fa6a2e575b45d8192fdbb1c64405b722b1ab7e7e7697d45ff"
     },
     {
       "oracle": "skills/system-testing/open-goal-provider-handoff-managed.ts",
@@ -240,7 +230,8 @@
           "line": 278,
           "evidence": "card, listedCards, snapshots: targetReads, outputs, expectedTransition: transition, handoff: staged, artifact },contract,outcome,invocation,[{\"checks\":[\"discoveredOwnedConversation\",\"exactRetainedProviderFrontier\",\"exactProviderAttributionAndResult\",\"independentProviderOutput\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnProviderHandoffGoal/decideProviderHandoff.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "0dafd1d9e5f9d8380aba030339bf157c92d5b2cac38af67e4b0c15b1329c8e32"
     },
     {
       "oracle": "skills/system-testing/open-goal-publication-managed.ts",
@@ -249,7 +240,8 @@
           "line": 293,
           "evidence": "journal, reads: { preflight: preflightReads, revision: revisionReads } },{effects:{checks:[\"discoveredLaunchRecord\",\"choseExactReview\",\"boundWebsiteReadback\",\"rereadCurrentAndRetainedPackage\",\"localJournalUnchanged\",\"protectedHeads\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"returnedPublicationScope\",\"exactPreflight\",\"exactRevision\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},value,invocation,[{\"checks\":[\"returnedPublicationScope\"],\"rootPath\":[\"choice\"],\"producerSourceSuffix\":\"workTowardPublicationGoal/choosePublicationScope.nl\",\"producerPath\":[]},{\"checks\":[\"exactPreflight\"],\"rootPath\":[\"preflight\"],\"producerSourceSuffix\":\"preflightPublication.nl\",\"producerPath\":[]},{\"checks\":[\"exactRevision\"],\"rootPath\":[\"revision\"],\"producerSourceSuffix\":\"reviewPublicationRevision.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "d502de4896be856a059e8dd7128b59de834c4ea54934db2af49d58cbfbc56520"
     },
     {
       "oracle": "skills/system-testing/open-goal-reconciliation-managed.ts",
@@ -258,7 +250,8 @@
           "line": 286,
           "evidence": "},{effects:{checks:[\"recoveredRetainedReconciliation\",\"observedOwnedIntegration\",\"verifiedNativeIntegration\",\"protectedNeighborAndMain\",\"honoredRevisionOrWindowRace\",\"retainedVerifiedIntegrationEvidence\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"matchedReconciliationHandoff\"],required:expectedStatus!==\"integrated\"&&scenario.expected.handoff!==\"staged\",rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},value,invocation,[{\"checks\":[\"matchedReconciliationHandoff\"],\"rootPath\":[\"integration\"],\"producerSourceSuffix\":\"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl\",\"producerPath\":[\"integration\"]},{\"checks\":[\"matchedReconciliationHandoff\"],\"rootPath\":[\"archive\"],\"producerSourceSuffix\":\"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl\",\"producerPath\":[\"archive\"]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "0ca6e4f589cbfbade163f8e4259f3c57b085d6194c24486ddf678c85ff8ddafa"
     },
     {
       "oracle": "skills/system-testing/open-goal-regency-managed.ts",
@@ -267,7 +260,8 @@
           "line": 273,
           "evidence": "index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation,[...findings.map((_,index)=>({checks:[`exactRegencyFinding${index}`],rootPath:[\"findings\",index],producerSourceSuffix:\"workOnRegencyBriefing/qualifyRegencyClaim.nl\",producerPath:[]})),{\"checks\":[\"groundedRegencyAction\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnRegencyBriefing/decideRegencyAction.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "97c9df276a2294e2b7127ff52fe55e56278761008703f4b190b52652cb4ca3ec"
     },
     {
       "oracle": "skills/system-testing/open-goal-retained-memory-managed.ts",
@@ -276,7 +270,8 @@
           "line": 255,
           "evidence": "brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactMemoryCitations\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"reviewRetainedMemory/judgeMemoryClaim.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "72dbf3b6a9f790a6e005e48a36a98a5bb5cacb4e8ef6b6dde998492b4d24d11c"
     },
     {
       "oracle": "skills/system-testing/open-goal-route-authority-managed.ts",
@@ -285,16 +280,18 @@
           "line": 233,
           "evidence": "offer,snapshots,authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactRouteConclusion\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"chooseAuthorizedEvidenceRoute/concludeEvidenceRoute.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "82bbcdae1e3eb7891e014eb3e090c5834c7007f97ab16cb7eded34db1ef2884d"
     },
     {
       "oracle": "skills/system-testing/open-goal-specialist-managed.ts",
       "bindings": [
         {
           "line": 340,
-          "evidence": "index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"verifiedArtifactAndImpact\"],\"rootPath\":[\"history\",\"result\"],\"producerSourceSuffix\":\"workOnSpecialistHandoffGoal/reviewSpecialistHistory/development/planAgenticChange/reviewImpact/reviewHistory.nl\",\"producerPath\":[]},{\"checks\":[\"exactCurrentSpecialist\",\"exactOriginalAttempt\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnSpecialistHandoffGoal/decideSpecialistHandoff.nl\",\"producerPath\":[]}]);"
+          "evidence": "index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact},contract,raw,invocation,[{checks:[\"exactSpecialistMembership\"],rootPath:[\"membership\"],producerSourceSuffix:\"workOnSpecialistHandoffGoal/agents/manageChannelAgent.nl\",producerPath:[]},{\"checks\":[\"verifiedArtifactAndImpact\"],\"rootPath\":[\"history\",\"result\"],\"producerSourceSuffix\":\"workOnSpecialistHandoffGoal/reviewSpecialistHistory/development/planAgenticChange/reviewImpact/reviewHistory.nl\",\"producerPath\":[]},{\"checks\":[\"exactCurrentSpecialist\",\"exactOriginalAttempt\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnSpecialistHandoffGoal/decideSpecialistHandoff.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "6f292e4ebb85bb8d856c000de6df59d723352e92b7a498ff87696f195573806d"
     },
     {
       "oracle": "skills/system-testing/open-goal-terminal-managed.ts",
@@ -303,7 +300,8 @@
           "line": 367,
           "evidence": "observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText },contract,outcome,invocation,[{\"checks\":[\"resultGrounded\"],\"rootPath\":[\"summary\"],\"producerSourceSuffix\":\"workOnTerminalGoal/composeTerminalOutcome.nl\",\"producerPath\":[]},{\"checks\":[\"returnedTerminalChecks\"],\"rootPath\":[\"checkReport\"],\"producerSourceSuffix\":\"workOnTerminalGoal/checks/runTerminalChecks.nl\",\"producerPath\":[]},{\"checks\":[\"exactTerminalDiscovery\"],\"rootPath\":[\"discovery\"],\"producerSourceSuffix\":\"workOnTerminalGoal/terminal/discoverTerminalOptions.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "ca7b5d813b08b879927a4b27804e915c33f01d42b0ecf8d88694e000aa8bf44a"
     },
     {
       "oracle": "skills/system-testing/open-goal-unit-handoff-managed.ts",
@@ -312,7 +310,8 @@
           "line": 370,
           "evidence": "protectedEvent: after.mainEventId, target: selectedPath, expect: { decision, finding, action, mustStage } } },contract,report,invocation,[{\"checks\":[\"owned_selection\"],\"rootPath\":[\"path\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"plan\",\"path\"]},{\"checks\":[\"manifest_versions\"],\"rootPath\":[\"design\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"design\"]},{\"checks\":[\"build_lifecycle\"],\"rootPath\":[\"design\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"design\"]},{\"checks\":[\"catalog_and_artwork\"],\"rootPath\":[\"identity\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"identity\"]},{\"checks\":[\"conclusion\"],\"rootPath\":[\"reason\"],\"producerSourceSuffix\":\"reviewUnitHandoffGoal/completeHandoff.nl\",\"producerPath\":[\"reason\"]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "c125580832d307d4eaae718bc8deb0dacad6607741b155c0427bda5b8eeaaac2"
     },
     {
       "oracle": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
@@ -321,7 +320,8 @@
           "line": 344,
           "evidence": "observed, reads: [...read.values()], buildReceipts: [...established.values()], handoff: staged, durableText },{effects:{checks:[\"observedExactAssemblyScope\",\"verifiedNativePackageSources\",\"verifiedPinnedBuildReadback\",\"verifiedLocalDraft\",\"protectedManagedHeads\",\"rejectedUnownedAssembly\"],rationale:\"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies.\"},returnedValue:{checks:[\"exactDependencyDecision\",\"returnedAssemblyBuilds\",\"groundedRolloutDisposition\"],required:true,rationale:\"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established.\"},incidentalValues:{checks:[\"returnedAssemblyReceipt\"],rationale:\"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value.\"}},outcome,invocation,[{\"checks\":[\"exactDependencyDecision\",\"returnedAssemblyBuilds\",\"groundedRolloutDisposition\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnAssemblyGoal/decideAssemblyOutcome.nl\",\"producerPath\":[]}]);"
         }
-      ]
+      ],
+      "sourceSha256": "76cd597c0f1d12ef6734a9b4e052525dca650ac614e9eafcb9bf6c7d554c52b1"
     },
     {
       "oracle": "skills/system-testing/open-goal-workspace-claims-managed.ts",
@@ -330,7 +330,8 @@
           "line": 243,
           "evidence": "required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactGroundedClaimSupport\"],\"rootPath\":[\"support\"],\"producerSourceSuffix\":\"reviewWorkspaceClaims/verifyClaimSupport/evidenceRules/checkSupport.nl\"},{\"checks\":[\"exactGroundedClaimDisposition\"],\"rootPath\":[\"disposition\"],\"producerSourceSuffix\":\"reviewWorkspaceClaims/summarizeClaimReview.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "da721ff4d2434e39b1b30a7f86d3be8a607f9965ef07e7033f5538416350d3f2"
     },
     {
       "oracle": "skills/system-testing/open-goal-workspace-config-managed.ts",
@@ -339,7 +340,8 @@
           "line": 266,
           "evidence": "brief:freshBrief,lens:expectedLens,evidence,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"exactConfigDisposition\"],\"rootPath\":[\"outcome\"],\"producerSourceSuffix\":\"reconcileWorkspaceConfig/reviewConfigDisposition.nl\"}]);"
         }
-      ]
+      ],
+      "sourceSha256": "8fd59171b084f6f1d03bc1ea0b632608a3de3de6d4c02dd547650a060e479768"
     }
   ],
   "notes": [
