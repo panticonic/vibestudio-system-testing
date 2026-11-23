@@ -342,7 +342,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       } finally {writing=false;}
     }},
   };
-  async function verify(raw:unknown) {
+  async function verifyEvidence(raw:unknown) {
     const report=raw as NewsEvidenceReport|null;
     const outcome=report;
     const latest=await ports.read(lane);
@@ -391,6 +391,24 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     return {contextId:input.contextId,goal:world.goal,caseId:input.caseId,checks,passed:Object.values(checks).every(Boolean),
       index,snapshots,reads,sources,independent,handoff,artifact};
   }
+  function result(report:NewsEvidenceReport) {
+    return {topic:report.plan.topic,action:report.plan.action,explanation:report.plan.explanation,
+      readers:report.readers.map(reader=>reader.result),schedule:report.schedule.result,briefing:report.briefing?.result??null,
+      sources:report.sources.map(({articleId,url,digest})=>({articleId,url,digest})),handoff:report.handoff};
+  }
+  async function observedEvidence(explanation=world.expected.explanation):Promise<NewsEvidenceReport> {
+    const latest=await ports.read(lane);
+    const native=normalized(latest,sources);
+    return {plan:{...native.plan,explanation},readers:reads.map(({selection,input})=>({selection,input,result:reviewReader(input)})),
+      schedule:native.schedule,briefing:native.briefing,sources:sources.flatMap(entry=>entry.value?[entry.value]:[]),handoff};
+  }
+  async function verify(raw:unknown) {
+    const returned=raw as ReturnType<typeof result>|null;
+    const report=await observedEvidence(returned?.explanation??"");
+    const proof=await verifyEvidence(report);
+    const exactReturnedFindings=isDeepStrictEqual(raw,result(report));
+    return {...proof,checks:{...proof.checks,exactReturnedFindings},passed:proof.passed&&exactReturnedFindings};
+  }
   async function qualify() {
     await services.newsEvidenceIndex.list();
     await services.newsEvidenceJournal.read(lane.key);
@@ -411,9 +429,9 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       schedule:expected.schedule,briefing:expected.briefing,sources:sources.flatMap(entry=>entry.value?[entry.value]:[]),handoff:null};
     if(outcome.plan.action==="stage")outcome.handoff=await services.newsEvidenceHandoff.stage(outcome);
     const report=outcome;
-    const accepted=await verify(report);
-    const forged=await verify({...outcome,plan:{...outcome.plan,readerMessage:"another-reader"}});
-    return {...accepted,passed:accepted.passed&&!forged.passed,report:outcome};
+    const accepted=await verify(result(report));
+    const forged=await verify({...result(outcome),topic:"another-reader"});
+    return {...accepted,passed:accepted.passed&&!forged.passed,report:result(outcome),evidence:outcome};
   }
-  return {goal:world.goal,services,verify,qualify};
+  return {goal:world.goal,services,verify,verifyEvidence,observedEvidence,qualify};
 }

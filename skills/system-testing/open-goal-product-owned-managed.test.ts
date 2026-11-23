@@ -30,7 +30,7 @@ it("rejects an incomplete News edition while retaining the native workspace chec
     id: input.caseId, goal: "report the selected edition", title: "Current edition",
     news: { topic: "service changes" }, grant: "read-only", format: "brief",
     facts: [], action: "hold", spec: {},
-  } as never, {} as never, workspace(), async () => ({ services: {}, verify }) as never);
+  } as never, {} as never, workspace(), async () => ({ services: {}, verifyEvidence:verify, observedEvidence:async()=>null }) as never);
   for (const outcome of [{}, { news: { handoff: null } }]) {
     const result = await prepared.verify(outcome);
     expect(result.checks).toMatchObject({
@@ -40,7 +40,7 @@ it("rejects an incomplete News edition while retaining the native workspace chec
     });
     expect(result.passed).toBe(false);
   }
-  expect(verify).toHaveBeenCalledTimes(1);
+  expect(verify).not.toHaveBeenCalled();
 });
 
 it("rejects an incomplete runbook report without reading missing decision or Calendar fields", async () => {
