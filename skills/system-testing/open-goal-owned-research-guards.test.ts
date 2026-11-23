@@ -29,6 +29,9 @@ it("permits a known owned URL without search while rejecting foreign nonce paths
     start:async()=>({origin,nonce,close:async()=>{}}),web:{fetch,read} as never});
   const page=await prepared.services.web.fetch({url:pages.keys().next().value!});
   expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0]?.[0]).toMatchObject({network:{kind:"loopback",origin}});
+  await expect(prepared.services.web.fetch({url:`http://127.0.0.1:23456/${nonce}/${world.pages[0]!.id}`})).rejects.toThrow("authorized owned HTTP page");
+  await expect(prepared.services.web.fetch({url:`http://169.254.169.254/${nonce}/${world.pages[0]!.id}`})).rejects.toThrow("authorized owned HTTP page");
   await expect(prepared.services.web.fetch({url:`${origin}/${"b".repeat(24)}/${world.pages[0]!.id}`})).rejects.toThrow("authorized owned HTTP page");
   await expect(prepared.services.web.read({digest:"0".repeat(64),offset:0,limit:20})).rejects.toThrow("observed owned evidence");
   await expect(prepared.services.web.read({digest:page.digest,offset:0,limit:20})).resolves.toMatchObject({digest:page.digest});
