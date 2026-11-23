@@ -77,3 +77,18 @@ it("captures the actual shared return without prescribing NL child calls", async
   expect(value.applicationResult).toEqual(result);
   expect(value.report).toEqual(result.results[0].report);
 });
+
+it("invokes only the exact named TS default export and retains its crisp authored root",async()=>{
+  const entry={program:"skills/domain/review.ts",callable:"review",arguments:{goal:"Review the owned value"},inputValues:["Review the owned value"],parameterNames:["goal"],resultType:"Review"};
+  const code=openGoalTeacherCode({executorModel:"reference:offline",bindingCode:"const assignedServices={};",goal:entry.arguments.goal,entry},"run");
+  let called=0;
+  const review=async function review(goal:string){called++;return {answer:goal};};
+  const natlang={captureModelTurns(){},load:async()=>({default:review,wrong:()=>{throw Error("Wrong export");}}),
+    calls:async({after}:{after?:string})=>after?[]:[{callId:"root",parentCallId:null}],
+    trace:async()=>({callId:"root",summary:{run_id:"run",owner_key:"owned",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition:{name:"review",id:"ts:review.ts#default",source:"review.ts"},executor:{kind:"crisp"},outcome:"done",model_turns:[]}})};
+  const value=await new Function("natlang",`return (async()=>{${code};return utilityValue;})()`)(natlang);
+  expect(called).toBe(1);expect(value.trainingEligible).toBe(true);expect(value.applicationResult).toEqual({answer:entry.arguments.goal});
+  natlang.load=async()=>({default:async function wrong(){called++;return {};},wrong:()=>{throw Error("Wrong export");}}) as any;
+  const rejected=await new Function("natlang",`return (async()=>{${code};return utilityValue;})()`)(natlang);
+  expect(rejected.executionError.message).toMatch(/differs from the assigned callable/);expect(called).toBe(1);
+});
