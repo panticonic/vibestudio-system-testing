@@ -26,12 +26,19 @@ export function assessSemanticOutcome<T extends Verification>(
     effects: { checks: Object.keys(verification.checks), rationale: "The domain verifier binds the actual application evidence and required returned values." },
     returnedValue: { checks: [], required: true, rationale: "The domain result is part of this task's existing application contract." },
   };
+  // Domain verifiers and their callers may both assess the same outcome.
+  // Preserve the original observations when required checks are projected out.
+  const observedChecks = (verification.observedChecks ?? verification.checks) as Record<string, boolean>;
+  if (!observedChecks || typeof observedChecks !== "object" ||
+      Object.values(observedChecks).some(value => typeof value !== "boolean") ||
+      Object.entries(verification.checks).some(([name, value]) => observedChecks[name] !== value))
+    throw new Error("The outcome projection must preserve its original observations");
   const names = [...declared.effects.checks, ...declared.returnedValue.checks, ...(declared.incidentalValues?.checks ?? [])];
-  if (new Set(names).size !== names.length || names.length !== Object.keys(verification.checks).length ||
-      names.some(name => !Object.hasOwn(verification.checks, name)) ||
+  if (new Set(names).size !== names.length || names.length !== Object.keys(observedChecks).length ||
+      names.some(name => !Object.hasOwn(observedChecks, name)) ||
       !declared.effects.rationale.trim() || !declared.returnedValue.rationale.trim())
     throw new Error("The outcome contract must account for every independent application check once");
-  const select = (names: readonly string[]) => Object.fromEntries(names.map(name => [name, verification.checks[name]!]));
+  const select = (names: readonly string[]) => Object.fromEntries(names.map(name => [name, observedChecks[name]!]));
   const effects = select(declared.effects.checks);
   const returnedValue = select(declared.returnedValue.checks);
   const incidental = select(declared.incidentalValues?.checks ?? []);
@@ -40,6 +47,7 @@ export function assessSemanticOutcome<T extends Verification>(
   const required = { ...effects, ...(declared.returnedValue.required ? returnedValue : {}) };
   return {
     ...verification,
+    observedChecks,
     checks: required,
     passed: effectsPassed && (!declared.returnedValue.required || returnPassed),
     outcomeContract: declared,

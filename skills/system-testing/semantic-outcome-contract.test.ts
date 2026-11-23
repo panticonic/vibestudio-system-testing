@@ -36,3 +36,12 @@ it("requires the requested answer while retaining independently identified wrong
  expect(assessSemanticOutcome({...proof,checks:{...proof.checks,requestedAnswer:false}},contract).passed).toBe(false);
  expect(assessSemanticOutcome({...proof,checks:{...proof.checks,nativeState:false}},contract).passed).toBe(false);
 });
+
+it("composes already assessed outcomes without losing optional observations", () => {
+ const contract={effects:{checks:["stored"],rationale:"Actual private state."},returnedValue:{checks:["summary"],required:false,rationale:"No summary was requested."}};
+ const first=assessSemanticOutcome({passed:false,checks:{stored:true,summary:false}},contract);
+ const second=assessSemanticOutcome(first,contract);
+ expect(second).toEqual(first);
+ expect(()=>assessSemanticOutcome({...first,checks:{stored:false}},contract)).toThrow("preserve its original observations");
+ expect(assessSemanticOutcome(second,{...contract,returnedValue:{...contract.returnedValue,required:true}}).passed).toBe(false);
+});
