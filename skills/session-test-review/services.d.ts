@@ -1,16 +1,14 @@
-import type { LiveCleanupEvidence, ReplayCheckpoint, TranscriptPage, TranscriptStart } from "./types.js";
-
 declare module "natlang:services" {
   export const transcriptCursor: {
     /** Start the assigned transcript read and bind its native snapshot. */
-    open(operationId: string): Promise<TranscriptStart>;
+    open(operationId: string): Promise<import("./types.js").TranscriptStart>;
     /** Read the next page at that exact native cursor and watermark. */
-    next(operationId: string, after: number, through: number): Promise<TranscriptPage>;
+    next(operationId: string, after: number, through: number): Promise<import("./types.js").TranscriptPage>;
   };
   export const testkitCleanup: {
-    inspect(receipt: string): Promise<LiveCleanupEvidence>;
+    inspect(receipt: string): Promise<import("./types.js").LiveCleanupEvidence>;
   };
   export const sessionReplay: {
-    inspect(receipt: string): Promise<ReplayCheckpoint>;
+    inspect(receipt: string): Promise<import("./types.js").ReplayCheckpoint>;
   };
 }

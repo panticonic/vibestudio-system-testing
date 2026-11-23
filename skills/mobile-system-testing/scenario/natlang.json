@@ -2,14 +2,23 @@
   "schema": "natlang.package/v2",
   "name": "vibestudio-mobile-system-testing",
   "version": "0.1.0",
-  "targets": { "main": { "entry": "runMobileScenario.nl" } },
-  "include": ["types.ts", "services.d.ts", "runMobileScenario.nl", "runMobileScenario"],
+  "targets": {
+    "main": {
+      "entry": "runMobileScenario.nl"
+    }
+  },
+  "include": [
+    "types.ts",
+    "services.d.ts",
+    "runMobileScenario.nl",
+    "runMobileScenario"
+  ],
   "serviceBinding": "explicit",
   "serviceScopes": {
-    "mobileInventory": ["runMobileScenario/reviewSetup/readInventory.nl"],
-    "mobilePairing": ["runMobileScenario/exercisePairing/pairDevice.nl"],
-    "mobileWorkspace": ["runMobileScenario/exercisePairing/readWorkspace.nl"],
-    "mobileDevelopment": ["runMobileScenario/exerciseDevelopment/installApp.nl"],
-    "mobileApp": ["runMobileScenario/exerciseDevelopment/readInstalledApp.nl"]
+    "mobileInventory": [],
+    "mobilePairing": [],
+    "mobileWorkspace": [],
+    "mobileDevelopment": [],
+    "mobileApp": []
   }
 }

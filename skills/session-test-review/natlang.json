@@ -4,9 +4,16 @@
   "version": "0.1.0",
   "serviceBinding": "explicit",
   "serviceScopes": {
-    "transcriptCursor": ["resumeChannelTranscript.nl", "resumeChannelTranscript/collectReplayPages.nl"],
-    "sessionReplay": ["reviewLiveReplay/readCheckpoint.nl"],
-    "testkitCleanup": ["reviewLiveCleanup/readCleanup.nl"]
+    "transcriptCursor": [
+      "resumeChannelTranscript.nl",
+      "resumeChannelTranscript/collectReplayPages.nl"
+    ],
+    "sessionReplay": [],
+    "testkitCleanup": []
   },
-  "targets": { "main": { "entry": "reviewSessionTest.nl" } }
+  "targets": {
+    "main": {
+      "entry": "reviewSessionTest.nl"
+    }
+  }
 }

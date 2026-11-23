@@ -1,0 +1,179 @@
+{
+  "schema": "natlang.native-passthrough-inventory/1",
+  "root": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/rejection-audit/native-passthrough-system-testing",
+  "rows": [
+    {
+      "path": "skills/session-test-review/reviewLiveCleanup/readCleanup.nl",
+      "line": 1,
+      "body_line": 7,
+      "source_sha256": "283ec2af17563986d487704e1c0d3624122eab4203cdad8d6560050975b1e082",
+      "service": "testkitCleanup",
+      "method": "inspect",
+      "arguments": "receipt",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/session-test-review",
+      "metadata": {
+        "description": "Read the caller-owned Testkit teardown receipt.",
+        "args": {
+          "receipt": "string"
+        },
+        "returns": "LiveCleanupEvidence"
+      },
+      "output": "skills/session-test-review/reviewLiveCleanup/readCleanup.ts",
+      "generated": "import {testkitCleanup} from \"natlang:services\";\nimport type {LiveCleanupEvidence} from \"../types.js\";\n/** Read the caller-owned Testkit teardown receipt. */\nexport default async function readCleanup(receipt: string):Promise<LiveCleanupEvidence>{\n return testkitCleanup.inspect(receipt);\n}\n",
+      "source_body": "Call testkitCleanup.inspect(receipt). Return the result unchanged."
+    },
+    {
+      "path": "skills/session-test-review/reviewLiveReplay/readCheckpoint.nl",
+      "line": 1,
+      "body_line": 7,
+      "source_sha256": "8f762dc14dff0840f9b3676cf63cb61181ef4fe4cc86c625392790fa7cd2179d",
+      "service": "sessionReplay",
+      "method": "inspect",
+      "arguments": "receipt",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/session-test-review",
+      "metadata": {
+        "description": "Read one assigned reconnect receipt.",
+        "args": {
+          "receipt": "string"
+        },
+        "returns": "ReplayCheckpoint"
+      },
+      "output": "skills/session-test-review/reviewLiveReplay/readCheckpoint.ts",
+      "generated": "import {sessionReplay} from \"natlang:services\";\nimport type {ReplayCheckpoint} from \"../types.js\";\n/** Read one assigned reconnect receipt. */\nexport default async function readCheckpoint(receipt: string):Promise<ReplayCheckpoint>{\n return sessionReplay.inspect(receipt);\n}\n",
+      "source_body": "Call sessionReplay.inspect(receipt) and return its receipt unchanged."
+    },
+    {
+      "path": "skills/system-testing/triage/reviewRetainedFailure/readRetainedFailure.nl",
+      "line": 1,
+      "body_line": 7,
+      "source_sha256": "20d45eac9c0e10cb6c20e84869faa89fa1a9df6a90a66e3c43e29221604f59bf",
+      "service": "retainedTestFailure",
+      "method": "inspect",
+      "arguments": "operationId",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/system-testing/triage",
+      "metadata": {
+        "description": "Read one retained diagnostic from the assigned system-test runner.",
+        "args": {
+          "operationId": "string"
+        },
+        "returns": "RetainedFailurePacket | null"
+      },
+      "output": "skills/system-testing/triage/reviewRetainedFailure/readRetainedFailure.ts",
+      "generated": "import {retainedTestFailure} from \"natlang:services\";\nimport type {RetainedFailurePacket} from \"../types.js\";\n/** Read one retained diagnostic from the assigned system-test runner. */\nexport default async function readRetainedFailure(operationId: string):Promise<RetainedFailurePacket | null>{\n return retainedTestFailure.inspect(operationId);\n}\n",
+      "source_body": "Call retainedTestFailure.inspect once with operationId and return its actual result."
+    },
+    {
+      "path": "skills/mobile-system-testing/scenario/runMobileScenario/exerciseDevelopment/installApp.nl",
+      "source_sha256": "f7d26cc533da3366454c3a50c57e5f69b92fdf1ddd62e806f966a4810ef66177",
+      "service": "mobileDevelopment",
+      "method": "install",
+      "arguments": "deviceId",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/mobile-system-testing/scenario",
+      "metadata": {
+        "description": "Run the assigned Android development install with its caller-bound reset policy.",
+        "args": {
+          "deviceId": "string"
+        },
+        "returns": "InstallReceipt | null"
+      },
+      "output": "skills/mobile-system-testing/scenario/runMobileScenario/exerciseDevelopment/installApp.ts",
+      "generated": "import {mobileDevelopment} from \"natlang:services\";\nimport type {InstallReceipt} from \"../../types.js\";\n/** Run the assigned Android development install with its caller-bound reset policy. */\nexport default async function installApp(deviceId: string):Promise<InstallReceipt | null>{\n return mobileDevelopment.install(deviceId);\n}\n",
+      "source_body": "Return mobileDevelopment.install(deviceId)."
+    },
+    {
+      "path": "skills/mobile-system-testing/scenario/runMobileScenario/exerciseDevelopment/readInstalledApp.nl",
+      "source_sha256": "25e5e119553c75778dad72b0caf89a573edaea30f01466a3aca1a16cf1130375",
+      "service": "mobileApp",
+      "method": "verify",
+      "arguments": "deviceId, packageName",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/mobile-system-testing/scenario",
+      "metadata": {
+        "description": "Verify the exact developer app on the same device.",
+        "args": {
+          "deviceId": "string",
+          "packageName": "string"
+        },
+        "returns": "AppReadback | null"
+      },
+      "output": "skills/mobile-system-testing/scenario/runMobileScenario/exerciseDevelopment/readInstalledApp.ts",
+      "generated": "import {mobileApp} from \"natlang:services\";\nimport type {AppReadback} from \"../../types.js\";\n/** Verify the exact developer app on the same device. */\nexport default async function readInstalledApp(deviceId: string, packageName: string):Promise<AppReadback | null>{\n return mobileApp.verify(deviceId, packageName);\n}\n",
+      "source_body": "Return mobileApp.verify(deviceId, packageName)."
+    },
+    {
+      "path": "skills/mobile-system-testing/scenario/runMobileScenario/exercisePairing/pairDevice.nl",
+      "source_sha256": "fc53cfc675b26bec89e418dc40a2aa67ff3e5d45452bb2ef6861023c8ea5e419",
+      "service": "mobilePairing",
+      "method": "pair",
+      "arguments": "deviceId",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/mobile-system-testing/scenario",
+      "metadata": {
+        "description": "Dispatch one assigned phone provisioning request.",
+        "args": {
+          "deviceId": "string"
+        },
+        "returns": "PairReceipt | null"
+      },
+      "output": "skills/mobile-system-testing/scenario/runMobileScenario/exercisePairing/pairDevice.ts",
+      "generated": "import {mobilePairing} from \"natlang:services\";\nimport type {PairReceipt} from \"../../types.js\";\n/** Dispatch one assigned phone provisioning request. */\nexport default async function pairDevice(deviceId: string):Promise<PairReceipt | null>{\n return mobilePairing.pair(deviceId);\n}\n",
+      "source_body": "Return mobilePairing.pair(deviceId)."
+    },
+    {
+      "path": "skills/mobile-system-testing/scenario/runMobileScenario/exercisePairing/readWorkspace.nl",
+      "source_sha256": "c334196bbea23a74f183fe38df252360008b9c6b6cb71208ce14efbb6db25b51",
+      "service": "mobileWorkspace",
+      "method": "read",
+      "arguments": "pairedDevice",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/mobile-system-testing/scenario",
+      "metadata": {
+        "description": "Read the paired device's own workspace readiness.",
+        "args": {
+          "pairedDevice": "string"
+        },
+        "returns": "WorkspaceReadback | null"
+      },
+      "output": "skills/mobile-system-testing/scenario/runMobileScenario/exercisePairing/readWorkspace.ts",
+      "generated": "import {mobileWorkspace} from \"natlang:services\";\nimport type {WorkspaceReadback} from \"../../types.js\";\n/** Read the paired device's own workspace readiness. */\nexport default async function readWorkspace(pairedDevice: string):Promise<WorkspaceReadback | null>{\n return mobileWorkspace.read(pairedDevice);\n}\n",
+      "source_body": "Return mobileWorkspace.read(pairedDevice)."
+    },
+    {
+      "path": "skills/mobile-system-testing/scenario/runMobileScenario/reviewSetup/readInventory.nl",
+      "source_sha256": "3229072d12f794a87aeb142025406513f679ce701ed9342c5862cde6b38bf5d6",
+      "service": "mobileInventory",
+      "method": "read",
+      "arguments": "",
+      "status": "converted",
+      "reason": "Exact native service call, typed signature, no semantic judgment or child subtree",
+      "package": "skills/mobile-system-testing/scenario",
+      "metadata": {
+        "description": "Read the installed tooling and assigned Android discovery surface.",
+        "args": {},
+        "returns": "MobileInventory"
+      },
+      "output": "skills/mobile-system-testing/scenario/runMobileScenario/reviewSetup/readInventory.ts",
+      "generated": "import {mobileInventory} from \"natlang:services\";\nimport type {MobileInventory} from \"../../types.js\";\n/** Read the installed tooling and assigned Android discovery surface. */\nexport default async function readInventory():Promise<MobileInventory>{\n return mobileInventory.read();\n}\n",
+      "source_body": "Return mobileInventory.read()."
+    }
+  ],
+  "verification": {
+    "compiler": "actual VibeStudio compileProgram and workspaceModules, all affected packages plus every public entry root",
+    "packages": 81,
+    "aggregate_linked_files": 3708,
+    "ledger_unit": "native-passthrough-compile-20261123c",
+    "teacher_calls": 0,
+    "runtime_capture_dependency": "Deploy with Core native-service frame recording fix; raw service frame binding is insufficient."
+  }
+}
