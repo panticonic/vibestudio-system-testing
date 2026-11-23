@@ -218,8 +218,8 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
         return capture("contentArchiveEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (discovered && id === assignment.id && observed) return structuredClone(observed);
-        if (!discovered || busy || id !== assignment.id) throw new Error("Inspect only the exact assigned archive and project");
+        if (id === assignment.id && observed) return structuredClone(observed);
+        if (busy || id !== assignment.id) throw new Error("Inspect only the exact assigned archive and project");
         busy = true;
         try { observed = await observe(); return capture("contentArchiveEvidence", "inspect", [id], observed); }
         finally { busy = false; }

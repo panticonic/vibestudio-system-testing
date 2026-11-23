@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { prepareOpenGoal } from "./open-goal-managed.js";
 
+vi.mock("./open-goal-suite-managed.js",()=>({prepareOpenGoalSuite:vi.fn()}));
+
 const sources = vi.hoisted(() => ({
   url: "https://www.iana.org/help/example-domains",
   unrelated: "https://unrelated.example/answer",
@@ -33,13 +35,13 @@ vi.mock("@workspace/runtime", () => ({
   },
 }));
 
-it("requires the conclusion as well as the exact source quotation", async () => {
+it("binds exact source evidence and actual conclusions for independent semantic judgment", async () => {
   const prepared = await prepareOpenGoal({ contextId: "owned", caseId: "explain-reserved-example-domains" });
   if (!("goalDiscovery" in prepared.services) || !("web" in prepared.services))
     throw new Error("Expected the public research workspace");
   const { goalDiscovery, web } = prepared.services;
   await goalDiscovery.search(["reserved example domains"]);
-  await expect(web.fetch({ url: sources.unrelated })).rejects.toThrow("authorized URL");
+  await web.fetch({ url: sources.unrelated });
   await web.fetch({ url: sources.url });
   const cites = [{ url: sources.url, quote: sources.quote,
     retrieved: new Date(goalDiscovery.snapshotTime()).toISOString().slice(0, 10) }];
@@ -49,12 +51,26 @@ it("requires the conclusion as well as the exact source quotation", async () => 
     },
   });
   expect(await verify("You can register example.com, example.net, and example.org.")).toMatchObject({
-    passed: false, checks: { groundedCitations: true, supportedConclusion: false },
+    passed: true, semanticReviewRequired:true, checks: { groundedCitations: true },
+    semanticReviewInput:{kind:"public-claims",actual:{answer:"You can register example.com, example.net, and example.org."}},
   });
   expect(await verify("Example.com, example.net, and example.org are not available for registration."))
     .toMatchObject({
-      passed: true, checks: { groundedCitations: true, supportedConclusion: true, attestedSearchProvider: true },
+      passed: true, semanticReviewRequired:true, checks: { groundedCitations: true, attestedSearchProvider: true },
       searches: [{ provider: "duckduckgo" }],
       citationSources: [{ ...cites[0], provider: "duckduckgo", searchIndex: 0 }],
     });
+});
+
+it("reads a directly known authorized public source without a mandatory search route",async()=>{
+  const prepared=await prepareOpenGoal({contextId:"owned",caseId:"explain-reserved-example-domains"});
+  if(!("goalDiscovery"in prepared.services)||!("web"in prepared.services))throw new Error("Expected web research");
+  const {web,goalDiscovery}=prepared.services;
+  await web.fetch({url:sources.url});
+  const result=await prepared.verify({status:"answered",research:{question:prepared.goal,status:"answered",statements:[{
+    text:"Example.com, example.net and example.org are not available for registration.",cites:[{url:sources.url,quote:sources.quote,
+      retrieved:new Date(goalDiscovery.snapshotTime()).toISOString().slice(0,10)}],
+  }]}});
+  expect(result).toMatchObject({passed:true,searches:[],citationSources:[{provider:null,searchIndex:null}]});
+  await expect(web.fetch({url:sources.url,session:"browser"})).rejects.toThrow("public session");
 });

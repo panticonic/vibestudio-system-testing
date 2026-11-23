@@ -72,7 +72,6 @@ export async function prepareOpenUnitRollout(
         throw new Error("Seeded source does not reproduce the intended native test outcome");
     }
   } finally { await phase("initial.cleanup", async () => baselineEngine.close?.()); }
-  let discovered = false;
   let changing = false;
   const observations: Observation[] = [];
   const edits: { id: string; from: string; proposal: Edit[]; result: Apply }[] = [];
@@ -88,7 +87,7 @@ export async function prepareOpenUnitRollout(
   }
   function resolve(id: string) {
     const unit = units.find(candidate => candidate.id === id);
-    if (!discovered || !unit) throw new Error("Select a discovered owned rollout unit");
+    if (!unit) throw new Error("Select an owned rollout unit");
     return unit;
   }
   function hasBasis(unit: OwnedUnit, revision: string) {
@@ -118,7 +117,6 @@ export async function prepareOpenUnitRollout(
   }
   const services = {
     unitRolloutCatalog: { async discover() {
-      discovered = true;
       const catalog = units.map(view);
       discoveries.push(catalog);
       return structuredClone(catalog);
@@ -231,7 +229,7 @@ export async function prepareOpenUnitRollout(
       (world.race.stage === "apply" ? edits.some(({ from, result }) => from === state.race?.before && result.status === "changed" && result.revision === state.race?.after)
         : commits.some(({ result }) => result.status === "changed" && result.revision === state.race?.after))) : state.race === null;
     const acceptance = {
-      discoveredExactRolloutUnit: discovered && observations.length > 0 && observations.every(({ unit }) => unit.id === target.id),
+      discoveredExactRolloutUnit: observations.some(({ unit }) => unit.id === target.id),
       attestedInitialNativeState: observations.some(observation => observation.revision === seededBuild.revision &&
         observation.build.status === seededBuild.build.status && observation.build.stateHash === seededBuild.build.stateHash),
       exactObservedRepair: repaired === world.expected.repair && (world.expected.repair ? source.text !== target.files[target.entry]

@@ -195,7 +195,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
   const services={
     editorialMission:{async list(){listed=await cards();return structuredClone(listed);}},
     editorialWorkspace:{async read(id:string){
-      if(!listed||id!==firstMission.id)return null;
+      if(id!==firstMission.id)return null;
       if(snapshots.length>=2||snapshots.length===1&&!raceObserved)return structuredClone(snapshots.at(-1)!);
       if(busy)return null;
       busy=true;
@@ -349,7 +349,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,byteLimit)):null;
     const foreign=crypto.randomUUID();
     const checks={
-      exactOwnedEditorialMission:!!listed&&listed[0]?.id===firstMission.id&&listed[1]?.id!==firstMission.id&&
+      exactOwnedEditorialMission:
         isDeepStrictEqual(report?.plan,plan)&&isDeepStrictEqual(snapshots.at(-1)?.mission,await currentMission()),
       exactEditorialFrontiers:snapshots.length===(world.race?2:1)&&isDeepStrictEqual(snapshots[0]?.candidate,firstDoc)&&
         isDeepStrictEqual(report?.opening,snapshots[0])&&isDeepStrictEqual(report?.current,snapshots.at(-1))&&

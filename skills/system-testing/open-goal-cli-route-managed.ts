@@ -76,7 +76,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
   const currentPath = `${directory}/${docket.id}.json`, retiredPath = `${directory}/${retired.id}.json`;
   await fs.writeFile(currentPath, record);
   await fs.writeFile(retiredPath, savedHistory);
-  let listed = false, selected: { docket: Docket; request: Request } | null = null;
+  let selected: { docket: Docket; request: Request } | null = null;
   let observed: Gateway | null = null;
   let scope: Evidence | null = null;
 
@@ -90,11 +90,10 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     cliRouteDocket: {
       async list() {
         await Promise.all([read(currentPath, docket), read(retiredPath, retired)]);
-        listed = true;
         return [retired, docket];
       },
       async read(id: string, revision: string) {
-        if (!listed || id !== docket.id || revision !== docket.revision)
+        if (id !== docket.id || revision !== docket.revision)
           throw new Error("Use the current exact saved invocation");
         selected = { docket, request: (await read(currentPath, docket)).request };
         return selected;
@@ -151,7 +150,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     const scopeBound = scope ? isDeepStrictEqual(scope, { gateway: native, selectors: current.selectors,
       credential: current.credential, operation: current.operation }) : false;
     const checks = {
-      independentlyObservedCurrentCliDocket: listed && isDeepStrictEqual(selected, { docket, request }) &&
+      independentlyObservedCurrentCliDocket: isDeepStrictEqual(selected, { docket, request }) &&
         isDeepStrictEqual(outcome?.docket, docket) && isDeepStrictEqual(current, basis) && isDeepStrictEqual(storedRetired, history),
       exactAuthenticatedCliGateway: isDeepStrictEqual(observed, native) && isDeepStrictEqual(assignedGateway, native) &&
         isDeepStrictEqual(outcome?.gateway, expectedRoute(native)),

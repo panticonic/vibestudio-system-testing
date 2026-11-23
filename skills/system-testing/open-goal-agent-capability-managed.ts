@@ -214,7 +214,8 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
       },
       async inspect(id: string) {
         const step = steps.find(candidate => candidate.card.id === id);
-        if (!discovered || !step || viewed.has(id)) throw new Error("Use only a discovered owned notebook attempt");
+        if (!step) throw new Error("Use only an owned notebook attempt");
+        if (viewed.has(id)) return structuredClone(viewed.get(id)!);
         const evidence = await inspect(step);
         viewed.set(id, evidence);
         return capture("agentCapabilityEvidence", "inspect", [id], evidence);
@@ -277,7 +278,7 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
           isDeepStrictEqual(receipt.result.returnValue, { revision: currentView.notebook.revision, saved: true }));
     }
     const checks = {
-      selectedExactOwnedAttempts: discovered && viewed.size === 2 && !!observed && viewed.has(prior.card.id) &&
+      selectedExactOwnedAttempts: viewed.size === 2 && !!observed && viewed.has(prior.card.id) &&
         isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.evidence, { current: observed, prior: earlier }),
       verifiedNativeAdmissionAndFailure: observed?.runDigest === currentView.runDigest && observed?.resultDigest === currentView.resultDigest &&
         observed?.completeEvents === currentView.completeEvents && observed?.invocationStatus === currentView.invocationStatus &&

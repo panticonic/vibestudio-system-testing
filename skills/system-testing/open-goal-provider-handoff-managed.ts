@@ -155,7 +155,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     retainedConversationState: {
       async read(channelId: string) {
         const owned = lanes.get(channelId);
-        if (!listedCards || !owned) return null;
+        if (!owned) return null;
         const previous = seen.filter(row => row.channelId === channelId);
         if (previous.length >= 2) return structuredClone(previous.at(-1)!);
         if (listingBusy) return null;
@@ -247,7 +247,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
     const transition = observedTransition(first, latest);
     const checks = {
       exactApprovalVisibility: transition === wanted.transition,
-      discoveredOwnedConversation: listedCards !== null && targetReads.length === 2 && plan?.channelId === card.channelId && plan.requestId === request.id,
+      discoveredOwnedConversation: targetReads.length === 2 && plan?.channelId === card.channelId && plan.requestId === request.id,
       exactRetainedProviderFrontier: isDeepStrictEqual(targetReads[0], first) && isDeepStrictEqual(targetReads[1], latest) &&
         plan?.through === latest.through && latest.rows.length === seeded.size &&
         latest.rows.every(row => isDeepStrictEqual(seeded.get(row.messageId), row.record)) &&

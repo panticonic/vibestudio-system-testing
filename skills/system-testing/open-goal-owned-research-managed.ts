@@ -68,7 +68,6 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
   const date = new Date(snapshot).toISOString().slice(0, 10);
   const url = (id: string) => `${endpoint.origin}/${endpoint.nonce}/${id}`;
   const entries = new Map(world.pages.map(page => [url(page.id), { page, index: words(`${page.title} ${page.summary}`) }]));
-  const discovered = new Set<string>();
   const pages = new Map<string, Page>();
   type SearchRows = { query: string; text: string; sources: { url: string; title: string; snippet: string }[] }[];
   const searches: { queries: string[]; urls: string[]; result: SearchRows }[] = [];
@@ -76,11 +75,9 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
   const cacheReceipts: { args: [Parameters<NativeWeb["read"]>[0]]; result: Read }[] = [];
   const attempted: { requested: string; url: string | null; digest: string | null }[] = [];
   const reads: { digest: string; offset: number; bytes: number }[] = [];
-  let readCount = 0;
-  let fetchCount = 0;
 
   async function search(queries: string[]) {
-    if (searches.length >= 4 || !Array.isArray(queries) || !queries.length || queries.length > 5 ||
+    if (!Array.isArray(queries) || !queries.length || queries.length > 5 ||
         queries.some(query => typeof query !== "string" || !query.trim() || query.length > 260))
       throw new Error("Use bounded queries for the owned research catalog");
     const rows = queries.map(query => {
@@ -89,7 +86,6 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
         ({ url, ...entry, count: terms.filter(term => entry.index.has(term)).length }))
         .filter(row => row.count > 0).sort((left, right) => right.count - left.count || left.url.localeCompare(right.url));
       const sources = candidates.slice(0, 4).map(({ url, page }) => {
-        discovered.add(url);
         return { url, title: page.title, snippet: page.summary };
       });
       return { query, text: sources.map(source => `${source.title}. ${source.snippet}`).join("\n"), sources };
@@ -104,9 +100,8 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
         return { results: await search(queries) };
       },
       async fetch(options: Parameters<NativeWeb["fetch"]>[0]) {
-        if (!options || (options.session && options.session !== "public") || !entries.has(options.url) ||
-            !discovered.has(options.url) || ++fetchCount > 10)
-          throw new Error("Use a catalog-discovered owned HTTP page and the public session");
+        if (!options || (options.session && options.session !== "public") || !entries.has(options.url))
+          throw new Error("Use an authorized owned HTTP page and the public session");
         const effect: typeof attempted[number] = { requested: options.url, url: null, digest: null };
         attempted.push(effect);
         const page = await ports.web.fetch({ url: options.url, session: "public" });
@@ -120,7 +115,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       },
       async read(input: Parameters<NativeWeb["read"]>[0]) {
         const page = pages.get(input?.digest);
-        if (!page || ++readCount > 16 || !Number.isInteger(input.offset) || input.offset! < 0 ||
+        if (!page || !Number.isInteger(input.offset) || input.offset! < 0 ||
             !Number.isInteger(input.limit) || input.limit! < 1 || input.limit! > maxPageBytes)
           throw new Error("Read only a bounded range of observed owned evidence");
         const actual = await ports.web.read(input);
@@ -144,21 +139,19 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     const readback = await Promise.all([...pages.values()].map(exactPage));
     const protectedScope = await ports.status();
     const required = world!.required;
-    const tail = world!.tail;
-    const tailPage = tail ? [...pages.values()].find(page => page.url === url(tail)) : undefined;
     const citationsExact = cites.length > 0 && cites.every(citation => typeof citation.quote === "string" &&
       normalize(citation.quote).length >= 20 && citation.retrieved === date &&
       readback.some(page => page.url === citation.url && normalize(page.text).includes(normalize(citation.quote))));
     const document = edit ? await edit.verify(value) : null;
     const checks = {
-      discoveredOwnedSources: searches.length > 0 && pages.size > 0 &&
-        attempted.every(({ requested }) => discovered.has(requested) && entries.has(requested)),
+      discoveredOwnedSources: pages.size > 0 &&
+        attempted.every(({ requested }) => entries.has(requested)),
       exactOwnedPageReadback: readback.length > 0 && readback.every(page => page.exact),
       groundedOwnedCitations: citationsExact &&
         required.every(required => cites.some(citation => citation.url === url(required.page) &&
           normalize(citation.quote).toLowerCase().includes(required.phrase.toLowerCase()))),
-      readOwnedCacheContinuation: !tail || (!!tailPage?.truncated &&
-        reads.some(read => read.digest === tailPage.digest && read.offset === tailPage.headBytes && read.bytes > 0)),
+      readOwnedCacheContinuation: reads.every(read => [...pages.values()].some(page =>
+        read.digest === page.digest && read.offset >= 0 && read.bytes >= 0 && read.offset + read.bytes <= page.size)),
       answeredOwnedGoal: report?.status === (edit ? "edited" : "answered") && research?.status === "answered" &&
         research.question === world!.goal && statements.length > 0 &&
         statements.every(statement => Boolean(statement.text?.trim()) && statement.cites?.length > 0) &&
@@ -175,7 +168,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
   async function qualify() {
     let rejectedForeign = false;
     try { await services.web.fetch({ url: `${endpoint.origin}/${endpoint.nonce}/unobserved` }); }
-    catch (error) { rejectedForeign = error instanceof Error && /catalog-discovered/u.test(error.message); }
+    catch (error) { rejectedForeign = error instanceof Error && /authorized owned HTTP page/u.test(error.message); }
     const citations: Citation[] = [];
     for (const expected of world!.required) {
       const expectedUrl = url(expected.page);

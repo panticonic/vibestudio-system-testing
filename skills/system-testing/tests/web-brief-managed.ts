@@ -75,7 +75,7 @@ import {
   openScheduledRecoveryWorlds, scheduledRecoveryRequiresUnits,
   personalAutomationAuthority, personalAutomationRequiresUnits, personalHistoryRequiresUnits,
   openBrowserMigrationWorlds, browserMigrationRequiresUnits,
-  publicSourceOrigins, spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
+  spectroliteGoalWorlds, suiteGoalWorlds, type PublicResearchWorld,
 } from "../open-goal-worlds.js";
 import { PANEL_AUTOMATION_RESOURCE, PANEL_RUNTIME_STATE_AUTHORITY, PANEL_RUNTIME_SUPERVISION_AUTHORITY, panelControlAuthorityPolicy } from "../panel-authority.js";
 import { nativeSuiteAuthority } from "./native-suite-managed.js";
@@ -162,15 +162,13 @@ const referenceGoals = [...outcomeWorkspaceWorlds, ...automationActivationWorlds
   ...openPersonalArtifactWorlds, ...openPersonalHistoryWorlds, ...openGoalGoogleHandoffWorlds, ...openPersonalAutomationWorlds, ...openGoalOwnedPreviewWorlds, ...openGoalPanelRecoveryWorlds, ...openBrowserMigrationWorlds, ...openGoalGoogleSetupWorlds, ...gadDurableQuestionWorlds, ...openClientDiagnosticsWorlds, ...openGoalGitHubWorlds];
 const openGoalCases = referenceGoals.map(world => ({ world, qualification: false }));
 openGoalCases.push(...referenceGoals.map(world => ({ world, qualification: true })));
-const publicResearchAuthority = (world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
-  authority: [
-    "https://lite.duckduckgo.com", "https://html.duckduckgo.com",
-    "https://api.tavily.com", "https://api.search.brave.com", "https://api.exa.ai",
-    ...publicSourceOrigins(world),
-  ].map((origin, index) => ({
-    ruleId: `open-goal-public-origin-${index + 1}`,
+const publicResearchAuthority = (_world: PublicResearchWorld): Pick<AgentExecutionTestPolicySpec, "authority"> => ({
+  // Open research is not restricted to reference-answer hosts. The native public
+  // fetch boundary enforces public destinations and redirect/DNS safety.
+  authority: ["https://", "http://"].map((prefix, index) => ({
+    ruleId: `open-goal-public-web-${index + 1}`,
     capability: { kind: "exact", key: "network.response.read" },
-    resource: { kind: "exact", key: origin },
+    resource: { kind: "prefix", prefix },
     tier: "gated",
     decision: "once",
   })),

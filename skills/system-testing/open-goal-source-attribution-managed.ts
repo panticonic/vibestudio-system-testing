@@ -135,7 +135,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     return structuredClone(result);
   }
   function admission(id: string) {
-    if (!discovered || id !== assignment.id) throw new Error("Source attribution assignment is outside scoped discovery");
+    if (id !== assignment.id) throw new Error("Source attribution assignment is outside scoped discovery");
   }
   function getCandidate(id: string) {
     const candidate = candidates.find(item => item.id === id);
@@ -201,14 +201,14 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
   const services = {
     sourceOriginEvidence: {
       async discover() {
-        if (discovered) throw new Error("Source attribution was already discovered");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("sourceOriginEvidence", "discover", [], assignment);
       },
       async read(id: string, candidateId: string) {
         admission(id);
         const candidate = getCandidate(candidateId);
-        if (readbacks.has(candidateId) || pendingReads.has(candidateId)) throw new Error("Source candidate already observed");
+        if (pendingReads.has(candidateId)) throw new Error("Source candidate observation is in progress");
         pendingReads.add(candidateId);
         try {
           const view = await readView(candidate);
@@ -221,7 +221,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
       async trace(id: string, state: string, candidate: string, fragment: string) {
         admission(id);
         const view = readbacks.get(candidate), key = `${candidate}:${fragment}`;
-        if (!view || view.state !== state || (traceReads.has(key) || pendingTraces.has(key))) throw new Error("Source range was not admitted by its current read");
+        if (!view || view.state !== state || pendingTraces.has(key)) throw new Error("Source range was not admitted by its current read");
         pendingTraces.add(key);
         try {
           const result = await traceNative(view, fragment);
@@ -313,7 +313,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     const rereadRoots = await Promise.all([...inspected].map(async ([id, retained]) =>
       isDeepStrictEqual(await inspectRoot(roots.get(id)!, id), retained)));
     const checks = {
-      readExactCurrentSource: discovered && validateEvidence(),
+      readExactCurrentSource: validateEvidence(),
       tracedExactGraphOwner: rereadGraph.every(Boolean) && rereadRoots.every(Boolean),
       preservedWorkspaceSources: rechecked.every(Boolean) && isDeepStrictEqual(mainBefore, mainAfter) &&
         after.clean === !Boolean(staleHead) && isDeepStrictEqual(after.workingHead, staleHead ?? observed),

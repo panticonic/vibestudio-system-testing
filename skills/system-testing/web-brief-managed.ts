@@ -29,6 +29,53 @@ type Brief = {
 };
 const collapse = (value: string) => value.replace(/\s+/gu, " ").trim();
 
+export type BriefWorld = { id: string; goal: string; sources: readonly string[]; facts: readonly { source: string; pattern: string; }[] };
+export type BriefEvidence = {
+  reads: { requested: string; page: Page }[];
+  tails: Range[];
+  cache: { requested: string; digest: string; size: number; verified: boolean; visible: string }[];
+};
+
+/** Pure checks over archived native receipts and independently hash-verified cache bytes.
+ * Callers must derive cache.verified from bytes, never from a model declaration. */
+export function checkManagedWebBriefEvidence(world: BriefWorld, report: Brief | null,
+  retrieved: string, { reads, tails, cache }: BriefEvidence) {
+  const cites =
+      report?.statements.flatMap((statement) => statement.cites) ?? [];
+    const checks = {
+      assigned: reads.length > 0 && reads.every(({requested,page}) =>
+        world.sources.includes(requested) && page.session === "public" && /^[a-f0-9]{64}$/u.test(page.digest)),
+      continuations: tails.every(tail => reads.some(({page}) => page.digest === tail.digest &&
+        tail.offset >= 0 && tail.nextOffset === tail.offset + tail.bytes && tail.nextOffset <= page.size)),
+      cache: cache.length === reads.length && cache.length > 0 && cache.every((item,index) =>
+        item.verified && item.digest === reads[index]?.page.digest && item.size === reads[index]?.page.size && item.requested === reads[index]?.requested),
+      outcome:
+        report?.question === world.goal &&
+        (report.status === "answered" || report.status === "insufficient") &&
+        Array.isArray(report.notRead),
+      citations:
+        report?.statements.every(
+          (statement) =>
+            !!statement.text.trim() &&
+            statement.cites.length > 0 &&
+            statement.cites.every((cite) =>
+              reads.some(
+                ({ page }, index) =>
+                  page.url === cite.url &&
+                  page.title === cite.title &&
+                  cache[index]?.verified === true && cache[index]?.digest === page.digest &&
+                  cite.retrieved === retrieved &&
+                  collapse(cite.quote).length >= 20 &&
+                  collapse(cache[index]?.visible ?? "").includes(
+                    collapse(cite.quote),
+                  ),
+              ),
+            ),
+        ) === true,
+    };
+  return checks;
+}
+
 export function prepareManagedWebBrief(contextId: string, caseId: string) {
   const world = requireAssignedWorld(managedWebBriefWorlds, caseId, "Unknown assigned web brief");
   return prepareManagedWebBriefWorld(contextId, world);
@@ -36,7 +83,7 @@ export function prepareManagedWebBrief(contextId: string, caseId: string) {
 
 export function prepareManagedWebBriefWorld(
   contextId: string,
-  world: { id: string; goal: string; sources: readonly string[]; facts: readonly { source: string; pattern: string }[] },
+  world: BriefWorld,
   transport: Pick<typeof web, "fetch" | "read"> = web,
 ) {
   const caseId = world.id;
@@ -69,81 +116,16 @@ export function prepareManagedWebBriefWorld(
     const cache = await Promise.all(
       reads.map(async ({ requested, page }) => {
         const entire = await readVerifiedCachedPage(input => transport.read(input), page);
-        const tail = tails.find(({ digest }) => digest === page.digest);
         return {
           requested,
           digest: page.digest,
           size: page.size,
           verified: entire.exact,
-          visible: (page.head + (tail?.text ?? "")).slice(0, 9000),
+          visible: entire.text,
         };
       }),
     );
-    const cites =
-      report?.statements.flatMap((statement) => statement.cites) ?? [];
-    const checks = {
-      assigned:
-        isDeepStrictEqual(
-          reads.map(({ requested }) => requested),
-          world.sources,
-        ) &&
-        reads.every(
-          ({ page }) =>
-            page.session === "public" && /^[a-f0-9]{64}$/u.test(page.digest),
-        ),
-      continuations:
-        tails.length ===
-          reads.filter(({ page }) => page.truncated && page.head.length < 9000)
-            .length &&
-        tails.every((tail) =>
-          reads.some(
-            ({ page }) =>
-              page.digest === tail.digest &&
-              page.truncated &&
-              tail.offset === page.headBytes &&
-              tail.nextOffset === tail.offset + tail.bytes &&
-              tail.limit === 9000 - page.head.length,
-          ),
-        ),
-      cache:
-        cache.length === world.sources.length &&
-        cache.every(({ verified }) => verified),
-      outcome:
-        report?.question === world.goal &&
-        report.status === (world.facts.length ? "answered" : "insufficient") &&
-        (world.facts.length
-          ? report.statements.length > 0
-          : report.statements.length === 0) &&
-        report.notRead.length === 0,
-      citations:
-        report?.statements.every(
-          (statement) =>
-            !!statement.text.trim() &&
-            statement.cites.length > 0 &&
-            statement.cites.every((cite) =>
-              reads.some(
-                ({ page }, index) =>
-                  page.url === cite.url &&
-                  page.title === cite.title &&
-                  cite.retrieved === retrieved &&
-                  collapse(cite.quote).length >= 20 &&
-                  collapse(cache[index]?.visible ?? "").includes(
-                    collapse(cite.quote),
-                  ),
-              ),
-            ),
-        ) === true &&
-        world.facts.every(({ source, pattern }) => {
-          const actual = reads.find(
-            ({ requested }) => requested === source,
-          )?.page;
-          return cites.some(
-            (cite) =>
-              cite.url === actual?.url &&
-              collapse(cite.quote).toLowerCase().includes(pattern),
-          );
-        }),
-    };
+    const checks = checkManagedWebBriefEvidence(world, report, retrieved, {reads,tails,cache});
     return {
       passed: Object.values(checks).every(Boolean),
       contextId,
@@ -167,7 +149,7 @@ export function prepareManagedWebBriefWorld(
     } catch (error) {
       rejectedUnassignedUrl =
         error instanceof Error &&
-        /next assigned public URL/.test(error.message);
+        /assigned public URLs?/.test(error.message);
     }
     for (const url of world.sources) {
       const page = await services.web.fetch({ url, session: "public" });
@@ -182,7 +164,7 @@ export function prepareManagedWebBriefWorld(
       await services.web.read({ digest: "0".repeat(64), offset: 0, limit: 40 });
     } catch (error) {
       rejectedForeignDigest =
-        error instanceof Error && /assigned public page/.test(error.message);
+        error instanceof Error && /assigned page fetched/.test(error.message);
     }
     const statements = world.facts.map(({ source, pattern }) => {
       const { page } = reads.find(({ requested }) => requested === source)!;

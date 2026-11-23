@@ -13,10 +13,10 @@ it("retains the credentialed provider, successful sources and original query arg
   const receipt = await attestPublicSearch({ hasCredential, search }, [" reserved domains "]);
   expect(receipt).toEqual({
     queries: [" reserved domains "], provider: "brave",
-    credentialChecks: [{ provider: "tavily", matched: false }, { provider: "brave", matched: true }],
+    credentialChecks: [{ provider: "tavily", matched: false }, { provider: "brave", matched: true }, {provider:"exa",matched:false}],
     result: output("brave"), urls: [url],
   });
-  expect(hasCredential.mock.calls).toEqual([["https://api.tavily.com/"], ["https://api.search.brave.com/"]]);
+  expect(hasCredential.mock.calls).toEqual([["https://api.tavily.com/"], ["https://api.search.brave.com/"],["https://api.exa.ai/"]]);
   expect(search).toHaveBeenCalledWith([" reserved domains "]);
 });
 
@@ -32,7 +32,7 @@ it("requires a completed absence check for every keyed provider before accepting
 
 it("rejects a dropped credential or a response from the wrong keyed provider", async () => {
   const hasCredential = async (origin: string) => origin === "https://api.tavily.com/";
-  for (const provider of ["duckduckgo", "exa"] as const) {
+  for (const provider of ["exa"] as const) {
     await expect(attestPublicSearch({ hasCredential, search: async () => output(provider) },
       ["reserved domains"])).rejects.toThrow(/provider does not match/);
   }
@@ -47,4 +47,10 @@ it("rejects a substituted query and excludes sources returned by errored queries
     results: result.results.map(row => ({ ...row, error: "Provider did not complete" })),
   }) }, ["reserved domains"]);
   expect(receipt.urls).toEqual([]);
+});
+
+it("attests a credential-authorized fallback rather than prescribing the first provider",async()=>{
+  const receipt=await attestPublicSearch({hasCredential:async origin=>origin==="https://api.tavily.com/",search:async()=>output("duckduckgo")},["reserved domains"]);
+  expect(receipt.provider).toBe("duckduckgo");
+  expect(receipt.credentialChecks).toHaveLength(3);
 });

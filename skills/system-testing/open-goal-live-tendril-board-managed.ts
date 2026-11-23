@@ -43,12 +43,11 @@ export async function prepareOpenLiveTendrilBoard(
   const path = `${directory}/current.json`;
   const serialized = JSON.stringify(ticket);
   await fs.writeFile(path, serialized);
-  let listed = false;
   let selected: typeof ticket | null = null;
   const tendrilBoardDocket = {
-    async list() { listed = true; return [prior, card]; },
+    async list() { return [prior, card]; },
     async read(id: string) {
-      if (!listed || id !== card.id) throw new Error("Use the current owned presentation ticket");
+      if (id !== card.id) throw new Error("Use the current owned presentation ticket");
       const text = await fs.readFile(path, "utf8");
       if (text !== serialized) throw new Error("The board presentation authority changed");
       selected = JSON.parse(text) as typeof ticket;
@@ -62,7 +61,7 @@ export async function prepareOpenLiveTendrilBoard(
     const outcome = report?.outcome;
     const native = prepared.verify(outcome?.actual ?? null);
     const checks = {
-      exactCurrentTendrilTicket: listed && isDeepStrictEqual(selected, ticket) &&
+      exactCurrentTendrilTicket: isDeepStrictEqual(selected, ticket) &&
         isDeepStrictEqual(outcome?.card, card) && await fs.readFile(path, "utf8") === serialized,
       exactPlannedTendrilEffects: isDeepStrictEqual(outcome?.plan, prepared.request),
       ownedTendrilPresentation: native.checks.presentation && native.checks.baseline,

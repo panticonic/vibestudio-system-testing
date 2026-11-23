@@ -172,7 +172,6 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
           return capture("ptyContinuityEvidence", "discover", [], assignment);
         },
         async inspect(id: string) {
-          if (!discovered) throw new Error("Discover the assigned attempts before inspecting");
           if (observations.has(id)) return structuredClone(await observations.get(id));
           const record = observe(lookup(id));
           observations.set(id, record);

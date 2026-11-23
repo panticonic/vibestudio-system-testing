@@ -13,6 +13,8 @@ type Display = {
   component: ComponentSpec;
   labels: string[];
   interaction?: PresentationInteraction;
+  /** Set only when the user requests this exact heading. */
+  requiredTitle?: string;
 };
 
 type Disposition =

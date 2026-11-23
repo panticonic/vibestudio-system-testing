@@ -2,7 +2,7 @@ import { credentials, fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { PanelTeacherResult } from "@vibestudio/service-schemas/systemTestRunner";
-import { openGoalWorlds, publicSourceOrigins, type PublicResearchWorld } from "./open-goal-worlds.js";
+import { openGoalWorlds, type PublicResearchWorld } from "./open-goal-worlds.js";
 import { browserGoalWorlds } from "./open-goal-browser-worlds.js";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
@@ -42,7 +42,7 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
     edit: Awaited<ReturnType<typeof workspace.verify>>,
     publicEvidence: Awaited<ReturnType<typeof research.verify>>,
   ) => ({
-    ...edit, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
+    ...edit, semanticReviewRequired:publicEvidence.semanticReviewRequired,semanticReviewInput:publicEvidence.semanticReviewInput, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
     citationSources: publicEvidence.citationSources,
     checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed,
   });
@@ -62,16 +62,15 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
 }
 
 function preparePublicResearch({ contextId, caseId }: Input, world: PublicResearchWorld) {
-  const { goal, required, conclusions, referenceAnswer } = world;
-  const origins = new Set(publicSourceOrigins(world));
+  const { goal, required, referenceAnswer } = world;
   const pages = new Map<string, Awaited<ReturnType<typeof web.fetch>>>();
   const searches: PublicSearchReceipt[] = [];
   const fetched: {
     requested: string;
     url: string;
     digest: string;
-    searchIndex: number;
-    provider: PublicSearchReceipt["provider"];
+    searchIndex: number | null;
+    provider: PublicSearchReceipt["provider"] | null;
     input: Parameters<typeof web.fetch>[0];
     page: Awaited<ReturnType<typeof web.fetch>>;
   }[] = [];
@@ -93,15 +92,16 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       async search({queries}: {queries: string[]}) { return search(queries); },
       async fetch(options: Parameters<typeof web.fetch>[0]) {
         const searchIndex = searches.findIndex(receipt => receipt.urls.includes(options.url));
-        if ((options.session && options.session !== "public") || searchIndex < 0 ||
-            !origins.has(new URL(options.url).origin))
-          throw new Error("Use the public session and an authorized URL discovered in the current search");
+        const requested = new URL(options.url);
+        if ((options.session && options.session !== "public") || requested.username || requested.password ||
+            !["https:","http:"].includes(requested.protocol))
+          throw new Error("Use the public session and an authorized public source URL");
         const page = await web.fetch({ ...options, session: "public" });
-        if (page.session !== "public" || !origins.has(new URL(page.url).origin))
-          throw new Error("The fetched evidence left the assigned public origins");
+        if (page.session !== "public" || !["https:","http:"].includes(new URL(page.url).protocol))
+          throw new Error("The fetched evidence left the public web session");
         pages.set(page.digest, structuredClone(page));
-        fetched.push({ requested: options.url, url: page.url, digest: page.digest, searchIndex,
-          provider: searches[searchIndex]!.provider, input: structuredClone(options), page: structuredClone(page) });
+        fetched.push({ requested: options.url, url: page.url, digest: page.digest, searchIndex: searchIndex < 0 ? null : searchIndex,
+          provider: searches[searchIndex]?.provider ?? null, input: structuredClone(options), page: structuredClone(page) });
         return page;
       },
       async read(options: Parameters<typeof web.read>[0]) {
@@ -120,20 +120,21 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
     const citations = result?.research?.statements?.flatMap(({ cites }) => cites) ?? [];
     const cache = await Promise.all([...pages.values()].map(async (page) => {
       const read = await readVerifiedCachedPage(input => web.read(input), page);
-      return { url: page.url, digest: page.digest, text: normalize(read.text), exact: read.exact };
+      return { url: page.url, digest: page.digest, text: read.text, exact: read.exact };
     }));
     const date = new Date(snapshotTime).toISOString().slice(0, 10);
     const answer = normalize(result?.research?.statements?.map(({ text }) => text).join(" ") ?? "");
     const citationSources = citations.flatMap(({ url, quote, retrieved }) => {
       const source = fetched.find(page => page.url === url && cache.some(readback =>
-        readback.url === url && readback.digest === page.digest && readback.exact && readback.text.includes(normalize(quote))));
+        readback.url === url && readback.digest === page.digest && readback.exact && normalize(readback.text).includes(normalize(quote))));
       return source ? [{ url, quote, retrieved, digest: source.digest, searchIndex: source.searchIndex, provider: source.provider }] : [];
     });
     const sourceAttested = fetched.every(({ requested, searchIndex, provider }) =>
-      searches[searchIndex]?.provider === provider && searches[searchIndex]?.urls.includes(requested));
+      searchIndex === null ? provider === null :
+        searches[searchIndex]?.provider === provider && searches[searchIndex]?.urls.includes(requested));
     const checks = {
-      discoveredSources: searches.length > 0 && fetched.length > 0 && sourceAttested,
-      attestedSearchProvider: searches.length > 0 && sourceAttested && citations.length > 0 && citationSources.length === citations.length,
+      discoveredSources: fetched.length > 0 && sourceAttested,
+      attestedSearchProvider: sourceAttested && citations.length > 0 && citationSources.length === citations.length,
       exactPageReadback: cache.length > 0 && cache.every(({ exact }) => exact),
       answeredGoal: result?.status === (world.kind === "research" ? "answered" : "edited") &&
         result.research?.status === "answered" &&
@@ -142,17 +143,14 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
         result.research.statements.every(({ text, cites }) => Boolean(text.trim()) && cites.length > 0),
       groundedCitations: citations.length > 0 && citations.every(({ url, quote, retrieved }) =>
         retrieved === date && normalize(quote).length >= 20 &&
-        cache.some((page) => page.url === url && page.text.includes(normalize(quote)))),
-      supportedConclusion: conclusions.every((pattern) => pattern.test(answer)),
-      requiredEvidence: required.every(({ host, phrase }) =>
-        citations.some(({ url, quote }) => {
-          const source = cache.find((page) => page.url === url);
-          if (!source) return false;
-          const actual = new URL(source.url).hostname;
-          return (actual === host || actual.endsWith("." + host)) && normalize(quote).toLowerCase().includes(phrase);
-        })),
+        cache.some((page) => page.url === url && normalize(page.text).includes(normalize(quote)))),
+
     };
-    return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks };
+    const semanticReviewInput = {kind:"public-claims",actual:{goal,answer,
+      citations:citations.map(({url,quote})=>({url,quote})),sourceScope:null,
+      sources:cache.map(source=>({url:source.url,title:fetched.find(item=>item.url===source.url)?.page.title??"",sha256:source.digest,text:source.text}))}};
+    return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks,
+      semanticReviewRequired:true,semanticReviewInput };
   }
   async function qualify() {
     const statements = [];

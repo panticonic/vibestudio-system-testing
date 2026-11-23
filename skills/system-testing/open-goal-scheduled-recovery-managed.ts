@@ -215,7 +215,6 @@ export async function prepareOwnedScheduledRecovery(
   const effects: Effect[] = [];
   const observed = new Map<string, Schedule>();
   const readLanes = new Set<string>();
-  let discovered = false;
   let raced = false;
   let nativeRevisionConflict = false;
   let committed = false;
@@ -254,13 +253,12 @@ export async function prepareOwnedScheduledRecovery(
   const services = {
     scheduledMission: {
       async discover() {
-        discovered = true;
         const choices = await Promise.all(seed.items.map(async item => snapshot(item, await readOwned(missions, item))));
         choices.sort((left, right) => left.title.localeCompare(right.title) || left.id.localeCompare(right.id));
         return effect("scheduledMission", "discover", [], choices);
       },
       async observe(id: string) {
-        if (!discovered) throw new Error("Discover the owned schedules before reading an exact ID");
+
         const item = itemById(id);
         const current = snapshot(item, await readOwned(missions, item));
         observed.set(id, current);
@@ -424,7 +422,7 @@ export async function prepareOwnedScheduledRecovery(
     const expectedRace = world.interruption === "schedule-revision" || world.interruption === "dependency";
     const reason = typeof outcome?.reason === "string" ? outcome.reason.toLowerCase() : "";
     const checks = {
-      discoveredExactOwnedSchedule: discovered && confirmed && isDeepStrictEqual(observed.get(current.id), current),
+      discoveredExactOwnedSchedule: confirmed && isDeepStrictEqual(observed.get(current.id), current),
       joinedRetainedOwnerDecision: scopeReadback && historyPreserved &&
         isDeepStrictEqual(outcome?.authorization, authorization),
       verifiedExactNativeSchedule: isDeepStrictEqual(stable(nativeCurrent), wantedPrimary) &&

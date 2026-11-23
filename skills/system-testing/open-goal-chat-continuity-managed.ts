@@ -206,7 +206,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   const existing=new Set(await listOwnedScratchEntries(ports.fs));
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What proves continuity of this exact local chat?"],
     sources:[{id:"scope",path:policy}]},ports.readBytes).scratchHandoffWrite;
-  let listed=false,activeOperation=false;
+  let activeOperation=false;
   const transcriptReads = new Map<string, Promise<unknown>>();
   let retryId:string|null=null;
   const frames:ChatObservation[]=[];
@@ -238,9 +238,9 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   }
 
   const services={
-    chatContinuityIndex:{async list(){listed=true;return structuredClone(index);}},
+    chatContinuityIndex:{async list(){return structuredClone(index);}},
     chatContinuityState:{async read(channelId:string){
-      if(!listed||channelId!==active.key)return null;
+      if(channelId!==active.key)return null;
       return serializeByKey(transcriptReads, channelId, async () => {
         if(frames.length>=2)return structuredClone(frames.at(-1)!);
         if(activeOperation)return frames.length ? structuredClone(frames.at(-1)!) : null;
@@ -300,7 +300,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         newWorker.endedRevision!==null&&newWorker.endedRevision>oldWorker.revision&&newWorker.revision>newWorker.endedRevision:
       world.worker==="stable"?!!newWorker?.active&&isDeepStrictEqual(oldWorker,newWorker):oldWorker===null&&newWorker===null;
     const checks={
-      exactOwnedChatSelection:listed&&frames.length===2&&isDeepStrictEqual(report?.plan,plan)&&index.scopes.every(row=>row.contextId===owner)&&
+      exactOwnedChatSelection:frames.length===2&&isDeepStrictEqual(report?.plan,plan)&&index.scopes.every(row=>row.contextId===owner)&&
         report?.opening.channelId===active.key&&report?.current.channelId===active.key,
       exactChatFrontiers:!!opening&&!!current&&opening.through<=current.through&&
         isDeepStrictEqual(opening,report?.opening)&&isDeepStrictEqual(current,report?.current)&&isDeepStrictEqual(current,latest),

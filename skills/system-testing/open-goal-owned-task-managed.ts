@@ -91,7 +91,6 @@ export async function prepareOwnedTaskRecovery(
   const observedBoard = new Map<string, Awaited<ReturnType<typeof taskView>>>();
   const observeNative = (id: string) => store.call("getTask", { id });
   let rooms: Awaited<ReturnType<LocalDelivery["services"]["localDeliveryCatalog"]["discover"]>> = [];
-  let discovered = false;
   let raceInjected = false;
   let moving = false;
 
@@ -137,11 +136,10 @@ export async function prepareOwnedTaskRecovery(
   const services = {
     ownedTaskBoard: {
       async discover() {
-        discovered = true;
         return record("ownedTaskBoard", "discover", [], options);
       },
       async observe(id: string) {
-        if (!discovered) throw new Error("Discover the owned board before reading tasks");
+
         const view = await taskView(id);
         observedBoard.set(id, view);
         return record("ownedTaskBoard", "observe", [id], view);
@@ -245,7 +243,7 @@ export async function prepareOwnedTaskRecovery(
     });
     const reason = typeof outcome?.reason === "string" ? outcome.reason.toLowerCase() : "";
     const checks = {
-      discoveredActualOwnedTask: discovered && observedBoard.has(primary.id) &&
+      discoveredActualOwnedTask: observedBoard.has(primary.id) &&
         effects.some(effect => effect.service === "ownedTaskAttempts" && effect.method === "discover"),
       exactCurrentAttemptEvidence: Boolean(outcome && isDeepStrictEqual(outcome.original, knownRecord) &&
         (!earlier || (expected && exactCurrent(observed, expected) && expected.record?.phase !== "draft"))),

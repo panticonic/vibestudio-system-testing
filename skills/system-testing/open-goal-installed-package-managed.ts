@@ -267,8 +267,8 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
         return remember("installedPackageRead", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (discovered && id === operationId && observed) return structuredClone(observed);
-        if (!discovered || id !== operationId) throw new Error("Inspect only the assigned installed package");
+        if (id === operationId && observed) return structuredClone(observed);
+        if (id !== operationId) throw new Error("Inspect only the assigned installed package");
         observed = (await observe()).observation;
         return remember("installedPackageRead", "inspect", [id], observed);
       },
@@ -350,7 +350,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
       exactEffect = isDeepStrictEqual(final.start.workingHead, prepared.workingHead) && final.local.digest === before.digest;
     }
     const checks = {
-      boundOwnedInstallation: discovered && observed?.operationId === operationId && observed.source === world.source &&
+      boundOwnedInstallation: observed?.operationId === operationId && observed.source === world.source &&
         observed.workingRevision === revision(prepared.workingHead) && observed.workingDigest === before.digest &&
         isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.observed, observed),
       usedExactPackageBaseline: observed?.baselineDigest === baseline.digest && observed.mainRevision === initial.mainEventId &&

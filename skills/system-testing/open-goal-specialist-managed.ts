@@ -219,7 +219,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
       async read(request: MembershipRequest) {
         const previous = membershipReads.find(row => isDeepStrictEqual(row.request, request));
         if (previous) return structuredClone(previous.observed);
-        if (!index || request?.goal !== world.goal || request.channelId !== lane.key ||
+        if (request?.goal !== world.goal || request.channelId !== lane.key ||
             request.contextId !== scope.contextId || request.action !== "inspect" || request.options !== null ||
             !identities.has(request.handle)) throw new Error("Only one exact owned inspect request is permitted");
         const observed = interpretRoster(request.handle,await ports.roster(lane,input.contextId));
@@ -229,7 +229,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     },
     ownedSpecialistRun: {
       async read(channelId: string) {
-        if (!index || channelId !== lane.key) return null;
+        if (channelId !== lane.key) return null;
         if (snapshots.length >= 2) return structuredClone(snapshots.at(-1)!);
         if (busy) return null;
         busy = true;
@@ -298,7 +298,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const artifact = written ? new TextDecoder("utf-8",{fatal:true}).decode(written) : null;
     const foreign = crypto.randomUUID();
     const checks = {
-      exactCurrentSpecialist: !!index && !!plan && plan.handle === expected.handle &&
+      exactCurrentSpecialist: !!plan && plan.handle === expected.handle &&
         (expected.handle ? member?.request.handle === expected.handle &&
           isDeepStrictEqual(member.observed,selected) &&
           isDeepStrictEqual(outcome?.membership,{request:member.request,report:membership}) :

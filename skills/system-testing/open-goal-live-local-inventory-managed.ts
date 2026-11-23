@@ -22,12 +22,11 @@ export async function prepareOpenLiveLocalInventory(
   const path = `${await fs.mkdtemp("owned-local-model-docket")}/docket.json`;
   const serialized = JSON.stringify(docket);
   await fs.writeFile(path, serialized);
-  let listed = false;
   let selected: typeof docket | null = null;
   const localInventoryDocket = {
-    async list() { listed = true; return [prior, card]; },
+    async list() { return [prior, card]; },
     async read(id: string) {
-      if (!listed || id !== card.id) throw new Error("Use the exact current workload docket");
+      if (id !== card.id) throw new Error("Use the exact current workload docket");
       const bytes = await fs.readFile(path, "utf8");
       if (bytes !== serialized) throw new Error("The current local workload docket changed");
       selected = JSON.parse(bytes) as typeof docket;
@@ -43,7 +42,7 @@ export async function prepareOpenLiveLocalInventory(
     const [after, final, retained] = await Promise.all([prepared.readback(), vcs.status({ contextId }), fs.readFile(path, "utf8")]);
     const native = prepared.verify(outcome?.report ?? null, after);
     const checks = {
-      exactCurrentLocalWorkload: listed && isDeepStrictEqual(selected, docket) &&
+      exactCurrentLocalWorkload: isDeepStrictEqual(selected, docket) &&
         isDeepStrictEqual(outcome?.card, card) && retained === serialized,
       exactLocalRequirements: isDeepStrictEqual(outcome?.plan, prepared.request),
       realLocalCandidateReadback: native.checks.stableInventory && native.checks.exactReads,

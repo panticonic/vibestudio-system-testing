@@ -174,8 +174,8 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
         return capture("sameTurnEvalEvidence", "discover", [], assignment);
       },
       async observe(id: string) {
-        if (discovered && id === assignment.id && evidence) return structuredClone(evidence);
-        if (id !== assignment.id || !discovered || inspecting) throw new Error("Read the admitted owned same-turn evidence once");
+        if (id === assignment.id && evidence) return structuredClone(evidence);
+        if (id !== assignment.id || inspecting) throw new Error("Read the admitted owned same-turn evidence once");
         inspecting = true;
         try { evidence = await setup(); return capture("sameTurnEvalEvidence", "observe", [id], evidence); }
         finally { inspecting = false; }

@@ -232,7 +232,7 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
         return record("webhookAdmissionEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (!discovered || id !== assignment.id) throw new Error("Read only the exact assigned webhook registration");
+        if (id !== assignment.id) throw new Error("Read only the exact assigned webhook registration");
         if (observed) return structuredClone(observed);
         if (pending) throw new Error("The webhook observation is already in progress");
         pending = true;

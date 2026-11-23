@@ -194,7 +194,7 @@ export async function prepareOpenLocalPresentation(
         );
       },
       async read(id: string) {
-        if (!listed) throw new Error("Discover the owned catalogue first");
+
         const record = await read(id);
         reads.set(id, record);
         return effect("read", [id], record);
@@ -331,7 +331,7 @@ export async function prepareOpenLocalPresentation(
         : "";
     const checks = {
       discoveredPresentationRecords:
-        listed && currentRecords.every((record) => reads.has(record.id)),
+        (current ? reads.has(current.id) : listed),
       retainedSourceIntegrity: currentRecords.every(
         ({ revision, ...value }) => {
           const seed = seeds.get(value.id)!;

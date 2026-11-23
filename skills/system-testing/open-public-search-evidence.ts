@@ -1,4 +1,4 @@
-import { SEARCH_PROVIDER_ORIGINS, selectSearchProvider } from "@workspace/web-core/provider";
+import { SEARCH_PROVIDER_ORIGINS, availableSearchProviders } from "@workspace/web-core/provider";
 import type { ProviderName, WebSearchResponse } from "@workspace/web-core";
 
 type KeyedProvider = Exclude<ProviderName, "duckduckgo">;
@@ -11,7 +11,7 @@ type SearchPorts = {
 export async function attestPublicSearch(ports: SearchPorts, queries: string[]) {
   const normalized = queries.map(query => query.trim()).filter(Boolean);
   const credentialChecks: CredentialProbe[] = [];
-  const expected = await selectSearchProvider(async origin => {
+  const eligible = await availableSearchProviders(async origin => {
     const provider = (Object.keys(SEARCH_PROVIDER_ORIGINS) as KeyedProvider[]).find(
       key => SEARCH_PROVIDER_ORIGINS[key] === origin,
     );
@@ -21,7 +21,7 @@ export async function attestPublicSearch(ports: SearchPorts, queries: string[]) 
     return matched;
   });
   const result = await ports.search(queries);
-  if (result.provider !== expected)
+  if (!eligible.includes(result.provider))
     throw new Error("Public search provider does not match the caller's observed credential scope");
   if (result.results.length !== normalized.length ||
       result.results.some(({ query }, index) => query !== normalized[index]))

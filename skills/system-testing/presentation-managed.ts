@@ -80,16 +80,19 @@ export function checkPresentation(world: PresentationWorld, value: unknown) {
       continue;
     }
     if (!isDeepStrictEqual(actual, target)) {
-      if (
-        actual.status !== "ready" ||
-        target.status !== "ready" ||
-        !actual.rendered ||
-        !isDeepStrictEqual(actual.rendered.props, target.rendered.props) ||
-        actual.rendered.component !== target.rendered.component ||
-        actual.rendered.mdx !== renderComponent(actual.rendered).mdx
-      )
-        return null;
+      if (actual.status !== "ready" || target.status !== "ready" || !actual.rendered ||
+          actual.rendered.component !== target.rendered.component ||
+          actual.rendered.mdx !== renderComponent(actual.rendered).mdx) return null;
+      const {title: actualTitle,...actualData}=actual.rendered.props as Record<string,unknown>;
+      const {title: expectedTitle,...expectedData}=target.rendered.props as Record<string,unknown>;
+      if (!isDeepStrictEqual(actualData,expectedData)) return null;
+      const normalize=(text:string)=>text.replace(/\s+/gu," ").trim().toLowerCase();
+      const inputs=[world.request.goal,...world.request.sections.flatMap(section=>[section.ask,section.data])].join("\n");
+      if (actualTitle!==undefined && actualTitle!==expectedTitle &&
+          (typeof actualTitle!=="string" || !actualTitle.trim() || !normalize(inputs).includes(normalize(actualTitle)))) return null;
     }
+    if ("labels" in assigned && assigned.requiredTitle!==undefined && actual.status==="ready" &&
+        (actual.rendered.props as {title?:string}).title!==assigned.requiredTitle) return null;
     if ("labels" in assigned && actual.status === "ready")
       views.push({
         id: actual.id,

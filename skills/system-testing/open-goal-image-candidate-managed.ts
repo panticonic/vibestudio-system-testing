@@ -125,7 +125,6 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     sources:[{id:"owned-policy",path:policyPath}]},ports.readBytes).scratchHandoffWrite;
   const snapshots:ImageJournal[]=[];
   const reads:ImageRead[]=[];
-  let listed=false;
   const journalReads = new Map<string, Promise<unknown>>();
   let readBusy=false;
   let stageBusy=false;
@@ -169,9 +168,9 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     providerEvidence:"retained-fixture",explanation:report.decision.explanation,
   },null,2);
   const services={
-    imageCandidateBriefs:{async list(){listed=true;return structuredClone(index);}},
+    imageCandidateBriefs:{async list(){return structuredClone(index);}},
     imageCandidateJournal:{async read(channelId:string){
-      if(!listed||channelId!==lane.key)return null;
+      if(channelId!==lane.key)return null;
       return serializeByKey(journalReads, channelId, async () => {
         if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
         if(snapshots.length===1&&later.length)await save(later);
@@ -251,7 +250,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     const observed=expected.observations??queue.map(()=>"verified");
     const foreign=crypto.randomUUID();
     const checks={
-      exactImageFrontiers:listed&&snapshots.length===2&&isDeepStrictEqual(snapshots[0],project(initial))&&
+      exactImageFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],project(initial))&&
         isDeepStrictEqual(snapshots[1],project(latest))&&seeded.size===latest.rows.length&&
         latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))&&new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
       exactImageBrief:isDeepStrictEqual(outcome?.plan,goalPlan),

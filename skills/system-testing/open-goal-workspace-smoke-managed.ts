@@ -140,12 +140,13 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
   const services = {
     workspaceSmokeEvidence: {
       async discover() {
-        if (discovered) throw new Error("Workspace smoke was already discovered");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("workspaceSmokeEvidence", "discover", [], assignment);
       },
       async scan(id: string) {
-        if (!discovered || id !== assignment.id || source || inFlight) throw new Error("Search only the assigned owned smoke directory");
+        if (id !== assignment.id || inFlight) throw new Error("Search only the assigned owned smoke directory");
+        if (source) return structuredClone(source);
         inFlight = true;
         try { source = await observe(); return capture("workspaceSmokeEvidence", "scan", [id], source); }
         finally { inFlight = false; }

@@ -93,7 +93,6 @@ export async function prepareOpenBoardMigration(
   const handles = new Map<string, PanelHandle>();
   const observations: { view: MigrationView; panelId: string; generation: unknown }[] = [];
   const available = sources.map(identity);
-  let listed = false;
   let basis: MigrationBasis | undefined;
   let writing = false;
   let writes = 0;
@@ -136,16 +135,15 @@ export async function prepareOpenBoardMigration(
   }
 
   const boardMigration = {
-    async listSources() { listed = true; return structuredClone(available); },
+    async listSources() { return structuredClone(available); },
     async inspect(id: string) {
-      if (!listed) throw new Error("Discover the owned board before opening it");
       const observed = await observe(id);
       observations.push(observed);
       return structuredClone(observed.view);
     },
     async readTarget() { basis = await readBasis(); return structuredClone(basis); },
     async retain(boardId: string, revision: string, selection: MigrationSelection) {
-      const previous = observations.at(-1);
+      const previous = observations.findLast(observation => observation.view.board.id === boardId && observation.view.board.revision === revision);
       if (!previous || !basis || writing || previous.view.board.id !== boardId ||
           previous.view.board.revision !== revision || world.disposition === "audit")
         return null;
@@ -191,7 +189,7 @@ export async function prepareOpenBoardMigration(
       ...expectedSelection, boardId: expectedId.id, revision: expectedId.revision,
     } : null;
     const checks = {
-      exactRenderedMigrationBoard: listed && observations.some(observation => isDeepStrictEqual(observation, repeated)) && isDeepStrictEqual(repeated.view.cards, expected.cards),
+      exactRenderedMigrationBoard: observations.some(observation => isDeepStrictEqual(observation, repeated)) && isDeepStrictEqual(repeated.view.cards, expected.cards),
       exactMigrationAuthority: Boolean(basis && isDeepStrictEqual(basis.approval, approval) &&
         basis.target === world.target && isDeepStrictEqual(basis.existing, initial?.cards ?? null)),
       matchedMigrationCardScope: isDeepStrictEqual(outcome?.board, expectedId) &&

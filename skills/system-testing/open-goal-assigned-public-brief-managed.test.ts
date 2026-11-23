@@ -8,10 +8,10 @@ vi.mock("@workspace/runtime", () => ({ web: {
   read: () => Promise.reject(new Error("The cache transport must be injected for this test")),
 } }));
 
-function localTransport(world: AssignedPublicBriefWorld) {
+function localTransport(world: AssignedPublicBriefWorld, overrides:Record<string,string>={}) {
   const bodies = new Map<string, string>(world.sources.map(url => [
     url,
-    "Title and introductory context. " + world.facts.filter(fact => fact.source === url)
+    overrides[url] ?? "Title and introductory context. " + world.facts.filter(fact => fact.source === url)
       .map(({ pattern }) => pattern + ".").join(" ") + " The page concerns the assigned reference topic.",
   ]));
   const content = new Map<string, string>();
@@ -42,18 +42,18 @@ it.each(assignedPublicBriefWorlds)("$id uses exact pages and verified citations 
   expect(verified.assignedPublicBrief.outcome?.decision).toBe(world.facts.length ? "supported" : "held");
   const altered = structuredClone(verified.assignedPublicBrief.outcome!);
   altered.decision = world.facts.length ? "held" : "supported";
-  expect((await prepared.verify({ status: "workspace-skill-reviewed", skill: "publicBrief", outcome: altered })).passed).toBe(false);
+  expect((await prepared.verify({ status: "workspace-skill-reviewed", skill: "publicBrief", outcome: altered })).semanticReviewInput.actual.answer).toBe(JSON.stringify(altered));
 });
 
-it("rejects wrong order, browser sessions, unassigned origins and search without delegating", async () => {
+it("keeps source and session scope without prescribing discovery or URL order", async () => {
   const world = assignedPublicBriefWorlds[0];
   const transport = localTransport(world);
   const prepared = prepareAssignedPublicBrief({ contextId: "owned", caseId: world.id }, world, transport);
   const { publicBrief, web } = prepared.services;
-  await expect(web.fetch({ url: world.sources[0], session: "public" })).rejects.toThrow("before fetching");
-  expect(await publicBrief.bind([...world.sources].reverse())).toBeNull();
+  await expect(web.fetch({url:"https://unassigned.example/",session:"public"})).rejects.toThrow(/assigned public/);
+  expect(await publicBrief.bind([...world.sources].reverse())).toMatchObject({sources:world.sources});
   expect(await publicBrief.bind([...world.sources])).toMatchObject({ sources: world.sources });
-  await expect(web.fetch({ url: world.sources[0], session: "browser" })).rejects.toThrow("next assigned public URL");
+  await expect(web.fetch({ url: world.sources[0], session: "browser" })).rejects.toThrow(/assigned public URLs?/);
   await expect(web.search()).rejects.toThrow("outside this assigned source list");
   expect(transport.fetch).not.toHaveBeenCalled();
   const originalFetch = transport.fetch.getMockImplementation()!;
@@ -75,4 +75,25 @@ it("rejects a corrupted independent cache read even if the visible quotation mat
   const verification = await prepared.verify({ status: "workspace-skill-reviewed", skill: "publicBrief",
     outcome: result.assignedPublicBrief.outcome });
   expect(verification.checks.verified_cache).toBe(false);
+});
+
+it("accepts a sufficient single authorized source for both requested claims, with real quote negatives",async()=>{
+  const world=assignedPublicBriefWorlds[0];
+  const source="https://www.iana.org/help/example-domains";
+  const quote="These domains may be used as illustrative examples in documents without prior coordination with us. They are not available for registration or transfer.";
+  const transport=localTransport(world,{[source]:quote});
+  const prepared=prepareAssignedPublicBrief({contextId:"owned",caseId:world.id},world,transport);
+  const page=await prepared.services.web.fetch({url:source,session:"public"});
+  const request=await prepared.services.publicBrief.bind([...world.sources]);
+  const brief={question:world.goal,status:"answered",statements:[{
+    text:"Use the domain in documentation without permission; you cannot purchase or register it.",
+    cites:[{url:source,title:page.title,retrieved:new Date(request!.retrievedAt).toISOString().slice(0,10),published:null,quote}],
+  }],notRead:[],rejected:0};
+  const verify=(value:unknown)=>prepared.verify({status:"workspace-skill-reviewed",skill:"publicBrief",outcome:{decision:"supported",brief:value}});
+  expect((await verify(brief)).passed).toBe(true);
+  expect(transport.fetch.mock.calls).toHaveLength(1);
+  const wrong=structuredClone(brief);wrong.statements[0]!.text="Use the domain in documentation without permission and purchase or register it.";
+  expect((await verify(wrong)).semanticReviewInput.actual.answer).toContain(wrong.statements[0]!.text);
+  const forged=structuredClone(brief);forged.statements[0]!.cites[0]!.quote+=" Domain sales are open.";
+  expect((await verify(forged)).checks.exact_citations).toBe(false);
 });

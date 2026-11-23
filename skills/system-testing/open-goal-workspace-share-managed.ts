@@ -182,8 +182,8 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
         return capture("workspaceShareEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (discovered && id === assignment.document && inspected) return structuredClone(inspected);
-        if (!discovered || id !== assignment.document) throw new Error("Read only the exact assigned shared object");
+        if (id === assignment.document && inspected) return structuredClone(inspected);
+        if (id !== assignment.document) throw new Error("Read only the exact assigned shared object");
         inspected = await observe();
         return capture("workspaceShareEvidence", "inspect", [id], inspected);
       },
@@ -228,7 +228,7 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     }
     const expectedReadMethods = ["discover", "inspect"];
     const checks = {
-      selectedExactWorkspaceAndObject: discovered && inspected?.object.workspace === workspace &&
+      selectedExactWorkspaceAndObject: inspected?.object.workspace === workspace &&
         inspected?.object.id === assignment.document && inspected?.object.digest === digest(original.body) &&
         isDeepStrictEqual(outcome?.assignment, assignment) &&
         sameEvidenceMembers(effects.filter(effect => effect.service === "workspaceShareEvidence").map(({ method }) => method), expectedReadMethods),

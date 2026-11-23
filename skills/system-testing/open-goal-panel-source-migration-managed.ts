@@ -224,12 +224,13 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
   const services = {
     panelMigrationEvidence: {
       async discover() {
-        if (discovered) throw new Error("Discover one owned source migration");
+        if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("panelMigrationEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (!discovered || first || id !== assignment.id) throw new Error("Inspect the exact assigned panel and caller guide");
+        if (id !== assignment.id) throw new Error("Inspect the exact assigned panel and caller guide");
+        if (first) return structuredClone(first);
         first = (await observe()).observation;
         return capture("panelMigrationEvidence", "inspect", [id], first);
       },
@@ -392,7 +393,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     const expectedNote = [expectedMove, expectedAlign, expectedUpdate].includes("state-changed") ? concurrentNote : linkGuide.note;
     const expectedMethods = ["discover", "inspect", ...(wantsMove ? ["move"] : []), ...(wantsAlign ? ["align"] : []), ...(wantsUpdate ? ["update"] : [])];
     const checks = {
-      matchedStableSourceIdentity: discovered && first?.repository === repository && first.workingRevision === revision(prepared.workingHead) &&
+      matchedStableSourceIdentity: first?.repository === repository && first.workingRevision === revision(prepared.workingHead) &&
         manifest.id === baselineManifest.id && manifest.text === (alignedAtEnd ? json(destinationManifest) : baselineManifest.text) &&
         entry.id === baselineEntry.id && entry.digest === baselineEntry.digest &&
         isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.observed, first),

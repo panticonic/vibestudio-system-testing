@@ -125,7 +125,6 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What quiet binding metadata supports the readiness decision?"],
     sources:[{id:"scope",path:policyPath}]},ports.readBytes).scratchHandoffWrite;
 
-  let listed=false;
   let reading=false;
   let writing=false;
   let bound:ReturnType<typeof bindIntegrationReview>|null=null;
@@ -201,9 +200,11 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     return selected.reason==="selected"&&selected.message===msg;
   }
   const services={
-    quietIntegrationIndex:{async list(){listed=true;return structuredClone(index);}},
+    quietIntegrationIndex:{async list(){return structuredClone(index);}},
     quietIntegrationJournal:{async read(channelId:string){
-      if(!listed||channelId!==lane.key||reading||snapshots.length>=2)return null;
+      if(channelId!==lane.key)return null;
+      if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
+      if(reading)return null;
       reading=true;
       try{
         const current=await ports.read(lane);
@@ -280,7 +281,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const completed=bound?expectedObservations(bound.request):null;
     const foreign=crypto.randomUUID();
     const checks={
-      exactIntegrationFrontiers:listed&&snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(current,snapshots[1])&&
+      exactIntegrationFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(current,snapshots[1])&&
         current.rows.length===maps.size&&current.rows.every(row=>isDeepStrictEqual(row.selection,maps.get(row.messageId)))&&
         new Set(current.rows.map(row=>row.envelopeId)).size===current.rows.length,
       trustedIntegrationSelection:planned.action==="hold"?!calls.length&&seenPlan===null&&!observations.length:
