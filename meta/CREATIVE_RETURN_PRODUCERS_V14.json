@@ -5,11 +5,11 @@
       "oracle": "skills/system-testing/open-goal-api-readiness-managed.ts",
       "bindings": [
         {
-          "line": 324,
+          "line": 325,
           "evidence": "index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"groundedIntegrationDisposition\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnApiReadinessGoal/decideApiReadiness.nl\",\"producerPath\":[]},{\"checks\":[\"explicitQuietIntegration\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnApiReadinessGoal/reviewQuietCredentials.nl\",\"producerPath\":[\"result\"]}]);"
         }
       ],
-      "sourceSha256": "4e70490b52d7606f3b1a55b4927671ee27a3c9a6a3c1c3fb16b6ee940144e41a"
+      "sourceSha256": "ef10e275670397126cedb27a19dcba4ddb3e9d6513b816e383cc3e49c106d3f1"
     },
     {
       "oracle": "skills/system-testing/open-goal-audience-response-managed.ts",
@@ -45,11 +45,11 @@
       "oracle": "skills/system-testing/open-goal-chat-continuity-managed.ts",
       "bindings": [
         {
-          "line": 338,
+          "line": 339,
           "evidence": "index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"groundedChatDeliveryReview\"],\"rootPath\":[\"review\"],\"producerSourceSuffix\":\"workOnChatContinuity/reviewChatContinuity/policy/reviewConversation.nl\"},{\"checks\":[\"groundedChatContinuityDisposition\"],\"rootPath\":[\"disposition\"],\"producerSourceSuffix\":\"workOnChatContinuity/decideChatContinuity.nl\"}]);"
         }
       ],
-      "sourceSha256": "25be343d22aae9f201a9e75a44208760131043ed4f0abea17dd025df1b3af04f"
+      "sourceSha256": "8ad24be03f196a643e762f52bd4f8a2f13eab09ef8a8d9b49c9dfbf1c1a4896a"
     },
     {
       "oracle": "skills/system-testing/open-goal-compound-recovery-managed.ts",
@@ -95,11 +95,11 @@
       "oracle": "skills/system-testing/open-goal-editorial-managed.ts",
       "bindings": [
         {
-          "line": 382,
+          "line": 383,
           "evidence": "listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact},contract,raw,invocation,[{\"checks\":[\"groundedEditorialDisposition\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnEditorialPacket/decideEditorialHandoff.nl\",\"producerPath\":[]}]);"
         }
       ],
-      "sourceSha256": "f38a6377d3b9ffdbf36519490661f6d1a34fcbc86eb90efab8f1eef5e51ecfe1"
+      "sourceSha256": "625a2fbcbc6e799b0b64d79bc3778317d8f05ff34695bc448489005fcf30260f"
     },
     {
       "oracle": "skills/system-testing/open-goal-eval-handoff-managed.ts",
@@ -125,11 +125,11 @@
       "oracle": "skills/system-testing/open-goal-image-candidate-managed.ts",
       "bindings": [
         {
-          "line": 288,
+          "line": 289,
           "evidence": "candidateId:selected,queue},contract,raw,invocation,[{\"checks\":[\"groundedImageAssessment\"],\"rootPath\":[\"candidates\"],\"producerSourceSuffix\":\"workOnImageCandidateGoal/assessImageAttempts.nl\",\"producerPath\":[\"candidates\"]},{\"checks\":[\"groundedImageDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnImageCandidateGoal/decideImageHandoff.nl\",\"producerPath\":[]}]);"
         }
       ],
-      "sourceSha256": "9919e8d8cde5ac4cf99aeb280ff6b1bb6fefe96b7a1af8d31328edaa7d10bc1e"
+      "sourceSha256": "f3aea045947179b1d07693a25e46ab558c618e98aa63efdbf739c22e75a948b5"
     },
     {
       "oracle": "skills/system-testing/open-goal-launch-state-managed.ts",
@@ -145,23 +145,23 @@
       "oracle": "skills/system-testing/open-goal-news-evidence-managed.ts",
       "bindings": [
         {
-          "line": 432,
+          "line": 433,
           "evidence": "{checks:[\"returnedNewsPlan\"],rootPath:[\"explanation\"],producerSourceSuffix:\"reviewNewsEvidence/decideNewsEvidenceHandoff.nl\",producerPath:[\"explanation\"]},"
         },
         {
-          "line": 433,
+          "line": 434,
           "evidence": "{checks:[\"returnedNewsSchedule\"],rootPath:[\"schedule\"],producerSourceSuffix:\"reviewNewsEvidence/reviewNewsOwnerCadence/installed/reviewers/reviewSchedule.nl\",producerPath:[]},"
         },
         {
-          "line": 434,
+          "line": 435,
           "evidence": "{checks:[\"returnedNewsBriefing\"],rootPath:[\"briefing\"],producerSourceSuffix:\"reviewNewsEvidence/groundNewsEdition/reviewNewsDevelopments.nl\",producerPath:[\"result\"]},"
         },
         {
-          "line": 435,
+          "line": 436,
           "evidence": "...expectedFindings.readers.map((_,index)=>({checks:[`returnedNewsReader${index}`],rootPath:[\"readers\",index],producerSourceSuffix:\"reviewNewsEvidence/reviewNewsReaderWindow/installed/reviewers/readReader.nl\",producerPath:[]}))"
         }
       ],
-      "sourceSha256": "93f896bf658bc5b39e7254a1ea04be58052af222bfb08173fbea678445819420"
+      "sourceSha256": "ae8070d8aae6838add321a762e68bcdfb926dfe6d8d4975d957cf50efeba0578"
     },
     {
       "oracle": "skills/system-testing/open-goal-owned-preview-managed.ts",
@@ -207,21 +207,21 @@
       "oracle": "skills/system-testing/open-goal-personal-welcome-managed.ts",
       "bindings": [
         {
-          "line": 355,
+          "line": 356,
           "evidence": "index,snapshots,resolution,ownerRead,independent,probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{\"checks\":[\"verifiedWelcomeTour\"],\"rootPath\":[\"tour\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl\",\"producerPath\":[]},{\"checks\":[\"verifiedWelcomeRetry\"],\"rootPath\":[\"probe\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl\",\"producerPath\":[]},{\"checks\":[\"exactWelcomeResource\",\"exactWelcomeDecision\"],\"rootPath\":[\"plan\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/decideWelcomeNextStep.nl\",\"producerPath\":[]},{\"checks\":[\"verifiedWelcomeOwner\"],\"rootPath\":[\"setup\"],\"producerSourceSuffix\":\"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl\",\"producerPath\":[]}]);"
         }
       ],
-      "sourceSha256": "652a2101e57496d7788b58e6875666f43b7c425de3cbf8bd9df6541bf964cae9"
+      "sourceSha256": "9417bbf54b62dbb37b1b6f32a4dd748a6e35cd75749bf8eedf3af22a1617125e"
     },
     {
       "oracle": "skills/system-testing/open-goal-portfolio-managed.ts",
       "bindings": [
         {
-          "line": 321,
+          "line": 322,
           "evidence": "decision:decision??null,note:receipt,artifact},contract,raw,invocation,[{\"checks\":[\"exactInstalledGardenCriteria\"],\"rootPath\":[\"garden\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/reviewPortfolioGarden.nl\",\"producerPath\":[]},{\"checks\":[\"exactInstalledRealmCriteria\"],\"rootPath\":[\"realm\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/reviewPortfolioRealm.nl\",\"producerPath\":[]},{\"checks\":[\"groundedPortfolioDecision\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnDemoPortfolio/decidePortfolioDelivery.nl\",\"producerPath\":[]}]);"
         }
       ],
-      "sourceSha256": "a21b45096c6e9b6fa6a2e575b45d8192fdbb1c64405b722b1ab7e7e7697d45ff"
+      "sourceSha256": "ec93a18c60933b92d595e6fcc36ccc8b0efcca15c991e3a943094e1553fd3ee1"
     },
     {
       "oracle": "skills/system-testing/open-goal-provider-handoff-managed.ts",
@@ -257,11 +257,11 @@
       "oracle": "skills/system-testing/open-goal-regency-managed.ts",
       "bindings": [
         {
-          "line": 273,
+          "line": 274,
           "evidence": "index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation,[...findings.map((_,index)=>({checks:[`exactRegencyFinding${index}`],rootPath:[\"findings\",index],producerSourceSuffix:\"workOnRegencyBriefing/qualifyRegencyClaim.nl\",producerPath:[]})),{\"checks\":[\"groundedRegencyAction\"],\"rootPath\":[\"decision\"],\"producerSourceSuffix\":\"workOnRegencyBriefing/decideRegencyAction.nl\",\"producerPath\":[]}]);"
         }
       ],
-      "sourceSha256": "97c9df276a2294e2b7127ff52fe55e56278761008703f4b190b52652cb4ca3ec"
+      "sourceSha256": "d82f4c96b7227ba7e0073c4a75802adab7dcf201b70acfc4b8991af3a3aac5fe"
     },
     {
       "oracle": "skills/system-testing/open-goal-retained-memory-managed.ts",
@@ -733,5 +733,6 @@
       "reportedBy": "root and residual independent reader strand"
     },
     "domainNativeQualifications": "Targeted existing native tests and full model-free registered oracle cases are pending the final release run; source completion is not a qualification pass."
-  }
+  },
+  "savedArtifactAudit": "meta/OWNED_ARTIFACT_WRITER_AUDIT_V14.json"
 }
