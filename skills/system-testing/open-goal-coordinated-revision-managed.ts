@@ -145,7 +145,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const snapshotBytes=(rows:RevisionFile[],expected:Record<string,string>)=>equal(Object.fromEntries(rows.map(({path,text})=>[path,text])),expected);
     const checks={
       exactCoordinatedDocumentScope:!!first&&equal(first.state,base)&&snapshotBytes(first.scope.files,original),
-      exactCoordinatedAuthority:report?.status===(world.next?.status ?? initialPlan),
+      exactCoordinatedAuthority:report?.status===((world.next?.status ?? initialPlan)==="ready"?"updated":(world.next?.status ?? initialPlan)==="already-aligned"?"unchanged":"held"),
       exactCoordinatedDrafts:attempts.filter(attempt=>attempt.receipt.status==="applied").every(attempt=>sameEvidenceMembers(attempt.drafts,finalEdits)),
       exactNativeRevisionRace:world.concurrent?!!after&&!!actualRace&&snapshotBytes(actualRace,expectedRace)&&equal(after.scope.files,actualRace)&&equal(after.state,reporterRaceState):!after&&!actualRace,
       exactAtomicRevisionBasis:world.concurrent?
@@ -173,7 +173,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const reconciled=updated?plan(updated,world.next!.status,true):null;
     const final=updated&&reconciled?.status==="ready"?await api.revise(updated.head,reconciled.destinations):null;
     const readback=await api.readback();
-    const result={status:(reconciled ?? initialPlan).status,head:readback.head,documents:readback.files.map(({path,version})=>({path,version})),explanation:(reconciled ?? initialPlan).explanation};
+    const result={status:(final??first)?.status==="applied"?"updated":(reconciled??initialPlan).status==="held"?"held":(reconciled??initialPlan).status==="already-aligned"?"unchanged":"unavailable",head:readback.head,documents:readback.files.map(({path,version})=>({path,version})),explanation:(reconciled ?? initialPlan).explanation};
     const proof=await verify(result);
     const rejectedInventedDocument=!(await verify({...result,documents:[{path:"invented",version:"invented"}]})).passed;
     return {...proof,passed:proof.passed&&rejectedInventedDocument,rejectedInventedDocument};
