@@ -17,7 +17,7 @@ export function assessSemanticOutcome<T extends Verification>(
   contract?: SemanticOutcomeContract,
 ): T & { outcomeContract: SemanticOutcomeContract; outcomeDimensions: {
   effects: { passed: boolean; checks: Record<string, boolean> };
-  returnedValue: { required: boolean; passed: boolean; checks: Record<string, boolean> };
+  returnedValue: { required: boolean; passed: boolean; checks: Record<string, boolean>; incorrectReturns?: {definition:{name:string;source:string};required:boolean;valueJson:string;sha256:string;contribution?:unknown}[] };
   incidentalValues?: { passed: boolean; checks: Record<string, boolean>; incorrectReturns: {definition:{name:string;source:string};required:boolean;valueJson:string;sha256:string;contribution?:unknown}[] };
 } } {
   // Existing application oracles remain strict until their authored contract
@@ -45,6 +45,10 @@ export function assessSemanticOutcome<T extends Verification>(
   const effectsPassed = Object.values(effects).every(value => value === true);
   const returnPassed = Object.values(returnedValue).every(value => value === true);
   const required = { ...effects, ...(declared.returnedValue.required ? returnedValue : {}) };
+  const incorrectReturns=((verification.incorrectReturnValues as {definition:{name:string;source:string};required?:boolean;value:unknown;valueJson?:string;contribution?:unknown}[]|undefined) ?? []).map(item=>{
+    const valueJson=item.valueJson??JSON.stringify(item.value);
+    return {definition:item.definition,required:item.required!==false,valueJson,sha256:sha256HexSyncText(valueJson),...(item.contribution?{contribution:item.contribution}:{})};
+  });
   return {
     ...verification,
     observedChecks,
@@ -53,8 +57,9 @@ export function assessSemanticOutcome<T extends Verification>(
     outcomeContract: declared,
     outcomeDimensions: {
       effects: { passed: effectsPassed, checks: effects },
-      returnedValue: { required: declared.returnedValue.required, passed: returnPassed, checks: returnedValue },
-      ...((declared.incidentalValues||(Array.isArray(verification.incorrectReturnValues)&&verification.incorrectReturnValues.length>0)||(!declared.returnedValue.required&&!returnPassed)) ? {incidentalValues:{passed:Object.values(incidental).every(value=>value===true)&&(!Array.isArray(verification.incorrectReturnValues)||verification.incorrectReturnValues.length===0)&&(declared.returnedValue.required||returnPassed),checks:incidental,incorrectReturns:((verification.incorrectReturnValues as {definition:{name:string;source:string};required?:boolean;value:unknown;valueJson?:string;contribution?:unknown}[]|undefined) ?? []).map(item=>{const valueJson=item.valueJson??JSON.stringify(item.value);return {definition:item.definition,required:item.required!==false,valueJson,sha256:sha256HexSyncText(valueJson),...(item.contribution?{contribution:item.contribution}:{})};})}} : {}),
+      returnedValue: { required: declared.returnedValue.required, passed: returnPassed, checks: returnedValue,
+        ...(!declared.incidentalValues&&incorrectReturns.length?{incorrectReturns}:{}) },
+      ...(declared.incidentalValues ? {incidentalValues:{passed:Object.values(incidental).every(value=>value===true),checks:incidental,incorrectReturns}} : {}),
     },
   };
 }

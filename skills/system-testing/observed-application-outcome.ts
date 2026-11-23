@@ -5,7 +5,7 @@ import type {InvocationObservations,ObservedCall,ObservedReturn} from "./observe
 export type ReturnPath=readonly (string|number)[];
 /** Authored against the actual domain composition, never a fabricated returned definition. */
 export type ApplicationReturnContribution={checks:readonly string[];rootPath:ReturnPath;producerSourceSuffix:string;producerPath?:ReturnPath};
-export type ApplicationReturnWitness={schema:"natlang.application-return-contribution/1";kind:"root"|"forwarded"|"projection";root_call_id:string;producer_call_id:string;root_value_json:string;root_sha256:string;root_path:ReturnPath;producer_path:ReturnPath;checks:readonly string[];lineage:readonly string[]};
+export type ApplicationReturnWitness={schema:"natlang.application-return-contribution/1";kind:"root"|"forwarded"|"projection"|"uncertain-projection";root_call_id:string;producer_call_id:string;root_value_json:string;root_sha256:string;root_path:ReturnPath;producer_path:ReturnPath;checks:readonly string[];lineage:readonly string[];producer_source_suffix?:string;candidates?:readonly {call_id:string;value_json:string;sha256:string}[];uncertainty?:"ambiguous-actual-producer"|"no-verified-actual-producer"};
 function project(value:unknown,path:ReturnPath):{found:boolean;value:unknown}{
  let current=value;
  for(const key of path){
@@ -14,7 +14,7 @@ function project(value:unknown,path:ReturnPath):{found:boolean;value:unknown}{
  }
  return {found:true,value:current};
 }
-function sampled(call:ObservedCall){return call.execution?.kind!=="crisp"&&!!call.execution?.modelId&&call.execution.modelRequests>0&&typeof call.definition.source==="string"&&call.definition.source.endsWith(".nl");}
+function sampled(call:ObservedCall){return (call.execution?.kind==="agent"||call.execution?.kind==="crisp-agent")&&!!call.execution.modelId&&call.execution.modelRequests>0&&typeof call.definition.source==="string"&&call.definition.source.endsWith(".nl");}
 /** Native observations establish effects; only actual source-bound return producers are masked. */
 export async function assessObservedApplicationOutcome<T extends {passed:boolean;checks:Record<string,boolean>}>(
  verification:T,contract:SemanticOutcomeContract,actualValue:unknown,invocation?:InvocationObservations,
@@ -36,8 +36,8 @@ export async function assessObservedApplicationOutcome<T extends {passed:boolean
     while(current){chain.unshift(current);if(current.callId===root.callId)return chain;current=current.parentCallId?calls.get(current.parentCallId):undefined;}
     return null;
    };
-   const add=(producer:ObservedReturn,kind:ApplicationReturnWitness["kind"],checks:readonly string[],rootPath:ReturnPath=[],producerPath:ReturnPath=[],chain:readonly ObservedCall[]=[root])=>{
-    const contribution:ApplicationReturnWitness={schema:"natlang.application-return-contribution/1",kind,root_call_id:root.callId,producer_call_id:producer.callId,root_value_json:root.valueJson,root_sha256:sha256HexSyncText(root.valueJson),root_path:rootPath,producer_path:producerPath,checks,lineage:chain.map(call=>call.callId)};
+   const add=(producer:ObservedReturn,kind:ApplicationReturnWitness["kind"],checks:readonly string[],rootPath:ReturnPath=[],producerPath:ReturnPath=[],chain:readonly ObservedCall[]=[root],extra:Partial<Pick<ApplicationReturnWitness,"producer_source_suffix"|"candidates"|"uncertainty">>={})=>{
+    const contribution:ApplicationReturnWitness={schema:"natlang.application-return-contribution/1",kind,root_call_id:root.callId,producer_call_id:producer.callId,root_value_json:root.valueJson,root_sha256:sha256HexSyncText(root.valueJson),root_path:rootPath,producer_path:producerPath,checks,lineage:chain.map(call=>call.callId),...extra};
     const previous=incorrectReturnValues.find(row=>row.contribution.producer_call_id===producer.callId);
     if(previous){previous.required ||= required(checks);return;}
     incorrectReturnValues.push({definition:producer.definition,value:producer.value,valueJson:producer.valueJson,required:required(checks),contribution});
@@ -56,16 +56,21 @@ export async function assessObservedApplicationOutcome<T extends {passed:boolean
    }
    for(const binding of contributions){
     const checks=binding.checks.filter(name=>failed.includes(name));if(!checks.length)continue;
-    const rootPart=project(root.value,binding.rootPath),candidates:ObservedReturn[]=[];
-    if(rootPart.found)for(const call of invocation.calls){
-     if(!sampled(call)||typeof call.definition.source!=="string"||!call.definition.source.endsWith(binding.producerSourceSuffix))continue;
+    const rootPart=project(root.value,binding.rootPath),candidates:ObservedReturn[]=[],eligible:ObservedReturn[]=[];
+    for(const call of invocation.calls){
+     if(call.callId===root.callId||call.outcome!=="done"||!sampled(call)||typeof call.definition.source!=="string"||!call.definition.source.endsWith(binding.producerSourceSuffix))continue;
      const chain=lineage(call);if(!chain||chain.slice(0,-1).some(owner=>owner.execution?.kind!=="crisp"))continue;
-     const producer=await read(call);if(!producer)continue;
+     const producer=await read(call);if(!producer)continue;eligible.push(producer);
      const part=project(producer.value,binding.producerPath??[]);
-     if(part.found&&isDeepStrictEqual(rootPart.value,part.value))candidates.push(producer);
+     if(rootPart.found&&part.found&&isDeepStrictEqual(rootPart.value,part.value))candidates.push(producer);
     }
-    if(candidates.length===1)add(candidates[0]!,"projection",checks,binding.rootPath,binding.producerPath??[],lineage(candidates[0]!)!);
-    else unboundReturnContributions.push({checks,reason:candidates.length?"ambiguous-actual-producer":"no-verified-actual-producer"});
+    const extra={producer_source_suffix:binding.producerSourceSuffix,candidates:eligible.map(row=>({call_id:row.callId,value_json:row.valueJson,sha256:sha256HexSyncText(row.valueJson)}))};
+    if(candidates.length===1)add(candidates[0]!,"projection",checks,binding.rootPath,binding.producerPath??[],lineage(candidates[0]!)!,extra);
+    else{
+     const reason=candidates.length?"ambiguous-actual-producer":"no-verified-actual-producer";
+     unboundReturnContributions.push({checks,reason});
+     for(const producer of candidates.length?candidates:eligible)add(producer,"uncertain-projection",checks,binding.rootPath,binding.producerPath??[],lineage(producer)!,{...extra,uncertainty:reason});
+    }
    }
   }else unboundReturnContributions.push({checks:failed,reason:"application-value-does-not-match-recorded-root"});
  }
