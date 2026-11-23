@@ -1,0 +1,62 @@
+import {createHash} from "node:crypto";
+import {mkdtemp,readFile,readdir,rename,rm,writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {basename,join} from "node:path";
+import {expect,it,vi} from "vitest";
+import {prepareOpenDictationHandoff} from "./open-goal-dictation-managed.js";
+import {dictationHandoffWorlds} from "./open-goal-dictation-worlds.js";
+import {prepareOpenProviderHandoff} from "./open-goal-provider-handoff-managed.js";
+import {providerHandoffWorlds} from "./open-goal-provider-handoff-worlds.js";
+import {referenceObserver} from "./observer-slot-control.js";
+vi.mock("@workspace/runtime",()=>({contextId:"owned",fs:{},rpc:{},vcs:{}}));
+
+/** Real retained bytes and ordered append-only journal receipts, without an actor or provider. */
+async function journalPorts(thread:boolean){
+ const directory=await mkdtemp(join(tmpdir(),"application-journal-"));
+ const local=(path:string)=>join(directory,path.replace(/^\/\.tmp\/?/u,""));
+ const lanes=new Map<string,{rows:Record<string,unknown>[]}>,blobs=new Map<string,string>();
+ let channel=0,sequence=0;
+ const digest=(text:string)=>createHash("sha256").update(text).digest("hex");
+ const state={mainEventId:"main",workingHead:{kind:"event",eventId:"main"}};
+ const ports={contextId:"owned",status:async()=>structuredClone(state),
+  fs:{mkdtemp:async(prefix:string)=>"/.tmp/"+basename(await mkdtemp(join(directory,prefix+"-"))),
+   writeFile:async(path:string,text:string)=>writeFile(local(path),text),
+   readFile:async(path:string)=>readFile(local(path),"utf8"),
+   readdir:async(path:string)=>readdir(local(path)),rename:async(from:string,to:string)=>rename(local(from),local(to)),
+   rm:async(path:string)=>rm(local(path),{recursive:true,force:true})},
+  open:async()=>{const lane={key:"channel-"+(++channel)};lanes.set(lane.key,{rows:[]});return lane;},
+  append:async(lane:{key:string},_context:string,records:unknown[])=>records.map(record=>{
+   const seq=++sequence,id="message-"+seq;lanes.get(lane.key)!.rows.push({messageId:id,envelopeId:"envelope-"+seq,seq,record:structuredClone(record)});return id;
+  }),
+  read:async(lane:{key:string})=>{const rows=structuredClone(lanes.get(lane.key)!.rows);return {[thread?"threadId":"channelId"]:lane.key,through:rows.at(-1)?.seq??0,rows};},
+  put:async(text:string)=>{const hash=digest(text);blobs.set(hash,text);return hash;},get:async(hash:string)=>blobs.get(hash)??null,
+  readBytes:async(path:string,limit:number)=>{const bytes=await readFile(local(path));if(bytes.length>limit)throw new Error("Bounded fixture read exceeded its limit");return bytes;},
+ };
+ return {ports,close:()=>rm(directory,{recursive:true,force:true})};
+}
+it.each(dictationHandoffWorlds)("$id independently qualifies exact dictation text, current frontiers and local receipt",async world=>{
+ const fixture=await journalPorts(true);
+ try{
+  const prepared=await prepareOpenDictationHandoff({contextId:"owned",caseId:world.id},fixture.ports as never);
+  const proof=await prepared.qualify();expect(proof.passed).toBe(true);
+  const value={plan:{...proof.independent,explanation:world.expected.statement},review:proof.exactDraft,handoff:proof.handoff};
+  expect((await prepared.verify(value,referenceObserver(value))).passed).toBe(true);
+  const wrong={...value,plan:{...value.plan,through:-1}};
+  const rejected=await prepared.verify(wrong,referenceObserver(wrong));
+  expect(rejected.outcomeDimensions.effects.passed).toBe(true);expect(rejected.outcomeDimensions.returnedValue.passed).toBe(false);expect(rejected.passed).toBe(false);
+  if(proof.handoff){
+   const wrongReceipt={...value,handoff:{...proof.handoff,path:"/.tmp/invented/handoff.json"}};
+   const optional=await prepared.verify(wrongReceipt,referenceObserver(wrongReceipt));
+   expect(optional.passed).toBe(true);expect(optional.outcomeDimensions.incidentalValues?.passed).toBe(false);
+  }
+ }finally{await fixture.close();}
+});
+it.each(providerHandoffWorlds)("$id qualifies retained provider decisions and original output without copied evidence",async world=>{
+ const fixture=await journalPorts(false);
+ try{
+  const prepared=await prepareOpenProviderHandoff({contextId:"owned",caseId:world.id},fixture.ports as never);
+  const proof=await prepared.qualify();expect(proof.passed).toBe(true);
+  const rejected=await prepared.verify(null,referenceObserver(null));
+  expect(rejected.outcomeDimensions.effects.passed).toBe(true);expect(rejected.outcomeDimensions.returnedValue.passed).toBe(false);expect(rejected.passed).toBe(false);
+ }finally{await fixture.close();}
+});
