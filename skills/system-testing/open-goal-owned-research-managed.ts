@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { readCachedWebRange, readVerifiedCachedPage } from "./verified-web-cache.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -132,7 +135,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     const bytes = await readVerifiedCachedPage(input => ports.web.read(input), page);
     return { url: page.url, digest: page.digest, text: bytes.text, size: page.size, exact: bytes.exact };
   }
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const report = value as Result | null;
     const research = (edit ? (report as {research?:Brief}|null)?.research : report) as Brief | null;
     const statements = Array.isArray(research?.statements) ? research.statements : [];
@@ -155,15 +158,16 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
         statements.every(statement => Boolean(statement.text?.trim()) && statement.cites?.length > 0),
       protectedOwnedResearchScope: protectedScope.mainEventId === before.mainEventId &&
         isDeepStrictEqual(protectedScope.workingHead, before.workingHead),
-      ...(document?.checks ?? {}),
+      ...(document?.observedChecks ?? {}),
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: world!.goal, checks,
+    const contract:SemanticOutcomeContract={effects:{checks:["discoveredOwnedSources", "exactOwnedPageReadback", "readOwnedCacheContinuation", "protectedOwnedResearchScope"].concat(Object.keys(document?.outcomeDimensions.effects.checks??{})),rationale:"Actual observed sources, cache bytes, protected scope and stored document effects are checked independently."},returnedValue:{checks:["groundedOwnedCitations", "answeredOwnedGoal"],required:true,rationale:"The requested answer, findings and exact citations are required query values; mutation receipt echoes are optional."},incidentalValues:{checks:Object.keys(document?.outcomeDimensions.returnedValue.checks??{}),rationale:"Incorrect optional mutation returns are bound only to their actual invocation source and value."}};
+    return assessObservedApplicationOutcome({ contextId: input.contextId, caseId: input.caseId, goal: world!.goal, checks,
       passed: Object.values(checks).every(Boolean), origin: endpoint.origin, searches, attempted, reads,
       fetched: [...pages.values()], fetchReceipts, cacheReceipts, readback, document,
       semanticReviewRequired:true,semanticReviewInput:{kind:"public-claims",actual:{goal:world!.goal,
         answer:JSON.stringify(research??null),citations:cites.map(({url,quote})=>({url,quote})),
         sourceScope:[...entries.keys()],sources:readback.map(source=>({url:source.url,
-          title:[...pages.values()].find(page=>page.url===source.url)?.title??"",retrieved:date,sha256:source.digest,text:source.text}))}} };
+          title:[...pages.values()].find(page=>page.url===source.url)?.title??"",retrieved:date,sha256:source.digest,text:source.text}))}} },contract,value,invocation);
   }
 
   async function qualify() {

@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { prepareManagedWebBriefWorld } from "./web-brief-managed.js";
@@ -39,7 +42,7 @@ export function prepareAssignedPublicBrief(
     },
   };
   const decision = world.facts.length ? "supported" as const : "held" as const;
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as Outcome | null;
     const outcome = report;
     const brief = outcome?.brief ?? null;
@@ -52,12 +55,13 @@ export function prepareAssignedPublicBrief(
       exact_citations: proof.checks.citations,
       returnedDecisionShape: (outcome?.decision === "supported" || outcome?.decision === "held") && proof.checks.outcome,
     };
-    return { ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+    const contract:SemanticOutcomeContract={effects:{checks:["exact_assigned_urls", "verified_cache"].concat([]),rationale:"Actual observed sources, cache bytes, protected scope and stored document effects are checked independently."},returnedValue:{checks:["exact_citations", "returnedDecisionShape"].concat([]),required:true,rationale:"The requested answer, findings and exact citations are required query values; mutation receipt echoes are optional."},incidentalValues:{checks:[],rationale:"Incorrect optional mutation returns are bound only to their actual invocation source and value."}};
+    return assessObservedApplicationOutcome({ ...input, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       assignedPublicBrief: { binding, shared: proof, outcome }, semanticReviewRequired:true,
       semanticReviewInput:{kind:"public-claims",actual:{goal:world.goal,answer:JSON.stringify(outcome),
         citations:brief?.statements.flatMap(statement=>statement.cites.map(({url,quote})=>({url,quote})))??[],
         sourceScope:[...world.sources],sources:proof.cache.map((cached,index)=>({url:proof.reads[index]!.page.url,
-          requested:cached.requested,title:proof.reads[index]!.page.title,retrieved:new Date(proof.request.retrievedAt).toISOString().slice(0,10),sha256:cached.digest,text:cached.visible}))}} };
+          requested:cached.requested,title:proof.reads[index]!.page.title,retrieved:new Date(proof.request.retrievedAt).toISOString().slice(0,10),sha256:cached.digest,text:cached.visible}))}} },contract,raw,invocation);
   }
   async function qualify() {
     if (await services.publicBrief.bind(["https://invalid.example/"])) throw new Error("An unassigned URL was accepted");

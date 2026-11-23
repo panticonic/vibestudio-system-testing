@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { contextId, fs, rpc } from "@workspace/runtime";
@@ -120,7 +123,7 @@ async function prepareWorkspace(input: Input, world: OutcomeWorkspaceWorld) {
 
   const expectedGuide = world.target === null ? null :
     world.files[world.target]!.replace(/^Doors open: \d{2}:\d{2}$/mu, `Doors open: ${world.doors}`) + (world.concurrentAddition ?? "");
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const report = value as Report | null;
     const names = (await fs.readdir(directory)).sort();
     const contents = Object.fromEntries(await Promise.all(filenames.map(async name => {
@@ -147,7 +150,7 @@ async function prepareWorkspace(input: Input, world: OutcomeWorkspaceWorld) {
       retainedConcurrentWork: !world.concurrentAddition || (concurrentVersion !== undefined &&
         typeof guide === "string" && guide.includes(world.concurrentAddition)),
     };
-    return {
+    const verification = {
       caseId: input.caseId, contextId: input.contextId, goal: world.goal,
       checks, passed: Object.values(checks).every(Boolean),
       outcomeContract: {
@@ -160,6 +163,7 @@ async function prepareWorkspace(input: Input, world: OutcomeWorkspaceWorld) {
       target: world.target === null ? null : { path: world.target, sha256: revision },
       contents, acceptedWrites: structuredClone(acceptedWrites),
     };
+    return assessObservedApplicationOutcome(verification,verification.outcomeContract,value,invocation);
   }
   return { services, verify, close, notePath, expectedGuide };
 }
@@ -202,7 +206,7 @@ export async function prepareOutcomeWorkspace(input: Input, world: OutcomeWorksp
         : { status: "edited", path: world.target, version: "wrong-revision" });
       const unauthorizedWrite = await alias.services.goalWorkspace.revise(world.authority, alternate.authority.sha256, "altered");
       const checks = { ...positive.checks, alternateEvidenceRoute: alternate.passed,
-        rejectedFalseSuccess: !unchanged.passed && !wrongResult.passed, protectedAuthority: unauthorizedWrite.status === "unavailable" };
+        rejectedFalseSuccess: !unchanged.passed && !wrongResult.outcomeDimensions.returnedValue.passed, protectedAuthority: unauthorizedWrite.status === "unavailable" };
       return { ...positive, checks, passed: Object.values(checks).every(Boolean) };
     } finally {
       await alias.close();

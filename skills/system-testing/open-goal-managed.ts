@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import type { NativeStartupDiagnostic, NativeStartupAcknowledgement } from "./native-startup-diagnostic.js";
 import { credentials, fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -113,7 +116,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       revise: async () => ({ status: "unavailable" }),
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const result = value as ResearchReport | null;
     const citations = result?.statements?.flatMap(({ cites }) => cites) ?? [];
     const cache = await Promise.all([...pages.values()].map(async (page) => {
@@ -145,8 +148,9 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
     const semanticReviewInput = {kind:"public-claims",actual:{goal,answer:JSON.stringify(result??null),
       citations:citations.map(({url,quote})=>({url,quote})),sourceScope:null,
       sources:cache.map(source=>({url:source.url,title:fetched.find(item=>item.url===source.url)?.page.title??"",retrieved:date,sha256:source.digest,text:source.text}))}};
-    return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks,
-      semanticReviewRequired:true,semanticReviewInput };
+    const contract:SemanticOutcomeContract={effects:{checks:["discoveredSources", "exactPageReadback"].concat([]),rationale:"Actual observed sources, cache bytes, protected scope and stored document effects are checked independently."},returnedValue:{checks:["attestedSearchProvider", "answeredGoal", "groundedCitations"].concat([]),required:true,rationale:"The requested answer, findings and exact citations are required query values; mutation receipt echoes are optional."},incidentalValues:{checks:[],rationale:"Incorrect optional mutation returns are bound only to their actual invocation source and value."}};
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks,
+      semanticReviewRequired:true,semanticReviewInput },contract,value,invocation);
   }
   async function qualify() {
     const statements = [];
@@ -238,7 +242,7 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
       },
     },
   };
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const report = value as { status?: string; path?: string; version?: string } | null;
     const contents = Object.fromEntries(await Promise.all(names.map(async (name) =>
       [name, await readText(`${directory}/${name}`)] as const)));
@@ -255,8 +259,9 @@ export async function prepareWorkspaceGoal({ contextId, caseId }: Input, world: 
         name === world.destination || contents[name] === original[name]),
       reportedStoredRevision: report?.status === "edited" && report.path === world.destination && report.version === version,
     };
-    return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal: world.goal,
-      reads, attempts, contents, checks };
+    const contract:SemanticOutcomeContract={effects:{checks:["discoveredWorkspace", "recoveredConcurrentEdit", "exactDocumentReadback", "preservedOtherDocuments"].concat([]),rationale:"Actual observed sources, cache bytes, protected scope and stored document effects are checked independently."},returnedValue:{checks:["reportedStoredRevision"].concat([]),required:false,rationale:"The requested answer, findings and exact citations are required query values; mutation receipt echoes are optional."},incidentalValues:{checks:[],rationale:"Incorrect optional mutation returns are bound only to their actual invocation source and value."}};
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), caseId, contextId, goal: world.goal,
+      reads, attempts, contents, checks },contract,value,invocation);
   }
 
   async function qualify() {
