@@ -292,6 +292,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const plan=outcome?.plan;
     const completed=bound?expectedObservations(bound.request):null;
     const foreign=crypto.randomUUID();
+    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactIntegrationFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(current,snapshots[1])&&
@@ -311,7 +312,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
       groundedIntegrationDisposition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),planned)&&
         plan.action===expected.action&&plan.reason===expected.reason&&
         typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedPrivateIntegrationNote:expected.action==="stage"?!!handoff&&!!data&&!!artifact&&found.length===1&&
+      verifiedPrivateIntegrationNote:expected.action==="stage"?typeof artifactExplanation==="string"&&countBytes(artifactExplanation)<=660&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&!!handoff&&!!data&&!!artifact&&found.length===1&&
         handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&handoff.bytes===data.length&&
         handoff.sha256===sha256HexSyncText(artifact):
         found.length===0&&handoff===null,

@@ -327,6 +327,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const data=handoff?await ports.readBytes(handoff.path,maximum):null;
     const artifact=data?new TextDecoder("utf-8",{fatal:true}).decode(data):null;
     const foreign=crypto.randomUUID();
+    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactWelcomeResource:!!plan&&plan.resourceId===expected.target&&isDeepStrictEqual(resolution,native),
@@ -342,7 +343,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       verifiedWelcomeTour:isDeepStrictEqual(checked?.tour,independent.tour?.result??null)&&(checked?.tour?.stage??null)===expected.tour,
       verifiedWelcomeRetry:expected.probe?independent.probeRequired&&qualityProbe(actualProbe):
         !independent.probeRequired&&probeInput===null&&probeRun===null&&checked?.probe===null,
-      exactWelcomeHandoff:expected.action==="stage"?!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
+      exactWelcomeHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&bytes(artifactExplanation)<=600&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.sha256===sha256HexSyncText(artifact)&&handoff.bytes===data.length:
         files.length===0&&handoff===null,

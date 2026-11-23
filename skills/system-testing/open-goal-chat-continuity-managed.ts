@@ -303,6 +303,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
       world.worker==="rejoined"?!!oldWorker?.active&&!!newWorker?.active&&oldWorker.participantId===newWorker.participantId&&
         newWorker.endedRevision!==null&&newWorker.endedRevision>oldWorker.revision&&newWorker.revision>newWorker.endedRevision:
       world.worker==="stable"?!!newWorker?.active&&isDeepStrictEqual(oldWorker,newWorker):oldWorker===null&&newWorker===null;
+    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.disposition?.explanation:null;}catch{return null;}})();
     const checks={
       returnedChatHandoff:isDeepStrictEqual(report?.handoff,handoff),
       exactOwnedChatSelection:frames.length===2&&index.scopes.every(row=>row.contextId===owner)&&
@@ -324,7 +325,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
       groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
         typeof decision.explanation==="string"&&decision.explanation.length<=650&&
         world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivateChatHandoff:shouldWrite?!!handoff&&!!artifact&&files.length===1&&
+      verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&!!handoff&&!!artifact&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact):
         handoff===null&&files.length===0,

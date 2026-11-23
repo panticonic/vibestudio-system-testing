@@ -4,14 +4,15 @@ import { findMatchingUrlAudience } from "@vibestudio/credential-client/urlAudien
 import { credentialLifecycle } from "@vibestudio/credential-client/credentialStatus";
 import { prepareOpenApiReadiness } from "./open-goal-api-readiness-managed.js";
 vi.mock("@workspace/runtime", () => ({ contextId: null, fs: {}, rpc: {}, vcs: {}, credentials: {} }));
-vi.mock("@workspace-skills/scratch-handoff-bindings", () => ({ bindScratchHandoff: () => ({ scratchHandoffWrite: { stage: async () => null } }) }));
+vi.mock("@workspace-skills/scratch-handoff-bindings", () => ({ bindScratchHandoff: (fs:{writeFile(path:string,text:string):Promise<void>}) => ({ scratchHandoffWrite: { stage: async (text:string) => {const path="/.tmp/evidence-handoff-proof/handoff.json";await fs.writeFile(path,text);return {path,bytes:new TextEncoder().encode(text).length};} } }) }));
 async function prepare(caseId: string) {
   const rows: { messageId: string; envelopeId: string; seq: number; selection: unknown }[] = [];
-  return prepareOpenApiReadiness({ contextId: "owned", caseId }, {
+  const saved=new Map<string,string>();
+  const prepared=await prepareOpenApiReadiness({ contextId: "owned", caseId }, {
     match: matchUrlBoundCredentialCandidates, binding: findCredentialBinding,
     audience: findMatchingUrlAudience, lifecycle: credentialLifecycle,
   }, {
-    contextId: "owned", fs: { mkdtemp: async () => "/scratch", writeFile: async () => {}, readdir: async () => [] },
+    contextId: "owned", fs: { mkdtemp: async () => "/scratch", writeFile: async (path:string,text:string) => {saved.set(path,text);}, readdir: async () => saved.size?["evidence-handoff-proof"]:[] },
     status: async () => ({ mainEventId: "unchanged", workingHead: { kind: "event", eventId: "unchanged" } }),
     open: async () => ({ key: "channel" }),
     append: async (_lane: unknown, _context: string, additions: unknown[]) => additions.map(selection => {
@@ -19,8 +20,9 @@ async function prepare(caseId: string) {
       rows.push({ messageId, envelopeId: `envelope-${seq}`, seq, selection }); return messageId;
     }),
     read: async () => ({ channelId: "channel", through: rows.length, rows: structuredClone(rows) }),
-    readBytes: async () => { throw new Error("No scratch artifact was requested"); },
+    readBytes: async (path:string) => {const text=saved.get(path);if(text===undefined)throw new Error("No scratch artifact was requested");return new TextEncoder().encode(text);},
   } as never);
+  return {...prepared,readArtifact:()=>JSON.parse(saved.values().next().value??"null")};
 }
 async function open(caseId: string) {
   const prepared = await prepare(caseId), s = prepared.services;
@@ -58,4 +60,19 @@ it("retains explicit user observation prerequisites and the sealed receipt", asy
   await s.integrationCredentialLookup.resolve(plan.receipt, "status");
   expect((await s.integrationCredentialLookup.resolve(plan.receipt, "metrics")).state).toBe("active");
   await expect(s.integrationCredentialLookup.resolve("foreign", "metrics")).rejects.toThrow(/assigned integration plan/);
+});
+
+it("checks the actual saved semantic note independently of a later returned summary",async()=>{
+  const good=await prepare("api-readiness-required-inventory-optional-status");
+  expect((await good.qualify()).passed).toBe(true);
+  const saved=good.readArtifact();
+  const native=await good.verify({plan:{...saved.plan,explanation:"An unsupported later return."},review:saved.review.result,facts:saved.audit.facts,handoff:null});
+  expect(native.outcomeDimensions.effects.passed).toBe(true);
+  expect(native.outcomeDimensions.returnedValue.passed).toBe(false);
+  const bad=await prepare("api-readiness-required-inventory-optional-status"),stage=bad.services.quietIntegrationHandoff.stage;
+  bad.services.quietIntegrationHandoff.stage=report=>stage({...report,plan:{...report.plan,explanation:"An unsupported persisted summary."}});
+  const rejected=await bad.qualify();
+  expect(rejected.outcomeDimensions.effects.passed).toBe(false);
+  expect(rejected.outcomeDimensions.effects.checks.verifiedPrivateIntegrationNote).toBe(false);
+  expect(rejected.outcomeDimensions.returnedValue.passed).toBe(true);
 });

@@ -1,0 +1,720 @@
+{
+  "schema": "natlang.saved-artifact-domain-audit/1",
+  "entries": [
+    {
+      "callable": "prepareContentProject",
+      "entry": "skills/open-user-goal/prepareContentProject.ts",
+      "oracle": "skills/system-testing/open-goal-prepared-content-project-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "generateOwnedIllustration",
+      "entry": "skills/open-user-goal/generateOwnedIllustration.ts",
+      "oracle": "skills/system-testing/open-goal-native-image-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviewDevelopmentAudit",
+      "entry": "skills/open-user-goal/reviewDevelopmentAudit.ts",
+      "oracle": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviseCoordinatedDocuments",
+      "entry": "skills/open-user-goal/reviseCoordinatedDocuments.ts",
+      "oracle": "skills/system-testing/open-goal-coordinated-revision-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnNewsEvidenceGoal",
+      "entry": "skills/open-user-goal/workOnNewsEvidenceGoal.ts",
+      "oracle": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "writers": [
+        {
+          "line": 324,
+          "source": "newsEvidenceHandoff:{async stage(report:NewsEvidenceReport){"
+        },
+        {
+          "line": 342,
+          "source": "const receipt=await writer.stage(text);"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 371,
+          "source": "const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();"
+        },
+        {
+          "line": 387,
+          "source": "verifiedPrivateNewsHandoff:expected.action===\"stage\"?typeof artifactExplanation===\"string\"&&byteCount(artifactExplanation)<=660&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&(nativeOnly||!!outcome)&&!!handoff&&!!artifact&&!!written&&files.length===1&&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "prepareNewsEditionReview",
+      "entry": "skills/open-user-goal/prepareNewsEditionReview.ts",
+      "oracle": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "writers": [
+        {
+          "line": 251,
+          "source": "async stage(desk: Desk, plan: EditorPlan, basis: NewsEvidenceReport, presentation: PresentationReport) {"
+        },
+        {
+          "line": 265,
+          "source": "const staged = await writer.stage(body);"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnImageCandidateGoal",
+      "entry": "skills/open-user-goal/workOnImageCandidateGoal.ts",
+      "oracle": "skills/system-testing/open-goal-image-candidate-managed.ts",
+      "writers": [
+        {
+          "line": 202,
+          "source": "imageCandidateHandoff:{async stage(report:ImageReport){"
+        },
+        {
+          "line": 223,
+          "source": "const file=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 259,
+          "source": "const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();"
+        },
+        {
+          "line": 276,
+          "source": "verifiedPrivateImageHandoff:expected.action===\"stage\"?typeof artifactExplanation===\"string\"&&artifactExplanation.length<=600&&world.expected.evidence.every(term=>artifactExplanation.toLowerCase().includes(term.toLowerCase()))&&!!winner&&!!handoff&&!!artifact&&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnEditorialPacket",
+      "entry": "skills/open-user-goal/workOnEditorialPacket.ts",
+      "oracle": "skills/system-testing/open-goal-editorial-managed.ts",
+      "writers": [
+        {
+          "line": 298,
+          "source": "editorialHandoff:{async stage(report:PacketReport){"
+        },
+        {
+          "line": 311,
+          "source": "const result=await writer.stage(text);"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 355,
+          "source": "const artifactDecision=(()=>{try{return artifact?JSON.parse(artifact)?.decision:null;}catch{return null;}})();"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "answerWorkspaceQuestion",
+      "entry": "skills/open-user-goal/answerWorkspaceQuestion.nl",
+      "oracle": "skills/system-testing/open-goal-outcome-workspace-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "investigatePublicQuestion",
+      "entry": "skills/open-user-goal/investigatePublicQuestion.nl",
+      "oracle": "skills/system-testing/open-goal-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "answerFromAssignedPublicSources",
+      "entry": "skills/open-user-goal/answerFromAssignedPublicSources.nl",
+      "oracle": "skills/system-testing/open-goal-owned-research-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviseWorkspaceDocument",
+      "entry": "skills/open-user-goal/reviseWorkspaceDocument.nl",
+      "oracle": "skills/system-testing/open-goal-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviseFromPublicResearch",
+      "entry": "skills/open-user-goal/reviseFromPublicResearch.nl",
+      "oracle": "skills/system-testing/open-goal-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reconcileGoogleRunbook",
+      "entry": "skills/open-user-goal/reconcileGoogleRunbook.ts",
+      "oracle": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "writers": [
+        {
+          "line": 251,
+          "source": "async stage(desk: Desk, plan: EditorPlan, basis: NewsEvidenceReport, presentation: PresentationReport) {"
+        },
+        {
+          "line": 265,
+          "source": "const staged = await writer.stage(body);"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "correctVaultFromPdf",
+      "entry": "skills/open-user-goal/correctVaultFromPdf.ts",
+      "oracle": "skills/system-testing/open-goal-pdf-vault-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reconcileWorkspaceConfig",
+      "entry": "skills/open-user-goal/reconcileWorkspaceConfig.ts",
+      "oracle": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "writers": [
+        {
+          "line": 223,
+          "source": "nativeConfigHandoff:{async stage(brief:ConfigBrief,lens:ConfigLens,evidence:ConfigEvidence,outcome:ConfigOutcome) {"
+        },
+        {
+          "line": 229,
+          "source": "const saved=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "chooseAudienceResponse",
+      "entry": "skills/open-user-goal/chooseAudienceResponse.ts",
+      "oracle": "skills/system-testing/open-goal-audience-response-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviewRetainedMemory",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "oracle": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "writers": [
+        {
+          "line": 219,
+          "source": "nativeMemoryHandoff:{async stage(brief:MemoryBrief,plan:MemoryPlan,evidence:MemoryEvidence,outcome:MemoryOutcome){"
+        },
+        {
+          "line": 225,
+          "source": "const saved=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "chooseAuthorizedEvidenceRoute",
+      "entry": "skills/open-user-goal/chooseAuthorizedEvidenceRoute.ts",
+      "oracle": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "writers": [
+        {
+          "line": 182,
+          "source": "routeEvidenceHandoff:{async stage(report:OwnedRouteReview){"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reconcilePanelLaunchState",
+      "entry": "skills/open-user-goal/reconcilePanelLaunchState.ts",
+      "oracle": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "writers": [
+        {
+          "line": 193,
+          "source": "async stage(report:LaunchReport){"
+        },
+        {
+          "line": 203,
+          "source": "const staged=(stagedText=payload,await writer.stage(payload));"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviewWorkspaceClaims",
+      "entry": "skills/open-user-goal/reviewWorkspaceClaims.ts",
+      "oracle": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "writers": [
+        {
+          "line": 193,
+          "source": "workspaceClaimHandoff:{async stage(report:WorkspaceClaimReview){"
+        },
+        {
+          "line": 202,
+          "source": "const saved=(stagedText=payload,await writer.stage(payload));"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnBridgeDelivery",
+      "entry": "skills/open-user-goal/workOnBridgeDelivery.ts",
+      "oracle": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnChatContinuity",
+      "entry": "skills/open-user-goal/workOnChatContinuity.ts",
+      "oracle": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "writers": [
+        {
+          "line": 261,
+          "source": "chatContinuityHandoff:{async stage(report:ChatContinuityReport){"
+        },
+        {
+          "line": 274,
+          "source": "const saved=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 306,
+          "source": "const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.disposition?.explanation:null;}catch{return null;}})();"
+        },
+        {
+          "line": 328,
+          "source": "verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation===\"string\"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&!!handoff&&!!artifact&&files.length===1&&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnDemoPortfolio",
+      "entry": "skills/open-user-goal/workOnDemoPortfolio.ts",
+      "oracle": "skills/system-testing/open-goal-portfolio-managed.ts",
+      "writers": [
+        {
+          "line": 227,
+          "source": "demoPortfolioHandoff:{async stage(report:PortfolioReport){"
+        },
+        {
+          "line": 243,
+          "source": "const saved=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 288,
+          "source": "const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.decision?.explanation:null;}catch{return null;}})();"
+        },
+        {
+          "line": 310,
+          "source": "verifiedPrivatePortfolioHandoff:findings?typeof artifactExplanation===\"string\"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&.write?!!receipt&&!!artifact&&files.length===1&&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnRegencyBriefing",
+      "entry": "skills/open-user-goal/workOnRegencyBriefing.ts",
+      "oracle": "skills/system-testing/open-goal-regency-managed.ts",
+      "writers": [
+        {
+          "line": 200,
+          "source": "regencyNote:{async stage(report:RegencyReport){"
+        },
+        {
+          "line": 214,
+          "source": "const file=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 240,
+          "source": "const artifactDecision=(()=>{try{return artifact?JSON.parse(artifact)?.decision:null;}catch{return null;}})();"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnApiReadinessGoal",
+      "entry": "skills/open-user-goal/workOnApiReadinessGoal.ts",
+      "oracle": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "writers": [
+        {
+          "line": 263,
+          "source": "quietIntegrationHandoff:{async stage(report:ReadinessReport){"
+        },
+        {
+          "line": 275,
+          "source": "const receipt=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 295,
+          "source": "const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();"
+        },
+        {
+          "line": 315,
+          "source": "verifiedPrivateIntegrationNote:expected.action===\"stage\"?typeof artifactExplanation===\"string\"&&countBytes(artifactExplanation)<=660&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&!!handoff&&!!data&&!!artifact&&found.length===1&&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnPersonalWelcomeGoal",
+      "entry": "skills/open-user-goal/workOnPersonalWelcomeGoal.ts",
+      "oracle": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "writers": [
+        {
+          "line": 287,
+          "source": "async stage(plan:WelcomePlan,reviews:WelcomeReviews) {"
+        },
+        {
+          "line": 306,
+          "source": "const receipt=(stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "saved semantic explanation independently checked against domain facts",
+      "savedSemanticChecks": [
+        {
+          "line": 330,
+          "source": "const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();"
+        },
+        {
+          "line": 346,
+          "source": "exactWelcomeHandoff:expected.action===\"stage\"?typeof artifactExplanation===\"string\"&&bytes(artifactExplanation)<=600&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviewUnitHandoffGoal",
+      "entry": "skills/open-user-goal/reviewUnitHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-unit-handoff-managed.ts",
+      "writers": [
+        {
+          "line": 276,
+          "source": "async stage(id: string, revision: string, authoringId: string) {"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnSpecialistHandoffGoal",
+      "entry": "skills/open-user-goal/workOnSpecialistHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-specialist-managed.ts",
+      "writers": [
+        {
+          "line": 265,
+          "source": "async stage(plan: SpecialistPlan, history: HistoryReview) {"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnDictationHandoffGoal",
+      "entry": "skills/open-user-goal/workOnDictationHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-dictation-managed.ts",
+      "writers": [
+        {
+          "line": 212,
+          "source": "async stage(plan: DictationPlan, review: DraftReview) {"
+        },
+        {
+          "line": 223,
+          "source": "const receipt = (stagedText=text,await writer.stage(text));"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnProviderHandoffGoal",
+      "entry": "skills/open-user-goal/workOnProviderHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "writers": [
+        {
+          "line": 192,
+          "source": "async stage(plan: ProviderPlan) {"
+        },
+        {
+          "line": 205,
+          "source": "const receipt = await writer.stage(content);"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "recoverOperatingHandoff",
+      "entry": "skills/open-user-goal/recoverOperatingHandoff.ts",
+      "oracle": "skills/system-testing/open-goal-compound-recovery-managed.ts",
+      "writers": [
+        {
+          "line": 108,
+          "source": "async stage(jobId: string, runId: string) {"
+        },
+        {
+          "line": 178,
+          "source": "async stage(body: string) {"
+        },
+        {
+          "line": 188,
+          "source": "const receipt = await binding.scratchHandoffWrite.stage(body);"
+        },
+        {
+          "line": 323,
+          "source": "artifact = await services.scratchHandoffWrite.stage(JSON.stringify({ answers }, null, 2) + \"\\n\");"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnTerminalGoal",
+      "entry": "skills/open-user-goal/workOnTerminalGoal.ts",
+      "oracle": "skills/system-testing/open-goal-terminal-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnLocalReconciliationGoal",
+      "entry": "skills/open-user-goal/workOnLocalReconciliationGoal.ts",
+      "oracle": "skills/system-testing/open-goal-reconciliation-managed.ts",
+      "writers": [
+        {
+          "line": 186,
+          "source": "async stage(body: string) {"
+        },
+        {
+          "line": 192,
+          "source": "const receipt = await scratch.scratchHandoffWrite.stage(body);"
+        },
+        {
+          "line": 345,
+          "source": "if (answers.every(Boolean)) artifact = await services.scratchHandoffWrite.stage(JSON.stringify({ answers }, null, 2) + \"\\n\");"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnCapabilityGoal",
+      "entry": "skills/open-user-goal/workOnCapabilityGoal.ts",
+      "oracle": "skills/system-testing/open-goal-capability-plan-managed.ts",
+      "writers": [
+        {
+          "line": 191,
+          "source": "async stage(plan: CapabilityPlan) {"
+        }
+      ],
+      "classification": "saved plan independently revalidated",
+      "savedSemanticChecks": [
+        {
+          "line": 309,
+          "source": "const artifactChecks=stagedBody?await verifyEvidence({plan:JSON.parse(stagedBody).plan,handoff:staged},refused):null;"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "recoverOwnedTask",
+      "entry": "skills/open-owned-task-recovery/recoverOwnedTask.nl",
+      "oracle": "skills/system-testing/open-goal-owned-task-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "reviewDurableQuestion",
+      "entry": "skills/gad-context/natlang/reviewDurableQuestion.ts",
+      "oracle": "skills/system-testing/open-goal-gad-durable-question-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnClientDiagnostics",
+      "entry": "skills/gad-context/natlang/workOnClientDiagnostics.nl",
+      "oracle": "skills/system-testing/open-goal-client-diagnostics-managed.ts",
+      "writers": [
+        {
+          "line": 515,
+          "source": "async stage(audience: string, decision: ClientDecision) {"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnAssemblyGoal",
+      "entry": "skills/open-user-goal/workOnAssemblyGoal.ts",
+      "oracle": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
+      "writers": [
+        {
+          "line": 252,
+          "source": "async stage(plan: AssemblyPlan) {"
+        }
+      ],
+      "classification": "saved plan independently revalidated",
+      "savedSemanticChecks": [
+        {
+          "line": 327,
+          "source": "const artifactPlanValid=Object.values(planRequirements(artifactPlan)).every(Boolean);"
+        },
+        {
+          "line": 334,
+          "source": "verifiedLocalDraft: expected.stage ? artifactPlanValid&&checkedDrafts && !!staged && !!durableBytes && typeof durableText === \"string\" &&"
+        }
+      ],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "recoverScheduledAutomation",
+      "entry": "skills/open-owned-scheduled-recovery/recoverScheduledAutomation.nl",
+      "oracle": "skills/system-testing/open-goal-scheduled-recovery-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnEvalHandoffGoal",
+      "entry": "skills/open-user-goal/workOnEvalHandoffGoal.ts",
+      "oracle": "skills/system-testing/open-goal-eval-handoff-managed.ts",
+      "writers": [
+        {
+          "line": 163,
+          "source": "async stage(selectedJob: string, runId: string) {"
+        },
+        {
+          "line": 178,
+          "source": "const receipt = await scratch.scratchHandoffWrite.stage(written);"
+        }
+      ],
+      "classification": "native bounded artifact or exact domain admission; summary is absent or no extra semantic summary condition exists",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "recoverPanelGoal",
+      "entry": "skills/panel-health/recoverPanelGoal.ts",
+      "oracle": "skills/system-testing/open-goal-panel-recovery-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "publishOwnedPreviewGoal",
+      "entry": "skills/publish-preflight/publishOwnedPreviewGoal.ts",
+      "oracle": "skills/system-testing/open-goal-owned-preview-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workOnPdfGoal",
+      "entry": "skills/pdf-intake/workOnPdfGoal.ts",
+      "oracle": "skills/system-testing/open-goal-pdf-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    },
+    {
+      "callable": "workTowardPublicationGoal",
+      "entry": "skills/publish-preflight/workTowardPublicationGoal.ts",
+      "oracle": "skills/system-testing/open-goal-publication-managed.ts",
+      "writers": [],
+      "classification": "native effects or delegated writer; no local model-authored artifact body",
+      "savedSemanticChecks": [],
+      "notes": "Actual saved bytes remain digest/readback-bound; optional later public findings do not replace native artifact validation."
+    }
+  ],
+  "entryCount": 45,
+  "tightenedModules": [
+    "api-readiness",
+    "chat-continuity",
+    "editorial",
+    "image-candidate",
+    "news-evidence",
+    "personal-welcome",
+    "portfolio",
+    "regency"
+  ],
+  "existingIndependentPlanChecks": [
+    "open-goal-capability-plan-managed.ts",
+    "open-goal-workspace-assembly-managed.ts"
+  ],
+  "delegatedContracts": [
+    "open-goal-product-owned-managed.ts: Root owns runbook and packet artifact contracts",
+    "open-goal-pdf-vault-managed.ts: actual saved vault effects are independently checked by native vault.verify"
+  ]
+}

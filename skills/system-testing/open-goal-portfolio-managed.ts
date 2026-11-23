@@ -285,6 +285,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!originalFiles.has(name));
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,maxBytes)):null;
     const other=crypto.randomUUID();
+    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.decision?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.note,receipt),
       exactOwnedPair:index.gardenId.slice("natlang-garden-".length)===index.realmId.slice("natlang-realm-".length)&&
@@ -306,7 +307,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       groundedPortfolioDecision:!!findings&&decision?.status===world.status&&decision.status===findings.status&&
         decision.write===findings.write&&typeof decision.explanation==="string"&&decision.explanation.length<=650&&
         world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivatePortfolioHandoff:findings?.write?!!receipt&&!!artifact&&files.length===1&&
+      verifiedPrivatePortfolioHandoff:findings?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&.write?!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.basis===final.id&&artifact===stagedText&&
         receipt.digest===sha256HexSyncText(artifact):
         receipt===null&&files.length===0,

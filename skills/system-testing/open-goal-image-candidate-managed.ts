@@ -256,6 +256,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     const assessed=outcome?.assessment?.candidates;
     const observed=expected.observations??queue.map(()=>"verified");
     const foreign=crypto.randomUUID();
+    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactImageFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],project(initial))&&
@@ -272,7 +273,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
         isDeepStrictEqual(independent.map(read=>read.status),observed),
       groundedImageDecision:result?.action===expected.action&&result.candidateId===selected&&
         (selected===null||winner?.status==="verified")&&explain(outcome),
-      verifiedPrivateImageHandoff:expected.action==="stage"?!!winner&&!!handoff&&!!artifact&&
+      verifiedPrivateImageHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&artifactExplanation.length<=600&&world.expected.evidence.every(term=>artifactExplanation.toLowerCase().includes(term.toLowerCase()))&&!!winner&&!!handoff&&!!artifact&&
         newFiles.length===1&&handoff.path===`/.tmp/${newFiles[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact):
         newFiles.length===0&&handoff===null,

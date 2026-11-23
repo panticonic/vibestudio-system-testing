@@ -368,6 +368,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const artifact=written?new TextDecoder("utf-8",{fatal:true}).decode(written):null;
     const foreign=crypto.randomUUID();
     const plan=outcome?.plan;
+    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();
     const checks={
       exactNewsFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],readerProjection(initial))&&
         isDeepStrictEqual(snapshots[1],readerProjection(latest))&&
@@ -383,7 +384,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       groundedNewsEdition:nativeOnly ? independent.plan.reason===expected.reason&&independent.plan.action===expected.action : !!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
         isDeepStrictEqual(outcome?.briefing,independent.briefing)&&plan.reason===expected.reason&&plan.action===expected.action&&
         typeof plan.explanation==="string"&&byteCount(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedPrivateNewsHandoff:expected.action==="stage"?(nativeOnly||!!outcome)&&!!handoff&&!!artifact&&!!written&&files.length===1&&
+      verifiedPrivateNewsHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&byteCount(artifactExplanation)<=660&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&(nativeOnly||!!outcome)&&!!handoff&&!!artifact&&!!written&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&!!stagedEvidence&&(nativeOnly||!!outcome&&isDeepStrictEqual(JSON.parse(body(outcome)),JSON.parse(body(stagedEvidence))))&&artifact===body(stagedEvidence)&&handoff.sha256===sha256HexSyncText(artifact)&&
         handoff.bytes===written.length&&(nativeOnly||!!outcome&&isDeepStrictEqual(handoff,outcome.handoff)):
         files.length===0&&handoff===null&&(nativeOnly||outcome?.handoff===null),
