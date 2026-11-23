@@ -41,3 +41,13 @@ it("adapts native application values only at the legacy oracle boundary", () => 
   expect(applicationVerifierValue({ resultType: "DomainOutcome", skill: "domain" }, edit))
     .toEqual({ status: "workspace-skill-reviewed", skill: "domain", outcome: edit });
 });
+
+it("requires the requested answer while retaining independently identified wrong incidental returns",()=>{
+ const definition={name:"chooseNext",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission/chooseNext.nl"};
+ const contract={effects:{checks:["nativeState"],rationale:"Actual owned native facts."},returnedValue:{checks:["requestedAnswer"],required:true,rationale:"The requested answer remains required."},incidentalValues:{checks:["auxiliaryClassification"],rationale:"Unused internal admission classification is not requested."}};
+ const proof={passed:false,checks:{nativeState:true,requestedAnswer:true,auxiliaryClassification:false},incorrectReturnValues:[{definition,value:"check-declaration"}]};
+ const result=assessSemanticOutcome(proof,contract);expect(result.passed).toBe(true);expect(result.checks).toEqual({nativeState:true,requestedAnswer:true});
+ expect(result.outcomeDimensions.incidentalValues).toMatchObject({passed:false,incorrectReturns:[{definition,valueJson:'"check-declaration"',sha256:expect.stringMatching(/^[a-f0-9]{64}$/)}]});
+ expect(assessSemanticOutcome({...proof,checks:{...proof.checks,requestedAnswer:false}},contract).passed).toBe(false);
+ expect(assessSemanticOutcome({...proof,checks:{...proof.checks,nativeState:false}},contract).passed).toBe(false);
+});

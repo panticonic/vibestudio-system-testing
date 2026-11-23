@@ -1,3 +1,4 @@
+import {authenticDiscoveryEvidence} from "./discovery-evidence.js";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText,stableSha256Hex} from "@vibestudio/content-addressing";
 import type {CatalogEntry,CatalogHit} from "@vibestudio/service-schemas/docs";
@@ -154,9 +155,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
         required.every(row=>plan.actions.filter(action=>action.methodId===row.methodId&&action.scope===row.scope).length===1);
     }
     function searchProof(search:IntentSearch|undefined){
-      return !!search&&isDeepStrictEqual(search.queries,searchLog.map(row=>row.query))&&
-        isDeepStrictEqual(search.hits,searchLog.map(row=>row.hits))&&
-        isDeepStrictEqual(search.described,[...descriptions.values()]);
+      return authenticDiscoveryEvidence(search,searchLog,descriptions);
     }
     const services={
       nativeIntentDiscovery:{
@@ -222,7 +221,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       });
       const checks={
         exactIntentNotice:isDeepStrictEqual(report?.notice,notice)&&isDeepStrictEqual(await rawNotice(),notice),
-        installedIntentDiscovery:searchProof(report?.search)&&isDeepStrictEqual(descriptionsCurrent,[...descriptions.values()]),
+        installedIntentDiscovery:searchProof(report?.search)&&descriptionsCurrent.every(value=>isDeepStrictEqual(value,descriptions.get(value.id))),
         exactIntentActionSelection:planMatches(report?.plan)&&isDeepStrictEqual(report?.plan.actions,
           inspected.map(({methodId,scope})=>({methodId,scope}))),
         independentlyScopedIntentResults:inspected.length===required.length&&expectedScope&&isDeepStrictEqual(independent,inspected)&&

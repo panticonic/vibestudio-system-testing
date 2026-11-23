@@ -1,0 +1,11 @@
+# Goal outcomes and incidental application values
+
+Wave0033 source audit (original raw packets retained in the campaign archive):
+
+- Desktop lobby confirm-ready-offer and office reconnect-same-build request the installed client layout/version and keep-open behavior. `open-goal-desktop-readiness-managed.ts` verifies native source/manifest/host separately from the unused admission recommendation. The old whole-admission equality rejected only `decision`; native effects, current version and requested answer were correct. The application source remains a typed natural-language policy; System clarifies that catalog effectiveVersion and manifest hash have different meanings.
+- `semantic-outcome-contract.ts` separates requested effects/returned answers from incidental values. Incorrect incidental values carry exact original JSON hashes and function identities. Root return exclusion is required. Possible child producers are optional, avoiding a prescribed call tree. Python admission and independent JS native disk verification must apply these exclusions before supervised targets are published.
+- Intent morning-version-vs-handoff requests current unsaved status and a retained note, not a search transcript. `discovery-evidence.ts` requires every claimed query/result and description to be a genuine native observation; it accepts authentic subsets, repeats and different orders. Current native descriptions, selected exact scoped methods and final answer checks remain in `open-goal-intent-discovery-managed.ts`.
+- Local delivery complete-unacknowledged-second-lane legitimately requests exactly one new message (the other lane is already acknowledged). Its failed no-send outcome is a teacher error; the native business count remains required.
+- Testkit active-editor cleanup timeout and scheduled recovery cancellation belong to the separately audited native lifecycle mechanisms; this change does not reclassify them as successes.
+
+Only goal-justified answer/effect checks determine task completion. Incorrect supervised returns stay excluded, including from successful tasks; original data and proof remain unchanged. Ordinary model mistakes in the other wave0033 cases remain failures. No learner exposure is claimed by source qualification.

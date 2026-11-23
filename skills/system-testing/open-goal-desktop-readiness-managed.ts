@@ -402,7 +402,10 @@ export async function prepareDesktopReadiness(
         sourceRead.published.runtime === "web" &&
         sourceRead.published.abi === "web-host-1" &&
         matched("observe", [desk.operationId], sourceRead) &&
-        isDeepStrictEqual(outcome?.evidence.admission, exactAdmission),
+        isDeepStrictEqual(outcome?.evidence.admission?.source, exactAdmission?.source) &&
+        isDeepStrictEqual(outcome?.evidence.admission?.host, exactAdmission?.host),
+      incidentalDesktopAdmissionClassification:
+        outcome?.evidence.admission?.decision === exactAdmission?.decision,
       exactResponsivePlacement:
         matched("readWindow", [desk.id], window) &&
         window.status === (expected.layout ?? "restored") &&
@@ -443,7 +446,19 @@ export async function prepareDesktopReadiness(
         final.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(final.workingHead, baseline.workingHead),
     };
+    const incidentalCorrect = checks.incidentalDesktopAdmissionClassification;
+    const incorrectReturnValues = incidentalCorrect ? [] : [
+      {required:false,definition:{name:"chooseNext",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission/chooseNext.nl"},value:outcome?.evidence.admission?.decision},
+      {required:false,definition:{name:"reviewClientAdmission",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission.nl"},value:outcome?.evidence.admission},
+      {definition:{name:"reviewDesktopReadiness",source:"reviewDesktopReadiness.nl"},value:outcome},
+    ].filter(item=>item.value!==undefined);
     return {
+      incorrectReturnValues,
+      outcomeContract:{
+        effects:{checks:Object.keys(checks).filter(name=>name!=="incidentalDesktopAdmissionClassification"),rationale:"Native source, layout, build distinction, requested answer and protected workspace are required by this desktop goal."},
+        returnedValue:{checks:[],required:true,rationale:"The requested layout and version answer is required and checked with native facts."},
+        incidentalValues:{checks:["incidentalDesktopAdmissionClassification"],rationale:"An unused internal client admission recommendation is not the requested layout/build answer; retain and exclude its known incorrect generated values."},
+      },
       contextId: input.contextId,
       caseId: input.caseId,
       goal: world.goal,
