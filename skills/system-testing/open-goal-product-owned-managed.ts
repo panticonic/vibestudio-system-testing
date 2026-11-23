@@ -132,18 +132,21 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     const report = reportOf<GoogleReport>(raw);
     const current = await basis();
     const workspace = await ports.status({ contextId: input.contextId });
-    const calendarReport = await calendar.observedEvidence();
     const decision = report?.decision;
-    const calendarProof = calendarReport && await calendar.verify(calendarReport);
+    const calendarProof = await calendar.verifyObserved();
+    const selectedCalendar = calendarProof.readback?.observed.status === "current"
+      ? calendarProof.readback.observed.record : null;
     const targetNow = current.documents.find(doc => doc.path === target)!;
     const wanted = world.action === "revise" ? world.after + (world.coedit ?? "") : world.before;
     const writingCalls = calls.filter(call => call.method === "apply");
     const checks = {
-      current_calendar: calendarProof?.passed === true && calendarReport?.handoff === null,
+      current_calendar: calendarProof.passed === true && calendarProof.handoff === null,
       runbook_authority: decision?.action === world.action && decision.path === target &&
         decision.approval === approvalId && typeof decision.reason === "string" && !!decision.reason.trim(),
-      exact_basis_attribution: calendarProof?.passed === true && !!calendarReport && !!bases[0] &&
-        isDeepStrictEqual(report?.attribution, mapping(calendarReport, bases[0])),
+      exact_basis_attribution: calendarProof.passed === true && !!bases[0] &&
+        isDeepStrictEqual(report?.attribution, attribute(selectedCalendar
+          ? "calendar:" + selectedCalendar.calendarId + "/" + selectedCalendar.eventId : null,
+          "runbook:" + bases[0].currentRevision, world.action === "revise" ? approvalId : null, "private-workspace")),
       exact_runbook_result: targetNow.text === wanted && (world.action === "revise"
         ? !!applied && isDeepStrictEqual(report?.write, applied) && applied.version === targetNow.version &&
           writingCalls.some(call => isDeepStrictEqual(call.result, applied)) && (!world.coedit || coedited)

@@ -48,7 +48,7 @@ it("rejects an incomplete runbook report without reading missing decision or Cal
   const prepared = await prepareGoogleRunbook(input, {
     id: input.caseId, goal: "check the runbook", before: "current notes", approval: "APP-REVIEW",
     authorization: "read only", action: "hold",
-  } as never, { services: {}, verify, observedEvidence:async()=>null } as never, workspace());
+  } as never, { services: {}, verify, verifyObserved:async()=>({passed:false,handoff:null,readback:null}) } as never, workspace());
   const result = await prepared.verify({});
   expect(result.checks).toMatchObject({
     current_calendar: false,

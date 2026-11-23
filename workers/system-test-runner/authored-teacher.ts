@@ -140,6 +140,8 @@ export function openGoalTeacherCode(options: {executorModel: string; bindingCode
 export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCode>[0], runId: string) {
   return `
     import { assessSemanticOutcome } from "@workspace-skills/system-testing/semantic-outcome-contract";
+    import { observeInvocation } from "@workspace-skills/system-testing/observed-invocation";
+    import { createNatlangRecordsClient } from "@workspace/natlang-records/client";
     ${options.bindingCode}
     let teacher, verification = null;
     const verificationErrors = [];
@@ -152,7 +154,8 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
       teacher = utilityValue;
       try {
         const actualResult = teacher.report;
-        verification = await prepared.verify(actualResult);
+        const observations = observeInvocation(teacher, hash => createNatlangRecordsClient(rpc).getValue(hash));
+        verification = await prepared.verify(actualResult, observations);
         verification = {
           ...assessSemanticOutcome(verification, ${JSON.stringify(options.outcomeContract)}),
           entry: teacher.entry, actualResult,
