@@ -221,6 +221,57 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     return { document: source.name, digest: source.digest, citations };
   }
 
+  /** Native observations for composing an inspection into another application goal. */
+  function observedEvidence() {
+    return structuredClone({ selection, revision, binding,
+      observations: { layouts: [...layoutReads.values()], text: textReads,
+        textProbes, rendered: [...renders.values()] } });
+  }
+
+  /** Verify the PDF work itself without demanding a copied PDF result from its caller. */
+  async function verifyObserved({ allowWorkingHeadChange = false } = {}) {
+    const [documents, after] = await Promise.all([readDocuments(), vcs.status({ contextId })]);
+    const snapshot = publicDocuments(documents);
+    const claims = expected.text;
+    const layouts = expected.layouts ?? [];
+    const pages = [...new Set(textReads.flatMap(receipt => receipt.pages.map(page => page.number)))].sort((a,b)=>a-b);
+    const wanted = claims ? exactCitations(textReads, claims.quotes) : [];
+    const retained = await Promise.all([...renders.values()].map(async receipt => ({
+      receipt, raster: await inspectRasterArtifact(receipt.artifactId),
+    })));
+    const checks = {
+      originalFiles: documents.length === sources.length &&
+        revision === sha256HexSyncText(JSON.stringify(snapshot)) &&
+        sources.every(({ name, packet, pages }) => documents.some(document => document.name === name &&
+          document.digest === sha256HexSyncText(packet) && document.pageCount === pages)),
+      selectedNativeDocument: source?.name === expected.document && selection?.document === expected.document &&
+        !!selection.textQuery === !!claims && isDeepStrictEqual(selection.pages, expected.pages) &&
+        isDeepStrictEqual(selection.layoutPages, layouts.map(layout => layout.page)) &&
+        isDeepStrictEqual(selection.renderPages, expected.render) &&
+        isDeepStrictEqual(binding?.missingPages, expected.missing ?? []),
+      nativeTextRead: claims ? textProbes.length > 0 &&
+        isDeepStrictEqual(pages, [...expected.pages].sort((a,b)=>a-b)) &&
+        textReads.every(receipt => receipt.digest === source?.digest) && wanted.every(Boolean) &&
+        (claims.status !== "no-match" || isDeepStrictEqual(
+          textReads.flatMap(receipt => receipt.pages.flatMap(page => page.lines.map(line => line.text))),
+          claims.noMatchLines ?? [])) : textProbes.length === 0 && textReads.length === 0,
+      nativeLayoutRead: layoutReads.size === layouts.length && layouts.every(({page,order}) => {
+        const raw = [...layoutReads.values()].find(layout => layout.pageNumber === page);
+        return !!raw && raw.digest === source?.digest && raw.width === 500 && raw.height === 200 &&
+          raw.rows.flat().length === order.length && exactEntries(raw, order).every(Boolean);
+      }),
+      nativeRenderedArtifacts: sameEvidenceMembers([...renders.keys()], expected.render) &&
+        retained.every(({ receipt, raster: { digest, mimeType, ...raster } }) =>
+          isDeepStrictEqual({ ...raster, pageNumber: receipt.pageNumber, documentDigest: source?.digest }, receipt) &&
+          mimeType === "image/png" && digest === raster.imageDigest && raster.width === 500 && raster.height === 200 &&
+          raster.inkPixels > 0 && (!expected.ink || isDeepStrictEqual(raster.inkBounds, expected.ink))),
+      protectedHeads: before.mainEventId === after.mainEventId &&
+        (allowWorkingHeadChange || isDeepStrictEqual(before.workingHead, after.workingHead)),
+    };
+    return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks,
+      documents: snapshot, ...observedEvidence() };
+  }
+
   async function verify(value: unknown, { allowWorkingHeadChange = false } = {}) {
     const wrapper = value as Partial<PdfGoalReport> | null;
     const report = wrapper?.status === "inspected" ? wrapper : null;
@@ -288,6 +339,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
   }
 
   async function reference() {
+    const unreadObservationRejected = !(await verifyObserved()).passed;
     const available = await services.pdfGoalDocuments.discover();
     const choice = {
       document: expected.document, pages: expected.pages,
@@ -329,12 +381,16 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
       missingPages: request.missingPages, text, layouts, rendered,
       recommendation: { action: expected.action, rationale: expected.evidenceTerms.join(", ") } };
     const verified = await verify(outcome);
+    const nativeVerified = await verifyObserved();
+    const copiedObservations = observedEvidence();
+    copiedObservations.observations.text.length = 0;
+    const nativeObservationsRetained = observedEvidence().observations.text.length === textReads.length;
     const wrong: PdfGoalReport = { ...outcome, selection: { ...choice, document: `./${choice.document}` },
       recommendation: { action: "needs-review", rationale: "Unverified." } };
     const negative = await verify(wrong);
-    const checks = { ...verified.checks, aliasRejected, rejectsUnverifiedReport: !negative.passed };
+    const checks = { ...verified.checks, independentNativeObservations: nativeVerified.passed, unreadObservationRejected, nativeObservationsRetained, aliasRejected, rejectsUnverifiedReport: !negative.passed };
     return { outcome, verification: { ...verified, checks, passed: Object.values(checks).every(Boolean) } };
   }
 
-  return { goal, services, verify, attestCitations, reference, qualify: async () => (await reference()).verification };
+  return { goal, services, verify, verifyObserved, observedEvidence, attestCitations, reference, qualify: async () => (await reference()).verification };
 }
