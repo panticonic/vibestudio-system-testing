@@ -1,4 +1,4 @@
-import {authenticDiscoveryEvidence} from "./discovery-evidence.js";
+import {selectedCapabilityEvidence} from "./intent-capability-evidence.js";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText,stableSha256Hex} from "@vibestudio/content-addressing";
 import type {CatalogEntry,CatalogHit} from "@vibestudio/service-schemas/docs";
@@ -6,7 +6,7 @@ import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
 import {contextId,fs,rpc,runtime,vcs,type VcsClient} from "@workspace/runtime";
 import {bindScratchHandoff} from "@workspace-skills/scratch-handoff-bindings";
 import type {IntentAction,IntentDescription,IntentHit,IntentNote,IntentNotice,IntentObservation,IntentOutcome,IntentPlan,
-  IntentReport,IntentSearch} from "@workspace-skills/open-intent-discovery/types";
+  IntentReport} from "@workspace-skills/open-intent-discovery/types";
 import {listOwnedScratchEntries} from "./owned-scratch-entries.js";
 import {readWorkspaceBytes} from "./scratch-handoff-managed.js";
 import {openIntentDiscoveryWorlds,type IntentNeed} from "./open-goal-intent-discovery-worlds.js";
@@ -97,7 +97,6 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       sources:[{id:"candidate-notice",path:noticePath}]},ports.readBytes).scratchHandoffWrite;
     const scopeFor:Record<IntentNeed,string>={workspace:owner,note:notePath,skill:skillName,worker:workerKey};
     const required=world.needs.map(need=>({need,methodId:methods[need],scope:scopeFor[need]}));
-    const searchLog:{query:string;hits:IntentHit[]}[]=[];
     const descriptions=new Map<string,IntentDescription>();
     const inspected:IntentObservation[]=[];
     const busy=new Set<string>();
@@ -154,16 +153,13 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       return plan?.retain===writable&&plan.actions.length===required.length&&
         required.every(row=>plan.actions.filter(action=>action.methodId===row.methodId&&action.scope===row.scope).length===1);
     }
-    function searchProof(search:IntentSearch|undefined){
-      return authenticDiscoveryEvidence(search,searchLog,descriptions);
-    }
     const services={
       nativeIntentDiscovery:{
         async notice(){return rawNotice();},
         async search(query:string){
           if(typeof query!=="string"||!query.trim()||query.length>128)return [];
           const hits=(await ports.catalog.search(query)).map(hit=>({id:hit.id,name:hit.qualifiedName,description:hit.description?.slice(0,210)??""}));
-          searchLog.push({query,hits});return structuredClone(hits);
+          return structuredClone(hits);
         },
         async describe(id:string){
           if(typeof id!=="string"||!id||id.length>512)return null;
@@ -186,7 +182,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       },
       nativeIntentHandoff:{async stage(report:IntentReport){
         if(!writable||staging||handoff||!report||report.handoff!==null||!planMatches(report.plan)||
-          !searchProof(report.search)||!isDeepStrictEqual(report.notice,notice)||!isDeepStrictEqual(report.evidence,inspected)||
+          !selectedCapabilityEvidence(report,descriptions)||!isDeepStrictEqual(report.notice,notice)||!isDeepStrictEqual(report.evidence,inspected)||
           inspected.length!==required.length||report.outcome?.status!==overall(inspected)||typeof report.outcome.summary!=="string"||
           !report.outcome.summary.trim()||report.outcome.summary.length>700)return null;
         staging=true;
@@ -221,7 +217,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       });
       const checks={
         exactIntentNotice:isDeepStrictEqual(report?.notice,notice)&&isDeepStrictEqual(await rawNotice(),notice),
-        installedIntentDiscovery:searchProof(report?.search)&&descriptionsCurrent.every(value=>isDeepStrictEqual(value,descriptions.get(value.id))),
+        installedIntentDiscovery:selectedCapabilityEvidence(report,descriptions)&&descriptionsCurrent.every(value=>isDeepStrictEqual(value,descriptions.get(value.id))),
         exactIntentActionSelection:planMatches(report?.plan)&&isDeepStrictEqual(report?.plan.actions,
           inspected.map(({methodId,scope})=>({methodId,scope}))),
         independentlyScopedIntentResults:inspected.length===required.length&&expectedScope&&isDeepStrictEqual(independent,inspected)&&
@@ -237,7 +233,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       };
       await close();
       return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),notice,
-        search:report?.search??null,plan:report?.plan??null,evidence:inspected,outcome:report?.outcome??null,handoff,artifact};
+        selection:report?.selection??null,capabilities:report?.capabilities??null,plan:report?.plan??null,evidence:inspected,outcome:report?.outcome??null,handoff,artifact};
     }
 
     async function qualify(){
@@ -249,8 +245,8 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       const actions:IntentAction[]=required.map(({methodId,scope})=>({methodId,scope}));
       for(const action of actions)if(!await services.nativeIntentDiscovery.inspect(action.methodId,action.scope))
         throw new Error("Missing assigned scoped intent receipt");
-      const search={queries:searchLog.map(row=>row.query),hits:searchLog.map(row=>row.hits),described:[...descriptions.values()]};
-      const report:IntentReport={notice,search,plan:{actions,retain:writable},evidence:inspected,
+      const selection={methodIds:required.map(row=>row.methodId)},capabilities=[...descriptions.values()];
+      const report:IntentReport={notice,selection,capabilities,plan:{actions,retain:writable},evidence:inspected,
         outcome:{status:overall(inspected),summary:"Compared exact installed operations and owned local facts."},handoff:null};
       if(writable)report.handoff=await services.nativeIntentHandoff.stage(report);
       return verify({status:"workspace-skill-reviewed",skill:"intentDiscovery",outcome:report});
