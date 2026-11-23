@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -343,7 +344,28 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     },
   };
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedLocalMigrationPlan"],"rootPath":["finding"],"producerSourceSuffix":"migratePanelSource/planMigration.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const last = await observe();
@@ -421,7 +443,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
       outcomeContract:{effects:{checks:["matchedStableSourceIdentity", "verifiedExactPlacement", "verifiedCompatibleCallerLinks", "verifiedExactMutationReceipts", "preservedCoeditsAndNeighbors"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["matchedLocalMigrationPlan"],required:![expectedMove,expectedAlign,expectedUpdate].some(value=>value!==null),rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.matchedLocalMigrationPlan)?[{required:![expectedMove,expectedAlign,expectedUpdate].some(value=>value!==null),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"migratePanelSource",source:"migratePanelSource.nl"},value:value}]:[],
+      incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       assignment, observed: first, current, decision, move: moved, identity: aligned, consumers: updated, effects: structuredClone(effects) };
   }

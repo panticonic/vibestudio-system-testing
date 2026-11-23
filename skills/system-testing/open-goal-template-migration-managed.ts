@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -399,7 +400,30 @@ export async function prepareOpenTemplateMigration(
     },
   };
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["exactMigrationDisposition"],"rootPath":["status"],"producerSourceSuffix":"reviewTemplateMigration/decideMigration.nl","producerPath":["status"]},{"checks":["exactMigrationDisposition"],"rootPath":["answer"],"producerSourceSuffix":"reviewTemplateMigration/decideMigration.nl","producerPath":["answer"]},{"checks":["exactMigrationDisposition"],"rootPath":["candidateId"],"producerSourceSuffix":"reviewTemplateMigration/decideMigration.nl","producerPath":["candidateId"]},{"checks":["exactMigrationDisposition"],"rootPath":["status"],"producerSourceSuffix":"reviewTemplateMigration/finishMigration.nl","producerPath":["status"]},{"checks":["exactMigrationDisposition"],"rootPath":["answer"],"producerSourceSuffix":"reviewTemplateMigration/finishMigration.nl","producerPath":["answer"]},{"checks":["exactMigrationDisposition"],"rootPath":["candidateId"],"producerSourceSuffix":"reviewTemplateMigration/finishMigration.nl","producerPath":["candidateId"]}];
+    const replacementObserved=invocation?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("finishMigration.nl"))??false;
+    const contributions=authored.filter(binding=>{
+      if(binding.producerSourceSuffix.endsWith(replacementObserved?"decideMigration.nl":"finishMigration.nl"))return false;
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const wrapper = value as MigrationReport | null;
     const output =
       wrapper;
@@ -518,7 +542,7 @@ export async function prepareOpenTemplateMigration(
       outcomeContract:{effects:{checks:["observedExactTemplateDeployment", "readExactOwnedMigrationSources", "matchedNativeCandidateOwnership", "preservedProtectedTemplateDeployment", "honoredChangedDossier", "verifiedLocalMigrationHandoff"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["exactMigrationDisposition"],required:!nativePrepared&&!handoff,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.exactMigrationDisposition)?[{required:!nativePrepared&&!handoff,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewTemplateMigration",source:"reviewTemplateMigration.nl"},value:value}]:[],
+      incorrectReturnValues:[],
 
       contextId,
       caseId: input.caseId,
@@ -621,7 +645,7 @@ export async function prepareOpenTemplateMigration(
       const result = await verify(envelope);
       const rejectedForgedResult = !(
         await verify({ ...report, candidateId: "wrong-candidate" })
-      ).passed;
+      ).outcomeDimensions.returnedValue.passed;
       return {
         ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedStale","rejectedWrongRecipient","rejectedForgedResult"]}},
         checks: {

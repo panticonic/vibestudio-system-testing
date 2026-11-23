@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -434,7 +435,30 @@ export async function prepareOpenGrimoireScene(
     },
   };
 
-  async function verify(value: unknown, observations?: InvocationObservations) {
+  
+  async function verify(value: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedCaretakerValue"],"rootPath":["action"],"producerSourceSuffix":"careForGrimoireScene/planCaretakerArtifact.nl","producerPath":["action"]},{"checks":["returnedCaretakerValue"],"rootPath":["finding"],"producerSourceSuffix":"careForGrimoireScene/planCaretakerArtifact.nl","producerPath":["finding"]},{"checks":["returnedCaretakerValue"],"rootPath":["action"],"producerSourceSuffix":"careForGrimoireScene/reviseAfterMovement.nl","producerPath":["action"]},{"checks":["returnedCaretakerValue"],"rootPath":["finding"],"producerSourceSuffix":"careForGrimoireScene/reviseAfterMovement.nl","producerPath":["finding"]}];
+    const replacementObserved=observations?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("reviseAfterMovement.nl"))??false;
+    const contributions=authored.filter(binding=>{
+      if(binding.producerSourceSuffix.endsWith(replacementObserved?"planCaretakerArtifact.nl":"reviseAfterMovement.nl"))return false;
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
     const result = value as GrimoireSceneOutcome | null;
     const planned = journal.filter(row => row.service === namespaces.write && row.method === "stage").at(-1)?.args[2] as GrimoirePlan | undefined;
     const finding = planned ?? (result && "action" in result ? result : null);
@@ -578,9 +602,7 @@ export async function prepareOpenGrimoireScene(
         returnedValue: {checks:["returnedCaretakerValue"],required:!stages,rationale:"A conversation-only caretaker finding is the requested answer; an extra receipt copy is optional."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
-      incorrectReturnValues: result!==undefined&&!(checks.returnedCaretakerValue) ? [{
-        required:!stages,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"careForGrimoireScene",source:"careForGrimoireScene.nl"},value:result,
-      }] : [],
+      incorrectReturnValues:[],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,

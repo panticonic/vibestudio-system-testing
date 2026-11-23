@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { Buffer } from "node:buffer";
 import { isDeepStrictEqual } from "node:util";
@@ -215,7 +216,28 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
       },
     },
   };
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedAuthorizedSameTurnRecovery"],"rootPath":["pick"],"producerSourceSuffix":"recoverSameTurnEval/chooseSameTurnRecovery.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; evidence?: unknown; pick?: unknown; recovery?: unknown;
     } | null;
@@ -255,7 +277,7 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
       outcomeContract:{effects:{checks:["matchedSameTurnAssignment", "verifiedExactNativeAttempt", "verifiedRetainedCheckpointAndWindow", "verifiedUsefulResultAndBoundedRetry", "preservedExactOwnedScope"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
         returnedValue:{checks:["matchedAuthorizedSameTurnRecovery"],required:pick.decision==="held",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
-      incorrectReturnValues:value!==undefined&&!(checks.matchedAuthorizedSameTurnRecovery)?[{required:pick.decision==="held",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverSameTurnEval",source:"recoverSameTurnEval.nl"},value}]:[],
+      incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, evidence, pick, recovery: expectedRecovery, effects: structuredClone(effects) };
   }
@@ -271,7 +293,7 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
     const recovery = pick.decision === "held" ? null : await service.sameTurnEvalRecovery.resolve(assigned.id, evidence.runId, pick.decision);
     const report = { pick, recovery };
     const verified = await verify(report);
-    const rejectedWrongRevision = !(await verify({ ...report, recovery: {...(recovery??{}),scopeId:"other-scope"} })).passed;
+    const rejectedWrongRevision = !(await verify({ ...report, recovery: {...(recovery??{}),scopeId:"other-scope"} })).outcomeDimensions.returnedValue.passed;
     const checks = { ...verified.checks, rejectedWrongScope, rejectedWrongAttempt, rejectedUnneededRetry, rejectedWrongRevision };
     return { ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectedWrongScope","rejectedWrongAttempt","rejectedUnneededRetry","rejectedWrongRevision"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }

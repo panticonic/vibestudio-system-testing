@@ -70,7 +70,8 @@ it("retains a genuine no-match receipt and rejects an invented success", async (
   expect(forged.checks.checkedSuiteReceipt).toBe(true);
   expect(forged.checks.returnedSuiteReview).toBe(false);
   expect(assessSemanticOutcome(forged).passed).toBe(false);
-  expect(forged.incorrectReturnValues).toHaveLength(1);
+  // Source masks require an actual captured invocation.
+  expect(forged.incorrectReturnValues).toHaveLength(0);
 });
 
 it("keeps the oracle's filter private while enforcing the workspace's execution grant", async () => {

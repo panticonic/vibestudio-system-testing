@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -407,7 +408,30 @@ export async function prepareOpenExamplesAdoption(
       },
     },
   };
-  async function verify(value: unknown, observations?: InvocationObservations) {
+  
+  async function verify(value: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedAdoptionValue"],"rootPath":["disposition"],"producerSourceSuffix":"reviewExamplesAdoption/planAdoptionHandoff.nl","producerPath":["disposition"]},{"checks":["returnedAdoptionValue"],"rootPath":["finding"],"producerSourceSuffix":"reviewExamplesAdoption/planAdoptionHandoff.nl","producerPath":["finding"]},{"checks":["returnedAdoptionValue"],"rootPath":["disposition"],"producerSourceSuffix":"reviewExamplesAdoption/holdChangedReview.nl","producerPath":["disposition"]},{"checks":["returnedAdoptionValue"],"rootPath":["finding"],"producerSourceSuffix":"reviewExamplesAdoption/holdChangedReview.nl","producerPath":["finding"]}];
+    const replacementObserved=observations?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("holdChangedReview.nl"))??false;
+    const contributions=authored.filter(binding=>{
+      if(binding.producerSourceSuffix.endsWith(replacementObserved?"planAdoptionHandoff.nl":"holdChangedReview.nl"))return false;
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
     const result = value as Receipt | {disposition:string;finding:string} | null;
     const plan = journal.filter(row=>row.service===write&&row.method==="record").at(-1)?.args[2] as Plan | undefined;
     const disposition = plan ?? (result&&"disposition" in result ? result : null);
@@ -510,9 +534,7 @@ export async function prepareOpenExamplesAdoption(
         returnedValue: {checks:["returnedAdoptionValue"],required:!records,rationale:"An explain-only composition finding is requested; the extra private-note handle is optional."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
-      incorrectReturnValues: result!==undefined&&!(checks.returnedAdoptionValue) ? [{
-        required:!records,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewExamplesAdoption",source:"reviewExamplesAdoption.nl"},value:result,
-      }] : [],
+      incorrectReturnValues:[],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -563,7 +585,7 @@ export async function prepareOpenExamplesAdoption(
     const verification = await verify(report);
     const altered = structuredClone(report);
     if ("path" in altered) altered.path="foreign-adoption.json"; else altered.disposition="invented" as typeof altered.disposition;
-    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
+    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).outcomeDimensions.returnedValue.passed;
     return {
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

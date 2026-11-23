@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -168,7 +169,28 @@ export async function prepareOpenNotificationState(
   };
 
 
-  async function verify(report: unknown, observations?: InvocationObservations) {
+  
+  async function verify(report: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(report,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedNotificationResolution"],"rootPath":[],"producerSourceSuffix":"reviewNotificationState/chooseNotificationAction.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=report;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
     const result = report as Ack | {action:string;finding:Finding;reason:string} | null;
     const decision = result && "action" in result ? result : null;
     const raw = await rpc.call(target, actor.audit, []);
@@ -240,9 +262,7 @@ export async function prepareOpenNotificationState(
         returnedValue: {checks:["returnedNotificationResolution"],required:expected.action!=="acknowledge",rationale:"A read-only notification finding is requested; an acknowledgment receipt copy is optional."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
-      incorrectReturnValues: result!==undefined&&!(checks.returnedNotificationResolution) ? [{
-        required:expected.action!=="acknowledge",definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewNotificationState",source:"reviewNotificationState.nl"},value:result,
-      }] : [],
+      incorrectReturnValues:[],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -292,7 +312,7 @@ export async function prepareOpenNotificationState(
     const proof = await verify(report);
     const forged = acknowledgement ? {...acknowledgement,id:"wrong-lane"} :
       {...decision,finding:{...decision.finding,id:"wrong-lane"}};
-    const rejectedWrongOutput = !(await verify(forged)).passed;
+    const rejectedWrongOutput = !(await verify(forged)).outcomeDimensions.returnedValue.passed;
     const checks = {
       ...proof.checks,
       rejectedForeignLane,

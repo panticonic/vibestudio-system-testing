@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -418,7 +419,28 @@ export async function prepareOpenScaffold(
   };
   type Readback = Awaited<ReturnType<typeof services.scaffoldRead.readback>>;
 
-  async function verify(value: unknown, observations?: InvocationObservations) {
+  
+  async function verify(value: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedScaffoldValue"],"rootPath":["disposition"],"producerSourceSuffix":"prepareOwnedScaffold/planScaffoldDraft.nl","producerPath":["disposition"]},{"checks":["returnedScaffoldValue"],"rootPath":["finding"],"producerSourceSuffix":"prepareOwnedScaffold/planScaffoldDraft.nl","producerPath":["finding"]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
     const result = value as Receipt | {disposition:string;finding:string} | null;
     const final = await status();
     const current = await optionsFor(initial);
@@ -528,9 +550,7 @@ export async function prepareOpenScaffold(
         returnedValue: {checks:["returnedScaffoldValue"],required:!staging,rationale:"Advice-only goals require the scaffold finding; a returned draft handle is optional when the draft exists."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
-      incorrectReturnValues: result!==undefined&&!(checks.returnedScaffoldValue) ? [{
-        required:!staging,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"prepareOwnedScaffold",source:"prepareOwnedScaffold.nl"},value:result,
-      }] : [],
+      incorrectReturnValues:[],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -570,7 +590,7 @@ export async function prepareOpenScaffold(
     const altered = structuredClone(report);
     if ("draft" in altered) altered.draft = "foreign-draft";
     else altered.disposition = "invented" as typeof altered.disposition;
-    const rejectedChangedMain = !(await verify(altered)).passed;
+    const rejectedChangedMain = !(await verify(altered)).outcomeDimensions.returnedValue.passed;
     const rejectedUnapprovedDraft = staged
       ? true
       : (await services.scaffoldPrepare.prepare(key, ref, plan.kinds)) ===

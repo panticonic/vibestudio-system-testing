@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { AGENTIC_EVENT_PAYLOAD_KIND, AGENTIC_PROTOCOL_VERSION, agenticEventSchema, createInitialChannelViewState,
@@ -205,7 +206,28 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
       },
     },
   };
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedTranscriptSurfaceReport"],"rootPath":["decision"],"producerSourceSuffix":"reviewTranscriptSurface/decideTranscriptEffect.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as unknown | null;
     const after = await readLane(primary, ports.context, owner, key), afterOther = await readLane(other, ports.context, owner, key);
     const approved = await scan();
@@ -242,8 +264,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
         returnedValue: {checks:["matchedTranscriptSurfaceReport"],required:!published,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
-      incorrectReturnValues: value!==undefined&&!(checks.matchedTranscriptSurfaceReport) ? [{required:!published,
-        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewTranscriptSurface",source:"reviewTranscriptSurface.nl"},value}] : [],
+      incorrectReturnValues:[],
  caseId: world.id, contextId: input.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       ...outcome, native: { before: baseline.view, after: resulting, neighbor: neighboring.view, coordinates: difference.map(row => ({ id: row.id, envelope: row.messageId, owner: row.senderId, type: row.type })) }, effects: structuredClone(effects) };
   }
@@ -259,7 +280,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     if (approval && replay && effect !== "none") await services.transcriptMutation.apply(id, approval.id, (replay as Read["view"]).cursor, effect);
     const report = { decision, receipt };
     const proof = await verify(report);
-    const rejectedInventedEffect = !(await verify({ ...report, decision: { effect: "none", reason: "invented" } })).passed;
+    const rejectedInventedEffect = !(await verify({ ...report, decision: { effect: "none", reason: "invented" } })).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongScope, rejectedWrongCursor, rejectedWrongEffect, rejectedInventedEffect };
     return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongScope","rejectedWrongCursor","rejectedWrongEffect","rejectedInventedEffect"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }

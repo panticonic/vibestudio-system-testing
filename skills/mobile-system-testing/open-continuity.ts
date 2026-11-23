@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "../system-testing/observed-application-outcome.js";
 import type {InvocationObservations} from "../system-testing/observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -492,7 +493,28 @@ export async function prepareOpenMobileContinuity(
     },
   };
 
-  async function verify(value: unknown, observations?:InvocationObservations) {
+  
+  async function verify(value: unknown,observations?:InvocationObservations) {
+    const proof=await verifyNativeApplication(value,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedBoundMobileDecision"],"rootPath":["action"],"producerSourceSuffix":"reviewMobileContinuity/decideContinuity.nl","producerPath":["action"]},{"checks":["matchedBoundMobileDecision"],"rootPath":["reason"],"producerSourceSuffix":"reviewMobileContinuity/decideContinuity.nl","producerPath":["reason"]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, observations?:InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const id = current.profile.id;
@@ -544,8 +566,7 @@ export async function prepareOpenMobileContinuity(
         returnedValue:{checks:["matchedBoundMobileDecision"],required:true,rationale:"The requested next safe mobile action and its specific reason are application data."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted answers are excluded from supervision."},
       },
-      incorrectReturnValues:outcome!==undefined&&!checks.matchedBoundMobileDecision?[{required:true,
-        definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewMobileContinuity",source:"reviewMobileContinuity.nl"},value:outcome}]:[],
+      incorrectReturnValues:[],
       contextId: input.contextId,
       caseId: input.caseId,
       goal: world.goal,
@@ -580,7 +601,7 @@ export async function prepareOpenMobileContinuity(
       reason: world.expected.terms.join(" "),
     };
     const proof = await verify(outcome);
-    const rejectedForeignResult = !(await verify({...outcome,profile:"outside-device"})).passed;
+    const rejectedForeignResult = !(await verify({...outcome,profile:"outside-device"})).outcomeDimensions.returnedValue.passed;
     return {
       ...proof,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedMobileProfileAlias", "rejectedForeignResult"]]}},

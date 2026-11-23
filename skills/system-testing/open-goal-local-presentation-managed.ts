@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -286,7 +287,28 @@ export async function prepareOpenLocalPresentation(
     },
   };
 
-  async function verify(report: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(report: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(report,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedPresentationDisposition"],"rootPath":["notes"],"producerSourceSuffix":"reviewLocalPresentation/requestedFindings.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=report;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(report: unknown, invocation?: InvocationObservations) {
     const resolved = report as Outcome | null;
     const outcome = resolved;
     const { target, requirements, holds, notes } = world.expected;
@@ -389,7 +411,7 @@ export async function prepareOpenLocalPresentation(
       outcomeContract:{effects:{checks:["discoveredPresentationRecords", "retainedSourceIntegrity", "joinedCurrentPresentationRevision", "independentlyVerifiedPresentationDom", "protectedPresentationHeadUnchanged"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["matchedPresentationDisposition"],required:Boolean(holds),rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:report!==undefined&&!(checks.matchedPresentationDisposition)?[{required:Boolean(holds),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewLocalPresentation",source:"reviewLocalPresentation.nl"},value:report}]:[],
+      incorrectReturnValues:[],
 
       contextId: input.contextId,
       caseId: input.caseId,

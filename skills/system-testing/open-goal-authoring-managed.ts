@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -250,7 +251,7 @@ export async function prepareOpenAuthoringGoal(
       outcomeContract:{effects:{checks:["discoveredAuthoringRecords", "selectedAuthorizedTrees", "observedCurrentCompiler", "retainedAuthoringSources", "verifiedAuthoringHandoff", "rejectedStaleAuthoringReceipt"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["verifiedAuthoringFindings", "returnedAuthoringArtifacts"],required:!world.expected.stage,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.verifiedAuthoringFindings&&checks.returnedAuthoringArtifacts)?[{required:!world.expected.stage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnAuthoringGoal",source:"workOnAuthoringGoal.nl"},value:value}]:[],
+      incorrectReturnValues:[],
 
       caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks,
       passed: Object.values(checks).every(Boolean), confirmations: [...confirmations],
@@ -259,7 +260,28 @@ export async function prepareOpenAuthoringGoal(
     };
   }
 
-  async function verify(report: unknown, invocation?:InvocationObservations) {
+  
+  async function verify(report: unknown,invocation?:InvocationObservations) {
+    const proof=await verifyNativeApplication(report,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["verifiedAuthoringFindings","returnedAuthoringArtifacts"],"rootPath":["receipt","review"],"producerSourceSuffix":"reviewProgram.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=report;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(report: unknown, invocation?:InvocationObservations) {
     return archive(await verifyOutcome(readReview(report)),report,invocation);
   }
 

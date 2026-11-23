@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -72,7 +73,28 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
     },
   };
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedSuiteReview","identifiedApproval"],"rootPath":["review"],"producerSourceSuffix":"reviewTestSuite.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as Report | null;
     const review = report?.review;
     const expectedRoute = world.routes.find(route => route.id === expected.choice.routeId)!;
@@ -102,7 +124,7 @@ export function prepareOpenGoalSuite({ contextId, caseId }: { contextId: string;
       outcomeContract:{effects:{checks:["discoveredSuites", "selectedAuthorizedSuite", "currentSuitePlan", "checkedSuiteReceipt"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["returnedSuiteReview", "identifiedApproval"],required:true,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.returnedSuiteReview&&checks.identifiedApproval)?[{required:true,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"verifyWorkspaceSuite",source:"verifyWorkspaceSuite.nl"},value:value}]:[],
+      incorrectReturnValues:[],
  goal, contextId, caseId, passed: Object.values(checks).every(Boolean), checks, routes,
       selected, plan: seenPlan, execution: executed, runAttempts };
   }

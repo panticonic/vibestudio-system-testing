@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -190,7 +191,28 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     },
   };
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedSmokeResolution"],"rootPath":["decision"],"producerSourceSuffix":"reviewWorkspaceSmoke/compareSmokeOutput.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; source?: unknown; selection?: unknown; runtime?: unknown; decision?: unknown; receipt?: unknown;
     } | null;
@@ -226,8 +248,7 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
         returnedValue: {checks:["returnedSmokeResolution"],required:!exactText,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
-      incorrectReturnValues: value!==undefined&&!(checks.returnedSmokeResolution) ? [{required:!exactText,
-        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewWorkspaceSmoke",source:"reviewWorkspaceSmoke.nl"},value}] : [],
+      incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, source: reread, selection, runtime, decision, receipt: expectedReceipt, effects: structuredClone(effects) };
   }
@@ -244,7 +265,7 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     const receipt = decision.mayRetain && plan && runtime ? await services.workspaceSmokeHandoff.stage(discovered.id,plan.path,runtime.runDigest) : null;
     const report = { decision, receipt };
     const proof = await verify(report);
-    const rejectedWrongSource = !(await verify({ ...report, decision: { ...decision, disposition: "invented" } })).passed;
+    const rejectedWrongSource = !(await verify({ ...report, decision: { ...decision, disposition: "invented" } })).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongDigest, rejectedWrongRuntime, rejectedWrongSource };
     return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongDigest","rejectedWrongRuntime","rejectedWrongSource"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }

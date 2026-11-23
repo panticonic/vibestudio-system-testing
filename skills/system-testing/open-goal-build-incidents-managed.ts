@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -261,7 +262,28 @@ export async function prepareRetainedBuildIncident(
     },
   };
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["exactFindingAndEvidenceBoundary"],"rootPath":["disposition"],"producerSourceSuffix":"reviewRetainedBuildIncident/decideFinding.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const primaryEntry = world.expected.current ? slots.get("current") : null;
@@ -330,7 +352,7 @@ export async function prepareRetainedBuildIncident(
         effects:{checks:["exactOwnedCheckpointCatalog", "nativeObservationAndProvenance", "verifiedPerformanceAndDiagnosis", "exactLocalHandoff", "protectedWorkingAndMain"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
         returnedValue:{checks:["exactFindingAndEvidenceBoundary"],required:true,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.exactFindingAndEvidenceBoundary)?[{required:true,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewRetainedBuildIncident",source:"reviewRetainedBuildIncident.nl"},value:value}]:[],
+      incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       effects, subject, current: actualCurrent?.card ?? null, baseline: oldEntry?.saved.card ?? null, metadata, handoff: stored };
   }

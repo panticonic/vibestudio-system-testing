@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -283,7 +284,28 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
       },
     },
   };
-  async function verify(report: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(report: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(report,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedScopedLocalPlan"],"rootPath":["action"],"producerSourceSuffix":"recoverContentArchive/planRestoration.nl","producerPath":["action"]},{"checks":["matchedScopedLocalPlan"],"rootPath":["reason"],"producerSourceSuffix":"recoverContentArchive/planRestoration.nl","producerPath":["reason"]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=report;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(report: unknown, invocation?: InvocationObservations) {
     const envelope = report as {
       action:Plan["action"];reason:string;receipt:Receipt|null;
     } | null;
@@ -334,7 +356,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
       outcomeContract:{effects:{checks:["exactArchiveTreesAndBasis", "matchedApprovedEdition", "restoredExactAddressedMembers", "verifiedAtomicReceipt", "preservedWorkingProjectAndNeighbor"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
         returnedValue:{checks:["matchedScopedLocalPlan"],required:world.expected.action!=="restore",rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
-      incorrectReturnValues:report!==undefined&&!(checks.matchedScopedLocalPlan)?[{required:world.expected.action!=="restore",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"recoverContentArchive",source:"recoverContentArchive.nl"},value:report}]:[],
+      incorrectReturnValues:[],
  caseId: world.id, contextId: owner, goal: world.goal, assignment, observation: observed,
       action: out?.action, reason: out?.reason, receipt: storedReceipt, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };

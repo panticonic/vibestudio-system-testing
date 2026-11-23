@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -331,7 +332,28 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
       typeof value.decision.route.explanation === "string" && value.decision.route.explanation.trim().length > 0);
   }
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedPackageResult"],"rootPath":["finding"],"producerSourceSuffix":"reviewInstalledPackage/decidePackage.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const final = await observe();
@@ -371,7 +393,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
         effects:{checks:["boundOwnedInstallation", "usedExactPackageBaseline", "honoredReviewAssignment", "verifiedLocalManifestEffect", "exactStateVerificationPlan", "preservedProtectedAndNeighbors"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
         returnedValue:{checks:["returnedPackageResult"],required:expectedAttempt!=="restored",rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.returnedPackageResult)?[{required:expectedAttempt!=="restored",definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewInstalledPackage",source:"reviewInstalledPackage.nl"},value:value}]:[],
+      incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       effects: structuredClone(effects), assignment, observed, decision, repair: attempt, plan };
   }
@@ -390,7 +412,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     } }, execution: null, result: null } : null;
     const result = {finding:{decision,reason:"Reviewed the exact installed package and authorized local change."},repair,verification};
     const proof = await verify(result);
-    const rejectedInventedApplicationValue = !(await verify({...result,repair:{status:"invented"},finding:{decision:"invented",reason:"invented"}})).passed;
+    const rejectedInventedApplicationValue = !(await verify({...result,repair:{status:"invented"},finding:{decision:"invented",reason:"invented"}})).outcomeDimensions.returnedValue.passed;
     const checks = {...proof.checks,rejectedInventedApplicationValue};
     return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,

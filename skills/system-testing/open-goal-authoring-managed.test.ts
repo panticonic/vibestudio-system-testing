@@ -41,7 +41,8 @@ it("joins compiler evidence by role, permits replay and preserves unchanged issu
     expect(wrong.checks.returnedAuthoringArtifacts).toBe(false);
     expect(wrong.outcomeContract.effects.checks.every(key=>wrong.checks[key])).toBe(true);
     expect(assessSemanticOutcome(wrong).passed).toBe(false);
-    expect(wrong.incorrectReturnValues).toHaveLength(1);
+    // No trace was supplied: never invent a source definition for a rejected value.
+      expect(wrong.incorrectReturnValues).toHaveLength(0);
     expect(await s.authoringReviewControl.confirm({ ...receipt, selection: { ...selection, candidateId: "foreign" } })).toBe("changed");
     const source = path.join(temp, "programs", selection.candidateId, "source", "review.nl");
     await writeFile(source, "concurrently changed source");

@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -574,7 +575,30 @@ export async function prepareOpenSystemCandidate(
     },
   };
 
-  async function verify(value: unknown, observations?: InvocationObservations) {
+  
+  async function verify(value: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedCandidateValue"],"rootPath":["decision"],"producerSourceSuffix":"triageSystemTemplate/planCandidateHandoff.nl","producerPath":["decision"]},{"checks":["returnedCandidateValue"],"rootPath":["finding"],"producerSourceSuffix":"triageSystemTemplate/planCandidateHandoff.nl","producerPath":["finding"]},{"checks":["returnedCandidateValue"],"rootPath":["decision"],"producerSourceSuffix":"triageSystemTemplate/holdMovedCandidate.nl","producerPath":["decision"]},{"checks":["returnedCandidateValue"],"rootPath":["finding"],"producerSourceSuffix":"triageSystemTemplate/holdMovedCandidate.nl","producerPath":["finding"]}];
+    const replacementObserved=observations?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("holdMovedCandidate.nl"))??false;
+    const contributions=authored.filter(binding=>{
+      if(binding.producerSourceSuffix.endsWith(replacementObserved?"planCandidateHandoff.nl":"holdMovedCandidate.nl"))return false;
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
     const result = value as Receipt | {decision:string;finding:string} | null;
     const plan = journal.filter(row=>row.service===write&&row.method==="record").at(-1)?.args[3] as Plan | undefined;
     const finding = plan ?? (result&&"decision" in result ? result : null);
@@ -676,9 +700,7 @@ export async function prepareOpenSystemCandidate(
         returnedValue: {checks:["returnedCandidateValue"],required:!world.record,rationale:"A read-only candidate finding is required; a returned retained-note reference is optional."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
-      incorrectReturnValues: result!==undefined&&!(checks.returnedCandidateValue) ? [{
-        required:!world.record,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"triageSystemTemplate",source:"triageSystemTemplate.nl"},value:result,
-      }] : [],
+      incorrectReturnValues:[],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -747,7 +769,7 @@ export async function prepareOpenSystemCandidate(
     const verification = await verify(report);
     const altered = structuredClone(report);
     if ("path" in altered) altered.path="foreign-candidate.json"; else altered.decision="invented" as typeof altered.decision;
-    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
+    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).outcomeDimensions.returnedValue.passed;
     return {
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -260,7 +261,28 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
       },
     },
   };
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedAdmissionDisposition"],"rootPath":["assessment"],"producerSourceSuffix":"reviewWebhookAdmission/assessWebhookAdmission.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as Outcome | null;
     const out = report;
     const final = await observe(), finalRows = await retainedRows();
@@ -291,7 +313,7 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
         effects:{checks:["matchedOwnedRegistrationReceipt", "exactNativeActiveAndTombstone", "exactCurrentBinding", "verifiedScopedPrivateAudit", "preservedNativeRegistryAndRedaction"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
         returnedValue:{checks:["matchedAdmissionDisposition"],required:!wantStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.matchedAdmissionDisposition)?[{required:!wantStage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewWebhookAdmission",source:"reviewWebhookAdmission.nl"},value:value}]:[],
+      incorrectReturnValues:[],
  caseId: world.id, contextId: owner, goal: world.goal, assignment, evidence: final, binding: expectedBinding,
       assessment: out?.assessment, handoff, effects: structuredClone(effects), checks,
       passed: Object.values(checks).every(Boolean) };
@@ -305,7 +327,7 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
       await services.webhookAdmissionHandoff.stage(assignment.id, evidence.retainedDigest, binding.row, assessment.disposition) : null;
     const result = {assessment,handoff};
     const proof = await verify(result);
-    const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:"invented"}})).passed;
+    const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:"invented"}})).outcomeDimensions.returnedValue.passed;
     const checks = {...proof.checks,rejectedInventedApplicationValue};
     return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,

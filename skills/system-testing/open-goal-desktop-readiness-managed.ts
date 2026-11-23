@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import type { SupervisionChange } from "@vibestudio/shared/events";
@@ -352,7 +353,28 @@ export async function prepareDesktopReadiness(
   type Updates = Awaited<ReturnType<typeof observeUpdates>>;
 
 
-  async function verify(report: unknown, observations?: InvocationObservations) {
+  
+  async function verify(report: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(report,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedDesktopReadinessDecision"],"rootPath":[],"producerSourceSuffix":"reviewDesktopReadiness/decideDesktopReadiness.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=report;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
     const outcome = report as {action:string;reason:string} | null;
     const sourceRead = journal.find((row) => row.method === "observe")
       ?.result as SourceEvidence | undefined;
@@ -380,7 +402,7 @@ export async function prepareDesktopReadiness(
       const decision = call.definition.name === "chooseNext" ? call.value :
         (call.value as {decision?:unknown}|null)?.decision;
       return !isDeepStrictEqual(decision, exactAdmission.decision);
-    }).map(call => ({required:false,definition:call.definition,value:call.value})) : [];
+    }).map(call => ({required:false,callId:call.callId,checks:["incidentalDesktopAdmissionClassification"],definition:call.definition,value:call.value,valueJson:call.valueJson})) : [];
     const checks = {
       exactDesktopClientSource:
         sourceRead?.contextId === input.contextId &&
@@ -432,8 +454,7 @@ export async function prepareDesktopReadiness(
         final.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(final.workingHead, baseline.workingHead),
     };
-    if(outcome!==undefined&&!checks.matchedDesktopReadinessDecision)incorrectReturnValues.push({required:true,
-      definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewDesktopReadiness",source:"reviewDesktopReadiness.nl"},value:outcome});
+
     return {
       incorrectReturnValues,
       outcomeContract:{
@@ -476,7 +497,7 @@ export async function prepareDesktopReadiness(
     const proof = await verify(report);
     const negative = structuredClone(report);
     negative.action = "invented" as typeof negative.action;
-    const rejectedWrongReadback = !(await verify(negative)).passed;
+    const rejectedWrongReadback = !(await verify(negative)).outcomeDimensions.returnedValue.passed;
     const checks = {
       ...proof.checks,
       rejectedDesk,

@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
@@ -311,7 +312,28 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
           return item ? [item] : [];
         }) })), conclusion: reportConclusion(), receipt };
   }
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedSourceAttributionReport"],"rootPath":["conclusion"],"producerSourceSuffix":"reviewSourceAttribution/explainSourceOrigin.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as ReturnType<typeof assembleReport> | null;
     const after = await status(), mainAfter = await owner.mainState();
     const entries = await ports.entries(directory);
@@ -340,8 +362,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
         returnedValue: {checks:["matchedSourceAttributionReport"],required:true,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
-      incorrectReturnValues: value!==undefined&&!(checks.matchedSourceAttributionReport) ? [{required:true,
-        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewSourceAttribution",source:"reviewSourceAttribution.nl"},value}] : [],
+      incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, ...proof };
   }
   async function qualify() {
@@ -355,8 +376,8 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     const rejectedStaleState = await rejected(() => services.sourceOriginReceipt.retain(assignment.id, "older-state", report.conclusion));
     const altered = { ...report, conclusion: { ...report.conclusion,
       claims: report.conclusion.claims.map(item => ({ ...item, span: "older-span" })) } };
-    const rejectedWrongLineage = report.conclusion.claims.length ? !(await verify(altered)).passed :
-      !(await verify({ ...report, conclusion: { disposition: "supported", claims: [] } })).passed;
+    const rejectedWrongLineage = report.conclusion.claims.length ? !(await verify(altered)).outcomeDimensions.returnedValue.passed :
+      !(await verify({ ...report, conclusion: { disposition: "supported", claims: [] } })).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedForeignRoot, rejectedStaleState, rejectedWrongLineage };
     return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRoot","rejectedStaleState","rejectedWrongLineage"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }

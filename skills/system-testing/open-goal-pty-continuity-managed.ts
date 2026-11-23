@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -224,7 +225,28 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         observed.retainedDigest === digest(original.subarray(observed.start)) &&
         observed.byteAgreement === (variant.checkpoint !== "split");
     }
-    async function verify(value: unknown, invocation?: InvocationObservations) {
+    
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedTerminalResolution"],"rootPath":["decision"],"producerSourceSuffix":"reviewPtyContinuity/judgePtyContinuity.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
       const report = value as {
         assignment?: unknown; evidence?: unknown; choice?: unknown; decision?: unknown; receipt?: unknown;
       } | null;
@@ -257,8 +279,7 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         returnedValue: {checks:["returnedTerminalResolution"],required:!writeExpected,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
-      incorrectReturnValues: value!==undefined&&!(checks.returnedTerminalResolution) ? [{required:!writeExpected,
-        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewPtyContinuity",source:"reviewPtyContinuity.nl"},value}] : [],
+      incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal,
         assignment, evidence, choice, decision, receipt: exactReceipt, checks, effects: structuredClone(effects) };
     }
@@ -276,7 +297,7 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         await services.ptyContinuityHandoff.stage(observed.sessionId, observed.replayDigest, decision.disposition) : null;
       const report = { decision, receipt: retained };
       const proof = await verify(report);
-      const rejectedWrongDecision = !(await verify({ ...report, decision: { ...decision, replayDigest: "wrong" } })).passed;
+      const rejectedWrongDecision = !(await verify({ ...report, decision: { ...decision, replayDigest: "wrong" } })).outcomeDimensions.returnedValue.passed;
       const checks = { ...proof.checks, rejectedForeignRead, rejectedWrongProof, rejectedWrongDecision };
       return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRead","rejectedWrongProof","rejectedWrongDecision"]}}, passed: Object.values(checks).every(Boolean), checks, report };
     }

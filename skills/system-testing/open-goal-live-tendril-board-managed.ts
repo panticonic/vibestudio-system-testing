@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs } from "@workspace/runtime";
@@ -55,7 +56,28 @@ export async function prepareOpenLiveTendrilBoard(
       return selected;
     },
   };
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedTendrilGoalReport"],"rootPath":["actual"],"producerSourceSuffix":"runTendril.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       card?: Card; plan?: TendrilRequest; actual?: TendrilReport; reason?: string;
     } | null;
@@ -74,7 +96,7 @@ export async function prepareOpenLiveTendrilBoard(
       outcomeContract:{effects:{checks:["exactCurrentTendrilTicket", "exactPlannedTendrilEffects", "ownedTendrilPresentation", "independentlyObservedRenderedAndStored", "verifiedTendrilBuildHistory"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
         returnedValue:{checks:["matchedTendrilGoalReport"],required:world.fixture.request.steps.every(step=>step.kind==="read"),rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
-      incorrectReturnValues:value!==undefined&&!(checks.matchedTendrilGoalReport)?[{required:world.fixture.request.steps.every(step=>step.kind==="read"),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"workOnLiveTendrilBoard",source:"workOnLiveTendrilBoard.nl"},value}]:[],
+      incorrectReturnValues:[],
  contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
       passed: Object.values(checks).every(Boolean), native, available: [prior, card], ticket, outcome };
   }
@@ -90,7 +112,7 @@ export async function prepareOpenLiveTendrilBoard(
     const changed = structuredClone(report);
     if (changed.actual.presentation)
       changed.actual.presentation.slotId = "retired-board";
-    const rejectedForeignTendrilBoard = rejectedArchive && !(await verify(changed)).passed;
+    const rejectedForeignTendrilBoard = rejectedArchive && !(await verify(changed)).outcomeDimensions.returnedValue.passed;
     return { ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedForeignTendrilBoard"]}}, passed: result.passed && rejectedForeignTendrilBoard,
       checks: { ...result.checks, rejectedForeignTendrilBoard } };
   }

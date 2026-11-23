@@ -1,0 +1,1342 @@
+{
+  "schema": "vibestudio.application-return-producers/1",
+  "entries": [
+    {
+      "entry": "auditAndroidGoal",
+      "file": "System/skills/mobile-runtime-audit-bindings/managed.ts",
+      "checks": [
+        "returnedAndroidAudit"
+      ],
+      "contributions": [
+        {
+          "checks": [],
+          "rootPath": [],
+          "producerSourceSuffix": "auditAndroidRuntime.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null,
+      "status": "Root owns shared invocation bridge for System verifier; System cannot import SST helper"
+    },
+    {
+      "entry": "verifyAndroidDelivery",
+      "file": "skills/system-testing/open-goal-android-delivery-managed.ts",
+      "checks": [
+        "matchedAndroidDeliveryReport"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedAndroidDeliveryReport"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "runMobileScenario.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewDeliveryWake",
+      "file": "skills/system-testing/open-goal-delivery-wake-managed.ts",
+      "checks": [
+        "returnedDeliveryResolution"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedDeliveryResolution"
+          ],
+          "rootPath": [
+            "choice"
+          ],
+          "producerSourceSuffix": "reviewDeliveryWake/decideDeliveryWake.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "compareLiveLocalInventory",
+      "file": "skills/system-testing/open-goal-live-local-inventory-managed.ts",
+      "checks": [
+        "verifiedExactLocalDispositions",
+        "matchedLocalInventoryGoal"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "verifiedExactLocalDispositions",
+            "matchedLocalInventoryGoal"
+          ],
+          "rootPath": [
+            "report"
+          ],
+          "producerSourceSuffix": "prepareLocalModel.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "discoverScopedIntent",
+      "file": "skills/system-testing/open-goal-intent-discovery-managed.ts",
+      "checks": [
+        "exactIntentOutcome",
+        "returnedIntentNote"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactIntentOutcome",
+            "returnedIntentNote"
+          ],
+          "rootPath": [
+            "outcome"
+          ],
+          "producerSourceSuffix": "discoverScopedIntent/concludeIntentReview.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewBoardMigration",
+      "file": "skills/system-testing/open-goal-board-migration-managed.ts",
+      "checks": [
+        "matchedWorkspaceMigrationDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedWorkspaceMigrationDisposition"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "reviewBoardMigration/decideMigration.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "workOnLiveTendrilBoard",
+      "file": "skills/system-testing/open-goal-live-tendril-board-managed.ts",
+      "checks": [
+        "matchedTendrilGoalReport"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedTendrilGoalReport"
+          ],
+          "rootPath": [
+            "actual"
+          ],
+          "producerSourceSuffix": "runTendril.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "recoverCliRoute",
+      "file": "skills/system-testing/open-goal-cli-route-managed.ts",
+      "checks": [
+        "exactAuthenticatedCliGateway",
+        "boundAuthorizedCliContinuation",
+        "matchedCliRouteDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactAuthenticatedCliGateway",
+            "boundAuthorizedCliContinuation",
+            "matchedCliRouteDisposition"
+          ],
+          "rootPath": [
+            "gateway"
+          ],
+          "producerSourceSuffix": "reviewRemoteRoute.nl",
+          "producerPath": []
+        },
+        {
+          "checks": [
+            "exactAuthenticatedCliGateway",
+            "boundAuthorizedCliContinuation",
+            "matchedCliRouteDisposition"
+          ],
+          "rootPath": [
+            "continuation"
+          ],
+          "producerSourceSuffix": "planCliContinuation.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "prepareOwnedScaffold",
+      "file": "skills/system-testing/open-goal-scaffold-managed.ts",
+      "checks": [
+        "returnedScaffoldValue"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedScaffoldValue"
+          ],
+          "rootPath": [
+            "disposition"
+          ],
+          "producerSourceSuffix": "prepareOwnedScaffold/planScaffoldDraft.nl",
+          "producerPath": [
+            "disposition"
+          ]
+        },
+        {
+          "checks": [
+            "returnedScaffoldValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "prepareOwnedScaffold/planScaffoldDraft.nl",
+          "producerPath": [
+            "finding"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reconcileOwnedMethodCall",
+      "file": "skills/system-testing/open-goal-local-method-managed.ts",
+      "checks": [
+        "returnedMethodValue"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedMethodValue"
+          ],
+          "rootPath": [
+            "action"
+          ],
+          "producerSourceSuffix": "reconcileOwnedMethodCall/planMethodExchange.nl",
+          "producerPath": [
+            "action"
+          ]
+        },
+        {
+          "checks": [
+            "returnedMethodValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reconcileOwnedMethodCall/planMethodExchange.nl",
+          "producerPath": [
+            "finding"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "triageSystemTemplate",
+      "file": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "checks": [
+        "returnedCandidateValue"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedCandidateValue"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "triageSystemTemplate/planCandidateHandoff.nl",
+          "producerPath": [
+            "decision"
+          ]
+        },
+        {
+          "checks": [
+            "returnedCandidateValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "triageSystemTemplate/planCandidateHandoff.nl",
+          "producerPath": [
+            "finding"
+          ]
+        },
+        {
+          "checks": [
+            "returnedCandidateValue"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "triageSystemTemplate/holdMovedCandidate.nl",
+          "producerPath": [
+            "decision"
+          ]
+        },
+        {
+          "checks": [
+            "returnedCandidateValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "triageSystemTemplate/holdMovedCandidate.nl",
+          "producerPath": [
+            "finding"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "coordinateOwnedOperations",
+      "file": "skills/system-testing/open-goal-owned-operations-managed.ts",
+      "checks": [
+        "exactBoundRoleDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactBoundRoleDisposition"
+          ],
+          "rootPath": [
+            "operation",
+            "handoff"
+          ],
+          "producerSourceSuffix": "incident.nl",
+          "producerPath": [
+            "handoff"
+          ]
+        },
+        {
+          "checks": [
+            "exactBoundRoleDisposition"
+          ],
+          "rootPath": [
+            "operation",
+            "handoff"
+          ],
+          "producerSourceSuffix": "release.nl",
+          "producerPath": [
+            "handoff"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewExamplesAdoption",
+      "file": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "checks": [
+        "returnedAdoptionValue"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedAdoptionValue"
+          ],
+          "rootPath": [
+            "disposition"
+          ],
+          "producerSourceSuffix": "reviewExamplesAdoption/planAdoptionHandoff.nl",
+          "producerPath": [
+            "disposition"
+          ]
+        },
+        {
+          "checks": [
+            "returnedAdoptionValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewExamplesAdoption/planAdoptionHandoff.nl",
+          "producerPath": [
+            "finding"
+          ]
+        },
+        {
+          "checks": [
+            "returnedAdoptionValue"
+          ],
+          "rootPath": [
+            "disposition"
+          ],
+          "producerSourceSuffix": "reviewExamplesAdoption/holdChangedReview.nl",
+          "producerPath": [
+            "disposition"
+          ]
+        },
+        {
+          "checks": [
+            "returnedAdoptionValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewExamplesAdoption/holdChangedReview.nl",
+          "producerPath": [
+            "finding"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "careForGrimoireScene",
+      "file": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "checks": [
+        "returnedCaretakerValue"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedCaretakerValue"
+          ],
+          "rootPath": [
+            "action"
+          ],
+          "producerSourceSuffix": "careForGrimoireScene/planCaretakerArtifact.nl",
+          "producerPath": [
+            "action"
+          ]
+        },
+        {
+          "checks": [
+            "returnedCaretakerValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "careForGrimoireScene/planCaretakerArtifact.nl",
+          "producerPath": [
+            "finding"
+          ]
+        },
+        {
+          "checks": [
+            "returnedCaretakerValue"
+          ],
+          "rootPath": [
+            "action"
+          ],
+          "producerSourceSuffix": "careForGrimoireScene/reviseAfterMovement.nl",
+          "producerPath": [
+            "action"
+          ]
+        },
+        {
+          "checks": [
+            "returnedCaretakerValue"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "careForGrimoireScene/reviseAfterMovement.nl",
+          "producerPath": [
+            "finding"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "planPhoneFirstRun",
+      "file": "skills/system-testing/open-goal-phone-first-run-managed.ts",
+      "checks": [
+        "returnedPhoneDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedPhoneDecision"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "planPhoneFirstRun/decidePhoneFirstRun.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "maintainWorkspaceSkill",
+      "file": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "checks": [
+        "returnedMaintenanceValue"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedMaintenanceValue"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "maintainWorkspaceSkill/decideSkillMaintenance.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewDesktopReadiness",
+      "file": "skills/system-testing/open-goal-desktop-readiness-managed.ts",
+      "checks": [
+        "matchedDesktopReadinessDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedDesktopReadinessDecision"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "reviewDesktopReadiness/decideDesktopReadiness.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewNotificationState",
+      "file": "skills/system-testing/open-goal-notification-state-managed.ts",
+      "checks": [
+        "returnedNotificationResolution"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedNotificationResolution"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "reviewNotificationState/chooseNotificationAction.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewMobileContinuity",
+      "file": "skills/mobile-system-testing/open-continuity.ts",
+      "checks": [
+        "matchedBoundMobileDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedBoundMobileDecision"
+          ],
+          "rootPath": [
+            "action"
+          ],
+          "producerSourceSuffix": "reviewMobileContinuity/decideContinuity.nl",
+          "producerPath": [
+            "action"
+          ]
+        },
+        {
+          "checks": [
+            "matchedBoundMobileDecision"
+          ],
+          "rootPath": [
+            "reason"
+          ],
+          "producerSourceSuffix": "reviewMobileContinuity/decideContinuity.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewAssetIntegrity",
+      "file": "skills/system-testing/open-goal-asset-integrity-managed.ts",
+      "checks": [
+        "joinedAssetIntegrityFinding",
+        "matchedAssetDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "joinedAssetIntegrityFinding",
+            "matchedAssetDisposition"
+          ],
+          "rootPath": [
+            "reason"
+          ],
+          "producerSourceSuffix": "reviewAssetIntegrity/planRecovery.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewTendrilRoute",
+      "file": "skills/system-testing/open-goal-tendril-route-managed.ts",
+      "checks": [
+        "matchedTendrilDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedTendrilDecision"
+          ],
+          "rootPath": [
+            "reason"
+          ],
+          "producerSourceSuffix": "reviewTendrilRoute/assessRoute.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewLocalPresentation",
+      "file": "skills/system-testing/open-goal-local-presentation-managed.ts",
+      "checks": [
+        "matchedPresentationDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedPresentationDisposition"
+          ],
+          "rootPath": [
+            "notes"
+          ],
+          "producerSourceSuffix": "reviewLocalPresentation/requestedFindings.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewDeployedInterface",
+      "file": "skills/system-testing/open-goal-deployed-interface-managed.ts",
+      "checks": [
+        "distinguishedDeployedDefinition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "distinguishedDeployedDefinition"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewDeployedInterface/decideReview.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewInstalledPackage",
+      "file": "skills/system-testing/open-goal-installed-package-managed.ts",
+      "checks": [
+        "returnedPackageResult"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedPackageResult"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewInstalledPackage/decidePackage.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "compareTestkitCloseouts",
+      "file": "skills/system-testing/open-goal-testkit-closeout-managed.ts",
+      "checks": [
+        "exactUserAcceptanceDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactUserAcceptanceDecision"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "compareTestkitCloseouts/decideCloseout.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewWebhookAdmission",
+      "file": "skills/system-testing/open-goal-webhook-admission-managed.ts",
+      "checks": [
+        "matchedAdmissionDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedAdmissionDisposition"
+          ],
+          "rootPath": [
+            "assessment"
+          ],
+          "producerSourceSuffix": "reviewWebhookAdmission/assessWebhookAdmission.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewRecordedQuestion",
+      "file": "skills/system-testing/open-goal-provenance-question-managed.ts",
+      "checks": [
+        "matchedRecordedQuestionReport"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedRecordedQuestionReport"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "reviewRecordedQuestion/answerRecordedQuestion.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewTranscriptSurface",
+      "file": "skills/system-testing/open-goal-transcript-surface-managed.ts",
+      "checks": [
+        "matchedTranscriptSurfaceReport"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedTranscriptSurfaceReport"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "reviewTranscriptSurface/decideTranscriptEffect.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewSourceAttribution",
+      "file": "skills/system-testing/open-goal-source-attribution-managed.ts",
+      "checks": [
+        "matchedSourceAttributionReport"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedSourceAttributionReport"
+          ],
+          "rootPath": [
+            "conclusion"
+          ],
+          "producerSourceSuffix": "reviewSourceAttribution/explainSourceOrigin.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewWorkspaceSmoke",
+      "file": "skills/system-testing/open-goal-workspace-smoke-managed.ts",
+      "checks": [
+        "returnedSmokeResolution"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedSmokeResolution"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "reviewWorkspaceSmoke/compareSmokeOutput.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "recoverSameTurnEval",
+      "file": "skills/system-testing/open-goal-same-turn-eval-managed.ts",
+      "checks": [
+        "matchedAuthorizedSameTurnRecovery"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedAuthorizedSameTurnRecovery"
+          ],
+          "rootPath": [
+            "pick"
+          ],
+          "producerSourceSuffix": "recoverSameTurnEval/chooseSameTurnRecovery.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewLogFollower",
+      "file": "skills/system-testing/open-goal-log-follower-managed.ts",
+      "checks": [
+        "classifiedExactOwnedRequest"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "classifiedExactOwnedRequest"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "reviewLogFollower/classifyLogOperation.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewPtyContinuity",
+      "file": "skills/system-testing/open-goal-pty-continuity-managed.ts",
+      "checks": [
+        "returnedTerminalResolution"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedTerminalResolution"
+          ],
+          "rootPath": [
+            "decision"
+          ],
+          "producerSourceSuffix": "reviewPtyContinuity/judgePtyContinuity.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "recoverContentArchive",
+      "file": "skills/system-testing/open-goal-content-archive-managed.ts",
+      "checks": [
+        "matchedScopedLocalPlan"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedScopedLocalPlan"
+          ],
+          "rootPath": [
+            "action"
+          ],
+          "producerSourceSuffix": "recoverContentArchive/planRestoration.nl",
+          "producerPath": [
+            "action"
+          ]
+        },
+        {
+          "checks": [
+            "matchedScopedLocalPlan"
+          ],
+          "rootPath": [
+            "reason"
+          ],
+          "producerSourceSuffix": "recoverContentArchive/planRestoration.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewSystemRelease",
+      "file": "skills/system-testing/open-goal-system-release-managed.ts",
+      "checks": [
+        "matchedReleaseDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedReleaseDisposition"
+          ],
+          "rootPath": [
+            "assessment"
+          ],
+          "producerSourceSuffix": "reviewSystemRelease/evaluateCases.nl",
+          "producerPath": [
+            "assessment"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "migratePanelSource",
+      "file": "skills/system-testing/open-goal-panel-source-migration-managed.ts",
+      "checks": [
+        "matchedLocalMigrationPlan"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedLocalMigrationPlan"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "migratePanelSource/planMigration.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewWorkspaceShare",
+      "file": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "checks": [
+        "matchedLocalScopeDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedLocalScopeDecision"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewWorkspaceShare/reviewSharePolicy.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "recoverAgentCapability",
+      "file": "skills/system-testing/open-goal-agent-capability-managed.ts",
+      "checks": [
+        "respectedRecoveryDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "respectedRecoveryDecision"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "recoverAgentCapability/decideContinuation.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewLocalExecutionWidth",
+      "file": "skills/system-testing/open-goal-local-width-managed.ts",
+      "checks": [
+        "exactEvidenceDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactEvidenceDisposition"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewLocalExecutionWidth/assessExecution.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewExtensionDossier",
+      "file": "skills/system-testing/open-goal-extension-dossier-managed.ts",
+      "checks": [
+        "respectedLocalReleaseDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "respectedLocalReleaseDecision"
+          ],
+          "rootPath": [
+            "finding"
+          ],
+          "producerSourceSuffix": "reviewExtensionDossier/decideDossier.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewRetainedBuildIncident",
+      "file": "skills/system-testing/open-goal-build-incidents-managed.ts",
+      "checks": [
+        "exactFindingAndEvidenceBoundary"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactFindingAndEvidenceBoundary"
+          ],
+          "rootPath": [
+            "disposition"
+          ],
+          "producerSourceSuffix": "reviewRetainedBuildIncident/decideFinding.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "workOnProblemReportGoal",
+      "file": "skills/system-testing/open-goal-problem-report-managed.ts",
+      "checks": [
+        "returnedProblemDraft"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedProblemDraft"
+          ],
+          "rootPath": [],
+          "producerSourceSuffix": "saveProblemDraft.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "reviewTemplateMigration",
+      "file": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "checks": [
+        "exactMigrationDisposition"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "exactMigrationDisposition"
+          ],
+          "rootPath": [
+            "status"
+          ],
+          "producerSourceSuffix": "reviewTemplateMigration/decideMigration.nl",
+          "producerPath": [
+            "status"
+          ]
+        },
+        {
+          "checks": [
+            "exactMigrationDisposition"
+          ],
+          "rootPath": [
+            "answer"
+          ],
+          "producerSourceSuffix": "reviewTemplateMigration/decideMigration.nl",
+          "producerPath": [
+            "answer"
+          ]
+        },
+        {
+          "checks": [
+            "exactMigrationDisposition"
+          ],
+          "rootPath": [
+            "candidateId"
+          ],
+          "producerSourceSuffix": "reviewTemplateMigration/decideMigration.nl",
+          "producerPath": [
+            "candidateId"
+          ]
+        },
+        {
+          "checks": [
+            "exactMigrationDisposition"
+          ],
+          "rootPath": [
+            "status"
+          ],
+          "producerSourceSuffix": "reviewTemplateMigration/finishMigration.nl",
+          "producerPath": [
+            "status"
+          ]
+        },
+        {
+          "checks": [
+            "exactMigrationDisposition"
+          ],
+          "rootPath": [
+            "answer"
+          ],
+          "producerSourceSuffix": "reviewTemplateMigration/finishMigration.nl",
+          "producerPath": [
+            "answer"
+          ]
+        },
+        {
+          "checks": [
+            "exactMigrationDisposition"
+          ],
+          "rootPath": [
+            "candidateId"
+          ],
+          "producerSourceSuffix": "reviewTemplateMigration/finishMigration.nl",
+          "producerPath": [
+            "candidateId"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "repairWorkspaceUnit",
+      "file": "skills/system-testing/open-goal-unit-rollout-managed.ts",
+      "checks": [
+        "matchedRolloutOutcome"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedRolloutOutcome"
+          ],
+          "rootPath": [
+            "reason"
+          ],
+          "producerSourceSuffix": "repairWorkspaceUnit/decideNext.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "workOnTerminalApp",
+      "file": "skills/system-testing/open-goal-terminal-app-repair-managed.ts",
+      "checks": [
+        "returnedTerminalRepair"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedTerminalRepair"
+          ],
+          "rootPath": [
+            "explanation"
+          ],
+          "producerSourceSuffix": "workOnTerminalApp/reviewTerminalCandidate.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "activateOwnedAutomation",
+      "file": "skills/system-testing/open-goal-automation-activation-managed.ts",
+      "checks": [
+        "returnedActivationDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedActivationDecision"
+          ],
+          "rootPath": [
+            "decision",
+            "action"
+          ],
+          "producerSourceSuffix": "activateOwnedAutomation/reviewLaunchEvidence.nl",
+          "producerPath": [
+            "decision",
+            "action"
+          ]
+        },
+        {
+          "checks": [
+            "returnedActivationDecision"
+          ],
+          "rootPath": [
+            "decision",
+            "basis"
+          ],
+          "producerSourceSuffix": "activateOwnedAutomation/reviewLaunchEvidence.nl",
+          "producerPath": [
+            "decision",
+            "basis"
+          ]
+        },
+        {
+          "checks": [
+            "returnedActivationDecision"
+          ],
+          "rootPath": [
+            "decision",
+            "reason"
+          ],
+          "producerSourceSuffix": "activateOwnedAutomation/reviewLaunchEvidence.nl",
+          "producerPath": [
+            "decision",
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "workOnProgramRunGoal",
+      "file": "skills/system-testing/open-goal-program-run-managed.ts",
+      "checks": [
+        "verifiedNativeOutputReceipts"
+      ],
+      "contributions": [],
+      "nativeOnlyReason": "The typed root returns exact native output receipts/DOM rows, not an NL-generated copy; semantic selection stays in trace and is judged by native effects."
+    },
+    {
+      "entry": "workOnAuthoringGoal",
+      "file": "skills/system-testing/open-goal-authoring-managed.ts",
+      "checks": [
+        "verifiedAuthoringFindings",
+        "returnedAuthoringArtifacts"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "verifiedAuthoringFindings",
+            "returnedAuthoringArtifacts"
+          ],
+          "rootPath": [
+            "receipt",
+            "review"
+          ],
+          "producerSourceSuffix": "reviewProgram.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "workTowardLocalDelivery",
+      "file": "skills/system-testing/open-goal-local-delivery-managed.ts",
+      "checks": [
+        "matchedLocalDeliveryDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "matchedLocalDeliveryDecision"
+          ],
+          "rootPath": [
+            "reason"
+          ],
+          "producerSourceSuffix": "workTowardLocalDelivery/decideDelivery.nl",
+          "producerPath": [
+            "reason"
+          ]
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "recoverSessionGoal",
+      "file": "skills/system-testing/open-goal-recovery-managed.ts",
+      "checks": [
+        "groundedRecoveryDecision"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "groundedRecoveryDecision"
+          ],
+          "rootPath": [
+            "review"
+          ],
+          "producerSourceSuffix": "recoverSessionGoal/interpretRecovery.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    },
+    {
+      "entry": "workInBrowser",
+      "file": "skills/system-testing/open-goal-browser-managed.ts",
+      "checks": [
+        "reportedVisibleRows"
+      ],
+      "contributions": [],
+      "nativeOnlyReason": "The typed root returns exact native output receipts/DOM rows, not an NL-generated copy; semantic selection stays in trace and is judged by native effects."
+    },
+    {
+      "entry": "verifyWorkspaceSuite",
+      "file": "skills/system-testing/open-goal-suite-managed.ts",
+      "checks": [
+        "returnedSuiteReview",
+        "identifiedApproval"
+      ],
+      "contributions": [
+        {
+          "checks": [
+            "returnedSuiteReview",
+            "identifiedApproval"
+          ],
+          "rootPath": [
+            "review"
+          ],
+          "producerSourceSuffix": "reviewTestSuite.nl",
+          "producerPath": []
+        }
+      ],
+      "nativeOnlyReason": null
+    }
+  ],
+  "verification": {
+    "syntax": {
+      "unit": "vibe-v14-52-oracle-parse-b",
+      "files": 51,
+      "errors": 0
+    },
+    "targeted": {
+      "unit": "vibe-v14-52-native-regressions-e",
+      "tests": 77,
+      "passed": 77,
+      "peakMiB": 347,
+      "includes": "Actual typed composition execution, native browser/desktop/transcript/phone/suite/authoring checks, source-bound projection with unrelated equal-valued negative, incidental child preservation."
+    },
+    "limitations": [
+      "System Android observation bridge is separately owned by Root.",
+      "Complete final public-signature compilation is performed on the integrated source by Root; original nine errors are corrected in Base27173a7.",
+      "Full live native worlds across every one of these52 APIs were not run by this strand."
+    ]
+  }
+}

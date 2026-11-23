@@ -62,7 +62,7 @@ it("checks a revision before activating and verifies the independently observed 
   const reply = { status: "changed", revision: after.revision,
     rows: [{ label: edited.label, state: edited.state, detail: edited.detail }] };
   expect((await prepared.verify(reply)).passed).toBe(true);
-  expect((await prepared.verify({ ...reply, revision: before.revision })).passed).toBe(false);
+  expect((await prepared.verify({ ...reply, revision: before.revision })).outcomeDimensions.returnedValue.passed).toBe(false);
 });
 
 it("allows observation of the checklist and denies changes on a read-only goal", async () => {

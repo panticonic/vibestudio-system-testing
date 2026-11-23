@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -168,7 +169,28 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       affected:blocked?[]:sortedPaths,withdrawn:blocked?[]:undonePaths,reasons:blocked||!world.reason?[]:[world.reason]};
     return {assignment,phrase:searchText,candidates:candidates??[],selection,evidence,answer};
   }
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedRecordedQuestionReport"],"rootPath":[],"producerSourceSuffix":"reviewRecordedQuestion/answerRecordedQuestion.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const actual=value as unknown|null;
     const after=await status();
     const rereads=await Promise.all([...nextValues].map(async ([path,expected])=>{
@@ -196,8 +218,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
         returnedValue: {checks:["matchedRecordedQuestionReport"],required:true,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
-      incorrectReturnValues: value!==undefined&&!(checks.matchedRecordedQuestionReport) ? [{required:true,
-        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewRecordedQuestion",source:"reviewRecordedQuestion.nl"},value}] : [],
+      incorrectReturnValues:[],
 caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),
       native:{head,repositoryId,originalWork:proposed.workUnitId,counterWork,search:rawSearch,walks:[...nativeCounteractions]}};
   }
@@ -214,7 +235,7 @@ caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).e
     }
     const report=expectedReport().answer;
     const proof=await verify(report);
-    const rejectedInventedScope=!(await verify({...report,affected:["other-local-scope"]})).passed;
+    const rejectedInventedScope=!(await verify({...report,affected:["other-local-scope"]})).outcomeDimensions.returnedValue.passed;
     const checks={...proof.checks,rejectedUnknownReference,rejectedInventedScope};
     return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnknownReference","rejectedInventedScope"]}},...proof,checks,passed:Object.values(checks).every(Boolean),report};
   }

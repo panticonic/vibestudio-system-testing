@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -241,7 +242,28 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
       },
     },
   };
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["classifiedExactOwnedRequest"],"rootPath":["decision"],"producerSourceSuffix":"reviewLogFollower/classifyLogOperation.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const report = value as {
       assignment?: unknown; capture?: unknown; joined?: unknown; decision?: unknown; receipt?: unknown;
     } | null;
@@ -267,8 +289,7 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
         returnedValue: {checks:["classifiedExactOwnedRequest"],required:!world.expected.stage,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
-      incorrectReturnValues: value!==undefined&&!(checks.classifiedExactOwnedRequest) ? [{required:!world.expected.stage,
-        definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewLogFollower",source:"reviewLogFollower.nl"},value}] : [],
+      incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
       assignment, capture: proof, joined: expectedJoin, decision: expectedDecision, receipt: exactReceipt, effects: structuredClone(effects) };
   }
@@ -284,7 +305,7 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
       decision, receipt: stagedReceipt,
     };
     const proof = await verify(report);
-    const rejectedWrongReport = !(await verify({ ...report, decision: { ...decision, state: "invented" } })).passed;
+    const rejectedWrongReport = !(await verify({ ...report, decision: { ...decision, state: "invented" } })).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedForeignWatch, rejectedWrongWindow, rejectedWrongReport };
     return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignWatch","rejectedWrongWindow","rejectedWrongReport"]}}, checks, passed: Object.values(checks).every(Boolean), report };
   }

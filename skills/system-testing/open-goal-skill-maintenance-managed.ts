@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -439,7 +440,28 @@ export async function prepareSkillMaintenance(
   };
 
 
-  async function verify(report: unknown, observations?: InvocationObservations) {
+  
+  async function verify(report: unknown,observations?: InvocationObservations) {
+    const proof=await verifyNativeApplication(report,observations);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedMaintenanceValue"],"rootPath":[],"producerSourceSuffix":"maintainWorkspaceSkill/decideSkillMaintenance.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=report;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
     const result = report as {disposition?:string;before?:string;after?:string;paths?:string[];action?:string;reason?:string} | null;
     const finalStatus = await status();
     const retainedArchive = await view(finalStatus.workingHead, archivePath);
@@ -538,9 +560,7 @@ export async function prepareSkillMaintenance(
         returnedValue: {checks:["returnedMaintenanceValue"],required:!withPatch,rationale:"A held or current-skill diagnosis is requested; an additional patch receipt is optional."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
-      incorrectReturnValues: result!==undefined&&!(checks.returnedMaintenanceValue) ? [{
-        required:!withPatch,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"maintainWorkspaceSkill",source:"maintainWorkspaceSkill.nl"},value:result,
-      }] : [],
+      incorrectReturnValues:[],
       contextId,
       caseId: world.id,
       goal: world.goal,
@@ -602,7 +622,7 @@ export async function prepareSkillMaintenance(
     const result = await verify(report);
     const wrong = structuredClone(report);
     if ("after" in wrong) wrong.after="other-head"; else wrong.action="invented" as typeof wrong.action;
-    const rejectedWrongReadback = !(await verify(wrong)).passed;
+    const rejectedWrongReadback = !(await verify(wrong)).outcomeDimensions.returnedValue.passed;
     const checks = { ...result.checks, rejectedAlias, rejectedWrongReadback };
     return {
       ...result,

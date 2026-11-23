@@ -1,3 +1,4 @@
+import {observeInvocation} from "./observed-invocation.js";
 import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -111,15 +112,15 @@ describe("desktop readiness with the installed client and canonical projections"
       ).toBe("actual-readback");
       expect(report.updates.portCalls).toBe(0);
       if (world === openDesktopReadinessWorlds[0]) {
-        const observed = await fixture.verify(report.report, {calls:[], returns:async()=>[{
-          callId:"actual-child",parentCallId:"actual-parent",outcome:"done",
-          definition:{name:"reviewClientAdmission",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission.nl"},
-          value:{decision:"incorrect-unused-classification"},
-        }]});
+        const texts=new Map<string,string>();
+        const returned=[{id:"root",parent:null,source:"reviewDesktopReadiness.ts",name:"reviewDesktopReadiness",kind:"crisp",value:report.report},
+          {id:"actual-child",parent:"root",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission.nl",name:"reviewClientAdmission",kind:"agent",value:{decision:"incorrect-unused-classification"}}];
+        const calls=returned.map(row=>{const text=JSON.stringify(row.value),hash=createHash("sha256").update(text).digest("hex");texts.set(hash,text);return {callId:row.id,summary:{run_id:"run",owner_key:contextId,owner_kind:"eval"},record:{call_id:row.id,parent_call_id:row.parent,definition:{name:row.name,source:row.source},executor:{kind:row.kind,model_id:row.kind==="agent"?"teacher":null},cost:{model_requests:row.kind==="agent"?1:0},outcome:"done",output:{complete:true,hash}}};});
+        const invocation=observeInvocation({evalRunId:"run",rootCallIds:["root"],captureErrors:[],calls},async hash=>texts.get(hash)??null);
+        const observed=await fixture.verify(report.report,invocation);
         expect(observed.checks.matchedDesktopReadinessDecision).toBe(true);
         expect(observed.checks.incidentalDesktopAdmissionClassification).toBe(false);
-        expect(observed.incorrectReturnValues).toHaveLength(1);
-        expect(observed.incorrectReturnValues[0]?.definition.name).toBe("reviewClientAdmission");
+        expect(observed.incorrectReturnValues.some(row=>row.definition.name==="reviewClientAdmission")).toBe(true);
       }
 
       const destination = process.env.VIBE_DESKTOP_PROOFS;

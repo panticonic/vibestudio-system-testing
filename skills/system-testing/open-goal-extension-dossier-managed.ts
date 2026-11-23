@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -302,7 +303,28 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     },
   };
 
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["respectedLocalReleaseDecision"],"rootPath":["finding"],"producerSourceSuffix":"reviewExtensionDossier/decideDossier.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as Outcome | null;
     const outcome = envelope;
     const found = await currentAssignment();
@@ -343,7 +365,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
         effects:{checks:["boundOriginalOwnerScope", "usedExactInstalledReleaseReview", "verifiedPackageDifference", "reconciledNativeReleaseHistory", "verifiedExactDossier", "preservedProtectedSourceAndRuntime"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
         returnedValue:{checks:["respectedLocalReleaseDecision"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
-      incorrectReturnValues:value!==undefined&&!(checks.respectedLocalReleaseDecision)?[{required:!shouldStage,definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewExtensionDossier",source:"reviewExtensionDossier.nl"},value:value}]:[],
+      incorrectReturnValues:[],
  caseId: input.caseId, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       assignment: found, review, candidate: compared, history: active, decision, dossier: stored, effects: structuredClone(effects) };
   }
@@ -361,7 +383,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     const dossier = canStage(assignment, decision) ? await services.extensionDossierWrite.stage(decision) : null;
     const result = {finding:{decision,reason:"Exact package, current release and retained owner scope."},dossier};
     const proof = await verify(result);
-    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).passed;
+    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).outcomeDimensions.returnedValue.passed;
     const checks = {...proof.checks,rejectedInventedApplicationValue};
     return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,

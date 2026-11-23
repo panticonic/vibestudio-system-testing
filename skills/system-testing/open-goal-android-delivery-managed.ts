@@ -1,3 +1,4 @@
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
 import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, rpc, workspace } from "@workspace/runtime";
@@ -46,7 +47,28 @@ export async function prepareOpenAndroidDelivery(
       return scope;
     },
   };
-  async function verify(value: unknown, invocation?: InvocationObservations) {
+  
+  async function verify(value: unknown,invocation?: InvocationObservations) {
+    const proof=await verifyNativeApplication(value,invocation);
+    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
+    // Bind only fields actually emitted by this composition. Native receipt-only
+    // branches have no sampled semantic return contribution to invent.
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedAndroidDeliveryReport"],"rootPath":[],"producerSourceSuffix":"runMobileScenario.nl","producerPath":[]}];
+    const contributions=authored.filter(binding=>{
+      let current:unknown=value;
+      for(const key of binding.rootPath){
+        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
+        current=(current as Record<string|number,unknown>)[key];
+      }
+      return true;
+    });
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    // Preserve every original native observation for qualification and callers
+    // that add their own checks before the final outcome projection.
+    const {observedChecks,...dimensions}=assessed;
+    return {...dimensions,checks:observedChecks};
+  }
+async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as {
       scope?: AndroidScope; request?: MobileAssignment; actual?: MobileReport;
     } | null;
@@ -62,7 +84,7 @@ export async function prepareOpenAndroidDelivery(
       outcomeContract:{effects:{checks:["boundExactAndroidDelivery", "exactNativeAndroidInventory", "independentlyVerifiedAndroidResult"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
         returnedValue:{checks:["matchedAndroidDeliveryReport"],required:!("receipt" in native&&native.receipt||"install" in native&&native.install),rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
-      incorrectReturnValues:value!==undefined&&!(checks.matchedAndroidDeliveryReport)?[{required:!("receipt" in native&&native.receipt||"install" in native&&native.install),definition:invocation?.calls.find(call=>call.parentCallId===null)?.definition??{name:"verifyAndroidDelivery",source:"verifyAndroidDelivery.nl"},value}]:[],
+      incorrectReturnValues:[],
  ...input, scope, outcome, native, checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {
