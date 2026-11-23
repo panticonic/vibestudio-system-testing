@@ -16,6 +16,7 @@ type VaultServices = {
 };
 type VaultVerification = {
   passed: boolean;
+  outcomeDimensions:{effects:{passed:boolean};returnedValue:{passed:boolean;checks:Record<string,boolean>}};
   revisionAttempts: { revision: string; outcome: string }[];
   workingFiles: Record<string, unknown>;
 };
@@ -104,6 +105,8 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       nativePdfHandoff: mayEdit ? !!bound&&!!attestedReport&&bound.source.document===world.pdf.expected.document&&isDeepStrictEqual(selectedQuotes,expectedQuotes):!bound&&pdfResult.passed,
       verifiedHandoff:mayEdit?result?.holdReason===null&&isDeepStrictEqual(result?.source,bound?.source):result?.source===null&&result?.vault===null&&reason.length>0,
       returnedVaultFindings:mayEdit?vaultResult?.outcomeDimensions.returnedValue.passed===true:true,
+      returnedVaultReview:!mayEdit||vaultResult?.outcomeDimensions.returnedValue.checks.canonicalReviewFindings===true,
+      returnedVaultOutcome:!mayEdit||vaultResult?.outcomeDimensions.returnedValue.checks.currentSpectroliteOutcome===true,
       exactWorkingVault: mayEdit ? vaultResult?.outcomeDimensions.effects.passed === true
         : isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
@@ -111,9 +114,9 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
         : !concurrentReceipt && (mayEdit ? attempts.some(attempt => attempt.outcome === "written") : attempts.length === 0),
       protectedHeads: initial.mainEventId === after.mainEventId && isDeepStrictEqual(initial.committed, after.committed),
     };
-    const contract:SemanticOutcomeContract={effects:{checks:["exactOriginalPdf", "nativePdfHandoff", "exactWorkingVault", "concurrentRevision", "protectedHeads"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["verifiedHandoff", "returnedVaultFindings"],required:!mayEdit,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactOriginalPdf", "nativePdfHandoff", "exactWorkingVault", "concurrentRevision", "protectedHeads"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["verifiedHandoff", "returnedVaultFindings", "returnedVaultReview", "returnedVaultOutcome"],required:!mayEdit,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
     return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), checks, contextId, caseId, panelId, goal,
-      proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{checks:["verifiedHandoff"],rootPath:mayEdit?["source"]:["holdReason"],producerSourceSuffix:"authorizePdfVaultHandoff.nl",producerPath:mayEdit?["source"]:["reason"]}]);
+      proof: { pdf: pdfResult, handoff: bound ?? null, vault: vaultResult, concurrent: concurrentReceipt ?? null } },contract,value,invocation,[{checks:["returnedVaultReview"],rootPath:["vault","review"],producerSourceSuffix:"workTowardVaultGoal/reviewCurrentVault.nl",producerPath:[]},{checks:["returnedVaultOutcome"],rootPath:["vault","reason"],producerSourceSuffix:"workTowardVaultGoal/chooseVaultStep.nl",producerPath:["reason"]},{checks:["verifiedHandoff"],rootPath:mayEdit?["source"]:["holdReason"],producerSourceSuffix:"authorizePdfVaultHandoff.nl",producerPath:mayEdit?["source"]:["reason"]}]);
   }
 
   async function qualify() {
