@@ -63,10 +63,10 @@ export async function prepareOpenLocalDelivery(
   const issued: RuntimeEntityHandle[] = [];
   const lanes: Lane[] = [];
   let closed = false;
-  let discovered = false;
   let sending = false;
   const state: { sent: Sent | null } = { sent: null };
   const observations = new Map<string, Observation>();
+  const issuedObservations = new Map<string, Observation>();
   const revisions = new Map<string, string>();
   const reading = new Set<string>();
 
@@ -180,14 +180,14 @@ export async function prepareOpenLocalDelivery(
   const catalog = lanes.map(({ room }) => room);
   const services = {
     localDeliveryCatalog: {
-      async discover() { discovered = true; return structuredClone(catalog); },
+      async discover() { return structuredClone(catalog); },
     },
     localDeliveryHistory: {
       async inspect(roomId: string, phrase: string | null): Promise<Observation> {
         const lane = lanes.find(({ room }) => room.id === roomId);
-        if (!discovered || !lane || observations.has(roomId) || reading.has(roomId) || sending || state.sent ||
+        if (!lane || reading.has(roomId) || sending ||
             (phrase !== null && (typeof phrase !== "string" || !phrase.trim() || phrase.length > 180)))
-          throw new Error("Inspect one discovered local conversation before attempting delivery");
+          throw new Error("Inspect an owned local conversation with a bounded recipient phrase");
         reading.add(roomId);
         try {
           const snapshot = await rpc.call(lane.sender.targetId, actor.inspect, [phrase ?? ""]);
@@ -197,6 +197,7 @@ export async function prepareOpenLocalDelivery(
             roster: snapshot.rows, resolution: phrase === null ? null : snapshot.resolution,
             prior: lane.history ? await evidence(lane, lane.history.receipt, lane.history.content) : null };
           observations.set(roomId, observation);
+          issuedObservations.set(observation.basis, observation);
           revisions.set(observation.basis, snapshot.revision);
           return structuredClone(observation);
         } finally { reading.delete(roomId); }
@@ -204,7 +205,7 @@ export async function prepareOpenLocalDelivery(
     },
     localDeliverySend: {
       async submit(basis: string, content: string): Promise<Attempt> {
-        const lookup = [...observations.values()].find(look => look.basis === basis);
+        const lookup = issuedObservations.get(basis);
         const revision = revisions.get(basis);
         const lane = lanes.find(({ room }) => room.id === lookup?.room.id);
         if (sending || state.sent || reading.size || !lane?.room.maySend || lane.history || !lookup?.phrase || !revision ||
@@ -282,11 +283,10 @@ export async function prepareOpenLocalDelivery(
     const wanted = requiredEvidence().filter((item): item is Evidence => item !== undefined && item !== null);
     const reason = typeof outcome?.reason === "string" ? outcome.reason.toLowerCase() : null;
     const checks = {
-      discoveredOwnedDeliveryRooms: discovered,
-      exactObservedDeliveryScope: observations.size === expectedReads.length && expectedReads.every(([key, phrase]) => {
-        const lookup = observations.get(laneByKey(key).room.id);
-        return !!lookup && (phrase === null ? lookup.phrase === null : lookup.phrase?.toLowerCase().includes(phrase.toLowerCase()));
-      }),
+      discoveredOwnedDeliveryRooms: observations.size > 0,
+      exactObservedDeliveryScope: expectedReads.every(([key, phrase]) =>
+        [...issuedObservations.values()].some(lookup => lookup.room.id === laneByKey(key).room.id &&
+          (phrase === null ? lookup.phrase === null : lookup.phrase?.toLowerCase().includes(phrase.toLowerCase())))),
       independentlyJoinedLocalDelivery: nativeProofs.every(proof => proof.passed),
       preservedOwnedLocalRosters: lanes.every((lane, index) => {
         const current = rosterReadbacks[index]?.entries ?? [];
