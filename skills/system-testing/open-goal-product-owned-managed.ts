@@ -17,11 +17,11 @@ type Basis = { documents: Document[]; authorization: string; currentRevision: st
 type Decision = { action: string; path: string | null; approval: string | null; reason: string };
 type Write = { status: "written" | "changed" | "held"; path: string | null; version: string | null };
 type Attribution = { kind: "attribution"; origin: "external-import"; references: string[]; supportedIntent: string | null; boundary: string };
-type GoogleReport = { calendar: CalendarReport; decision: Decision; attribution: Attribution; write: Write | null };
+type GoogleReport = {decision:Decision;attribution:Attribution;write:Write|null};
 type Desk = { id: string; revision: string; title: string; topic: string; format: string; facts: string; grant: string };
 type EditorPlan = { action: string; format: string; revision: string; reason: string };
 type Receipt = { path: string; bytes: number; sha256: string };
-type NewsReport = { desk: Desk; news: NewsEvidenceReport; plan: EditorPlan; presentation: PresentationReport | null; artifact: Receipt | null; attribution: Attribution };
+type NewsReport = { plan: EditorPlan; artifact: Receipt | null; attribution: Attribution };
 type Ports = { contextId: string; fs: typeof fs; status: typeof vcs.status };
 const live: Ports = { contextId, fs, status: input => vcs.status(input) };
 const length = (text: string) => new TextEncoder().encode(text).length;
@@ -132,18 +132,21 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
     const report = reportOf<GoogleReport>(raw);
     const current = await basis();
     const workspace = await ports.status({ contextId: input.contextId });
-    const calendarReport = report?.calendar;
     const decision = report?.decision;
-    const calendarProof = calendarReport && await calendar.verify(calendarReport);
+    const calendarProof = await calendar.verifyObserved();
+    const selectedCalendar = calendarProof.readback?.observed.status === "current"
+      ? calendarProof.readback.observed.record : null;
     const targetNow = current.documents.find(doc => doc.path === target)!;
     const wanted = world.action === "revise" ? world.after + (world.coedit ?? "") : world.before;
     const writingCalls = calls.filter(call => call.method === "apply");
     const checks = {
-      current_calendar: calendarProof?.passed === true && calendarReport?.handoff === null,
+      current_calendar: calendarProof.passed === true && calendarProof.handoff === null,
       runbook_authority: decision?.action === world.action && decision.path === target &&
         decision.approval === approvalId && typeof decision.reason === "string" && !!decision.reason.trim(),
-      exact_basis_attribution: calendarProof?.passed === true && !!calendarReport && !!bases[0] &&
-        isDeepStrictEqual(report?.attribution, mapping(calendarReport, bases[0])),
+      exact_basis_attribution: calendarProof.passed === true && !!bases[0] &&
+        isDeepStrictEqual(report?.attribution, attribute(selectedCalendar
+          ? "calendar:" + selectedCalendar.calendarId + "/" + selectedCalendar.eventId : null,
+          "runbook:" + bases[0].currentRevision, world.action === "revise" ? approvalId : null, "private-workspace")),
       exact_runbook_result: targetNow.text === wanted && (world.action === "revise"
         ? !!applied && isDeepStrictEqual(report?.write, applied) && applied.version === targetNow.version &&
           writingCalls.some(call => isDeepStrictEqual(call.result, applied)) && (!world.coedit || coedited)
@@ -166,7 +169,10 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
       if (write.status === "changed") write = await apply(await services.googleRunbook.read());
       await services.googleRunbook.read();
     }
-    return verify({ calendar: scheduled, decision, attribution: mapping(scheduled, original), write });
+    const result={decision,attribution:mapping(scheduled,original),write};
+    const proof=await verify(result);
+    const rejectedInventedWrite=!(await verify({...result,write:{status:"written",path:"invented",version:"invented"}})).passed;
+    return {...proof,passed:proof.passed&&rejectedInventedWrite,rejectedInventedWrite};
   }
   return { services, verify, qualify };
 }
@@ -240,7 +246,7 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
           return record("newsEditionReview", "stage", args, null);
         authoring = true;
         try {
-          if (!isDeepStrictEqual(await currentDesk(), desk) || !(await news.verify(basis)).passed ||
+          if (!isDeepStrictEqual(await currentDesk(), desk) || !(await news.verifyEvidence(basis)).passed ||
               !isDeepStrictEqual(await ports.status({ contextId: input.contextId }), workspace))
             return record("newsEditionReview", "stage", args, null);
           const body = encode(desk, basis, presentation);
@@ -253,23 +259,25 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
   };
   async function verify(raw: unknown) {
     const report = reportOf<NewsReport>(raw);
-    const basis = report?.news;
+    const basis = await news.observedEvidence();
+    const staged=calls.findLast(call=>call.service==="newsEditionReview"&&call.method==="stage"&&call.result!==null);
+    const presentation=staged?.args[3] as PresentationReport|null|undefined;
     const plan = report?.plan;
-    const proof = basis && await news.verify(basis);
+    const proof = basis && await news.verifyEvidence(basis);
     const verifiedBasis = proof?.passed === true && basis?.handoff === null;
     const latest = await currentDesk();
     const body = artifact && await readText(ports, artifact.path);
     const checks = {
       current_news_edition: verifiedBasis,
-      exact_desk_authority: !!observed && isDeepStrictEqual(observed, latest) && isDeepStrictEqual(report?.desk, latest) &&
+      exact_desk_authority: !!observed && isDeepStrictEqual(observed, latest) &&
         plan?.revision === latest.revision && plan.action === world.action && plan.format === world.format &&
         typeof plan.reason === "string" && !!plan.reason.trim(),
       exact_basis_attribution: verifiedBasis && !!basis && Array.isArray(basis.sources) &&
         isDeepStrictEqual(report?.attribution, attribution(latest, basis, world.action)),
       verified_editor_packet: world.action === "packet" ? verifiedBasis && !!basis && !!body && !!artifact &&
-        !!report?.presentation && exactPresentation(report.presentation) && isDeepStrictEqual(report.artifact, artifact) &&
-        body === encode(latest, basis, report.presentation) && length(body) === artifact.bytes && sha256HexSyncText(body) === artifact.sha256
-        : !artifact && report?.artifact === null && report.presentation === null && calls.every(call => call.method !== "stage"),
+        !!presentation && exactPresentation(presentation) && isDeepStrictEqual(report?.artifact, artifact) &&
+        body === encode(latest, basis, presentation) && length(body) === artifact.bytes && sha256HexSyncText(body) === artifact.sha256
+        : !artifact && report?.artifact === null && !presentation && calls.every(call => call.method !== "stage"),
       preserved_workspace: await readText(ports, file) === initial &&
         isDeepStrictEqual(await ports.status({ contextId: input.contextId }), workspace),
     };
@@ -278,11 +286,11 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
   }
   async function qualify() {
     const desk = await services.newsEditionReview.readDesk();
-    const { report: basis } = await news.qualify();
+    const { evidence: basis } = await news.qualify();
     const plan = { action: world.action, format: world.format, revision: desk.revision, reason: "Use the current reader and latest desk evidence." };
     const presentation = world.action === "packet" ? expectedPresentation : null;
     const artifact = presentation && await services.newsEditionReview.stage(desk, plan, basis, presentation);
-    return verify({ desk, news: basis, plan, presentation, artifact, attribution: attribution(desk, basis, world.action) });
+    return verify({ plan, artifact, attribution: attribution(desk, basis, world.action) });
   }
   return { services, verify, qualify };
 }
