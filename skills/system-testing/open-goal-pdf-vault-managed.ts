@@ -119,9 +119,9 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const quotation = forged.text?.citations[0];
     if (quotation) quotation.quote += " Altered.";
     const rejectsForgedQuotation = (await services.pdfVaultBridge.bind(forged, quoteIndices)).status === "hold";
-    let rejectsPrematureVaultAccess = false;
-    try { await services.spectroliteGoal.inspect(); }
-    catch (error) { rejectsPrematureVaultAccess = error instanceof Error && error.message.includes("approved PDF evidence"); }
+    let rejectsPrematureVaultMutation = false;
+    try { await services.spectroliteGoal.revise("unbound", "unapproved source"); }
+    catch (error) { rejectsPrematureVaultMutation = error instanceof Error && error.message.includes("approved PDF evidence"); }
     const handoff = mayEdit ? await services.pdfVaultBridge.bind(reference.outcome, quoteIndices)
       : hold(`Missing approved page ${world.pdf.expected.missing?.join(", ")}.`);
     if (mayEdit && handoff.status !== "bound") throw new Error("The reference could not attest the approved PDF lines.");
@@ -130,7 +130,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const verified = await verify(result);
     const rejectedInventedSource=!(await verify({...result,source:{document:"invented",digest:"invented",citations:[]}})).passed;
     const checks = { ...verified.checks, exactPdfReference: reference.verification.passed,
-      rejectsForgedQuotation, rejectsPrematureVaultAccess,rejectedInventedSource };
+      rejectsForgedQuotation, rejectsPrematureVaultMutation,rejectedInventedSource };
     return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
   }
 
