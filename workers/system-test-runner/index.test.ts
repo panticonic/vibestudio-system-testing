@@ -566,8 +566,8 @@ describe("retained System release handoff reference", () => {
     const assignment = await services.systemReleaseEvidence.discover();
     await expect(services.systemReleaseEvidence.compare("foreign-assignment")).rejects.toThrow(/assigned checkpoint/);
     await services.systemReleaseEvidence.compare(assignment.id);
-    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.earlier, world.required[0])).rejects.toThrow(/selected exact/);
-    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.current, "extra-check")).rejects.toThrow(/selected exact/);
+    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.earlier, world.required[0])).rejects.toThrow(/exact selected System run/);
+    await expect(services.systemReleaseEvidence.inspectCase(assignment.id, fixture.seed.current, "extra-check")).rejects.toThrow(/exact selected System run/);
     const stage = (cases: Parameters<typeof services.systemReleaseHandoff.stage>[3]) =>
       services.systemReleaseHandoff.stage(assignment.id, fixture.seed.current, "stage-acceptance", cases);
     await expect(stage([])).rejects.toThrow(/complete exact/);

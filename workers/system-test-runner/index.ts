@@ -5167,7 +5167,8 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       throw new Error("Invalid system-test trajectory page range");
     }
     if (full) {
-      this.requirePersistedHeader(runId);
+      const header = this.requirePersistedHeader(runId);
+      if (!header.entryNames.includes(testName)) throw new Error(`Run ${runId} has no test named ${testName}`);
       const entry = this.sql.exec<{ length: number; page_count: number }>(
         "SELECT length, page_count FROM system_test_entries WHERE run_id = ? AND test_name = ?", runId, testName,
       ).toArray()[0];
