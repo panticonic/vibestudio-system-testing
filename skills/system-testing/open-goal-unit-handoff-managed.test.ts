@@ -112,7 +112,7 @@ it.each(openUnitHandoffWorlds)("$id uses exact native design and icon checks", a
   expect(result.checks).toEqual(Object.fromEntries(Object.keys(result.checks).map(check => [check, true])));
   const altered = structuredClone(result.unitHandoff.report);
   if (!altered) throw new Error("Expected an actual verified report");
-  altered.plan.path = "extensions/other";
+  altered.path = "extensions/other";
   expect((await candidate.verify(altered)).checks.owned_selection).toBe(false);
 });
 

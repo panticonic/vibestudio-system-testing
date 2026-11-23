@@ -23,7 +23,8 @@ it("accepts only the nominated local preflight and rejects invented authority", 
   expect(observations).toHaveLength(2);
   const readback = await s.routeEvidenceRead.inspect(route.id);
   const report = { offer, choice: { routeId: route.id, execute: true, retain: false, reason: "Current local value requested" }, authority: compareExactAuthority(observations, []), readback, outcome: { status: "verified", summary: "Read actual current local record" }, handoff: null };
-  expect((await prepared.verify(report)).passed).toBe(true);
+  const value={readback:report.readback,outcome:report.outcome,handoff:report.handoff};
+  expect((await prepared.verify(value)).passed).toBe(true);
   await expect(s.assignedAuthorityRead.preflight("foreign-operation")).rejects.toThrow("scoped");
-  expect((await prepared.verify({ ...report, authority: { ...report.authority, reviews: [] } })).passed).toBe(false);
+  expect((await prepared.verify({...value,outcome:{status:"refused",summary:"Invented refusal after native allowed reads"}})).outcomeDimensions.returnedValue.passed).toBe(false);
 });
