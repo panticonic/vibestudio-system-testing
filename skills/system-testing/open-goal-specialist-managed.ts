@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -283,7 +286,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
       },
     },
   };
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as SpecialistResult | null;
     const outcome = report;
     const latest = await ports.read(lane);
@@ -300,6 +303,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const artifact = written ? new TextDecoder("utf-8",{fatal:true}).decode(written) : null;
     const foreign = crypto.randomUUID();
     const checks = {
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactCurrentSpecialist: !!plan && plan.handle === expected.handle &&
         (expected.handle ? member?.request?.handle === expected.handle &&
           isDeepStrictEqual(member.observed,selected) &&
@@ -323,16 +327,17 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
       exactSpecialistHandoff: expected.action === "stage" ? !!plan && !!outcome?.history && !!handoff && !!artifact && !!written &&
         files.length === 1 && handoff.path === `/.tmp/${files[0]}/handoff.json` &&
         stagedText === artifact && handoff.sha256 === sha256HexSyncText(artifact) &&
-        handoff.bytes === written.length && isDeepStrictEqual(handoff,outcome.handoff) :
-        files.length === 0 && handoff === null && outcome?.handoff === null,
+        handoff.bytes === written.length  :
+        files.length === 0 && handoff === null ,
       preservedSpecialistContext: after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead,before.workingHead) &&
         isDeepStrictEqual(initialRoster.filter(row=>row.metadata["type"] === "agent"),roster.filter(row=>row.metadata["type"] === "agent")),
       rejectedForeignSpecialist: await services.ownedSpecialistRun.read(foreign) === null &&
         await services.ownedSpecialistArtifact.read(foreign,foreign) === null &&
         await services.ownedSpecialistHandoff.stage({channelId:foreign} as SpecialistPlan,{} as HistoryReview) === null,
     };
-    return {contextId:input.contextId,caseId:input.caseId,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
-      index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactSpecialistFrontiers", "exactSpecialistHandoff", "preservedSpecialistContext", "rejectedForeignSpecialist"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactCurrentSpecialist", "exactOriginalAttempt", "verifiedArtifactAndImpact"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:input.contextId,caseId:input.caseId,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
+      index,snapshots,independent,result,membershipReads,artifactReads,handoff,artifact},contract,raw,invocation);
   }
   async function qualify() {
     await services.ownedSpecialistIndex.list();

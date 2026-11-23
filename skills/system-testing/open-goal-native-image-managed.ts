@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex } from "@vibestudio/content-addressing";
 import type { VcsStateNodeRef } from "@vibestudio/service-schemas/vcs";
@@ -157,7 +160,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     },
   };
   function report(){return {assignment,basis,decision,outcome,saved};}
-  async function verify(value:unknown){
+  async function verify(value:unknown,invocation?:InvocationObservations){
     const final=await status(), transport=await images.readFixtureTransport();
     const actualJob=outcome?await images.getJob(outcome.job.id):seedJob?await images.getJob(seedJob.id):null;
     const output=await read(final.workingHead,path), untouched=await read(final.workingHead,neighbor);
@@ -188,8 +191,9 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
         (!reference||isDeepStrictEqual(refRead?.asset,reference)&&refRead?.base64===imageFixtureBytes.png[2]),
       matchedNativeImageReport:isDeepStrictEqual(value,{outcome,saved}),
     };
-    return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report(),
-      native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset?.digest??null},effects:structuredClone(effects)};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["observedExactImageBasis", "boundNativeImageAttempt", "verifiedNativeOriginal", "preservedAuthorizedWorkspace"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["matchedNativeImageReport"], "required": decision.action==="hold"||(decision.action==="reuse"&&!world.save), "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report(),
+      native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset?.digest??null},effects:structuredClone(effects)},contract,value,invocation);
   }
   async function qualify(){
     await services.illustrationEvidence.discover();await services.illustrationEvidence.read(scope);
@@ -200,7 +204,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     const complete=outcome as ReturnType<typeof report>["outcome"];
     if(complete?.original&&world.save)await services.illustrationOriginal.save(scope,initialBasis.head,complete.job.id,complete.original.digest);
     const answer={outcome,saved},proof=await verify(answer);
-    const rejectedInventedOriginal=!(await verify({...answer,outcome:{...answer.outcome,original:{digest:"invented",bytes:1,mime:"image/png"}}})).passed;
+    const rejectedInventedOriginal=!(await verify({...answer,outcome:{...answer.outcome,original:{digest:"invented",bytes:1,mime:"image/png"}}})).outcomeDimensions.returnedValue.passed;
     const checks={...proof.checks,rejectedForeignAttempt,rejectedWrongBytes,rejectedInventedOriginal};
     return {...proof,checks,passed:Object.values(checks).every(Boolean),report:answer};
   }

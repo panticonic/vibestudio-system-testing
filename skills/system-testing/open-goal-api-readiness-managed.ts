@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -276,7 +279,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
       }finally{writing=false;}
     }},
   };
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const value=raw as ApiReadinessResult|null;
     const outcome=value;
     const current=await ports.read(lane);
@@ -290,6 +293,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const completed=bound?expectedObservations(bound.request):null;
     const foreign=crypto.randomUUID();
     const checks={
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactIntegrationFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(current,snapshots[1])&&
         current.rows.length===maps.size&&current.rows.every(row=>isDeepStrictEqual(row.selection,maps.get(row.messageId)))&&
         new Set(current.rows.map(row=>row.envelopeId)).size===current.rows.length,
@@ -297,7 +301,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         calls.length===1&&calls[0]?.profileId===profileId&&calls[0]?.message===planned.message&&!!seenPlan&&
         isDeepStrictEqual(seenPlan.destinations,destinations.map(({url,...endpoint})=>endpoint)),
       explicitQuietIntegration:planned.action==="hold"?audited===null&&outcome?.review===null&&Array.isArray(outcome?.facts)&&outcome.facts.length===0:
-        !!outcome&&!!bound&&verifiedReview(outcome.review?{request:bound.request,result:outcome.review}:null,audited)&&isDeepStrictEqual(outcome.facts,audited?.facts),
+        !!bound&&verifiedReview(outcome.review?{request:bound.request,result:outcome.review}:null,audited)&&isDeepStrictEqual(outcome.facts,audited?.facts),
       observedIntegrationLifecycles:bound ? !!completed && sameEvidenceMembers(facts,completed.redacted) &&
         sameEvidenceMembers(observations,completed.observed) &&
         expected.rows.filter(([id])=>world.expected.held!==undefined||world.endpoints.find(endpoint=>endpoint.id===id)?.required)
@@ -307,16 +311,17 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
       groundedIntegrationDisposition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),planned)&&
         plan.action===expected.action&&plan.reason===expected.reason&&
         typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedPrivateIntegrationNote:expected.action==="stage"?!!outcome&&!!handoff&&!!data&&!!artifact&&found.length===1&&
+      verifiedPrivateIntegrationNote:expected.action==="stage"?!!handoff&&!!data&&!!artifact&&found.length===1&&
         handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&handoff.bytes===data.length&&
-        handoff.sha256===sha256HexSyncText(artifact)&&isDeepStrictEqual(handoff,outcome.handoff):
-        found.length===0&&handoff===null&&outcome?.handoff===null,
+        handoff.sha256===sha256HexSyncText(artifact):
+        found.length===0&&handoff===null,
       preservedIntegrationWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedForeignIntegration:await services.quietIntegrationJournal.read(foreign)===null&&
         await services.quietIntegrationProtocol.open(foreign,foreign)===null&&await services.quietIntegrationProtocol.audit(foreign)===null,
     };
-    return {caseId:input.caseId,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactIntegrationFrontiers", "trustedIntegrationSelection", "observedIntegrationLifecycles", "verifiedPrivateIntegrationNote", "preservedIntegrationWorkspace", "rejectedForeignIntegration"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["explicitQuietIntegration", "groundedIntegrationDisposition"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({caseId:input.caseId,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation);
   }
   async function qualify() {
     await services.quietIntegrationIndex.list();

@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { panelTree, vcs, type PanelHandle } from "@workspace/runtime";
@@ -222,7 +225,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
       isDeepStrictEqual(snapshot.dom.controls, frame.controls.map(({ id, label }) => ({ id, label })));
   }
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const wrapper = value as {
       status: string; surfaceId: string; initial: Assessment; final: Assessment; reason: string;
     } | null;
@@ -280,8 +283,9 @@ export async function prepareOpenPanelRecovery(input: Input) {
       protectedHeads: before.mainEventId === after.mainEventId && isDeepStrictEqual(before.workingHead, after.workingHead) &&
         isDeepStrictEqual(before.committed, after.committed),
     };
-    return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, catalog: discovered, binding,
-      observations: inspections, effects: structuredClone(effects), finalSurfaces };
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedDiscovery", "validRecoveryTransitions", "boundRendererReadback", "untouchedCompanions", "protectedHeads"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactHealthDisposition"], "required": effects.length===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, catalog: discovered, binding,
+      observations: inspections, effects: structuredClone(effects), finalSurfaces },contract,value,invocation);
   }
 
   async function qualify() {
@@ -301,7 +305,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
       initial: assess(first, selected.surface), final: assess(final, selected.surface),
       reason: "Confirmed the exact live marker and authority receipts." };
     const result = await verify(outcome);
-    const rejectsWrongEvidence = !(await verify({ ...outcome, final: { ...outcome.final, evidence: ["foreign-panel"] } })).passed;
+    const rejectsWrongEvidence = !(await verify({ ...outcome, final: { ...outcome.final, evidence: ["foreign-panel"] } })).outcomeDimensions.returnedValue.passed;
     let enforcesHold = true;
     if (!target.surface.authorized && first.controls[0]) {
       const denied = await services.panelRecovery.apply(first.revision, { kind: "click", control: first.controls[0].id });

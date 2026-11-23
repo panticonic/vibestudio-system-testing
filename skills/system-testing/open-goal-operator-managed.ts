@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { contextId as actualContextId } from "@workspace/runtime";
 import type {
@@ -245,7 +248,7 @@ export function bindOpenGoalOperator(
     };
   }
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const final = await finish();
     const report = value as DomainReport | null;
     const grantedDeployment =
@@ -305,7 +308,8 @@ export function bindOpenGoalOperator(
       boundOperatorReport:
         isDeepStrictEqual(report, expectedReport()),
     };
-    return {
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["discoveredOwnedTarget", "observedCurrentHub", "respectedOperatorAuthority", "verifiedServiceOutcome"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["boundOperatorReport"], "required": !grantedDeployment&&!shouldPair, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({
       ...input,
       goal: world.goal,
       target,
@@ -321,7 +325,7 @@ export function bindOpenGoalOperator(
       child,
       checks,
       passed: Object.values(checks).every(Boolean),
-    };
+    },contract,value,invocation);
   }
 
   async function qualify() {

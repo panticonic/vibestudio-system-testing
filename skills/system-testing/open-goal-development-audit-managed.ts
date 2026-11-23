@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
 import type { DevelopmentRun, DevelopmentRunEvent, DevelopmentSession } from "@vibestudio/service-schemas/development";
@@ -150,7 +153,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     }
     return { requested: project(assignment.requested), alternate: project(assignment.alternate) };
   }
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const report = value as {
       runId?: string | null; assessment?: unknown; receipt?: Receipt | null;
     } | null;
@@ -175,6 +178,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
       (isDeepStrictEqual(after.runs[index], row) && isDeepStrictEqual(after.journals[index], before.journals[index])));
     const expectedReceipt = exactKeep ? canonicalReceipt(changed, last) : null;
     const checks = {
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.receipt,expectedReceipt),
       matchedOwnedDevelopmentAssignment: outcome?.runId===choice.runId,
       verifiedExactNativeRunPair:
         isDeepStrictEqual(await reads.get(assignment.requested), observed.requested) && isDeepStrictEqual(await reads.get(assignment.alternate), observed.alternate),
@@ -184,11 +188,12 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
         })))),
       matchedRepairReadiness: isDeepStrictEqual(outcome?.assessment, assessment),
       verifiedOwnedRepairTransition: (shouldKeep ? exactKeep : after.intents.length === 0) &&
-        isDeepStrictEqual(receipt, expectedReceipt) && isDeepStrictEqual(outcome?.receipt, expectedReceipt),
+        isDeepStrictEqual(receipt, expectedReceipt),
       preservedNeighborAndPriorRun: preserved && before.intents.length === 0,
     };
-    return { passed: Object.values(checks).every(Boolean), caseId: world.id, goal: world.goal, contextId: input.contextId,
-      checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) };
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["verifiedExactNativeRunPair", "verifiedNativeCheckpointCursors", "verifiedOwnedRepairTransition", "preservedNeighborAndPriorRun"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["matchedOwnedDevelopmentAssignment", "matchedRepairReadiness"], "required": !shouldKeep, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({ passed: Object.values(checks).every(Boolean), caseId: world.id, goal: world.goal, contextId: input.contextId,
+      checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) },contract,value,invocation);
   }
   async function qualify() {
     await services.developmentAuditEvidence.discover();
@@ -211,8 +216,8 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
       runId: selected?.id ?? null, assessment, receipt: staged,
     };
     const proof = await verify(report);
-    const rejectedForeignResult=!(await verify({...report,runId:"foreign-run"})).passed;
-    const rejectedInventedAssessment=!(await verify({...report,assessment:{disposition:"invented",decisiveSequences:[]}})).passed;
+    const rejectedForeignResult=!(await verify({...report,runId:"foreign-run"})).outcomeDimensions.returnedValue.passed;
+    const rejectedInventedAssessment=!(await verify({...report,assessment:{disposition:"invented",decisiveSequences:[]}})).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongScopeAndStaleApproval: safeGuards.every(Boolean),
       rejectedForeignResult,rejectedInventedAssessment };
     return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };

@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -308,7 +311,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       },
     },
   };
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const report=raw as WelcomeResult|null;
     const outcome=report;
     const latest=await ports.read(lane);
@@ -325,6 +328,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const artifact=data?new TextDecoder("utf-8",{fatal:true}).decode(data):null;
     const foreign=crypto.randomUUID();
     const checks={
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactWelcomeResource:!!plan&&plan.resourceId===expected.target&&isDeepStrictEqual(resolution,native),
       exactWelcomeFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(latest,snapshots[1])&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(seeded.get(row.messageId),row.record))&&
@@ -340,14 +344,15 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
         !independent.probeRequired&&probeInput===null&&probeRun===null&&checked?.probe===null,
       exactWelcomeHandoff:expected.action==="stage"?!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
-        handoff.sha256===sha256HexSyncText(artifact)&&handoff.bytes===data.length&&isDeepStrictEqual(handoff,outcome?.handoff):
-        files.length===0&&handoff===null&&outcome?.handoff===null,
+        handoff.sha256===sha256HexSyncText(artifact)&&handoff.bytes===data.length:
+        files.length===0&&handoff===null,
       preservedWelcomeContext:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedForeignWelcome:await services.welcomeReceiptStore.read(foreign)===null&&await services.welcomeResourceResolution.resolve(foreign)===null&&
         await services.welcomeLocalHandoff.stage({resourceId:foreign} as WelcomePlan,{} as WelcomeReviews)===null,
     };
-    return {contextId:input.contextId,caseId:input.caseId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,resolution,ownerRead,independent,probeInput,probeRun,handoff,artifact};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactWelcomeFrontiers", "exactWelcomeHandoff", "preservedWelcomeContext", "rejectedForeignWelcome"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactWelcomeResource", "exactWelcomeDecision", "verifiedWelcomeOwner", "verifiedWelcomeTour", "verifiedWelcomeRetry"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:input.contextId,caseId:input.caseId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,snapshots,resolution,ownerRead,independent,probeInput,probeRun,handoff,artifact},contract,raw,invocation);
   }
   async function qualify() {
     await services.welcomeResourceIndex.list();

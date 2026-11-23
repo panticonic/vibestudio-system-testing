@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
@@ -216,7 +219,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     }},
   };
 
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const report=raw as RegencyReport|null;
     const outcome=report;
     const [opening,current]=frontiers;
@@ -235,34 +238,37 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     const status=await ports.status();
     const other=crypto.randomUUID();
     const checks={
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.note,note),
       exactRegencyAssignment:index?.realm===realm,
       independentlyReadRegencyMemo:!!index&&isDeepStrictEqual(index.memo,await readMemo()),
       exactSavedRegencyFrontiers:frontiers.length===2&&isDeepStrictEqual(opening,first)&&opening.accounts.month===world.initial.month&&
         current.accounts.month===currentExpected&&!!current.pending===(world.initial.pending===true),
-      exactRegencyForecasts:isDeepStrictEqual(forecasts.map(row=>row.months),world.plan.horizons)&&
-        isDeepStrictEqual(forecasts,outcome?.forecasts)&&forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
+      returnedRegencyForecasts:isDeepStrictEqual(forecasts,outcome?.forecasts),
+      exactRegencyForecasts:isDeepStrictEqual(forecasts.map(row=>row.months),world.plan.horizons)&&forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
         (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
       exactInstalledRegencyFindings:isDeepStrictEqual(outcome?.findings,findings)&&
         isDeepStrictEqual(findings.map(item=>item.review.decision),world.expected),
       groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string"&&result.explanation.length<=700&&
         world.terms.every(term=>result.explanation.toLowerCase().includes(term.toLowerCase())),
-      verifiedRegencyAdvance:after.accounts.month===currentExpected+neededAdvance&&isDeepStrictEqual(outcome?.advance,advance)&&
+      returnedRegencyAdvance:isDeepStrictEqual(outcome?.advance,advance),
+      verifiedRegencyAdvance:after.accounts.month===currentExpected+neededAdvance&&
         (neededAdvance?!!advance&&!!selectedForecast&&advance.months===neededAdvance&&advance.basis===current.revision&&
           isDeepStrictEqual(advance.committed,after)&&isDeepStrictEqual(
             {...after.accounts,id:selectedForecast.accounts.id},selectedForecast.accounts)&&inPlay.at(-1)?.id===advance.id:
           advance===null&&isDeepStrictEqual(after,current)),
-      verifiedPrivateRegencyNote:neededNote?!!outcome&&!!note&&!!artifact&&files.length===1&&
+      verifiedPrivateRegencyNote:neededNote?!!note&&!!artifact&&files.length===1&&
         note.path===`/.tmp/${files[0]}/handoff.json`&&note.revision===after.revision&&
-        artifact===stagedText&&note.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(outcome.note,note):
-        note===null&&outcome?.note===null&&files.length===0,
+        artifact===stagedText&&note.digest===sha256HexSyncText(artifact):
+        note===null&&files.length===0,
       preservedRegencyWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedRegencyRetarget:await services.regencySaved.read(other)===null&&
         await services.regencyForecast.preview(other,"different",1)===null&&
         await services.regencyAdvance.commit(other,"different",1)===null&&
         await services.regencyNote.stage({decision:{action:"stage"}} as RegencyReport)===null,
     };
-    return {contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactRegencyForecasts", "verifiedRegencyAdvance", "exactRegencyAssignment", "independentlyReadRegencyMemo", "exactSavedRegencyFrontiers", "verifiedPrivateRegencyNote", "preservedRegencyWorkspace", "rejectedRegencyRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedRegencyForecasts", "exactInstalledRegencyFindings", "groundedRegencyAction", "returnedRegencyAdvance"], "required": neededAdvance===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation);
   }
   async function qualify() {
     await services.regencyAssignment.list();

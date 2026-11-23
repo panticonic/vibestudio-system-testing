@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
@@ -130,6 +133,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
   const journalReads = new Map<string, Promise<unknown>>();
   let readBusy=false;
   let stageBusy=false;
+  let stagedText:string|null=null;
   let handoff:ImageHandoff|null=null;
 
   const project=(journal:ImageJournal):ImageJournal=>({...journal,rows:journal.rows.filter(({record})=>
@@ -216,7 +220,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
         const status=await ports.status();
         if(status.mainEventId!==before.mainEventId||!isDeepStrictEqual(status.workingHead,before.workingHead))return null;
         const text=body(report,read,journal);
-        const file=await writer.stage(text);
+        const file=(stagedText=text,await writer.stage(text));
         if(!file)return null;
         handoff={path:file.path,digest:sha256HexSyncText(text),candidateId:id,assetDigest:read.original.digest,frontier:journal.through};
         return structuredClone(handoff);
@@ -233,7 +237,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     return typeof text==="string"&&text.length<=600&&
       world.expected.evidence.every(term=>text.toLowerCase().includes(term.toLowerCase()));
   }
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const returned=raw as {candidates?:ImageAssessment["candidates"];originals?:ImageReport["reads"];decision?:ImageReport["decision"];handoff?:ImageReport["handoff"]}|null;
     const report={plan:exactPlan(),assessment:{queue:reads.map(read=>read.candidateId),candidates:returned?.candidates},reads:returned?.originals,decision:returned?.decision,handoff:returned?.handoff} as ImageReport;
     const outcome=report;
@@ -253,6 +257,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     const observed=expected.observations??queue.map(()=>"verified");
     const foreign=crypto.randomUUID();
     const checks={
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactImageFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],project(initial))&&
         isDeepStrictEqual(snapshots[1],project(latest))&&seeded.size===latest.rows.length&&
         latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))&&new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
@@ -262,23 +267,25 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
         assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&
           value.reasons.every(reason=>typeof reason==="string"&&reason.length>0))&&
         queue.every(id=>assessed.some(value=>value.id===id&&value.eligible)),
-      independentlyReadImageOriginals:sameEvidenceMembers(reads,independent)&&Array.isArray(outcome?.reads)&&sameEvidenceMembers(outcome.reads,independent)&&
+      returnedImageOriginals:Array.isArray(outcome?.reads)&&sameEvidenceMembers(outcome.reads,independent),
+      independentlyReadImageOriginals:sameEvidenceMembers(reads,independent)&&
         isDeepStrictEqual(independent.map(read=>read.status),observed),
       groundedImageDecision:result?.action===expected.action&&result.candidateId===selected&&
         (selected===null||winner?.status==="verified")&&explain(outcome),
-      verifiedPrivateImageHandoff:expected.action==="stage"?!!winner&&!!outcome&&!!handoff&&!!artifact&&
-        newFiles.length===1&&handoff.path===`/.tmp/${newFiles[0]}/handoff.json`&&artifact===body(outcome,winner,latest)&&
-        handoff.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(handoff,outcome.handoff):
-        newFiles.length===0&&handoff===null&&outcome?.handoff===null,
+      verifiedPrivateImageHandoff:expected.action==="stage"?!!winner&&!!handoff&&!!artifact&&
+        newFiles.length===1&&handoff.path===`/.tmp/${newFiles[0]}/handoff.json`&&artifact===stagedText&&
+        handoff.digest===sha256HexSyncText(artifact):
+        newFiles.length===0&&handoff===null,
       preservedImageWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedForeignImage:await services.imageCandidateJournal.read(foreign)===null&&
         (await services.imageCandidateOriginal.read(foreign,foreign)).status==="refused"&&
         (await services.imageCandidateOriginal.read(brief.id,foreign)).status==="refused"&&
         await services.imageCandidateHandoff.stage({plan:{briefId:foreign}} as ImageReport)===null,
     };
-    return {contextId:owner,goal:world.goal,caseId:world.id,checks,passed:Object.values(checks).every(Boolean),
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactImageFrontiers", "exactImageBrief", "independentlyReadImageOriginals", "verifiedPrivateImageHandoff", "preservedImageWorkspace", "rejectedForeignImage"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["groundedImageAssessment", "returnedImageOriginals", "groundedImageDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:owner,goal:world.goal,caseId:world.id,checks,passed:Object.values(checks).every(Boolean),
       index,snapshots,reads:independent,plan:goalPlan,decision:result??null,handoff,artifact,
-      candidateId:selected,queue};
+      candidateId:selected,queue},contract,raw,invocation);
   }
 
   async function qualify() {

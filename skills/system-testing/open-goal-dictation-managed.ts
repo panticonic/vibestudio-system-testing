@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -167,6 +170,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
   let reading = false;
   let writing = false;
   let primaryReads = 0;
+  let stagedText:string|null=null;
   let handoff: DictationArtifact | null = null;
   const seen: DictationSnapshot[] = [];
   function body(plan: DictationPlan, review: DraftReview) {
@@ -216,7 +220,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
               (await ports.read(main)).through !== plan.through) return null;
           const text = body(plan,review);
           if (encoder.encode(text).length > limit) return null;
-          const receipt = await writer.stage(text);
+          const receipt = (stagedText=text,await writer.stage(text));
           if (!receipt) return null;
           handoff = {...receipt,sha256:sha256HexSyncText(text)};
           return structuredClone(handoff);
@@ -224,7 +228,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
       },
     },
   };
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as DictationResult | null;
     const outcome = report;
     const plan = outcome?.plan;
@@ -240,6 +244,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const local = expected.action === "stage-correction" || expected.action === "stage-alternative";
     const foreign = crypto.randomUUID();
     const checks = {
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactOwnedDictation: plan?.threadId === thread.threadId && plan.draftId === thread.draftId,
       verifiedDictationFrontiers: snapshots.length === 2 && isDeepStrictEqual(snapshots[0],first) && isDeepStrictEqual(snapshots[1],latest) &&
         latest.rows.length === seeded.size && latest.rows.every(row => isDeepStrictEqual(row.record,seeded.get(row.messageId))) &&
@@ -249,17 +254,18 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
         plan.acknowledgementMessage === (expected.acknowledgement ? messageIds.get(expected.acknowledgement) : null) &&
         plan.draftRevision === expected.revision && (plan.transcript?.text ?? null) === expected.text && expected.claim.test(plan.explanation),
       exactInstalledDraft: exactDraft ? isDeepStrictEqual(outcome?.review,exactDraft) : outcome?.review === null,
-      verifiedLocalCorrection: local ? !!plan && !!exactDraft && !!artifact && !!handoff && !!bytes &&
+      verifiedLocalCorrection: local ? !!exactDraft && !!artifact && !!handoff && !!bytes &&
         scratch.length === 1 && handoff.path === `/.tmp/${scratch[0]}/handoff.json` &&
-        artifact === body(plan,exactDraft) && sha256HexSyncText(artifact) === handoff.sha256 &&
-        handoff.bytes === bytes.length && isDeepStrictEqual(handoff,outcome?.handoff) :
-        handoff === null && outcome?.handoff === null && scratch.length === 0,
+        artifact === stagedText && sha256HexSyncText(artifact) === handoff.sha256 &&
+        handoff.bytes === bytes.length  :
+        handoff === null  && scratch.length === 0,
       preservedDraftAndMain: before.mainEventId === after.mainEventId && isDeepStrictEqual(before.workingHead,after.workingHead),
       rejectedForeignDictation: await services.retainedDictationState.read(foreign) === null &&
         await services.retainedDictationHandoff.stage({threadId:foreign} as DictationPlan,{status:"silence",text:null}) === null,
     };
-    return {passed:Object.values(checks).every(Boolean),contextId:input.contextId,caseId:world.id,goal:world.goal,checks,
-      thread,listed,snapshots,independent,exactDraft,handoff,artifact};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["verifiedDictationFrontiers", "verifiedLocalCorrection", "preservedDraftAndMain", "rejectedForeignDictation"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactOwnedDictation", "exactDictationSelection", "exactInstalledDraft"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({passed:Object.values(checks).every(Boolean),contextId:input.contextId,caseId:world.id,goal:world.goal,checks,
+      thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation);
   }
   async function qualify() {
     await services.retainedDictationIndex.list();

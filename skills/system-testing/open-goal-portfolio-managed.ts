@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
@@ -245,7 +248,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     }},
   };
 
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const report=raw as PortfolioReport|null;
     const outcome=report;
     const [opening,current]=frames;
@@ -283,6 +286,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,maxBytes)):null;
     const other=crypto.randomUUID();
     const checks={
+      returnedArtifactReceipt:isDeepStrictEqual(outcome?.note,receipt),
       exactOwnedPair:index.gardenId.slice("natlang-garden-".length)===index.realmId.slice("natlang-realm-".length)&&
         opening?.portfolio===id&&current?.portfolio===id,
       independentlyReadPortfolioCards:frames.length===2&&isDeepStrictEqual(opening.card,await readCard("opening"))&&
@@ -302,18 +306,19 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       groundedPortfolioDecision:!!findings&&decision?.status===world.status&&decision.status===findings.status&&
         decision.write===findings.write&&typeof decision.explanation==="string"&&decision.explanation.length<=650&&
         world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivatePortfolioHandoff:findings?.write?!!outcome&&!!receipt&&!!artifact&&files.length===1&&
+      verifiedPrivatePortfolioHandoff:findings?.write?!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.basis===final.id&&artifact===stagedText&&
-        receipt.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(outcome.note,receipt):
-        receipt===null&&outcome?.note===null&&files.length===0,
+        receipt.digest===sha256HexSyncText(artifact):
+        receipt===null&&files.length===0,
       preservedPortfolioWorkspace:saved.mainEventId===before.mainEventId&&isDeepStrictEqual(saved.workingHead,before.workingHead),
       rejectedPortfolioRetarget:await services.demoPortfolioState.read(other)===null&&
         await services.demoPortfolioForecast.preview(other,final.id,1)===null&&
         await services.demoPortfolioHandoff.stage({decision:{write:true}} as PortfolioReport)===null,
     };
-    return {contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedPair", "independentlyReadPortfolioCards", "settledPortfolioGarden", "settledPortfolioRealm", "exactCurrentPortfolioPlan", "verifiedPrivatePortfolioHandoff", "preservedPortfolioWorkspace", "rejectedPortfolioRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactPortfolioForecast", "exactInstalledGardenCriteria", "exactInstalledRealmCriteria", "groundedPortfolioDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
       index,frames,plan:current?planFor(current):null,projection,garden:findings?.gardenWitness??[],realm:findings?.realmWitness??[],
-      decision:decision??null,note:receipt,artifact};
+      decision:decision??null,note:receipt,artifact},contract,raw,invocation);
   }
 
   async function qualify() {

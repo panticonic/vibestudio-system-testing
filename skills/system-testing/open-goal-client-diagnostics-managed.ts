@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { includesEvidence } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { fs, gad, panelTree, vcs, type PanelHandle } from "@workspace/runtime";
@@ -569,7 +572,7 @@ export async function prepareOpenClientDiagnostics(
 
   async function verify(
     wrapper: Pick<ClientDiagnosticsReport,"channel"|"decision"|"handoff"> | null,
-  ) {
+    invocation?:InvocationObservations) {
     const report =
       wrapper;
     const after = await vcs.status({ contextId: input.contextId });
@@ -625,6 +628,7 @@ export async function prepareOpenClientDiagnostics(
       file && saved ? JSON.parse(await fs.readFile(file, "utf8")) : null;
     const files = folder ? await fs.readdir(folder) : [];
     const checks = {
+      returnedArtifactReceipt:isDeepStrictEqual(report?.handoff,saved),
       exactOwnedClientOrder:exactTrace,
       joinedCurrentRendererFields:
         views.every((view) => {
@@ -671,19 +675,15 @@ export async function prepareOpenClientDiagnostics(
             saved &&
             saved.audience === world.handoff &&
             saved.decision.outcome === world.expected.preHandoff &&
-            isDeepStrictEqual(saved, savedBytes) &&
-            isDeepStrictEqual(report?.handoff, saved) &&
-            isDeepStrictEqual(
-              { ...saved.decision, outcome: "handoff-staged" },
-              report?.decision,
-            ),
+            isDeepStrictEqual(saved, savedBytes) ,
           )
-        : !saved && report?.handoff === null && !files.includes("handoff.json"),
+        : !saved  && !files.includes("handoff.json"),
       protectedClientSource:
         before.mainEventId === after.mainEventId &&
         isDeepStrictEqual(before.workingHead, after.workingHead),
     };
-    return {
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedClientOrder", "joinedCurrentRendererFields", "verifiedLocalClientHandoff", "protectedClientSource"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactOwnedGadEvidence", "resolvedClientGoal"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -695,7 +695,7 @@ export async function prepareOpenClientDiagnostics(
       durable,
       handoff: savedBytes,
       passed: Object.values(checks).every(Boolean),
-    };
+    },contract,wrapper,invocation);
   }
 
   async function qualify() {

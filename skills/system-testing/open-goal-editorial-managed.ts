@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, extensions, fs, rpc, vcs } from "@workspace/runtime";
@@ -314,7 +317,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     }},
   };
 
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const wrapper=raw as {document?:{path:string;version:string};decision?:PacketDecision;note?:PacketReceipt|null}|null;
     const report=wrapper;
     const view=await status();
@@ -350,6 +353,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const artifact=receipt?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(receipt.path,byteLimit)):null;
     const foreign=crypto.randomUUID();
     const checks={
+      returnedArtifactReceipt:isDeepStrictEqual(report?.note,receipt),
       exactOwnedEditorialMission:
         !!listed&&isDeepStrictEqual(snapshots.at(-1)?.mission,await currentMission()),
       exactEditorialFrontiers:snapshots.length===(world.race?2:1)&&isDeepStrictEqual(snapshots[0]?.candidate,firstDoc)&&
@@ -358,13 +362,14 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       minimalEditorialProposal:proposedText===null?attempts.length===0:proposedText===firstDoc.text||attempts.some(item=>item.proposal.text===proposedText&&item.proposal.path===candidatePath&&item.proposal.version===firstDoc.version),
       preservedCoeditorBoundary:raceObserved===Boolean(world.race)&&
         (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate?.version):writtenAttempts.length===0),
-      verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead)&&report?.document?.path===stored.path&&report.document.version===stored.version,
+      verifiedEditorialReadback:stored.text===changed&&isDeepStrictEqual(stored,savedRead),
+      returnedEditorialDocument:report?.document?.path===stored.path&&report.document.version===stored.version,
       groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&
         v.explanation.length<=650&&world.terms.every(term=>v.explanation.toLowerCase().includes(term.toLowerCase())),
-      verifiedPrivateEditorialNote:stageExpected?!!report&&!!receipt&&!!artifact&&files.length===1&&
+      verifiedPrivateEditorialNote:stageExpected?!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.candidateVersion===stored.version&&
-        !!stagedReport&&artifact===body(stagedReport)&&receipt.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(receipt,report.note):
-        receipt===null&&files.length===0&&report?.note===null,
+        !!stagedReport&&artifact===body(stagedReport)&&receipt.digest===sha256HexSyncText(artifact):
+        receipt===null&&files.length===0,
       protectedEditorialSources:(await file(view.workingHead,previewPath)).doc.text===previewText&&
         (await file(view.workingHead,protectedPath)).doc.text===protectedCopy&&view.mainEventId===originalHead.mainEventId&&
         isDeepStrictEqual(view.committed,originalHead.committed),
@@ -372,8 +377,9 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
         (await services.editorialRevision.apply(foreign,firstDoc)).status==="unavailable"&&
         await services.editorialHandoff.stage({decision:{write:true}} as PacketReport)===null,
     };
-    return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedEditorialMission", "exactEditorialFrontiers", "exactApprovedPdfEvidence", "minimalEditorialProposal", "preservedCoeditorBoundary", "verifiedEditorialReadback", "verifiedPrivateEditorialNote", "protectedEditorialSources", "rejectedEditorialRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedEditorialDocument", "groundedEditorialDisposition"], "required": writtenAttempts.length===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      listed,snapshots,plan,sources,attempts,stored,edit:stagedReport?.edit??null,decision:v??null,note:receipt,artifact},contract,raw,invocation);
   }
 
   async function qualify() {
@@ -420,7 +426,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     if(stageExpected)report.note=await services.editorialHandoff.stage(report);
     const result={document:{path:stored.path,version:stored.version},decision,note:report.note};
     const proof=await verify(result);
-    const rejectedInventedDocument=!(await verify({...result,document:{path:"invented",version:"invented"}})).passed;
+    const rejectedInventedDocument=!(await verify({...result,document:{path:"invented",version:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,passed:proof.passed&&rejectedInventedDocument,rejectedInventedDocument};
   }
   return {services,verify,qualify};

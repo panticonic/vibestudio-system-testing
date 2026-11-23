@@ -1,3 +1,6 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { compareUtf16CodeUnits } from "@vibestudio/content-addressing";
@@ -128,7 +131,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       return file.text===text?[]:[{path,version:file.version,text}];
     });
   }
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const value=raw as CoordinatedRevisionResult|null;
     const report=value;
     const status=await ports.vcs.status();
@@ -151,15 +154,16 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       exactAtomicRevisionBasis:world.concurrent?
         (world.next?.status==="ready"?attempts.some(attempt=>attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,finalEdits)&&attempt.head===after?.scope?.head):attempts.every(attempt=>attempt.receipt.status!=="applied")):
         (initialPlan==="ready"?attempts.some(attempt=>attempt.head===first?.scope?.head&&attempt.receipt.status==="applied"&&sameEvidenceMembers(attempt.drafts,firstDrafts)):attempts.every(attempt=>attempt.receipt.status!=="applied")),
-      independentlyVerifiedRevisionBatch:!!finalRead&&report?.head===finalRead.head&&equal(report?.documents,finalRead.files.map(({path,version})=>({path,version})))&&
-        typeof report?.explanation==="string"&&!!report.explanation.trim()&&equal(actual,finalRead.files)&&finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&actual.every(file=>first?.scope?.files?.some(old=>old.path===file.path&&old.fileId===file.fileId)),
+      returnedRevisionHandles:!!finalRead&&report?.head===finalRead.head&&equal(report?.documents,finalRead.files.map(({path,version})=>({path,version})))&&typeof report?.explanation==="string"&&!!report.explanation.trim(),
+      independentlyVerifiedRevisionBatch:!!finalRead&&equal(actual,finalRead.files)&&finalRead.head===key(status.workingHead)&&snapshotBytes(actual,finalExpected)&&actual.every(file=>first?.scope?.files?.some(old=>old.path===file.path&&old.fileId===file.fileId)),
       exactRevisionEvidenceGuide:guide===guideRevision(await ports.guide()),
       protectedRevisionMain:equal(await ports.vcs.mainState(),protectedMain)&&
         finalRead?.protectedMain===protectedMain.eventId&&status.mainEventId===protectedMain.eventId&&
         equal(status.committed,baseStatus.committed),
     };
-    return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      report:report??null,attempts,guideRevision:guide};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactCoordinatedDocumentScope", "exactCoordinatedDrafts", "exactNativeRevisionRace", "exactAtomicRevisionBasis", "independentlyVerifiedRevisionBatch", "exactRevisionEvidenceGuide", "protectedRevisionMain"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactCoordinatedAuthority", "returnedRevisionHandles"], "required": !attempts.some(attempt=>attempt.receipt.status==="applied"), "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": [], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      report:report??null,attempts,guideRevision:guide},contract,raw,invocation);
   }
 
   async function qualify() {
@@ -175,7 +179,7 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const readback=await api.readback();
     const result={status:(final??first)?.status==="applied"?"updated":(reconciled??initialPlan).status==="held"?"held":(reconciled??initialPlan).status==="already-aligned"?"unchanged":"unavailable",head:readback.head,documents:readback.files.map(({path,version})=>({path,version})),explanation:(reconciled ?? initialPlan).explanation};
     const proof=await verify(result);
-    const rejectedInventedDocument=!(await verify({...result,documents:[{path:"invented",version:"invented"}]})).passed;
+    const rejectedInventedDocument=!(await verify({...result,documents:[{path:"invented",version:"invented"}]})).outcomeDimensions.returnedValue.passed;
     return {...proof,passed:proof.passed&&rejectedInventedDocument,rejectedInventedDocument};
   }
   return {services,verify,qualify};
