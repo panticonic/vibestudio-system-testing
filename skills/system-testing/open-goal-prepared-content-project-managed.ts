@@ -248,18 +248,9 @@ export async function prepareOpenPreparedContentProject(
     selected:["moved","commit","draft"].includes(world.profile) ? expectedCitations : [],
   };
   type Snapshot = Awaited<ReturnType<ReturnType<typeof createProjectDelivery>["observe"]>>;
-  type Report = {
-      evidence:Evidence;
-      decision:Decision;
-      scope:Awaited<ReturnType<typeof confirm>> | null;
-      draft:{snapshot:Snapshot} | null;
-      final:{outcome:string;candidate:Snapshot | null;event:{eventId:string;head:string} | null};
-      explanation:string;
-    };
   async function verify(raw:unknown) {
-    const report=raw as Partial<Report> | null;
-    const outcome=report;
-    const final=outcome?.final;
+    // Current calls return the retained artifact handle; old captures remain immutable.
+    const value=raw as {outcome?:string;project?:{contextId:string;repositoryId:string|null;repoPath:string;head:string;documents:string[]}|null;event?:{eventId:string;head:string}|null}|null;
     const actual=await status();
     const sourceNow=await readSources(actual.workingHead);
     const preservedSources=sourceReadback.records.every(row=>{
@@ -322,7 +313,12 @@ export async function prepareOpenPreparedContentProject(
             (expectedOutcome==="held" ? actual.clean && isDeepStrictEqual(actual.workingHead,before.workingHead)
               : !actual.clean && actual.workingHead.kind==="application" &&
                 (expectedOutcome==="draft" || (moved && actual.workingCounts.applications===1 && actual.workingCounts.changes===1)))),
-      correctOutcomeReport: final?.outcome===expectedOutcome && typeof outcome?.explanation==="string" && outcome.explanation.trim().length>0,
+      actualProjectResult: value?.outcome===expectedOutcome && (mutating
+        ? !!value.project && value.project.contextId===contextId && value.project.repoPath===repoPath &&
+          value.project.repositoryId===repository?.repositoryId && value.project.head===JSON.stringify(actual.workingHead) &&
+          !!written && isDeepStrictEqual(value.project.documents,(written.result as Snapshot).files.map(file=>file.path)) &&
+          isDeepStrictEqual(value.event,committed?.result ?? null)
+        : value?.project===null && value?.event===null),
     };
     return assessSemanticOutcome({
       passed:Object.values(checks).every(Boolean), checks, goal:world.goal, contextId, caseId:world.id,
@@ -366,15 +362,16 @@ export async function prepareOpenPreparedContentProject(
       draft={snapshot,review:{ready:true,coveredRoles:world.roles,unsupportedClaims:[],blockers:[],reason:"Check exact source citations and real private readback."}};
       if(decision.action==="commit") event=await services.contentProjectCommit.commit(scope.receipt,snapshot.head,"Prepare private reviewed content project");
     }
-    const report={
-      evidence,decision,scope,draft,final:{outcome:expectedOutcome,candidate:draft?.snapshot ?? null,event},
-      explanation:"Base preparation on retained current evidence and the exact local authorization.",
-    };
+    const snapshot=draft?.snapshot;
+    const report={outcome:expectedOutcome,project:snapshot ? {
+      contextId:snapshot.contextId,repositoryId:snapshot.repositoryId,repoPath:snapshot.repoPath,
+      head:event?.head ?? snapshot.head,documents:snapshot.files.map(file=>file.path),
+    }:null,event};
     const proof=await verify(report);
-    const acceptedIncidentalDisposition=(await verify({...report,final:{...report.final,
-      outcome:expectedOutcome==="held" ? "committed" : "held"}})).passed;
-    return {...proof,report,rejectedRetiredAlias,acceptedIncidentalDisposition,rejectedWrongSource,rejectedWrongBasis,
-      passed:proof.passed && rejectedRetiredAlias && acceptedIncidentalDisposition && rejectedWrongSource && rejectedWrongBasis};
+    const rejectedWrongDisposition=!(await verify({...report,outcome:expectedOutcome==="held" ? "committed" : "held"})).passed;
+    const rejectedInventedHandle=!(await verify({...report,project:{...report.project,repoPath:"invented/project"}})).passed;
+    return {...proof,report,rejectedRetiredAlias,rejectedWrongDisposition,rejectedInventedHandle,rejectedWrongSource,rejectedWrongBasis,
+      passed:proof.passed && rejectedRetiredAlias && rejectedWrongDisposition && rejectedInventedHandle && rejectedWrongSource && rejectedWrongBasis};
   }
   return { services, verify, qualify };
 }

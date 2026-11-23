@@ -8,11 +8,7 @@ export const preparedContentProjectOutcomeContract: SemanticOutcomeContract = {
     rationale: "The requested private project or hold is established by independent source, authorization, artifact and private workspace observations.",
   },
   returnedValue: {
-    checks: [], required: false,
-    rationale: "These goals request retained project state without a requested returned answer.",
-  },
-  incidentalValues: {
-    checks: ["correctOutcomeReport"],
-    rationale: "The old exact disposition word and explanation are a response convention. A retained draft may truthfully still need review without any incorrect emitted return.",
+    checks: ["actualProjectResult"], required: true,
+    rationale: "The result must identify the actual private project, document paths and local event, or the actual authorization-preserving hold.",
   },
 };
