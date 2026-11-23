@@ -122,13 +122,14 @@ export async function exerciseTestkitCleanup(
         const handle = panels.at(-1);
         if (!handle)
           throw new Error("Assigned CDP client does not have a panel");
-        const { page } = await handle.cdp.session();
+        const session = await handle.cdp.session();
+        const { page } = session;
         return {
           id: `${handle.id}:cdp:${slot}`,
           kind,
           present: async () => !page.isClosed(),
           remove: async () => {
-            await page.close();
+            await session.close();
           },
         };
       }
@@ -141,13 +142,13 @@ export async function exerciseTestkitCleanup(
     for (const entry of assigned.plan.filter(
       (candidate) => candidate.phase === phase,
     )) {
-      const resource = await allocate(entry);
-      active.push({ slot: entry.slot, resource });
-      if (!(await resource.present()))
-        throw new Error(`Owned resource was never observed: ${entry.slot}`);
-      if (entry.cleanup === "unregistered") continue;
-      release.resources.push(copy(resource));
-      t.defer(async () => {
+      const resource = await t.acquire(async () => {
+        const resource = await allocate(entry);
+        active.push({ slot: entry.slot, resource });
+        if (entry.cleanup !== "unregistered") release.resources.push(copy(resource));
+        return resource;
+      }, async (resource) => {
+        if (entry.cleanup === "unregistered") return;
         try {
           if (entry.cleanup === "nonrecursive") await fs.rmdir(resource.id);
           else await resource.remove();
@@ -171,6 +172,8 @@ export async function exerciseTestkitCleanup(
           throw error;
         }
       });
+      if (!(await resource.present()))
+        throw new Error(`Owned resource was never observed: ${entry.slot}`);
     }
   }
 
@@ -197,7 +200,7 @@ export async function exerciseTestkitCleanup(
             );
           }
         },
-        { timeoutMs: assigned.stop === "timeout" ? 1_500 : 45_000 },
+        { timeoutMs: assigned.stop === "timeout" ? 1_500 : null },
       )
       .afterEach(async (t) => {
         await acquire(t, "after");

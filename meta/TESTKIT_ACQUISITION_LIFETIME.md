@@ -1,0 +1,3 @@
+# Owned Testkit acquisition lifetime
+
+Cold native panel creation is part of the enclosing scenario, not an implicit 45-second task requirement. Non-timeout cleanup fixtures use timeoutMs:null; the explicitly requested timeout fixture retains1500ms. Creation is registered with TestContext.acquire before native resources are exposed, so delayed completion and teardown are joined before evidence publication. A CDP client closes its session, preserving the editor until the editor release. The assertion fixture regression uses the real runner and verifies scratch/session/panel LIFO release. Explicit failure, unregistered-resource, nonrecursive cleanup and callback-failure cases remain semantically distinct.
