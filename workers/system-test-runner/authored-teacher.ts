@@ -115,7 +115,7 @@ export type SemanticTaskEntry = {
 };
 
 function validateEntry(entry: SemanticTaskEntry): void {
-  if (!/^skills\/(?:[A-Za-z0-9_-]+\/)+[A-Za-z0-9_-]+\.nl$/u.test(entry.program) ||
+  if (!/^skills\/(?:[A-Za-z0-9_-]+\/)+[A-Za-z0-9_-]+\.(?:nl|ts)$/u.test(entry.program) ||
       !/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(entry.callable) ||
       !entry.resultType.trim() || new Set(entry.parameterNames).size !== entry.parameterNames.length ||
       Object.keys(entry.arguments).length !== entry.parameterNames.length ||
@@ -224,7 +224,10 @@ ${options.bindingCode}
       const expectedRemaining=${JSON.stringify(expectedRemaining)};
       let report=null, applicationResult=null, executionError=null;
       try {
-        const root=await natlang.load(programPath,{services:assignedServices});
+        const loaded=await natlang.load(programPath,{services:assignedServices});
+        const root=programPath.endsWith(".ts")?loaded?.default:loaded;
+        if(typeof root!=="function") throw new Error("The authored entry has no callable "+(programPath.endsWith(".ts")?"default export":"NL function"));
+        ${options.openGoal && options.entry!.program.endsWith(".ts") ? `if(root.name!==${JSON.stringify(options.entry!.callable)}) throw new Error("The authored TypeScript default export differs from the assigned callable");` : ""}
         ${requireMountedDomains(domains)}
         const workflow=await root(${requestCode});
         applicationResult=workflow;
