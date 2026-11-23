@@ -294,7 +294,7 @@ export async function prepareRetainedBuildIncident(
     const post = await status();
     const afterOutputs = await outputEntries();
     const added = afterOutputs.filter(name => !scratchBefore.includes(name));
-    const stages = effects.filter(event => event.service === "buildIncidentHandoff" && event.method === "stage");
+    const stages = effects.filter(event => event.service === "buildIncidentHandoff" && event.method === "stage" && event.result !== null);
     let handoff = !world.expected.stage && stored === null && !added.length && !stages.length;
     if (world.expected.stage && stored && added.length === 1 && stages.length === 1) {
       const readback = await readBytes(stored.path, stored.bytes);

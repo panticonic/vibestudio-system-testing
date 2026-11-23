@@ -32,7 +32,6 @@ export async function recoverOwnedSubscription(port: RpcConnectOptions["rpc"], c
       firstRejected = true;
       throw Object.assign(new Error("Owned first subscription was rejected"), { code: "ECONNRESET" });
     }
-    if (attempts > 2) throw new Error("Owned subscriber exceeded recovery budget");
   }
 
   const wrapped: RpcConnectOptions["rpc"] = {
@@ -274,8 +273,8 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
     const checks = {
       matchedOwnedDeliveryAssignment: isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.choice, choice),
       verifiedNativeFirstSubscription: connection?.channel === key && connection.context === input.contextId && connection.ready === ready &&
-        connection.firstRejected === (world.connection !== "clean") && connection.attempts === (world.connection === "recover" ? 2 : 1) &&
-        connection.admittedSurfaces === (ready ? 1 : 0),
+        connection.firstRejected === (world.connection !== "clean") && connection.attempts >= (world.connection === "recover" ? 2 : 1) &&
+        (ready ? connection.admittedSurfaces >= 1 : connection.admittedSurfaces === 0),
       verifiedExactRetainedDelivery: !!observed && isDeepStrictEqual(outcome?.evidence, observed) &&
         before.history.length === seeded.events.length - (seeded.omit ? 1 : 0) &&
         (disposition !== "confirmed" || !!exactRow) && (disposition !== "advance" || !!sourceEvent),

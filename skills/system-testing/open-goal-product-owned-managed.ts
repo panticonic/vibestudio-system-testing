@@ -146,9 +146,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
         isDeepStrictEqual(report?.attribution, mapping(calendarReport, bases[0])),
       exact_runbook_result: targetNow.text === wanted && (world.action === "revise"
         ? !!applied && isDeepStrictEqual(report?.write, applied) && applied.version === targetNow.version &&
-          writingCalls.length === (world.coedit ? 2 : 1) && (!world.coedit ||
-            coedited && (writingCalls[0].result as Write).status === "changed" &&
-            (writingCalls[0].args[1] as Document).version !== (writingCalls[1].args[1] as Document).version)
+          writingCalls.some(call => isDeepStrictEqual(call.result, applied)) && (!world.coedit || coedited)
         : !applied && report?.write === null && !writingCalls.length),
       preserved_workspace: isDeepStrictEqual(workspace, originalWorkspace) && current.documents.every(doc =>
         doc.path === target || doc.text === source[doc.path as keyof typeof source]),

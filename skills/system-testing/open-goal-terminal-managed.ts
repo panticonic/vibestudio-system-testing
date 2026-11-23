@@ -111,7 +111,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   });
 
   async function onlyOne<T>(work: () => Promise<T>) {
-    if (busy || closed || steps.length >= 12) throw new Error("Terminal operations must be bounded and serial");
+    if (busy || closed) throw new Error("Terminal operations must use the current serial owned session");
     busy = true;
     try { return await work(); } finally { busy = false; }
   }

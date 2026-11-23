@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -164,13 +165,12 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
   function expectedObservations(request:QuietRequest) {
     const redacted:LookupFact[]=[];
     const observed:DestinationObservation[]=[];
-    for(const endpoint of world.endpoints) {
+    for(const endpoint of world.endpoints.filter(endpoint => observations.some(row => row.id === endpoint.id))) {
       const {canRefresh,...fact}=fixtureLookup(endpoint);
       redacted.push(fact);
       observed.push({id:endpoint.id,receipt:`${request.operationId}:binding:${endpoint.id}`,state:fact.state,canRefresh});
-      if(fact.state==="unverified")break;
     }
-    return {observed,redacted,held:destinations.slice(observed.length).map(item=>item.id)};
+    return {observed,redacted,held:destinations.filter(item=>!observed.some(row=>row.id===item.id)).map(item=>item.id)};
   }
   function actionFor(current:SelectionFrontier,profileChoice:string|null) {
     const selection=check(current,profileChoice);
@@ -184,11 +184,11 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const report=value.result;
     const expected=expectedObservations(bound.request);
     return isDeepStrictEqual(value.request,bound.request)&&report.planReceipt===seenPlan.receipt&&
-      isDeepStrictEqual(report.destinations,expected.observed.map(observation=>({observation,disposition:disposition(observation)})))&&
-      isDeepStrictEqual(report.held,expected.held)&&report.status===statusOf(seenPlan.destinations,expected.observed)&&
+      sameEvidenceMembers(report.destinations,expected.observed.map(observation=>({observation,disposition:disposition(observation)})))&&
+      sameEvidenceMembers(report.held,expected.held)&&report.status===statusOf(seenPlan.destinations,expected.observed)&&
       (report.guidance===null?report.status==="ready":typeof report.guidance==="string"&&!!report.guidance.trim()&&countBytes(report.guidance)<=480)&&
-      isDeepStrictEqual(observations,expected.observed)&&isDeepStrictEqual(audit,audited)&&
-      isDeepStrictEqual(audit.facts,expected.redacted)&&audit.approvals==="pregranted-only"&&audit.providerAccess==="unobserved";
+      sameEvidenceMembers(observations,expected.observed)&&isDeepStrictEqual(audit,audited)&&
+      sameEvidenceMembers(audit.facts,expected.redacted)&&audit.approvals==="pregranted-only"&&audit.providerAccess==="unobserved";
   }
   function body(report:ReadinessReport) {
     return JSON.stringify({schema:"vibestudio.quiet-integration-readiness/1",contextId:input.contextId,revision,
@@ -216,12 +216,14 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     quietIntegrationProtocol:{
       async open(id:string,message:string){
         const current=snapshots[1];
-        if(bound||!current||!publicPlan(id,message,current)||(await ports.read(lane)).through!==current.through)return null;
-        bound=bindIntegrationReview({goal:world.goal,destinations},async({url,use})=>{
-          const endpoint=world.endpoints[facts.length];
+        if(!current||!publicPlan(id,message,current)||(await ports.read(lane)).through!==current.through)return null;
+        if(bound)return structuredClone(bound.request);
+        bound=bindIntegrationReview({goal:world.goal,destinations},async({id,url,use})=>{
+          const endpoint=world.endpoints.find(endpoint=>endpoint.id===id);
           if(!endpoint||fixtureUrl(endpoint.path)!==url||endpoint.use!==use)throw new Error("Substituted audience or transport in quiet plan");
           const {canRefresh,...observed}=fixtureLookup(endpoint);
           facts.push(observed);
+          facts.sort((a,b)=>world.endpoints.findIndex(endpoint=>endpoint.id===a.destination)-world.endpoints.findIndex(endpoint=>endpoint.id===b.destination));
           if(observed.state==="unverified")throw new Error("Quiet lookup has no verified current authorization");
           if(observed.state==="missing")return null;
           return {lifecycle:{state:observed.state,canRefresh:canRefresh===true}};
@@ -230,22 +232,28 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         return structuredClone(bound.request);
       },
       async audit(id:string){
-        if(!bound||id!==bound.request.operationId||!seenPlan||audited||
-          (!(observations.at(-1)?.state==="unverified")&&observations.length!==destinations.length))return null;
+        if(!bound||id!==bound.request.operationId||!seenPlan||
+          (!observations.some(row=>row.state==="unverified")&&!destinations.filter(row=>row.required).every(row=>observations.some(value=>value.id===row.id))))return null;
+        if(audited)return structuredClone(audited);
         audited={approvals:"pregranted-only",providerAccess:"unobserved",facts:structuredClone(facts)};
         return structuredClone(audited);
       },
     },
     integrationPlanRead:{async observe(id:string){
-      if(!bound||seenPlan)throw new Error("Open the current trusted quiet plan first");
+      if(!bound)throw new Error("Open the current trusted quiet plan first");
       seenPlan=await bound.services.integrationPlanRead.observe(id);
       return structuredClone(seenPlan);
     }},
     integrationCredentialLookup:{async resolve(receipt:string,id:string){
+      const previous=observations.find(row=>row.id===id);
+      if(bound&&seenPlan?.receipt===receipt&&previous)return structuredClone(previous);
       if(!bound||audited||!snapshots[1]||(await ports.read(lane)).through!==snapshots[1].through)
         throw new Error("The quiet review no longer owns this selection frontier");
+      if(!(world.lookupAfter?.[id]??[]).every(required=>observations.some(row=>row.id===required)))
+        throw new Error("Observe the user-requested prerequisite destination first");
       const result=await bound.services.integrationCredentialLookup.resolve(receipt,id);
-      observations.push(result);
+      if(!observations.some(row=>row.id===result.id))observations.push(result);
+      observations.sort((a,b)=>destinations.findIndex(endpoint=>endpoint.id===a.id)-destinations.findIndex(endpoint=>endpoint.id===b.id));
       return structuredClone(result);
     }},
     quietIntegrationHandoff:{async stage(report:ReadinessReport){
@@ -289,9 +297,12 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         isDeepStrictEqual(seenPlan.destinations,destinations.map(({url,...endpoint})=>endpoint)),
       explicitQuietIntegration:planned.action==="hold"?audited===null&&outcome?.audit===null&&outcome?.review===null:
         !!outcome&&verifiedReview(outcome.review,outcome.audit),
-      observedIntegrationLifecycles:isDeepStrictEqual(facts.map((fact,i)=>[fact.destination,fact.authorization,fact.state,observations[i]?.canRefresh??null]),
-        expected.rows.map(([id,auth,state,refresh])=>[id,auth,state,refresh??null]))&&
-        isDeepStrictEqual(completed?.held??[],expected.held??[]),
+      observedIntegrationLifecycles:bound ? !!completed && sameEvidenceMembers(facts,completed.redacted) &&
+        sameEvidenceMembers(observations,completed.observed) &&
+        expected.rows.filter(([id])=>world.expected.held!==undefined||world.endpoints.find(endpoint=>endpoint.id===id)?.required)
+          .every(([id,auth,state,refresh])=>facts.some(fact=>fact.destination===id&&fact.authorization===auth&&fact.state===state)&&
+            observations.some(row=>row.id===id&&row.canRefresh===(refresh??null))) &&
+        (expected.held===undefined||sameEvidenceMembers(completed.held,expected.held)) : expected.rows.length===0,
       groundedIntegrationDisposition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),planned)&&
         plan.action===expected.action&&plan.reason===expected.reason&&
         typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),

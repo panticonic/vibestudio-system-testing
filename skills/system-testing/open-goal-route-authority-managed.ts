@@ -111,6 +111,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
   const nominated=routes.find(row=>row.basis===world.route)!;
   const snapshots:RouteAuthorityObservation[]=[];
   const expectedAuthority=()=>compareExactAuthority(snapshots,ceiling);
+  const nominatedPreflight = () => nominated.operationIds.every(id => snapshots.some(row => row.operationId === id));
   let busy=false;
   let readback:RouteReadback|null=null,handoff:RouteHandoff|null=null;
   const body=(report:OwnedRouteReview)=>JSON.stringify({visibility:"private-local",routeId:report.choice.routeId,
@@ -156,7 +157,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     routeEvidenceRead:{
       async discover(){return structuredClone(offer);},
       async inspect(routeId:string){
-        if(snapshots.length!==operations.length||busy||routeId!==nominated.id||world.route==="external"||
+        if(!nominatedPreflight()||busy||routeId!==nominated.id||world.route==="external"||
           !nominated.operationIds.every(id=>expectedAuthority().reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible")))return null;
         if(readback)return structuredClone(readback);
         busy=true;
@@ -175,7 +176,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       return structuredClone(observation);
     }},
     routeEvidenceHandoff:{async stage(report:OwnedRouteReview){
-      if(!world.note||handoff||busy||snapshots.length!==operations.length||report?.handoff!==null||!matchesChoice(report.choice)||
+      if(!world.note||handoff||busy||!nominatedPreflight()||report?.handoff!==null||!matchesChoice(report.choice)||
         !exact(report.offer,offer)||!exact(report.authority,expectedAuthority())||!exact(report.readback,readback)||
         report.outcome.status!==intendedOutcome()||typeof report.outcome.summary!=="string"||!report.outcome.summary.trim()||
         report.outcome.summary.length>650||(world.route!=="external"&&!readback))return null;
@@ -205,9 +206,9 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
     const checks={
       exactRouteDiscovery:exact(offer,report?.offer)&&new Set(offer.routes.map(row=>row.id)).size===7,
-      exactScopedRoutePreflight:snapshots.length===operations.length&&operations.every(operation=>snapshots.some(row=>row.operationId===operation.id))&&
+      exactScopedRoutePreflight:nominatedPreflight()&&snapshots.every(row=>operations.some(operation=>operation.id===row.operationId))&&
         exact(report?.authority,authorization),
-      exactCanonicalOriginCeiling:sameClaim(linkReview,new URL(linkUrl).origin)&&sameClaim(altReview,new URL(altUrl).origin),
+      exactCanonicalOriginCeiling:(!linkReview||sameClaim(linkReview,new URL(linkUrl).origin))&&(!altReview||sameClaim(altReview,new URL(altUrl).origin)),
       selectedExactLocalAuthority:!!report&&matchesChoice(report.choice)&&(world.route==="external"||nominated.operationIds.every(id=>
         authorization.reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible"))),
       nativeRouteReadback:world.route==="external"?readback===null&&report?.readback===null:

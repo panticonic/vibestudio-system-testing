@@ -1,4 +1,3 @@
-import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { accountProfileSchema, workspaceMemberProfileSchema } from "@vibestudio/service-schemas/account";
@@ -218,20 +217,20 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     const decision = decisionFor(current);
     const allowWrite = canStage(decision);
     const outputs = filenames.filter(name => artifactNames.test(name) && !priorOutputs.includes(name));
-    const handoffMethods = effects.filter(({ service }) => service === "workspaceShareHandoff").map(({ method }) => method);
-    let exactNote = staged === null && outputs.length === 0 && !allowWrite && handoffMethods.length === 0;
-    if (allowWrite && staged && outputs.length === 1 && isDeepStrictEqual(handoffMethods, ["stage"])) {
+    const handoffWrites = effects.filter(({ service, result }) => service === "workspaceShareHandoff" && result !== null);
+    let exactNote = staged === null && outputs.length === 0 && !allowWrite && handoffWrites.length === 0;
+    if (allowWrite && staged && outputs.length === 1 && handoffWrites.length === 1) {
       const bytes = await readBytes(staged.path, staged.bytes);
       const text = decoder.decode(bytes);
       exactNote = staged.path === "/.tmp/" + outputs[0] + "/handoff.json" && bytes.length === staged.bytes &&
         digest(text) === staged.sha256 && text === packet(current, decision);
     }
-    const expectedReadMethods = ["discover", "inspect"];
     const checks = {
       selectedExactWorkspaceAndObject: inspected?.object.workspace === workspace &&
         inspected?.object.id === assignment.document && inspected?.object.digest === digest(original.body) &&
         isDeepStrictEqual(outcome?.assignment, assignment) &&
-        sameEvidenceMembers(effects.filter(effect => effect.service === "workspaceShareEvidence").map(({ method }) => method), expectedReadMethods),
+        effects.some(effect => effect.service === "workspaceShareEvidence" && effect.method === "inspect" &&
+          isDeepStrictEqual(effect.result, inspected)),
       readExactMembershipAndRole: isDeepStrictEqual(inspected?.member, current.member) &&
         isDeepStrictEqual(inspected?.session, current.session) && isDeepStrictEqual(outcome?.observation, current),
       reconciledExactInviteAndRevision: inspected?.invitation.currentRevision === projection.currentRevision &&

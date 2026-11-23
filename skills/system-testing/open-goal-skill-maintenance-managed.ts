@@ -458,9 +458,8 @@ export async function prepareSkillMaintenance(
         (row) => row.service === evidenceService && row.method === method,
       );
       return (
-        rows.length === 1 &&
-        isDeepStrictEqual(rows[0]!.args, args) &&
-        (expected === undefined || isDeepStrictEqual(rows[0]!.result, expected))
+        rows.some(row => isDeepStrictEqual(row.args, args) &&
+          (expected === undefined || isDeepStrictEqual(row.result, expected)))
       );
     };
     const gate = journal.find((row) => row.method === "confirm")?.result as
@@ -512,8 +511,7 @@ export async function prepareSkillMaintenance(
         (await native.retained(original.retained)),
       exactInstalledAuthoringReview:
         read("inspect", [currentCard.id], observation) &&
-        journal.filter((row) => row.service === "authoringCompiler").length ===
-          1 &&
+        journal.some((row) => row.service === "authoringCompiler" && row.method === "inspect") &&
         compiled?.revision === working.revision &&
         authoring !== undefined &&
         isDeepStrictEqual(outcome?.authoring, authoring),

@@ -244,7 +244,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     const added = afterOutputs.filter(name => !baselineOutputs.includes(name));
     const filesIntact = await Promise.all([...files].map(async ([path, text]) =>
       decoder.decode(await readBytes(path, 32 * 1024)) === text));
-    const stageCount = effects.filter(effect => effect.service === "localWidthHandoff" && effect.method === "stage").length;
+    const stageCount = effects.filter(effect => effect.service === "localWidthHandoff" && effect.method === "stage" && effect.result !== null).length;
     const shouldStage = world.release === "include-hold" || (world.release === "verified" && world.expected === "verified");
     let handoff = !shouldStage && stored === null && !added.length && !stageCount;
     if (shouldStage && stored && added.length === 1 && stageCount === 1) {

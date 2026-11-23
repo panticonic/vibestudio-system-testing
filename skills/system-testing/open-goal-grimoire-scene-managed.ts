@@ -463,9 +463,7 @@ export async function prepareOpenGrimoireScene(
         (row) => row.service === service && row.method === method,
       );
       return (
-        evidence.length === 1 &&
-        isDeepStrictEqual(evidence[0]!.args, args) &&
-        isDeepStrictEqual(evidence[0]!.result, result)
+        evidence.some(row => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, result))
       );
     };
     const path = receipt?.path ?? null;

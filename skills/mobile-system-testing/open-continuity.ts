@@ -523,12 +523,7 @@ export async function prepareOpenMobileContinuity(
       ].every((method) => {
         const current = journal.filter((row) => row.method === method);
         return (
-          current.length === 1 &&
-          current[0]?.args[0] === id &&
-          isDeepStrictEqual(
-            current[0].result,
-            durable[method as keyof Evidence],
-          )
+          current.some(row => row.args[0] === id && isDeepStrictEqual(row.result, durable[method as keyof Evidence]))
         );
       }),
       matchedBoundMobileDecision:

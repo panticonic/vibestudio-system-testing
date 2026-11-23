@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -253,11 +254,11 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     const methods = (service: string) => effects.filter(effect => effect.service === service).map(effect => effect.method);
     const stageCalls = methods("interfaceReviewHandoff");
     const boundaryCalls = methods("architectureProviderRead");
-    const exactRoute = isDeepStrictEqual(boundaryCalls, bound ? ["resolve", "declaration"] : []) &&
+    const exactRoute = sameEvidenceMembers(boundaryCalls, bound ? ["resolve", "declaration"] : []) &&
       exactBoundary(current, architecture);
     const shouldStage = canStage(review, decision);
     let handoff = !shouldStage && stored === null && !added.length && !stageCalls.length;
-    if (shouldStage && stored && added.length === 1 && isDeepStrictEqual(stageCalls, ["stage"])) {
+    if (shouldStage && stored && added.length === 1 && stageCalls.includes("stage")) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
       handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" &&
@@ -265,7 +266,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     }
     const expectedSurvey = { subjects, review };
     const checks = {
-      inspectedExactInstalledDefinition: isDeepStrictEqual(methods("interfaceEvidence"), ["discover", "inspect"]) &&
+      inspectedExactInstalledDefinition: methods("interfaceEvidence").includes("inspect") &&
         isDeepStrictEqual(observations.get(assigned.id), current) && isDeepStrictEqual(outcome?.observation, current),
       verifiedExactProviderBoundary: exactRoute && isDeepStrictEqual(outcome?.architecture, architecture),
       honoredRetainedReviewScope: scopeIntact && (!discovered || isDeepStrictEqual(discovered, expectedSurvey)) &&

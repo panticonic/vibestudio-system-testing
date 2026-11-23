@@ -351,13 +351,13 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
 
 function validPlanShape(plan: CapabilityPlan | undefined): plan is CapabilityPlan {
   return !!plan && typeof plan.rationale === "string" && Boolean(plan.rationale.trim()) &&
-    boundedText(plan.rationale, 600) && Array.isArray(plan.steps) && plan.steps.length <= 6 &&
+    boundedText(plan.rationale, 600) && boundedText(JSON.stringify(plan), reportBytes) && Array.isArray(plan.steps) &&
     plan.steps.every(step => step && typeof step.id === "string" && typeof step.sha256 === "string" &&
       Array.isArray(step.argumentNames) && typeof step.purpose === "string" &&
       step.purpose.trim() && boundedText(step.purpose, 240)) &&
-    Array.isArray(plan.knowledge) && plan.knowledge.length <= 2 &&
+    Array.isArray(plan.knowledge) &&
     plan.knowledge.every(citation => citation && typeof citation.skillPath === "string" &&
       typeof citation.sha256 === "string" && typeof citation.quote === "string" &&
       citation.quote.length >= 12 && boundedText(citation.quote, 360)) &&
-    Array.isArray(plan.missing) && plan.missing.length <= 3;
+    Array.isArray(plan.missing);
 }

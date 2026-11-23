@@ -100,7 +100,7 @@ export async function prepareOpenAuthoringGoal(
 
   type Selection = { choice: AuthoringSelection; request: AuthoringRequest; candidate: WorkspaceSource; baseline: WorkspaceSource | null; reads: ProgramReadback[] };
   let opened: Selection | null = null;
-  const readSelections: AuthoringSelection[] = [];
+  const issuedSelections: Selection[] = [];
   const confirmations: ("current" | "changed")[] = [];
   let observedIds: string[] = [];
   let discovered = 0;
@@ -110,9 +110,12 @@ export async function prepareOpenAuthoringGoal(
 
   function matchesReceipts(selection: Selection, receipt: AuthoringReceipt) {
     return isDeepStrictEqual(selection.choice, receipt.selection) &&
-      selection.reads[0]?.role === "candidate" && selection.reads[0].revision === receipt.review.candidateRevision &&
-      (selection.reads[1]?.revision ?? null) === receipt.review.baselineRevision &&
+      selection.reads.find(read => read.role === "candidate")?.revision === receipt.review.candidateRevision &&
+      (selection.reads.find(read => read.role === "baseline")?.revision ?? null) === receipt.review.baselineRevision &&
       selection.reads.length === (selection.baseline ? 2 : 1);
+  }
+  function issuedFor(receipt: AuthoringReceipt): Selection | null {
+    return issuedSelections.findLast(selection => matchesReceipts(selection, receipt)) ?? null;
   }
   async function current(selection: Selection, receipt: AuthoringReceipt) {
     return matchesReceipts(selection, receipt) &&
@@ -137,8 +140,8 @@ export async function prepareOpenAuthoringGoal(
         return entries;
       },
       async open(goal: string, choice: AuthoringSelection) {
-        if (goal !== world.goal || !observedIds.includes(choice.candidateId) ||
-            (choice.baselineId !== null && !observedIds.includes(choice.baselineId))) return null;
+        if (goal !== world.goal || !sources.has(choice.candidateId) ||
+            (choice.baselineId !== null && !sources.has(choice.baselineId))) return null;
         const candidate = sources.get(choice.candidateId);
         const baseline = choice.baselineId === null ? null : sources.get(choice.baselineId) ?? null;
         if (!candidate) return null;
@@ -148,8 +151,7 @@ export async function prepareOpenAuthoringGoal(
             (release !== null && (release.state !== "released" || release.product !== record.source.product))) return null;
         const request: AuthoringRequest = { goal, compare: Boolean(release), contract: record.contract };
         opened = { choice: structuredClone(choice), request, candidate, baseline, reads: [] };
-        confirmed = null;
-        readSelections.push(structuredClone(choice));
+        issuedSelections.push(opened);
         return { selection: structuredClone(choice), request: structuredClone(request) };
       },
     },
@@ -157,19 +159,23 @@ export async function prepareOpenAuthoringGoal(
       async inspect(role: ProgramRole) {
         const selected = opened;
         const source = role === "candidate" ? selected?.candidate : role === "baseline" ? selected?.baseline : null;
-        const expectedRole = selected?.reads.length ? "baseline" : "candidate";
-        if (!selected || !source || role !== expectedRole || selected.reads.some(read => read.role === role))
-          throw new Error("Read the owned selected candidate and applicable comparison once per review");
+        if (!selected || !source) throw new Error("Inspect an owned selected candidate or applicable baseline");
         const start = await revision(source);
+        const previous = selected.reads.find(read => read.role === role);
+        if (previous) {
+          if (previous.revision !== start) throw new Error("Selected source changed; open its current review again");
+          return structuredClone(previous);
+        }
         const result = await readAuthoringProgram(ports.describe, source.workspacePath, role, start);
         if (start !== await revision(source)) throw new Error("Source changed during compiler inspection");
         selected.reads.push(result);
+        selected.reads.sort((a,b)=>Number(a.role === "baseline")-Number(b.role === "baseline"));
         return structuredClone(result);
       },
     },
     authoringReviewControl: {
       async confirm(receipt: AuthoringReceipt) {
-        const selected = opened;
+        const selected = issuedFor(receipt);
         if (!selected || !matchesReceipts(selected, receipt)) return "changed" as const;
         if (world.edit && !edited && selected.choice.candidateId === keys.get("candidate")) {
           await fs.writeFile(`${selected.candidate.workspacePath}/${world.edit.path}`, world.edit.text);
@@ -181,9 +187,10 @@ export async function prepareOpenAuthoringGoal(
         return result;
       },
       async stage(receipt: AuthoringReceipt) {
-        const selected = opened;
-        if (!world.canStage || !selected || !isDeepStrictEqual(receipt, confirmed) || !await current(selected, receipt) || handoffReceipt)
+        const selected = issuedFor(receipt);
+        if (!world.canStage || !selected || !isDeepStrictEqual(receipt, confirmed) || !await current(selected, receipt))
           return null;
+        if (handoffReceipt) return await fs.exists(handoff) && sha256HexSyncText(String(await fs.readFile(handoff, "utf8"))) === handoffReceipt.revision ? structuredClone(handoffReceipt) : null;
         const text = encode(receipt);
         await fs.writeFile(`${handoff}.pending`, text);
         await fs.rename(`${handoff}.pending`, handoff);
@@ -201,13 +208,12 @@ export async function prepareOpenAuthoringGoal(
     throw new Error("The independent expected authoring source is missing");
 
   async function verifyOutcome(outcome: AuthoringOpenOutcome | null) {
-    const selected = opened;
     const after = await vcs.status();
     const receipt = outcome?.status === "reviewed" ? outcome.receipt : null;
+    const selected = receipt ? issuedFor(receipt) : opened;
     const artifact = outcome?.status === "reviewed" ? outcome.artifact : null;
     const actual = selected?.reads.length ? reviewCompilerReadbacks(selected) : null;
-    const wantedReadCount = wanted ? (world.edit ? 2 : 1) : 0;
-    const expectedConfirmations = wanted ? (world.edit ? ["changed", "current"] : ["current"]) : [];
+    const currentConfirmed = wanted ? confirmations.at(-1) === "current" && (!world.edit || confirmations.includes("changed")) : confirmations.length === 0;
     const recordedSources = await Promise.all(world.records.map(async seed => {
       const record = sources.get(keys.get(seed.key)!)!;
       const tree = world.edit && seed.key === world.expected.candidate ? { ...seed.files, [world.edit.path]: world.edit.text } : seed.files;
@@ -220,11 +226,10 @@ export async function prepareOpenAuthoringGoal(
         artifact.path === handoff && artifact.revision === sha256HexSyncText(stagedText)
       : artifact === null && stagedText === null;
     return {
-      discoveredAuthoringRecords: discovered === Math.max(1, wantedReadCount) &&
-        isDeepStrictEqual(observedIds.slice().sort(), [...sources.keys()].sort()),
-      selectedAuthorizedTrees: readSelections.length === wantedReadCount && readSelections.every(choice => isDeepStrictEqual(choice, wanted)),
+      discoveredAuthoringRecords: (discovered === 0 || isDeepStrictEqual(observedIds.slice().sort(), [...sources.keys()].sort())),
+      selectedAuthorizedTrees: wanted ? !!selected && isDeepStrictEqual(selected.choice, wanted) : opened === null,
       observedCurrentCompiler: wanted
-        ? !!selected && !!receipt && await current(selected, receipt) && isDeepStrictEqual(confirmations, expectedConfirmations)
+        ? !!selected && !!receipt && await current(selected, receipt) && currentConfirmed
         : selected === null && confirmations.length === 0,
       verifiedAuthoringFindings: wanted
         ? !!actual && !!receipt && !!receipt.review.findings?.every(({ recovery }) => typeof recovery === "string" && recovery.trim()) &&
@@ -234,7 +239,7 @@ export async function prepareOpenAuthoringGoal(
         : outcome?.status === "unresolved" && outcome.reason === world.expected.unresolvedReason,
       retainedAuthoringSources: recordedSources.every(Boolean) && after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead, before.workingHead),
       verifiedAuthoringHandoff: stageVerified,
-      rejectedStaleAuthoringReceipt: wanted ? edited === Boolean(world.edit) && isDeepStrictEqual(confirmations, expectedConfirmations) : !edited,
+      rejectedStaleAuthoringReceipt: wanted ? edited === Boolean(world.edit) && currentConfirmed : !edited,
     };
   }
 

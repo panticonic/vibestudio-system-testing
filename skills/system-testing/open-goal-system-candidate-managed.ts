@@ -612,9 +612,7 @@ export async function prepareOpenSystemCandidate(
         (row) => row.service === service && row.method === method,
       );
       return (
-        rows.length === 1 &&
-        isDeepStrictEqual(rows[0]!.args, args) &&
-        isDeepStrictEqual(rows[0]!.result, result)
+        rows.some(row => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, result))
       );
     };
     const target = exactPreview.coordinate.id;

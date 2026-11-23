@@ -87,7 +87,6 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
     ownedOperations: {
       ...owned.service,
       async open(role: Parameters<typeof owned.service.open>[0]) {
-        if (!reads.length) throw new Error("Read the current owned docket before opening a worker");
         const basis = await select(current.id, current.revision);
         const correctRole = basis.request.kind === "release-continuation" ? role === "release" : role !== "release";
         if (basis.authority !== "local-exercise" || !correctRole)

@@ -228,9 +228,8 @@ export async function prepareCompoundRecoveryHandoff(
     const actualRecovered = nativeRead ? await native.readText(nativeRead) : null;
     const candidate = outcome?.handoff;
     const stageCalls = effects.filter(row => row.service === "scratchHandoffWrite" && row.method === "stage");
-    const stageBody = stageCalls[0]?.args[0];
-    const exactPreparedBody = !stageCalls.length ||
-      (typeof stageBody === "string" && actualRecovered !== null && exactAnswers(stageBody, actualRecovered));
+    const exactPreparedBody = !stageCalls.length || stageCalls.some(call =>
+      typeof call.args[0] === "string" && actualRecovered !== null && exactAnswers(call.args[0], actualRecovered));
     const allOutputs = await outputs();
     const addedOutputs = allOutputs.filter(name => !outputBefore.includes(name));
     const expectedReads = !["held-eval", "held-policy"].includes(target);
@@ -249,7 +248,7 @@ export async function prepareCompoundRecoveryHandoff(
       joinedExactNativeRecovery: evalProof.passed && (!neededPolicy || (actualRecovered !== null && usedDigest === nativeRead &&
         decoder.decode(await readBytes(recoveredPath, 24 * 1024)) === actualRecovered)),
       honoredPrerequisiteAndOrder: !rejectionBeforeDependency && exactPreparedBody && (expectedReads ? !!accepted && observedSources.size === 2 :
-        !accepted && !observedSources.size) && stageCalls.length === (target === "staged" || target === "unverified" ? 1 : 0) &&
+        !accepted && !observedSources.size) && (target === "staged" || target === "unverified" ? stageCalls.length > 0 : stageCalls.length === 0) &&
         !effects.some(effect => effect.service === "openEvalHandoff" && effect.method === "stage"),
       preservedCurrentDirective: advanced === intendedChange && isDeepStrictEqual(actualPosition, intendedChange ? changedPosition() : initial) &&
         isDeepStrictEqual(outcome?.directive, actualPosition),

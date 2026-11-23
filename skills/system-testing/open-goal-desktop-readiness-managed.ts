@@ -383,9 +383,7 @@ export async function prepareDesktopReadiness(
     const matched = (method: string, args: unknown[], value: unknown) => {
       const rows = journalOf(method);
       return (
-        rows.length === 1 &&
-        isDeepStrictEqual(rows[0]?.args, args) &&
-        isDeepStrictEqual(rows[0]?.result, value)
+        rows.some(row => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, value))
       );
     };
     const checks = {

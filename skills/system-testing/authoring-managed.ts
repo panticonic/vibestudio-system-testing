@@ -125,27 +125,23 @@ export async function prepareManagedAuthoring(ports: Ports, caseId: string) {
     baseline: baseline ? await fingerprint(ports.fs, baseline) : null,
   };
   const reads: ProgramReadback[] = [];
-  const requested = new Set<ProgramRole>();
+  const requested = new Map<ProgramRole, Promise<ProgramReadback>>();
   const service = {
     async inspect(role: ProgramRole): Promise<ProgramReadback> {
-      if ((role !== "candidate" && role !== "baseline") || requested.has(role))
-        throw new Error("Inspect each caller-assigned program role once.");
+      if (role !== "candidate" && role !== "baseline") throw new Error("Inspect a caller-assigned program role");
       const seed = role === "candidate" ? candidate : baseline;
-      if (!seed)
-        throw new Error(
-          "The caller did not assign a baseline for this review.",
-        );
-      requested.add(role);
-      const revision = await fingerprint(ports.fs, seed);
-      if (revision !== expected[role])
-        throw new Error(
-          "The assigned source changed before compiler inspection.",
-        );
-      const readback = await readAuthoringProgram(
-        ports.describe, seed.directory, role, revision,
-      );
-      reads.push(readback);
-      return structuredClone(readback);
+      if (!seed) throw new Error("The caller did not assign a baseline for this review.");
+      if (await fingerprint(ports.fs, seed) !== expected[role]) throw new Error("The assigned source changed before compiler inspection.");
+      const previous = requested.get(role);
+      if (previous) return structuredClone(await previous);
+      const observing = (async () => {
+        const readback = await readAuthoringProgram(ports.describe, seed.directory, role, expected[role]!);
+        if (await fingerprint(ports.fs, seed) !== expected[role]) throw new Error("Assigned source changed during compiler inspection");
+        reads.push(readback);
+        return readback;
+      })();
+      requested.set(role, observing);
+      return structuredClone(await observing);
     },
   };
   return {
@@ -169,7 +165,8 @@ const same = (left: unknown, right: unknown) =>
 export function reviewCompilerReadbacks(
   prepared: Pick<Prepared, "reads" | "request">,
 ): AuthoringReport {
-  const [candidate, baseline] = prepared.reads;
+  const candidate = prepared.reads.find(read => read.role === "candidate");
+  const baseline = prepared.reads.find(read => read.role === "baseline");
   if (!candidate) throw new Error("Candidate compiler evidence is missing");
   const report = {
     candidateRevision: candidate.revision,

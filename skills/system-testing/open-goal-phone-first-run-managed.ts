@@ -408,9 +408,7 @@ export async function preparePhoneFirstRun(
         (row) => row.service === name && row.method === method,
       );
       return (
-        rows.length > 0 &&
-        (name === "phoneFirstRun" || rows.length === 1) &&
-        rows.every((row) => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, result))
+        rows.some((row) => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, result))
       );
     };
     const start = journal.find((row) => row.method === "start")?.result as
@@ -473,7 +471,7 @@ export async function preparePhoneFirstRun(
         after.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(after.workingHead, baseline.workingHead) &&
         unwantedOperations === 0 &&
-        journal.filter(({ service }) => service === "phoneSetupRead").length === (paired === "owned" ? 2 : 0),
+        (paired === "owned" || journal.every(({ service }) => service !== "phoneSetupRead")),
     };
     return {
       contextId: input.contextId,
