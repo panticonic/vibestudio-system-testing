@@ -1,3 +1,4 @@
+import { allTests } from "@workspace-skills/system-testing/stages";
 import { validateNativeStartupDiagnostic, nativeStartupDiagnosticCode } from "@workspace-skills/system-testing/native-startup-diagnostic";
 import type { ManagedDeploymentReceiver } from "@workspace-skills/system-testing/remote-deployment-managed";
 import type { RemoteCommissionReceiver } from "@workspace-skills/system-testing/remote-commission-managed";
@@ -4849,12 +4850,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     sensitivity: "read",
   })
   async doctor(model?: string): Promise<SystemTestDoctorResult> {
+    const catalogNames = allTests().map(test => test.name);
     return systemTestDoctorResultSchema.parse(
       await this.runHarnessUtility(
         "doctor",
         `
-        import { systemTestDoctor } from "@workspace-skills/system-testing/cli";
-        const utilityValue = await systemTestDoctor(${JSON.stringify(model)});
+        import { systemTestDoctor } from "@workspace-skills/system-testing/doctor";
+        const utilityValue = await systemTestDoctor(${JSON.stringify(model)}, ${JSON.stringify(catalogNames)});
       `,
       ),
     );
