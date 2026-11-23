@@ -5,7 +5,7 @@ import type {InvocationObservations,ObservedCall,ObservedReturn} from "./observe
 export type ReturnPath=readonly (string|number)[];
 /** Authored against the actual domain composition, never a fabricated returned definition. */
 export type ApplicationReturnContribution={checks:readonly string[];rootPath:ReturnPath;producerSourceSuffix:string;producerPath?:ReturnPath};
-export type ApplicationReturnWitness={schema:"natlang.application-return-contribution/1";kind:"root"|"forwarded"|"projection"|"uncertain-projection";root_call_id:string;producer_call_id:string;root_value_json:string;root_sha256:string;root_path:ReturnPath;producer_path:ReturnPath;checks:readonly string[];lineage:readonly string[];producer_source_suffix?:string;candidates?:readonly {call_id:string;value_json:string;sha256:string}[];uncertainty?:"ambiguous-actual-producer"|"no-verified-actual-producer"};
+export type ApplicationReturnWitness={schema:"natlang.application-return-contribution/1";kind:"root"|"forwarded"|"projection"|"uncertain-projection"|"incidental-child";root_call_id:string;producer_call_id:string;root_value_json:string;root_sha256:string;root_path:ReturnPath;producer_path:ReturnPath;checks:readonly string[];lineage:readonly string[];producer_source_suffix?:string;candidates?:readonly {call_id:string;value_json:string;sha256:string}[];uncertainty?:"ambiguous-actual-producer"|"no-verified-actual-producer"};
 function project(value:unknown,path:ReturnPath):{found:boolean;value:unknown}{
  let current=value;
  for(const key of path){
@@ -38,20 +38,31 @@ export async function assessObservedApplicationOutcome<T extends {passed:boolean
    };
    const add=(producer:ObservedReturn,kind:ApplicationReturnWitness["kind"],checks:readonly string[],rootPath:ReturnPath=[],producerPath:ReturnPath=[],chain:readonly ObservedCall[]=[root],extra:Partial<Pick<ApplicationReturnWitness,"producer_source_suffix"|"candidates"|"uncertainty">>={})=>{
     const contribution:ApplicationReturnWitness={schema:"natlang.application-return-contribution/1",kind,root_call_id:root.callId,producer_call_id:producer.callId,root_value_json:root.valueJson,root_sha256:sha256HexSyncText(root.valueJson),root_path:rootPath,producer_path:producerPath,checks,lineage:chain.map(call=>call.callId),...extra};
-    const previous=incorrectReturnValues.find(row=>row.contribution.producer_call_id===producer.callId);
-    if(previous){previous.required ||= required(checks);return;}
     incorrectReturnValues.push({definition:producer.definition,value:producer.value,valueJson:producer.valueJson,required:required(checks),contribution});
    };
-   add(root,"root",failed);
+   const independentChecks=new Set<string>();
+   const prior=(verification as {incorrectReturnValues?:unknown}).incorrectReturnValues;
+   if(Array.isArray(prior))for(const item of prior){
+    if(!item||typeof item.callId!=="string"||!Array.isArray(item.checks)||!item.checks.length||
+      item.checks.some((name:unknown)=>typeof name!=="string"||!contract.incidentalValues?.checks.includes(name)||verification.checks[name]!==false))
+     throw new Error("An independently checked incidental return needs its actual call ID and failed incidental checks");
+    const call=calls.get(item.callId),producer=call?await read(call):undefined,chain=call?lineage(call):null;
+    if(!producer||!chain||!sampled(producer)||!isDeepStrictEqual(item.definition,producer.definition)||!isDeepStrictEqual(item.value,producer.value)||
+      (item.valueJson!==undefined&&item.valueJson!==producer.valueJson))throw new Error("The incidental child binding differs from its actual sampled return");
+    add(producer,producer.callId===root.callId?"root":"incidental-child",item.checks,[],[],chain);
+    for(const name of item.checks)independentChecks.add(name);
+   }
+   const rootChecks=failed.filter(name=>!independentChecks.has(name));
+   if(rootChecks.length)add(root,"root",rootChecks);
    // One child at every crisp step is a genuine unambiguous forwarding chain;
    // equal values in siblings or other branches are never an implicit witness.
    let current=root;
-   while(current.execution?.kind==="crisp"){
+   while(rootChecks.length&&current.execution?.kind==="crisp"){
     const children=invocation.calls.filter(call=>call.parentCallId===current.callId);
     if(children.length!==1||children[0]!.outcome!=="done")break;
     const child=await read(children[0]!);
     if(!child||child.valueJson!==current.valueJson)break;
-    if(sampled(child)){add(child,"forwarded",failed,[],[],lineage(child)!);break;}
+    if(sampled(child)){add(child,"forwarded",rootChecks,[],[],lineage(child)!);break;}
     current=child;
    }
    for(const binding of contributions){

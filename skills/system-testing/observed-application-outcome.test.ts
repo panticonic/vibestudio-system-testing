@@ -63,3 +63,24 @@ it("never treats computed array properties as authored JSON field projections",a
  const result=await assessObservedApplicationOutcome(invalid,optional,{answer:1},tree([...rows]),[{checks:["answer"],rootPath:["answer"],producerSourceSuffix:"judge.nl",producerPath:["length"]}]);
  expect(result.outcomeDimensions.incidentalValues?.incorrectReturns).toHaveLength(2);
 });
+it("preserves independently checked unused child errors without blaming a correct application return",async()=>{
+ const value={answer:"correct"},child="wrong-classification";
+ const invocation=tree([{id:"root",parent:null,source:"compose.ts",kind:"crisp",value},{id:"review",parent:"root",source:"review.nl",kind:"agent",value:"correct-review"},{id:"unused",parent:"review",source:"choose.nl",kind:"agent",value:child}]);
+ const observed=(await invocation.returns(call=>call.callId==="unused"))[0]!;
+ const evidence={passed:false,checks:{nativeWrite:true,answer:true,classification:false},incorrectReturnValues:[{callId:observed.callId,definition:observed.definition,value:observed.value,valueJson:observed.valueJson,checks:["classification"]}]};
+ const declared={...contract,incidentalValues:{checks:["classification"],rationale:"An unused admission classification is independently checked against native state."}};
+ const result=await assessObservedApplicationOutcome(evidence,declared,value,invocation);
+ expect(result.passed).toBe(true);
+ expect(result.outcomeDimensions.incidentalValues?.incorrectReturns).toMatchObject([{definition:{source:"choose.nl"},contribution:{kind:"incidental-child",lineage:["root","review","unused"],checks:["classification"]}}]);
+ expect(result.outcomeDimensions.incidentalValues?.incorrectReturns).toHaveLength(1);
+ await expect(assessObservedApplicationOutcome({...evidence,incorrectReturnValues:[{...evidence.incorrectReturnValues[0]!,callId:"invented"}]},declared,value,invocation)).rejects.toThrow(/actual sampled return/);
+});
+it("retains separate custody for multiple failed fields and complete uncertainty groups from one producer",async()=>{
+ const value={optional:"wrong",required:"wrong"},producer={a:"wrong",b:"wrong"};
+ const observation=tree([{id:"root",parent:null,source:"compose.ts",kind:"crisp",value},{id:"judge",parent:"root",source:"judge.nl",kind:"agent",value:producer}]);
+ const rules={effects:{checks:["nativeWrite"],rationale:"Actual native state."},returnedValue:{checks:["required"],required:true,rationale:"Requested required finding."},incidentalValues:{checks:["optional"],rationale:"Optional finding."}};
+ const result=await assessObservedApplicationOutcome({passed:false,checks:{nativeWrite:true,optional:false,required:false}},rules,value,observation,[{checks:["optional"],rootPath:["optional"],producerSourceSuffix:"judge.nl",producerPath:["a"]},{checks:["required"],rootPath:["required"],producerSourceSuffix:"judge.nl",producerPath:["b"]}]);
+ expect(result.outcomeDimensions.incidentalValues?.incorrectReturns).toMatchObject([{contribution:{kind:"root"}},{required:false,contribution:{checks:["optional"],root_path:["optional"]}},{required:true,contribution:{checks:["required"],root_path:["required"]}}]);
+ const uncertain=await assessObservedApplicationOutcome({passed:false,checks:{nativeWrite:true,optional:false,required:false}},rules,value,observation,[{checks:["optional"],rootPath:["optional"],producerSourceSuffix:"judge.nl",producerPath:["a"]},{checks:["required"],rootPath:["required"],producerSourceSuffix:"judge.nl",producerPath:["absent"]}]);
+ expect(uncertain.outcomeDimensions.incidentalValues?.incorrectReturns?.[2]).toMatchObject({required:true,contribution:{kind:"uncertain-projection",checks:["required"],uncertainty:"no-verified-actual-producer"}});
+});
