@@ -6,7 +6,7 @@ import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { ExplorerInput, ExplorerPlan, ExplorerReport, ExplorerRequest, ExplorerReceipt, ExplorerWitness, OwnerObservation,
-  SetupRoute, SetupWitness, TourScene, TourWitness, WelcomeEvidence, WelcomeGoalReport, WelcomeHandoff, WelcomeIndex,
+  SetupRoute, SetupWitness, TourScene, TourWitness, WelcomeEvidence, WelcomeGoalReport, WelcomeResult, WelcomeHandoff, WelcomeIndex,
   WelcomePlan, WelcomeReason, WelcomeRecord, WelcomeResolution, WelcomeResource, WelcomeReviews, WelcomeRow, WelcomeScope,
   WelcomeSnapshot } from "@workspace-skills/open-personal-welcome/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -228,6 +228,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       resource:plan.resourceId,sender:plan.sender,channel:plan.channelId,frontier:plan.through,message:plan.message,
       outcome:plan.reason,explanation:plan.explanation,reviews});
   }
+  let stagedText:string|null=null;
   const services = {
     welcomeResourceIndex:{
       async list() {
@@ -299,7 +300,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
               (await ports.read(lane)).through!==plan.through) return null;
           const text=stageText(plan,reviews);
           if (bytes(text)>maximum) return null;
-          const receipt=await writer.stage(text);
+          const receipt=(stagedText=text,await writer.stage(text));
           if (!receipt) return null;
           handoff={...receipt,sha256:sha256HexSyncText(text)};
           return structuredClone(handoff);
@@ -308,15 +309,16 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     },
   };
   async function verify(raw:unknown) {
-    const report=raw as WelcomeGoalReport|null;
+    const report=raw as WelcomeResult|null;
     const outcome=report;
     const latest=await ports.read(lane);
     const expected=world.expected;
     const resource=resources.find(row=>row.id===expected.target)??null;
     const native=resource?resolveResource(latest,resource):null;
-    const independent=decisions(latest,resource,native,outcome?.reviews?.probe??null);
+    const actualProbe=outcome?.probe&&nativeProbe?{request:nativeProbe.request,result:outcome.probe}:null;
+    const independent=decisions(latest,resource,native,actualProbe);
     const plan=outcome?.plan;
-    const checked=outcome?.reviews;
+    const checked=outcome;
     const status=await ports.status();
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!beforeFiles.has(name));
     const data=handoff?await ports.readBytes(handoff.path,maximum):null;
@@ -330,14 +332,14 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       exactWelcomeDecision:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
         plan.reason===expected.reason&&plan.action===expected.action&&plan.message===(expected.key?messages.get(expected.key):null)&&
         typeof plan.explanation==="string"&&bytes(plan.explanation)<=600&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedWelcomeOwner:independent.setup?!!checked&&checked.setup?.result.status===expected.setup&&
-        isDeepStrictEqual(checked.setup,independent.setup)&&isDeepStrictEqual(ownerRead,resource&&native?observeOwner(latest,native):null):
+      verifiedWelcomeOwner:independent.setup?!!checked&&checked.setup?.status===expected.setup&&
+        isDeepStrictEqual(checked.setup,independent.setup.result)&&isDeepStrictEqual(ownerRead,resource&&native?observeOwner(latest,native):null):
         checked?.setup===null&&ownerRead===null,
-      verifiedWelcomeTour:isDeepStrictEqual(checked?.tour,independent.tour)&&(checked?.tour?.result.stage??null)===expected.tour,
-      verifiedWelcomeRetry:expected.probe?independent.probeRequired&&qualityProbe(checked?.probe??null):
+      verifiedWelcomeTour:isDeepStrictEqual(checked?.tour,independent.tour?.result??null)&&(checked?.tour?.stage??null)===expected.tour,
+      verifiedWelcomeRetry:expected.probe?independent.probeRequired&&qualityProbe(actualProbe):
         !independent.probeRequired&&probeInput===null&&probeRun===null&&checked?.probe===null,
       exactWelcomeHandoff:expected.action==="stage"?!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
-        handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stageText(plan,checked)&&
+        handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.sha256===sha256HexSyncText(artifact)&&handoff.bytes===data.length&&isDeepStrictEqual(handoff,outcome?.handoff):
         files.length===0&&handoff===null&&outcome?.handoff===null,
       preservedWelcomeContext:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
@@ -367,7 +369,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const plan:WelcomePlan={...exact.plan,explanation:world.expected.statement};
     const reviews:WelcomeReviews={setup:exact.setup,tour:exact.tour,probe};
     const receipt=plan.action==="stage"?await services.welcomeLocalHandoff.stage(plan,reviews):null;
-    const report={plan,reviews,handoff:receipt};
+    const report={plan,setup:reviews.setup?.result??null,tour:reviews.tour?.result??null,probe:reviews.probe?.result??null,handoff:receipt};
     const accepted=await verify(report);
     const forged=await verify({...report,plan:{...plan,through:-1}});
     return {...accepted,passed:accepted.passed&&!forged.passed};

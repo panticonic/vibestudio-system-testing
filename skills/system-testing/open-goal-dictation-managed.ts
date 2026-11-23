@@ -5,7 +5,7 @@ import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
-import type { Acknowledgment, CaptureReceipt, DictationArtifact, DictationGoalReport, DictationPlan, DictationReason,
+import type { Acknowledgment, CaptureReceipt, DictationArtifact, DictationGoalReport, DictationResult, DictationPlan, DictationReason,
   DictationRecord, DictationRow, DictationSnapshot, DictationThread, DraftReceipt, DraftReview,
   RetainedTranscript, SegmentReceipt } from "@workspace-skills/open-dictation-handoff/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -225,7 +225,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     },
   };
   async function verify(raw: unknown) {
-    const report = raw as DictationGoalReport | null;
+    const report = raw as DictationResult | null;
     const outcome = report;
     const plan = outcome?.plan;
     const latest = await ports.read(main);
@@ -248,8 +248,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
         plan.captureId === captureIds.get(expected.capture) && isDeepStrictEqual(plan.segmentMessages,expected.selected.map(key => messageIds.get(key))) &&
         plan.acknowledgementMessage === (expected.acknowledgement ? messageIds.get(expected.acknowledgement) : null) &&
         plan.draftRevision === expected.revision && (plan.transcript?.text ?? null) === expected.text && expected.claim.test(plan.explanation),
-      exactInstalledDraft: exactDraft ? outcome?.review?.goal === world.goal && outcome.review.presentation === "verbatim" &&
-        isDeepStrictEqual(outcome.review.transcript,independent.transcript) && isDeepStrictEqual(outcome.review.result,exactDraft) : outcome?.review === null,
+      exactInstalledDraft: exactDraft ? isDeepStrictEqual(outcome?.review,exactDraft) : outcome?.review === null,
       verifiedLocalCorrection: local ? !!plan && !!exactDraft && !!artifact && !!handoff && !!bytes &&
         scratch.length === 1 && handoff.path === `/.tmp/${scratch[0]}/handoff.json` &&
         artifact === body(plan,exactDraft) && sha256HexSyncText(artifact) === handoff.sha256 &&
@@ -272,7 +271,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const review = draft && plan.transcript ? {goal:world.goal,transcript:plan.transcript,presentation:"verbatim",result:draft} : null;
     const receipt = draft && (plan.action === "stage-correction" || plan.action === "stage-alternative")
       ? await services.retainedDictationHandoff.stage(plan,draft) : null;
-    const report = {plan,review,handoff:receipt};
+    const report = {plan,review:review?.result??null,handoff:receipt};
     const positive = await verify(report);
     const altered = await verify({...report,plan:{...plan,through:-1}});
     return {...positive,passed:positive.passed && !altered.passed};

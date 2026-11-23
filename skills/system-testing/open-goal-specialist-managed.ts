@@ -8,7 +8,7 @@ import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { localMessagingFixtureMethods } from "@workspace-workers/local-messaging-fixture/contract";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { Attempt, HistoryReview, IntegrationArtifact, OriginalArtifact, ReceiptJoin, Result, Specialist,
-  SpecialistGoalReport, SpecialistIndex, SpecialistPlan, SpecialistRecord, SpecialistRow, SpecialistScope,
+  SpecialistGoalReport, SpecialistResult, SpecialistIndex, SpecialistPlan, SpecialistRecord, SpecialistRow, SpecialistScope,
   SpecialistSnapshot, SpecialistMembershipRequest as MembershipRequest } from "@workspace-skills/open-specialist-handoff/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
@@ -180,14 +180,15 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     return typeof text === "string" && !!text.trim() && bytes(text) <= 4096 && sha256HexSyncText(text) === result.digest
       ? {text,digest:result.digest,bytes:bytes(text)} : null;
   }
-  function historyShape(review: HistoryReview | null, original: OriginalArtifact, result: Result) {
-    return !!review && review.goal === original.text &&
+  function historyFindings(review: SpecialistResult["history"], result: Result) {
+    return !!review &&
       isDeepStrictEqual(review.units,{owner:result.owner,consumers:result.consumers,blockers:[]}) &&
       typeof review.result?.persistedContract === "boolean" && Array.isArray(review.result.retainedHistoryChecks) &&
       review.result.retainedHistoryChecks.length <= 6 &&
       review.result.retainedHistoryChecks.every(check=>typeof check === "string" && check.trim() && bytes(check) <= 300) &&
       review.result.persistedContract === (review.result.retainedHistoryChecks.length > 0);
   }
+  function historyShape(review:HistoryReview|null,original:OriginalArtifact,result:Result) {return !!review&&review.goal===original.text&&historyFindings(review,result);}
   function artifactText(plan: SpecialistPlan, history: HistoryReview) {
     return JSON.stringify({schema:"vibestudio.specialist-handoff/1",contextId:scope.contextId,channel:plan.channelId,task:plan.taskId,
       parent:scope.parentRevision,sourceEvent:plan.sourceEvent,attempt:plan.attemptMessage,result:plan.resultMessage,
@@ -203,6 +204,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
       action:original ? scope.mayStage ? "stage" : "report" : "hold"};
     return {plan,result};
   }
+  let stagedText:string|null=null;
   const services = {
     ownedSpecialistIndex: {
       async list(): Promise<SpecialistIndex> {
@@ -273,7 +275,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
           const current = await ports.status();
           if (bytes(content) > maximum || current.mainEventId !== before.mainEventId ||
               !isDeepStrictEqual(current.workingHead,before.workingHead)) return null;
-          const resultReceipt = await stage.stage(content);
+          const resultReceipt = (stagedText=content,await stage.stage(content));
           if (!resultReceipt) return null;
           handoff = {...resultReceipt,sha256:sha256HexSyncText(content)};
           return structuredClone(handoff);
@@ -282,7 +284,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     },
   };
   async function verify(raw: unknown) {
-    const report = raw as SpecialistGoalReport | null;
+    const report = raw as SpecialistResult | null;
     const outcome = report;
     const latest = await ports.read(lane);
     const roster = await ports.roster(lane,input.contextId);
@@ -301,7 +303,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
       exactCurrentSpecialist: !!plan && plan.handle === expected.handle &&
         (expected.handle ? member?.request.handle === expected.handle &&
           isDeepStrictEqual(member.observed,selected) &&
-          isDeepStrictEqual(outcome?.membership,{request:member.request,report:membership}) :
+          isDeepStrictEqual(outcome?.membership,membership) :
           outcome?.membership === null),
       exactSpecialistFrontiers: snapshots.length === 2 && isDeepStrictEqual(snapshots[0],initial) &&
         isDeepStrictEqual(snapshots[1],latest) && latest.rows.length === expectedRows.size &&
@@ -312,7 +314,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
         independent.attemptMessage === (expected.attempt ? issued.get(expected.attempt) : null) &&
         independent.resultMessage === (expected.result ? issued.get(expected.result) : null) &&
         typeof plan.explanation === "string" && bytes(plan.explanation) <= 600 && expected.claims.every(check=>check.test(plan.explanation)),
-      verifiedArtifactAndImpact: independent.artifact ? !!result && !!outcome && historyShape(outcome.history,independent.artifact,result) &&
+      verifiedArtifactAndImpact: independent.artifact ? !!result && !!outcome && historyFindings(outcome.history,result) &&
         outcome.history?.result.persistedContract === expected.history && artifactReads.length === 1 &&
         artifactReads[0]!.message === independent.resultMessage && isDeepStrictEqual(artifactReads[0]!.value,independent.artifact) :
         outcome?.history === null && (independent.reason === "readback-unavailable" ?
@@ -320,7 +322,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
           artifactReads.length === 0),
       exactSpecialistHandoff: expected.action === "stage" ? !!plan && !!outcome?.history && !!handoff && !!artifact && !!written &&
         files.length === 1 && handoff.path === `/.tmp/${files[0]}/handoff.json` &&
-        artifactText(plan,outcome.history) === artifact && handoff.sha256 === sha256HexSyncText(artifact) &&
+        stagedText === artifact && handoff.sha256 === sha256HexSyncText(artifact) &&
         handoff.bytes === written.length && isDeepStrictEqual(handoff,outcome.handoff) :
         files.length === 0 && handoff === null && outcome?.handoff === null,
       preservedSpecialistContext: after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead,before.workingHead) &&
@@ -353,7 +355,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const memberRead = membershipReads[0];
     const membershipWitness = membership && memberRead ? {request:memberRead.request,
       report:{...membership,status:membership.state === "conflict" ? "held" : "observed"}} : null;
-    const report = {plan,membership:membershipWitness,history,handoff:receipt};
+    const report = {plan,membership:membershipWitness?.report??null,history:history?{units:history.units,result:history.result}:null,handoff:receipt};
     const accepted = await verify(report);
     const forged = await verify({...report,plan:{...plan,taskId:"other-task"}});
     return {...accepted,passed:accepted.passed && !forged.passed};

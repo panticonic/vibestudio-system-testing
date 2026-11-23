@@ -12,7 +12,7 @@ import type { credentialLifecycle } from "@vibestudio/credential-client/credenti
 import { bindIntegrationReview } from "@workspace-skills/api-integrations/workflow";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { BoundReport, Destination, DestinationObservation, IntegrationIndex, IntegrationReadinessPlan, LookupFact, QuietAudit,
-  QuietRequest, ReadinessArtifact, ReadinessReport, SelectionFrontier, SelectionRow, SelectionWitness } from "@workspace-skills/open-api-readiness/types";
+  QuietRequest, ReadinessArtifact, ReadinessReport, ApiReadinessResult, SelectionFrontier, SelectionRow, SelectionWitness } from "@workspace-skills/open-api-readiness/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { openApiReadinessWorlds, type ApiReadinessWorld, type Endpoint, type Seed } from "./open-goal-api-readiness-worlds.js";
@@ -199,6 +199,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const selected=check(current,id);
     return selected.reason==="selected"&&selected.message===msg;
   }
+  let stagedText:string|null=null;
   const services={
     quietIntegrationIndex:{async list(){return structuredClone(index);}},
     quietIntegrationJournal:{async read(channelId:string){
@@ -268,7 +269,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
           !isDeepStrictEqual(status.workingHead,before.workingHead))return null;
         const text=body(report);
         if(countBytes(text)>max)return null;
-        const receipt=await writer.stage(text);
+        const receipt=(stagedText=text,await writer.stage(text));
         if(!receipt)return null;
         handoff={...receipt,sha256:sha256HexSyncText(text)};
         return structuredClone(handoff);
@@ -276,7 +277,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     }},
   };
   async function verify(raw:unknown) {
-    const value=raw as ReadinessReport|null;
+    const value=raw as ApiReadinessResult|null;
     const outcome=value;
     const current=await ports.read(lane);
     const planned=actionFor(current,world.ambiguous?null:profileId);
@@ -295,8 +296,8 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
       trustedIntegrationSelection:planned.action==="hold"?!calls.length&&seenPlan===null&&!observations.length:
         calls.length===1&&calls[0]?.profileId===profileId&&calls[0]?.message===planned.message&&!!seenPlan&&
         isDeepStrictEqual(seenPlan.destinations,destinations.map(({url,...endpoint})=>endpoint)),
-      explicitQuietIntegration:planned.action==="hold"?audited===null&&outcome?.audit===null&&outcome?.review===null:
-        !!outcome&&verifiedReview(outcome.review,outcome.audit),
+      explicitQuietIntegration:planned.action==="hold"?audited===null&&outcome?.review===null&&Array.isArray(outcome?.facts)&&outcome.facts.length===0:
+        !!outcome&&!!bound&&verifiedReview(outcome.review?{request:bound.request,result:outcome.review}:null,audited)&&isDeepStrictEqual(outcome.facts,audited?.facts),
       observedIntegrationLifecycles:bound ? !!completed && sameEvidenceMembers(facts,completed.redacted) &&
         sameEvidenceMembers(observations,completed.observed) &&
         expected.rows.filter(([id])=>world.expected.held!==undefined||world.endpoints.find(endpoint=>endpoint.id===id)?.required)
@@ -307,7 +308,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         plan.action===expected.action&&plan.reason===expected.reason&&
         typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
       verifiedPrivateIntegrationNote:expected.action==="stage"?!!outcome&&!!handoff&&!!data&&!!artifact&&found.length===1&&
-        handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===body(outcome)&&handoff.bytes===data.length&&
+        handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&handoff.bytes===data.length&&
         handoff.sha256===sha256HexSyncText(artifact)&&isDeepStrictEqual(handoff,outcome.handoff):
         found.length===0&&handoff===null&&outcome?.handoff===null,
       preservedIntegrationWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
@@ -345,9 +346,9 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const plan={...actionFor(current,chosen),explanation:world.expected.statement};
     const outcome:ReadinessReport={plan,review,audit,handoff:null};
     if(plan.action==="stage")outcome.handoff=await services.quietIntegrationHandoff.stage(outcome);
-    const report=outcome;
+    const report={plan:outcome.plan,review:outcome.review?.result??null,facts:outcome.audit?.facts??[],handoff:outcome.handoff};
     const accepted=await verify(report);
-    const forged=await verify({...outcome,plan:{...plan,through:-1}});
+    const forged=await verify({...report,plan:{...plan,through:-1}});
     return {...accepted,passed:accepted.passed&&!forged.passed};
   }
   return {goal:world.goal,services,verify,qualify};
