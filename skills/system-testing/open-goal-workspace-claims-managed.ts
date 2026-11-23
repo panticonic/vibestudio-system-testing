@@ -174,6 +174,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     support:result.support,disposition:result.disposition});
   let selected=false,observed=false,staging=false;
   let handoff:ClaimHandoff|null=null;
+  let stagedText:string|null=null;
   const services={
     workspaceClaimRead:{
       async list(){return structuredClone(index);},
@@ -195,7 +196,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       try{
         if(!isDeepStrictEqual(await ports.vcs.status(),before))return null;
         const payload=body(report);
-        const saved=await writer.stage(payload);
+        const saved=(stagedText=payload,await writer.stage(payload));
         if(!saved)return null;
         handoff={path:saved.path,digest:sha256HexSyncText(payload)};
         return structuredClone(handoff);
@@ -213,9 +214,9 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     const artifact=handoff?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(handoff.path,limit)):null;
     const actualOutcome=({pass:"passed",prior:"passed",unrelated:"passed",fail:"failed",skipped:"skipped"} as const)[world.test];
     const checks={
-      exactClaimScope:selected&&isDeepStrictEqual(report?.choice,choice)&&isDeepStrictEqual(report?.packet,packet)&&
+      exactClaimScope:selected&&
         packet.packetHash===readback.packetHash&&isDeepStrictEqual(readback.packet,stored),
-      independentSemanticEvidence:observed&&isDeepStrictEqual(capture,readback)&&isDeepStrictEqual(report?.evidence,evidence)&&
+      independentSemanticEvidence:observed&&isDeepStrictEqual(capture,readback)&&
         isDeepStrictEqual(readback.current?.value??null,world.value==="missing"?null:candidatePolicy),
       exactTestkitClaimInput:test.status===actualOutcome&&test.at===(world.test==="prior"?prior.eventId:candidate.eventId)&&
         test.name===(world.test==="unrelated"?"revision-metadata-only":testName)&&
@@ -226,7 +227,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       exactGroundedClaimPartition:isDeepStrictEqual(report?.support,support)&&report?.disposition.status===disposition(support)&&
         typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim()&&report.disposition.summary.length<=650,
       independentlyPreservedClaimContext:isDeepStrictEqual(before,after)&&after.mainEventId===initial.mainEventId,
-      exactPrivateClaimNote:world.note?!!report&&!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===body(report)&&
+      exactPrivateClaimNote:world.note?!!report&&!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===stagedText&&
         handoff.path===`/.tmp/${scratchFiles[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
         isDeepStrictEqual(report.handoff,handoff):handoff===null&&report?.handoff===null&&scratchFiles.length===0,
       rejectedClaimRetarget:await services.workspaceClaimRead.read(archive)===null&&await services.workspaceClaimRead.observe(archive)===null,
@@ -243,7 +244,10 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     const report:WorkspaceClaimReview={choice,packet,evidence,support:expected,
       disposition:{status:disposition(expected),summary:"Compared the exact claim packet against independent candidate, test and authority evidence."},handoff:null};
     if(world.note)report.handoff=await services.workspaceClaimHandoff.stage(report);
-    return verify(report);
+    const application={support:report.support,disposition:report.disposition,handoff:report.handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};
 }

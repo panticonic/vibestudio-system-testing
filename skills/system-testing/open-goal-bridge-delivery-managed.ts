@@ -172,6 +172,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     retained:report.scope.retained,retainedDigest,protectedEventId:before.mainEventId,decision:report.decision,
     commit:report.commit,spec:report.spec.snapshot.file,note:report.note.snapshot.file});
 
+  let stagedText:string|null=null;
   const services={
     branchDeliveryRead:{
       async discover(){return structuredClone(index);},
@@ -221,7 +222,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
         workingEffect=true;
         try{
           const text=body(report);
-          const saved=await handoffWriter.stage(text);
+          const saved=(stagedText=text,await handoffWriter.stage(text));
           if(!saved)return null;
           handoff={path:saved.path,digest:sha256HexSyncText(text)};return structuredClone(handoff);
         }finally{workingEffect=false;}
@@ -247,18 +248,17 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     const protectedRepo=await ports.vcs.resolveRepository({state:event(before.mainEventId),repoPath:repository});
     const reportPlan=report?.plan;
     const checks={
-      exactBranchProject:seen&&isDeepStrictEqual(reportPlan,plan)&&isDeepStrictEqual(report?.scope,scope)&&
+      exactBranchProject:seen&&
         route.text!==null&&isDeepStrictEqual(JSON.parse(route.text),coordinates),
       exactLiveLocalBridge:bridgeRead?.upstream.state==="local-only"&&originalBridge.upstream.state==="local-only"&&
         bridgeRead.repository===repository&&bridgeRead.semantic.contextId===input.contextId&&bridgeRead.semantic.current&&
-        bridgeRead.semantic.workingRepositoryId===repo?.repositoryId&&!protectedRepo&&bridgeRead.semantic.mainRepositoryId===null&&
-        isDeepStrictEqual(report?.local.view,bridgeRead),
+        bridgeRead.semantic.workingRepositoryId===repo?.repositoryId&&!protectedRepo&&bridgeRead.semantic.mainRepositoryId===null,
       exactSemanticFileChain:files.every((path,i)=>{
         const row=fileReads.get(path);
         return !!row&&row.current&&row.contextId===input.contextId&&row.file.path===path&&
           (row.file.working?.hash??null)===priorFiles[i].digest&&isDeepStrictEqual(row.working,before.workingHead)&&
           isDeepStrictEqual(row.committed,before.committed)&&isDeepStrictEqual(row.protectedMain,event(before.mainEventId))&&
-          !row.file.protectedMain&&isDeepStrictEqual((i===0?report?.spec:report?.note)?.snapshot,row);
+          !row.file.protectedMain;
       }),
       retainedBranchAuthority:raw===recovered&&retainedDigest===recoveredDigest&&isDeepStrictEqual(scope.retained,parseRetainedBranch(recovered))&&
         classifyRetainedBranch(scope)===world.condition&&branch?.status===world.condition&&!!branch.explanation.trim(),
@@ -268,7 +268,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
         after.committed.eventId!==before.committed.eventId&&committedFiles.every((file,i)=>isDeepStrictEqual(file,priorFiles[i])):
         commit===null&&report?.commit===null&&isDeepStrictEqual(after,before),
       exactPrivateBranchHandoff:world.handoff?!!report&&!!handoff&&!!artifact&&candidates.length===1&&
-        handoff.path===`/.tmp/${candidates[0]}/handoff.json`&&artifact===body(report)&&handoff.digest===sha256HexSyncText(artifact)&&
+        handoff.path===`/.tmp/${candidates[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact)&&
         isDeepStrictEqual(report.handoff,handoff):handoff===null&&report?.handoff===null&&candidates.length===0,
       protectedBranchMain:after.mainEventId===initial.mainEventId&&originalBridge.semantic.mainRepositoryId===null,
       rejectedBranchRetarget:await services.branchDeliveryRead.inspect(archiveId)===null&&
@@ -302,7 +302,10 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     const report:BridgeDeliveryReport={scope,plan,local,spec,note,branch,decision,commit:null,handoff:null};
     if(world.result==="commit")report.commit=await services.branchDeliveryWrite.commit(id,spec.snapshot.working);
     if(world.handoff)report.handoff=await services.branchDeliveryWrite.retain(report);
-    return verify(report);
+    const application={branch:report.branch,decision:report.decision,commit:report.commit,handoff:report.handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,decision:{...application.decision,status:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};
 }

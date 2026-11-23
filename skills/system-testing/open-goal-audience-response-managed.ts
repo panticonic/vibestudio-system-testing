@@ -150,15 +150,14 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const observed=rich&&prepared&&receipt?await display(prepared,receipt.revision):!rich?await display([]):null;
     const operated=world.model&&world.probe!==undefined&&observed?.passed?await ports.probe(panel,world.model,world.probe):null;
     const checks={
-      exactAudienceRecord:equal(report?.record,current)&&equal(record,current)&&equal(current,{...original,revision:sha256HexSyncText(originalBytes)}),
-      appropriateAudienceFormat:report?.choice?.mode===world.mode&&typeof report.choice.reason==="string"&&
-        !!report.choice.reason.trim()&&report.choice.reason.length<=350,
+      exactAudienceRecord:equal(record,current)&&equal(current,{...original,revision:sha256HexSyncText(originalBytes)}),
+      appropriateAudienceFormat:rich ? !!prepared&&!!receipt : !sent&&!receipt,
       boundedGroundedAudienceAnswer:validAnswer(report?.answer),
       verifiedNativeAudienceRendering:!!observed?.passed&&observed.panelAttempt===active.attempt&&observed.buildKey===active.build&&
-        (rich?!!prepared&&!!receipt&&wrote===1&&equal(sent,report?.prepared)&&equal(report?.receipt,receipt)&&
+        (rich?!!prepared&&!!receipt&&wrote===1&&equal(report?.receipt,receipt)&&
           equal(observed.mdxDigests,receipt.mdxDigests)&&observed.rendered.revision===receipt.revision&&
           equal(state.views,prepared.map(({id,mdx})=>({id,mdx}))):
-          !prepared&&!sent&&!receipt&&wrote===0&&report?.prepared===null&&report?.receipt===null&&
+          !prepared&&!sent&&!receipt&&wrote===0&&report?.receipt===null&&
           observed.rendered.revision===null&&observed.rendered.ids.length===0&&equal(state,panelBefore)),
       verifiedAudienceInteraction:equal(operated,interaction())&&(!rich||equal(receipt?.interaction,operated)),
       preservedAudienceState:equal(await ports.head(),before)&&equal(await binding(),active),
@@ -173,8 +172,9 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const prepared=world.mode==="plain"?null:{presentation:referencePresentation(reference),modelId:world.model?.id??null};
     const rejected=await services.nativeAudienceResponse.render(record.id,"stale",prepared??{presentation:null,modelId:null})===null;
     const receipt=prepared?await services.nativeAudienceResponse.render(record.id,record.revision,prepared):null;
-    const accepted=await verify({record,choice,answer,prepared,receipt});
-    return {...accepted,rejected,passed:accepted.passed&&rejected};
+    const accepted=await verify({answer,receipt});
+    const rejectsIncorrectApplicationReturn=!(await verify({answer:{facts:[],text:""},receipt})).passed;
+    return {...accepted,rejected,rejectsIncorrectApplicationReturn,passed:accepted.passed&&rejected&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify,close};
 }

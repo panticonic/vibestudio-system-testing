@@ -153,6 +153,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       default:return "refused";
     }
   }
+  let stagedText:string|null=null;
   const services={
     routeEvidenceRead:{
       async discover(){return structuredClone(offer);},
@@ -185,7 +186,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
         if(!exact(await ports.vcs.status(),before))return null;
         if(world.route!=="external"&&!exact(await readRoute(world.route),readback?.records))return null;
         const payload=body(report);
-        const staged=await noteWriter.stage(payload);
+        const staged=(stagedText=payload,await noteWriter.stage(payload));
         if(!staged)return null;
         handoff={path:staged.path,digest:sha256HexSyncText(payload)};return structuredClone(handoff);
       }finally{busy=false;}
@@ -205,11 +206,10 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const written=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
     const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
     const checks={
-      exactRouteDiscovery:exact(offer,report?.offer)&&new Set(offer.routes.map(row=>row.id)).size===7,
-      exactScopedRoutePreflight:nominatedPreflight()&&snapshots.every(row=>operations.some(operation=>operation.id===row.operationId))&&
-        exact(report?.authority,authorization),
+      exactRouteDiscovery:new Set(offer.routes.map(row=>row.id)).size===7,
+      exactScopedRoutePreflight:nominatedPreflight()&&snapshots.every(row=>operations.some(operation=>operation.id===row.operationId)),
       exactCanonicalOriginCeiling:(!linkReview||sameClaim(linkReview,new URL(linkUrl).origin))&&(!altReview||sameClaim(altReview,new URL(altUrl).origin)),
-      selectedExactLocalAuthority:!!report&&matchesChoice(report.choice)&&(world.route==="external"||nominated.operationIds.every(id=>
+      selectedExactLocalAuthority:!!report&&(world.route==="external"||nominated.operationIds.every(id=>
         authorization.reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible"))),
       nativeRouteReadback:world.route==="external"?readback===null&&report?.readback===null:
         !!fresh&&!!readback&&readback.routeId===nominated.id&&exact(fresh,readback.records)&&exact(readback,report?.readback),
@@ -217,7 +217,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       exactRouteConclusion:report?.outcome.status===intendedOutcome()&&typeof report.outcome.summary==="string"&&
         !!report.outcome.summary.trim()&&report.outcome.summary.length<=650,
       exactPrivateRouteNote:world.note?!!report&&!!handoff&&!!artifact&&written.length===1&&
-        handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===body(report)&&handoff.digest===sha256HexSyncText(artifact)&&exact(report.handoff,handoff):
+        handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact)&&exact(report.handoff,handoff):
         handoff===null&&report?.handoff===null&&written.length===0,
       rejectedRouteRetarget:await services.routeEvidenceRead.inspect(routes.find(row=>row.basis==="alternate-link")!.id)===null&&
         await services.routeEvidenceHandoff.stage({} as OwnedRouteReview)===null,
@@ -234,7 +234,10 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const outcome={status:intendedOutcome(),summary:"Verified the exact native route, its scope and result."};
     const report:OwnedRouteReview={offer,authority:expectedAuthority(),choice,readback,outcome,handoff:null};
     if(world.note)report.handoff=await services.routeEvidenceHandoff.stage(report);
-    return verify(report);
+    const application={readback:report.readback,outcome:report.outcome,handoff:report.handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,status:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};
 }

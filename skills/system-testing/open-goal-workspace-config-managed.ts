@@ -198,6 +198,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
       dependencies:expectedLens.inspectDependencies?await readDependencies(initialMain.eventId):null};
   }
 
+  let stagedText:string|null=null;
   const services={
     nativeWorkspaceConfig:{
       async readBrief(){observation.brief=await readStoredBrief();return structuredClone(observation.brief);},
@@ -222,7 +223,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
       staged=true;
       if(!equal(evidence,await independentEvidence())||!equal(brief,await readStoredBrief()))return null;
       const text=encode({brief,lens,evidence,outcome});
-      const saved=await writer.stage(text);
+      const saved=(stagedText=text,await writer.stage(text));
       handoff=saved?{path:saved.path,digest:sha256HexSyncText(text)}:null;
       return structuredClone(handoff);
     }},
@@ -240,12 +241,12 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const artifact=handoff?asText(await ports.readBytes(handoff.path,sizeLimit)):null;
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
     const checks={
-      exactConfigBrief:equal(report?.brief,freshBrief)&&equal(observation.brief,freshBrief),
-      scopedConfigLens:equal(report?.lens,expectedLens),
-      exactLiveWorkspaceConfig:equal(report?.evidence?.active,independent.active)&&equal(evidence?.active,independent.active),
-      exactProtectedConfigHistory:equal(report?.evidence?.history,independent.history)&&equal(evidence?.history,independent.history)&&
+      exactConfigBrief:equal(observation.brief,freshBrief),
+      scopedConfigLens:evidence!==null,
+      exactLiveWorkspaceConfig:equal(evidence?.active,independent.active),
+      exactProtectedConfigHistory:equal(evidence?.history,independent.history)&&
         (independent.history===null||independent.history.main.ref===currentMain.eventId),
-      exactProtectedTemplateDependencies:equal(report?.evidence?.dependencies,independent.dependencies)&&equal(evidence?.dependencies,independent.dependencies)&&
+      exactProtectedTemplateDependencies:equal(evidence?.dependencies,independent.dependencies)&&
         (independent.dependencies===null||independent.dependencies.mainEvent===currentMain.eventId),
       exactConfigDisposition:exactDecision(report?.outcome,freshBrief,independent),
       preservedProtectedConfig:equal(currentStatus,before)&&equal(currentMain,initialMain),
@@ -253,7 +254,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
         await services.nativeWorkspaceConfig.inspectDependencies("foreign-"+initialMain.eventId)===null,
       exactPrivateConfigNote:authorized({...outcome,summary:""})?!!report&&!!artifact&&!!handoff&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
-        artifact===encode({brief:report.brief,lens:report.lens,evidence:report.evidence,outcome:report.outcome})&&
+        artifact===stagedText&&
         equal(report.handoff,handoff):handoff===null&&report?.handoff===null&&files.length===0,
     };
     return {contextId:owner,caseId:world.id,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
@@ -271,7 +272,10 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const evidence={active,history,dependencies};
     const outcome:ConfigOutcome={...disposition(brief,evidence),summary:"Checked current declarations, the retained note, and the requested exact source references."};
     const handoff=authorized(outcome)?await services.nativeConfigHandoff.stage(brief,expectedLens,evidence,outcome):null;
-    return verify({brief,lens:expectedLens,evidence,outcome,handoff});
+    const application={outcome,handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,noteStatus:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};
 }

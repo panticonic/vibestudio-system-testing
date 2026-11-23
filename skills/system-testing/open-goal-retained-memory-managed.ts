@@ -188,7 +188,8 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       return !!outcome&&exact!==null&&outcome.disposition===world.required.disposition&&equal(outcome.citations,exact)&&
         typeof outcome.summary==="string"&&!!outcome.summary.trim()&&outcome.summary.length<=700;
     }
-    const services={
+    let stagedText:string|null=null;
+  const services={
       nativeRetainedMemory:{
         async brief(){observed.brief=true;return structuredClone(reference);},
         async recall(query:string,kinds:MemoryKind[]){
@@ -218,7 +219,7 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
         writing=true;
         if(!await auditEvidence(evidence))return null;
         const text=encode(brief,plan,evidence,outcome);
-        const saved=await writer.stage(text);
+        const saved=(stagedText=text,await writer.stage(text));
         handoff=saved?{path:saved.path,digest:sha256HexSyncText(text)}:null;
         return structuredClone(handoff);
       }},
@@ -231,17 +232,17 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
       const nativeCheck=evidence!==null&&await auditEvidence(evidence);
       const checks={
-        exactRetainedMemoryScope:observed.brief&&equal(report?.brief,reference)&&planMatches(report?.plan),
-        exactBoundedNativeRecall:evidence!==null&&report!==undefined&&equal(report.evidence?.leads,evidence.leads)&&
+        exactRetainedMemoryScope:observed.brief&&evidence!==null,
+        exactBoundedNativeRecall:evidence!==null&&
           evidence.leads.every(inScope)&&(expected.kinds.includes("commit")?events.every(event=>eventSet().includes(event)):eventSet().length===0),
-        independentlyReadMemorySources:nativeCheck&&equal(report?.evidence,evidence),
+        independentlyReadMemorySources:nativeCheck,
         exactMemoryCitations:evidence!==null&&validOutcome(report?.outcome,evidence),
         protectedMemoryScope:equal(await ports.vcs.status(),before)&&equal(await ports.vcs.mainState(),main)&&
           (await services.nativeRetainedMemory.transcript("foreign-"+lane.key)).length===0&&
           await services.nativeRetainedMemory.archivedFile("foreign-"+main.eventId)===null,
         exactPrivateMemoryHandoff:world.private?!!report&&!!artifact&&!!handoff&&notes.length===1&&
           handoff.path===`/.tmp/${notes[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
-          equal(report.handoff,handoff)&&artifact===encode(report.brief,report.plan,report.evidence,report.outcome):
+          equal(report.handoff,handoff)&&artifact===stagedText:
           handoff===null&&report?.handoff===null&&notes.length===0,
       };
       return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
@@ -261,7 +262,10 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       const outcome:MemoryOutcome={disposition:world.required.disposition,citations:refs,
         summary:"Compared exact original conversation rows and the requested native source evidence."};
       const handoff=world.private?await services.nativeMemoryHandoff.stage(brief,plan,evidence,outcome):null;
-      return verify({brief,plan,evidence,outcome,handoff});
+      const application={outcome,handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,disposition:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
     }
     return {services,verify,qualify,close};
   }catch(error){

@@ -128,7 +128,8 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
     const authorized=()=>frames.length===2&&plan.direction!=="read"&&sameIdentity(frames[0],frames[1])&&
       !overlaps(frames[0].state,frames[1].state,plan.patch);
 
-    const services={
+    let stagedText:string|null=null;
+  const services={
       launchStateRead:{
         async enumerate(){return structuredClone(index);},
         async read(panelId:string){
@@ -196,7 +197,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
           try {
             if(!isDeepStrictEqual(await native(active),readback))return null;
             const payload=body(report);
-            const staged=await writer.stage(payload);
+            const staged=(stagedText=payload,await writer.stage(payload));
             if(!staged)return null;
             handoff={path:staged.path,digest:sha256HexSyncText(payload)};
             return structuredClone(handoff);
@@ -217,24 +218,21 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const effectProof=effect as LaunchEffect|null,authorityWitness=witness as Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null;
       const authorityRequest=(binding as Binding|null)?.request??null;
       const checks={
-        exactLaunchSlot:isDeepStrictEqual(report?.plan,plan)&&frames.length===2&&isDeepStrictEqual(opening,baseline)&&
-          isDeepStrictEqual(report?.opening,opening)&&isDeepStrictEqual(report?.current,current),
+        exactLaunchSlot:frames.length===2&&isDeepStrictEqual(opening,baseline),
         reconciledLaunchScope:!!current&&(!sameIdentity(opening,current))===Boolean(world.replaceEntry)&&
-          report?.decision.attempt===shouldAttempt&&typeof report.decision.reason==="string"&&!!report.decision.reason.trim(),
+          shouldAttempt===!!effectProof,
         exactLaunchPreflight:shouldAttempt?!!authorityRequest&&authorityWitness?.decision==="allowed"&&
-          authorityWitness.operationId===authorityRequest.operations[0].id&&
-          isDeepStrictEqual(report?.preflight?.request,authorityRequest)&&report?.preflight?.report.status==="eligible"&&
-          isDeepStrictEqual(report.preflight.report.reviews[0]?.observation,authorityWitness):report?.preflight===null&&authorityWitness===null,
-        exactNativePatchResult:shouldAttempt?!!effectProof&&isDeepStrictEqual(report?.effect,effectProof)&&effectProof.basis===current?.digest&&
+          authorityWitness.operationId===authorityRequest.operations[0].id:authorityWitness===null,
+        exactNativePatchResult:shouldAttempt?!!effectProof&&effectProof.basis===current?.digest&&
           (world.outcome==="applied"?effectProof.kind==="saved"&&isDeepStrictEqual(effectProof.state,expected):
-            effectProof.kind==="invalid"&&effectProof.state===null):effectProof===null&&report?.effect===null,
+            effectProof.kind==="invalid"&&effectProof.state===null):effectProof===null,
         independentLaunchReadback:!!readback&&isDeepStrictEqual(final,readback)&&isDeepStrictEqual(report?.readback,final)&&
           !!current&&sameIdentity(current,final)&&isDeepStrictEqual(final.state,expected),
         exactLaunchDecision:report?.result?.status===world.outcome&&typeof report.result.summary==="string"&&
           !!report.result.summary.trim()&&report.result.summary.length<=650,
         protectedLaunchSiblings:isDeepStrictEqual(archive,archiveAfter)&&isDeepStrictEqual(status,initial),
         exactPrivateLaunchNote:world.note?!!report&&!!artifact&&!!handoff&&written.length===1&&
-          handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===body(report)&&handoff.digest===sha256HexSyncText(artifact)&&
+          handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact)&&
           isDeepStrictEqual(handoff,report.handoff):handoff===null&&report?.handoff===null&&written.length===0,
         rejectedLaunchRetarget:await services.launchStateRead.read(alternate.id)===null&&
           await services.launchStateRead.seal(alternate.id)===null&&await services.launchStateWrite.patch(alternate.id,baseline.digest,plan.patch)===null,
@@ -264,7 +262,10 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const result:LaunchVerdict={status:world.outcome,summary:"Read the outcome from the native persisted launch entry."};
       const report:LaunchReport={plan,opening,current,decision,preflight,effect:receipt,readback:persisted,result,handoff:null};
       if(world.note)report.handoff=await services.launchStateWrite.stage(report);
-      return verify(report);
+      const application={readback:report.readback,result:report.result,handoff:report.handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,result:{...application.result,status:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
     }
     return {services,verify,qualify,close};
   }catch(error){

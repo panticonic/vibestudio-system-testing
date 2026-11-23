@@ -237,6 +237,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
       worker:worker?await ports.workerState(worker,active):null,receipt,retryId};
   }
 
+  let stagedText:string|null=null;
   const services={
     chatContinuityIndex:{async list(){return structuredClone(index);}},
     chatContinuityState:{async read(channelId:string){
@@ -267,7 +268,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         if(current.mainEventId!==before.mainEventId||!isDeepStrictEqual(current.workingHead,before.workingHead))return null;
         const text=body(report);
         if(new TextEncoder().encode(text).length>max)return null;
-        const saved=await writer.stage(text);
+        const saved=(stagedText=text,await writer.stage(text));
         if(!saved)return null;
         handoff={path:saved.path,digest:sha256HexSyncText(text),messageId:receipt.messageId,channelId:active.key,through:latest.through};
         return structuredClone(handoff);
@@ -276,7 +277,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   };
 
   async function verify(raw:unknown) {
-    const value=raw as ChatContinuityReport|null;
+    const value=raw as (ChatContinuityReport & {review:ChatEvidence["review"]})|null;
     const report=value;
     const [opening,current]=frames;
     const latest=await observe(false);
@@ -300,10 +301,10 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         newWorker.endedRevision!==null&&newWorker.endedRevision>oldWorker.revision&&newWorker.revision>newWorker.endedRevision:
       world.worker==="stable"?!!newWorker?.active&&isDeepStrictEqual(oldWorker,newWorker):oldWorker===null&&newWorker===null;
     const checks={
-      exactOwnedChatSelection:frames.length===2&&isDeepStrictEqual(report?.plan,plan)&&index.scopes.every(row=>row.contextId===owner)&&
-        report?.opening.channelId===active.key&&report?.current.channelId===active.key,
+      exactOwnedChatSelection:frames.length===2&&index.scopes.every(row=>row.contextId===owner)&&
+        opening?.channelId===active.key&&current?.channelId===active.key,
       exactChatFrontiers:!!opening&&!!current&&opening.through<=current.through&&
-        isDeepStrictEqual(opening,report?.opening)&&isDeepStrictEqual(current,report?.current)&&isDeepStrictEqual(current,latest),
+        isDeepStrictEqual(current,latest),
       independentDurableChatReceipt:independentlyRead.rows.length===expectedRows&&independentlyArchived.rows.length===1&&
         latest.through===independentlyRead.through&&isDeepStrictEqual(latest.rows,independentlyRead.rows)&&
         latest.rows.filter(row=>isDeepStrictEqual(row,sourceRow)).length===1&&
@@ -314,12 +315,12 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         isDeepStrictEqual(retainedWorkerRelationship(independentlyRead.events,newWorker.participantId),
           {active:newWorker.active,revision:newWorker.revision,endedRevision:newWorker.endedRevision,handle:newWorker.handle}))&&
         retired.every(row=>row.status==="fulfilled"),
-      groundedChatDeliveryReview:isDeepStrictEqual(report?.evidence,proof)&&proof.review.ready===(world.status==="ready"),
+      groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review)&&proof.review.ready===(world.status==="ready"),
       groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
         typeof decision.explanation==="string"&&decision.explanation.length<=650&&
         world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
       verifiedPrivateChatHandoff:shouldWrite?!!report&&!!handoff&&!!artifact&&files.length===1&&
-        handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===body(report)&&
+        handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact)&&isDeepStrictEqual(report.handoff,handoff):
         handoff===null&&files.length===0&&report?.handoff===null,
       preservedChatWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
@@ -338,7 +339,10 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     const disposition:ChatDisposition={status:world.status,write:shouldWrite,explanation:world.words.join(" / ")};
     const report:ChatContinuityReport={plan,opening,current,evidence,disposition,handoff:null};
     if(shouldWrite)report.handoff=await services.chatContinuityHandoff.stage(report);
-    return verify(report);
+    const application={review:report.evidence.review,disposition:report.disposition,handoff:report.handoff};
+    const proof=await verify(application);
+    const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).passed;
+    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
   return {services,verify,qualify};
 }
