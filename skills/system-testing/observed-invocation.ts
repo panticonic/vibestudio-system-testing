@@ -5,8 +5,9 @@ export type ObservedCall = {
   parentCallId: string | null;
   definition: { name: string; source: string };
   outcome: string;
+  execution?: {kind:string;modelId:string|null;modelRequests:number};
 };
-export type ObservedReturn = ObservedCall & { value: unknown };
+export type ObservedReturn = ObservedCall & { value: unknown; valueJson:string };
 export type InvocationObservations = {
   readonly calls: readonly ObservedCall[];
   returns(select?: (call: ObservedCall) => boolean): Promise<ObservedReturn[]>;
@@ -17,6 +18,8 @@ type CapturedCall = {
   record: {
     call_id: string; parent_call_id: string | null;
     definition: { name: string; source: string }; outcome: string;
+    executor?: {kind:string;model_id:string|null};
+    cost?: {model_requests:number};
     output?: { complete?: boolean; hash?: string } | null;
   };
 };
@@ -41,6 +44,8 @@ export function observeInvocation(
         call_id: call.record.call_id, parent_call_id: call.record.parent_call_id,
         definition: { name: call.record.definition.name, source: call.record.definition.source },
         outcome: call.record.outcome,
+        executor:call.record.executor?{kind:call.record.executor.kind,model_id:call.record.executor.model_id}:undefined,
+        cost:call.record.cost?{model_requests:call.record.cost.model_requests}:undefined,
         output: call.record.output ? { complete: call.record.output.complete, hash: call.record.output.hash } : null,
       },
     }] as const;
@@ -65,6 +70,7 @@ export function observeInvocation(
   const calls = Object.freeze([...byId.values()].map(({ callId, record }) => Object.freeze({
     callId, parentCallId: record.parent_call_id,
     definition: Object.freeze({ ...record.definition }), outcome: record.outcome,
+    ...(record.executor&&record.cost?{execution:Object.freeze({kind:record.executor.kind,modelId:record.executor.model_id,modelRequests:record.cost.model_requests})}:{}),
   })));
   return {
     calls,
@@ -77,7 +83,7 @@ export function observeInvocation(
         const text = await readValue(output.hash);
         if (text === null || sha256HexSyncText(text) !== output.hash)
           throw new Error("Missing or corrupt recorded return: " + call.callId);
-        values.push({ ...call, value: JSON.parse(text) });
+        values.push({ ...call, value: JSON.parse(text),valueJson:text });
       }
       return values;
     },

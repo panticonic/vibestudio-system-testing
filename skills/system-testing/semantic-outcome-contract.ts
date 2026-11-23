@@ -18,7 +18,7 @@ export function assessSemanticOutcome<T extends Verification>(
 ): T & { outcomeContract: SemanticOutcomeContract; outcomeDimensions: {
   effects: { passed: boolean; checks: Record<string, boolean> };
   returnedValue: { required: boolean; passed: boolean; checks: Record<string, boolean> };
-  incidentalValues?: { passed: boolean; checks: Record<string, boolean>; incorrectReturns: {definition:{name:string;source:string};required:boolean;valueJson:string;sha256:string}[] };
+  incidentalValues?: { passed: boolean; checks: Record<string, boolean>; incorrectReturns: {definition:{name:string;source:string};required:boolean;valueJson:string;sha256:string;contribution?:unknown}[] };
 } } {
   // Existing application oracles remain strict until their authored contract
   // identifies independent state checks and any incidental response convention.
@@ -54,7 +54,7 @@ export function assessSemanticOutcome<T extends Verification>(
     outcomeDimensions: {
       effects: { passed: effectsPassed, checks: effects },
       returnedValue: { required: declared.returnedValue.required, passed: returnPassed, checks: returnedValue },
-      ...(declared.incidentalValues ? {incidentalValues:{passed:Object.values(incidental).every(value=>value===true),checks:incidental,incorrectReturns:((verification.incorrectReturnValues as {definition:{name:string;source:string};required?:boolean;value:unknown}[]|undefined) ?? []).map(item=>{const valueJson=JSON.stringify(item.value);return {definition:item.definition,required:item.required!==false,valueJson,sha256:sha256HexSyncText(valueJson)};})}} : {}),
+      ...((declared.incidentalValues||(Array.isArray(verification.incorrectReturnValues)&&verification.incorrectReturnValues.length>0)||(!declared.returnedValue.required&&!returnPassed)) ? {incidentalValues:{passed:Object.values(incidental).every(value=>value===true)&&(!Array.isArray(verification.incorrectReturnValues)||verification.incorrectReturnValues.length===0)&&(declared.returnedValue.required||returnPassed),checks:incidental,incorrectReturns:((verification.incorrectReturnValues as {definition:{name:string;source:string};required?:boolean;value:unknown;valueJson?:string;contribution?:unknown}[]|undefined) ?? []).map(item=>{const valueJson=item.valueJson??JSON.stringify(item.value);return {definition:item.definition,required:item.required!==false,valueJson,sha256:sha256HexSyncText(valueJson),...(item.contribution?{contribution:item.contribution}:{})};})}} : {}),
     },
   };
 }

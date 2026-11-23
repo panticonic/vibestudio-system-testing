@@ -45,3 +45,12 @@ it("composes already assessed outcomes without losing optional observations", ()
  expect(()=>assessSemanticOutcome({...first,checks:{stored:false}},contract)).toThrow("preserve its original observations");
  expect(assessSemanticOutcome(second,{...contract,returnedValue:{...contract.returnedValue,required:true}}).passed).toBe(false);
 });
+
+it("does not hide wrong optional returned values behind an empty incidental check list",()=>{
+ const contract={effects:{checks:["stored"],rationale:"Actual stored bytes."},returnedValue:{checks:["answer"],required:false,rationale:"The answer is optional after the requested mutation."}};
+ const masked=assessSemanticOutcome({passed:false,checks:{stored:true,answer:false},incorrectReturnValues:[{definition:{name:"judge",source:"judge.nl"},required:false,value:{answer:"wrong"}}]},contract);
+ expect(masked.passed).toBe(true);expect(masked.outcomeDimensions.incidentalValues?.passed).toBe(false);
+ expect(masked.outcomeDimensions.incidentalValues?.incorrectReturns).toHaveLength(1);
+ const unbound=assessSemanticOutcome({passed:false,checks:{stored:true,answer:false}},contract);
+ expect(unbound.outcomeDimensions.incidentalValues?.passed).toBe(false);expect(unbound.outcomeDimensions.incidentalValues?.incorrectReturns).toEqual([]);
+});
