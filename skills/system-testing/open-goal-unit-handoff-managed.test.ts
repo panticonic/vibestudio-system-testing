@@ -117,7 +117,7 @@ it.each(openUnitHandoffWorlds)("$id uses exact native design and icon checks", a
   const altered = structuredClone(result.unitHandoff.report);
   if (!altered) throw new Error("Expected an actual verified report");
   altered.path = "extensions/other";
-  expect((await candidate.verify(altered)).checks.owned_selection).toBe(false);
+  expect((await candidate.verify(altered)).outcomeDimensions.returnedValue.checks.owned_selection).toBe(false);
 });
 
 it("rejects an edit with retained inspection authority even when the real catalog resolves", async () => {

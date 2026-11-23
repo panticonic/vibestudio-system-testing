@@ -64,7 +64,9 @@ it("retains explicit user observation prerequisites and the sealed receipt", asy
 
 it("checks the actual saved semantic note independently of a later returned summary",async()=>{
   const good=await prepare("api-readiness-required-inventory-optional-status");
-  expect((await good.qualify()).passed).toBe(true);
+  const reference=await good.qualify();
+  expect(reference.checks).toEqual(Object.fromEntries(Object.keys(reference.checks).map(name=>[name,true])));
+  expect(reference.passed).toBe(true);
   const saved=good.readArtifact();
   const native=await good.verify({plan:{...saved.plan,explanation:"An unsupported later return."},review:saved.review.result,facts:saved.audit.facts,handoff:null});
   expect(native.outcomeDimensions.effects.passed).toBe(true);
