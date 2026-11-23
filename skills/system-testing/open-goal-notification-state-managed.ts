@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import type { WorkspaceRuntime } from "@workspace/runtime/hosted";
@@ -165,17 +166,11 @@ export async function prepareOpenNotificationState(
     id: string | null;
     revision: number | null;
   };
-  type Outcome = {
-    scope: string;
-    lifecycle: { original: Snapshot; refresh: Refresh; current: Snapshot };
-    decision: { action: string; finding: Finding; reason: string };
-    acknowledgement: Ack | null;
-    final: Snapshot;
-  };
 
-  async function verify(report: unknown) {
-    const envelope = report as Outcome | null;
-    const outcome = envelope;
+
+  async function verify(report: unknown, observations?: InvocationObservations) {
+    const result = report as Ack | {action:string;finding:Finding;reason:string} | null;
+    const decision = result && "action" in result ? result : null;
     const raw = await rpc.call(target, actor.audit, []);
     const ownsFinal = raw.active?.id === lanes.assigned.id;
     const final =
@@ -183,13 +178,11 @@ export async function prepareOpenNotificationState(
         ? await rpc.call(target, actor.read, [raw.active])
         : null;
     const refreshIndex=journal.findIndex(row=>row.method==="refresh");
-    const initial = journal.slice(0,refreshIndex<0?0:refreshIndex).find(row=>row.method==="read"&&
-      isDeepStrictEqual(row.result,outcome?.lifecycle?.original))?.result as Snapshot|undefined;
+    const initial = journal.slice(0,refreshIndex<0?0:refreshIndex).find(row=>row.method==="read")?.result as Snapshot|undefined;
     const refresh = journal.find((row) => row.method === "refresh")?.result as
       | Refresh
       | undefined;
-    const current = refreshIndex<0?undefined:journal.slice(refreshIndex+1).find(row=>row.method==="read"&&
-      isDeepStrictEqual(row.result,outcome?.lifecycle?.current))?.result as Snapshot|undefined;
+    const current = refreshIndex<0?undefined:journal.slice(refreshIndex+1).find(row=>row.method==="read")?.result as Snapshot|undefined;
     const ack = journal.find((row) => row.method === "acknowledge")?.result as
       | Ack
       | undefined;
@@ -211,9 +204,7 @@ export async function prepareOpenNotificationState(
         isDeepStrictEqual(
           initial?.attention.map((row) => row.id),
           expected.before,
-        ) &&
-        isDeepStrictEqual(outcome?.lifecycle?.original, initial) &&
-        isDeepStrictEqual(outcome?.lifecycle?.current, current ?? null),
+        ),
       verifiedNotificationRefresh:
         raw.refreshCommits===1 &&
         refresh?.producerReceipt === expected.receipt &&
@@ -223,18 +214,13 @@ export async function prepareOpenNotificationState(
             : world.transition
               ? "changed"
               : "unchanged") &&
-        isDeepStrictEqual(refresh.lane, ownsFinal ? raw.active : null) &&
-        isDeepStrictEqual(outcome?.lifecycle?.refresh, refresh),
-      exactNotificationDisposition:
-        outcome?.scope === "owned-notification-fixture" &&
-        outcome.decision?.action === expected.action &&
-        outcome.decision?.finding?.state === expected.state &&
-        outcome.decision.finding.id === (expected.target?.[0] ?? null) &&
-        outcome.decision.finding.revision === (expected.target?.[1] ?? null) &&
-        typeof outcome.decision.reason === "string" &&
-        outcome.decision.reason.trim().length > 0 &&
-        isDeepStrictEqual(outcome.acknowledgement, ack ?? null) &&
-        (expected.action !== "acknowledge" || ack?.status === "acknowledged"),
+        isDeepStrictEqual(refresh.lane, ownsFinal ? raw.active : null),
+      returnedNotificationResolution:
+        expected.action === "acknowledge" ? ack?.status === "acknowledged" && isDeepStrictEqual(result,ack) :
+        decision?.action === expected.action && decision.finding?.state === expected.state &&
+        decision.finding.id === (expected.target?.[0] ?? null) &&
+        decision.finding.revision === (expected.target?.[1] ?? null) &&
+        typeof decision.reason === "string" && decision.reason.trim().length > 0,
       independentNotificationReadback:
         isDeepStrictEqual(
           final?.attention.map((row) => row.id) ?? null,
@@ -246,10 +232,17 @@ export async function prepareOpenNotificationState(
         ) &&
         final?.unreadCount === (expected.attention?.length ?? undefined) &&
         final?.retainedCount === (expected.retained?.length ?? undefined) &&
-        isDeepStrictEqual(outcome?.final, final) &&
         isDeepStrictEqual(raw.rows, expectedStore(world, lanes)),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["exactNotificationReadScope", "verifiedNotificationRefresh", "independentNotificationReadback"],rationale:"Actual retained rows, refresh ownership, acknowledgment and native counts establish the action."},
+        returnedValue: {checks:["returnedNotificationResolution"],required:expected.action!=="acknowledge",rationale:"A read-only notification finding is requested; an acknowledgment receipt copy is optional."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedNotificationResolution) ? [{
+        required:expected.action!=="acknowledge",definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewNotificationState",source:"reviewNotificationState.nl"},value:result,
+      }] : [],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -295,28 +288,11 @@ export async function prepareOpenNotificationState(
       acknowledgement = await service.acknowledge(current.lane, id, revision);
       final = await service.read(current.lane);
     }
-    const report = {
-        scope: "owned-notification-fixture",
-        decision,
-        lifecycle: { original, current, refresh },
-        final,
-        acknowledgement,
-      };
+    const report = acknowledgement ?? decision;
     const proof = await verify(report);
-    const wrongCounter = {
-        ...report,
-        final: final && { ...final, unreadCount: -1 },
-      };
-    const wrongDecision = {
-        ...report,
-        decision: {
-          ...decision,
-          finding: { ...decision.finding, id: "wrong-lane" },
-        },
-      };
-    const rejectedWrongOutput = !(
-      await verify(final ? wrongCounter : wrongDecision)
-    ).passed;
+    const forged = acknowledgement ? {...acknowledgement,id:"wrong-lane"} :
+      {...decision,finding:{...decision.finding,id:"wrong-lane"}};
+    const rejectedWrongOutput = !(await verify(forged)).passed;
     const checks = {
       ...proof.checks,
       rejectedForeignLane,
@@ -326,6 +302,7 @@ export async function prepareOpenNotificationState(
     };
     return {
       ...proof,
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedForeignLane", "rejectedStaleAck", "rejectedWrongOutput"]]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

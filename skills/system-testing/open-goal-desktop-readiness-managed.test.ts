@@ -1,3 +1,4 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -94,6 +95,7 @@ describe("desktop readiness with the installed client and canonical projections"
         ports,
       );
       const report = await fixture.qualify();
+      expect(assessSemanticOutcome(report).passed).toBe(true);
       expect(report.checks).toEqual(
         Object.fromEntries(
           Object.keys(report.checks).map((key) => [key, true]),
@@ -108,6 +110,18 @@ describe("desktop readiness with the installed client and canonical projections"
         report.exactAdmission?.source.observation.catalog?.activeBuildKey,
       ).toBe("actual-readback");
       expect(report.updates.portCalls).toBe(0);
+      if (world === openDesktopReadinessWorlds[0]) {
+        const observed = await fixture.verify(report.report, {calls:[], returns:async()=>[{
+          callId:"actual-child",parentCallId:"actual-parent",outcome:"done",
+          definition:{name:"reviewClientAdmission",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission.nl"},
+          value:{decision:"incorrect-unused-classification"},
+        }]});
+        expect(observed.checks.matchedDesktopReadinessDecision).toBe(true);
+        expect(observed.checks.incidentalDesktopAdmissionClassification).toBe(false);
+        expect(observed.incorrectReturnValues).toHaveLength(1);
+        expect(observed.incorrectReturnValues[0]?.definition.name).toBe("reviewClientAdmission");
+      }
+
       const destination = process.env.VIBE_DESKTOP_PROOFS;
       if (destination)
         await fs.writeFile(

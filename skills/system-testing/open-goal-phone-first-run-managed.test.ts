@@ -1,3 +1,4 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import { expect, it, vi } from "vitest";
 import { preparePhoneFirstRun } from "./open-goal-phone-first-run-managed.js";
 import { openPhoneFirstRunWorlds } from "./open-goal-phone-first-run-worlds.js";
@@ -43,6 +44,7 @@ it("accepts repeated identical native read observations without admitting a pair
     }),
   } as never);
   const prior = await prepared.qualify();
+  expect(assessSemanticOutcome(prior).passed).toBe(true);
   expect(prior.passed).toBe(true);
   await prepared.services.phoneSetupRead.start("operation");
   await prepared.services.phoneSetupRead.readiness("setup");

@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   sha256HexSyncText,
@@ -80,15 +81,7 @@ type GrimoireSceneReadback = {
   sceneDigest: string;
   fileDigest: string | null;
 };
-type GrimoireSceneOutcome = {
-  scope: "owned-grimoire-caretaker-draft";
-  docket: GrimoireDocket;
-  evidence: GrimoireSceneEvidence;
-  plan: GrimoirePlan;
-  gate: GrimoireSceneGate;
-  receipt: GrimoireSceneReceipt | null;
-  readback: GrimoireSceneReadback;
-};
+type GrimoireSceneOutcome = GrimoireSceneReceipt | { action: GrimoirePlan["action"]; finding: string };
 
 import { advanceOwnedGrimoirePanel, assertOwnedGrimoirePanel, grimoireClockIndex,
   grimoireSceneDocket, grimoireSceneEstate, type GrimoireClock } from "./grimoire-fixture-player.js";
@@ -441,9 +434,10 @@ export async function prepareOpenGrimoireScene(
     },
   };
 
-  async function verify(value: unknown) {
-    const envelope = value as GrimoireSceneOutcome;
-    const out = envelope;
+  async function verify(value: unknown, observations?: InvocationObservations) {
+    const result = value as GrimoireSceneOutcome | null;
+    const planned = journal.filter(row => row.service === namespaces.write && row.method === "stage").at(-1)?.args[2] as GrimoirePlan | undefined;
+    const finding = planned ?? (result && "action" in result ? result : null);
     const final = await observe();
     const files = (await listOwnedScratchEntries(ports.fs)).filter(
       (path) => !initialScratch.has(path),
@@ -493,11 +487,11 @@ export async function prepareOpenGrimoireScene(
           )
         : null;
     const checks = {
+      returnedCaretakerValue: stages ? !!receipt && isDeepStrictEqual(result, receipt) :
+        !!result && "action" in result && result.action === world.action && !!result.finding?.trim(),
       boundOwnedScene: Boolean(
         view &&
-        out &&
-        isDeepStrictEqual(out.docket, docket) &&
-        isDeepStrictEqual(out.evidence, { scene: view, scope }) &&
+
         view.ownerId === ownerId &&
         view.sceneDigest === ready.view.sceneDigest &&
         exact(namespaces.read, "discover", [], [docket, archive]) &&
@@ -507,28 +501,18 @@ export async function prepareOpenGrimoireScene(
       keptCurrentAnchor: Boolean(
         view &&
         gate &&
-        out &&
-        isDeepStrictEqual(out.gate, gate) &&
+
         exact(namespaces.read, "confirm", [key, view.frontier], gate) &&
         gate.frontier === final.view.frontier &&
         gate.status === (world.advanceDuring ? "changed" : "current") &&
         final.view.sceneDigest === ready.view.sceneDigest,
       ),
-      exactCaretakerDisposition: Boolean(
-        out?.scope === "owned-grimoire-caretaker-draft" &&
-        out.plan.action === world.action &&
-        out.plan.finding.trim() &&
-        isDeepStrictEqual(
-          [...out.plan.proposedIds].sort(),
-          [...(world.anchors ?? [])].sort(),
-        ) &&
-        (world.action === "stage-scene"
-          ? Boolean(out.plan.description)
-          : out.plan.description === null),
-      ),
+      exactCaretakerDisposition: stages ? Boolean(planned && planned.action===world.action &&
+        typeof planned.finding==="string"&&planned.finding.trim() &&
+        isDeepStrictEqual([...planned.proposedIds].sort(),[...(world.anchors??[])].sort()) &&
+        (world.action==="stage-scene"?Boolean(planned.description):planned.description===null)) : true,
       independentlyReadPrivateDraft: Boolean(
-        out &&
-        isDeepStrictEqual(out.receipt, receipt) &&
+
         (stages
           ? receipt &&
             body &&
@@ -547,7 +531,7 @@ export async function prepareOpenGrimoireScene(
             exact(
               namespaces.write,
               "stage",
-              [key, view?.frontier, out.plan],
+              [key, view?.frontier, planned!],
               receipt,
             ) &&
             (world.action === "stage-scene"
@@ -558,7 +542,7 @@ export async function prepareOpenGrimoireScene(
                   final.scene.assets,
                 ) &&
                 staged.previewDigest === expectedPreview &&
-                staged.candidate.description === out.plan.description &&
+                staged.candidate.description === planned!.description &&
                 isDeepStrictEqual(staged.candidate.annotations, [
                   ...(final.scene.annotations ?? []),
                   ...actualFacts.map(
@@ -579,9 +563,7 @@ export async function prepareOpenGrimoireScene(
             journal.every((row) => row.service !== namespaces.write)),
       ),
       preservedNativeWorld: Boolean(
-        out &&
         readback &&
-        isDeepStrictEqual(out.readback, readback) &&
         exact(namespaces.read, "readback", [key, path], readback) &&
         readback.sceneDigest === final.view.sceneDigest &&
         readback.frontier === final.view.frontier &&
@@ -591,6 +573,14 @@ export async function prepareOpenGrimoireScene(
       ),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["boundOwnedScene", "keptCurrentAnchor", "exactCaretakerDisposition", "independentlyReadPrivateDraft", "preservedNativeWorld"],rationale:"The requested scene or note is established by its native private artifact and preserved garden."},
+        returnedValue: {checks:["returnedCaretakerValue"],required:!stages,rationale:"A conversation-only caretaker finding is the requested answer; an extra receipt copy is optional."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedCaretakerValue) ? [{
+        required:!stages,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"careForGrimoireScene",source:"careForGrimoireScene.nl"},value:result,
+      }] : [],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -642,25 +632,17 @@ export async function prepareOpenGrimoireScene(
       plan.action === "stage-scene" || plan.action === "stage-note"
         ? await services.grimoireHandoff.stage(docket.id, scene.frontier, plan)
         : null;
-    const report = {
-        scope: "owned-grimoire-caretaker-draft",
-        docket,
-        evidence,
-        plan,
-        gate: confirmed,
-        receipt: staged,
-        readback: await services.grimoireScene.readback(
-          docket.id,
-          staged?.path ?? null,
-        ),
-      };
+    await services.grimoireScene.readback(docket.id, staged?.path ?? null);
+    const report = staged ?? {action:plan.action,finding:plan.finding};
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.readback.sceneDigest = "retired";
+    if ("path" in altered) altered.path = "foreign-caretaker.json";
+    else altered.action = "invented" as typeof altered.action;
     const wrong = await verify(altered);
     const rejectedAlteredEvidence = rejectedAlias && !wrong.passed;
     return {
       ...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,

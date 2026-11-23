@@ -1,3 +1,4 @@
+import type { InvocationObservations } from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   sha256HexSyncText,
@@ -53,15 +54,7 @@ type Composition = ReturnType<typeof evaluateAdoption> & {
 type Gate = { event: string; status: "current" | "changed" };
 type Receipt = { path: string; digest: string; event: string };
 type Readback = { main: string; event: string; digest: string | null };
-type Outcome = {
-  scope: string;
-  card: Card;
-  evidence: { installed: Installed; composition: Composition };
-  plan: Plan;
-  gate: Gate;
-  receipt: Receipt | null;
-  readback: Readback;
-};
+
 type Journal = {
   service: string;
   method: string;
@@ -414,9 +407,10 @@ export async function prepareOpenExamplesAdoption(
       },
     },
   };
-  async function verify(value: unknown) {
-    const envelope = value as Outcome | null;
-    const out = envelope;
+  async function verify(value: unknown, observations?: InvocationObservations) {
+    const result = value as Receipt | {disposition:string;finding:string} | null;
+    const plan = journal.filter(row=>row.service===write&&row.method==="record").at(-1)?.args[2] as Plan | undefined;
+    const disposition = plan ?? (result&&"disposition" in result ? result : null);
     const finalEvent = await stateEvent();
     const independent = await nativeComposition();
     const { epoch, ...source } = await installedEvidence();
@@ -451,16 +445,15 @@ export async function prepareOpenExamplesAdoption(
       );
     };
     const checks = {
+      returnedAdoptionValue: records ? !!receipt&&isDeepStrictEqual(result,receipt) :
+        disposition?.disposition===world.disposition&&typeof disposition.finding==="string"&&!!disposition.finding.trim(),
       exactStagedAndInstalledSource: Boolean(
-        out &&
-        isDeepStrictEqual(out.card, card) &&
-        isDeepStrictEqual(out.evidence.installed, source) &&
+
         exact(read, "discover", [], [card, older]) &&
         exact(read, "installed", [key], source),
       ),
       exactNativeComposition: Boolean(
-        out &&
-        isDeepStrictEqual(out.evidence.composition, independent) &&
+
         exact(read, "compose", [key, card.event], independent) &&
         independent.status === world.status &&
         (independent.status === "composed"
@@ -473,24 +466,15 @@ export async function prepareOpenExamplesAdoption(
           : independent.digest === null && independent.owner === null),
       ),
       currentOwnedFrontier: Boolean(
-        out &&
         gate &&
-        isDeepStrictEqual(out.gate, gate) &&
         exact(read, "confirm", [key, card.event], gate) &&
         gate.status === (world.during ? "changed" : "current") &&
         gate.event === finalEvent &&
         (world.during ? finalEvent !== card.event : finalEvent === card.event),
       ),
       actualPrivateDisposition: Boolean(
-        out &&
-        out.scope === "owned-examples-composition-rehearsal" &&
-        out.plan.disposition === world.disposition &&
-        out.plan.finding.trim() &&
-        isDeepStrictEqual(
-          [...out.plan.proof].sort(),
-          [...actualProof].sort(),
-        ) &&
-        isDeepStrictEqual(out.receipt, receipt) &&
+        (records ? !!plan && plan.disposition===world.disposition && !!plan.finding.trim() &&
+          isDeepStrictEqual([...plan.proof].sort(),[...actualProof].sort()) : true) &&
         (records
           ? receipt &&
             body &&
@@ -503,19 +487,17 @@ export async function prepareOpenExamplesAdoption(
               main: initial.mainEventId,
               compositionDigest: independent.digest,
               owner: independent.owner,
-              proof: out.plan.proof,
-              finding: out.plan.finding,
+              proof: plan!.proof,
+              finding: plan!.finding,
             }) &&
-            exact(write, "record", [key, card.event, out.plan], receipt)
+            exact(write, "record", [key, card.event, plan!], receipt)
           : !receipt &&
             !body &&
             !files.length &&
             journal.every((row) => row.service !== write)),
       ),
       independentReadbackAndPreservedMain: Boolean(
-        out &&
         readback &&
-        isDeepStrictEqual(out.readback, readback) &&
         exact(read, "readback", [key, receipt?.path ?? null], readback) &&
         readback.main === initial.mainEventId &&
         readback.event === finalEvent &&
@@ -523,6 +505,14 @@ export async function prepareOpenExamplesAdoption(
       ),
     };
     return {
+      outcomeContract: {
+        effects: {checks:["exactStagedAndInstalledSource", "exactNativeComposition", "currentOwnedFrontier", "actualPrivateDisposition", "independentReadbackAndPreservedMain"],rationale:"Native composition, frontier, private note and protected main establish the handoff."},
+        returnedValue: {checks:["returnedAdoptionValue"],required:!records,rationale:"An explain-only composition finding is requested; the extra private-note handle is optional."},
+        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+      },
+      incorrectReturnValues: result!==undefined&&!(checks.returnedAdoptionValue) ? [{
+        required:!records,definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"reviewExamplesAdoption",source:"reviewExamplesAdoption.nl"},value:result,
+      }] : [],
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -569,21 +559,14 @@ export async function prepareOpenExamplesAdoption(
       key,
       saved?.path ?? null,
     );
-    const report = {
-        scope: "owned-examples-composition-rehearsal",
-        card,
-        evidence: { installed: source, composition: native },
-        plan,
-        gate: confirmed,
-        receipt: saved,
-        readback,
-      };
+    const report = saved ?? {disposition:plan.disposition,finding:plan.finding};
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.readback.main = "foreign";
+    if ("path" in altered) altered.path="foreign-adoption.json"; else altered.disposition="invented" as typeof altered.disposition;
     const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
     return {
       ...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,...["rejectedAlteredEvidence"]]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,

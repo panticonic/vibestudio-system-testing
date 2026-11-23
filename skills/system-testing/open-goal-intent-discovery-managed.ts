@@ -1,4 +1,4 @@
-import {selectedCapabilityEvidence} from "./intent-capability-evidence.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText,stableSha256Hex} from "@vibestudio/content-addressing";
 import type {CatalogEntry,CatalogHit} from "@vibestudio/service-schemas/docs";
@@ -102,8 +102,9 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
     const busy=new Set<string>();
     let staging=false;
     let handoff:IntentNote|null=null;
-    const body=(result:IntentReport)=>JSON.stringify({visibility:"private-local",notice:result.notice,plan:result.plan,
-      evidence:result.evidence,outcome:result.outcome});
+    let stagedOutcome:IntentOutcome|null=null;
+    const body=(outcome:IntentOutcome)=>JSON.stringify({visibility:"private-local",notice,
+      observations:inspected,conclusion:outcome});
 
     async function rawNotice(){
       const raw=new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(noticePath,4096));
@@ -149,10 +150,6 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
         }
       }
     }
-    function planMatches(plan:IntentPlan|undefined){
-      return plan?.retain===writable&&plan.actions.length===required.length&&
-        required.every(row=>plan.actions.filter(action=>action.methodId===row.methodId&&action.scope===row.scope).length===1);
-    }
     const services={
       nativeIntentDiscovery:{
         async notice(){return rawNotice();},
@@ -180,25 +177,25 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
           }finally{busy.delete(methodId);}
         },
       },
-      nativeIntentHandoff:{async stage(report:IntentReport){
-        if(!writable||staging||handoff||!report||report.handoff!==null||!planMatches(report.plan)||
-          !selectedCapabilityEvidence(report,descriptions)||!isDeepStrictEqual(report.notice,notice)||!isDeepStrictEqual(report.evidence,inspected)||
-          inspected.length!==required.length||report.outcome?.status!==overall(inspected)||typeof report.outcome.summary!=="string"||
-          !report.outcome.summary.trim()||report.outcome.summary.length>700)return null;
+      nativeIntentHandoff:{async stage(outcome:IntentOutcome){
+        if(!writable||staging||handoff||!outcome||
+          !required.every(row=>descriptions.has(row.methodId))||
+          inspected.length!==required.length||outcome.status!==overall(inspected)||typeof outcome.summary!=="string"||
+          !outcome.summary.trim()||outcome.summary.length>700)return null;
         staging=true;
         try{
           for(const value of inspected){
             const need=required.find(row=>row.methodId===value.methodId)!.need;
             if(!isDeepStrictEqual(value,await observation(need)))return null;
           }
-          const text=body(report);
+          const text=body(outcome);
           const staged=await writer.stage(text);
           if(!staged)return null;
-          handoff={path:staged.path,digest:sha256HexSyncText(text)};return structuredClone(handoff);
+          handoff={path:staged.path,digest:sha256HexSyncText(text)};stagedOutcome=structuredClone(outcome);return structuredClone(handoff);
         }finally{staging=false;}
       }},
     };
-    async function verify(raw:unknown){
+    async function verify(raw:unknown,observations?:InvocationObservations){
       const value=raw as IntentReport|null;
       const report=value;
       const independent=await Promise.all(inspected.map(async item=>observation(required.find(row=>row.methodId===item.methodId)!.need)));
@@ -216,24 +213,31 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
         return false;
       });
       const checks={
-        exactIntentNotice:isDeepStrictEqual(report?.notice,notice)&&isDeepStrictEqual(await rawNotice(),notice),
-        installedIntentDiscovery:selectedCapabilityEvidence(report,descriptions)&&descriptionsCurrent.every(value=>isDeepStrictEqual(value,descriptions.get(value.id))),
-        exactIntentActionSelection:planMatches(report?.plan)&&isDeepStrictEqual(report?.plan.actions,
-          inspected.map(({methodId,scope})=>({methodId,scope}))),
-        independentlyScopedIntentResults:inspected.length===required.length&&expectedScope&&isDeepStrictEqual(independent,inspected)&&
-          isDeepStrictEqual(report?.evidence,inspected),
-        exactIntentOutcome:report?.outcome.status===overall(inspected)&&typeof report.outcome.summary==="string"&&
+        exactIntentNotice:isDeepStrictEqual(await rawNotice(),notice),
+        installedIntentDiscovery:required.every(row=>descriptions.has(row.methodId))&&descriptionsCurrent.every(value=>!!value&&isDeepStrictEqual(value,descriptions.get(value.id))),
+        exactIntentActionSelection:required.length===inspected.length&&required.every(row=>
+          inspected.some(item=>item.methodId===row.methodId&&item.scope===row.scope)),
+        independentlyScopedIntentResults:inspected.length===required.length&&expectedScope&&isDeepStrictEqual(independent,inspected),
+        exactIntentOutcome:report?.outcome?.status===overall(inspected)&&typeof report.outcome.summary==="string"&&
           !!report.outcome.summary.trim()&&report.outcome.summary.length<=700,
-        exactPrivateIntentNote:writable?!!report&&!!artifact&&!!handoff&&files.length===1&&
-          handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===body(report)&&handoff.digest===sha256HexSyncText(artifact)&&
-          isDeepStrictEqual(report.handoff,handoff):handoff===null&&report?.handoff===null&&files.length===0,
+        exactPrivateIntentNote:writable?!!artifact&&!!handoff&&files.length===1&&
+          handoff.path===`/.tmp/${files[0]}/handoff.json`&&stagedOutcome!==null&&artifact===body(stagedOutcome)&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&files.length===0,
+        returnedIntentNote:isDeepStrictEqual(report?.handoff,handoff),
         preservedIntentWorkspace:isDeepStrictEqual(before,status)&&initial.mainEventId===status.mainEventId,
         rejectedIntentRetarget:await services.nativeIntentDiscovery.inspect(methods.worker,workerKey+"-older")===null&&
           await services.nativeIntentDiscovery.inspect("service:unknown.operation",owner)===null,
       };
       await close();
-      return {contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),notice,
-        selection:report?.selection??null,capabilities:report?.capabilities??null,plan:report?.plan??null,evidence:inspected,outcome:report?.outcome??null,handoff,artifact};
+      return {
+        outcomeContract:{
+          effects:{checks:["exactIntentNotice","installedIntentDiscovery","exactIntentActionSelection","independentlyScopedIntentResults","exactPrivateIntentNote","preservedIntentWorkspace","rejectedIntentRetarget"],rationale:"Installed capability contracts and actual scoped reads ground the conclusion; native writes establish any requested private note."},
+          returnedValue:{checks:["exactIntentOutcome","returnedIntentNote"],required:!writable,rationale:"The conversation-only conclusion is requested; an extra copy is optional when the actual requested note already contains it."},
+          incidentalValues:{checks:[],rationale:"Known incorrect emitted values are masked using the actual captured root definition."},
+        },
+        incorrectReturnValues:report!==undefined&&!(checks.exactIntentOutcome&&checks.returnedIntentNote)?[{required:!writable,
+          definition:observations?.calls.find(call=>call.parentCallId===null)?.definition??{name:"discoverScopedIntent",source:"discoverScopedIntent.nl"},value:report}]:[],
+        contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),notice,
+        capabilities:[...descriptions.values()],evidence:inspected,outcome:report?.outcome??null,handoff,artifact};
     }
 
     async function qualify(){
@@ -245,10 +249,8 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       const actions:IntentAction[]=required.map(({methodId,scope})=>({methodId,scope}));
       for(const action of actions)if(!await services.nativeIntentDiscovery.inspect(action.methodId,action.scope))
         throw new Error("Missing assigned scoped intent receipt");
-      const selection={methodIds:required.map(row=>row.methodId)},capabilities=[...descriptions.values()];
-      const report:IntentReport={notice,selection,capabilities,plan:{actions,retain:writable},evidence:inspected,
-        outcome:{status:overall(inspected),summary:"Compared exact installed operations and owned local facts."},handoff:null};
-      if(writable)report.handoff=await services.nativeIntentHandoff.stage(report);
+      const report:IntentReport={outcome:{status:overall(inspected),summary:"Compared exact installed operations and owned local facts."},handoff:null};
+      if(writable)report.handoff=await services.nativeIntentHandoff.stage(report.outcome);
       return verify(report);
     }
     return {services,verify,qualify,close};
