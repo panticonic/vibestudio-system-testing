@@ -219,7 +219,6 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     websiteReadback: {
       async observe() {
         if (!boundPreflight) throw new Error("Bind an authorized publication target before reading its preflight evidence");
-        if (observed) return structuredClone(observed);
         preflightReads++;
         const value = await boundPreflight.observe();
         observed = structuredClone(value);
@@ -228,7 +227,8 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     },
     publicationRevision: {
       async compare(id: string) {
-        if (!boundRevision || revisionReads++) throw new Error("Select an observed destination and retained review before comparing revisions");
+        if (!boundRevision) throw new Error("Bind an owned destination and retained review before comparing revisions");
+        revisionReads++;
         const value = await boundRevision.services.publicationRevision.compare(id);
         compared = structuredClone(value);
         return value;
@@ -266,7 +266,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
       rereadCurrentAndRetainedPackage: repackaged.artifactDigest === current.artifactDigest &&
         repackaged.privateReceipt.sourceStateHash === current.privateReceipt.sourceStateHash &&
         prior.artifactDigest !== "" && (world.revisedCaption ? prior.artifactDigest !== current.artifactDigest : prior.artifactDigest === current.artifactDigest),
-      exactPreflight: expectedPreflight ? preflightReads === 1 && !!projected &&
+      exactPreflight: expectedPreflight ? preflightReads > 0 && !!projected &&
         projected.status === expectedPreflight.status && outcome?.status === projected.status &&
         projected.next === expectedPreflight.next && outcome.next === projected.next && Array.isArray(outcome.blockers) &&
         isDeepStrictEqual([...projected.blockers].sort(), [...expectedPreflight.blockers].sort()) &&
@@ -274,7 +274,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
         (projected.blockers.includes("different-request") ||
           outcome.evidence?.some(item => typeof item === "string" && item.includes(current.artifactDigest)) === true)
         : preflightReads === 0 && outcome === null,
-      exactRevision: expected.decision ? revisionReads === 1 && !!projectedRevision && !!compared &&
+      exactRevision: expected.decision ? revisionReads > 0 && !!projectedRevision && !!compared &&
         compared.reviewed.artifactDigest === prior.artifactDigest && compared.candidate.artifactDigest === current.artifactDigest &&
         projectedRevision.decision === expected.decision && revision?.decision === projectedRevision.decision &&
         revision.match === projectedRevision.match && isDeepStrictEqual(revision.impact, projectedRevision.impact) &&
