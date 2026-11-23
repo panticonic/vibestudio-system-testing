@@ -1,3 +1,4 @@
+import type {InvocationObservations} from "./observed-invocation.js";
 import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
@@ -277,7 +278,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     }},
   };
 
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const value=raw as (ChatContinuityReport & {review:ChatEvidence["review"]})|null;
     const report=value;
     const [opening,current]=frames;
@@ -331,7 +332,9 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         await services.chatContinuityHandoff.stage({disposition:{write:true}} as ChatContinuityReport)===null,
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactOwnedChatSelection", "exactChatFrontiers", "independentDurableChatReceipt", "exactFirstPartyChatProjection", "exactNativeChatWorker", "verifiedPrivateChatHandoff", "preservedChatWorkspace", "rejectedChatRetarget", "nativeChatReadiness"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["groundedChatDeliveryReview", "groundedChatContinuityDisposition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedChatHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-    return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+    const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
+    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>isDeepStrictEqual(row.value,raw)).map(({definition,value})=>({definition,value,required:false})) : [];
+    return assessSemanticOutcome({incorrectReturnValues,contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
       index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact},contract);
   }
   async function qualify() {

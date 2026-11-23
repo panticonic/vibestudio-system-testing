@@ -1,3 +1,4 @@
+import type {InvocationObservations} from "./observed-invocation.js";
 import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { basename } from "node:path";
@@ -230,7 +231,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     }},
   };
 
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const value=raw as ConfigReport|null;
     const report=value;
     const independent=await independentEvidence();
@@ -259,7 +260,9 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
         artifact===stagedText:handoff===null&&files.length===0,
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactConfigBrief", "scopedConfigLens", "exactLiveWorkspaceConfig", "exactProtectedConfigHistory", "exactProtectedTemplateDependencies", "preservedProtectedConfig", "constrainedConfigEvidence", "exactPrivateConfigNote"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactConfigDisposition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedConfigHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-    return assessSemanticOutcome({contextId:owner,caseId:world.id,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
+    const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
+    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>equal(row.value,raw)).map(({definition,value})=>({definition,value,required:false})) : [];
+    return assessSemanticOutcome({incorrectReturnValues,contextId:owner,caseId:world.id,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,
       brief:freshBrief,lens:expectedLens,evidence,outcome:report?.outcome??null,handoff,artifact},contract);
   }
 

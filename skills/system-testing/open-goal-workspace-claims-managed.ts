@@ -1,3 +1,4 @@
+import type {InvocationObservations} from "./observed-invocation.js";
 import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -205,7 +206,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     }},
   };
 
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown,invocation?:InvocationObservations) {
     const value=raw as WorkspaceClaimReview|null;
     const report=value;
     const after=await ports.vcs.status();
@@ -235,7 +236,9 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       exactInstalledClaimGuide:guide.includes("A green build")&&revision===guideRevision(await ports.guide()),
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactClaimScope", "independentSemanticEvidence", "exactTestkitClaimInput", "exactAuthorityPreflight", "independentlyPreservedClaimContext", "exactPrivateClaimNote", "rejectedClaimRetarget", "exactInstalledClaimGuide"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactGroundedClaimPartition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedClaimHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-    return assessSemanticOutcome({passed:Object.values(checks).every(Boolean),checks,contextId:owner,caseId:world.id,goal:world.goal,index,packet,choice,evidence,
+    const incorrectOptionalReturn=contract.incidentalValues!.checks.some(name=>!(checks as Record<string,boolean>)[name])||(!contract.returnedValue.required&&contract.returnedValue.checks.some(name=>!(checks as Record<string,boolean>)[name]));
+    const incorrectReturnValues=incorrectOptionalReturn&&invocation ? (await invocation.returns(call=>call.parentCallId===null)).filter(row=>isDeepStrictEqual(row.value,raw)).map(({definition,value})=>({definition,value,required:false})) : [];
+    return assessSemanticOutcome({incorrectReturnValues,passed:Object.values(checks).every(Boolean),checks,contextId:owner,caseId:world.id,goal:world.goal,index,packet,choice,evidence,
       required:packet.requirements.map(row=>row.text),support,disposition:report?.disposition??null,test,authority,guideRevision:revision,handoff,artifact},contract);
   }
 
