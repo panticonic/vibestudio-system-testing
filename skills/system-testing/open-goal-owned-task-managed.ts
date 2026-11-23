@@ -1,3 +1,5 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
@@ -207,7 +209,7 @@ export async function prepareOwnedTaskRecovery(
     },
   };
 
-  async function verifyEvidence(value: unknown, controls?: { foreignCard: boolean; wrongAttempt: boolean }) {
+  async function verifyEvidence(value: unknown, controls?: { foreignCard: boolean; wrongAttempt: boolean }, invocation?:InvocationObservations) {
     const report = value as Outcome | null;
     const outcome = report;
     const observed = await taskView(primary.id);
@@ -245,7 +247,7 @@ export async function prepareOwnedTaskRecovery(
     const checks = {
       discoveredActualOwnedTask: observedBoard.has(primary.id) &&
         effects.some(effect => effect.service === "ownedTaskAttempts" && effect.method === "discover"),
-      exactCurrentAttemptEvidence: Boolean(outcome && isDeepStrictEqual(outcome.original, knownRecord) &&
+      exactCurrentAttemptEvidence: Boolean(
         (!earlier || (expected && exactCurrent(observed, expected) && expected.record?.phase !== "draft"))),
       verifiedNativeTaskRecovery: isDeepStrictEqual(stableTask(current), wanted) &&
         changes.filter(change => change.status === "applied").length === (world.expected.update ? 1 : 0),
@@ -253,16 +255,16 @@ export async function prepareOwnedTaskRecovery(
       honoredObservedTaskRace: Boolean(world.race) === raceInjected &&
         (!world.race || changes.some(change => change.status === "changed") &&
           isDeepStrictEqual(observedBoard.get(primary.id), observed)),
-      independentlyJoinedOwnerHandoff: nativeDelivery?.passed === true && isDeepStrictEqual(outcome?.delivery, actualDelivery),
-      exactTaskRecoveryReport: outcome?.task === primary.id && outcome?.revision === observed.revision && outcome.status === observed.status &&
+      independentlyJoinedOwnerHandoff: nativeDelivery!==null&&assessSemanticOutcome(nativeDelivery).outcomeDimensions.effects.passed,
+      exactTaskRecoveryReport: isDeepStrictEqual(outcome?.original,knownRecord)&&isDeepStrictEqual(outcome?.delivery,actualDelivery)&&outcome?.task === primary.id && outcome?.revision === observed.revision && outcome.status === observed.status &&
         Boolean(reason) && world.expected.reason.every(term => reason.includes(term)),
       ...(controls ? { rejectedForeignTaskOrPriorSend: controls.foreignCard && controls.wrongAttempt } : {}),
     };
-    return {
+    return assessObservedApplicationOutcome({
       contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       effects, current: observed, original: knownRecord, expectedHandoff: Boolean(handoffSpec),
       delivery: nativeDelivery?.readback ?? null, nativeDeliveryError, raceInjected,
-    };
+    },{effects:{checks:[...["discoveredActualOwnedTask","exactCurrentAttemptEvidence","verifiedNativeTaskRecovery","preservedOtherCardsAndDependencies","honoredObservedTaskRace","independentlyJoinedOwnerHandoff"],...(controls?["rejectedForeignTaskOrPriorSend"]:[])],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactTaskRecoveryReport"],required:!world.expected.update&&!world.expected.handoff,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
   }
 
   async function qualify() {
@@ -299,8 +301,9 @@ export async function prepareOwnedTaskRecovery(
     const outcome={task:task.task.id,revision:task.revision,status:task.status,original,delivery,reason:world.expected.reason.join(" ")||"Actual current task evidence verified"};
     const proof=await verifyEvidence(outcome,{foreignCard,wrongAttempt});
     const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
-    return {...proof,observerSlotValidated,passed:proof.passed&&observerSlotValidated};
+    const checks={...proof.observedChecks,observerSlotValidated};
+    return assessSemanticOutcome({...proof,checks,observedChecks:checks,observerSlotValidated},{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"observerSlotValidated"]}});
   }
-  async function verify(value:unknown,_invocation?:InvocationObservations){return verifyEvidence(value);}
+  async function verify(value:unknown,invocation?:InvocationObservations){return verifyEvidence(value,undefined,invocation);}
     return { goal: world.goal, services, verify, qualify, close: local.close };
 }

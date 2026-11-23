@@ -1,3 +1,6 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -196,7 +199,7 @@ export async function prepareOpenReconciliation(
     },
   };
 
-  async function verify(value: unknown) {
+  async function verify(value: unknown,invocation?:InvocationObservations) {
     const report = value as ReconcileResult | null;
     const outcome = report;
     const integration = outcome?.integration;
@@ -218,7 +221,7 @@ export async function prepareOpenReconciliation(
       [relative, { id, lines: quoted((await read(current.workingHead, fixture.repositoryId, relative)).text) }] as const)));
     const dirs = (await listOwnedScratchEntries(fs)).filter(name => stageName.test(name) && !scratchBefore.includes(name));
     let artifact: EvidenceReceipt & { sha256: string } | null = null;
-    let evidenceMatches = !dirs.length && handoff?.artifact === null;
+    let evidenceMatches = !dirs.length;
     if (scenario.expected.handoff === "staged" && dirs.length === 1) {
       const path = "/.tmp/" + dirs[0] + "/handoff.json";
       try {
@@ -227,8 +230,7 @@ export async function prepareOpenReconciliation(
         const { answers } = JSON.parse(text) as { answers: { question: string; evidence: Excerpt[] }[] };
         artifact = { path, bytes: bytes.length, sha256: sha256HexSyncText(text) };
         evidenceMatches = isDeepStrictEqual(await fs.readdir("/.tmp/" + dirs[0]), ["handoff.json"]) &&
-          stages.length === 1 && stages[0]?.args[0] === text && handoff?.artifact?.path === path &&
-          handoff.artifact.bytes === bytes.length && answers.length === scenario.evidence.length &&
+          stages.length === 1 && stages[0]?.args[0] === text && answers.length === scenario.evidence.length &&
           scenario.evidence.every(({ question, path: source, keys }, index) => {
             const found = src.get(source);
             const answer = answers[index];
@@ -248,19 +250,18 @@ export async function prepareOpenReconciliation(
     const archiveRecheck = archive && scenario.archive
       ? await archive.verify(scenario.archive.selected, outcome?.archive, current.workingHead) : null;
     const checkedArchive = archiveRecheck
-      ? archiveRecheck.passed && traces("reconciliationArchive", "list").length > 0 &&
+      ? archiveRecheck.snapshots.every(Boolean)&&archive!.list().every(card=>traces("reconciliationArchive","read").some(entry=>entry.args[0]===card.id&&archiveRecheck.snapshots.some(snapshot=>isDeepStrictEqual(snapshot,entry.result))))&&traces("reconciliationArchive", "list").length > 0 &&
         traces("reconciliationArchive", "readCurrent").some(entry =>
-          entry.args[0] === archiveRecheck.sourceId && entry.args[1] === integration?.head && entry.result !== null)
+          entry.args[0] === archiveRecheck.sourceId && entry.args[1] === token(current.workingHead) && entry.result !== null)
       : !scenario.archive;
     const checks = {
       recoveredRetainedReconciliation: checkedArchive,
       observedOwnedIntegration: traces("reconciliationWindow", "read").length > 0 &&
         traces("reconciliationNative", "observe").length > 0 && originalSourceUntouched,
       verifiedNativeIntegration: expectedStatus === "integrated"
-        ? Boolean(result?.passed && mergeHead && integration?.head === mergeHead)
+        ? Boolean(result?.passed&&mergeHead&&token(current.workingHead)===mergeHead)
         : !mergeHead && current.clean === before.clean && isDeepStrictEqual(finalFiles, initialFiles) &&
-          token(current.workingHead) === (closedAtEdit ? observedRace?.after : token(before.workingHead)) &&
-          integration?.head === token(current.workingHead),
+          token(current.workingHead) === (closedAtEdit ? observedRace?.after : token(before.workingHead)),
       protectedNeighborAndMain: current.mainEventId === before.mainEventId &&
         isDeepStrictEqual(current.committed, before.committed) && canary.text === companion.canaryText &&
         nativeWindow.text === JSON.stringify(expectedWindow) + "\n",
@@ -273,15 +274,16 @@ export async function prepareOpenReconciliation(
           : Boolean(release && stagedReads.length && sourcePairs.every(pair =>
               stagedReads.some(entry => entry.args[0] === pair.id && entry.result)))) &&
         (scenario.expected.handoff === "staged" ? artifact !== null : artifact === null),
-      matchedReconciliationHandoff: integration?.status === expectedStatus && handoff?.status === scenario.expected.handoff &&
+      matchedReconciliationHandoff: (!archiveRecheck||archiveRecheck.passed)&&integration?.head===token(current.workingHead)&&
+        isDeepStrictEqual(handoff?.artifact,artifact?{path:artifact.path,bytes:artifact.bytes}:null)&&integration?.status === expectedStatus && handoff?.status === scenario.expected.handoff &&
         isDeepStrictEqual(outcome?.window, window) &&
         scenario.expected.reason.every(term => typeof integration.reason === "string" && integration.reason.toLowerCase().includes(term)),
     };
-    return {
+    return assessObservedApplicationOutcome({
       contextId, caseId: input.caseId, goal: scenario.goal, passed: Object.values(checks).every(Boolean), checks,
       effects, window, race, release, mergeHead, artifact, nativeHead: token(current.workingHead), archiveRecheck,
       integrationOracle: result ? { passed: result.passed, reasons: result.reasons, verificationPaths: result.verificationPaths } : null,
-    };
+    },{effects:{checks:["recoveredRetainedReconciliation","observedOwnedIntegration","verifiedNativeIntegration","protectedNeighborAndMain","honoredRevisionOrWindowRace","retainedVerifiedIntegrationEvidence"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["matchedReconciliationHandoff"],required:expectedStatus!=="integrated"&&scenario.expected.handoff!=="staged",rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
   }
 
   async function qualify() {
@@ -346,7 +348,8 @@ export async function prepareOpenReconciliation(
     const window = await services.reconciliationWindow.read();
     const result = await verify({ integration: progress, handoff, window, archive: comparison });
     const scope = foreignDenied && stale.status === "changed";
-    return { ...result, passed: result.passed && scope, checks: { ...result.checks, rejectedInvalidIntegrationScope: scope } };
+    const checks={...result.observedChecks,rejectedInvalidIntegrationScope:scope};
+    return assessSemanticOutcome({...result,checks,observedChecks:checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedInvalidIntegrationScope"]}});
   }
   return { goal: scenario.goal, services, verify, qualify };
 }

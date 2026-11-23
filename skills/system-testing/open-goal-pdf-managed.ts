@@ -1,3 +1,5 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "./observed-invocation.js";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
@@ -270,7 +272,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
       protectedHeads: before.mainEventId === after.mainEventId &&
         (allowWorkingHeadChange || isDeepStrictEqual(before.workingHead, after.workingHead)),
     };
-    return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks,
+    return {outcomeContract:{effects:{checks:["originalFiles","selectedNativeDocument","nativeTextRead","nativeLayoutRead","nativeRenderedArtifacts","protectedHeads"],rationale:"This native-only observation verifier checks actual PDF bytes, reads and raster artifacts without any model-returned answer."},returnedValue:{checks:[],required:false,rationale:"There is no model-generated answer in this native-only observation helper."}}, passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks,
       documents: snapshot, ...observedEvidence() };
   }
 
@@ -392,9 +394,17 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
       recommendation: { action: "needs-review", rationale: "Unverified." } };
     const negative = await verifyEvidence(wrong);
     const checks = { ...verified.checks, independentNativeObservations: nativeVerified.passed, observerSlotValidated, unreadObservationRejected, nativeObservationsRetained, aliasRejected, rejectsUnverifiedReport: !negative.passed };
-    return { outcome, verification: { ...verified, checks, passed: Object.values(checks).every(Boolean) } };
+    return {outcome,verification:assessSemanticOutcome({...verified,checks},pdfOutcomeContract(["independentNativeObservations","observerSlotValidated","unreadObservationRejected","nativeObservationsRetained","aliasRejected","rejectsUnverifiedReport"]))};
   }
 
-  async function verify(value:unknown,_invocation?:InvocationObservations,options:{allowWorkingHeadChange?:boolean}={}){return verifyEvidence(value,options);}
+    function pdfOutcomeContract(extraEffects:readonly string[]=[]) {
+    return {effects:{checks:["originalFiles","protectedHeads",...extraEffects],rationale:"Original PDF bytes, native selection/read/layout/raster observations and protected VCS head are independent application facts."},
+      returnedValue:{checks:["exactSelection","textEvidence","layoutEvidence","renderedEvidence","groundedRecommendation"],required:true,rationale:"The user asks for PDF text, layout and rendering findings with exact citations, rather than only a side effect."},
+      incidentalValues:{checks:[],rationale:"A known wrong requested PDF answer is bound to its actual captured source and value."}};
+  }
+  async function verify(value:unknown,invocation?:InvocationObservations,options:{allowWorkingHeadChange?:boolean}={}) {
+    const report=await verifyEvidence(value,options),native=await verifyObserved(options);
+    return assessObservedApplicationOutcome({...report,checks:{...report.checks,independentNativeObservations:native.passed}},pdfOutcomeContract(["independentNativeObservations"]),value,invocation);
+  }
     return { goal, services, verify, verifyObserved, observedEvidence, attestCitations, reference, qualify: async () => (await reference()).verification };
 }

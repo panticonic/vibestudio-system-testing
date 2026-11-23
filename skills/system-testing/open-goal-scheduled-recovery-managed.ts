@@ -1,3 +1,5 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
@@ -363,7 +365,7 @@ export async function prepareOwnedScheduledRecovery(
     },
   };
 
-  async function verifyEvidence(value: unknown, controls?: { foreignSchedule: boolean; wrongAttempt: boolean }) {
+  async function verifyEvidence(value: unknown, controls?: { foreignSchedule: boolean; wrongAttempt: boolean }, invocation?:InvocationObservations) {
     const report = value as ScheduledOutcome | null;
     const outcome = report;
     const results = await Promise.all(seed.items.map(item => readOwned(missions, item)));
@@ -425,8 +427,7 @@ export async function prepareOwnedScheduledRecovery(
     const reason = typeof outcome?.reason === "string" ? outcome.reason.toLowerCase() : "";
     const checks = {
       discoveredExactOwnedSchedule: confirmed && isDeepStrictEqual(observed.get(current.id), current),
-      joinedRetainedOwnerDecision: scopeReadback && historyPreserved &&
-        isDeepStrictEqual(outcome?.authorization, authorization),
+      joinedRetainedOwnerDecision: scopeReadback && historyPreserved,
       verifiedExactNativeSchedule: isDeepStrictEqual(stable(nativeCurrent), wantedPrimary) &&
         applied.length === (wantedChange ? 1 : 0),
       protectedPeersAndDefault: isDeepStrictEqual(stable(byKey.get("neighbor")!), stable(neighbor.record)) &&
@@ -438,16 +439,15 @@ export async function prepareOwnedScheduledRecovery(
         entry => entry.status === (world.interruption === "dependency" ? "held" : "changed"))) &&
         (!originals[world.expected.entry ?? -1]?.record?.prerequisite || observed.has(prerequisite.record.missionId)) &&
         (world.interruption !== "dependency" || observed.get(prerequisite.record.missionId)?.state === "paused"),
-      independentlyRecoveredLocalHandoff: isDeepStrictEqual(outcome?.delivery, delivery) &&
-        (world.expected.handoff ? nativeHandoff :
+      independentlyRecoveredLocalHandoff: (world.expected.handoff ? nativeHandoff :
           effects.every(entry => entry.service !== "scheduledHandoff" || entry.method !== "submit") &&
           afterDestination.length === destination.baseline.length),
-      exactScheduledRecoveryReport: Boolean(reason) && world.expected.reason.every(term => reason.includes(term)) &&
+      exactScheduledRecoveryReport: isDeepStrictEqual(outcome?.delivery,delivery)&&isDeepStrictEqual(outcome?.authorization,authorization)&&Boolean(reason) && world.expected.reason.every(term => reason.includes(term)) &&
         isDeepStrictEqual(outcome?.schedule, current),
       ...(controls ? { rejectedForeignScheduleAndWrongAttempt: controls.foreignSchedule && controls.wrongAttempt } : {}),
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks,
-      passed: Object.values(checks).every(Boolean), current, authorization, delivery, effects };
+    return assessObservedApplicationOutcome({ contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks,
+      passed: Object.values(checks).every(Boolean), current, authorization, delivery, effects },{effects:{checks:[...["discoveredExactOwnedSchedule","joinedRetainedOwnerDecision","verifiedExactNativeSchedule","protectedPeersAndDefault","neverAdmittedFixtureRuns","honoredCurrentRevisionAndDependencies","independentlyRecoveredLocalHandoff"],...(controls?["rejectedForeignScheduleAndWrongAttempt"]:[])],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactScheduledRecoveryReport"],required:!world.expected.effect&&!world.expected.handoff,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
   }
 
   async function qualify() {
@@ -478,8 +478,9 @@ export async function prepareOwnedScheduledRecovery(
       reason: world.expected.reason.join(" ") || "Current owned schedule independently confirmed" };
     const proof=await verifyEvidence(outcome,{foreignSchedule,wrongAttempt});
     const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
-    return {...proof,observerSlotValidated,passed:proof.passed&&observerSlotValidated};
+    const checks={...proof.observedChecks,observerSlotValidated};
+    return assessSemanticOutcome({...proof,checks,observedChecks:checks,observerSlotValidated},{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"observerSlotValidated"]}});
   }
-  async function verify(value:unknown,_invocation?:InvocationObservations){return verifyEvidence(value);}
+  async function verify(value:unknown,invocation?:InvocationObservations){return verifyEvidence(value,undefined,invocation);}
     return { goal: world.goal, services, verify, qualify };
 }

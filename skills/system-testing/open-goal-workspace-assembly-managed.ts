@@ -1,3 +1,5 @@
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
@@ -270,7 +272,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
     },
   };
 
-  async function proof(outcome: AssemblyReport | null, negative: boolean) {
+  async function proof(outcome: AssemblyReport | null, negative: boolean, invocation?:InvocationObservations) {
     const expected = world.expected;
     const plan = outcome?.plan;
     const valid = validShape(plan);
@@ -287,7 +289,9 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
     const newHandoffs = (await listOwnedScratchEntries(fs)).filter(name => name.startsWith("evidence-handoff-") && !priorHandoffs.has(name));
     const draftPath = staged?.path;
     const durableBytes = draftPath ? await readWorkspaceBytes(rpc, draftPath, maxArtifact) : null;
-    const recoveredDrafts = durableBytes ? JSON.parse(new TextDecoder().decode(durableBytes))?.drafts : [];
+    let durablePayload:{drafts?:unknown;plan?:AssemblyPlan}|null=null;
+    if(durableBytes){try{durablePayload=JSON.parse(new TextDecoder().decode(durableBytes));}catch{/* A malformed retained artifact fails the native checks below. */}}
+    const recoveredDrafts=durablePayload?.drafts;
     const wantedChanges = new Map<string, Record<string, string>>();
     for (const amendment of expected.amendment) {
       const owner = source.get(amendment.unit)!;
@@ -308,28 +312,36 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
         baseline.dependencies = dependencies;
         return isDeepStrictEqual(JSON.parse(retained.text), baseline);
       });
-    const checks = {
-      observedExactAssemblyScope: !!observed && observed.note === world.note && expected.read.every(id => read.has(id)) &&
-        valid && isDeepStrictEqual(plan.head, head) && plan.root === expected.root,
-      verifiedNativePackageSources: reread.every(value => value === true),
-      exactDependencyDecision: valid && isDeepStrictEqual(sorted(plan.dependencies.included), sorted(expected.include)) &&
+    const planRequirements=(plan:AssemblyPlan|null|undefined)=>{const valid=validShape(plan);return {
+      exactDependencyDecision: valid&&isDeepStrictEqual(plan.head,head)&&plan.root===expected.root&& isDeepStrictEqual(sorted(plan.dependencies.included), sorted(expected.include)) &&
         (plan.dependencies.included[0] ?? null) === expected.root &&
         isDeepStrictEqual(sorted(plan.dependencies.blockers), sorted(expected.blockers)) &&
         isDeepStrictEqual(plan.dependencies.amendment, expected.amendment),
-      verifiedPinnedBuildReadback: valid && isDeepStrictEqual(plan.builds, [...established.values()]) && retainedBuilds.every(Boolean) &&
+      returnedAssemblyBuilds: valid&&isDeepStrictEqual(plan.builds,[...established.values()])&&
         isDeepStrictEqual(plan.builds.map(item => ({ unit: item.unit, result: item.result })), expected.builds) &&
         plan.builds.every(item => item.result === "ok" ? item.cached && item.buildKeys.length > 0 : item.diagnosticCodes.length > 0),
-      groundedRolloutDisposition: valid && plan.disposition === expected.disposition && expected.claims.every(rule => rule.test(plan.rationale)),
-      verifiedLocalDraft: expected.stage ? valid && checkedDrafts && !!staged && !!durableBytes && typeof durableText === "string" &&
+      groundedRolloutDisposition: valid && plan.disposition === expected.disposition && expected.claims.every(rule => rule.test(plan.rationale))
+    };};
+    const requestedPlan=planRequirements(plan);
+    const artifactPlan=durablePayload?.plan;
+    const artifactPlanValid=Object.values(planRequirements(artifactPlan)).every(Boolean);
+    const checks = {
+      ...requestedPlan,
+      observedExactAssemblyScope: !!observed && observed.note === world.note && expected.read.every(id => read.has(id)),
+      verifiedNativePackageSources: reread.every(value => value === true),
+      verifiedPinnedBuildReadback: retainedBuilds.every(Boolean) &&
+        isDeepStrictEqual([...established.values()].map(item=>({unit:item.unit,result:item.result})),expected.builds),
+      verifiedLocalDraft: expected.stage ? artifactPlanValid&&checkedDrafts && !!staged && !!durableBytes && typeof durableText === "string" &&
         newHandoffs.length === 1 && staged.path === `/.tmp/${newHandoffs[0]}/handoff.json` &&
-        isDeepStrictEqual(outcome?.handoff, staged) && durableBytes.length === staged.bytes &&
-        new TextDecoder().decode(durableBytes) === stagedContents(plan) && sha256HexSyncText(durableText) === staged.sha256 :
-        staged === null && outcome?.handoff === null && newHandoffs.length === 0,
+        durableBytes.length === staged.bytes &&
+        new TextDecoder().decode(durableBytes) === durableText && sha256HexSyncText(durableText) === staged.sha256 :
+        staged === null && newHandoffs.length === 0,
+      returnedAssemblyReceipt: isDeepStrictEqual(outcome?.handoff,staged),
       protectedManagedHeads: await sameHead() && (await readNote()) === world.note,
-      rejectedUnownedAssembly: negative,
+      rejectedUnownedAssembly: negative
     };
-    return { contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      observed, reads: [...read.values()], buildReceipts: [...established.values()], handoff: staged, durableText };
+    return assessObservedApplicationOutcome({ contextId: input.contextId, caseId: input.caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+      observed, reads: [...read.values()], buildReceipts: [...established.values()], handoff: staged, durableText },{effects:{checks:["observedExactAssemblyScope","verifiedNativePackageSources","verifiedPinnedBuildReadback","verifiedLocalDraft","protectedManagedHeads","rejectedUnownedAssembly"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactDependencyDecision","returnedAssemblyBuilds","groundedRolloutDisposition"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:["returnedAssemblyReceipt"],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},outcome,invocation);
   }
   async function negatives() {
     const forged = { kind: "event", eventId: `unrelated-${namespace}` } as const;
@@ -339,9 +351,9 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
       await services.assemblyBuild.verify(first, forged) === null &&
       await services.assemblyDraft.stage({ disposition: "hold" } as AssemblyPlan) === null;
   }
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as AssemblyReport | null;
-    return proof(report ?? null, await negatives());
+    return proof(report ?? null, await negatives(),invocation);
   }
   async function qualify() {
     const state = await services.assemblyInventory.observe();

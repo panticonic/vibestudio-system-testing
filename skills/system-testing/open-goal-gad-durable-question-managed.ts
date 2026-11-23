@@ -1,3 +1,6 @@
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import type {InvocationObservations} from "./observed-invocation.js";
 import { isDeepStrictEqual } from "node:util";
 import { gad, rpc, runtime } from "@workspace/runtime";
 import { agenticEventSchema } from "@workspace/agentic-protocol";
@@ -65,7 +68,7 @@ export function bindOpenGadDurableQuestion(
   };
   const expected = world.expected;
 
-  async function verify(raw: unknown) {
+  async function verify(raw: unknown,invocation?:InvocationObservations) {
     const report = raw as DurableQuestionReport | null;
     const outcome = report;
     const native = await readNative();
@@ -95,8 +98,8 @@ export function bindOpenGadDurableQuestion(
         outcome.rosterReceipt === roster?.receipt && outcome.disposition === (ready ? "ready" : "hold") &&
         typeof outcome.explanation === "string" && outcome.explanation.trim().length > 0,
     };
-    return { contextId, caseId: world.id, sourceGroup: world.sourceGroup, goal: world.goal,
-      passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} };
+    return assessObservedApplicationOutcome({ contextId, caseId: world.id, sourceGroup: world.sourceGroup, goal: world.goal,
+      passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:["exactIndividualPublications","exactRetainedRoster"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactQuestionDisposition","exactParticipantDisposition","derivedReadOnlyHandoff"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},raw,invocation);
   }
 
   async function qualify() {
@@ -120,8 +123,9 @@ export function bindOpenGadDurableQuestion(
       !(await verify({...report, disposition:disposition === "ready" ? "hold" : "ready"})).passed &&
       !(await verify({...report, question:{...question, message:question.message === null ? native.messages[0] ?? {} : {...question.message, sequence:question.message.sequence + 1}}})).passed &&
       !(await verify({...report, participant:{...participant, member:participant.member === null ? observedRoster.members[0] ?? {} : {...participant.member,participantId:"same-display-foreign-id"}}})).passed;
-    return {...accepted, report, rejectedForeignReceipt, rejectedAlteredEvidence,
-      passed:accepted.passed && rejectedForeignReceipt && rejectedAlteredEvidence};
+    const checks={...accepted.observedChecks,rejectedForeignReceipt,rejectedAlteredEvidence};
+    return assessSemanticOutcome({...accepted,checks,observedChecks:checks,report,rejectedForeignReceipt,rejectedAlteredEvidence},
+      {...accepted.outcomeContract,effects:{...accepted.outcomeContract.effects,checks:[...accepted.outcomeContract.effects.checks,"rejectedForeignReceipt","rejectedAlteredEvidence"]}});
   }
 
   return {services, verify, qualify};
