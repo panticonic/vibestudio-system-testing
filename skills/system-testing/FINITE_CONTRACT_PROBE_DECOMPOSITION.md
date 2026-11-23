@@ -1,0 +1,9 @@
+# Owned compiler witness lifetime
+
+Wave0028's eight cases were interrupted before teacher execution when the skill-maintenance setup's `skill-contract-*` Eval requested a private30-second deadline. Host evalService's legitimate opt-in liveness supervisor then killed the shared workerd sandbox. Peak collection memory was9.2GiB under16GiB, so this was not memory admission.
+
+Inventory: `open-goal-skill-maintenance-native.ts` is the only `*native.ts` helper assigning a30000ms Eval deadline; it calls the real compiler description for an assigned finite NL fixture. `open-goal-skill-maintenance-managed.ts` owns initial/final witnesses and calls native.close on failure/disposal. `workers/system-test-runner/index.ts` constructs this private helper, not teacher-authored code. Host `evalService.superviseIsolateLiveness` and WorkerdManager recovery consume explicit Eval deadlines; their untrusted-run containment must remain. Other command budgets, including requested terminal timeout experiments, have different semantics and are unchanged.
+
+The exact source/hash/receipt witness remains crisp. Its ordinary lifetime belongs to the enclosing case and owned finite scope; setup does not invent an independent shorter execution budget. An explicit `probeTimeoutMs` embedding option retains deadline support. A helper-owned AbortController makes close cancel pending execution before disposing every scope, including when close races preparation. Source description is still the real installed compiler, not a rewritten signature checker.
+
+This corrects deadline ownership and cancellation. It does not establish why the real compiler/setup was slow or unresponsive: that investigation continues with the repaired actual Eval CDP transport and cold/warm CPU evidence. No performance improvement or teacher success is claimed by this change.

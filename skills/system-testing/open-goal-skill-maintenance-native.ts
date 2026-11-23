@@ -58,8 +58,13 @@ export function measureSkillContract(
 }
 
 type Scope = { scopeKey: string; receipt: EvalResultReceipt };
-export function ownedSkillMaintenanceNative(call: EvalCall, contextId: string) {
-  const execute = createEvalExecutor(call);
+export function ownedSkillMaintenanceNative(
+  call: EvalCall,
+  contextId: string,
+  probeOptions: { probeTimeoutMs?: number } = {},
+) {
+  const lifetime = new AbortController();
+  const execute = createEvalExecutor(call, { signal: lifetime.signal });
   const scopes = new Set<string>();
   async function observe(path: string, revision: string, criterion: Criterion) {
     const scopeKey = "open-skill-maintenance-" + crypto.randomUUID();
@@ -82,7 +87,7 @@ try {
     const result = await execute({
       runId,
       scope: { key: scopeKey, lifecycle: "finite" },
-      timeoutMs: 30000,
+      ...(probeOptions.probeTimeoutMs === undefined ? {} : { timeoutMs: probeOptions.probeTimeoutMs }),
       authority: { effects: "read-only", approvals: "pregranted-only" },
       source: { kind: "inline", syntax: "typescript", code },
     });
@@ -121,6 +126,7 @@ try {
     );
   }
   async function close() {
+    lifetime.abort(new Error("Owned skill witness scope closed"));
     const results = await Promise.allSettled(
       [...scopes].map((scopeKey) => call("eval.dispose", [{ scopeKey }])),
     );
