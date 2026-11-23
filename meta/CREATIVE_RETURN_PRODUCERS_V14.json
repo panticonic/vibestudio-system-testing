@@ -713,5 +713,25 @@
       "sourceEvidence": "skills/publish-preflight/workTowardPublicationGoal.ts:1",
       "nativeOnlyValueReason": "Native I/O results and deterministic projections are returned by TypeScript; no sampled NL output is invented for them."
     }
-  ]
+  ],
+  "validation": {
+    "sharedActualTests": {
+      "passed": 19,
+      "helper": 9,
+      "observations": 4,
+      "contracts": 6,
+      "unit": "vibe-v14-shared-return-contracts-20261123c",
+      "peakMiB": 118,
+      "seconds": 0.52
+    },
+    "independentReadersActualTests": {
+      "pythonPassed": 126,
+      "nativeNodePassed": 52,
+      "archivedOptionalSkip": 1,
+      "quickRatchetsPassed": 16,
+      "typescriptCheckPassed": true,
+      "reportedBy": "root and residual independent reader strand"
+    },
+    "domainNativeQualifications": "Targeted existing native tests and full model-free registered oracle cases are pending the final release run; source completion is not a qualification pass."
+  }
 }
