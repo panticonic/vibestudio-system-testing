@@ -152,7 +152,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
   }
   async function verify(value: unknown) {
     const report = value as {
-      assignment?: unknown; observed?: Pair; choice?: unknown; assessment?: unknown; receipt?: Receipt | null;
+      runId?: string | null; assessment?: unknown; receipt?: Receipt | null;
     } | null;
     const outcome = report, observed = await expectedPair(), expected = world.expected;
     const selected = expected.selection ? observed[expected.selection] : null;
@@ -175,8 +175,8 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
       (isDeepStrictEqual(after.runs[index], row) && isDeepStrictEqual(after.journals[index], before.journals[index])));
     const expectedReceipt = exactKeep ? canonicalReceipt(changed, last) : null;
     const checks = {
-      matchedOwnedDevelopmentAssignment: isDeepStrictEqual(outcome?.assignment, assignment) && isDeepStrictEqual(outcome?.choice, choice),
-      verifiedExactNativeRunPair: isDeepStrictEqual(outcome?.observed, observed) &&
+      matchedOwnedDevelopmentAssignment: outcome?.runId===choice.runId,
+      verifiedExactNativeRunPair:
         isDeepStrictEqual(await reads.get(assignment.requested), observed.requested) && isDeepStrictEqual(await reads.get(assignment.alternate), observed.alternate),
       verifiedNativeCheckpointCursors: [observed.requested, observed.alternate].every(run => !run ||
         isDeepStrictEqual(paged[run.id], Array.from({ length: Math.ceil(run.journal.length / 2) }, (_, index) => ({
@@ -191,7 +191,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
       checks, assignment, observed, choice, assessment, receipt: expectedReceipt, effects: structuredClone(effects) };
   }
   async function qualify() {
-    const discovered = await services.developmentAuditEvidence.discover();
+    await services.developmentAuditEvidence.discover();
     const observed = { requested: await services.developmentAuditEvidence.read(assignment.requested),
       alternate: await services.developmentAuditEvidence.read(assignment.alternate) };
     const rejected = async (probe: () => Promise<unknown>) => {
@@ -208,14 +208,13 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     const staged = selected && assessment.disposition === "keep-repair" ?
       await services.developmentAuditKeep.keep(selected.id, selected.snapshot, selected.updatedAt) : null;
     const report = {
-      assignment: discovered, observed, choice: { runId: selected?.id ?? null, blocker: world.expected.blocker }, assessment, receipt: staged,
+      runId: selected?.id ?? null, assessment, receipt: staged,
     };
     const proof = await verify(report);
-    const mismatchedEvidence = !(await verify({ ...report, observed: {
-      requested: observed.alternate, alternate: observed.requested,
-    } })).passed;
+    const rejectedForeignResult=!(await verify({...report,runId:"foreign-run"})).passed;
+    const rejectedInventedAssessment=!(await verify({...report,assessment:{disposition:"invented",decisiveSequences:[]}})).passed;
     const checks = { ...proof.checks, rejectedWrongScopeAndStaleApproval: safeGuards.every(Boolean),
-      rejectedSwappedEvidence: mismatchedEvidence || isDeepStrictEqual(observed.requested, observed.alternate) };
+      rejectedForeignResult,rejectedInventedAssessment };
     return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };
   }
 
