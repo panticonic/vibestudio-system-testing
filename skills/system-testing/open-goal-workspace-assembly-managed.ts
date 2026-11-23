@@ -127,7 +127,6 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
   let durableText: string | null = null;
   let building = false;
   let writeStarted = false;
-  let readCalls = 0;
   const buildScope = new Set(world.grantedBuilds ?? []);
   type NativeBuild = { report: Awaited<ReturnType<typeof buildReport>>; metadata: Awaited<ReturnType<typeof buildMetadata>>[] };
   const nativeBuilds = new Map<string, NativeBuild>();
@@ -222,7 +221,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
     assemblySource: {
       async read(id: string, state: AssemblyRevision) {
         const owned = source.get(id);
-        if (!observed || !owned || !isDeepStrictEqual(state, head) || ++readCalls > 10 || !await sameHead()) return null;
+        if (!observed || !owned || !isDeepStrictEqual(state, head) || !await sameHead()) return null;
         const exact = await readNative(owned.unit);
         if (exact) read.set(id, exact);
         return structuredClone(exact);

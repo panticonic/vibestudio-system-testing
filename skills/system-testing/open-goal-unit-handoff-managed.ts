@@ -261,7 +261,8 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
     },
     unitIdentity: {
       async observe(id: string) {
-        if (!identity || nativeIdentity) throw new Error("Observe a selected identity once");
+        if (!identity) throw new Error("Observe the selected owned identity");
+        if (nativeIdentity) return structuredClone(nativeIdentity);
         nativeIdentity = await identity.services.unitIdentity.observe(id);
         return log("unitIdentity", "observe", [id], nativeIdentity);
       },

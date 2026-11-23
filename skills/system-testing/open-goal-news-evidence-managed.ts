@@ -294,19 +294,22 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     }},
     newsEvidenceReader:{async read(channelId:string,selection:ReaderSelection){
       const latest=snapshots[1];
-      if (!latest||channelId!==lane.key||reads.length>=3||!selection||authority(scope,latest).reason!=="verified-reader"||
+      if (!latest||channelId!==lane.key||!selection||authority(scope,latest).reason!=="verified-reader"||
           !["inbox","saved","backlog","archive"].includes(selection.kind)||
           selection.kind==="archive"&&selection.query!==world.topic||
-          reads.some(entry=>isDeepStrictEqual(entry.selection,selection))||
           (await ports.read(lane)).through!==latest.through) return null;
+      const previous=reads.find(entry=>isDeepStrictEqual(entry.selection,selection));
+      if(previous)return structuredClone(previous.input);
       const result=await nativeView(latest,selection);
       reads.push({selection:structuredClone(selection),input:result});
       return structuredClone(result);
     }},
     newsEvidenceSource:{async read(channelId:string,message:string){
       const latest=snapshots[1];
-      if (!latest||channelId!==lane.key||sources.length>=8||authority(scope,latest).reason!=="verified-reader"||
-          !currentEdition(latest)||sources.some(entry=>entry.message===message)||(await ports.read(lane)).through!==latest.through) return null;
+      if (!latest||channelId!==lane.key||authority(scope,latest).reason!=="verified-reader"||
+          !currentEdition(latest)||(await ports.read(lane)).through!==latest.through) return null;
+      const previous=sources.find(entry=>entry.message===message);
+      if(previous)return structuredClone(previous.value);
       const row=scopedArticles(latest).find(row=>row.messageId===message);
       if(!row)return null;
       const value=await cached(row);

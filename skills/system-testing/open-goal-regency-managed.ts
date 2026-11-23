@@ -148,7 +148,9 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       return structuredClone(index);
     }},
     regencySaved:{async read(key:string){
-      if(!index||key!==realm||busy||frontiers.length>=2)return null;
+      if(key!==realm||busy)return null;
+      if(frontiers.length>=2)return structuredClone(frontiers.at(-1)!);
+      index??={...initialIndex,memo:await readMemo()};
       busy=true;
       try {
         if(frontiers.length===1&&world.initial.between){await seat();await move(world.initial.between,false);}

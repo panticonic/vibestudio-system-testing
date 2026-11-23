@@ -209,7 +209,7 @@ export async function prepareOpenPreparedContentProject(
   const services = {
     contentProjectSources: {
       async observe() {
-        if (observed) throw new Error("Read the assigned source packet once");
+        if (observed) return structuredClone(observed);
         observed=await observe();
         return record("contentProjectSources","observe",[],observed);
       },

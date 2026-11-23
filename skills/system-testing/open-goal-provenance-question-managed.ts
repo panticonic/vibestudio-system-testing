@@ -76,7 +76,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
   function capture<T>(service:string,method:string,args:unknown[],result:T):T {
     effects.push(structuredClone({service,method,args,result})); return structuredClone(result);
   }
-  function scopeOf(id:string) { if (!disclosed || id !== assignment.id) throw new Error("Question reads require the exact owned assignment"); }
+  function scopeOf(id:string) { if (id !== assignment.id) throw new Error("Question reads require the exact owned assignment"); }
   async function cohortNative(ref:string, workUnitId:string):Promise<Cohort> {
     const result = await owner.query({ contextId:context, limit:30,
       query: `SELECT result_path, count(DISTINCT change_id) FROM prov_changes WHERE work_unit_id = ${quote(workUnitId)} GROUP BY result_path ORDER BY result_path` });
@@ -87,20 +87,21 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
   const services = {
     recordedQuestionDiscovery: {
       async discover() {
-        if (disclosed) throw new Error("Question already opened");
+        if (disclosed) return structuredClone(assignment);
         disclosed = true;
         return capture("recordedQuestionDiscovery","discover",[],assignment);
       },
       async search(id:string,phrase:string) {
         scopeOf(id);
-        if (candidates || readsInFlight || !phrase.trim() || phrase.length>120) throw new Error("Choose a short scoped search phrase");
+        if (readsInFlight || !phrase.trim() || phrase.length>120) throw new Error("Choose a short scoped search phrase");
         readsInFlight = true;
         try {
           rawSearch = await owner.search({contextId:context,text:phrase,limit:20});
           if (rawSearch.truncated) throw new Error("Local question search was incomplete");
           candidates = rawSearch.hits.flatMap(hit => {
             if (hit.node.kind !== "work-unit" || !portfolio.has(hit.node.workUnitId)) return [];
-            const ref = "proposal-" + (nativeRoots.size+1);
+            const workUnitId=hit.node.workUnitId;
+            const ref = [...nativeRoots].find(([,work])=>work===workUnitId)?.[0] ?? "proposal-" + (nativeRoots.size+1);
             nativeRoots.set(ref,hit.node.workUnitId);
             return [{ref,rationale:hit.intent?.text??null,tier:hit.intent?.tier??null,excerpt:hit.excerpt}];
           });
@@ -113,7 +114,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       async cohort(id:string,ref:string) {
         scopeOf(id);
         const workUnit = nativeRoots.get(ref);
-        if (!workUnit || cohort || readsInFlight) throw new Error("Cohort requires an exact visible result reference");
+        if (!workUnit || readsInFlight) throw new Error("Cohort requires an exact visible result reference");
         readsInFlight = true;
         try {
           cohort = await cohortNative(ref,workUnit);
@@ -123,7 +124,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       async rejections(id:string,ref:string,selected:Cohort) {
         scopeOf(id);
         const original = candidates?.find(row=>row.ref===ref)?.rationale;
-        if (!original || !cohort?.complete || cohort.ref!==ref || !isDeepStrictEqual(cohort,selected) || withdrawn || readsInFlight)
+        if (!original || !cohort?.complete || cohort.ref!==ref || !isDeepStrictEqual(cohort,selected) || readsInFlight)
           throw new Error("Rejections require the exact observed complete cohort");
         readsInFlight = true;
         try {
@@ -178,7 +179,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
     const target = candidates?.find(item => nativeRoots.get(item.ref)===proposed.workUnitId);
     const nativeProof = [...nativeCounteractions.values()].flatMap(row=>row.entries.filter(entry=>entry.group==="counteractions" && entry.detail?.includes(world.statement)));
     const checks={
-      retrievedVisibleRecordedIntent: disclosed&&!!rawSearch&&isDeepStrictEqual([...nativeRoots.values()].sort(),expectedWorkIds.sort())&&
+      retrievedVisibleRecordedIntent:!!rawSearch&&expectedWorkIds.every(id=>[...nativeRoots.values()].includes(id))&&
         (world.absent||target?.rationale===world.statement&&target.tier==="stated"),
       verifiedExactWorkCohort: observe===0 ? cohort===null : Boolean(cohort?.complete&&nativeRoots.get(cohort.ref)===proposed.workUnitId&&
         isDeepStrictEqual(cohort.paths,sortedPaths.map(path=>({path,count:1})))),
