@@ -1,3 +1,4 @@
+import {SYSTEM_TEST_AGENT_MODEL,systemTestModelRoute} from "@workspace-skills/system-testing/config";
 import { allTests } from "@workspace-skills/system-testing/stages";
 import { validateNativeStartupDiagnostic, nativeStartupDiagnosticCode } from "@workspace-skills/system-testing/native-startup-diagnostic";
 import type { ManagedDeploymentReceiver } from "@workspace-skills/system-testing/remote-deployment-managed";
@@ -4851,12 +4852,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
   })
   async doctor(model?: string): Promise<SystemTestDoctorResult> {
     const catalogNames = allTests().map(test => test.name);
+    const modelRoute = systemTestModelRoute(model ?? SYSTEM_TEST_AGENT_MODEL,typeof model !== "string");
     return systemTestDoctorResultSchema.parse(
       await this.runHarnessUtility(
         "doctor",
         `
-        import { systemTestDoctor } from "@workspace-skills/system-testing/doctor";
-        const utilityValue = await systemTestDoctor(${JSON.stringify(model)}, ${JSON.stringify(catalogNames)});
+        import { systemTestDoctor } from "@workspace/system-test-health";
+        import {rpc,workers} from "@workspace/runtime";
+        const utilityValue = await systemTestDoctor(${JSON.stringify(modelRoute)}, ${JSON.stringify(catalogNames)}, {rpc,workers});
       `,
       ),
     );

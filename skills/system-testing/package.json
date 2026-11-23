@@ -303,7 +303,8 @@
     "./local-messaging": "./local-messaging/fixture.ts",
     "./local-messaging-contract": "./local-messaging/contract.ts",
     "./native-startup-diagnostic": "./native-startup-diagnostic.ts",
-    "./doctor": "./doctor.ts"
+    "./doctor": "./doctor.ts",
+    "./config": "./config.ts"
   },
   "dependencies": {
     "@workspace-skills/open-audience-response": "workspace:*",
@@ -389,7 +390,8 @@
     "@workspace/pty-stream": "workspace:*",
     "@workspace-workers/local-messaging-fixture": "workspace:*",
     "@workspace-workers/notification-state-fixture": "workspace:*",
-    "@workspace/pubsub": "workspace:*"
+    "@workspace/pubsub": "workspace:*",
+    "@workspace/system-test-health": "workspace:*"
   },
   "devDependencies": {
     "@workspace-skills/open-user-goal": "workspace:*",
