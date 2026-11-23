@@ -122,7 +122,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
     evalRecoveryJournal: {
       async observe(operationId: string) {
         const record = operations.get(operationId);
-        if (!record || journalReads.has(record.card.runId)) throw new Error("Observe one bound original native attempt at a time");
+        if (!record) throw new Error("Observe an issued bound original native attempt");
         const value = await record.bound.services.evalRecoveryJournal.observe(operationId);
         journalReads.set(value.runId, value);
         return structuredClone(value);

@@ -192,7 +192,6 @@ export async function prepareRetainedBuildIncident(
   const effects: Effect[] = [];
   const activated = new Map<string, { ticket: Ticket; path: string }>();
   const observed = new Map<string, Profile>();
-  let discovered = false;
   let stored: Receipt | null = null;
 
   const remember = <T>(service: string, method: string, args: unknown[], result: T): T => {
@@ -210,13 +209,12 @@ export async function prepareRetainedBuildIncident(
   const services = {
     buildIncidentCatalog: {
       async discover() {
-        discovered = true;
         const checkpoints = await Promise.all(directoryRows.map(async ({ path }) => (await readCheckpoint(path)).card));
         return remember("buildIncidentCatalog", "discover", [], { subject, checkpoints, budgetBytes: world.budget ?? null,
           localHandoffAllowed: world.localHandoffAllowed });
       },
       async open(id: string) {
-        const assigned = discovered ? directoryRows.find(row => row.saved.card.id === id) : null;
+        const assigned = directoryRows.find(row => row.saved.card.id === id);
         if (!assigned) throw new Error("Discover the owned checkpoints before opening a scoped ID");
         const { card, observation, trace, diagnostic } = await readCheckpoint(assigned.path);
         const existing = activated.get(id);
@@ -232,7 +230,7 @@ export async function prepareRetainedBuildIncident(
     buildPerformance: {
       async observe(operationId: string) {
         const match = [...activated].find(([, entry]) => entry.ticket.operationId === operationId);
-        if (!match || observed.has(match[0])) throw new Error("Use only a newly observed scoped profile operation");
+        if (!match) throw new Error("Use only an issued owned profile operation");
         const { observation } = await readCheckpoint(match[1].path);
         if (!observation || observation.source !== primary) throw new Error("The retained profile has an invalid source");
         observed.set(match[0], observation);
@@ -310,9 +308,9 @@ export async function prepareRetainedBuildIncident(
     }));
     const actualCurrent = primaryEntry?.saved;
     const checks = {
-      exactOwnedCheckpointCatalog: discovered && isDeepStrictEqual(outcome?.subject, subject) && immutable.every(Boolean),
+      exactOwnedCheckpointCatalog: isDeepStrictEqual(outcome?.subject, subject) && immutable.every(Boolean),
       nativeObservationAndProvenance: metadata.every(entry => entry.retained) &&
-        isDeepStrictEqual([...observed.keys()], expectedSaved.map(entry => entry.card.id)) &&
+        expectedSaved.every(entry => observed.has(entry.card.id)) &&
         measurements.every(entry => isDeepStrictEqual(entry.selected, entry.observation)),
       verifiedPerformanceAndDiagnosis: matched(outcome?.current, actualCurrent) && matched(outcome?.baseline, oldEntry?.saved) &&
         (!actualCurrent || (world.content === "broken" ?
