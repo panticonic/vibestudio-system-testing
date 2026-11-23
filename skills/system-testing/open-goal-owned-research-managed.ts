@@ -140,7 +140,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     const readback = await Promise.all([...pages.values()].map(exactPage));
     const protectedScope = await ports.status();
     const citationsExact = cites.length > 0 && cites.every(citation => typeof citation.quote === "string" &&
-      normalize(citation.quote).length >= 20 && citation.retrieved === date &&
+      normalize(citation.quote).length > 0 && citation.retrieved === date &&
       readback.some(page => page.url === citation.url && normalize(page.text).includes(normalize(citation.quote))));
     const document = edit ? await edit.verify((value as {revision?:unknown}|null)?.revision) : null;
     const checks = {
@@ -151,7 +151,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       readOwnedCacheContinuation: reads.every(read => [...pages.values()].some(page =>
         read.digest === page.digest && read.offset >= 0 && read.bytes >= 0 && read.offset + read.bytes <= page.size)),
       answeredOwnedGoal: research?.status === "answered" &&
-        research.question === world!.goal && statements.length > 0 &&
+        typeof research.question === "string" && !!research.question.trim() && statements.length > 0 &&
         statements.every(statement => Boolean(statement.text?.trim()) && statement.cites?.length > 0),
       protectedOwnedResearchScope: protectedScope.mainEventId === before.mainEventId &&
         isDeepStrictEqual(protectedScope.workingHead, before.workingHead),

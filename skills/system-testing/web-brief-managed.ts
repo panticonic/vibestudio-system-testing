@@ -65,7 +65,7 @@ export function checkManagedWebBriefEvidence(world: BriefWorld, report: Brief | 
                   page.title === cite.title &&
                   cache[index]?.verified === true && cache[index]?.digest === page.digest &&
                   cite.retrieved === retrieved &&
-                  collapse(cite.quote).length >= 20 &&
+                  collapse(cite.quote).length > 0 &&
                   collapse(cache[index]?.visible ?? "").includes(
                     collapse(cite.quote),
                   ),

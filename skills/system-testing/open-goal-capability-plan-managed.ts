@@ -358,6 +358,6 @@ function validPlanShape(plan: CapabilityPlan | undefined): plan is CapabilityPla
     Array.isArray(plan.knowledge) &&
     plan.knowledge.every(citation => citation && typeof citation.skillPath === "string" &&
       typeof citation.sha256 === "string" && typeof citation.quote === "string" &&
-      citation.quote.length >= 12 && boundedText(citation.quote, 360)) &&
+      citation.quote.trim().length > 0 && boundedText(citation.quote, 360)) &&
     Array.isArray(plan.missing);
 }

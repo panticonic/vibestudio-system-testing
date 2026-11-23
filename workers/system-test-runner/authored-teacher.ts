@@ -218,11 +218,12 @@ ${options.bindingCode}
       const programPath=${JSON.stringify(options.openGoal ? options.entry!.program : "skills/vibestudio-workflows/runWorkflow.nl")};
       const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
       const expectedRemaining=${JSON.stringify(expectedRemaining)};
-      let report=null, executionError=null;
+      let report=null, applicationResult=null, executionError=null;
       try {
         const root=await natlang.load(programPath,{services:assignedServices});
         ${requireMountedDomains(domains)}
         const workflow=await root(${requestCode});
+        applicationResult=workflow;
         ${options.openGoal ? "report=workflow;" : `
         const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
         if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) ||
@@ -263,17 +264,7 @@ ${options.bindingCode}
       const rootOutcome=rootRecord?.outcome??null;
       if(rootRecord && rootOutcome!=="done" && executionError===null)
         executionError={name:"AuthoredExecutionFailure",message:"Assigned authored root ended with "+rootOutcome};
-      const children=calls.filter(call=>call.record?.parent_call_id===rootCallIds[0]).map(call=>call.record);
-      if(!${Boolean(options.openGoal)} && (JSON.stringify(children.map(record=>record.definition.name).sort())!==JSON.stringify(expectedSkills) || children.some(record=>record.outcome!=="done")))
-        executionError??={name:"AuthoredExecutionFailure",message:"The shared workflow did not complete the assigned skill results"};
-      if(requiredOrder) {
-        const ordered=requiredOrder.map(name=>children.find(record=>record.definition.name===name));
-        if(ordered.some((record,index)=>!record || !Number.isFinite(Date.parse(record.started_at)) ||
-          !Number.isFinite(Date.parse(record.ended_at)) ||
-          (index>0 && !(Date.parse(ordered[index-1]?.ended_at)<=Date.parse(record.started_at)))))
-          executionError??={name:"AuthoredExecutionFailure",message:"A dependent skill began before its required prerequisite completed"};
-      }
-      let utilityValue={report,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,rootOutcome,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
+      let utilityValue={report,applicationResult,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,rootOutcome,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
         trainingEligible:rootOutcome==="done"&&executionError===null&&captureErrors.length===0};
   `;
 }

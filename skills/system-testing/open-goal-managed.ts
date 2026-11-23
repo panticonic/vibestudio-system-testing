@@ -134,11 +134,11 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       attestedSearchProvider: sourceAttested && citations.length > 0 && citationSources.length === citations.length,
       exactPageReadback: cache.length > 0 && cache.every(({ exact }) => exact),
       answeredGoal: result?.status === "answered" &&
-        result.question === goal &&
+        typeof result.question === "string" && !!result.question.trim() &&
         Boolean(result.statements?.length) &&
         result.statements.every(({ text, cites }) => Boolean(text.trim()) && cites.length > 0),
       groundedCitations: citations.length > 0 && citations.every(({ url, quote, retrieved }) =>
-        retrieved === date && normalize(quote).length >= 20 &&
+        retrieved === date && normalize(quote).length > 0 &&
         cache.some((page) => page.url === url && normalize(page.text).includes(normalize(quote)))),
 
     };

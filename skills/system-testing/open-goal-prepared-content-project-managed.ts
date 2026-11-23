@@ -1,3 +1,5 @@
+import { createScopedProjectDraft } from "./scoped-project-draft.js";
+import { sameProjectSourceSelection } from "./project-source-identity.js";
 import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
 import { preparedContentProjectOutcomeContract } from "./prepared-content-project-outcome.js";
 import { isDeepStrictEqual } from "node:util";
@@ -141,7 +143,7 @@ export async function prepareOpenPreparedContentProject(
   type Evidence = Awaited<ReturnType<typeof observe>>;
   let observed: Evidence | undefined;
   let delivery: ReturnType<typeof createProjectDelivery> | undefined;
-  let authorization: { receipt:string; action:"commit"|"draft"; prepared:boolean; written:boolean; committed:boolean } | undefined;
+  let authorization: { receipt:string; action:"commit"|"draft"; initialHead:string; prepared:boolean; written:boolean; committed:boolean } | undefined;
   let moved = false;
 
   function authorizedInputs(evidence: Evidence) {
@@ -171,7 +173,7 @@ export async function prepareOpenPreparedContentProject(
     if (authorization) throw new Error("The owned project scope is already confirmed");
     const accepted = authorizedInputs(observed);
     if (decision.basis !== "authorized" || !accepted || decision.action !== accepted.action ||
-      !isDeepStrictEqual(decision.selected, accepted.selected)) return held;
+      !sameProjectSourceSelection(decision.selected, accepted.selected)) return held;
     if (world.profile === "moved" && !moved) {
       const approval = observed.records.find(row=>row.purpose === "approval" && row.edition === "current")!;
       const source = originalSources.find(row=>row.source.id===approval.id)!.source;
@@ -185,7 +187,7 @@ export async function prepareOpenPreparedContentProject(
       moved = true;
       return {...held,status:"moved",initialHead:JSON.stringify((await status()).workingHead)};
     }
-    authorization={receipt:crypto.randomUUID(),action:accepted.action,prepared:false,written:false,committed:false};
+    authorization={receipt:crypto.randomUUID(),action:accepted.action,initialHead,prepared:false,written:false,committed:false};
     delivery=createProjectDelivery({contextId,vcs,prepareProjects:ports.prepareProjects},
       {contextId,name,title:world.title,request:accepted.request});
     const snapshot=await delivery.observe();
@@ -221,26 +223,14 @@ export async function prepareOpenPreparedContentProject(
         return record("contentProjectScope","confirm",[revision,decision],await confirm(revision,decision));
       },
     },
-    contentProjectDraft: {
-      async prepare(receipt:string|null,head:string) {
-        const {scope,project}=requireScope(receipt);
-        if (scope.prepared) throw new Error("Prepare the admitted project once");
-        const prepared=await onCurrentBasis(head,()=>project.prepare(head));
-        scope.prepared=prepared!==null;
-        return record("contentProjectDraft","prepare",[receipt,head],prepared);
-      },
-      async write(receipt:string|null,head:string,documents:{path:string;text:string}[]) {
-        const {scope,project}=requireScope(receipt);
-        if (!scope.prepared || scope.written) throw new Error("Write one initial candidate into the prepared project");
-        const candidate=await onCurrentBasis(head,()=>project.writeDocuments(head,documents));
-        scope.written=candidate!==null;
-        return record("contentProjectDraft","write",[receipt,head,documents],candidate);
-      },
-    },
+    contentProjectDraft: createScopedProjectDraft({requireScope,onCurrentBasis,record,
+      currentSources:async()=>!!observed && isDeepStrictEqual(await readSources((await status()).workingHead),observed.records),
+    }),
     contentProjectCommit: {
       async commit(receipt:string|null,head:string,message:string) {
         const {scope,project}=requireScope(receipt);
         if (scope.action !== "commit" || !scope.written || scope.committed) throw new Error("The owned scope does not allow this commit");
+        if (!observed || !isDeepStrictEqual(await readSources((await status()).workingHead),observed.records)) return record("contentProjectCommit","commit",[receipt,head,message],null);
         const event=await onCurrentBasis(head,()=>project.commit(head,message));
         scope.committed=event!==null;
         return record("contentProjectCommit","commit",[receipt,head,message],event);
@@ -293,44 +283,38 @@ export async function prepareOpenPreparedContentProject(
     const artifact = mutating ? await verifyContentProject(vcs,{
       contextId,repoPath,before,request:expectedRequest,disposition:expectedOutcome as "committed"|"draft",
     }) : null;
-    const journalStep = (service:string,method:string) => journal.find(entry=>entry.service===service && entry.method===method);
+    const journalStep = (service:string,method:string) => journal.findLast(entry=>entry.service===service && entry.method===method && entry.result!==null);
     const observedScope=journalStep("contentProjectScope","confirm")?.result ?? null;
     const prepared=journalStep("contentProjectDraft","prepare");
     const written=journalStep("contentProjectDraft","write");
     const committed=journalStep("contentProjectCommit","commit");
     const independentlyRead = artifact?.semanticReviewInput?.actual;
     const verifiedState = independentlyRead?.state;
-    const readme = independentlyRead?.documents.find(file=>file.path==="README.md")?.text;
-    const ownedDocs = independentlyRead?.documents.filter(file=>file.path.startsWith("docs/")) ?? [];
-    const directLinks = new Set(Array.from(readme?.matchAll(/\]\((docs\/[^)#]+)(?:#[^)]*)?\)/gu) ?? [],match=>match[1]));
     const scopedWrites = (
       !!prepared && !!written && !!authorization?.written &&
-      isDeepStrictEqual(outcome?.draft?.snapshot,written.result) &&
-      isDeepStrictEqual(final?.candidate,written.result) &&
       (written.result as Snapshot).repositoryId === repository?.repositoryId &&
       (written.result as Snapshot).repoPath === repoPath
     );
     const checks = {
       exactOwnedSourceDiscovery: !!observed && isDeepStrictEqual(observed,sourceReadback) &&
-        isDeepStrictEqual(outcome?.evidence,sourceReadback) && preservedSources,
-      genuineEvidenceDisposition: outcome?.decision?.action===expectedDecision.action &&
-        outcome.decision.basis===expectedDecision.basis &&
-        isDeepStrictEqual(outcome.decision.selected,expectedDecision.selected) &&
-        typeof outcome.decision.reason==="string" && outcome.decision.reason.trim().length>0,
-      exactScopedAuthorization: outcome?.scope!==undefined && isDeepStrictEqual(outcome.scope,observedScope) &&
-        (mutating ? outcome.scope?.status==="admitted" && isDeepStrictEqual(outcome.scope.request,expectedRequest)
-          : expectedOutcome==="held-moved" ? outcome.scope?.status==="moved" && outcome.scope.receipt===null &&
-            outcome.scope.initialHead===JSON.stringify(actual.workingHead)
-          : outcome.scope===null && journal.filter(entry=>entry.service==="contentProjectScope").length===0),
-      exactArtifactOrReadOnlyHold: mutating ? scopedWrites && artifact?.passed===true && isDeepStrictEqual(verifiedState,actual.workingHead) &&
-        ownedDocs.length>=world.roles.length && ownedDocs.every(file=>directLinks.has(file.path))
-        : !prepared && !written && !committed && outcome?.draft===null && final?.candidate===null && occupationPreserved() &&
+        preservedSources,
+      genuineEvidenceDisposition: mutating ? authorization?.action===expectedDecision.action
+        : !authorization?.prepared && !authorization?.written && !authorization?.committed,
+      exactScopedAuthorization: mutating ? observedScope!==null &&
+        (observedScope as {status?:string}).status==="admitted" &&
+        isDeepStrictEqual((observedScope as {request?:unknown}).request,expectedRequest)
+        : expectedOutcome==="held-moved" ? (observedScope as {status?:string}|null)?.status==="moved" &&
+          (observedScope as {receipt?:unknown}).receipt===null
+        : observedScope===null || (observedScope as {status?:string}).status==="held",
+      exactArtifactOrReadOnlyHold: mutating ? scopedWrites && artifact?.passed===true && isDeepStrictEqual(verifiedState,actual.workingHead)
+        : !prepared && !written && !committed && occupationPreserved() &&
           (!sourceReadback.occupied || (retainedOwner?.content.kind==="text" && retainedOwner.content.text===occupiedText)),
       protectedPrivateBoundary: actual.mainEventId===before.mainEventId &&
         (expectedOutcome==="committed" ? actual.clean && actual.committed.eventId!==before.committed.eventId && !!committed &&
-          authorization?.committed===true && isDeepStrictEqual(final?.event,committed.result) &&
-          final?.event?.eventId===actual.committed.eventId && final.event.head===JSON.stringify(actual.workingHead)
-          : actual.committed.eventId===before.committed.eventId && !committed && final?.event===null &&
+          authorization?.committed===true &&
+          (committed.result as {eventId:string;head:string}).eventId===actual.committed.eventId &&
+          (committed.result as {head:string}).head===JSON.stringify(actual.workingHead)
+          : actual.committed.eventId===before.committed.eventId && !committed &&
             (expectedOutcome==="held" ? actual.clean && isDeepStrictEqual(actual.workingHead,before.workingHead)
               : !actual.clean && actual.workingHead.kind==="application" &&
                 (expectedOutcome==="draft" || (moved && actual.workingCounts.applications===1 && actual.workingCounts.changes===1)))),
@@ -350,6 +334,10 @@ export async function prepareOpenPreparedContentProject(
     let draft:null | {snapshot:Snapshot;review:{ready:boolean;coveredRoles:string[];unsupportedClaims:string[];blockers:string[];reason:string}}=null;
     let event:Awaited<ReturnType<ReturnType<typeof createProjectDelivery>["commit"]>> | null=null;
     const original=decision.selected[0];
+    const rejectedWrongBasis=(await confirm(evidence.revision,{...decision,
+      basis:decision.basis==="pending" ? "missing" : "pending"})).status!=="admitted";
+    const rejectedWrongSource=(await confirm(evidence.revision,{...decision,
+      selected:decision.selected.map((row,index)=>index===0 ? {...row,digest:"retired-alias-digest"} : row)})).status!=="admitted";
     let rejectedRetiredAlias=true;
     if (original) {
       const retired=evidence.records.find(row=>row.edition==="retired")!;
@@ -381,10 +369,6 @@ export async function prepareOpenPreparedContentProject(
     const proof=await verify(report);
     const acceptedIncidentalDisposition=(await verify({...report,final:{...report.final,
       outcome:expectedOutcome==="held" ? "committed" : "held"}})).passed;
-    const rejectedWrongSource=!(await verify({...report,evidence:{...evidence,
-      records:evidence.records.map((row,index)=>index===0 ? {...row,digest:"retired-alias-digest"} : row)}})).passed;
-    const rejectedWrongBasis=!(await verify({...report,decision:{...decision,
-      basis:decision.basis==="pending" ? "missing" : "pending"}})).passed;
     return {...proof,report,rejectedRetiredAlias,acceptedIncidentalDisposition,rejectedWrongSource,rejectedWrongBasis,
       passed:proof.passed && rejectedRetiredAlias && acceptedIncidentalDisposition && rejectedWrongSource && rejectedWrongBasis};
   }

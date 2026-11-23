@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { openGoalTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, openGoalTeacherCode } from "./authored-teacher.js";
 async function capture(outcome: string, model = "Luna") {
   const code = openGoalTeacherCode(
     {
@@ -62,4 +62,18 @@ it("still requires successful root completion and exact teacher identity for ful
     "Teacher reply came from another actual model",
   );
   expect(wrong.trainingEligible).toBe(false);
+});
+
+it("captures the actual shared return without prescribing NL child calls", async () => {
+  const result = { results: [{ kind: "repairPanel", report: { changed: true } }], remaining: [] };
+  const code = authoredTeacherCode({ skill: "repairPanel", serviceNames: [], executorModel: "Luna", request: { goal: "Repair the owned panel" }, bindingCode: "const assignedService={};" }, "run");
+  const natlang = {
+    captureModelTurns() {}, load: async () => async () => result,
+    calls: async ({after}: {after?: string}) => after ? [] : [{ callId: "root", parentCallId: null }],
+    trace: async () => ({callId:"root",summary:{run_id:"run",owner_key:"owned",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition:{name:"runWorkflow"},outcome:"done",model_turns:[]}}),
+  };
+  const value = await new Function("natlang", `return (async()=>{${code};return utilityValue;})()`)(natlang);
+  expect(value.trainingEligible).toBe(true);
+  expect(value.applicationResult).toEqual(result);
+  expect(value.report).toEqual(result.results[0].report);
 });

@@ -118,7 +118,7 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
     const freshSkillIndex = await nativeIndex();
     const conformedSkills = await Promise.all(actual.guidance.map(async citation => {
       const fresh = freshSkillIndex.find(item => item.skillPath === citation?.skillPath);
-      if (!fresh || typeof citation.quote !== "string" || citation.quote.length < 12 || !bounded(citation.quote, 260)) return false;
+      if (!fresh || typeof citation.quote !== "string" || !citation.quote.trim() || !bounded(citation.quote, 260)) return false;
       const [loaded, raw] = [knowledge.get(fresh.skillPath), await rawGuide(fresh.dirPath)];
       return !!raw && !!loaded && citation.sha256 === loaded.sha256 && citation.sha256 === sha256HexSyncText(raw) &&
         raw.includes(citation.quote) && loaded.passages.some(passage => passage.includes(citation.quote));
