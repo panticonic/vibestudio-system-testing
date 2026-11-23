@@ -282,8 +282,8 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     },
   };
   async function verify(raw: unknown) {
-    const report = raw as {status?:string;skill?:string;outcome?:SpecialistGoalReport} | null;
-    const outcome = report?.status === "workspace-skill-reviewed" && report.skill === "specialistHandoff" ? report.outcome : null;
+    const report = raw as SpecialistGoalReport | null;
+    const outcome = report;
     const latest = await ports.read(lane);
     const roster = await ports.roster(lane,input.contextId);
     const expected = world.expected;
@@ -353,10 +353,9 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
     const memberRead = membershipReads[0];
     const membershipWitness = membership && memberRead ? {request:memberRead.request,
       report:{...membership,status:membership.state === "conflict" ? "held" : "observed"}} : null;
-    const report = {status:"workspace-skill-reviewed",skill:"specialistHandoff",
-      outcome:{plan,membership:membershipWitness,history,handoff:receipt}};
+    const report = {plan,membership:membershipWitness,history,handoff:receipt};
     const accepted = await verify(report);
-    const forged = await verify({...report,outcome:{...report.outcome,plan:{...plan,taskId:"other-task"}}});
+    const forged = await verify({...report,plan:{...plan,taskId:"other-task"}});
     return {...accepted,passed:accepted.passed && !forged.passed};
   }
   return {goal:world.goal,services,verify,qualify};

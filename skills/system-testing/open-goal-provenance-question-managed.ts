@@ -168,7 +168,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
     return {assignment,phrase:searchText,candidates:candidates??[],selection,evidence,answer};
   }
   async function verify(value:unknown) {
-    const actual=value as {status?:string;skill?:string;outcome?:unknown}|null;
+    const actual=value as unknown|null;
     const after=await status();
     const rereads=await Promise.all([...nextValues].map(async ([path,expected])=>{
       const value=await readFile(after.workingHead,path);
@@ -187,7 +187,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
         isDeepStrictEqual(withdrawn.map(item=>item.path),undonePaths)&&withdrawn.every(item=>item.reason===world.reason)&&
         nativeProof.length===undonePaths.length&&nativeProof.every(entry=>entry.node.kind==="work-unit"&&entry.node.workUnitId===counterWork),
       preservedLocalQuestionScope: after.clean&&isDeepStrictEqual(after.workingHead,head)&&isDeepStrictEqual(await owner.mainState(),main)&&rereads.every(Boolean),
-      matchedRecordedQuestionReport: actual?.status==="workspace-skill-reviewed"&&actual.skill==="provenanceQuestion"&&isDeepStrictEqual(actual.outcome,scoped),
+      matchedRecordedQuestionReport: isDeepStrictEqual(actual,scoped),
     };
     return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),
       native:{head,repositoryId,originalWork:proposed.workUnitId,counterWork,search:rawSearch,walks:[...nativeCounteractions]}};
@@ -203,9 +203,9 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       const result=await services.recordedQuestionGraph.cohort(assignment.id,ref);
       await services.recordedQuestionGraph.rejections(assignment.id,ref,result);
     }
-    const report={status:"workspace-skill-reviewed",skill:"provenanceQuestion",outcome:expectedReport()};
+    const report=expectedReport();
     const proof=await verify(report);
-    const rejectedInventedScope=!(await verify({...report,outcome:{...report.outcome,answer:{...report.outcome.answer,affected:["other-local-scope"]}}})).passed;
+    const rejectedInventedScope=!(await verify({...report,answer:{...report.answer,affected:["other-local-scope"]}})).passed;
     const checks={...proof.checks,rejectedUnknownReference,rejectedInventedScope};
     return {...proof,checks,passed:Object.values(checks).every(Boolean),report};
   }

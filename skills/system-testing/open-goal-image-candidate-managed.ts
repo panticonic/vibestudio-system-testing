@@ -233,8 +233,8 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
       world.expected.evidence.every(term=>text.toLowerCase().includes(term.toLowerCase()));
   }
   async function verify(raw:unknown) {
-    const report=raw as {status?:string;skill?:string;outcome?:ImageReport}|null;
-    const outcome=report?.status==="workspace-skill-reviewed"&&report.skill==="imageCandidate"?report.outcome:undefined;
+    const report=raw as ImageReport|null;
+    const outcome=report;
     const latest=await ports.read(lane);
     const goalPlan=exactPlan();
     const expected=world.expected;
@@ -294,7 +294,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
       decision:{action:world.expected.action,candidateId:world.expected.label?version(world.expected.label):null,
         explanation:world.expected.evidence.join(" / ")},handoff:null};
     if(outcome.decision.action==="stage")outcome.handoff=await services.imageCandidateHandoff.stage(outcome);
-    return verify({status:"workspace-skill-reviewed",skill:"imageCandidate",outcome});
+    return verify(outcome);
   }
   return {services,verify,qualify};
 }

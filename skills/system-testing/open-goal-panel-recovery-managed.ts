@@ -223,10 +223,10 @@ export async function prepareOpenPanelRecovery(input: Input) {
   }
 
   async function verify(value: unknown) {
-    const wrapper = value as { status?: string; skill?: string; outcome?: {
+    const wrapper = value as {
       status: string; surfaceId: string; initial: Assessment; final: Assessment; effects: Effect[]; reason: string;
-    } } | null;
-    const report = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "visualRecovery" ? wrapper.outcome : null;
+    } | null;
+    const report = wrapper;
     const after = await vcs.status({ contextId });
     const finalSurfaces = [];
     for (const surface of world.surfaces) {
@@ -300,9 +300,8 @@ export async function prepareOpenPanelRecovery(input: Input) {
     const outcome = { status: expected.outcome, surfaceId: target.surface.id,
       initial: assess(first, selected.surface), final: assess(final, selected.surface), effects,
       reason: "Confirmed the exact live marker and authority receipts." };
-    const result = await verify({ status: "workspace-skill-reviewed", skill: "visualRecovery", outcome });
-    const rejectsWrongEvidence = !(await verify({ status: "workspace-skill-reviewed", skill: "visualRecovery",
-      outcome: { ...outcome, final: { ...outcome.final, evidence: ["foreign-panel"] } } })).passed;
+    const result = await verify(outcome);
+    const rejectsWrongEvidence = !(await verify({ ...outcome, final: { ...outcome.final, evidence: ["foreign-panel"] } })).passed;
     let enforcesHold = true;
     if (!target.surface.authorized && first.controls[0]) {
       const denied = await services.panelRecovery.apply(first.revision, { kind: "click", control: first.controls[0].id });

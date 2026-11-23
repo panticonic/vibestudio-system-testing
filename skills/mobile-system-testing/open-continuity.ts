@@ -494,12 +494,8 @@ export async function prepareOpenMobileContinuity(
   };
 
   async function verify(value: unknown) {
-    const envelope = value as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = envelope?.outcome;
+    const envelope = value as Outcome | null;
+    const outcome = envelope;
     const id = current.profile.id;
     const durable = await evidenceFor(id);
     const status = await workspaceHead();
@@ -527,8 +523,6 @@ export async function prepareOpenMobileContinuity(
         );
       }),
       matchedBoundMobileDecision:
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "mobileContinuity" &&
         outcome?.scope === "owned-fixture" &&
         outcome.profile === id &&
         outcome.action === world.expected.action &&
@@ -582,11 +576,7 @@ export async function prepareOpenMobileContinuity(
       reason: world.expected.terms.join(" "),
       evidence: { build, cache, transport, routes },
     };
-    const proof = await verify({
-      status: "workspace-skill-reviewed",
-      skill: "mobileContinuity",
-      outcome,
-    });
+    const proof = await verify(outcome);
     return {
       ...proof,
       passed: proof.passed && rejectedAlias,

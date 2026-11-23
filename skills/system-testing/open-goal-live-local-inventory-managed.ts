@@ -35,10 +35,10 @@ export async function prepareOpenLiveLocalInventory(
   };
 
   async function verify(value: unknown) {
-    const envelope = value as { status?: string; skill?: string; outcome?: {
+    const envelope = value as {
       card?: Card | null; plan?: Comparison["request"] | null; report?: Report | null; reason?: string;
-    } } | null;
-    const outcome = envelope?.outcome;
+    } | null;
+    const outcome = envelope;
     const [after, final, retained] = await Promise.all([prepared.readback(), vcs.status({ contextId }), fs.readFile(path, "utf8")]);
     const native = prepared.verify(outcome?.report ?? null, after);
     const checks = {
@@ -49,8 +49,7 @@ export async function prepareOpenLiveLocalInventory(
       verifiedExactLocalDispositions: native.checks.handoff && native.checks.candidates,
       preservedLocalInventoryAndWorkspace: isDeepStrictEqual(original.workingHead, final.workingHead) &&
         original.mainEventId === final.mainEventId && native.checks.stableInventory && outcome?.report?.receipt === null,
-      matchedLocalInventoryGoal: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "liveLocalInventory" &&
-        typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
+      matchedLocalInventoryGoal: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
     };
     return { contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
       passed: Object.values(checks).every(Boolean), native, docket, available: [prior, card], outcome };
@@ -64,7 +63,7 @@ export async function prepareOpenLiveLocalInventory(
     const rejectedOutsideCandidate = await prepared.services.localModelTaskInventory.inspect("local:outside-assignment").then(() => false, () => true);
     const outcome = { card, plan: prepared.request, report: prepared.expected,
       reason: "Checked the exact local candidates and the bounded handoff requirements." };
-    const proof = await verify({ status: "workspace-skill-reviewed", skill: "liveLocalInventory", outcome });
+    const proof = await verify(outcome);
     const rejectedInvalidLocalInventory = rejectedArchive && rejectedOutsideCandidate;
     return { ...proof, passed: proof.passed && rejectedInvalidLocalInventory,
       checks: { ...proof.checks, rejectedInvalidLocalInventory } };

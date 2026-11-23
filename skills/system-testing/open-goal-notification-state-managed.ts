@@ -174,12 +174,8 @@ export async function prepareOpenNotificationState(
   };
 
   async function verify(report: unknown) {
-    const envelope = report as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = envelope?.outcome;
+    const envelope = report as Outcome | null;
+    const outcome = envelope;
     const raw = await rpc.call(target, actor.audit, []);
     const ownsFinal = raw.active?.id === lanes.assigned.id;
     const final =
@@ -221,8 +217,7 @@ export async function prepareOpenNotificationState(
       verifiedNotificationRefresh:
         raw.refreshCommits===1 &&
         refresh?.producerReceipt === expected.receipt &&
-        refresh.discardedPriorRead === true &&
-        refresh.authority ===
+        refresh.discardedPriorRead === true && refresh.authority ===
           (world.transition === "retire"
             ? "retired"
             : world.transition
@@ -231,8 +226,6 @@ export async function prepareOpenNotificationState(
         isDeepStrictEqual(refresh.lane, ownsFinal ? raw.active : null) &&
         isDeepStrictEqual(outcome?.lifecycle?.refresh, refresh),
       exactNotificationDisposition:
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "notificationState" &&
         outcome?.scope === "owned-notification-fixture" &&
         outcome.decision?.action === expected.action &&
         outcome.decision?.finding?.state === expected.state &&
@@ -303,34 +296,24 @@ export async function prepareOpenNotificationState(
       final = await service.read(current.lane);
     }
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "notificationState",
-      outcome: {
         scope: "owned-notification-fixture",
         decision,
         lifecycle: { original, current, refresh },
         final,
         acknowledgement,
-      },
-    };
+      };
     const proof = await verify(report);
     const wrongCounter = {
-      ...report,
-      outcome: {
-        ...report.outcome,
+        ...report,
         final: final && { ...final, unreadCount: -1 },
-      },
-    };
+      };
     const wrongDecision = {
-      ...report,
-      outcome: {
-        ...report.outcome,
+        ...report,
         decision: {
           ...decision,
           finding: { ...decision.finding, id: "wrong-lane" },
         },
-      },
-    };
+      };
     const rejectedWrongOutput = !(
       await verify(final ? wrongCounter : wrongDecision)
     ).passed;

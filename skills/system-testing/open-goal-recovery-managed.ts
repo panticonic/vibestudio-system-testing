@@ -209,8 +209,8 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
   }
 
   async function verify(value: unknown) {
-    const envelope = value as { status?: string; skill?: string; outcome?: RecoveryReport } | null;
-    const report = envelope?.outcome;
+    const envelope = value as RecoveryReport | null;
+    const report = envelope;
     const citations = expectedCitations();
     const replays = await Promise.all([...observed.values()].map(async (window) => {
       const lane = [...sessions.values()].find((entry) => entry.source.id === window.source.id)!.lane;
@@ -246,8 +246,7 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
         world.expected.reads.map(({ key, status }) => [session(key).source.id, status])),
       boundNativeReplay: replays.every(Boolean),
       preservedRetainedChannels: channelReads.every(({ matched }) => matched),
-      groundedRecoveryDecision: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "recovery" &&
-        report?.review?.disposition === world.expected.disposition && isDeepStrictEqual(report.review.citations, citations) &&
+      groundedRecoveryDecision: report?.review?.disposition === world.expected.disposition && isDeepStrictEqual(report.review.citations, citations) &&
         typeof reason === "string" && !!reason.trim() &&
         (world.expected.reason ?? []).every((term) => reason.toLowerCase().includes(term.toLowerCase())),
       verifiedRecoveryHandoff: isDeepStrictEqual(report?.handoff, artifact) &&
@@ -264,7 +263,7 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
       reason: world.expected.reason?.join(" ") || "The retained record supports this disposition.",
       citations: expectedCitations() };
     const handoff = world.expected.stage ? await services.recoveryHandoff.stage(review) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "recovery", outcome: { review, handoff } });
+    return verify({ review, handoff });
   }
 
   return { goal: world.goal, services, verify, qualify };

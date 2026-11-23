@@ -91,17 +91,13 @@ it("accepts repeated authentic probes, but rejects foreign slots, stale revision
     expect(proof.passed).toBe(true);
     const finding = proof.finding!;
     const value = {
-      status: "workspace-skill-reviewed",
-      skill: "tendrilRoute",
-      outcome: {
         status: world.expected.decision,
         finding,
         receipt: proof.receipt,
         reason:
           world.expected.reason.join(" ") ||
           "Matched the retained owned Tendril route",
-      },
-    };
+      };
     await prepared.services.tendrilRouteRead.listBoards();
     await prepared.services.tendrilRouteRead.readBoard(finding.id);
     await prepared.services.tendrilRouteRead.probe(
@@ -139,12 +135,9 @@ it("accepts repeated authentic probes, but rejects foreign slots, stale revision
     expect(
       (
         await prepared.verify({
-          ...value,
-          outcome: {
-            ...value.outcome,
+            ...value,
             finding: { ...finding, revision: "stale" },
-          },
-        })
+          })
       ).passed,
     ).toBe(false);
   } finally {

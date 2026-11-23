@@ -254,8 +254,8 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
   };
 
   async function verify(input: unknown) {
-    const report = input as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
+    const report = input as Outcome | null;
+    const outcome = report;
     const observed = viewed.get(current.card.id);
     const earlier = await inspect(prior);
     const currentView = await inspect(current);
@@ -286,8 +286,7 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
       verifiedConsoleAndNotebookEvidence: isDeepStrictEqual(observed?.console, currentView.console) &&
         observed?.notebook.revision === readRecord(originalValues[0]![notebookKey]!).revision &&
         observed?.notebook.settledDigest === hash(originalValues[0]![current.mode === "large-output" ? "ownedLargeResult" : notebookKey]!),
-      respectedRecoveryDecision: report?.status === "workspace-skill-reviewed" && report.skill === "agentCapability" &&
-        outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      respectedRecoveryDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedExactContinuation: exactEffect && isDeepStrictEqual(outcome?.continuation, continued?.receipt ?? null) &&
         effects.filter(effect => effect.service === "agentCapabilityContinue").length === (mayContinue ? 1 : 0),
@@ -304,9 +303,9 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
     const decision = decisionFor(a);
     const continuation = decision === "confirm-continuation" || decision === "retry-exact-step"
       ? await services.agentCapabilityContinue.apply(a.attempt.id, a.resultDigest, a.notebook.revision, decision) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "agentCapability", outcome: {
+    return verify({
       assignment, evidence: { current: a, prior: b }, finding: { decision, reason: "Use the exact admitted action and current durable notebook evidence." }, continuation,
-    } });
+    });
   }
   return { services, verify, qualify, close: native.close };
 }

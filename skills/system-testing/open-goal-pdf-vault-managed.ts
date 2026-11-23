@@ -25,7 +25,7 @@ type PrepareVault = (input: Input, world: OpenPdfVaultWorld["vault"], options: {
 type Pdf = Awaited<ReturnType<typeof prepareOpenPdfInspection>>;
 type Bound = { status: "bound"; source: NonNullable<Awaited<ReturnType<Pdf["attestCitations"]>>>; directive: string };
 type Handoff = Bound | { status: "hold"; reason: string };
-const wrap = (skill: string, outcome: unknown) => ({ status: "workspace-skill-reviewed", skill, outcome });
+
 const hold = (reason: string): Handoff => ({ status: "hold", reason });
 
 export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: PrepareVault) {
@@ -86,10 +86,10 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
   };
 
   async function verify(value: unknown) {
-    const wrapper = value as { status?: string; skill?: string; outcome?: { pdf: unknown; handoff: Handoff; vault: unknown } } | null;
-    const result = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "pdfVault" ? wrapper.outcome : null;
-    const pdfResult = await pdf.verify(wrap("pdf", result?.pdf), { allowWorkingHeadChange: mayEdit });
-    const vaultResult = mayEdit ? await vault.verify(wrap("spectrolite", result?.vault)) : null;
+    const wrapper = value as { pdf: unknown; handoff: Handoff; vault: unknown } | null;
+    const result = wrapper;
+    const pdfResult = await pdf.verify(result?.pdf, { allowWorkingHeadChange: mayEdit });
+    const vaultResult = mayEdit ? await vault.verify(result?.vault) : null;
     const after = await vcs.status({ contextId });
     const expectedQuotes = world.pdf.expected.text?.quotes ?? [];
     const selectedQuotes = bound?.source.citations.map(({ page, quote }) => ({ page, text: quote }));
@@ -106,8 +106,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       exactWorkingVault: mayEdit ? vaultResult?.passed === true
         : isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
-        vaultResult?.passed === true &&
-        typeof coedited === "string" && coedited.includes(concurrent.append)
+        vaultResult?.passed === true && typeof coedited === "string" && coedited.includes(concurrent.append)
         : !concurrentReceipt && (mayEdit ? attempts.some(attempt => attempt.outcome === "written") : attempts.length === 0),
       protectedHeads: initial.mainEventId === after.mainEventId && isDeepStrictEqual(initial.committed, after.committed),
     };
@@ -129,7 +128,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       : hold(`Missing approved page ${world.pdf.expected.missing?.join(", ")}.`);
     if (mayEdit && handoff.status !== "bound") throw new Error("The reference could not attest the approved PDF lines.");
     const outcome = handoff.status === "bound" ? (await vault.reference()).outcome : null;
-    const verified = await verify(wrap("pdfVault", { pdf: reference.outcome, handoff, vault: outcome }));
+    const verified = await verify({ pdf: reference.outcome, handoff, vault: outcome });
     const checks = { ...verified.checks, exactPdfReference: reference.verification.passed,
       rejectsForgedQuotation, rejectsPrematureVaultAccess };
     return { ...verified, checks, passed: Object.values(checks).every(Boolean) };

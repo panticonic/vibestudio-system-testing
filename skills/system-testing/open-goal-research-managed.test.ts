@@ -46,10 +46,8 @@ it("binds exact source evidence and actual conclusions for independent semantic 
   const cites = [{ url: sources.url, quote: sources.quote,
     retrieved: new Date(goalDiscovery.snapshotTime()).toISOString().slice(0, 10) }];
   const verify = (text: string) => prepared.verify({
-    status: "answered", research: {
       question: prepared.goal, status: "answered", statements: [{ text, cites }],
-    },
-  });
+    });
   expect(await verify("You can register example.com, example.net, and example.org.")).toMatchObject({
     passed: true, semanticReviewRequired:true, checks: { groundedCitations: true },
     semanticReviewInput:{kind:"public-claims"},
@@ -67,10 +65,10 @@ it("reads a directly known authorized public source without a mandatory search r
   if(!("goalDiscovery"in prepared.services)||!("web"in prepared.services))throw new Error("Expected web research");
   const {web,goalDiscovery}=prepared.services;
   await web.fetch({url:sources.url});
-  const result=await prepared.verify({status:"answered",research:{question:prepared.goal,status:"answered",statements:[{
+  const result=await prepared.verify({question:prepared.goal,status:"answered",statements:[{
     text:"Example.com, example.net and example.org are not available for registration.",cites:[{url:sources.url,quote:sources.quote,
       retrieved:new Date(goalDiscovery.snapshotTime()).toISOString().slice(0,10)}],
-  }]}});
+  }]});
   expect(result).toMatchObject({passed:true,searches:[],citationSources:[{provider:null,searchIndex:null}]});
   await expect(web.fetch({url:sources.url,session:"browser"})).rejects.toThrow("public session");
 });

@@ -440,12 +440,8 @@ export async function prepareOpenTendrilRoute(
   };
 
   async function verify(value: unknown) {
-    const result = value as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = result?.outcome;
+    const result = value as Outcome | null;
+    const outcome = result;
     const { expected } = world;
     const snapshots = await Promise.all(
       [...natives.values()].map(async (entry) => ({
@@ -525,8 +521,6 @@ export async function prepareOpenTendrilRoute(
             main.board.revision !== initial.revision
           : !raced && main.board.revision === initial.revision),
       matchedTendrilDecision: Boolean(
-        result?.status === "workspace-skill-reviewed" &&
-        result.skill === "tendrilRoute" &&
         outcome?.status === expected.decision &&
         isDeepStrictEqual(outcome.finding, finding) &&
         typeof outcome.reason === "string" &&
@@ -646,11 +640,7 @@ export async function prepareOpenTendrilRoute(
         world.expected.reason.join(" ") ||
         "Matched the retained owned Tendril route",
     };
-    const proof = await verify({
-      status: "workspace-skill-reviewed",
-      skill: "tendrilRoute",
-      outcome,
-    });
+    const proof = await verify(outcome);
     const rejectedForeignTendrilEvidence = foreign && scoped;
     return {
       ...proof,

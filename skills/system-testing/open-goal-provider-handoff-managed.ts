@@ -279,8 +279,8 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
       await services.retainedProviderHandoff.stage({ channelId: foreign, disposition: "ready" } as ProviderPlan) === null;
   }
   async function verify(raw: unknown) {
-    const report = raw as { status?: string; skill?: string; outcome?: ProviderGoalReport } | null;
-    return proof(report?.status === "workspace-skill-reviewed" && report.skill === "providerHandoff" ? report.outcome ?? null : null, await rejectUnowned());
+    const report = raw as ProviderGoalReport | null;
+    return proof(report ?? null, await rejectUnowned());
   }
   async function qualify() {
     await services.retainedConversationIndex.list();

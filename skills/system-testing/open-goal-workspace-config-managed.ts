@@ -229,8 +229,8 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
   };
 
   async function verify(raw:unknown) {
-    const value=raw as {status?:string;skill?:string;outcome?:ConfigReport}|null;
-    const report=value?.status==="workspace-skill-reviewed"&&value.skill==="workspaceConfig"?value.outcome:undefined;
+    const value=raw as ConfigReport|null;
+    const report=value;
     const independent=await independentEvidence();
     const freshBrief=await readStoredBrief();
     const currentStatus=await ports.vcs.status();
@@ -271,7 +271,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const evidence={active,history,dependencies};
     const outcome:ConfigOutcome={...disposition(brief,evidence),summary:"Checked current declarations, the retained note, and the requested exact source references."};
     const handoff=authorized(outcome)?await services.nativeConfigHandoff.stage(brief,expectedLens,evidence,outcome):null;
-    return verify({status:"workspace-skill-reviewed",skill:"workspaceConfig",outcome:{brief,lens:expectedLens,evidence,outcome,handoff}});
+    return verify({brief,lens:expectedLens,evidence,outcome,handoff});
   }
   return {services,verify,qualify};
 }

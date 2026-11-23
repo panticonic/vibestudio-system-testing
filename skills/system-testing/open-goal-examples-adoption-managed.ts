@@ -415,12 +415,8 @@ export async function prepareOpenExamplesAdoption(
     },
   };
   async function verify(value: unknown) {
-    const envelope = value as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const out = envelope?.outcome;
+    const envelope = value as Outcome | null;
+    const out = envelope;
     const finalEvent = await stateEvent();
     const independent = await nativeComposition();
     const { epoch, ...source } = await installedEvidence();
@@ -487,8 +483,6 @@ export async function prepareOpenExamplesAdoption(
       ),
       actualPrivateDisposition: Boolean(
         out &&
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "examplesAdoption" &&
         out.scope === "owned-examples-composition-rehearsal" &&
         out.plan.disposition === world.disposition &&
         out.plan.finding.trim() &&
@@ -576,9 +570,6 @@ export async function prepareOpenExamplesAdoption(
       saved?.path ?? null,
     );
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "examplesAdoption",
-      outcome: {
         scope: "owned-examples-composition-rehearsal",
         card,
         evidence: { installed: source, composition: native },
@@ -586,11 +577,10 @@ export async function prepareOpenExamplesAdoption(
         gate: confirmed,
         receipt: saved,
         readback,
-      },
-    };
+      };
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.outcome.readback.main = "foreign";
+    altered.readback.main = "foreign";
     const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
     return {
       ...verification,

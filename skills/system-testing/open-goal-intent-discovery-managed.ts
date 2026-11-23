@@ -199,8 +199,8 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       }},
     };
     async function verify(raw:unknown){
-      const value=raw as {status?:string;skill?:string;outcome?:IntentReport}|null;
-      const report=value?.status==="workspace-skill-reviewed"&&value.skill==="intentDiscovery"?value.outcome:undefined;
+      const value=raw as IntentReport|null;
+      const report=value;
       const independent=await Promise.all(inspected.map(async item=>observation(required.find(row=>row.methodId===item.methodId)!.need)));
       const descriptionsCurrent=await Promise.all([...descriptions.keys()].map(description));
       const status=await ports.vcs.status();
@@ -249,7 +249,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       const report:IntentReport={notice,selection,capabilities,plan:{actions,retain:writable},evidence:inspected,
         outcome:{status:overall(inspected),summary:"Compared exact installed operations and owned local facts."},handoff:null};
       if(writable)report.handoff=await services.nativeIntentHandoff.stage(report);
-      return verify({status:"workspace-skill-reviewed",skill:"intentDiscovery",outcome:report});
+      return verify(report);
     }
     return {services,verify,qualify,close};
   }catch(error){

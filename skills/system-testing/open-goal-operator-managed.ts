@@ -48,11 +48,7 @@ type ProfileSession = {
   finish(): Promise<ProfileProof>;
 };
 type Session = DeploymentSession | ProfileSession;
-type DomainReport = {
-  status: "workspace-skill-reviewed";
-  skill: "operator";
-  outcome: OperatorReport;
-};
+type DomainReport = OperatorReport;
 
 export function bindOpenGoalOperator(
   input: Input,
@@ -307,9 +303,7 @@ export function bindOpenGoalOperator(
                 child?.state === "verified" &&
                 child.workspaceId === initial.identity?.workspaceId)),
       boundOperatorReport:
-        report?.status === "workspace-skill-reviewed" &&
-        report.skill === "operator" &&
-        isDeepStrictEqual(report.outcome, expectedReport()),
+        isDeepStrictEqual(report, expectedReport()),
     };
     return {
       ...input,
@@ -386,11 +380,7 @@ export function bindOpenGoalOperator(
           () => true,
         );
     }
-    const proof = await verify({
-      status: "workspace-skill-reviewed",
-      skill: "operator",
-      outcome: expectedReport(),
-    });
+    const proof = await verify(expectedReport());
     return { ...proof, rejectedAlias, passed: proof.passed && rejectedAlias };
   }
 

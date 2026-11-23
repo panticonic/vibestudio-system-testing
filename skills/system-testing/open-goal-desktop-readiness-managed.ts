@@ -361,12 +361,8 @@ export async function prepareDesktopReadiness(
   };
 
   async function verify(report: unknown) {
-    const envelope = report as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = envelope?.outcome;
+    const envelope = report as Outcome | null;
+    const outcome = envelope;
     const sourceRead = journal.find((row) => row.method === "observe")
       ?.result as SourceEvidence | undefined;
     const exactAdmission = sourceRead && expectedAdmission(sourceRead);
@@ -435,8 +431,6 @@ export async function prepareDesktopReadiness(
         ) &&
         isDeepStrictEqual(outcome?.evidence.updates, updates),
       matchedDesktopReadinessDecision:
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "desktopReadiness" &&
         outcome?.scope === "owned-desktop-readiness-fixture" &&
         outcome.decision.action === expected.action &&
         Boolean(outcome.decision.reason.trim()) &&
@@ -491,20 +485,16 @@ export async function prepareDesktopReadiness(
     const window = await services.desktopReadiness.readWindow(desk.id);
     const updates = await services.desktopReadiness.readUpdates(desk.id);
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "desktopReadiness",
-      outcome: {
         scope: "owned-desktop-readiness-fixture",
         evidence: { desk, admission, window, updates },
         decision: {
           action: world.expected.action,
           reason: "Current scoped desktop evidence.",
         },
-      },
-    };
+      };
     const proof = await verify(report);
     const negative = structuredClone(report);
-    negative.outcome.evidence.window.deskId = neighbor.id;
+    negative.evidence.window.deskId = neighbor.id;
     const rejectedWrongReadback = !(await verify(negative)).passed;
     const checks = {
       ...proof.checks,

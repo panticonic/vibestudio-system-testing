@@ -197,8 +197,8 @@ export async function prepareOpenReconciliation(
   };
 
   async function verify(value: unknown) {
-    const report = value as { skill?: string; status?: string; outcome?: ReconcileResult } | null;
-    const outcome = report?.outcome;
+    const report = value as ReconcileResult | null;
+    const outcome = report;
     const integration = outcome?.integration;
     const handoff = outcome?.handoff;
     const current = await status();
@@ -273,8 +273,7 @@ export async function prepareOpenReconciliation(
           : Boolean(release && stagedReads.length && sourcePairs.every(pair =>
               stagedReads.some(entry => entry.args[0] === pair.id && entry.result)))) &&
         (scenario.expected.handoff === "staged" ? artifact !== null : artifact === null),
-      matchedReconciliationHandoff: report?.status === "workspace-skill-reviewed" && report.skill === "localReconciliation" &&
-        integration?.status === expectedStatus && handoff?.status === scenario.expected.handoff &&
+      matchedReconciliationHandoff: integration?.status === expectedStatus && handoff?.status === scenario.expected.handoff &&
         isDeepStrictEqual(outcome?.window, window) &&
         scenario.expected.reason.every(term => typeof integration.reason === "string" && integration.reason.toLowerCase().includes(term)),
     };
@@ -345,7 +344,7 @@ export async function prepareOpenReconciliation(
     }
     const handoff = { status: artifact ? "staged" : scenario.evidence.length ? "held" : "none", artifact };
     const window = await services.reconciliationWindow.read();
-    const result = await verify({ status: "workspace-skill-reviewed", skill: "localReconciliation", outcome: { integration: progress, handoff, window, archive: comparison } });
+    const result = await verify({ integration: progress, handoff, window, archive: comparison });
     const scope = foreignDenied && stale.status === "changed";
     return { ...result, passed: result.passed && scope, checks: { ...result.checks, rejectedInvalidIntegrationScope: scope } };
   }

@@ -201,8 +201,8 @@ export async function prepareOpenUnitRollout(
   };
 
   async function verify(value: unknown, negatives?: { foreign: boolean; protectedPolicy: boolean }) {
-    const envelope = value as { status?: string; skill?: string; outcome?: Report } | null;
-    const report = envelope?.outcome;
+    const envelope = value as Report | null;
+    const report = envelope;
     const current = await tail();
     const finalRevision = revisionOf(current.workingHead);
     const independent = createRolloutEngine(ports, target);
@@ -241,7 +241,7 @@ export async function prepareOpenUnitRollout(
           : report?.check === null && checks.length === 0)),
       exactLocalRolloutEvent: world.expected.release ? Boolean(state.commit && actualCommit === state.commit.eventId && current.clean &&
         isDeepStrictEqual(report?.release, state.commit)) : state.commit === null && isDeepStrictEqual(current.committed, baseline.committed) && report?.release === null,
-      matchedRolloutOutcome: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "unitRollout" && report?.unitId === target.id &&
+      matchedRolloutOutcome: report?.unitId === target.id &&
         report.status === world.expected.status && report.revision === finalRevision &&
         Boolean(reason && (world.expected.mentions ?? []).every(terms => terms.some(term => reason.includes(term)))),
       ...(negatives ? { rejectedForeignRolloutUnit: negatives.foreign, rejectedProtectedSourceEdit: negatives.protectedPolicy } : {}),
@@ -303,9 +303,9 @@ export async function prepareOpenUnitRollout(
         }
       }
       const reason = (world.expected.mentions ?? []).map(([word]) => word).join("; ") || "The exact current unit report is retained";
-      return verify({ status: "workspace-skill-reviewed", skill: "unitRollout", outcome: {
+      return verify({
         status: world.expected.status, unitId: id, revision: revisionOf((await tail()).workingHead), check: result, release, reason,
-      } }, { foreign, protectedPolicy });
+      }, { foreign, protectedPolicy });
     },
   };
 }

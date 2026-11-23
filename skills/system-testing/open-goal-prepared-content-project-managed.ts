@@ -1,3 +1,5 @@
+import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
+import { preparedContentProjectOutcomeContract } from "./prepared-content-project-outcome.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import type { RpcCaller } from "@vibestudio/rpc";
@@ -256,9 +258,6 @@ export async function prepareOpenPreparedContentProject(
   };
   type Snapshot = Awaited<ReturnType<ReturnType<typeof createProjectDelivery>["observe"]>>;
   type Report = {
-    status:string;
-    skill:string;
-    outcome:{
       evidence:Evidence;
       decision:Decision;
       scope:Awaited<ReturnType<typeof confirm>> | null;
@@ -266,10 +265,9 @@ export async function prepareOpenPreparedContentProject(
       final:{outcome:string;candidate:Snapshot | null;event:{eventId:string;head:string} | null};
       explanation:string;
     };
-  };
   async function verify(raw:unknown) {
     const report=raw as Partial<Report> | null;
-    const outcome=report?.outcome;
+    const outcome=report;
     const final=outcome?.final;
     const actual=await status();
     const sourceNow=await readSources(actual.workingHead);
@@ -324,8 +322,7 @@ export async function prepareOpenPreparedContentProject(
           : expectedOutcome==="held-moved" ? outcome.scope?.status==="moved" && outcome.scope.receipt===null &&
             outcome.scope.initialHead===JSON.stringify(actual.workingHead)
           : outcome.scope===null && journal.filter(entry=>entry.service==="contentProjectScope").length===0),
-      exactArtifactOrReadOnlyHold: mutating ? scopedWrites && artifact?.passed===true &&
-        isDeepStrictEqual(verifiedState,actual.workingHead) &&
+      exactArtifactOrReadOnlyHold: mutating ? scopedWrites && artifact?.passed===true && isDeepStrictEqual(verifiedState,actual.workingHead) &&
         ownedDocs.length>=world.roles.length && ownedDocs.every(file=>directLinks.has(file.path))
         : !prepared && !written && !committed && outcome?.draft===null && final?.candidate===null && occupationPreserved() &&
           (!sourceReadback.occupied || (retainedOwner?.content.kind==="text" && retainedOwner.content.text===occupiedText)),
@@ -337,14 +334,13 @@ export async function prepareOpenPreparedContentProject(
             (expectedOutcome==="held" ? actual.clean && isDeepStrictEqual(actual.workingHead,before.workingHead)
               : !actual.clean && actual.workingHead.kind==="application" &&
                 (expectedOutcome==="draft" || (moved && actual.workingCounts.applications===1 && actual.workingCounts.changes===1)))),
-      correctOutcomeReport: report?.status==="workspace-skill-reviewed" && report?.skill==="preparedContentProject" &&
-        final?.outcome===expectedOutcome && typeof outcome?.explanation==="string" && outcome.explanation.trim().length>0,
+      correctOutcomeReport: final?.outcome===expectedOutcome && typeof outcome?.explanation==="string" && outcome.explanation.trim().length>0,
     };
-    return {
+    return assessSemanticOutcome({
       passed:Object.values(checks).every(Boolean), checks, goal:world.goal, contextId, caseId:world.id,
       preparedContentProject:{ contextId,caseId:world.id,sourceGroup:world.sourceGroup,repoPath,sourcesPath,before,actual,
         sourceReadback,sourceNow,expectedOutcome,journal:structuredClone(journal),artifact },
-    };
+    }, preparedContentProjectOutcomeContract);
   }
 
   async function qualify() {
@@ -378,19 +374,19 @@ export async function prepareOpenPreparedContentProject(
       draft={snapshot,review:{ready:true,coveredRoles:world.roles,unsupportedClaims:[],blockers:[],reason:"Check exact source citations and real private readback."}};
       if(decision.action==="commit") event=await services.contentProjectCommit.commit(scope.receipt,snapshot.head,"Prepare private reviewed content project");
     }
-    const report={status:"workspace-skill-reviewed",skill:"preparedContentProject",outcome:{
+    const report={
       evidence,decision,scope,draft,final:{outcome:expectedOutcome,candidate:draft?.snapshot ?? null,event},
       explanation:"Base preparation on retained current evidence and the exact local authorization.",
-    }};
+    };
     const proof=await verify(report);
-    const rejectedWrongDisposition=!(await verify({...report,outcome:{...report.outcome,final:{...report.outcome.final,
-      outcome:expectedOutcome==="held" ? "committed" : "held"}}})).passed;
-    const rejectedWrongSource=!(await verify({...report,outcome:{...report.outcome,evidence:{...evidence,
-      records:evidence.records.map((row,index)=>index===0 ? {...row,digest:"retired-alias-digest"} : row)}}})).passed;
-    const rejectedWrongBasis=!(await verify({...report,outcome:{...report.outcome,decision:{...decision,
-      basis:decision.basis==="pending" ? "missing" : "pending"}}})).passed;
-    return {...proof,report,rejectedRetiredAlias,rejectedWrongDisposition,rejectedWrongSource,rejectedWrongBasis,
-      passed:proof.passed && rejectedRetiredAlias && rejectedWrongDisposition && rejectedWrongSource && rejectedWrongBasis};
+    const acceptedIncidentalDisposition=(await verify({...report,final:{...report.final,
+      outcome:expectedOutcome==="held" ? "committed" : "held"}})).passed;
+    const rejectedWrongSource=!(await verify({...report,evidence:{...evidence,
+      records:evidence.records.map((row,index)=>index===0 ? {...row,digest:"retired-alias-digest"} : row)}})).passed;
+    const rejectedWrongBasis=!(await verify({...report,decision:{...decision,
+      basis:decision.basis==="pending" ? "missing" : "pending"}})).passed;
+    return {...proof,report,rejectedRetiredAlias,acceptedIncidentalDisposition,rejectedWrongSource,rejectedWrongBasis,
+      passed:proof.passed && rejectedRetiredAlias && acceptedIncidentalDisposition && rejectedWrongSource && rejectedWrongBasis};
   }
   return { services, verify, qualify };
 }

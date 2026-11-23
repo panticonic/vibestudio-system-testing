@@ -313,8 +313,8 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
   };
 
   async function verify(raw:unknown) {
-    const wrapper=raw as {status?:string;skill?:string;outcome?:PacketReport}|null;
-    const report=wrapper?.status==="workspace-skill-reviewed"&&wrapper.skill==="editorialPacket"?wrapper.outcome:undefined;
+    const wrapper=raw as PacketReport|null;
+    const report=wrapper;
     const view=await status();
     const stored=(await file(view.workingHead,candidatePath)).doc;
     const proofSources=[];
@@ -420,7 +420,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
     const decision:PacketDecision={status:world.end,write:stageExpected,explanation:world.terms.join(" / ")};
     const report:PacketReport={plan,opening,current,sources,decision,note:null,edit:{stored,proposed,revised,attempts:attempts.map(item=>item.result)}};
     if(stageExpected)report.note=await services.editorialHandoff.stage(report);
-    return verify({status:"workspace-skill-reviewed",skill:"editorialPacket",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

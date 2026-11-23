@@ -362,8 +362,8 @@ export async function prepareOwnedScheduledRecovery(
   };
 
   async function verify(value: unknown, controls?: { foreignSchedule: boolean; wrongAttempt: boolean }) {
-    const report = value as { status?: string; skill?: string; outcome?: ScheduledOutcome } | null;
-    const outcome = report?.outcome;
+    const report = value as ScheduledOutcome | null;
+    const outcome = report;
     const results = await Promise.all(seed.items.map(item => readOwned(missions, item)));
     const nativeRuns = await Promise.all(seed.items.map(item => missions.listRuns(item.record.missionId, { limit: 1 })));
     const defaultMission = await missions.getDefault(defaultId);
@@ -440,8 +440,7 @@ export async function prepareOwnedScheduledRecovery(
         (world.expected.handoff ? nativeHandoff :
           effects.every(entry => entry.service !== "scheduledHandoff" || entry.method !== "submit") &&
           afterDestination.length === destination.baseline.length),
-      exactScheduledRecoveryReport: report?.status === "workspace-skill-reviewed" && report.skill === "scheduledRecovery" &&
-        Boolean(reason) && world.expected.reason.every(term => reason.includes(term)) &&
+      exactScheduledRecoveryReport: Boolean(reason) && world.expected.reason.every(term => reason.includes(term)) &&
         isDeepStrictEqual(outcome?.schedule, current),
       ...(controls ? { rejectedForeignScheduleAndWrongAttempt: controls.foreignSchedule && controls.wrongAttempt } : {}),
     };
@@ -475,7 +474,7 @@ export async function prepareOwnedScheduledRecovery(
     }
     const outcome = { schedule, authorization, delivery,
       reason: world.expected.reason.join(" ") || "Current owned schedule independently confirmed" };
-    return verify({ status: "workspace-skill-reviewed", skill: "scheduledRecovery", outcome }, { foreignSchedule, wrongAttempt });
+    return verify(outcome, { foreignSchedule, wrongAttempt });
   }
   return { goal: world.goal, services, verify, qualify };
 }

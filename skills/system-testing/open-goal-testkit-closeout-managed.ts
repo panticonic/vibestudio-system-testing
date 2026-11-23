@@ -75,8 +75,8 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
   };
 
   async function verify(raw: unknown) {
-    const result = raw as { status?: string; skill?: string; outcome?: CloseoutReport } | null;
-    const outcome = result?.status === "workspace-skill-reviewed" && result?.skill === "testkitCloseout" ? result.outcome : null;
+    const result = raw as CloseoutReport | null;
+    const outcome = result;
     const same = outcome && isDeepStrictEqual(outcome.pair, pair);
     const currentCheck = current.verify(outcome?.current);
     const priorCheck = prior.verify(outcome?.prior);
@@ -112,10 +112,9 @@ export async function prepareOpenTestkitCloseout(input: { contextId: string; cas
     const decision: CloseoutDecision = { status: world.disposition, currentRemaining: current.reference.remainingIds,
       note: expectedNote, explanation: "The scoped Testkit outcomes and inventory were checked independently." };
     const outcome = { pair, current: current.reference, prior: prior.reference, decision, handoff: null };
-    const report = { status: "workspace-skill-reviewed", skill: "testkitCloseout",
-      outcome: { ...outcome, handoff: expectedNote ? await services.testkitCloseout.stage(outcome) : null } };
+    const report = { ...outcome, handoff: expectedNote ? await services.testkitCloseout.stage(outcome) : null };
     const proof = await verify(report);
-    const crosswire = await verify({ ...report, outcome: { ...report.outcome, current: prior.reference, prior: current.reference } });
+    const crosswire = await verify({ ...report, current: prior.reference, prior: current.reference });
     if (!rejectedForeign || crosswire.passed) throw new Error("Foreign or substituted Testkit closeout evidence was accepted");
     return proof;
   }

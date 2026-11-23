@@ -343,8 +343,8 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
   };
 
   async function verify(value: unknown) {
-    const envelope = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = envelope?.outcome;
+    const envelope = value as Outcome | null;
+    const outcome = envelope;
     const last = await observe();
     const current = last.observation;
     const [manifest, entry, neighbor, finalCollision] = await Promise.all([
@@ -405,8 +405,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
           isDeepStrictEqual(await readFile(client, last.before.workingHead, collision.repositoryId, manifestPath), collisionManifest)),
       verifiedCompatibleCallerLinks: changes && last.document.id === originalGuide.id &&
         (!shouldUpdate || !staleLinks(current).length) && last.source.note === expectedNote,
-      matchedLocalMigrationPlan: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "panelSourceMigration" &&
-        outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      matchedLocalMigrationPlan: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200 &&
         sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
       verifiedExactMutationReceipts: (moved?.status ?? null) === expectedMove && (aligned?.status ?? null) === expectedAlign &&
@@ -436,10 +435,10 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     const consumers = decision === "update-consumers" ||
       (decision === "move-and-update" || decision === "align-and-update") && identity?.status === "aligned"
       ? await services.panelMigrationChange.update(next.id, next.workingRevision, next.consumerDigest) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "panelSourceMigration", outcome: {
+    return verify({
       assignment, observed, finding: { decision, reason: "Compare existing panel identity, argument compatibility, exact authority and current working links." },
       move, identity, consumers, current: consumers?.observation ?? identity?.observation ?? move?.observation ?? observed,
-    } });
+    });
   }
   return { services, qualify, verify };
 }

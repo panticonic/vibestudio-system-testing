@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
-import { act, render } from "@testing-library/react";
+import { act, render, cleanup } from "@testing-library/react";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import * as React from "react";
 import type { PanelHandle } from "@workspace/runtime";
-import { expect, it } from "vitest";
+import { expect, it, afterEach } from "vitest";
 import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { openGoalBrowserPanelSource } from "./open-goal-browser-panel.js";
 import { browserGoalWorlds, type BrowserGoalWorld } from "./open-goal-browser-worlds.js";
+
+afterEach(cleanup);
 
 function bind(world: BrowserGoalWorld) {
   const esbuild = createRequire(join(process.cwd(), "package.json")).resolve("esbuild/bin/esbuild");

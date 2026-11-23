@@ -235,8 +235,8 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
   }
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
+    const report = value as Outcome | null;
+    const outcome = report;
     const actual = await evidence();
     const { fact } = actual.selected;
     const post = await vcs.status();
@@ -258,8 +258,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
       appliedInstalledReadiness: inventoryReads >= 1 && matchesReadiness(outcome?.readiness, actual.rows),
       boundActualProviderAndWidth: Boolean(outcome?.finding && isDeepStrictEqual(factOnly(outcome.finding), fact)) &&
         isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
-      exactEvidenceDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "localWidth" &&
-        outcome?.finding?.disposition === world.expected && Boolean(outcome.finding.reason?.trim()),
+      exactEvidenceDisposition: outcome?.finding?.disposition === world.expected && Boolean(outcome.finding.reason?.trim()),
       verifiedExactLocalHandoff: handoff && isDeepStrictEqual(outcome?.handoff, stored) &&
         baselineOutputs.every(name => afterOutputs.includes(name)),
       preservedWorkspaceState: before.mainEventId === post.mainEventId && isDeepStrictEqual(before.workingHead, post.workingHead),
@@ -285,7 +284,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     const finding = { ...selected.fact, reason: "Compare exact current selectable model and verified execution evidence." };
     const handoff = world.release === "include-hold" || (world.release === "verified" && finding.disposition === "verified")
       ? await services.localWidthHandoff.stage(finding) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "localWidth", outcome: { survey, readiness, finding, handoff } });
+    return verify({ survey, readiness, finding, handoff });
   }
 
   return { services, verify, qualify };

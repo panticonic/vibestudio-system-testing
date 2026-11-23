@@ -583,12 +583,8 @@ export async function prepareOpenSystemCandidate(
     readback: Readback;
   };
   async function verify(value: unknown) {
-    const envelope = value as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const out = envelope?.outcome;
+    const envelope = value as Outcome | null;
+    const out = envelope;
     const actual = await frontier();
     const exactPreview = await preview(actual);
     const end = await event();
@@ -642,8 +638,6 @@ export async function prepareOpenSystemCandidate(
         (end === working.eventId) === !world.moves,
       ),
       scopedPrivateDiagnosis: Boolean(
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "systemCandidateTriage" &&
         out?.scope === scope &&
         out.plan.decision === world.decision &&
         out.plan.record === world.record &&
@@ -761,9 +755,6 @@ export async function prepareOpenSystemCandidate(
       saved?.path ?? null,
     );
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "systemCandidateTriage",
-      outcome: {
         scope,
         card,
         frontier: state,
@@ -772,11 +763,10 @@ export async function prepareOpenSystemCandidate(
         gate: confirmed,
         receipt: saved,
         readback,
-      },
-    };
+      };
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.outcome.readback.main = "foreign";
+    altered.readback.main = "foreign";
     const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).passed;
     return {
       ...verification,

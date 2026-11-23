@@ -35,9 +35,9 @@ it("permits a known owned URL without search while rejecting foreign nonce paths
   await expect(prepared.services.web.fetch({url:`${origin}/${"b".repeat(24)}/${world.pages[0]!.id}`})).rejects.toThrow("authorized owned HTTP page");
   await expect(prepared.services.web.read({digest:"0".repeat(64),offset:0,limit:20})).rejects.toThrow("observed owned evidence");
   await expect(prepared.services.web.read({digest:page.digest,offset:0,limit:20})).resolves.toMatchObject({digest:page.digest});
-  const verification=await prepared.verify({status:"answered",research:{status:"answered",question:world.goal,
+  const verification=await prepared.verify({status:"answered",question:world.goal,
     statements:[{text:world.referenceAnswer,cites:[{url:page.url,quote:page.head,
-      retrieved:new Date(prepared.services.goalDiscovery.snapshotTime()).toISOString().slice(0,10)}]}]}});
+      retrieved:new Date(prepared.services.goalDiscovery.snapshotTime()).toISOString().slice(0,10)}]}]});
   expect(verification.passed).toBe(true);
   expect(verification.semanticReviewRequired).toBe(true);
   expect(verification.semanticReviewInput.actual.sources[0]?.sha256).toBe(page.digest);

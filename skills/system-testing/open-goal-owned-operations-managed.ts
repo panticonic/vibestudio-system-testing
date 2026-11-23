@@ -129,8 +129,8 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
   async function verify(value: unknown): Promise<OpenGoalDomainVerification & {
     docket: Docket; effects: Effects; audit: ReturnType<typeof owned.audit>; outcome: Outcome | null; artifact: Receipt | null;
   }> {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome ?? null;
+    const report = value as Outcome | null;
+    const outcome = report ?? null;
     const reread = await read(current.id);
     const retiredReread = await read(retired.id);
     const audit = owned.audit();
@@ -141,8 +141,7 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
     const checks = {
       exactCurrentOwnedDocket: list.length > 0 && list.every(rows => isDeepStrictEqual(rows, [retiredReread.docket, reread.docket])) &&
         reads.some(observed => isDeepStrictEqual(observed, reread)) && isDeepStrictEqual(outcome?.docket, current),
-      exactBoundRoleDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "ownedOperations" &&
-        typeof outcome?.reason === "string" && outcome.reason.trim().length > 0 &&
+      exactBoundRoleDisposition: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0 &&
         (held ? outcome.disposition === "held" && outcome.operation === null :
           outcome.disposition === "reviewed" && !!outcome.operation && verifyOwnedOperations(audit, world.expected, outcome.operation).passed),
       preservedAuthorization: held
@@ -210,7 +209,7 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
       docket: evidence.docket, operation, dossier, disposition: operation ? "reviewed" : "held",
       reason: operation?.handoff.summary ?? evidence.rationale,
     };
-    const result = await verify({ status: "workspace-skill-reviewed", skill: "ownedOperations", outcome });
+    const result = await verify(outcome);
     return {
       ...result, passed: result.passed && deniedRetiredEdition,
       checks: { ...result.checks, deniedRetiredEdition },

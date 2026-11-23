@@ -300,7 +300,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     }
     const conclusion = reportConclusion();
     if (world.mayRetain && conclusion.claims.length) await services.sourceOriginReceipt.retain(assignment.id, stateKey(observed), conclusion);
-    return { status: "workspace-skill-reviewed", skill: "sourceAttribution", outcome: assembleReport() };
+    return assembleReport();
   }
   function assembleReport() {
     return { assignment, files: [...readbacks.values()].filter((value): value is View => value !== null),
@@ -311,7 +311,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
         }) })), conclusion: reportConclusion(), receipt };
   }
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: ReturnType<typeof assembleReport> } | null;
+    const report = value as ReturnType<typeof assembleReport> | null;
     const after = await status(), mainAfter = await owner.mainState();
     const entries = await ports.entries(directory);
     const requiresReceipt = world.mayRetain && world.questions.length > 0 && world.gates === "open";
@@ -330,8 +330,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
       verifiedOwnedSourceReceipt: (receipt?.status ?? null) === expectedStatus && (requiresReceipt ?
         isDeepStrictEqual(entries, ["source-attribution.json"]) && receipt?.path === output &&
         receipt.sha256 === hash(Buffer.from(await ports.read(output)).toString("utf8")) : entries.length === 0),
-      matchedSourceAttributionReport: report?.status === "workspace-skill-reviewed" && report.skill === "sourceAttribution" &&
-        isDeepStrictEqual(report.outcome, assembleReport()),
+      matchedSourceAttributionReport: isDeepStrictEqual(report, assembleReport()),
     };
     const proof = { ...assembleReport(), effects: structuredClone(effects), native: { repositoryId, importedState, observed, authoredChanges, source, after: after.workingHead } };
     return { passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, ...proof };
@@ -343,11 +342,11 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
       try { await run(); return false; } catch { return true; }
     }
     const rejectedForeignRoot = await rejected(() => services.sourceOriginGraph.inspect(assignment.id, "other-root"));
-    const rejectedStaleState = await rejected(() => services.sourceOriginReceipt.retain(assignment.id, "older-state", report.outcome.conclusion));
-    const altered = { ...report, outcome: { ...report.outcome, conclusion: { ...report.outcome.conclusion,
-      claims: report.outcome.conclusion.claims.map(item => ({ ...item, span: "older-span" })) } } };
-    const rejectedWrongLineage = report.outcome.conclusion.claims.length ? !(await verify(altered)).passed :
-      !(await verify({ ...report, outcome: { ...report.outcome, conclusion: { disposition: "supported", claims: [] } } })).passed;
+    const rejectedStaleState = await rejected(() => services.sourceOriginReceipt.retain(assignment.id, "older-state", report.conclusion));
+    const altered = { ...report, conclusion: { ...report.conclusion,
+      claims: report.conclusion.claims.map(item => ({ ...item, span: "older-span" })) } };
+    const rejectedWrongLineage = report.conclusion.claims.length ? !(await verify(altered)).passed :
+      !(await verify({ ...report, conclusion: { disposition: "supported", claims: [] } })).passed;
     const checks = { ...proof.checks, rejectedForeignRoot, rejectedStaleState, rejectedWrongLineage };
     return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
   }

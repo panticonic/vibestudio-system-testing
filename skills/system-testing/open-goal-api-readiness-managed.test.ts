@@ -46,7 +46,7 @@ it("accepts reordered and repeated integration observations, rejecting invented 
     review: { request, result: { planReceipt: plan.receipt, status: "ready", guidance: null, held: [], destinations: [
       { observation: metadata, disposition: "setup-needed" }, { observation: clone, disposition: "ready" },
     ] } }, audit, handoff: null };
-  const check = (value: unknown) => prepared.verify({ status: "workspace-skill-reviewed", skill: "apiReadiness", outcome: value });
+  const check = (value: unknown) => prepared.verify(value);
   expect((await check(outcome)).checks).toEqual(Object.fromEntries(Object.keys((await check(outcome)).checks).map(key => [key, true])));
   expect((await check(outcome)).passed).toBe(true);
   const invented = structuredClone(outcome); invented.review.result.destinations[0]!.observation.state = "active";

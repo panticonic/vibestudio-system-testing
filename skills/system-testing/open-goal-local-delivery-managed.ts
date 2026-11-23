@@ -255,8 +255,8 @@ export async function prepareOpenLocalDelivery(
     return world.expected.evidence.map(key => observations.get(laneByKey(key).room.id)?.prior);
   }
   async function verify(value: unknown, negatives?: { foreign: boolean; wrongAttempt: boolean }) {
-    const envelope = value as { status?: string; skill?: string; outcome?: Result } | null;
-    const outcome = envelope?.outcome;
+    const envelope = value as Result | null;
+    const outcome = envelope;
     const sent = state.sent;
     for (const lane of lanes) await rpc.call(lane.sender.targetId, actor.closeAdmission, []);
     const boundaries = await Promise.all(lanes.map(join));
@@ -299,8 +299,7 @@ export async function prepareOpenLocalDelivery(
       }),
       verifiedOriginalLocalReceipts: Array.isArray(outcome?.evidence) && wanted.length === world.expected.evidence.length &&
         wanted.every(item => item.acknowledged) && isDeepStrictEqual(sorted(outcome.evidence), sorted(wanted)),
-      matchedLocalDeliveryDecision: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "localDelivery" &&
-        outcome?.status === world.expected.status && Boolean(reason && (world.expected.mentions ?? []).every(group => group.some(term => reason.includes(term)))),
+      matchedLocalDeliveryDecision: outcome?.status === world.expected.status && Boolean(reason && (world.expected.mentions ?? []).every(group => group.some(term => reason.includes(term)))),
       exactLocalRecipientAndReadback: world.expected.send ? Boolean(sent?.didRead && sent.readback?.acknowledged &&
         sent.lane.spec.key === world.expected.send.room && sent.to === ref(world.expected.send.recipient) &&
         isDeepStrictEqual(outcome?.delivery, { attempt: sent.attempt, readback: sent.readback }) &&
@@ -335,9 +334,9 @@ export async function prepareOpenLocalDelivery(
         delivery = { attempt, readback: await services.localDeliveryReadback.read(attempt.attemptId) };
       }
       const reason = (world.expected.mentions ?? []).map(([term]) => term).join("; ") || "Exact local delivery result verified";
-      return verify({ status: "workspace-skill-reviewed", skill: "localDelivery", outcome: {
+      return verify({
         status: world.expected.status, delivery, reason, evidence: requiredEvidence(),
-      } }, { foreign, wrongAttempt });
+      }, { foreign, wrongAttempt });
     },
   };
 }

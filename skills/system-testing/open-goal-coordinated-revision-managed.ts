@@ -140,8 +140,8 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
       !!plan.explanation.trim()&&plan.explanation.length<=850;
   }
   async function verify(raw:unknown) {
-    const value=raw as {status?:string;skill?:string;outcome?:CoordinatedRevisionReport}|null;
-    const report=value?.status==="workspace-skill-reviewed"&&value.skill==="coordinatedRevision"?value.outcome:undefined;
+    const value=raw as CoordinatedRevisionReport|null;
+    const report=value;
     const status=await ports.vcs.status();
     const actual=await observe(status.workingHead);
     const first=snapshots[0];
@@ -197,10 +197,10 @@ export async function prepareCoordinatedRevision(input:{contextId:string;caseId:
     const updated=first?.status==="changed"?await api.discover():null;
     const reconciled=updated?plan(updated,world.next!.status,true):null;
     const final=updated&&reconciled?.status==="ready"?await api.revise(updated.head,reconciled.destinations):null;
-    return verify({status:"workspace-skill-reviewed",skill:"coordinatedRevision",outcome:{
+    return verify({
       initial,initialAuthority:authority(initial,world.initial==="held"),plan:initialPlan,first,updated,
       updatedAuthority:updated?authority(updated,world.next?.status==="held"):null,reconciled,final,readback:await api.readback(),
-    }});
+    });
   }
   return {services,verify,qualify};
 }

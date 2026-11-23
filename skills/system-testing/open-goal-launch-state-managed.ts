@@ -206,8 +206,8 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
     };
 
     async function verify(raw:unknown){
-      const value=raw as {status?:string;skill?:string;outcome?:LaunchReport}|null;
-      const report=value?.status==="workspace-skill-reviewed"&&value.skill==="panelLaunchState"?value.outcome:undefined;
+      const value=raw as LaunchReport|null;
+      const report=value;
       const [final,archiveAfter,status]=await Promise.all([native(active,true),native(alternate,true),ports.status()]);
       const [opening,current]=frames;
       const shouldAttempt=world.outcome==="applied"||world.outcome==="rejected";
@@ -264,7 +264,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const result:LaunchVerdict={status:world.outcome,summary:"Read the outcome from the native persisted launch entry."};
       const report:LaunchReport={plan,opening,current,decision,preflight,effect:receipt,readback:persisted,result,handoff:null};
       if(world.note)report.handoff=await services.launchStateWrite.stage(report);
-      return verify({status:"workspace-skill-reviewed",skill:"panelLaunchState",outcome:report});
+      return verify(report);
     }
     return {services,verify,qualify,close};
   }catch(error){

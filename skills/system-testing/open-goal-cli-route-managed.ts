@@ -138,11 +138,9 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
   }
   async function verify(value: unknown): Promise<OpenGoalDomainVerification & Record<string, unknown>> {
     const report = value as {
-      status?: string; skill?: string; outcome?: {
         status?: string; docket?: Docket | null; gateway?: Route | null; continuation?: Continuation | null; reason?: string;
-      };
-    } | null;
-    const outcome = report?.outcome;
+      } | null;
+    const outcome = report;
     const [native, current, storedRetired, final] = await Promise.all([
       gateway(), read(currentPath, docket), read(retiredPath, retired), vcs.status({ contextId }),
     ]);
@@ -157,8 +155,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
       boundAuthorizedCliContinuation: expected ? scopeBound && isDeepStrictEqual(outcome?.continuation, expected) :
         scope === null && outcome?.continuation === null,
       preservedReadOnlyContinuation: isDeepStrictEqual(initial.workingHead, final.workingHead) && initial.mainEventId === final.mainEventId,
-      matchedCliRouteDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "cliRoute" &&
-        outcome?.status === (expected ? "reviewed" : "held") &&
+      matchedCliRouteDisposition: outcome?.status === (expected ? "reviewed" : "held") &&
         typeof outcome.reason === "string" && outcome.reason.trim().length > 0,
     };
     return { contextId: input.contextId, caseId: input.caseId, goal: input.goal,
@@ -174,10 +171,10 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     const route = expectedRoute(native);
     if (route.verdict === "verified") await services.remoteCliScope.evidence(operationId);
     const wrongIdDenied = await services.remoteCliScope.evidence("foreign").then(() => false, () => true);
-    const report = { status: "workspace-skill-reviewed", skill: "cliRoute", outcome: {
+    const report = {
       status: route.verdict === "verified" ? "reviewed" : "held", docket, gateway: route,
       continuation: expectedContinuation(native), reason: "Checked the retained invocation against the authenticated gateway.",
-    } };
+    };
     const proof = await verify(report);
     const enforcedCliEvidenceBoundary = earlyDenied && retiredDenied && wrongIdDenied;
     return { ...proof, passed: proof.passed && enforcedCliEvidenceBoundary,

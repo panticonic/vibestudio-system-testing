@@ -399,16 +399,9 @@ export async function prepareOpenTemplateMigration(
   };
 
   async function verify(value: unknown) {
-    const wrapper = value as {
-      status?: string;
-      skill?: string;
-      outcome?: MigrationReport;
-    } | null;
+    const wrapper = value as MigrationReport | null;
     const output =
-      wrapper?.status === "workspace-skill-reviewed" &&
-      wrapper.skill === world.kind
-        ? wrapper.outcome
-        : undefined;
+      wrapper;
     const nativeNow = await templates.updateStatus();
     const nativePrepared =
       decisionBasis && prepareReceipt?.outcome === "acknowledged"
@@ -638,17 +631,10 @@ export async function prepareOpenTemplateMigration(
         handoff: local,
         answer: world.expected.facts.join(" · "),
       };
-      const envelope = {
-        status: "workspace-skill-reviewed",
-        skill: world.kind,
-        outcome: report,
-      };
+      const envelope = report;
       const result = await verify(envelope);
       const rejectedForgedResult = !(
-        await verify({
-          ...envelope,
-          outcome: { ...report, deployedMain: "wrong-protected-main" },
-        })
+        await verify({ ...report, deployedMain: "wrong-protected-main" })
       ).passed;
       return {
         ...result,

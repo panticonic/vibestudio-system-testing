@@ -340,8 +340,8 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
       await services.assemblyDraft.stage({ disposition: "hold" } as AssemblyPlan) === null;
   }
   async function verify(raw: unknown) {
-    const report = raw as { status?: string; skill?: string; outcome?: AssemblyReport } | null;
-    return proof(report?.status === "workspace-skill-reviewed" && report.skill === "workspaceAssembly" ? report.outcome ?? null : null, await negatives());
+    const report = raw as AssemblyReport | null;
+    return proof(report ?? null, await negatives());
   }
   async function qualify() {
     const state = await services.assemblyInventory.observe();

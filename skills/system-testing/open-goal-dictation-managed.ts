@@ -225,8 +225,8 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     },
   };
   async function verify(raw: unknown) {
-    const report = raw as {status?:string;skill?:string;outcome?:DictationGoalReport} | null;
-    const outcome = report?.status === "workspace-skill-reviewed" && report.skill === "dictationHandoff" ? report.outcome : null;
+    const report = raw as DictationGoalReport | null;
+    const outcome = report;
     const plan = outcome?.plan;
     const latest = await ports.read(main);
     const snapshots = seen.filter(item => item.threadId === thread.threadId);
@@ -272,9 +272,9 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const review = draft && plan.transcript ? {goal:world.goal,transcript:plan.transcript,presentation:"verbatim",result:draft} : null;
     const receipt = draft && (plan.action === "stage-correction" || plan.action === "stage-alternative")
       ? await services.retainedDictationHandoff.stage(plan,draft) : null;
-    const report = {status:"workspace-skill-reviewed",skill:"dictationHandoff",outcome:{plan,review,handoff:receipt}};
+    const report = {plan,review,handoff:receipt};
     const positive = await verify(report);
-    const altered = await verify({...report,outcome:{...report.outcome,plan:{...plan,through:-1}}});
+    const altered = await verify({...report,plan:{...plan,through:-1}});
     return {...positive,passed:positive.passed && !altered.passed};
   }
   return {goal:world.goal,services,verify,qualify};

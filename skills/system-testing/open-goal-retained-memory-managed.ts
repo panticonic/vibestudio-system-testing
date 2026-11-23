@@ -224,8 +224,8 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       }},
     };
     async function verify(raw:unknown){
-      const value=raw as {status?:string;skill?:string;outcome?:RetainedMemoryReport}|null;
-      const report=value?.status==="workspace-skill-reviewed"&&value.skill==="retainedMemory"?value.outcome:undefined;
+      const value=raw as RetainedMemoryReport|null;
+      const report=value;
       const evidence=proofEvidence();
       const notes=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
       const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
@@ -261,7 +261,7 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
       const outcome:MemoryOutcome={disposition:world.required.disposition,citations:refs,
         summary:"Compared exact original conversation rows and the requested native source evidence."};
       const handoff=world.private?await services.nativeMemoryHandoff.stage(brief,plan,evidence,outcome):null;
-      return verify({status:"workspace-skill-reviewed",skill:"retainedMemory",outcome:{brief,plan,evidence,outcome,handoff}});
+      return verify({brief,plan,evidence,outcome,handoff});
     }
     return {services,verify,qualify,close};
   }catch(error){

@@ -568,17 +568,10 @@ export async function prepareOpenClientDiagnostics(
   };
 
   async function verify(
-    wrapper: {
-      status?: string;
-      skill?: string;
-      outcome?: ClientDiagnosticsReport;
-    } | null,
+    wrapper: ClientDiagnosticsReport | null,
   ) {
     const report =
-      wrapper?.status === "workspace-skill-reviewed" &&
-      wrapper.skill === world.kind
-        ? wrapper.outcome
-        : undefined;
+      wrapper;
     const after = await vcs.status({ contextId: input.contextId });
     const fresh = await Promise.all(
       world.surfaces.map(
@@ -776,20 +769,13 @@ export async function prepareOpenClientDiagnostics(
       decision: handoff ? { ...decision, outcome: "handoff-staged" } : decision,
       handoff,
     };
-    const wrapped = {
-      status: "workspace-skill-reviewed",
-      skill: world.kind,
-      outcome,
-    };
+    const wrapped = outcome;
     const result = await verify(wrapped);
     const rejectsWrongOutcome = !(
       await verify({
-        ...wrapped,
-        outcome: {
           ...outcome,
           decision: { ...outcome.decision, evidenceIds: ["foreigner"] },
-        },
-      })
+        })
     ).passed;
     const rejectsStale =
       (await client.apply("foreign-basis", { kind: "reload" })).status ===

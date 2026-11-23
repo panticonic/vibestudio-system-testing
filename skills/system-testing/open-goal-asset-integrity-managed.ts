@@ -693,12 +693,8 @@ export async function prepareOpenAssetIntegrity(
         : [];
     });
   async function verify(value: unknown) {
-    const report = value as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = report?.outcome;
+    const report = value as Outcome | null;
+    const outcome = report;
     const current = await assertHead();
     const currentToken = token(current);
     const currentFiles = await list(current);
@@ -741,8 +737,6 @@ export async function prepareOpenAssetIntegrity(
         checkedRevisions.every(Boolean) &&
         seen.get(sourceToken)?.state.kind === "event",
       joinedAssetIntegrityFinding:
-        report?.status === "workspace-skill-reviewed" &&
-        report.skill === "assetIntegrity" &&
         outcome?.approved === sourceToken &&
         outcome.working === currentToken &&
         isDeepStrictEqual(outcome.findings, findings),
@@ -854,11 +848,7 @@ export async function prepareOpenAssetIntegrity(
         world.expected.reason.join(" ") ||
         "Verified exact signed and working byte evidence",
     };
-    const proof = await verify({
-      status: "workspace-skill-reviewed",
-      skill: "assetIntegrity",
-      outcome,
-    });
+    const proof = await verify(outcome);
     return {
       ...proof,
       passed: proof.passed && rejectedAlias && rejectedSource,

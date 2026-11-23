@@ -431,9 +431,6 @@ export async function prepareOpenTerminalAppRepair(
 
   async function verify(raw: unknown) {
     const envelope = raw as {
-      status?: string;
-      skill?: string;
-      outcome?: {
         app: unknown;
         initial: unknown;
         plans: { status: string; edits: Edits; reason: string }[];
@@ -442,9 +439,8 @@ export async function prepareOpenTerminalAppRepair(
         artifact: unknown;
         outcome: string;
         explanation: string;
-      };
-    } | null;
-    const report = envelope?.outcome;
+      } | null;
+    const report = envelope;
     const end = await independent.unitRepair.observe();
     const protectedAfter = await independent.unitRepair.readSource(
       end.revision,
@@ -479,9 +475,7 @@ export async function prepareOpenTerminalAppRepair(
           (row) => row.path === entry && row.text === original.broken,
         ),
       authorizedRepairOrHold:
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "terminalAppRepair" &&
-        report?.outcome === disposition &&
+        report === disposition &&
         report.plans.length === 1 &&
         report.plans[0]?.status === expectedPlan &&
         Boolean(report.plans[0]?.reason.trim()) &&
@@ -571,9 +565,6 @@ export async function prepareOpenTerminalAppRepair(
       ? await services.terminalRepairArtifact.read(app.id, revision)
       : null;
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "terminalAppRepair",
-      outcome: {
         app,
         initial,
         plans: [
@@ -594,22 +585,15 @@ export async function prepareOpenTerminalAppRepair(
         outcome: world.mode === "repair" ? "verified" : world.mode,
         explanation:
           "Only the exact current candidate and its native evidence establish this disposition.",
-      },
-    };
+      };
     const verification = await verify(report);
-    const wrong = await verify({
-      ...report,
-      outcome: { ...report.outcome, app: prior },
-    });
+    const wrong = await verify({ ...report, app: prior });
     const altered = await verify({
-      ...report,
-      outcome: {
-        ...report.outcome,
+        ...report,
         artifact: artifact
           ? { ...artifact, buildKey: "other-artifact" }
           : { buildKey: "not-authorized" },
-      },
-    });
+      });
     const rejectedAlteredEvidence =
       rejectedAlias && !wrong.passed && !altered.passed;
     return {

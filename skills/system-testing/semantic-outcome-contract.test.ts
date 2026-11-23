@@ -27,21 +27,6 @@ describe("application outcome contracts", () => {
   });
 });
 
-import { applicationVerifierValue } from "./semantic-outcome-contract.js";
-it("adapts native application values only at the legacy oracle boundary", () => {
-  const research = { status: "answered", question: "Why?", statements: [] };
-  expect(applicationVerifierValue({ resultType: "ResearchGoalReport", skill: "owned-research" }, research))
-    .toEqual({ status: "answered", research });
-  const edit = { status: "edited", path: "guide.md", version: "v2" };
-  for (const resultType of ["UnitHandoffReport", "WorkspaceEditReport", "BrowserGoalReport", "WorkspaceSuiteReport"])
-    expect(applicationVerifierValue({ resultType, skill: "ignored" }, edit)).toBe(edit);
-  expect(applicationVerifierValue({ resultType:"ResearchRevision" }, {research,revision:edit})).toEqual({...edit,research});
-  expect(applicationVerifierValue({ resultType: "WorkspaceAnswer" }, { answer: "Doors open at 6." }))
-    .toEqual({ answer: "Doors open at 6." });
-  expect(applicationVerifierValue({ resultType: "DomainOutcome", skill: "domain" }, edit))
-    .toEqual({ status: "workspace-skill-reviewed", skill: "domain", outcome: edit });
-});
-
 it("requires the requested answer while retaining independently identified wrong incidental returns",()=>{
  const definition={name:"chooseNext",source:"reviewDesktopReadiness/clientDevelopment/reviewClientAdmission/chooseNext.nl"};
  const contract={effects:{checks:["nativeState"],rationale:"Actual owned native facts."},returnedValue:{checks:["requestedAnswer"],required:true,rationale:"The requested answer remains required."},incidentalValues:{checks:["auxiliaryClassification"],rationale:"Unused internal admission classification is not requested."}};

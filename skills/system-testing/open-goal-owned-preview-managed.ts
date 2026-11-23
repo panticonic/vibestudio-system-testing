@@ -229,11 +229,11 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
   };
 
   async function verify(value: unknown) {
-    const wrapper = value as { status?: string; skill?: string; outcome?: {
+    const wrapper = value as {
       status: string; targetId: string; reason: string | null; preflight: { status: string; blockers: string[] } | null;
       receipt: PublicationReceipt | null; hosted: Hosted | null;
-    } } | null;
-    const result = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "ownedPreview" ? wrapper.outcome : null;
+    } | null;
+    const result = wrapper;
     const retained = active?.provider.currentReceipt() ?? null;
     const nativeReceipt = !expected.hold && active && retained?.phase === "submitted" ? await begin(active.intent) : null;
     const [final, fresh, after, snapshot, store, files] = await Promise.all([
@@ -307,9 +307,9 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
       hosted = await services.ownedPreviewPublication.readback(chosen.operationId);
       if (hosted.status === "pending") hosted = await services.ownedPreviewPublication.readback(chosen.operationId);
     }
-    const result = await verify({ status: "workspace-skill-reviewed", skill: "ownedPreview", outcome: {
+    const result = await verify({
       status: hold ? "held" : "published", targetId: chosen.targetId, reason: hold ?? null, preflight, receipt, hosted,
-    } });
+    });
     let rejectsUnapprovedAdvance = false;
     if (hold) {
       try { await services.ownedPreviewPublication.advance(chosen.operationId ?? "unbound"); }

@@ -218,9 +218,9 @@ export async function prepareCompoundRecoveryHandoff(
   }
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
-    const evalProof = await recovery.verify({ status: "workspace-skill-reviewed", skill: "evalHandoff", outcome: outcome?.recovery });
+    const report = value as Outcome | null;
+    const outcome = report;
+    const evalProof = await recovery.verify(outcome?.recovery);
     const actualPosition = await readDirective();
     const target = world.expected.status;
     const nativeChoice = evalProof.originalRuns.find(candidate => candidate.card.role === world.eval.expected.use);
@@ -256,8 +256,7 @@ export async function prepareCompoundRecoveryHandoff(
         decoder.decode(await readBytes(policyPath, 24 * 1024)) === world.policyText && !!observedSources.get("operating-directive")),
       verifiedExactOperationalHandoff: exactArtifact && outputBefore.every(name => allOutputs.includes(name)),
       protectedWorkingMain: post.mainEventId === vcsBefore.mainEventId && isDeepStrictEqual(post.workingHead, vcsBefore.workingHead),
-      exactCompoundDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "compoundRecovery" &&
-        outcome?.status === target && Boolean(outcome.reason?.trim()) &&
+      exactCompoundDisposition: outcome?.status === target && Boolean(outcome.reason?.trim()) &&
         (expectedReads ? candidate?.status === target &&
           isDeepStrictEqual(candidate.missingSources, target === "source-unavailable" ? ["operating-directive"] : []) &&
           isDeepStrictEqual(candidate.unanswered, target === "unanswered" ? world.questions.filter(q => !q.exact.length).map(q => q.text) : []) :
@@ -331,9 +330,9 @@ export async function prepareCompoundRecoveryHandoff(
         handoff = { status, artifact, missingSources, unanswered };
       }
     }
-    return verify({ status: "workspace-skill-reviewed", skill: "compoundRecovery", outcome: {
+    return verify({
       status, recovery: nativeReport, directive: position, handoff, reason: "Resolved current native recovery and the exact local release scope",
-    } });
+    });
   }
 
   return { services, verify, qualify, close: recovery.close };

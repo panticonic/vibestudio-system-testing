@@ -105,12 +105,10 @@ it("recovers the requested upload without treating a separate submitted receipt 
   expect(proof.observations.preflight?.publication?.phase).toBe("uploaded");
   expect(proof.journal.map(({ current }) => current.phase)).toEqual(["submitted", "uploaded"]);
   const verification = await prepared.verify({
-    status: "workspace-skill-reviewed", skill: "publication", outcome: {
       status: "reviewed", choice: proof.selected, revision: null, preflight: {
         status: "verified", blockers: [], evidence: [proof.artifact.current],
       },
-    },
-  });
+    });
   expect(verification.checks.exactPreflight).toBe(false);
 });
 

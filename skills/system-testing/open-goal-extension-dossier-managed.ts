@@ -302,8 +302,8 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
   };
 
   async function verify(value: unknown) {
-    const envelope = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = envelope?.outcome;
+    const envelope = value as Outcome | null;
+    const outcome = envelope;
     const found = await currentAssignment();
     const [review, active, after, afterOutputs, originalScope] = await Promise.all([
       readBound(), currentHistory(found.owner), client.status({contextId: ownerContext}), listOwnedScratchEntries(files), readBytes(scopePath, 24 * 1024),
@@ -330,8 +330,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
         compared.delta.workingDigest === review.source.observation.working?.hash &&
         compared.delta.publishedDigest === review.source.observation.published?.hash,
       reconciledNativeReleaseHistory: isDeepStrictEqual(history, active) && isDeepStrictEqual(outcome?.history, active),
-      respectedLocalReleaseDecision: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "extensionDossier" &&
-        outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      respectedLocalReleaseDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedExactDossier: note && isDeepStrictEqual(outcome?.dossier, stored) && preexisting.every(name => afterOutputs.includes(name)),
       preservedProtectedSourceAndRuntime: after.mainEventId === initial.mainEventId &&
@@ -353,8 +352,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     if (!candidate) throw new Error("Reference candidate was not observed");
     const decision = decisionFor(assignment, review, candidate, history);
     const dossier = canStage(assignment, decision) ? await services.extensionDossierWrite.stage(decision) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "extensionDossier",
-      outcome: { assignment, review, candidate, history, finding: { decision, reason: "Exact package, current release and retained owner scope." }, dossier } });
+    return verify({ assignment, review, candidate, history, finding: { decision, reason: "Exact package, current release and retained owner scope." }, dossier });
   }
 
   return { services, verify, qualify };

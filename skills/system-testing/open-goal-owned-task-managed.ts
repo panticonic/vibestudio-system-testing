@@ -206,8 +206,8 @@ export async function prepareOwnedTaskRecovery(
   };
 
   async function verify(value: unknown, controls?: { foreignCard: boolean; wrongAttempt: boolean }) {
-    const report = value as { skill?: string; status?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
+    const report = value as Outcome | null;
+    const outcome = report;
     const observed = await taskView(primary.id);
     const current = await observeNative(primary.id);
     const alternate = await observeNative(oldCard.id);
@@ -221,10 +221,8 @@ export async function prepareOwnedTaskRecovery(
     const actualDelivery = submitted ? { attempt: submitted.result, readback: recovered?.result ?? null } : null;
     let nativeDeliveryError: string | null = null;
     const nativeDelivery = await local.verify({
-      status: "workspace-skill-reviewed", skill: "localDelivery", outcome: {
         status: handoffSpec ? "delivered" : "held", reason: "Read back owned task channels", evidence: allocations, delivery: actualDelivery,
-      },
-    }).catch(error => {
+      }).catch(error => {
       nativeDeliveryError = error instanceof Error ? error.message : String(error);
       return null;
     });
@@ -254,8 +252,7 @@ export async function prepareOwnedTaskRecovery(
         (!world.race || changes.some(change => change.status === "changed") &&
           isDeepStrictEqual(observedBoard.get(primary.id), observed)),
       independentlyJoinedOwnerHandoff: nativeDelivery?.passed === true && isDeepStrictEqual(outcome?.delivery, actualDelivery),
-      exactTaskRecoveryReport: report?.status === "workspace-skill-reviewed" && report.skill === "ownedTaskRecovery" &&
-        outcome?.task === primary.id && outcome?.revision === observed.revision && outcome.status === observed.status &&
+      exactTaskRecoveryReport: outcome?.task === primary.id && outcome?.revision === observed.revision && outcome.status === observed.status &&
         Boolean(reason) && world.expected.reason.every(term => reason.includes(term)),
       ...(controls ? { rejectedForeignTaskOrPriorSend: controls.foreignCard && controls.wrongAttempt } : {}),
     };
@@ -297,10 +294,10 @@ export async function prepareOwnedTaskRecovery(
       delivery = { attempt, readback: await services.ownedTaskHandoff.read(attempt.attemptId) };
     }
     const original = world.expected.selected ? matched.get(roomFor(world.expected.selected).id)?.receipt ?? null : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "ownedTaskRecovery", outcome: {
+    return verify({
       task: task.task.id, revision: task.revision, status: task.status, original, delivery,
       reason: world.expected.reason.join(" ") || "Actual current task evidence verified",
-    } }, { foreignCard, wrongAttempt });
+    }, { foreignCard, wrongAttempt });
   }
   return { goal: world.goal, services, verify, qualify, close: local.close };
 }

@@ -13,7 +13,7 @@ type Page = Awaited<ReturnType<NativeWeb["fetch"]>>;
 type Read = Awaited<ReturnType<NativeWeb["read"]>>;
 type Citation = { url: string; quote: string; retrieved: string };
 type Brief = { status: string; question: string; statements: { text: string; cites: Citation[] }[] };
-type Result = { status?: string; research?: Brief; path?: string; version?: string };
+type Result = Brief | { research: Brief; revision: {status:string;path:string;version:string} };
 type Endpoint = { origin: string; nonce: string; close(): Promise<void> };
 type Ports = { contextId: string | null; web: NativeWeb; status: typeof vcs.status; start(pages: OwnedResearchPage[], contextId: string): Promise<Endpoint> };
 const normalize = (text: string) => text.replace(/\s+/gu, " ").trim();
@@ -134,7 +134,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
   }
   async function verify(value: unknown) {
     const report = value as Result | null;
-    const research = report?.research;
+    const research = (edit ? (report as {research?:Brief}|null)?.research : report) as Brief | null;
     const statements = Array.isArray(research?.statements) ? research.statements : [];
     const cites = statements.flatMap(statement => statement.cites ?? []);
     const readback = await Promise.all([...pages.values()].map(exactPage));
@@ -142,7 +142,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     const citationsExact = cites.length > 0 && cites.every(citation => typeof citation.quote === "string" &&
       normalize(citation.quote).length >= 20 && citation.retrieved === date &&
       readback.some(page => page.url === citation.url && normalize(page.text).includes(normalize(citation.quote))));
-    const document = edit ? await edit.verify(value) : null;
+    const document = edit ? await edit.verify((value as {revision?:unknown}|null)?.revision) : null;
     const checks = {
       discoveredOwnedSources: pages.size > 0 &&
         attempted.every(({ requested }) => entries.has(requested)),
@@ -150,7 +150,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       groundedOwnedCitations: citationsExact,
       readOwnedCacheContinuation: reads.every(read => [...pages.values()].some(page =>
         read.digest === page.digest && read.offset >= 0 && read.bytes >= 0 && read.offset + read.bytes <= page.size)),
-      answeredOwnedGoal: report?.status === (edit ? "edited" : "answered") && research?.status === "answered" &&
+      answeredOwnedGoal: research?.status === "answered" &&
         research.question === world!.goal && statements.length > 0 &&
         statements.every(statement => Boolean(statement.text?.trim()) && statement.cites?.length > 0),
       protectedOwnedResearchScope: protectedScope.mainEventId === before.mainEventId &&
@@ -187,11 +187,12 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
     }
     const research: Brief = { question: world!.goal, status: "answered", statements: [{ text: world!.referenceAnswer, cites: citations }] };
     const editProof = edit ? await edit.qualify() : null;
-    const result: Result = { status: edit ? "edited" : "answered", research,
-      ...(editProof && world!.edit ? { path: world!.edit.destination, version: sha256HexSyncText(editProof.contents[world!.edit.destination]!) } : {}) };
+    const result: Result = editProof && world!.edit ? {research, revision:{status:"edited", path:world!.edit.destination,
+      version:sha256HexSyncText(editProof.contents[world!.edit.destination]!)}} : research;
     const accepted = await verify(result);
-    const fabricated = await verify({ ...result, research: { ...research, statements: [{ text: world!.referenceAnswer,
-      cites: citations.map(citation => ({ ...citation, quote: "A fabricated statement that never appeared." })) }] } });
+    const forged = {...research, statements:[{text:world!.referenceAnswer,
+      cites:citations.map(citation=>({...citation,quote:"A fabricated statement that never appeared."}))}]};
+    const fabricated = await verify(edit ? {...result,research:forged} : forged);
     return { ...accepted, passed: accepted.passed && rejectedForeign && !fabricated.passed };
   }
   return { goal: world.goal, services, verify, qualify, close: endpoint.close };

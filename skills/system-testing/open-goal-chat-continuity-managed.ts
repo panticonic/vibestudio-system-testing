@@ -276,8 +276,8 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   };
 
   async function verify(raw:unknown) {
-    const value=raw as {status?:string;skill?:string;outcome?:ChatContinuityReport}|null;
-    const report=value?.status==="workspace-skill-reviewed"&&value.skill==="chatContinuity"?value.outcome:undefined;
+    const value=raw as ChatContinuityReport|null;
+    const report=value;
     const [opening,current]=frames;
     const latest=await observe(false);
     const independentlyRead=transcript(await ports.audit(active));
@@ -338,7 +338,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     const disposition:ChatDisposition={status:world.status,write:shouldWrite,explanation:world.words.join(" / ")};
     const report:ChatContinuityReport={plan,opening,current,evidence,disposition,handoff:null};
     if(shouldWrite)report.handoff=await services.chatContinuityHandoff.stage(report);
-    return verify({status:"workspace-skill-reviewed",skill:"chatContinuity",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

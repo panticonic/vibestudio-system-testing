@@ -306,8 +306,8 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
         memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } };
   }
   async function verify(report: unknown) {
-    const response = report as { status?: string; skill?: string; outcome?: CapabilityGoalReport } | null;
-    return proof(response?.status === "workspace-skill-reviewed" && response.skill === "capabilityPlan" ? response.outcome ?? null : null);
+    const response = report as CapabilityGoalReport | null;
+    return proof(response ?? null);
   }
   async function qualify() {
     const opening = await services.docPlanContext.observe();

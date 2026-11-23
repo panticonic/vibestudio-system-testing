@@ -21,7 +21,7 @@ it("replays the actual native private handoff after lost response and preserves 
  // An interrupted caller retries exactly the already-committed request.
  expect(await prepared.services.workspaceShareHandoff.stage(request,decision)).toEqual(first.handoff);
  expect(writes).toBe(1);
- expect((await prepared.verify({status:"workspace-skill-reviewed",skill:"workspaceShare",outcome:{assignment:first.assignment,observation:request,finding:{decision,reason:"Current owned authority"},handoff:first.handoff}})).passed).toBe(true);
+ expect((await prepared.verify({assignment:first.assignment,observation:request,finding:{decision,reason:"Current owned authority"},handoff:first.handoff})).passed).toBe(true);
  await expect(prepared.services.workspaceShareHandoff.stage({...request,object:{...request.object,id:"foreign"}},decision)).rejects.toThrow(/another exact request/);
  admitted=false;await expect(prepared.services.workspaceShareHandoff.stage(request,decision)).rejects.toThrow(/no longer current/);
  admitted=true;files.set(first.handoff!.path,"corrupt");await expect(prepared.services.workspaceShareHandoff.stage(request,decision)).rejects.toThrow(/no longer current/);expect(writes).toBe(1);

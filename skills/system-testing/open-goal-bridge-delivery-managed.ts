@@ -230,8 +230,8 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
   };
 
   async function verify(rawReport:unknown) {
-    const value=rawReport as {status?:string;skill?:string;outcome?:BridgeDeliveryReport}|null;
-    const report=value?.status==="workspace-skill-reviewed"&&value.skill==="bridgeDelivery"?value.outcome:undefined;
+    const value=rawReport as BridgeDeliveryReport|null;
+    const report=value;
     const after=await ports.vcs.status();
     const committedFiles=await Promise.all(files.map(path=>readText(after.committed,path)));
     const priorFiles=await Promise.all(files.map(path=>readText(before.workingHead,path)));
@@ -302,7 +302,7 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     const report:BridgeDeliveryReport={scope,plan,local,spec,note,branch,decision,commit:null,handoff:null};
     if(world.result==="commit")report.commit=await services.branchDeliveryWrite.commit(id,spec.snapshot.working);
     if(world.handoff)report.handoff=await services.branchDeliveryWrite.retain(report);
-    return verify({status:"workspace-skill-reviewed",skill:"bridgeDelivery",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

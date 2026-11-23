@@ -17,11 +17,8 @@ import type { PortfolioFixtureIdentity } from "./open-goal-portfolio-managed.js"
 type Input = { portfolioFixture?: PortfolioFixtureIdentity; regencyFixture?: { panelId: string; realm: string }; tendrilChannelId?: string; grimoireEstateKey?: string; contextId: string; caseId: string; panelId?: string; source?: string; reviewedRef?: `state:${string}`; recoveryPanels?: { surfaceId: string; panelId: string }[]; clientPanels?: { surfaceId: string; panelId: string }[] };
 type ResearchReport = {
   status: string;
-  research?: {
-    status: string;
-    question: string;
-    statements: { text: string; cites: { url: string; quote: string; retrieved: string }[] }[];
-  };
+  question: string;
+  statements: { text: string; cites: { url: string; quote: string; retrieved: string }[] }[];
 };
 const normalize = (text: string) => text.replace(/\s+/gu, " ").trim();
 
@@ -51,7 +48,7 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
     goal: world.goal,
     services: { ...research.services, goalWorkspace: workspace.services.goalWorkspace },
     async verify(value: unknown) {
-      const [edit, publicEvidence] = await Promise.all([workspace.verify(value), research.verify(value)]);
+      const [edit, publicEvidence] = await Promise.all([workspace.verify((value as {revision?:unknown}|null)?.revision), research.verify((value as {research?:unknown}|null)?.research)]);
       return combine(edit, publicEvidence);
     },
     async qualify() {
@@ -118,7 +115,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
   };
   async function verify(value: unknown) {
     const result = value as ResearchReport | null;
-    const citations = result?.research?.statements?.flatMap(({ cites }) => cites) ?? [];
+    const citations = result?.statements?.flatMap(({ cites }) => cites) ?? [];
     const cache = await Promise.all([...pages.values()].map(async (page) => {
       const read = await readVerifiedCachedPage(input => web.read(input), page);
       return { url: page.url, digest: page.digest, text: read.text, exact: read.exact };
@@ -136,17 +133,16 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       discoveredSources: fetched.length > 0 && sourceAttested,
       attestedSearchProvider: sourceAttested && citations.length > 0 && citationSources.length === citations.length,
       exactPageReadback: cache.length > 0 && cache.every(({ exact }) => exact),
-      answeredGoal: result?.status === (world.kind === "research" ? "answered" : "edited") &&
-        result.research?.status === "answered" &&
-        result.research.question === goal &&
-        Boolean(result.research.statements?.length) &&
-        result.research.statements.every(({ text, cites }) => Boolean(text.trim()) && cites.length > 0),
+      answeredGoal: result?.status === "answered" &&
+        result.question === goal &&
+        Boolean(result.statements?.length) &&
+        result.statements.every(({ text, cites }) => Boolean(text.trim()) && cites.length > 0),
       groundedCitations: citations.length > 0 && citations.every(({ url, quote, retrieved }) =>
         retrieved === date && normalize(quote).length >= 20 &&
         cache.some((page) => page.url === url && normalize(page.text).includes(normalize(quote)))),
 
     };
-    const semanticReviewInput = {kind:"public-claims",actual:{goal,answer:JSON.stringify(result?.research??null),
+    const semanticReviewInput = {kind:"public-claims",actual:{goal,answer:JSON.stringify(result??null),
       citations:citations.map(({url,quote})=>({url,quote})),sourceScope:null,
       sources:cache.map(source=>({url:source.url,title:fetched.find(item=>item.url===source.url)?.page.title??"",retrieved:date,sha256:source.digest,text:source.text}))}};
     return { passed: Object.values(checks).every(Boolean), caseId, contextId, goal, searches, fetched, citationSources, checks,
@@ -175,8 +171,7 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       }
       if (!found) throw new Error(`The reference public search did not yield evidence from ${host} for "${phrase}"`);
     }
-    return verify({ status: world.kind === "research" ? "answered" : "edited",
-      research: { status: "answered", question: goal, statements } });
+    return verify({ status: "answered", question: goal, statements });
   }
   return { goal, services, verify, qualify };
 }

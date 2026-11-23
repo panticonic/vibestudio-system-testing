@@ -205,7 +205,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     },
   };
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: unknown } | null;
+    const report = value as unknown | null;
     const after = await readLane(primary, ports.context, owner, key), afterOther = await readLane(other, ports.context, owner, key);
     const approved = await scan();
     const difference = after.rows.slice(baseline.rows.length);
@@ -233,7 +233,7 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
         after.projection.inlineUi[owner]?.["existing-reference"]?.props?.title === canary.title &&
         isDeepStrictEqual(afterOther.rows, neighboring.rows) && (world.race || isDeepStrictEqual(baselineSibling, finalSibling)),
       verifiedProjectedTranscriptEffect: expectation === world.expected && Boolean(projected),
-      matchedTranscriptSurfaceReport: report?.status === "workspace-skill-reviewed" && report.skill === "transcriptSurface" && isDeepStrictEqual(report.outcome, outcome),
+      matchedTranscriptSurfaceReport: isDeepStrictEqual(report, outcome),
     };
     return { caseId: world.id, contextId: input.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       ...outcome, native: { before: baseline.view, after: resulting, neighbor: neighboring.view, coordinates: difference.map(row => ({ id: row.id, envelope: row.messageId, owner: row.senderId, type: row.type })) }, effects: structuredClone(effects) };
@@ -248,9 +248,9 @@ async function bindTranscriptSurface(input: { contextId: string; caseId: string 
     const wrongSurface = effect === "clear-bar" ? "display-bar" : "clear-bar";
     const rejectedWrongEffect = await reject(() => services.transcriptMutation.apply(id, approval?.id ?? "unowned", baseline.view.cursor, wrongSurface));
     if (approval && replay && effect !== "none") await services.transcriptMutation.apply(id, approval.id, (replay as Read["view"]).cursor, effect);
-    const report = { status: "workspace-skill-reviewed", skill: "transcriptSurface", outcome: { assignment, approvals, selection, replay, decision, receipt } };
+    const report = { assignment, approvals, selection, replay, decision, receipt };
     const proof = await verify(report);
-    const rejectedInventedEffect = !(await verify({ ...report, outcome: { ...report.outcome, decision: { effect: "none", reason: "invented" } } })).passed;
+    const rejectedInventedEffect = !(await verify({ ...report, decision: { effect: "none", reason: "invented" } })).passed;
     const checks = { ...proof.checks, rejectedWrongScope, rejectedWrongCursor, rejectedWrongEffect, rejectedInventedEffect };
     return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
   }

@@ -4155,7 +4155,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : googleHandoff
       ? `import {prepareOpenGoogleHandoffGoal} from "@workspace-skills/open-google-handoff-goal/managed";
          const candidate=await prepareOpenGoogleHandoffGoal(input,${JSON.stringify(googleHandoff)});
-         const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="googleHandoff" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+         const prepared=candidate;`
       : browserMigration
       ? `import {prepareOpenBrowserMigration} from "@workspace-skills/browser-import-runtime/open-migration-managed";
          const prepared=await prepareOpenBrowserMigration(${JSON.stringify(browserMigration)});`
@@ -4165,7 +4165,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       : calendar
       ? `import {prepareOpenCalendarGoal} from "@workspace-skills/open-calendar-goal/managed";
          const candidate=await prepareOpenCalendarGoal(input,${JSON.stringify(calendar)});
-         const prepared={...candidate,verify:async report=>candidate.verify(report?.skill==="calendar" && report.status==="workspace-skill-reviewed" ? report.outcome : null)};`
+         const prepared=candidate;`
       : personalArtifacts
       ? `import {prepareOpenPersonalArtifacts} from "@workspace-skills/open-personal-artifacts-runtime";
          const prepared=await prepareOpenPersonalArtifacts(input,${JSON.stringify(personalArtifacts)});`

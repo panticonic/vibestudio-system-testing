@@ -204,8 +204,8 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
   };
 
   async function verify(raw:unknown) {
-    const value=raw as {status?:string;skill?:string;outcome?:WorkspaceClaimReview}|null;
-    const report=value?.status==="workspace-skill-reviewed"&&value.skill==="workspaceClaims"?value.outcome:undefined;
+    const value=raw as WorkspaceClaimReview|null;
+    const report=value;
     const after=await ports.vcs.status();
     const readback=await nativeFacts(after);
     const support=expectedSupport(readback,after);
@@ -243,7 +243,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     const report:WorkspaceClaimReview={choice,packet,evidence,support:expected,
       disposition:{status:disposition(expected),summary:"Compared the exact claim packet against independent candidate, test and authority evidence."},handoff:null};
     if(world.note)report.handoff=await services.workspaceClaimHandoff.stage(report);
-    return verify({status:"workspace-skill-reviewed",skill:"workspaceClaims",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

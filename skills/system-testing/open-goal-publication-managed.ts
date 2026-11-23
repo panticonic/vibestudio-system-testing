@@ -237,13 +237,12 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
   };
 
   async function verify(value: unknown) {
-    const wrapper = value as { status?: string; skill?: string; outcome?: unknown } | null;
-    const report = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "publication"
-      ? wrapper.outcome as {
+    const wrapper = value as unknown | null;
+    const report = wrapper as {
           status?: string; choice?: Choice;
           preflight?: { status?: string; blockers?: string[]; next?: string; evidence?: string[] } | null;
           revision?: { comparison?: Comparison; decision?: string; match?: string; impact?: unknown; reason?: string } | null;
-        } : null;
+        };
     const [{ panel: latest, snapshot }, repackaged, state, fresh, journal] = await Promise.all([
       readPanel(), readPackage(), vcs.status({ contextId }), readLaunchFacts(input),
       Promise.all([...receipts.entries()].map(async ([id, receipt]) => ({ id, seeded: receipt.seeded, current: await begin(receipt.intent) }))),
@@ -304,10 +303,10 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     const observation = request.preflight ? await services.websiteReadback.observe() : null;
     const preflight = observation && choice.preflight ? { ...disposition(observation, choice.preflight),
       evidence: [observation.artifact.artifactDigest] } : null;
-    const verified = await verify({ status: "workspace-skill-reviewed", skill: "publication", outcome: {
+    const verified = await verify({
       status: "reviewed", choice, preflight, revision: comparison ? { ...revisionOutcome(comparison), comparison,
         reason: "Compare the exact package and destination receipts." } : null,
-    } });
+    });
     const checks = { ...verified.checks, rejectsDestinationAlias, rejectsStaleReview };
     return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
   }

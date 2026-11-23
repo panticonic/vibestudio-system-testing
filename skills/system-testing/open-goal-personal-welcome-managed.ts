@@ -308,8 +308,8 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     },
   };
   async function verify(raw:unknown) {
-    const report=raw as {status?:string;skill?:string;outcome?:WelcomeGoalReport}|null;
-    const outcome=report?.status==="workspace-skill-reviewed"&&report.skill==="personalWelcome"?report.outcome:null;
+    const report=raw as WelcomeGoalReport|null;
+    const outcome=report;
     const latest=await ports.read(lane);
     const expected=world.expected;
     const resource=resources.find(row=>row.id===expected.target)??null;
@@ -367,9 +367,9 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const plan:WelcomePlan={...exact.plan,explanation:world.expected.statement};
     const reviews:WelcomeReviews={setup:exact.setup,tour:exact.tour,probe};
     const receipt=plan.action==="stage"?await services.welcomeLocalHandoff.stage(plan,reviews):null;
-    const report={status:"workspace-skill-reviewed",skill:"personalWelcome",outcome:{plan,reviews,handoff:receipt}};
+    const report={plan,reviews,handoff:receipt};
     const accepted=await verify(report);
-    const forged=await verify({...report,outcome:{...report.outcome,plan:{...plan,through:-1}}});
+    const forged=await verify({...report,plan:{...plan,through:-1}});
     return {...accepted,passed:accepted.passed&&!forged.passed};
   }
   return {goal:world.goal,services,verify,qualify};

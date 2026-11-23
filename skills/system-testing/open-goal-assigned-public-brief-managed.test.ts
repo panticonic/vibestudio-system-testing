@@ -42,7 +42,7 @@ it.each(assignedPublicBriefWorlds)("$id uses exact pages and verified citations 
   expect(verified.assignedPublicBrief.outcome?.decision).toBe(world.facts.length ? "supported" : "held");
   const altered = structuredClone(verified.assignedPublicBrief.outcome!);
   altered.decision = world.facts.length ? "held" : "supported";
-  expect((await prepared.verify({ status: "workspace-skill-reviewed", skill: "publicBrief", outcome: altered })).semanticReviewInput.actual.answer).toBe(JSON.stringify(altered));
+  expect((await prepared.verify(altered)).semanticReviewInput.actual.answer).toBe(JSON.stringify(altered));
 });
 
 it("keeps source and session scope without prescribing discovery or URL order", async () => {
@@ -72,8 +72,7 @@ it("rejects a corrupted independent cache read even if the visible quotation mat
     const observed = await originalRead(input);
     return { ...observed, text: observed.text.replace(/^./u, "X") };
   });
-  const verification = await prepared.verify({ status: "workspace-skill-reviewed", skill: "publicBrief",
-    outcome: result.assignedPublicBrief.outcome });
+  const verification = await prepared.verify(result.assignedPublicBrief.outcome);
   expect(verification.checks.verified_cache).toBe(false);
 });
 
@@ -89,7 +88,7 @@ it("accepts a sufficient single authorized source for both requested claims, wit
     text:"Use the domain in documentation without permission; you cannot purchase or register it.",
     cites:[{url:source,title:page.title,retrieved:new Date(request!.retrievedAt).toISOString().slice(0,10),published:null,quote}],
   }],notRead:[],rejected:0};
-  const verify=(value:unknown)=>prepared.verify({status:"workspace-skill-reviewed",skill:"publicBrief",outcome:{decision:"supported",brief:value}});
+  const verify=(value:unknown)=>prepared.verify({decision:"supported",brief:value});
   expect((await verify(brief)).passed).toBe(true);
   expect(transport.fetch.mock.calls).toHaveLength(1);
   const wrong=structuredClone(brief);wrong.statements[0]!.text="Use the domain in documentation without permission and purchase or register it.";

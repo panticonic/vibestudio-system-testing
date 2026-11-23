@@ -425,15 +425,11 @@ export async function prepareOpenScaffold(
     readback: Readback;
   };
   async function verify(value: unknown) {
-    const envelope = value as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
+    const envelope = value as Outcome | null;
     const final = await status();
     const current = await optionsFor(initial);
     const actual = await units();
-    const out = envelope?.outcome;
+    const out = envelope;
     const readback = journal.find((row) => row.method === "readback")
       ?.result as Readback | undefined;
     const staging = world.disposition === "prepare";
@@ -469,8 +465,6 @@ export async function prepareOpenScaffold(
           : !current.occupied.length),
       ),
       selectedOutcomeAppropriateStarter: Boolean(
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "scaffoldReview" &&
         out?.scope === scope &&
         out.plan.disposition === world.disposition &&
         isDeepStrictEqual(out.plan.kinds, world.kinds) &&
@@ -577,20 +571,16 @@ export async function prepareOpenScaffold(
       staged?.draft ?? null,
     );
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "scaffoldReview",
-      outcome: {
         scope,
         card,
         options: inventory,
         plan,
         receipt: staged,
         readback,
-      },
-    };
+      };
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.outcome.readback.main = "retired";
+    altered.readback.main = "retired";
     const rejectedChangedMain = !(await verify(altered)).passed;
     const rejectedUnapprovedDraft = staged
       ? true

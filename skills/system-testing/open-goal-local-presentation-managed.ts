@@ -286,12 +286,8 @@ export async function prepareOpenLocalPresentation(
   };
 
   async function verify(report: unknown) {
-    const resolved = report as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = resolved?.outcome;
+    const resolved = report as Outcome | null;
+    const outcome = resolved;
     const { target, requirements, holds, notes } = world.expected;
     const currentRecords = await Promise.all([...seeds.keys()].map(read));
     const current =
@@ -323,8 +319,7 @@ export async function prepareOpenLocalPresentation(
           ? await observe(rendering, current.revision)
           : null;
     const matchedScope =
-      resolved?.status === "workspace-skill-reviewed" &&
-      resolved.skill === "localPresentation";
+      true;
     const notesText =
       outcome?.status === "visible" && Array.isArray(outcome.notes)
         ? outcome.notes.join(" ").toLowerCase()
@@ -459,11 +454,7 @@ export async function prepareOpenLocalPresentation(
           receipt: preview?.status === "visible" ? preview.receipt : null,
           notes: notes.length ? [notes.join(" ")] : [],
         };
-    const proof = await verify({
-      status: "workspace-skill-reviewed",
-      skill: "localPresentation",
-      outcome,
-    });
+    const proof = await verify(outcome);
     const rejectedForeignPresentation =
       rejectedAlias && (!original || rejectedWrongRevision);
     return {

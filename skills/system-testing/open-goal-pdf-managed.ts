@@ -62,7 +62,7 @@ function validPages(value: unknown): value is number[] {
   ) && new Set(value).size === value.length;
 }
 
-const wrap = (outcome: PdfGoalReport) => ({ status: "workspace-skill-reviewed", skill: "pdf", outcome });
+
 
 export async function prepareOpenPdfGoal({ contextId, caseId }: { contextId: string; caseId: string }) {
   const world = openGoalPdfWorlds.find(({ id }) => id === caseId);
@@ -222,9 +222,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
   }
 
   async function verify(value: unknown, { allowWorkingHeadChange = false } = {}) {
-    const wrapper = value as Partial<ReturnType<typeof wrap>> | null;
-    const report = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "pdf" &&
-      wrapper.outcome?.status === "inspected" ? wrapper.outcome : null;
+    const wrapper = value as Partial<PdfGoalReport> | null;
+    const report = wrapper?.status === "inspected" ? wrapper : null;
     const [documents, after] = await Promise.all([readDocuments(), vcs.status({ contextId })]);
     const retained = await Promise.all([...renders.values()].map(async receipt => {
       const raster = await inspectRasterArtifact(receipt.artifactId);
@@ -329,10 +328,10 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const outcome: PdfGoalReport = { status: "inspected", document: request.document, selection: choice,
       missingPages: request.missingPages, text, layouts, rendered,
       recommendation: { action: expected.action, rationale: expected.evidenceTerms.join(", ") } };
-    const verified = await verify(wrap(outcome));
+    const verified = await verify(outcome);
     const wrong: PdfGoalReport = { ...outcome, selection: { ...choice, document: `./${choice.document}` },
       recommendation: { action: "needs-review", rationale: "Unverified." } };
-    const negative = await verify(wrap(wrong));
+    const negative = await verify(wrong);
     const checks = { ...verified.checks, aliasRejected, rejectsUnverifiedReport: !negative.passed };
     return { outcome, verification: { ...verified, checks, passed: Object.values(checks).every(Boolean) } };
   }

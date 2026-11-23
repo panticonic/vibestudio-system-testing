@@ -241,8 +241,8 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
   };
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome, expected = world.expected;
+    const report = value as Outcome | null;
+    const outcome = report, expected = world.expected;
     const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
     const finalPair = { current, earlier };
     const selected = expected.selection ? finalPair[expected.selection] : null;
@@ -263,8 +263,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
         isDeepStrictEqual(outcome?.assignment, assigned),
       matchedOwnedBuildAndAttempt: isDeepStrictEqual(outcome?.choice, expectedChoice) && reviewedId === (selected?.id ?? null),
       exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases) && Array.isArray(outcome?.cases) && sameEvidenceMembers(outcome.cases, nativeCases),
-      matchedReleaseDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "systemRelease" &&
-        outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
+      matchedReleaseDisposition: outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
         typeof outcome.assessment.reason === "string" && outcome.assessment.reason.trim().length > 0 && outcome.assessment.reason.length <= 1400,
       verifiedPrivateHandoff: expectedBytes ? raw !== null && decode.decode(raw) === expectedBytes && !!receipt &&
         receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) &&
@@ -285,7 +284,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
       reason: "Reviewed the retained target, terminal state, exact case evidence and authorized local release use." };
     const handoff = ["stage-acceptance", "stage-diagnostics"].includes(assessment.disposition) ?
       await services.systemReleaseHandoff.stage(assigned.id, choice.runId, assessment.disposition, cases) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "systemRelease", outcome: { assignment: assigned, runs, choice, cases, assessment, handoff } });
+    return verify({ assignment: assigned, runs, choice, cases, assessment, handoff });
   }
   return { services, qualify, verify };
 }

@@ -39,8 +39,8 @@ export async function prepareOpenProblemReport(input: { contextId: string; caseI
   };
 
   async function verify(report: unknown) {
-    const wrapper = report as { status?: string; skill?: string; outcome?: { incident?: string; draft?: unknown } } | null;
-    const selected = wrapper?.status === "workspace-skill-reviewed" && wrapper.skill === "problemReport" ? wrapper.outcome : null;
+    const wrapper = report as { incident?: string; draft?: unknown } | null;
+    const selected = wrapper;
     const verification = await draft.verify(selected?.draft as Parameters<typeof draft.verify>[0] ?? null);
     const current = await problemReports.get(other.id);
     const checks = {

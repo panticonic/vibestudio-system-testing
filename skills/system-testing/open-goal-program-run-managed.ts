@@ -320,8 +320,8 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
     return await services.programExecution.read(id) === null && await services.programReceiptSigner.stage(id) === null;
   }
   async function verify(report: unknown) {
-    const review = report as { status?: string; skill?: string; outcome?: ProgramRunReport } | null;
-    const outcome = review?.status === "workspace-skill-reviewed" && review.skill === "programRun" ? review.outcome ?? null : null;
+    const review = report as ProgramRunReport | null;
+    const outcome = review ?? null;
     return proof(outcome, await rejectForeignEvidence());
   }
   async function qualify() {

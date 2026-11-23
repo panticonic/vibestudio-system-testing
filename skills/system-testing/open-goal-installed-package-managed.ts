@@ -331,8 +331,8 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
   }
 
   async function verify(value: unknown) {
-    const envelope = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = envelope?.outcome;
+    const envelope = value as Outcome | null;
+    const outcome = envelope;
     const final = await observe();
     const [plan, neighbor, untouchedMain] = await Promise.all([
       nativePlan(final), readManifest(client, final.start.workingHead, world.neighbor), readManifest(client, published, world.source),
@@ -357,7 +357,6 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
         isDeepStrictEqual(observed.baselineValue, currentValue(baseline.value, world.key)) &&
         isDeepStrictEqual(observed.workingValue, currentValue(before.value, world.key)),
       honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods) &&
-        envelope?.status === "workspace-skill-reviewed" && envelope.skill === "installedPackage" &&
         outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedLocalManifestEffect: exactEffect && (attempt?.status ?? null) === expectedAttempt &&
@@ -383,9 +382,9 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     const verification: Verification | null = plan ? { plan, decision: { next: "report-plan", route: {
       runtime: plan.runtime, nativeApproval: plan.runtime === "native", explanation: "The installed manifest designates this verification runner.",
     } }, execution: null, result: null } : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "installedPackage", outcome: {
+    return verify({
       assignment, observed, finding: { decision, reason: "Compare the exact installed unit and authorized protected package field." }, repair, verification,
-    } });
+    });
   }
 
   return { services, verify, qualify };

@@ -388,12 +388,8 @@ export async function preparePhoneFirstRun(
     };
   };
   async function verify(report: unknown) {
-    const envelope = report as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = envelope?.outcome;
+    const envelope = report as Outcome | null;
+    const outcome = envelope;
     const phases = readPhases(world, id, targetId);
     const build = await buildEvidence();
     const { expected } = world;
@@ -462,8 +458,6 @@ export async function preparePhoneFirstRun(
         match("phoneFirstRun", "provider", [id], build) &&
         isDeepStrictEqual(outcome?.evidence?.build, build),
       matchedReadOnlyPhoneDisposition:
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "phoneFirstRun" &&
         outcome?.scope === "owned-phone-eligibility-rehearsal" &&
         outcome.decision?.action === expected.action &&
         typeof outcome.decision.reason === "string" &&
@@ -513,20 +507,16 @@ export async function preparePhoneFirstRun(
       };
     }
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "phoneFirstRun",
-      outcome: {
         scope: "owned-phone-eligibility-rehearsal",
         evidence: { card, assignment, startup, build, resume },
         decision: {
           action: world.expected.action,
           reason: "Exact retained phone setup evidence.",
         },
-      },
-    };
+      };
     const result = await verify(report);
     const wrong = structuredClone(report);
-    wrong.outcome.evidence.build.provider = "extensions/foreign";
+    wrong.evidence.build.provider = "extensions/foreign";
     const rejectedForeignProof = !(await verify(wrong)).passed;
     const checks = { ...result.checks, rejectedArchive, rejectedForeignProof };
     return {

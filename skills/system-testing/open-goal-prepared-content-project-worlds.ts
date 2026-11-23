@@ -1,3 +1,4 @@
+import { preparedContentProjectOutcomeContract } from "./prepared-content-project-outcome.js";
 type Profile = "commit" | "draft" | "pending" | "occupied" | "missing" | "conflict" | "moved";
 type Topic = {
   id: string;
@@ -184,6 +185,7 @@ const packets: Topic[] = [
 export const preparedContentProjectWorlds = packets.map(packet => ({
   ...packet,
   kind: "preparedContentProject" as const,
+  outcomeContract: preparedContentProjectOutcomeContract,
   split: packet.held ? "test" as const : "train" as const,
   sourceGroup: `vibestudio:prepared-content-project:${packet.id}`,
 }));

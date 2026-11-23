@@ -245,8 +245,8 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
   };
 
   async function verify(raw:unknown) {
-    const report=raw as {status?:string;skill?:string;outcome?:PortfolioReport}|null;
-    const outcome=report?.status==="workspace-skill-reviewed"&&report.skill==="demoPortfolio"?report.outcome:undefined;
+    const report=raw as PortfolioReport|null;
+    const outcome=report;
     const [opening,current]=frames;
     const final=await readFrame("current");
     const findings=opening&&current?evaluate(opening,current,projection):null;
@@ -325,7 +325,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     const decision:PortfolioDecision={status:world.status,write:expected.write,explanation:world.words.join(" / ")};
     const report:PortfolioReport={plan,opening,current,projection,garden:expected.gardenResults,realm:expected.realmResults,decision,note:null};
     if(decision.write)report.note=await services.demoPortfolioHandoff.stage(report);
-    return verify({status:"workspace-skill-reviewed",skill:"demoPortfolio",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

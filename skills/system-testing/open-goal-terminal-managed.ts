@@ -365,11 +365,10 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     return await services.openTerminalInput.change({ item: "4" as ItemKey, checked: true, input: "key" }) === null;
   }
   async function verify(raw: unknown) {
-    const report = raw as { status?: string; skill?: string; outcome?: Report } | null;
+    const report = raw as Report | null;
     const negative = await rejectBadInput();
     await close();
-    return verifyOutcome(report?.status === "workspace-skill-reviewed" && report?.skill === "terminalHandoff"
-      ? report.outcome ?? null : null, negative);
+    return verifyOutcome(report ?? null, negative);
   }
   async function qualify() {
     const opening = await services.openTerminalRead.open();

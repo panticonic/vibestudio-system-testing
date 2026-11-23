@@ -141,8 +141,8 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
       equal(answer.facts,expectedAnswer)&&expectedAnswer.every(fact=>answer.text.includes(fact.value));
   }
   async function verify(raw:unknown){
-    const candidate=raw as {status?:string;skill?:string;outcome?:AudienceReport}|null;
-    const report=candidate?.status==="workspace-skill-reviewed"&&candidate.skill==="audienceResponse"?candidate.outcome:undefined;
+    const candidate=raw as AudienceReport|null;
+    const report=candidate;
     const current=await read();
     const state=await panel.stateArgs.get<PanelState>();
     const prepared=sent?visual(sent):null;
@@ -173,7 +173,7 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const prepared=world.mode==="plain"?null:{presentation:referencePresentation(reference),modelId:world.model?.id??null};
     const rejected=await services.nativeAudienceResponse.render(record.id,"stale",prepared??{presentation:null,modelId:null})===null;
     const receipt=prepared?await services.nativeAudienceResponse.render(record.id,record.revision,prepared):null;
-    const accepted=await verify({status:"workspace-skill-reviewed",skill:"audienceResponse",outcome:{record,choice,answer,prepared,receipt}});
+    const accepted=await verify({record,choice,answer,prepared,receipt});
     return {...accepted,rejected,passed:accepted.passed&&rejected};
   }
   return {services,verify,qualify,close};

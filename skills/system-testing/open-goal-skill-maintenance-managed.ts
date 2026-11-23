@@ -447,12 +447,8 @@ export async function prepareSkillMaintenance(
     final: NativeSkillCheck;
   };
   async function verify(report: unknown) {
-    const envelope = report as {
-      status?: string;
-      skill?: string;
-      outcome?: Outcome;
-    } | null;
-    const outcome = envelope?.outcome;
+    const envelope = report as Outcome | null;
+    const outcome = envelope;
     const finalStatus = await status();
     const retainedArchive = await view(finalStatus.workingHead, archivePath);
     const after = await view(finalStatus.workingHead, workingPath);
@@ -519,8 +515,6 @@ export async function prepareSkillMaintenance(
         authoring !== undefined &&
         isDeepStrictEqual(outcome?.authoring, authoring),
       matchedSkillMaintenanceDecision:
-        envelope?.status === "workspace-skill-reviewed" &&
-        envelope.skill === "skillMaintenance" &&
         outcome?.scope === "owned-working-skill" &&
         outcome.decision.action === world.action &&
         Boolean(outcome.decision.reason.trim()) &&
@@ -611,9 +605,6 @@ export async function prepareSkillMaintenance(
       currentCard.id,
     );
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "skillMaintenance",
-      outcome: {
         scope: "owned-working-skill",
         observation: observed,
         authoring,
@@ -624,11 +615,10 @@ export async function prepareSkillMaintenance(
         },
         receipt,
         final,
-      },
-    };
+      };
     const result = await verify(report);
     const wrong = structuredClone(report);
-    wrong.outcome.final.revision = "other-head";
+    wrong.final.revision = "other-head";
     const rejectedWrongReadback = !(await verify(wrong)).passed;
     const checks = { ...result.checks, rejectedAlias, rejectedWrongReadback };
     return {

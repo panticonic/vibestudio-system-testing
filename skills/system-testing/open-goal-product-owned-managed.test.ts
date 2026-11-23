@@ -32,7 +32,7 @@ it("rejects an incomplete News edition while retaining the native workspace chec
     facts: [], action: "hold", spec: {},
   } as never, {} as never, workspace(), async () => ({ services: {}, verify }) as never);
   for (const outcome of [{}, { news: { handoff: null } }]) {
-    const result = await prepared.verify({ status: "workspace-skill-reviewed", skill: "newsEditionReview", outcome });
+    const result = await prepared.verify(outcome);
     expect(result.checks).toMatchObject({
       current_news_edition: false,
       exact_basis_attribution: false,
@@ -49,7 +49,7 @@ it("rejects an incomplete runbook report without reading missing decision or Cal
     id: input.caseId, goal: "check the runbook", before: "current notes", approval: "APP-REVIEW",
     authorization: "read only", action: "hold",
   } as never, { services: {}, verify } as never, workspace());
-  const result = await prepared.verify({ status: "workspace-skill-reviewed", skill: "googleRunbook", outcome: {} });
+  const result = await prepared.verify({});
   expect(result.checks).toMatchObject({
     current_calendar: false,
     runbook_authority: false,

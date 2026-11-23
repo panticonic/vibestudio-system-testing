@@ -247,10 +247,10 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
     },
   };
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: {
+    const report = value as {
       assignment?: unknown; evidence?: unknown; choice?: unknown; receipt?: unknown;
-    } } | null;
-    const outcome = report?.outcome, disposition = world.expected;
+    } | null;
+    const outcome = report, disposition = world.expected;
     const choice = { disposition, event: ["advance","confirmed"].includes(disposition) ? sourceEvent : null };
     const after = await store.inspect({ key });
     const shouldWake = disposition === "advance";
@@ -278,7 +278,7 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
       verifiedExactRetainedDelivery: !!observed && isDeepStrictEqual(outcome?.evidence, observed) &&
         before.history.length === seeded.events.length - (seeded.omit ? 1 : 0) &&
         (disposition !== "confirmed" || !!exactRow) && (disposition !== "advance" || !!sourceEvent),
-      verifiedSameReceiverCursor: nativeDisposition === disposition && report?.status === "workspace-skill-reviewed" && report.skill === "deliveryWake" &&
+      verifiedSameReceiverCursor: nativeDisposition === disposition &&
         isDeepStrictEqual(after.pending, shouldWake ? null : before.pending) && before.cursor === after.cursor &&
         isDeepStrictEqual(before.history, after.history) && isDeepStrictEqual(before.recipient, after.recipient),
       verifiedUniqueNormalizedMailbox: isDeepStrictEqual(after.rows, expectedRows) && after.contextCopies === 0 &&
@@ -298,10 +298,10 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
     const rejectedCursorDrift = !range || await rejected(store.recover({ key, ...range, after: range.after - 1 }));
     const receipt = choice.disposition === "advance" && choice.event ?
       await services.deliveryWakeAction.apply(assigned.id, choice.event.id, range) : null;
-    const report = { status: "workspace-skill-reviewed", skill: "deliveryWake", outcome: { assignment: assigned, evidence, choice, receipt } };
+    const report = { assignment: assigned, evidence, choice, receipt };
     const proof = await verify(report);
-    const rejectedWrongScope = !(await verify({ ...report, outcome: { ...report.outcome, choice: { ...choice, event: null },
-      assignment: { ...assigned, recipient: "other" } } })).passed;
+    const rejectedWrongScope = !(await verify({ ...report, choice: { ...choice, event: null },
+      assignment: { ...assigned, recipient: "other" } })).passed;
     const checks = { ...proof.checks, rejectedForeignReplay, rejectedCursorDrift, rejectedWrongScope };
     return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };
   }

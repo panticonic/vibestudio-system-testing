@@ -35,9 +35,9 @@ function effects() {
   }
   return { calls, record };
 }
-function reportOf<T>(raw: unknown, skill: string): T | null {
-  const root = raw as { status?: string; skill?: string; outcome?: T } | null;
-  return root?.status === "workspace-skill-reviewed" && root.skill === skill ? root.outcome ?? null : null;
+function reportOf<T>(raw: unknown): T | null {
+  const root = raw as T | null;
+  return root ?? null;
 }
 function attribute(source: string | null, action: string, intent: string | null, boundary: string): Attribution {
   return { kind: "attribution", origin: "external-import",
@@ -129,7 +129,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
       "runbook:" + original.currentRevision, world.action === "revise" ? approvalId : null, "private-workspace");
   };
   async function verify(raw: unknown) {
-    const report = reportOf<GoogleReport>(raw, "googleRunbook");
+    const report = reportOf<GoogleReport>(raw);
     const current = await basis();
     const workspace = await ports.status({ contextId: input.contextId });
     const calendarReport = report?.calendar;
@@ -166,8 +166,7 @@ export async function prepareGoogleRunbook(input: Input, world: GoogleRunbookWor
       if (write.status === "changed") write = await apply(await services.googleRunbook.read());
       await services.googleRunbook.read();
     }
-    return verify({ status: "workspace-skill-reviewed", skill: "googleRunbook",
-      outcome: { calendar: scheduled, decision, attribution: mapping(scheduled, original), write } });
+    return verify({ calendar: scheduled, decision, attribution: mapping(scheduled, original), write });
   }
   return { services, verify, qualify };
 }
@@ -207,7 +206,7 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
   let observed: Desk | null = null;
   let artifact: Receipt | null = null;
   let authoring = false;
-  const wrap = (outcome: NewsEvidenceReport) => ({ status: "workspace-skill-reviewed", skill: "newsEvidence", outcome });
+
   const expectedPresentation: PresentationReport = {
     views: [{ id: publishedDesk.id, status: "ready", rendered: renderComponent(world.spec) }], omitted: [],
   };
@@ -241,7 +240,7 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
           return record("newsEditionReview", "stage", args, null);
         authoring = true;
         try {
-          if (!isDeepStrictEqual(await currentDesk(), desk) || !(await news.verify(wrap(basis))).passed ||
+          if (!isDeepStrictEqual(await currentDesk(), desk) || !(await news.verify(basis)).passed ||
               !isDeepStrictEqual(await ports.status({ contextId: input.contextId }), workspace))
             return record("newsEditionReview", "stage", args, null);
           const body = encode(desk, basis, presentation);
@@ -253,10 +252,10 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
     },
   };
   async function verify(raw: unknown) {
-    const report = reportOf<NewsReport>(raw, "newsEditionReview");
+    const report = reportOf<NewsReport>(raw);
     const basis = report?.news;
     const plan = report?.plan;
-    const proof = basis && await news.verify(wrap(basis));
+    const proof = basis && await news.verify(basis);
     const verifiedBasis = proof?.passed === true && basis?.handoff === null;
     const latest = await currentDesk();
     const body = artifact && await readText(ports, artifact.path);
@@ -283,8 +282,7 @@ export async function prepareNewsEditionReview(input: Input, world: NewsEditionR
     const plan = { action: world.action, format: world.format, revision: desk.revision, reason: "Use the current reader and latest desk evidence." };
     const presentation = world.action === "packet" ? expectedPresentation : null;
     const artifact = presentation && await services.newsEditionReview.stage(desk, plan, basis, presentation);
-    return verify({ status: "workspace-skill-reviewed", skill: "newsEditionReview",
-      outcome: { desk, news: basis, plan, presentation, artifact, attribution: attribution(desk, basis, world.action) } });
+    return verify({ desk, news: basis, plan, presentation, artifact, attribution: attribution(desk, basis, world.action) });
   }
   return { services, verify, qualify };
 }

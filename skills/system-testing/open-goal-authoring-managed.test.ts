@@ -34,11 +34,11 @@ it("joins compiler evidence by role, permits replay and preserves unchanged issu
     expect(await s.authoringReviewControl.confirm(receipt)).toBe("current");
     await s.authoringDiscovery.open(world.goal, selection);
     expect(await s.authoringReviewControl.confirm(receipt)).toBe("current");
-    expect((await prepared.verify({ status: "workspace-skill-reviewed", skill: "authoring", outcome: { status: "reviewed", receipt, artifact: null } })).passed).toBe(true);
+    expect((await prepared.verify({ status: "reviewed", receipt, artifact: null })).passed).toBe(true);
     expect(await s.authoringReviewControl.confirm({ ...receipt, selection: { ...selection, candidateId: "foreign" } })).toBe("changed");
     const source = path.join(temp, "programs", selection.candidateId, "source", "review.nl");
     await writeFile(source, "concurrently changed source");
     expect(await s.authoringReviewControl.confirm(receipt)).toBe("changed");
-    expect((await prepared.verify({ status: "workspace-skill-reviewed", skill: "authoring", outcome: { status: "reviewed", receipt, artifact: null } })).passed).toBe(false);
+    expect((await prepared.verify({ status: "reviewed", receipt, artifact: null })).passed).toBe(false);
   } finally { await rm(temp, { recursive: true, force: true }); }
 });

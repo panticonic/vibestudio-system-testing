@@ -442,12 +442,8 @@ export async function prepareOpenGrimoireScene(
   };
 
   async function verify(value: unknown) {
-    const envelope = value as {
-      status?: string;
-      skill?: string;
-      outcome?: GrimoireSceneOutcome;
-    };
-    const out = envelope?.outcome;
+    const envelope = value as GrimoireSceneOutcome;
+    const out = envelope;
     const final = await observe();
     const files = (await listOwnedScratchEntries(ports.fs)).filter(
       (path) => !initialScratch.has(path),
@@ -519,8 +515,6 @@ export async function prepareOpenGrimoireScene(
         final.view.sceneDigest === ready.view.sceneDigest,
       ),
       exactCaretakerDisposition: Boolean(
-        envelope.status === "workspace-skill-reviewed" &&
-        envelope.skill === "grimoireScene" &&
         out?.scope === "owned-grimoire-caretaker-draft" &&
         out.plan.action === world.action &&
         out.plan.finding.trim() &&
@@ -649,9 +643,6 @@ export async function prepareOpenGrimoireScene(
         ? await services.grimoireHandoff.stage(docket.id, scene.frontier, plan)
         : null;
     const report = {
-      status: "workspace-skill-reviewed",
-      skill: "grimoireScene",
-      outcome: {
         scope: "owned-grimoire-caretaker-draft",
         docket,
         evidence,
@@ -662,11 +653,10 @@ export async function prepareOpenGrimoireScene(
           docket.id,
           staged?.path ?? null,
         ),
-      },
-    };
+      };
     const verification = await verify(report);
     const altered = structuredClone(report);
-    altered.outcome.readback.sceneDigest = "retired";
+    altered.readback.sceneDigest = "retired";
     const wrong = await verify(altered);
     const rejectedAlteredEvidence = rejectedAlias && !wrong.passed;
     return {

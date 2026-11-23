@@ -293,8 +293,7 @@ export async function prepareOpenLocalMethod(
         throw new Error("The owned method caller changed");
       const current =
         target === null ||
-        (live.provider?.active === true &&
-          live.provider.revision === target.revision);
+        (live.provider?.active === true && live.provider.revision === target.revision);
       const admitted = live.provider?.active ? (provider?.id ?? null) : null;
       return {
         cardId: key,
@@ -393,12 +392,8 @@ export async function prepareOpenLocalMethod(
       terminal: Terminal | null;
     };
     async function verify(value: unknown) {
-      const envelope = value as {
-        status?: string;
-        skill?: string;
-        outcome?: Outcome;
-      } | null;
-      const out = envelope?.outcome;
+      const envelope = value as Outcome | null;
+      const out = envelope;
       const expectedAction = expectedActions[world.profile];
       const expectsCall = ["request", "recover"].includes(expectedAction);
       const expected = await readTerminal(expectsCall);
@@ -428,8 +423,6 @@ export async function prepareOpenLocalMethod(
             !["moved", "no-provider"].includes(world.profile),
         ),
         groundedMethodDisposition: Boolean(
-          envelope?.status === "workspace-skill-reviewed" &&
-          envelope.skill === "localMethodExchange" &&
           out?.scope === scope &&
           out.plan.action === expectedAction &&
           out.plan.method === world.method &&
@@ -520,9 +513,6 @@ export async function prepareOpenLocalMethod(
         attempt?.transport ?? retained?.transport ?? null,
       );
       const report = {
-        status: "workspace-skill-reviewed",
-        skill: "localMethodExchange",
-        outcome: {
           scope,
           card,
           evidence,
@@ -533,11 +523,10 @@ export async function prepareOpenLocalMethod(
           },
           attempt,
           terminal,
-        },
-      };
+        };
       const verification = await verify(report);
       const wrong = structuredClone(report);
-      wrong.outcome.evidence.basis = "foreign";
+      wrong.evidence.basis = "foreign";
       const rejected = !(await verify(wrong)).passed;
       if (terminal) {
         if ((await send()) !== "submitted")

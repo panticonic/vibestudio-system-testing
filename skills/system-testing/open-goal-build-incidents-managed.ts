@@ -261,8 +261,8 @@ export async function prepareRetainedBuildIncident(
   };
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
+    const report = value as Outcome | null;
+    const outcome = report;
     const primaryEntry = world.expected.current ? slots.get("current") : null;
     const oldEntry = world.expected.baseline ? slots.get("baseline") : null;
     const expectedSaved = [primaryEntry, oldEntry].flatMap(entry => entry ? [entry.saved] : []);
@@ -318,8 +318,7 @@ export async function prepareRetainedBuildIncident(
           (actualCurrent.diagnostic.file === sourcePath || actualCurrent.diagnostic.file.endsWith("/" + sourcePath))) :
           actualCurrent.observation?.status === "ok" && !!actualCurrent.observation.targets.length &&
           (world.focus !== "initial-payload" || actualCurrent.observation.targets.some(target => target.target === "runtime" && !!target.payload)))),
-      exactFindingAndEvidenceBoundary: report?.status === "workspace-skill-reviewed" && report.skill === "buildIncident" &&
-        outcome?.focus === world.focus && outcome.disposition?.finding === (world.expected.blocker ? "held" : world.focus) &&
+      exactFindingAndEvidenceBoundary: outcome?.focus === world.focus && outcome.disposition?.finding === (world.expected.blocker ? "held" : world.focus) &&
         outcome.disposition?.blocker === world.expected.blocker && Boolean(outcome.disposition?.reason?.trim()),
       exactLocalHandoff: handoff && isDeepStrictEqual(outcome?.handoff, stored) &&
         scratchBefore.every(name => afterOutputs.includes(name)),
@@ -344,11 +343,11 @@ export async function prepareRetainedBuildIncident(
     const baseline = world.expected.baseline ? await inspect("baseline") : null;
     const handoff = world.expected.stage && current ? await services.buildIncidentHandoff.stage(
       [current.checkpoint.id, ...(baseline ? [baseline.checkpoint.id] : [])], world.focus) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "buildIncident", outcome: {
+    return verify({
       focus: world.focus, subject, current, baseline, handoff,
       disposition: { finding: world.expected.blocker ? "held" : world.focus, blocker: world.expected.blocker,
         reason: "Bind the exact measurement and protect the ownership scope." },
-    } });
+    });
   }
 
   return { services, qualify, verify };

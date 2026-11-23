@@ -156,7 +156,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
       },
     },
   };
-  function report(){return {status:"workspace-skill-reviewed",skill:"nativeImage",outcome:{assignment,basis,decision,outcome,saved}};}
+  function report(){return {assignment,basis,decision,outcome,saved};}
   async function verify(value:unknown){
     const final=await status(), transport=await images.readFixtureTransport();
     const actualJob=outcome?await images.getJob(outcome.job.id):seedJob?await images.getJob(seedJob.id):null;
@@ -188,7 +188,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
         (!reference||isDeepStrictEqual(refRead?.asset,reference)&&refRead?.base64===imageFixtureBytes.png[2]),
       matchedNativeImageReport:isDeepStrictEqual(value,report()),
     };
-    return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report().outcome,
+    return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report(),
       native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset.digest??null},effects:structuredClone(effects)};
   }
   async function qualify(){
@@ -197,7 +197,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     const rejectedForeignAttempt=await reject(()=>services.illustrationJobs.run("neighbor",initialBasis.head,decision.action));
     if(decision.action!=="hold")await services.illustrationJobs.run(scope,initialBasis.head,decision.action);
     const rejectedWrongBytes=await reject(()=>services.illustrationOriginal.save(scope,initialBasis.head,seedJob?.id??"fresh","unverified-original"));
-    const complete=outcome as ReturnType<typeof report>["outcome"]["outcome"];
+    const complete=outcome as ReturnType<typeof report>["outcome"];
     if(complete?.original&&world.save)await services.illustrationOriginal.save(scope,initialBasis.head,complete.job.id,complete.original.digest);
     const answer=report(),proof=await verify(answer);
     const checks={...proof.checks,rejectedForeignAttempt,rejectedWrongBytes};

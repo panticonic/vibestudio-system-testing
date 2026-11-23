@@ -242,8 +242,8 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
   };
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
+    const report = value as Outcome | null;
+    const outcome = report;
     const scopeIntact = decoder.decode(await readBytes(reviewPath, 24 * 1024)) === scopeBytes;
     const current = await observeUnit(assigned);
     const architecture = boundaryResult();
@@ -271,8 +271,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
       verifiedExactProviderBoundary: exactRoute && isDeepStrictEqual(outcome?.architecture, architecture),
       honoredRetainedReviewScope: scopeIntact && (!discovered || isDeepStrictEqual(discovered, expectedSurvey)) &&
         isDeepStrictEqual(outcome?.survey, expectedSurvey),
-      distinguishedDeployedDefinition: report?.status === "workspace-skill-reviewed" && report.skill === "deployedInterface" &&
-        outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      distinguishedDeployedDefinition: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedExactLocalHandoff: handoff && isDeepStrictEqual(outcome?.handoff, stored) &&
         priorOutputs.every(name => afterOutputs.includes(name)),
@@ -293,7 +292,7 @@ export async function prepareDeployedInterfaceGoal(input: { contextId: string; c
     const decision = decisionFor(observation, survey.review, architecture);
     const handoff = canStage(survey.review, decision) ? await services.interfaceReviewHandoff.stage(observation, decision) : null;
     const finding = { decision, reason: "Compare the current installed source and active definition with the retained review." };
-    return verify({ status: "workspace-skill-reviewed", skill: "deployedInterface", outcome: { survey, observation, architecture, finding, handoff } });
+    return verify({ survey, observation, architecture, finding, handoff });
   }
 
   return { services, verify, qualify };

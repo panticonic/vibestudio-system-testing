@@ -216,8 +216,8 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
   };
 
   async function verify(raw:unknown) {
-    const report=raw as {status?:string;skill?:string;outcome?:RegencyReport}|null;
-    const outcome=report?.status==="workspace-skill-reviewed"&&report.skill==="regencyBriefing"?report.outcome:undefined;
+    const report=raw as RegencyReport|null;
+    const outcome=report;
     const [opening,current]=frontiers;
     const currentExpected=world.initial.month+(world.initial.between??0);
     const after=snapshot(await store.read());
@@ -275,7 +275,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     if(decision.action==="advance")report.advance=await services.regencyAdvance.commit(realm,current.revision,world.plan.advance!);
     if((decision.action==="advance"&&report.advance||decision.action==="stage")&&world.plan.localNote)
       report.note=await services.regencyNote.stage(report);
-    return verify({status:"workspace-skill-reviewed",skill:"regencyBriefing",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

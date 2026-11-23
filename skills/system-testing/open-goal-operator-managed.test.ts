@@ -145,16 +145,12 @@ it("uses the observed profile's actual pairing route and rejects forged receipts
     "finish",
   ]);
   const forged = await harness.verify({
-    status: "workspace-skill-reviewed",
-    skill: "operator",
-    outcome: {
       status: "paired",
       reason: null,
       targetId: world.target.id,
       identity,
       evidenceIds: ["foreign-receipt"],
-    },
-  });
+    });
   expect(forged.checks.boundOperatorReport).toBe(false);
   expect(records.at(-2)).toBe("child");
 });

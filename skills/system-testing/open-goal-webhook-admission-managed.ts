@@ -260,8 +260,8 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
     },
   };
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const out = report?.outcome;
+    const report = value as Outcome | null;
+    const out = report;
     const final = await observe(), finalRows = await retainedRows();
     const wantStage = world.expected === "stage-audit";
     const hold = ["hold-record", "hold-scope", "hold-revoked", "hold-receipt"].includes(world.expected);
@@ -276,8 +276,7 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
         final.retainedDigest === retainedDigest,
       exactNativeActiveAndTombstone: isDeepStrictEqual(observed, final) && isDeepStrictEqual(out?.evidence, final),
       exactCurrentBinding: isDeepStrictEqual(out?.binding, expectedBinding),
-      matchedAdmissionDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "webhookAdmission" &&
-        out?.assessment?.disposition === world.expected && typeof out.assessment.reason === "string" &&
+      matchedAdmissionDisposition: out?.assessment?.disposition === world.expected && typeof out.assessment.reason === "string" &&
         out.assessment.reason.trim().length > 0 && out.assessment.reason.length <= 1400,
       verifiedScopedPrivateAudit: isDeepStrictEqual(leafNames, wantedNames) &&
         (expectedNote ? actual && decoder.decode(actual) === expectedNote && handoff?.path === outputPath &&
@@ -298,9 +297,9 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
     const assessment = { disposition: assess(binding), reason: "Review the scoped registration, its retained receipt and declared metadata." };
     const handoff = assessment.disposition === "stage-audit" ?
       await services.webhookAdmissionHandoff.stage(assignment.id, evidence.retainedDigest, binding.row, assessment.disposition) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "webhookAdmission", outcome: {
+    return verify({
       assignment, evidence, binding, assessment, handoff,
-    } });
+    });
   }
   return { services, qualify, verify, close };
 }

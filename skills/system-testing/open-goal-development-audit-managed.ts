@@ -151,10 +151,10 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     return { requested: project(assignment.requested), alternate: project(assignment.alternate) };
   }
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: {
+    const report = value as {
       assignment?: unknown; observed?: Pair; choice?: unknown; assessment?: unknown; receipt?: Receipt | null;
-    } } | null;
-    const outcome = report?.outcome, observed = await expectedPair(), expected = world.expected;
+    } | null;
+    const outcome = report, observed = await expectedPair(), expected = world.expected;
     const selected = expected.selection ? observed[expected.selection] : null;
     const choice = { runId: selected?.id ?? null, blocker: expected.blocker };
     const assessment = { disposition: expected.disposition, decisiveSequences: checkpointSequences(selected) };
@@ -182,8 +182,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
         isDeepStrictEqual(paged[run.id], Array.from({ length: Math.ceil(run.journal.length / 2) }, (_, index) => ({
           after: index * 2, nextAfter: (index + 1) * 2 < run.journal.length ? (index + 1) * 2 : null,
         })))),
-      matchedRepairReadiness: report?.status === "workspace-skill-reviewed" && report.skill === "developmentAudit" &&
-        isDeepStrictEqual(outcome?.assessment, assessment),
+      matchedRepairReadiness: isDeepStrictEqual(outcome?.assessment, assessment),
       verifiedOwnedRepairTransition: (shouldKeep ? exactKeep : after.intents.length === 0) &&
         isDeepStrictEqual(receipt, expectedReceipt) && isDeepStrictEqual(outcome?.receipt, expectedReceipt),
       preservedNeighborAndPriorRun: preserved && before.intents.length === 0,
@@ -208,13 +207,13 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     const assessment = { disposition: world.expected.disposition, decisiveSequences: checkpointSequences(selected) };
     const staged = selected && assessment.disposition === "keep-repair" ?
       await services.developmentAuditKeep.keep(selected.id, selected.snapshot, selected.updatedAt) : null;
-    const report = { status: "workspace-skill-reviewed", skill: "developmentAudit", outcome: {
+    const report = {
       assignment: discovered, observed, choice: { runId: selected?.id ?? null, blocker: world.expected.blocker }, assessment, receipt: staged,
-    } };
+    };
     const proof = await verify(report);
-    const mismatchedEvidence = !(await verify({ ...report, outcome: { ...report.outcome, observed: {
+    const mismatchedEvidence = !(await verify({ ...report, observed: {
       requested: observed.alternate, alternate: observed.requested,
-    } } })).passed;
+    } })).passed;
     const checks = { ...proof.checks, rejectedWrongScopeAndStaleApproval: safeGuards.every(Boolean),
       rejectedSwappedEvidence: mismatchedEvidence || isDeepStrictEqual(observed.requested, observed.alternate) };
     return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };

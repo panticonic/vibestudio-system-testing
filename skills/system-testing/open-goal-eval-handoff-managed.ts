@@ -283,8 +283,8 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
   }
   return { services, qualify, close: native.close,
     async verify(report: unknown) {
-      const value = report as { status?: string; skill?: string; outcome?: EvalHandoffGoalReport } | null;
-      return verifyOutcome(value?.status === "workspace-skill-reviewed" && value.skill === "evalHandoff" ? value.outcome ?? null : null, await refuseForeign());
+      const value = report as EvalHandoffGoalReport | null;
+      return verifyOutcome(value ?? null, await refuseForeign());
     } };
 }
 

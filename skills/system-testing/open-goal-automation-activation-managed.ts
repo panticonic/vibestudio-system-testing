@@ -247,8 +247,8 @@ export async function prepareOwnedAutomationActivation(
     activation:Awaited<ReturnType<typeof activate>>|null;readback:ReturnType<typeof projection>|null};
 
   async function verify(raw:unknown) {
-    const report=raw as {status?:string;skill?:string;outcome?:Outcome}|null;
-    const outcome=report?.outcome;
+    const report=raw as Outcome|null;
+    const outcome=report;
     const final=await observe();
     const rows=await missions.list();
     const ownedRows=rows.filter(row=>row.name===name);
@@ -285,8 +285,7 @@ export async function prepareOwnedAutomationActivation(
         (receipt?.recovered ?? false)===(profile==="retry") && (native?.runCount??0)===0 && runs.length===0 &&
         (native?.nextRunAt===undefined || native.nextRunAt>now+20*day),
       protectedExistingAutomationDefinitions: initialMissionIds.every(existing=>visibleIds.has(existing)) &&
-        term?.missionId===initialDefault.missionId && term.revisionDigest===initialDefault.revisionDigest &&
-        report?.status==="workspace-skill-reviewed" && report.skill==="automationActivation",
+        term?.missionId===initialDefault.missionId && term.revisionDigest===initialDefault.revisionDigest,
     };
     return {caseId:world.id,contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
       evidence:observed,final,actual,receipt,launchCalls,runs,initialMissionIds,ownedRows,journal:structuredClone(journal)};
@@ -308,9 +307,9 @@ export async function prepareOwnedAutomationActivation(
         rejectedReceiptAlias=false;
       } catch { /* Exact receipt mismatch. */ }
     }
-    const report={status:"workspace-skill-reviewed",skill:"automationActivation",outcome:{evidence,plan,decision:choice,activation,readback}};
+    const report={evidence,plan,decision:choice,activation,readback};
     const proof=await verify(report);
-    const rejectedChangedClaim=!(await verify({...report,outcome:{...report.outcome,evidence:{...evidence,current:"prior-edition"}}})).passed;
+    const rejectedChangedClaim=!(await verify({...report,evidence:{...evidence,current:"prior-edition"}})).passed;
     const rejectedApprovalAliases=wrong.status==="held"&&wrong.receipt===null&&rejectedReceiptAlias&&rejectedChangedClaim;
     return {...proof,passed:proof.passed&&rejectedApprovalAliases,checks:{...proof.checks,rejectedApprovalAliases},report};
   }

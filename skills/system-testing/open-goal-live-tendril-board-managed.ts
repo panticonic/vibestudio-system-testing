@@ -55,10 +55,10 @@ export async function prepareOpenLiveTendrilBoard(
     },
   };
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: {
+    const report = value as {
       card?: Card; plan?: TendrilRequest; actual?: TendrilReport; reason?: string;
-    } } | null;
-    const outcome = report?.outcome;
+    } | null;
+    const outcome = report;
     const native = prepared.verify(outcome?.actual ?? null);
     const checks = {
       exactCurrentTendrilTicket: isDeepStrictEqual(selected, ticket) &&
@@ -67,8 +67,7 @@ export async function prepareOpenLiveTendrilBoard(
       ownedTendrilPresentation: native.checks.presentation && native.checks.baseline,
       independentlyObservedRenderedAndStored: native.checks.exactEffects && native.checks.report,
       verifiedTendrilBuildHistory: native.checks.nativeBuilds ?? true,
-      matchedTendrilGoalReport: report?.status === "workspace-skill-reviewed" && report.skill === "liveTendrilBoard" &&
-        typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
+      matchedTendrilGoalReport: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
     };
     return { contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
       passed: Object.values(checks).every(Boolean), native, available: [prior, card], ticket, outcome };
@@ -78,13 +77,13 @@ export async function prepareOpenLiveTendrilBoard(
     const rejectedArchive = await tendrilBoardDocket.read(prior.id).then(() => false, () => true);
     await tendrilBoardDocket.read(card.id);
     const actual = await prepared.reference();
-    const report = { status: "workspace-skill-reviewed", skill: "liveTendrilBoard", outcome: {
+    const report = {
       card, plan: prepared.request, actual, reason: "The native rendered board and durable state support the disposition.",
-    } };
+    };
     const result = await verify(report);
     const changed = structuredClone(report);
-    if (changed.outcome.actual.presentation)
-      changed.outcome.actual.presentation.slotId = "retired-board";
+    if (changed.actual.presentation)
+      changed.actual.presentation.slotId = "retired-board";
     const rejectedForeignTendrilBoard = rejectedArchive && !(await verify(changed)).passed;
     return { ...result, passed: result.passed && rejectedForeignTendrilBoard,
       checks: { ...result.checks, rejectedForeignTendrilBoard } };

@@ -190,10 +190,10 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
   };
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: {
+    const report = value as {
       assignment?: unknown; source?: unknown; selection?: unknown; runtime?: unknown; decision?: unknown; receipt?: unknown;
-    } } | null;
-    const outcome = report?.outcome, reread = await observe(), candidates = current(reread);
+    } | null;
+    const outcome = report, reread = await observe(), candidates = current(reread);
     const plan = candidates.length === 1 ? candidates[0] : null;
     const blocker = plan ? null : candidates.length > 1 ? "hold-ambiguity" : "hold-source";
     const selection = { plan, blocker };
@@ -213,8 +213,7 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
         runtime?.packageName === packageName && runtime.exportName === plan.exportName && runtime.callable === !world.unavailableExport &&
         isDeepStrictEqual(runtime.value, world.unavailableExport ? null : world.runtime) &&
         isDeepStrictEqual(native, await ports.retained(scopeKey, runId)) : runtime === null && !opened),
-      matchedExactSmokeOutcome: report?.status === "workspace-skill-reviewed" && report.skill === "workspaceSmoke" &&
-        isDeepStrictEqual(outcome?.decision, decision) && (runtime?.callable ?
+      matchedExactSmokeOutcome: isDeepStrictEqual(outcome?.decision, decision) && (runtime?.callable ?
           (isDeepStrictEqual(runtime.value, plan?.accepted) ? "accepted" : "regression") === world.expected : true),
       verifiedPrivateSmokeReceipt: (exactText ? expectedReceipt !== null : entries.length === 0) &&
         isDeepStrictEqual(outcome?.receipt, expectedReceipt) && isDeepStrictEqual(receipt, expectedReceipt) && original.every(Boolean),
@@ -233,9 +232,9 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     const decision = { disposition: world.expected, mayRetain: world.expected === "accepted" && assignment.mayStage };
     const rejectedWrongRuntime = await rejected(services.workspaceSmokeHandoff.stage(discovered.id, plan?.path ?? "unowned", "old-build"));
     const receipt = decision.mayRetain && plan && runtime ? await services.workspaceSmokeHandoff.stage(discovered.id,plan.path,runtime.runDigest) : null;
-    const report = { status: "workspace-skill-reviewed", skill: "workspaceSmoke", outcome: { assignment: discovered, source, selection, runtime, decision, receipt } };
+    const report = { assignment: discovered, source, selection, runtime, decision, receipt };
     const proof = await verify(report);
-    const rejectedWrongSource = !(await verify({ ...report, outcome: { ...report.outcome, source: { ...source, matches: -1 } } })).passed;
+    const rejectedWrongSource = !(await verify({ ...report, source: { ...source, matches: -1 } })).passed;
     const checks = { ...proof.checks, rejectedWrongDigest, rejectedWrongRuntime, rejectedWrongSource };
     return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
   }

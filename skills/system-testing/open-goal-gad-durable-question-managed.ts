@@ -66,8 +66,8 @@ export function bindOpenGadDurableQuestion(
   const expected = world.expected;
 
   async function verify(raw: unknown) {
-    const report = raw as {status?: string; skill?: string; outcome?: DurableQuestionReport} | null;
-    const outcome = report?.outcome;
+    const report = raw as DurableQuestionReport | null;
+    const outcome = report;
     const native = await readNative();
     const expectedMessage = expected.message === null ? null : native.messages[expected.message];
     const expectedMember = expected.member === null ? null :
@@ -91,8 +91,7 @@ export function bindOpenGadDurableQuestion(
         isDeepStrictEqual(outcome.question.message, expectedMessage),
       exactParticipantDisposition: !!outcome && outcome.participant?.status === expected.participant &&
         isDeepStrictEqual(outcome.participant.member, expectedMember),
-      derivedReadOnlyHandoff: report?.status === "workspace-skill-reviewed" && report.skill === skill &&
-        outcome?.channelId === channelId && outcome.historyReceipt === history?.receipt &&
+      derivedReadOnlyHandoff: outcome?.channelId === channelId && outcome.historyReceipt === history?.receipt &&
         outcome.rosterReceipt === roster?.receipt && outcome.disposition === (ready ? "ready" : "hold") &&
         typeof outcome.explanation === "string" && outcome.explanation.trim().length > 0,
     };
@@ -112,15 +111,15 @@ export function bindOpenGadDurableQuestion(
     const participant = {status: expected.participant, member: expected.member === null ? null :
       observedRoster.members.find(member => member.participantId === native.roster[expected.member!]?.participantId) ?? null};
     const disposition = question.status === "current" && participant.status === "confirmed" ? "ready" : "hold";
-    const report = {status:"workspace-skill-reviewed", skill, outcome: {
+    const report = {
       channelId, historyReceipt:observed.receipt, rosterReceipt:observedRoster.receipt, question, participant, disposition,
       explanation: `Exact question disposition ${question.status} and persisted ${world.role} roster disposition ${participant.status}.`,
-    }};
+    };
     const accepted = await verify(report);
-    const rejectedAlteredEvidence = !(await verify({...report, outcome: {...report.outcome, historyReceipt:"foreign"}})).passed &&
-      !(await verify({...report, outcome: {...report.outcome, disposition:disposition === "ready" ? "hold" : "ready"}})).passed &&
-      !(await verify({...report, outcome: {...report.outcome, question:{...question, message:question.message === null ? native.messages[0] ?? {} : {...question.message, sequence:question.message.sequence + 1}}}})).passed &&
-      !(await verify({...report, outcome: {...report.outcome, participant:{...participant, member:participant.member === null ? observedRoster.members[0] ?? {} : {...participant.member,participantId:"same-display-foreign-id"}}}})).passed;
+    const rejectedAlteredEvidence = !(await verify({...report, historyReceipt:"foreign"})).passed &&
+      !(await verify({...report, disposition:disposition === "ready" ? "hold" : "ready"})).passed &&
+      !(await verify({...report, question:{...question, message:question.message === null ? native.messages[0] ?? {} : {...question.message, sequence:question.message.sequence + 1}}})).passed &&
+      !(await verify({...report, participant:{...participant, member:participant.member === null ? observedRoster.members[0] ?? {} : {...participant.member,participantId:"same-display-foreign-id"}}})).passed;
     return {...accepted, report, rejectedForeignReceipt, rejectedAlteredEvidence,
       passed:accepted.passed && rejectedForeignReceipt && rejectedAlteredEvidence};
   }

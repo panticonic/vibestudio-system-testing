@@ -283,11 +283,11 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
     },
   };
   async function verify(report: unknown) {
-    const envelope = report as { status?: string; skill?: string; outcome?: {
+    const envelope = report as {
       assignment: typeof assignment; observation: Observation; archive: { ref: string | null; reason: string }; plan: Plan; receipt: Receipt | null;
-    } } | null;
+    } | null;
     const checkpoint = await status();
-    const out = envelope?.outcome;
+    const out = envelope;
     const [rows, neighboring, exactRepo, first, second] = await Promise.all([
       list(checkpoint.workingHead, repository), list(checkpoint.workingHead, other.repositoryId),
       client.resolveRepository({ state: checkpoint.workingHead, repoPath: project }), archive(primary), archive(previous),
@@ -308,8 +308,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
         isDeepStrictEqual(observed.previous, second) && isDeepStrictEqual(out?.observation, observed),
       matchedApprovedEdition: isDeepStrictEqual(out?.assignment, assignment) && out?.archive?.ref === expectedRef &&
         typeof out?.archive?.reason === "string" && out.archive.reason.trim().length > 0,
-      matchedScopedLocalPlan: envelope?.status === "workspace-skill-reviewed" && envelope.skill === "contentArchive" &&
-        out?.plan?.action === world.expected.action && isDeepStrictEqual(out?.plan?.paths, intended) &&
+      matchedScopedLocalPlan: out?.plan?.action === world.expected.action && isDeepStrictEqual(out?.plan?.paths, intended) &&
         typeof out?.plan?.reason === "string" && out.plan.reason.trim().length > 0,
       restoredExactAddressedMembers: restored.every((path, i) => {
         const b = approved[paths.indexOf(path)];
@@ -344,9 +343,9 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
     const drafted = { ...plan(observation, ref), reason: "Inspect exact pinned material, working conflicts and local scope." };
     const receipt = drafted.action === "restore" ?
       await services.contentArchiveChange.restore(assigned.id, ref, observation.workingRevision, drafted.paths) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "contentArchive", outcome: {
+    return verify({
       assignment: assigned, observation, archive: { ref, reason: "Compare the exact retained edition and project owners." }, plan: drafted, receipt,
-    } });
+    });
   }
   return { services, qualify, verify };
 }

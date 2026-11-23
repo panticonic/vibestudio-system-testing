@@ -224,10 +224,10 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         observed.byteAgreement === (variant.checkpoint !== "split");
     }
     async function verify(value: unknown) {
-      const report = value as { status?: string; skill?: string; outcome?: {
+      const report = value as {
         assignment?: unknown; evidence?: unknown; choice?: unknown; decision?: unknown; receipt?: unknown;
-      } } | null;
-      const outcome = report?.outcome;
+      } | null;
+      const outcome = report;
       const evidence = { nominated: await observe(nominated), alternative: await observe(alternative) };
       const selected = world.expected.side ? evidence[world.expected.side] : null;
       const choice = { sessionId: selected?.sessionId ?? null, blocker: world.expected.blocker };
@@ -242,8 +242,7 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
         verifiedExactNativeTerminalPair: isDeepStrictEqual(outcome?.evidence, evidence) && observations.size === 2 &&
           isDeepStrictEqual(await observations.get(nominated.sessionId), evidence.nominated) &&
           isDeepStrictEqual(await observations.get(alternative.sessionId), evidence.alternative),
-        verifiedCursorAndExitClassification: report?.status === "workspace-skill-reviewed" && report.skill === "ptyContinuity" &&
-          isDeepStrictEqual(outcome?.decision, decision) && (!selectedAttempt || !!selected && selected.pid === selectedAttempt.pid &&
+        verifiedCursorAndExitClassification: isDeepStrictEqual(outcome?.decision, decision) && (!selectedAttempt || !!selected && selected.pid === selectedAttempt.pid &&
           selected.contextId === selectedAttempt.contextId),
         matchedFixtureOutputAndProcess: matchesFixture("nominated", evidence.nominated) && matchesFixture("alternative", evidence.alternative),
         verifiedScopedTerminalReceipt: (writeExpected ? exactReceipt !== null : entries.length === 0) &&
@@ -265,10 +264,9 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
       const rejectedWrongProof = await rejected(services.ptyContinuityHandoff.stage(nominated.sessionId, "wrong-retained-proof", "stage-good"));
       const retained = observed && decision.disposition === "stage-good" ?
         await services.ptyContinuityHandoff.stage(observed.sessionId, observed.replayDigest, decision.disposition) : null;
-      const report = { status: "workspace-skill-reviewed", skill: "ptyContinuity",
-        outcome: { assignment: discovered, evidence, choice, decision, receipt: retained } };
+      const report = { assignment: discovered, evidence, choice, decision, receipt: retained };
       const proof = await verify(report);
-      const rejectedWrongDecision = !(await verify({ ...report, outcome: { ...report.outcome, decision: { ...decision, replayDigest: "wrong" } } })).passed;
+      const rejectedWrongDecision = !(await verify({ ...report, decision: { ...decision, replayDigest: "wrong" } })).passed;
       const checks = { ...proof.checks, rejectedForeignRead, rejectedWrongProof, rejectedWrongDecision };
       return { ...proof, passed: Object.values(checks).every(Boolean), checks, report };
     }

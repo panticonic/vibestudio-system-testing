@@ -276,8 +276,8 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     }},
   };
   async function verify(raw:unknown) {
-    const value=raw as {status?:string;skill?:string;outcome?:ReadinessReport}|null;
-    const outcome=value?.status==="workspace-skill-reviewed"&&value.skill==="apiReadiness"?value.outcome:null;
+    const value=raw as ReadinessReport|null;
+    const outcome=value;
     const current=await ports.read(lane);
     const planned=actionFor(current,world.ambiguous?null:profileId);
     const expected=world.expected;
@@ -345,9 +345,9 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const plan={...actionFor(current,chosen),explanation:world.expected.statement};
     const outcome:ReadinessReport={plan,review,audit,handoff:null};
     if(plan.action==="stage")outcome.handoff=await services.quietIntegrationHandoff.stage(outcome);
-    const report={status:"workspace-skill-reviewed",skill:"apiReadiness",outcome};
+    const report=outcome;
     const accepted=await verify(report);
-    const forged=await verify({...report,outcome:{...outcome,plan:{...plan,through:-1}}});
+    const forged=await verify({...outcome,plan:{...plan,through:-1}});
     return {...accepted,passed:accepted.passed&&!forged.passed};
   }
   return {goal:world.goal,services,verify,qualify};

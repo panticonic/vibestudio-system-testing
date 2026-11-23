@@ -181,8 +181,8 @@ export async function prepareOpenBoardMigration(
   };
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: BoardMigrationOutcome } | null;
-    const outcome = report?.outcome;
+    const report = value as BoardMigrationOutcome | null;
+    const outcome = report;
     const final = await readDestination();
     const repeated = await observe(expectedId.id);
     const receipt = world.disposition === "retained" || world.disposition === "existing" ? {
@@ -198,8 +198,7 @@ export async function prepareOpenBoardMigration(
         isDeepStrictEqual(outcome?.receipt, receipt) && (world.disposition === "retained" ? writes > 0 : writes === 0),
       preservedMigrationNeighbors: await fs.readFile(neighbor, "utf8") === neighborText &&
         isDeepStrictEqual(JSON.parse(await fs.readFile(approvalFile, "utf8") as string), approval),
-      matchedWorkspaceMigrationDisposition: report?.status === "workspace-skill-reviewed" &&
-        report.skill === "boardMigration" && outcome?.disposition === world.disposition && Boolean(outcome.reason.trim()),
+      matchedWorkspaceMigrationDisposition: outcome?.disposition === world.disposition && Boolean(outcome.reason.trim()),
     };
     return { ...input, checks, passed: Object.values(checks).every(Boolean), available,
       rendered: repeated.view, basis, final, outcome };
@@ -215,14 +214,14 @@ export async function prepareOpenBoardMigration(
     const blocked = world.disposition === "held" || world.disposition === "audit";
     const rejectsUnapprovedMigration = !blocked || attempted === null;
     const receipt = blocked ? null : attempted;
-    const report = { status: "workspace-skill-reviewed", skill: "boardMigration", outcome: {
+    const report = {
       board, selection: expectedSelection, disposition: world.disposition, receipt,
       reason: "The rendered source, retained approval and target readback were independently compared.",
-    } };
+    };
     const proof = await verify(report);
-    const rejectsRetargetedResult = !(await verify({ ...report, outcome: {
-      ...report.outcome, selection: { ...expectedSelection, target: "other-target" },
-    } })).passed;
+    const rejectsRetargetedResult = !(await verify({
+      ...report, selection: { ...expectedSelection, target: "other-target" },
+    })).passed;
     const checks = { ...proof.checks, rejectsForeignBoard, rejectsStaleMigration, rejectsUnapprovedMigration, rejectsRetargetedResult };
     return { ...proof, checks, passed: Object.values(checks).every(Boolean) };
   }

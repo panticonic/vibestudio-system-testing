@@ -241,10 +241,10 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
     },
   };
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: {
+    const report = value as {
       assignment?: unknown; capture?: unknown; joined?: unknown; decision?: unknown; receipt?: unknown;
-    } } | null;
-    const outcome = report?.outcome;
+    } | null;
+    const outcome = report;
     const entries = await ports.scratch.entries(directory);
     const body = world.expected.stage && expectedJoin && expectedDecision ? payload(expectedJoin, expectedDecision) : null;
     const raw = entries.length === 1 && entries[0] === "retained-log-follow.json" ? await ports.scratch.read(path) : null;
@@ -256,8 +256,7 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
       verifiedClosedBoundedWatch: !!proof?.opened && proof.canceled && !!proof.epoch && (proof.boot === assignment.saved.boot) ===
         (world.checkpoint !== "old-boot") && (world.interrupted ? proof.lastSeen === proof.catchupThrough : proof.lastSeen === proof.witnessedThrough),
       mergedExactBootAndRecordIdentity: isDeepStrictEqual(outcome?.joined, expectedJoin),
-      classifiedExactOwnedRequest: report?.status === "workspace-skill-reviewed" && report.skill === "logFollower" &&
-        isDeepStrictEqual(outcome?.decision, expectedDecision),
+      classifiedExactOwnedRequest: isDeepStrictEqual(outcome?.decision, expectedDecision),
       verifiedScopedLogFollowReceipt: (body ? exactReceipt !== null : entries.length === 0) &&
         isDeepStrictEqual(receipt, exactReceipt) && isDeepStrictEqual(outcome?.receipt, exactReceipt),
     };
@@ -272,11 +271,11 @@ async function bindLogFollower(input: Input, world: LogFollowerWorld, ports: Por
     const joined = expectedJoin!, decision = expectedDecision!;
     const rejectedWrongWindow = await rejects(services.logFollowerHandoff.stage(discovered.id, { ...joined, boot: "foreign-boot" }, decision));
     const stagedReceipt = decision.stage ? await services.logFollowerHandoff.stage(discovered.id, joined, decision) : null;
-    const report = { status: "workspace-skill-reviewed", skill: "logFollower", outcome: {
+    const report = {
       assignment: discovered, capture, joined, decision, receipt: stagedReceipt,
-    } };
+    };
     const proof = await verify(report);
-    const rejectedWrongReport = !(await verify({ ...report, outcome: { ...report.outcome, joined: { ...joined, through: -1 } } })).passed;
+    const rejectedWrongReport = !(await verify({ ...report, joined: { ...joined, through: -1 } })).passed;
     const checks = { ...proof.checks, rejectedForeignWatch, rejectedWrongWindow, rejectedWrongReport };
     return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };
   }

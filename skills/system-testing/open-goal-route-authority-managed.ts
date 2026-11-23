@@ -193,8 +193,8 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
   };
 
   async function verify(raw:unknown){
-    const value=raw as {status?:string;skill?:string;outcome?:OwnedRouteReview}|null;
-    const report=value?.status==="workspace-skill-reviewed"&&value.skill==="ownedRouteAuthority"?value.outcome:undefined;
+    const value=raw as OwnedRouteReview|null;
+    const report=value;
     const after=await ports.vcs.status();
     const fresh=world.route==="external"?null:await readRoute(world.route);
     const authorization=expectedAuthority();
@@ -234,7 +234,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const outcome={status:intendedOutcome(),summary:"Verified the exact native route, its scope and result."};
     const report:OwnedRouteReview={offer,authority:expectedAuthority(),choice,readback,outcome,handoff:null};
     if(world.note)report.handoff=await services.routeEvidenceHandoff.stage(report);
-    return verify({status:"workspace-skill-reviewed",skill:"ownedRouteAuthority",outcome:report});
+    return verify(report);
   }
   return {services,verify,qualify};
 }

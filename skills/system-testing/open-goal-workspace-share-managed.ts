@@ -218,8 +218,8 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
   };
 
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.outcome;
+    const report = value as Outcome | null;
+    const outcome = report;
     const [current, head, intact, filenames] = await Promise.all([
       observe(), ports.vcs.status({ contextId: ports.contextId }), readOnlyFixturesIntact(), files.readdir("/.tmp"),
     ]);
@@ -245,8 +245,7 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
       reconciledExactInviteAndRevision: inspected?.invitation.currentRevision === projection.currentRevision &&
         inspected?.invitation.member === projection.member && isDeepStrictEqual(inspected?.invitation, current.invitation) &&
         isDeepStrictEqual(inspected?.approval, auth),
-      matchedLocalScopeDecision: report?.status === "workspace-skill-reviewed" && report.skill === "workspaceShare" &&
-        outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      matchedLocalScopeDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
       verifiedPrivateHandoff: exactNote && isDeepStrictEqual(outcome?.handoff, staged),
       preservedSharedAndNeighborState: intact && priorOutputs.every(name => filenames.includes(name)) &&
@@ -260,9 +259,9 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     const observation = await services.workspaceShareEvidence.inspect(assignment.document);
     const decision = decisionFor(observation);
     const handoff = canStage(decision) ? await services.workspaceShareHandoff.stage(observation, decision) : null;
-    return verify({ status: "workspace-skill-reviewed", skill: "workspaceShare", outcome: {
+    return verify({
       assignment, observation, finding: { decision, reason: "Join the live membership, exact inbox evidence, current artifact and local object role." }, handoff,
-    } });
+    });
   }
   return { services, qualify, verify };
 }

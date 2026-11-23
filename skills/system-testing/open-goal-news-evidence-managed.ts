@@ -343,8 +343,8 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     }},
   };
   async function verify(raw:unknown) {
-    const report=raw as {status?:string;skill?:string;outcome?:NewsEvidenceReport}|null;
-    const outcome=report?.status==="workspace-skill-reviewed"&&report.skill==="newsEvidence"?report.outcome:null;
+    const report=raw as NewsEvidenceReport|null;
+    const outcome=report;
     const latest=await ports.read(lane);
     const expected=world.expected;
     const independent=normalized(latest,sources);
@@ -410,9 +410,9 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const outcome:NewsEvidenceReport={plan:{...expected.plan,explanation:world.expected.explanation},readers,
       schedule:expected.schedule,briefing:expected.briefing,sources:sources.flatMap(entry=>entry.value?[entry.value]:[]),handoff:null};
     if(outcome.plan.action==="stage")outcome.handoff=await services.newsEvidenceHandoff.stage(outcome);
-    const report={status:"workspace-skill-reviewed",skill:"newsEvidence",outcome};
+    const report=outcome;
     const accepted=await verify(report);
-    const forged=await verify({...report,outcome:{...outcome,plan:{...outcome.plan,readerMessage:"another-reader"}}});
+    const forged=await verify({...outcome,plan:{...outcome.plan,readerMessage:"another-reader"}});
     return {...accepted,passed:accepted.passed&&!forged.passed,report:outcome};
   }
   return {goal:world.goal,services,verify,qualify};

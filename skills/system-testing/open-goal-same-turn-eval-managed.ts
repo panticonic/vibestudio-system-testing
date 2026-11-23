@@ -215,10 +215,10 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
     },
   };
   async function verify(value: unknown) {
-    const report = value as { status?: string; skill?: string; outcome?: {
+    const report = value as {
       assignment?: unknown; evidence?: unknown; pick?: unknown; recovery?: unknown;
-    } } | null;
-    const outcome = report?.outcome, pick = world.expected, native = admittedAttempt?.result;
+    } | null;
+    const outcome = report, pick = world.expected, native = admittedAttempt?.result;
     const expectedStatus: Status = world.mode === "invalid" ? "unadmitted" : world.mode === "timeout" ? "timed-out" :
       ["missing-file", "syntax", "throw"].includes(world.mode) ? "failed" : "completed";
     const expectedWindow = world.mode === "wide" ? candidate(initial) :
@@ -244,8 +244,7 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
       verifiedRetainedCheckpointAndWindow: !!evidence && isDeepStrictEqual(evidence.checkpoint, candidate(checkpoint)) &&
         isDeepStrictEqual(evidence.window, expectedWindow) && isDeepStrictEqual(evidence.compact, world.mode === "compact" ? candidate(initial) : null) &&
         evidence.returnKind === (expectedWindow ? "window" : world.mode === "compact" ? "compact" : "none"),
-      matchedAuthorizedSameTurnRecovery: report?.status === "workspace-skill-reviewed" && report.skill === "sameTurnEval" &&
-        isDeepStrictEqual(outcome?.pick, pick),
+      matchedAuthorizedSameTurnRecovery: isDeepStrictEqual(outcome?.pick, pick),
       verifiedUsefulResultAndBoundedRetry: isDeepStrictEqual(outcome?.recovery, expectedRecovery) &&
         isDeepStrictEqual(delivery, expectedRecovery) && isDeepStrictEqual(recovery, actualRecovery) &&
         (pick.decision === "narrow" ? !!actualRecovery && candidate(outputPacket(actualRecovery.result))?.digest === hash(wanted) : !actualRecovery),
@@ -265,11 +264,11 @@ export async function prepareSameTurnEval(input: { contextId: string; caseId: st
     const rejectedUnneededRetry = pick.decision === "narrow" ||
       await rejects(service.sameTurnEvalRecovery.resolve(assigned.id, evidence.runId, "narrow"));
     const recovery = pick.decision === "held" ? null : await service.sameTurnEvalRecovery.resolve(assigned.id, evidence.runId, pick.decision);
-    const report = { status: "workspace-skill-reviewed", skill: "sameTurnEval", outcome: { assignment: assigned, evidence, pick, recovery } };
+    const report = { assignment: assigned, evidence, pick, recovery };
     const verified = await verify(report);
-    const rejectedWrongRevision = !(await verify({ ...report, outcome: { ...report.outcome, assignment: {
+    const rejectedWrongRevision = !(await verify({ ...report, assignment: {
       ...assigned, revision: "different-revision",
-    } } })).passed;
+    } })).passed;
     const checks = { ...verified.checks, rejectedWrongScope, rejectedWrongAttempt, rejectedUnneededRetry, rejectedWrongRevision };
     return { ...verified, passed: Object.values(checks).every(Boolean), checks, report };
   }

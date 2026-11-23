@@ -40,8 +40,8 @@ export function prepareAssignedPublicBrief(
   };
   const decision = world.facts.length ? "supported" as const : "held" as const;
   async function verify(raw: unknown) {
-    const report = raw as { status?: string; skill?: string; outcome?: Outcome } | null;
-    const outcome = report?.status === "workspace-skill-reviewed" && report.skill === "publicBrief" ? report.outcome : null;
+    const report = raw as Outcome | null;
+    const outcome = report;
     const brief = outcome?.brief ?? null;
     const proof = await shared.verify(brief);
     const checks = {
@@ -65,7 +65,7 @@ export function prepareAssignedPublicBrief(
     const reference = await shared.qualify();
     const brief = structuredClone(reference.report);
     if (brief.statements.length) brief.statements[0]!.text = world.referenceAnswer;
-    const result = await verify({ status: "workspace-skill-reviewed", skill: "publicBrief", outcome: { decision, brief } });
+    const result = await verify({ decision, brief });
     return { ...result, passed: result.passed && reference.rejectedUnassignedUrl && reference.rejectedForeignDigest };
   }
   return { services, qualify, verify };

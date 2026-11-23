@@ -30,9 +30,9 @@ const normalizedFindings = (report: AuthoringReceipt["review"]) => report.findin
 
 function readReview(outcome: unknown): AuthoringOpenOutcome | null {
   if (!outcome || typeof outcome !== "object") return null;
-  const report = outcome as { status?: string; skill?: string; outcome?: AuthoringOpenOutcome };
-  if (report.status !== "workspace-skill-reviewed" || report.skill !== "authoring") return null;
-  return report.outcome ?? null;
+  const report = outcome as AuthoringOpenOutcome;
+
+  return report ?? null;
 }
 
 export async function prepareOpenAuthoringGoal(
