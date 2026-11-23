@@ -4,7 +4,7 @@ import type { RuntimeFs, VcsClient } from "@workspace/runtime";
 import { bindEvalRecovery } from "@workspace-skills/eval-recovery-bindings";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type {
-  EvalAttemptCard, EvalHandoffArtifact, EvalHandoffGoalReport, EvalJobCard, EvalTrial, OpenEvalObservation, OpenEvalReview,
+  EvalAttemptCard, EvalHandoffArtifact, EvalHandoffGoalReport, EvalRecoveryResult, EvalJobCard, EvalTrial, OpenEvalObservation, OpenEvalReview,
 } from "@workspace-skills/open-eval-handoff/types";
 import { wroteOutput, type openEvalHandoffNative, type EvalRetryGate, type OwnedEvalRun } from "./open-goal-eval-handoff-native.js";
 import type { EvalHandoffWorld, EvalSeed } from "./open-goal-eval-handoff-worlds.js";
@@ -183,7 +183,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
     },
   };
 
-  async function verifyOutcome(outcome: EvalHandoffGoalReport | null, negative: boolean) {
+  async function verifyOutcome(outcome: EvalRecoveryResult | null, negative: boolean,nativeOnly=false) {
     const reported = outcome?.status === "reviewed" ? outcome : null;
     const expected = world.expected;
     const admitted = [...records.values()];
@@ -200,20 +200,22 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
       const target = expected.observations[index]!;
       const attempt = journalReads.get(observation.attempt.runId);
       const readback = blobReads.get(observation.attempt.runId) ?? null;
-      const candidate = reported?.trials[index];
-      if (!attempt || !candidate || !isDeepStrictEqual(candidate.observation, observation)) return false;
+      if (!attempt) return false;
       const actual = measureEffect(attempt, readback);
       const settled = target.journal === "cancelled-native" ? observation.terminal === "cancelled" && readback === null : actual.journal === target.journal;
-      return settled && observation.attempt.role === target.role && actual.effect === target.effect &&
-        candidate.review.runId === attempt.runId && candidate.review.cell === attempt.cell &&
-        candidate.review.journal === actual.journal && candidate.review.effect === actual.effect && candidate.review.next === actual.next &&
-        isDeepStrictEqual(candidate.review.readback, readback) && Boolean(candidate.review.reason?.trim());
+      return settled && observation.attempt.role === target.role && actual.effect === target.effect;
+    });
+    const returnedReviews=ownedCases.every((observation,index)=>{
+      const attempt=journalReads.get(observation.attempt.runId),readback=blobReads.get(observation.attempt.runId)??null,candidate=reported?.reviews[index];
+      if(!attempt||!candidate)return false;
+      const actual=measureEffect(attempt,readback);
+      return candidate.runId===attempt.runId&&candidate.cell===attempt.cell&&candidate.journal===actual.journal&&candidate.effect===actual.effect&&candidate.next===actual.next&&isDeepStrictEqual(candidate.readback,readback)&&Boolean(candidate.reason?.trim());
     });
     const expectedRun = admitted.find(record => record.seed.role === expected.use);
     const expectedDecision = expectedRun ? { action: "use", runId: expectedRun.card.runId } : { action: "hold", reason: expected.hold };
     const retried = admitted.find(record => record.seed.role === "retry");
     const latest = admitted.find(record => record.seed.role === "latest");
-    const checks = {
+    const checks:Record<string,boolean> = {
       discoveredOwnedEvalJobs: isDeepStrictEqual(observedCatalog, catalog),
       keptOriginalEvalReceipts: originals.every(Boolean) && originalOrder.length === expected.observations.filter(item => item.role !== "retry").length &&
         journalReads.size === expected.observations.length && new Set(admitted.map(record => record.native.runDigest)).size === admitted.length,
@@ -224,8 +226,6 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
         latest.native.request.text === retried.native.request.text && !latest.native.physicallyStored &&
         isDeepStrictEqual(latest.native.admission.source, retried.native.admission.source) && await currentText(retried) === retried.native.request.text :
         admittedRetry === null && !retried,
-      reconciledEvalHandoff: expected.active ? reported?.jobId === jobId && reported.trials.length === expected.observations.length &&
-        isDeepStrictEqual(reported.decision, expectedDecision) : outcome?.status === "unresolved" && outcome.reason === "job-unavailable" && trials.size === 0,
       verifiedRetainedEvalScratch: false,
       protectedOwnedEvalContext: post.mainEventId === before.mainEventId && isDeepStrictEqual(post.workingHead, before.workingHead) &&
         String(await fs.readFile(metadataPath, "utf8")) === JSON.stringify(catalog),
@@ -236,10 +236,19 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
       const body = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       const saved = JSON.parse(body) as { runId: string; runDigest: string; resultDigest: string; output: { text: string } };
       checks.verifiedRetainedEvalScratch = body === written && bytes.length === staged.bytes && staged.sha256 === sha256HexSyncText(body) &&
-        isDeepStrictEqual(reported?.artifact, staged) && saved.runId === expectedRun.card.runId && saved.runDigest === expectedRun.native.runDigest &&
+        saved.runId === expectedRun.card.runId && saved.runDigest === expectedRun.native.runDigest &&
         saved.resultDigest === expectedRun.native.receipt?.resultDigest && saved.output.text === expectedRun.native.request.text;
     } else if (!expected.stage) {
-      checks.verifiedRetainedEvalScratch = staged === null && (reported?.artifact ?? null) === null;
+      checks.verifiedRetainedEvalScratch = staged === null;
+    }
+    if(!nativeOnly){
+      const selected=expectedRun?ownedCases.find(observation=>observation.attempt.runId===expectedRun.card.runId):null;
+      const readback=selected?blobReads.get(selected.attempt.runId):null;
+      const expectedResult=selected&&readback&&selected.resultDigest?{jobId:selected.jobId,runId:selected.attempt.runId,runDigest:selected.runDigest,resultDigest:selected.resultDigest,readback}:null;
+      checks.returnedEvalReviews=returnedReviews;
+      checks.reconciledEvalHandoff=expected.active ? reported?.jobId===jobId&&reported.reviews.length===expected.observations.length&&isDeepStrictEqual(reported.decision,expectedDecision) : outcome?.status==="unresolved"&&outcome.reason==="job-unavailable"&&trials.size===0;
+      checks.returnedEvalResult=isDeepStrictEqual(reported?.result??null,expectedResult);
+      checks.returnedEvalArtifact=isDeepStrictEqual(reported?.artifact??null,artifact);
     }
     return { caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       attempts: ownedCases, originalRuns: admitted.map(record => ({ card: record.card, terminal: record.native.terminal, runDigest: record.native.runDigest,
@@ -279,11 +288,14 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
     const decision = chosen ? { action: "use" as const, runId: chosen.observation.attempt.runId } :
       { action: "hold" as const, reason: world.expected.hold! };
     const staged = world.expected.stage && chosen ? await services.openEvalHandoff.stage(jobId, chosen.observation.attempt.runId) : null;
-    return verifyOutcome({ status: "reviewed", jobId, trials: observed, decision, artifact: staged }, negative);
+    const readback=chosen?.review.readback;
+    const output=chosen&&readback&&readback.observedDigest!==null&&readback.size!==null&&chosen.observation.resultDigest ? {jobId,runId:chosen.observation.attempt.runId,runDigest:chosen.observation.runDigest,resultDigest:chosen.observation.resultDigest,readback:{digest:readback.digest,observedDigest:readback.observedDigest,size:readback.size}}:null;
+    return verifyOutcome({ status: "reviewed", jobId, reviews:observed.map(trial=>trial.review),decision,result:output, artifact: staged }, negative);
   }
   return { services, qualify, close: native.close,
+    async verifyObserved(){return verifyOutcome(null,await refuseForeign(),true);},
     async verify(report: unknown) {
-      const value = report as EvalHandoffGoalReport | null;
+      const value = report as EvalRecoveryResult | null;
       return verifyOutcome(value ?? null, await refuseForeign());
     } };
 }

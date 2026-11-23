@@ -21,8 +21,6 @@ type HandoffResult = {
 };
 type Outcome = {
   status: CompoundStatus;
-  recovery: EvalHandoffGoalReport;
-  directive: Position;
   handoff: HandoffResult | null;
   reason: string;
 };
@@ -220,7 +218,7 @@ export async function prepareCompoundRecoveryHandoff(
   async function verify(value: unknown) {
     const report = value as Outcome | null;
     const outcome = report;
-    const evalProof = await recovery.verify(outcome?.recovery);
+    const evalProof = await recovery.verifyObserved();
     const actualPosition = await readDirective();
     const target = world.expected.status;
     const nativeChoice = evalProof.originalRuns.find(candidate => candidate.card.role === world.eval.expected.use);
@@ -250,8 +248,7 @@ export async function prepareCompoundRecoveryHandoff(
       honoredPrerequisiteAndOrder: !rejectionBeforeDependency && exactPreparedBody && (expectedReads ? !!accepted && observedSources.size === 2 :
         !accepted && !observedSources.size) && (target === "staged" || target === "unverified" ? stageCalls.length > 0 : stageCalls.length === 0) &&
         !effects.some(effect => effect.service === "openEvalHandoff" && effect.method === "stage"),
-      preservedCurrentDirective: advanced === intendedChange && isDeepStrictEqual(actualPosition, intendedChange ? changedPosition() : initial) &&
-        isDeepStrictEqual(outcome?.directive, actualPosition),
+      preservedCurrentDirective: advanced === intendedChange && isDeepStrictEqual(actualPosition, intendedChange ? changedPosition() : initial) ,
       checkedIndependentSource: !expectedReads || (world.policyText === null ? observedSources.get("operating-directive") === null :
         decoder.decode(await readBytes(policyPath, 24 * 1024)) === world.policyText && !!observedSources.get("operating-directive")),
       verifiedExactOperationalHandoff: exactArtifact && outputBefore.every(name => allOutputs.includes(name)),
@@ -291,11 +288,6 @@ export async function prepareCompoundRecoveryHandoff(
       trials.push({ observation, review });
     }
     const selected = trials.find(item => item.observation.attempt.role === world.eval.expected.use);
-    const nativeReport: EvalHandoffGoalReport = {
-      status: "reviewed", jobId: job.id, trials, artifact: null,
-      decision: selected ? { action: "use", runId: selected.observation.attempt.runId } :
-        { action: "hold", reason: world.eval.expected.hold! },
-    };
     let position = await services.recoveryHandoffLink.discover();
     let status: CompoundStatus = selected ? "held-policy" : "held-eval";
     let handoff: HandoffResult | null = null;
@@ -331,7 +323,7 @@ export async function prepareCompoundRecoveryHandoff(
       }
     }
     return verify({
-      status, recovery: nativeReport, directive: position, handoff, reason: "Resolved current native recovery and the exact local release scope",
+      status, handoff, reason: "Resolved current native recovery and the exact local release scope",
     });
   }
 
