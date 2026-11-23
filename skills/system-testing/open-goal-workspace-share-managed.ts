@@ -1,3 +1,4 @@
+import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { accountProfileSchema, workspaceMemberProfileSchema } from "@vibestudio/service-schemas/account";
@@ -166,6 +167,7 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
   let inspected: Observation | null = null;
   let staged: Handoff | null = null;
   let writing = false;
+  const replayStage=exactReceiptReplay<[Observation,Decision],Handoff|null>();
   const capture = <T>(service: string, method: string, args: unknown[], result: T): T => {
     effects.push(structuredClone({ service, method, args, result }));
     return structuredClone(result);
@@ -189,6 +191,12 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
     },
     workspaceShareHandoff: {
       async stage(observation: Observation, decision: Decision) {
+        return replayStage([observation,decision],async()=>{
+          if(!staged||!inspected)return false;
+          const [actual,current,intact,bytes]=await Promise.all([observe(),ports.vcs.status({contextId:ports.contextId}),readOnlyFixturesIntact(),readBytes(staged.path,staged.bytes)]);
+          return isDeepStrictEqual(actual,observation)&&isDeepStrictEqual(actual,inspected)&&decision===decisionFor(actual)&&canStage(decision)&&intact&&
+            before.mainEventId===current.mainEventId&&isDeepStrictEqual(before.workingHead,current.workingHead)&&bytes.length===staged.bytes&&digest(decoder.decode(bytes))===staged.sha256;
+        },async()=>{
         if (staged || writing || !inspected) throw new Error("Stage one private handoff only after verifying its exact shared object");
         writing = true;
         try {
@@ -204,6 +212,7 @@ export async function prepareWorkspaceShare(input: { contextId: string; caseId: 
         } finally {
           writing = false;
         }
+        });
       },
     },
   };

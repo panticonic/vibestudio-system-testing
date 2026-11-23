@@ -1,3 +1,4 @@
+import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { VcsBlameSpan, VcsSemanticNodeRef, VcsStateNodeRef } from "@vibestudio/service-schemas/vcs";
@@ -129,6 +130,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
   const pendingReads = new Set<string>();
   const pendingTraces = new Set<string>();
   let receipt: Receipt | null = null;
+  const replayRetain=exactReceiptReplay<[string,string,Conclusion],Receipt>();
   let staleHead: VcsStateNodeRef | null = null;
   function capture<T>(service: string, method: string, args: unknown[], result: T): T {
     effects.push(structuredClone({ service, method, args, result }));
@@ -245,6 +247,13 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     sourceOriginReceipt: {
       async retain(id: string, state: string, conclusion: Conclusion) {
         admission(id);
+        return replayRetain([id,state,conclusion],async()=>{
+          if(!receipt||!assignment.mayRetain||state!==stateKey(observed)||!isDeepStrictEqual(conclusion,reportConclusion())||!validateEvidence())return false;
+          const current=await status();
+          if(!isDeepStrictEqual(current.workingHead,staleHead??observed))return false;
+          if(receipt.status!=="retained")return true;
+          return receipt.path===output&&hash(Buffer.from(await ports.read(output)).toString("utf8"))===receipt.sha256;
+        },async()=>{
         if (!assignment.mayRetain || receipt || staging || state !== stateKey(observed) || !isDeepStrictEqual(conclusion, reportConclusion()) ||
             !conclusion.claims.length || !validateEvidence()) throw new Error("Review receipt is outside its exact owned evidence and authority");
         staging = true;
@@ -268,6 +277,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
           }
           return capture("sourceOriginReceipt", "retain", [id, state, conclusion], receipt);
         } finally { staging = false; }
+        });
       },
     },
   };

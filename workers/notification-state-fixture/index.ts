@@ -33,12 +33,14 @@ function sameLane(a: FixtureLane | null, b: FixtureLane): boolean {
 
 /** SQLite rows belong exclusively to this disposable actor; there is no inbox signal or push port. */
 export class NotificationStateFixtureDO extends DurableObjectBase {
+  private refreshInFlight?:{requested:FixtureLane;promise:ReturnType<NotificationStateFixtureDO["performRefresh"]>};
   private get store() {
     return new UserNotificationStore(this.sql);
   }
 
   protected createTables() {
     this.store.initialize();
+    this.sql.exec("CREATE TABLE IF NOT EXISTS fixture_refresh (id INTEGER PRIMARY KEY, requested TEXT NOT NULL, receipt TEXT NOT NULL)");
     this.sql.exec(
       "CREATE TABLE IF NOT EXISTS fixture (id INTEGER PRIMARY KEY, configuration TEXT NOT NULL, advanced INTEGER NOT NULL)",
     );
@@ -186,6 +188,25 @@ export class NotificationStateFixtureDO extends DurableObjectBase {
 
   @rpc(ownedOperation)
   async refresh(requested: FixtureLane) {
+    const previous=this.sql.exec("SELECT requested,receipt FROM fixture_refresh WHERE id=1").toArray()[0];
+    if(previous){
+      if(!sameLane(JSON.parse(String(previous.requested)),requested))throw new Error("Notification receipt belongs to another exact observation");
+      return JSON.parse(String(previous.receipt)) as Awaited<ReturnType<NotificationStateFixtureDO["performRefresh"]>>;
+    }
+    if(this.refreshInFlight){
+      if(!sameLane(this.refreshInFlight.requested,requested))throw new Error("Another notification observation is advancing");
+      return structuredClone(await this.refreshInFlight.promise);
+    }
+    const original=structuredClone(requested);
+    const promise=this.performRefresh(requested).then(receipt=>{
+      this.sql.exec("INSERT INTO fixture_refresh VALUES (1,?,?)",JSON.stringify(original),JSON.stringify(receipt));
+      return receipt;
+    });
+    this.refreshInFlight={requested:original,promise};
+    try{return await promise;}finally{this.refreshInFlight=undefined;}
+  }
+
+  private async performRefresh(requested: FixtureLane) {
     const { value, advanced } = this.config();
     const active = this.lane(value, advanced);
     if (advanced || !sameLane(active, requested)) {
@@ -280,6 +301,7 @@ export class NotificationStateFixtureDO extends DurableObjectBase {
     const { value, advanced } = this.config();
     return {
       active: this.lane(value, advanced),
+      refreshCommits:Number(this.sql.exec("SELECT COUNT(*) AS n FROM fixture_refresh").toArray()[0]?.n??0),
       rows: this.sql
         .exec(
           `SELECT user_id AS owner, notification_id AS id, title, kind,

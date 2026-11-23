@@ -42,7 +42,13 @@ describe("open durable notification lifecycle", () => {
           expect(destination).toBe(targetId);
           expect(retired).toBe(false);
           const name = typeof method === "string" ? method : method.name;
-          return await store!.call(name, ...args);
+          const result=await store!.call(name,...args);
+          if(name==="refresh"){
+            // The first native commit succeeded but its caller lost the response.
+            expect(await store!.call(name,...args)).toEqual(result);
+            expect((await store!.call("audit")).refreshCommits).toBe(1);
+          }
+          return result;
         },
       };
       const prepared = await prepareOpenNotificationState(
@@ -127,4 +133,17 @@ it("withholds a real old revision and lets a second exact acknowledgment preserv
   } finally {
     store.db.close();
   }
+});
+
+it("replays only the exact committed notification observation, preserving one native transition",async()=>{
+ const store=await createTestDO(NotificationStateFixtureDO,{__objectKey:"notification-state-replay",WORKER_SOURCE:"workers/notification-state-fixture",WORKER_CLASS_NAME:"NotificationStateFixtureDO"});
+ try{
+  const {assigned,neighbor}=await store.call("configure",{desk:"Owned",initial:[{id:"same",title:"Same",revision:1}],change:{put:{id:"same",title:"Same",revision:1}},transition:"rotate"});
+  const first=await store.call("refresh",assigned);
+  expect(await store.call("refresh",assigned)).toEqual(first);
+  expect((await store.call("audit")).refreshCommits).toBe(1);
+  await expect(store.call("refresh",neighbor)).rejects.toThrow(/another exact observation/);
+  await expect(store.call("refresh",{...assigned,generation:3})).rejects.toThrow(/another exact observation/);
+  await expect(store.call("refresh",{...assigned,label:"Foreign"})).rejects.toThrow(/another exact observation/);
+ }finally{store.db.close();}
 });

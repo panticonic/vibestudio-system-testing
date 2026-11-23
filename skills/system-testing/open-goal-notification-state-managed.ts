@@ -219,6 +219,7 @@ export async function prepareOpenNotificationState(
         isDeepStrictEqual(outcome?.lifecycle?.original, initial) &&
         isDeepStrictEqual(outcome?.lifecycle?.current, current ?? null),
       verifiedNotificationRefresh:
+        raw.refreshCommits===1 &&
         refresh?.producerReceipt === expected.receipt &&
         refresh.discardedPriorRead === true &&
         refresh.authority ===

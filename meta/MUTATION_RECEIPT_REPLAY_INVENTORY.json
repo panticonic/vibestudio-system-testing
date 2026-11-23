@@ -1,0 +1,397 @@
+{
+  "scope": "Native fixture mutation receipt guards; predicate candidates are not an admission claim",
+  "candidates": [
+    {
+      "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "line": 260,
+      "predicate": "if(!index.scope.mayStage||writing||handoff||",
+      "source_sha256": "5cccc54ad7872e67ccf37e123aab7b2c95073b0ed3f99c168974242eab7414b2",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-asset-integrity-managed.ts",
+      "line": 570,
+      "predicate": "if ( source !== sourceToken || open(workingRevision).edition !== \"working\" || !selection.length || receipt ||",
+      "source_sha256": "dbdda7684df1368e82443a5995ffb336c2f31e8e982095be32f5d7a50d2d3f85",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-audience-response-managed.ts",
+      "line": 116,
+      "predicate": "if(writing||receipt||",
+      "source_sha256": "286ae96ee36cd19e1bd4145ff8833a57ad94d123f5ab6f3996422cb20119ccd4",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-automation-activation-managed.ts",
+      "line": 235,
+      "predicate": "if(!receipt||",
+      "source_sha256": "61213be78504f93c129470f4e93e72cdceadc2812a846c5dd539f00cce55e765",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "line": 216,
+      "predicate": "if(!seen||!world.handoff||workingEffect||handoff||",
+      "source_sha256": "34f596f5d9dd53630ca07bc80a234e345f2ed3c76d5905b66e684d8a905da27a",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-capability-plan-managed.ts",
+      "line": 189,
+      "predicate": "if (!stageAuthorized || staged ||",
+      "source_sha256": "6efc9e3879dc00b5fec11c34c97c4db701fba65a50fcd7838362d7813b9693f5",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "line": 258,
+      "predicate": "if(!shouldWrite||!frames[1]||!report?.disposition?.write||report.disposition.status!==world.status|| !report.disposition.explanation?.trim()||report.disposition.explanation.length>650|| activeOperation||handoff||",
+      "source_sha256": "ec0e515dab67a8df652cb331eb09abe3475d7db2f0de96c159cabac86ddebce4",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-client-diagnostics-managed.ts",
+      "line": 513,
+      "predicate": "if ( !file || audience !== world.handoff ||",
+      "source_sha256": "71e4224256e14337f26d9e1150186c0090ecf5009055844b4313347a3472e198",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-delivery-wake-managed.ts",
+      "line": 231,
+      "predicate": "if (id !== assignment.id || !observed?.connection.ready || observed.connection.channel !== key || observed.connection.admittedSurfaces !== 1 || !range || pending || receipt ||",
+      "source_sha256": "036d2fe7039b07e5b1c719211460af286eaa4ef7f989648d0968f1b5e4e493ab",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "line": 128,
+      "predicate": "if (pending || receipt ||",
+      "source_sha256": "e31373fea2aa58db2b3f54e751acc06d05e5b8ff8a9402aa713a4aa03394616b",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-dictation-managed.ts",
+      "line": 209,
+      "predicate": "if (!plan || thread.localAction === \"none\" || plan.threadId !== thread.threadId || plan.draftId !== thread.draftId || primaryReads !== 2 || handoff ||",
+      "source_sha256": "c2b27b03bda1ac4bc719b4c78ed73a61afa385be51268a5bcd486e5d16c1a6a4",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-editorial-managed.ts",
+      "line": 295,
+      "predicate": "if(!stageExpected||receipt||",
+      "source_sha256": "7218973ef44f0cedc6885f474461b9aa8917acf344e2d44882125260cf658f98",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-eval-handoff-managed.ts",
+      "line": 164,
+      "predicate": "if (selectedJob !== jobId || !world.allowHandoff || !record || !readback || !attempt || !record.native.receipt ||",
+      "source_sha256": "c94ccc295bd4307a1e0a9ab391d0f9ab292859a76a67f31bf469468f65e9063a",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "line": 406,
+      "predicate": "if ( receipt ||",
+      "source_sha256": "f08fd6207aa056115805427dae226cd80ea1de76e9f7f136fb1b85683735523b",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "line": 423,
+      "predicate": "if (!staged ||",
+      "source_sha256": "f08fd6207aa056115805427dae226cd80ea1de76e9f7f136fb1b85683735523b",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+      "line": 198,
+      "predicate": "if(!world.note||handoff||",
+      "source_sha256": "22cfd27048ce85a5f884188416d273e9453f9465c6324b856d75a4a504a59c23",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-intent-discovery-managed.ts",
+      "line": 184,
+      "predicate": "if(!writable||staging||handoff||",
+      "source_sha256": "1fc3324d5c2205e8b61785a835ab5712bf995a3440685ffca99c6174c4206f22",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "line": 190,
+      "predicate": "if(!world.note||!readback||handoff||",
+      "source_sha256": "104446b82afe632fa067c5a8c6520ceea55883a5123ac1f5f307244dbbbae0ae",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-log-follower-managed.ts",
+      "line": 230,
+      "predicate": "if (!proof || !exactNativeChannels || id !== assignment.id || !assignment.mayStage || receipt || staged ||",
+      "source_sha256": "14388f638174aeb290d2bdd309ab6b57ff971e76d4ccffc7fdbd3310ee7094e2",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "line": 321,
+      "predicate": "if (!scope.mayStage||writing||handoff||",
+      "source_sha256": "f9bdaee0384cc666576a264ee6d113832166b5bf94a2bd993fafc54643d38a7b",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-operator-managed.ts",
+      "line": 120,
+      "predicate": "if ( session.kind !== \"deployment\" || !baseline || requestedOperation || receipt !== baseline.receipt ||",
+      "source_sha256": "e0994a7ba3114bc315d23f3b457c030f2b9eb2ffa9e58c8cc189bffe868cb3f9",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-operator-managed.ts",
+      "line": 160,
+      "predicate": "if ( session.kind !== \"terminal-profile\" || baseline?.state !== \"ready\" || receipt !== baseline.receipt ||",
+      "source_sha256": "e0994a7ba3114bc315d23f3b457c030f2b9eb2ffa9e58c8cc189bffe868cb3f9",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-operator-managed.ts",
+      "line": 179,
+      "predicate": "if ( session.kind !== \"terminal-profile\" || grant !== \"pair\" || profile?.state !== \"unpaired\" || !profile.inviteAssigned || receipt !== profile.receipt ||",
+      "source_sha256": "e0994a7ba3114bc315d23f3b457c030f2b9eb2ffa9e58c8cc189bffe868cb3f9",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-operator-managed.ts",
+      "line": 194,
+      "predicate": "if ( session.kind !== \"terminal-profile\" || pairing?.state !== \"paired\" || receipt !== pairing.receipt ||",
+      "source_sha256": "e0994a7ba3114bc315d23f3b457c030f2b9eb2ffa9e58c8cc189bffe868cb3f9",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "line": 284,
+      "predicate": "if (!scope.mayStage || writing || handoff ||",
+      "source_sha256": "f9fc9607a51e4e40f3c660ed950905701778400c16e84269ab8b6cfdc83e732a",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-portfolio-managed.ts",
+      "line": 224,
+      "predicate": "if(!report?.decision?.write||!report.decision.explanation||report.decision.explanation.length>650||receipt||",
+      "source_sha256": "7d83a398108d3815606039ac5e91b546e0215201656726d7199de3a68907a2bd",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-prepared-content-project-managed.ts",
+      "line": 160,
+      "predicate": "if (!authorization || receipt !== authorization.receipt ||",
+      "source_sha256": "dacc8b403148143c5576eeb1dfdbd6767979eb599a6c8b43a290bd5b85d689c6",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "line": 190,
+      "predicate": "if (!card.mayStage || writing || staged ||",
+      "source_sha256": "072b2ea5b72b58e2bd1de3cca51c782b083d49b5cbed662046123df8802e00dc",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-pty-continuity-managed.ts",
+      "line": 183,
+      "predicate": "if (!assignment.mayStage || staging || receipt ||",
+      "source_sha256": "167ec785c853c33bfeddc351d94fd0a1d9975ab8a0231215a6c9c5520687e66f",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "line": 216,
+      "predicate": "if(!world.private||writing||handoff||",
+      "source_sha256": "253045ec637dbd7f8e88fb3737530b602e6d8b38fd4c8d3293a1334b22361836",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "line": 179,
+      "predicate": "if(!world.note||handoff||",
+      "source_sha256": "4feab0b62e0c54bd7207a59be4922ee84c89d56c408ad557efb872bc8695d189",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-same-turn-eval-managed.ts",
+      "line": 110,
+      "predicate": "if (!receipt ||",
+      "source_sha256": "77c5762c59b6e246ff6c0ebb1302bf6828a8b2a9c23b1b7f8278ce31e701870a",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-scheduled-recovery-managed.ts",
+      "line": 202,
+      "predicate": "if (!receipt ||",
+      "source_sha256": "c6c1f4456ef72c3607cc885cb06d7c1f9b75f12e7dba38a73b6323ea669c9330",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "line": 378,
+      "predicate": "if ( observation.approval !== \"approved\" || original.check.path !== workingPath || original.check.revision !== working.revision || original.check.satisfied || staged ||",
+      "source_sha256": "e749a9c88f165743914f0e3b13755977e7c67d80f8ffd901ca1017c993335a16",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-source-attribution-managed.ts",
+      "line": 251,
+      "predicate": "if(!receipt||",
+      "source_sha256": "ae3a5ab5b47f2183072d329eacb3cccde27d1dd022677b55f9a28681bc2d6ab1",
+      "status": "replay-wrapper-applied"
+    },
+    {
+      "path": "skills/system-testing/open-goal-source-attribution-managed.ts",
+      "line": 257,
+      "predicate": "if (!assignment.mayRetain || receipt ||",
+      "source_sha256": "ae3a5ab5b47f2183072d329eacb3cccde27d1dd022677b55f9a28681bc2d6ab1",
+      "status": "replay-wrapper-applied"
+    },
+    {
+      "path": "skills/system-testing/open-goal-specialist-managed.ts",
+      "line": 261,
+      "predicate": "if (!scope.mayStage || writing || handoff ||",
+      "source_sha256": "47d312ca5b5f5b7334f938173b6349115330561833ad9d3074d2d256d2874a4d",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "line": 533,
+      "predicate": "if ( receipt ||",
+      "source_sha256": "999280d32527b3f1c5f5f46555103c64caa0075583b940a04fe429201523b73c",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-release-managed.ts",
+      "line": 223,
+      "predicate": "if (!runId || runId !== reviewedId || pending || receipt ||",
+      "source_sha256": "dab8b297d9468f83e55a085436245728da23df826c3d7843e2b2deaad58706e1",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "line": 325,
+      "predicate": "if ( !world.handoff || handoff ||",
+      "source_sha256": "1175e0d9cc5aa7f43644e98eca27aed3f91624f97aa08beda4ad515cc78527ac",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 108,
+      "predicate": "if (!world.discovery || !opened || retired || staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 212,
+      "predicate": "if (!opened || !latest || !running || !grants.edit || staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 226,
+      "predicate": "if (!running || staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 235,
+      "predicate": "if (staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 252,
+      "predicate": "if (!opened || !handoffWriter || retired || staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 265,
+      "predicate": "if (!opened || staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 273,
+      "predicate": "if (!opened || staged ||",
+      "source_sha256": "a2309af7e94fcd7a70c241cab2d8f01ff0da5144d6b4cef3086aaeac8ec9b7a7",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-testkit-closeout-managed.ts",
+      "line": 48,
+      "predicate": "if (!nominated || handoff ||",
+      "source_sha256": "1858b988444ffdcf2874b03d47b2aa2b1737b5d6bd106e5cad3e4ef3bad5b0ed",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-transcript-surface-managed.ts",
+      "line": 189,
+      "predicate": "if (scope !== id || !approval || candidate !== approval.id || !replay || cursor !== replay.cursor || change === \"none\" || change !== effect || receipt ||",
+      "source_sha256": "159e810c75d33ec57a2dcb9f00bb81632b1b50e60865dd14e253cf0a8d056c12",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-webhook-admission-managed.ts",
+      "line": 245,
+      "predicate": "if (!observed || pending || handoff ||",
+      "source_sha256": "7391a964ff0801f96c7f45ec752b956b3eb84b5723c14813a46937eafe7b140a",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
+      "line": 251,
+      "predicate": "if (!observed?.mayStage || staged ||",
+      "source_sha256": "c8f9b7dea0e234877205aeb9ce34048586d310fc6a73fab085b0daf27ba8403c",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "line": 190,
+      "predicate": "if(!world.note||!observed||staging||handoff||",
+      "source_sha256": "9dc352337e09dcc69e634556b7cb3787e05c23f80955e01b6fc805ca92e70b31",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "line": 220,
+      "predicate": "if(staged||",
+      "source_sha256": "8dcf78f6970e7f851073414d1be323f43db5ca3c2f78d6bfa043a7b886c222d5",
+      "status": "candidate-needs-semantic-review"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "line": 195,
+      "predicate": "if(!staged||",
+      "source_sha256": "559a6d02c018fc2680db4aac36d378b7a65d61f53d22e8cbe9ae464aec7871ec",
+      "status": "replay-wrapper-applied"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "line": 200,
+      "predicate": "if (staged ||",
+      "source_sha256": "559a6d02c018fc2680db4aac36d378b7a65d61f53d22e8cbe9ae464aec7871ec",
+      "status": "replay-wrapper-applied"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-smoke-managed.ts",
+      "line": 176,
+      "predicate": "if (!plan || !runtime?.callable || id !== assignment.id || path !== plan.path || runDigest !== runtime.runDigest || !assignment.mayStage || !isDeepStrictEqual(runtime.value, plan.accepted) || receipt ||",
+      "source_sha256": "26336eef95170bea892b7fc9c95514caa87359763dde8a2aee48ab4fadd7e114",
+      "status": "candidate-needs-semantic-review"
+    }
+  ]
+}
