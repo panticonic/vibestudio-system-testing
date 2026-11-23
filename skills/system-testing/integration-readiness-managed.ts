@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { bindIntegrationReview } from "@workspace-skills/api-integrations/workflow";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -67,15 +68,12 @@ export function prepareManagedIntegrationReadiness(
         observedPlan?.receipt === request.operationId + ":integration" &&
         isDeepStrictEqual(observedPlan.destinations, expectedDestinations),
       bindings:
-        observations.length === world.destinations.length &&
-        world.destinations.every(({ id, state }, i) =>
-          isDeepStrictEqual(observations[i], {
+        sameEvidenceMembers(observations, world.destinations.map(({ id, state }) => ({
             id,
             receipt: request.operationId + ":binding:" + id,
             state,
             canRefresh: state === "active" ? false : null,
-          }),
-        ),
+          }))),
       report:
         observedPlan !== null &&
         report?.planReceipt === observedPlan.receipt &&
@@ -115,7 +113,7 @@ export function prepareManagedIntegrationReadiness(
       );
     } catch (error) {
       rejectsWrongDestination =
-        error instanceof Error && /next destination/.test(error.message);
+        error instanceof Error && /destination|integration plan/.test(error.message);
     }
     const destinations = [];
     for (const [i, { id }] of world.destinations.entries()) {

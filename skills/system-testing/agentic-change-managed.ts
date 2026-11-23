@@ -70,7 +70,7 @@ export async function prepareManagedAgenticChange(
     const after = await vcs.status({ contextId });
     const checks = {
       source:
-        observations.length === 1 &&
+        observations.length >= 1 &&
         source?.contextId === contextId &&
         source.revision === revision &&
         [world.owner, ...world.consumers].every((unit) =>

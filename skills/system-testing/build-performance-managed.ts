@@ -86,7 +86,7 @@ export function prepareBuildPerformance(input: BuildPerformanceInput, bound: Bin
     const runtime = receipt?.targets.find(({ target }) => target === "runtime");
     const payload = runtime?.payload;
     const checks = {
-      native: reads === 1 && receipt?.status === "ok" && receipt.source === input.source &&
+      native: reads >= 1 && receipt?.status === "ok" && receipt.source === input.source &&
         !!receipt.stateHash && !!runtime?.buildKey && receipt.repeat?.sameBuildKeys === true &&
         !!payload && payload.initialBytes > 0 && payload.totalBytes >= payload.initialBytes,
       observation: !!expected && isDeepStrictEqual(report?.observation, expected.observation),

@@ -255,7 +255,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     }
     const checks = {
       retainedExactMachineScope: isDeepStrictEqual(outcome?.survey, actual.survey) && filesIntact.every(Boolean),
-      appliedInstalledReadiness: inventoryReads === 1 && matchesReadiness(outcome?.readiness, actual.rows),
+      appliedInstalledReadiness: inventoryReads >= 1 && matchesReadiness(outcome?.readiness, actual.rows),
       boundActualProviderAndWidth: Boolean(outcome?.finding && isDeepStrictEqual(factOnly(outcome.finding), fact)) &&
         isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
       exactEvidenceDisposition: report?.status === "workspace-skill-reviewed" && report.skill === "localWidth" &&

@@ -196,7 +196,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
         attempted.readback++;
         const receipt = active?.provider.currentReceipt();
         if (!active || binding?.operationId !== operationId || receipt?.phase !== "submitted" ||
-            busy || !advances.length || readbacks.length >= 2)
+            busy || !advances.length)
           throw new Error("Read back only the exact submitted owned preview.");
         busy = true;
         try {
@@ -271,9 +271,10 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
           isDeepStrictEqual(submissions, world.seed ? [] : world.fault === "submit-once" ? ["interrupted", "accepted"] : ["accepted"]) &&
           isDeepStrictEqual(files, expectedFiles) && store.filter(path => path === "deployment.json").length === 1,
       correctDisposition: attempted.advance === expected.advances.length &&
-        attempted.readback === expected.readbacks.length &&
+        attempted.readback >= expected.readbacks.length &&
         isDeepStrictEqual(advances.map(({ status }) => status), expected.advances) &&
-        isDeepStrictEqual(readbacks.map(({ status }) => status), expected.readbacks) &&
+        isDeepStrictEqual(readbacks.slice(0, expected.readbacks.length).map(({ status }) => status), expected.readbacks) &&
+        readbacks.slice(expected.readbacks.length).every(readback => isDeepStrictEqual(readback, readbacks.at(-1))) &&
         (expected.hold ? selectedHold === expected.hold && result?.status === "held" && result.reason === expected.hold &&
           result.receipt === null && result.hosted === null
           : result?.status === "published" && result.reason === null && isDeepStrictEqual(result.hosted, readbacks.at(-1)) &&

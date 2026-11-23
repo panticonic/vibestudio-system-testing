@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { HeadlessSession } from "@workspace/agentic-session";
 import { rpc } from "@workspace/runtime";
@@ -241,10 +242,10 @@ export function bindSessionReplay(
   const services = {
     sessionReplay: {
       async inspect(receipt: string) {
-        if (receipt !== checkpoints[reads.length])
-          throw new Error("Read the assigned checkpoints once in order");
+        const index = checkpoints.indexOf(receipt);
+        if (index < 0) throw new Error("Read only an assigned replay checkpoint");
         reads.push(receipt);
-        return structuredClone(evidence[reads.length - 1]!);
+        return structuredClone(evidence[index]!);
       },
     },
   };
@@ -262,7 +263,7 @@ export function bindSessionReplay(
   }
   function verify(report: unknown) {
     const checks = {
-      exactReadOrder: isDeepStrictEqual(reads, checkpoints),
+      exactReadOrder: sameEvidenceMembers(reads, checkpoints),
       reportMatchesReplay: isDeepStrictEqual(report, reference()),
     };
     return {

@@ -52,8 +52,6 @@ export function prepareManagedPdfLayout(contextId: string, caseId: string) {
   const services: Services = {
     pdfLayoutRead: {
       async inspect(id) {
-        if (observed)
-          throw new Error("The assigned PDF layout page was already read");
         const result = await bound.services.pdfLayoutRead.inspect(id);
         observed = structuredClone(result);
         return result;

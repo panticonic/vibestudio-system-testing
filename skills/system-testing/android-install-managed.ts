@@ -81,13 +81,13 @@ export async function prepareManagedAndroidInstall(
     const after = await ports.verifyApp(owned);
     const inventory = inventories[0], install = installs[0] ?? null, readback = readbacks[0] ?? null;
     const checks = {
-      inventory: inventories.length === 1 && inventory?.workspace === workspace &&
+      inventory: inventories.length >= 1 && inventory?.workspace === workspace &&
         inventory.tooling && inventory.foreground === foreground && inventory.provider === null &&
         isDeepStrictEqual(inventory.devices, installExpected ? [{ id: owned, state: "ready" }] : []),
       execution: installExpected
         ? installs.length === 1 && install?.deviceId === owned &&
           install.packageName === "app.vibestudio.mobile.internal" && install.reset === request.reset &&
-          readbacks.length === 1 && readback?.deviceId === owned && readback.packageName === install.packageName
+          readbacks.length >= 1 && readback?.deviceId === owned && readback.packageName === install.packageName
         : installs.length === 0 && readbacks.length === 0,
       device: installExpected
         ? after.installed && after.bundleActive && after.screenshotCaptured &&

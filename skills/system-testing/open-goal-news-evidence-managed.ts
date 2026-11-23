@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -326,10 +327,10 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
         const {explanation,...facts}=report.plan;
         const retained=sources.flatMap(entry=>entry.value?[entry.value]:[]);
         if(!explanation?.trim()||!isDeepStrictEqual(facts,expected.plan)||!isDeepStrictEqual(report.briefing,expected.briefing)||
-          !isDeepStrictEqual(report.schedule,expected.schedule)||!isDeepStrictEqual(report.sources,retained)||
-          !isDeepStrictEqual(report.readers,reads.map(entry=>({...entry,result:reviewReader(entry.input)})))||
-          !isDeepStrictEqual(reads.map(entry=>entry.selection),world.views.map(viewOf))||
-          !isDeepStrictEqual(sources.map(entry=>entry.message),scopedArticles(latest).map(row=>row.messageId))||
+          !isDeepStrictEqual(report.schedule,expected.schedule)||!sameEvidenceMembers(report.sources,retained)||
+          !sameEvidenceMembers(report.readers,reads.map(entry=>({...entry,result:reviewReader(entry.input)})))||
+          !sameEvidenceMembers(reads.map(entry=>entry.selection),world.views.map(viewOf))||
+          !sameEvidenceMembers(sources.map(entry=>entry.message),scopedArticles(latest).map(row=>row.messageId))||
           status.mainEventId!==before.mainEventId||
           !isDeepStrictEqual(status.workingHead,before.workingHead)||(await ports.read(lane)).through!==latest.through)return null;
         const text=body(report);
@@ -369,10 +370,10 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
       exactNewsAuthority:!!plan&&plan.readerMessage===independent.boundary.message&&plan.channelId===scope.channelId&&plan.topic===topic&&
         (readAllowed||(!reads.length&&!sources.length)),
-      exactNewsReaderWindows:isDeepStrictEqual(reads,verifiedReads.map(({selection,input})=>({selection,input})))&&
-        isDeepStrictEqual(outcome?.readers,verifiedReads),
-      independentlyReadNewsSources:isDeepStrictEqual(sources,originals)&&
-        isDeepStrictEqual(outcome?.sources,originals.flatMap(entry=>entry.value?[entry.value]:[])),
+      exactNewsReaderWindows:sameEvidenceMembers(reads,verifiedReads.map(({selection,input})=>({selection,input})))&&
+        Array.isArray(outcome?.readers)&&sameEvidenceMembers(outcome.readers,verifiedReads),
+      independentlyReadNewsSources:sameEvidenceMembers(sources,originals)&&
+        Array.isArray(outcome?.sources)&&sameEvidenceMembers(outcome.sources,originals.flatMap(entry=>entry.value?[entry.value]:[])),
       exactNewsCadence:isDeepStrictEqual(outcome?.schedule,independent.schedule)&&independent.schedule.result.findings[0]?.code===expected.schedule,
       groundedNewsEdition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
         isDeepStrictEqual(outcome?.briefing,independent.briefing)&&plan.reason===expected.reason&&plan.action===expected.action&&

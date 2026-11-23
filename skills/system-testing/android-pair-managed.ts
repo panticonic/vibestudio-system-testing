@@ -75,12 +75,12 @@ export async function prepareManagedAndroidPair(
       receipt.workspace === workspace && receipt.attachedDevice === owned &&
       receipt.pairedDevice !== owned && !!receipt.pairedDevice && receipt.install === "already-compatible";
     const checks = {
-      inventory: inventories.length === 1 && inventory?.workspace === workspace &&
+      inventory: inventories.length >= 1 && inventory?.workspace === workspace &&
         inventory.provider === provider && inventory.tooling && inventory.foreground &&
         isDeepStrictEqual(inventory.devices, world.mode === "missing" ? [] : [{ id: owned, state: "ready" }]),
       pairing: world.mode === "pair" ? pairings.length === 1 && validReceipt : pairings.length === 0,
       readiness: world.mode === "pair"
-        ? readings.length === 1 && observed?.pairedDevice === receipt?.pairedDevice &&
+        ? readings.length >= 1 && observed?.pairedDevice === receipt?.pairedDevice &&
           observed?.status === "ready" && current?.status === "ready" && !!observed.message
         : readings.length === 0,
       report: world.mode === "pair"

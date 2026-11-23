@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { extensions, fs, rpc, vcs } from "@workspace/runtime";
@@ -261,9 +262,9 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
         )) :
         report?.text === null && textProbes.length === 0 && !textReads.length,
       layoutEvidence: reads.length === layouts.length && Array.isArray(report?.layouts) &&
-        report.layouts.length === layouts.length && layouts.every(({ page, kind, order }, index) => {
+        report.layouts.length === layouts.length && layouts.every(({ page, kind, order }) => {
           const raw = reads.find(item => item.pageNumber === page);
-          const answer = report.layouts[index];
+          const answer = report.layouts.find(answer => answer.pageNumber === page);
           if (!raw || !answer || raw.digest !== source?.digest || raw.width !== 500 || raw.height !== 200) return false;
           const entries = exactEntries(raw, order);
           return raw.rows.flat().length === order.length && entries.every(Boolean) &&
@@ -271,8 +272,8 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
             typeof answer.layout.basis === "string" && !!answer.layout.basis.trim() &&
             answer.reading?.status === "ordered" && isDeepStrictEqual(answer.reading.entries, entries);
         }),
-      renderedEvidence: isDeepStrictEqual([...renders.keys()], expected.render) &&
-        isDeepStrictEqual(report?.rendered, [...renders.values()]) &&
+      renderedEvidence: sameEvidenceMembers([...renders.keys()], expected.render) &&
+        Array.isArray(report?.rendered) && sameEvidenceMembers(report.rendered, [...renders.values()]) &&
         retained.every(({ pageNumber, digest, mimeType, ...raster }) => {
           const receipt = renders.get(pageNumber);
           return receipt && isDeepStrictEqual({ ...raster, pageNumber, documentDigest: source?.digest }, receipt) &&

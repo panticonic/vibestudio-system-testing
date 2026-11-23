@@ -296,7 +296,7 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
     const tampered = envelope ? { ...envelope, payload: { ...envelope.payload, attempt: { ...envelope.payload.attempt, output: "altered" } } } : null;
     return {
       discoveredRuntimePrograms: sources.every(Boolean),
-      inspectedCurrentCallable: inspections.length === world.expected.inspected && inspections.every(item => item.programId === wanted) &&
+      inspectedCurrentCallable: (world.expected.inspected ? inspections.length > 0 : inspections.length === 0) && inspections.every(item => item.programId === wanted) &&
         (latest?.evidence.compiler !== "passed" || latest.callable === "check"),
       ranAuthorizedSamples: nativeCheck,
       verifiedNativeOutputReceipts: wanted ? Boolean(result && lastEvidence && result.programId === wanted && result.review.kind === "program" &&

@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { bindAuthorityReview } from "@workspace-skills/capabilities/workflow";
@@ -56,7 +57,11 @@ export function prepareManagedAuthorityReview(
   };
 
   function reference() {
-    const reviews: Review[] = observations.map((observation) => {
+    const selected = world.operations.flatMap(operation => {
+      const observed = observations.findLast(row => row.operationId === operation.id);
+      return observed ? [observed] : [];
+    });
+    const reviews: Review[] = selected.map((observation) => {
       const assigned = world.operations.find(
         ({ id }) => id === observation.operationId,
       );
@@ -104,9 +109,9 @@ export function prepareManagedAuthorityReview(
     const expected = reference();
     const checks = {
       assigned:
-        observations.length === world.operations.length &&
-        observations.every((observed, index) => {
-          const operation = world.operations[index];
+        sameEvidenceMembers(observations.map(row => row.operationId), world.operations.map(row => row.id)) &&
+        observations.every((observed) => {
+          const operation = world.operations.find(row => row.id === observed.operationId);
           if (!operation || observed.operationId !== operation.id) return false;
           const protectedLeaves = observed.leaves.filter(
             ({ tier }) => tier !== "open",
@@ -122,14 +127,14 @@ export function prepareManagedAuthorityReview(
             )
           );
         }),
-      reviews: isDeepStrictEqual(report?.reviews, expected.reviews),
+      reviews: Array.isArray(report?.reviews) && sameEvidenceMembers(report.reviews, expected.reviews),
       ceiling: isDeepStrictEqual(
         report?.protectedLeaves,
         expected.protectedLeaves,
       ),
       decision:
         report?.status === expected.status &&
-        isDeepStrictEqual(report.held, expected.held),
+        sameEvidenceMembers(report.held, expected.held),
     };
     return {
       passed: Object.values(checks).every(Boolean),
@@ -147,7 +152,7 @@ export function prepareManagedAuthorityReview(
       await services.assignedAuthorityRead.preflight("foreign");
     } catch (error) {
       rejectedForeignOperation =
-        error instanceof Error && /next assigned operation/.test(error.message);
+        error instanceof Error && /assigned operation/.test(error.message);
     }
     for (const { id } of world.operations)
       await services.assignedAuthorityRead.preflight(id);

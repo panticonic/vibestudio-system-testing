@@ -1,3 +1,4 @@
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -196,7 +197,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     imageCandidateHandoff:{async stage(report:ImageReport){
       if(!world.note||handoff||stageBusy||report?.plan?.briefId!==brief.id||!report.plan.localHandoff||report.plan.mode!==world.mode||
         report.handoff!==null||report.decision?.action!=="stage"||!report.decision.explanation?.trim()||
-        report.decision.explanation.length>600||!isDeepStrictEqual(report.reads,reads)||snapshots.length!==2)return null;
+        report.decision.explanation.length>600||!sameEvidenceMembers(report.reads,reads)||snapshots.length!==2)return null;
       stageBusy=true;
       try {
         const id=report.decision.candidateId;
@@ -259,7 +260,7 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
         assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&
           value.reasons.every(reason=>typeof reason==="string"&&reason.length>0))&&
         queue.every(id=>assessed.some(value=>value.id===id&&value.eligible)),
-      independentlyReadImageOriginals:isDeepStrictEqual(reads,independent)&&isDeepStrictEqual(outcome?.reads,independent)&&
+      independentlyReadImageOriginals:sameEvidenceMembers(reads,independent)&&Array.isArray(outcome?.reads)&&sameEvidenceMembers(outcome.reads,independent)&&
         isDeepStrictEqual(independent.map(read=>read.status),observed),
       groundedImageDecision:result?.action===expected.action&&result.candidateId===selected&&
         (selected===null||winner?.status==="verified")&&explain(outcome),

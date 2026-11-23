@@ -25,7 +25,7 @@ export async function prepareManagedSetup(
   const world = managedSetupWorlds.find(({ id }) => id === caseId);
   if (!world) throw new Error("Unknown installed onboarding case");
   const before = await ports.vcs.status();
-  let inspected = false;
+  let pending: Promise<Receipt> | undefined;
   let receipt: Receipt | undefined;
   return {
     world,
@@ -34,9 +34,7 @@ export async function prepareManagedSetup(
     observed: () => receipt,
     service: {
       async inspect() {
-        if (inspected)
-          throw new Error("Read the assigned onboarding receipt once.");
-        inspected = true;
+        const read = pending ??= (async () => {
         const readback = await ports.observe([...world.ids], world.interaction);
         receipt = {
           ...readback,
@@ -44,7 +42,10 @@ export async function prepareManagedSetup(
             JSON.stringify({ contextId, caseId, readback }),
           ),
         };
-        return structuredClone(receipt);
+        return receipt;
+        })();
+        try { return structuredClone(await read); }
+        catch (error) { if (pending === read) pending = undefined; throw error; }
       },
     },
   };

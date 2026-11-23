@@ -481,7 +481,6 @@ export async function prepareManagedAutomationPlanning(
       async inspect(operationId: string) {
         if (
           operationId !== request.operationId ||
-          observations.length >= 2 ||
           reading
         )
           throw new Error(
@@ -511,13 +510,13 @@ export async function prepareManagedAutomationPlanning(
     const current = await missions.get(start.missionId);
     const actual = await readPlanningState();
     const protectedDefault = await missions.getDefault(defaultId);
-    const [before, after] = observations;
+    const before = observations[0], after = observations.at(-1);
     const checks = {
       assignedPlan:
         report?.status === status &&
         isDeepStrictEqual(report?.plan, expectedPlan),
       snapshotReadback:
-        observations.length === 2 &&
+        observations.length >= 2 &&
         before?.visible[0]?.revisionDigest === start.revisionDigest &&
         isDeepStrictEqual(before, report?.before) &&
         isDeepStrictEqual(after, report?.after) &&

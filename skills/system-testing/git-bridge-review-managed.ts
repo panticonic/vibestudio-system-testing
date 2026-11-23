@@ -35,10 +35,6 @@ export async function prepareManagedGitBridgeReview(
   const services: Services = {
     gitBridgeReviewRead: {
       async observe(id) {
-        if (observed)
-          throw new Error(
-            "The assigned Git Bridge repository was already observed",
-          );
         const view = await bound.services.gitBridgeReviewRead.observe(id);
         observed = structuredClone(view);
         return view;

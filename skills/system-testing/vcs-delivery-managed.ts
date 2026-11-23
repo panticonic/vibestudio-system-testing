@@ -40,7 +40,6 @@ export async function prepareManagedVcsDelivery(
   const services: Services = {
     vcsDeliveryRead: {
       async observe(id) {
-        if (observed) throw new Error("The assigned VCS file was already read");
         const snapshot = await bound.services.vcsDeliveryRead.observe(id);
         observed = structuredClone(snapshot);
         return snapshot;

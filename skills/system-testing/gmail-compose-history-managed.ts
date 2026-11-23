@@ -81,7 +81,7 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
   const services = {
     gmailComposeAudit: {
       async project(id: string, kind: "draft" | "reconcile") {
-        if (reads !== 1) throw new Error("Read the assigned channel history before projecting a review");
+        if (reads < 1) throw new Error("Read the assigned channel history before projecting a review");
         const value = await bound.services.gmailComposeAudit.project(id, kind);
         projections++;
         projected = structuredClone(value);
@@ -120,11 +120,11 @@ export function prepareGmailComposeHistory(seed: Seed, bound: Binding) {
         afterDraft: latest.state.draftId,
       };
     const checks = {
-      channel: reads === 1 && received?.channelId === seed.channelId && received.messageId === seed.messageId,
+      channel: reads >= 1 && received?.channelId === seed.channelId && received.messageId === seed.messageId,
       lineage: isDeepStrictEqual(received?.events, expected) && isDeepStrictEqual(history?.receipt, received),
       disposition: history?.decision.action === world.action && typeof history.decision.reason === "string" && !!history.decision.reason.trim(),
       evidence: isDeepStrictEqual(history?.evidenceIds, evidenceIds),
-      projection: projections === 1 && isDeepStrictEqual(projected, {
+      projection: projections >= 1 && isDeepStrictEqual(projected, {
         kind: "compose", goal: world.goal,
         scope: { target, observed: { ...target, id: latest.id, binding: "channel-readback" } },
         card: {

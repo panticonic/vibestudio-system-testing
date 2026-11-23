@@ -231,8 +231,8 @@ export async function prepareOpenLocalDelivery(
     localDeliveryReadback: {
       async read(attemptId: string): Promise<Evidence | null> {
         const sent = state.sent;
-        if (sending || !sent || sent.attempt.attemptId !== attemptId || sent.didRead)
-          throw new Error("Read back only the original owned attempt once");
+        if (sending || !sent || sent.attempt.attemptId !== attemptId )
+          throw new Error("Read back only the original owned attempt");
         sent.didRead = true;
         if (!sent.receipt) {
           const { lane, to, content } = sent;

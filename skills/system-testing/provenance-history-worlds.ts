@@ -23,7 +23,9 @@ const undone = (path: string): ProvenanceHistoryCheck => ({
   scope: "work-unit",
 });
 function audit(id: string, goal: string, checks: ProvenanceHistoryCheck[]) {
-  return { id, goal, checks };
+  return { id, goal, checks, orderedChecks: [
+    "upload-original-purpose", "visible-change-chain", "rejection-coordinate-contrast", "maintenance-record",
+  ].includes(id) };
 }
 
 export const managedProvenanceHistoryWorlds: {
@@ -31,6 +33,7 @@ export const managedProvenanceHistoryWorlds: {
   goal: string;
   checks: ProvenanceHistoryCheck[];
   constraint?: ConstraintCase;
+  orderedChecks?: boolean;
 }[] = [
   audit(
     "retry-reversal",
@@ -123,6 +126,7 @@ function proposal(
     goal,
     checks,
     constraint: { proposedProperty, status, evidence },
+    orderedChecks: ["retry-repeat-300", "keepalive-equivalent-wait"].includes(id),
   };
 }
 

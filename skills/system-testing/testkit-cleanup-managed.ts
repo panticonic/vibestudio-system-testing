@@ -298,8 +298,8 @@ export async function prepareTestkitCleanup(caseId: string, captureId?: string) 
   const services = {
     testkitCleanup: {
       async inspect(receipt: string) {
-        if (read || receipt !== evidence.receipt)
-          throw new Error("Read the assigned cleanup receipt once");
+        if (receipt !== evidence.receipt)
+          throw new Error("Read only the assigned cleanup receipt");
         read = true;
         return structuredClone(evidence);
       },

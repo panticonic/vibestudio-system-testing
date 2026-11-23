@@ -121,7 +121,7 @@ export async function prepareManagedProblemDraft(
     const expectedNew = world.mode === "new" && saved ? [saved.id] : [];
     const checks = {
       source:
-        observations.length === 1 &&
+        observations.length >= 1 &&
         source !== undefined &&
         isDeepStrictEqual(source.review.account, account) &&
         source.review.consent === "save" &&

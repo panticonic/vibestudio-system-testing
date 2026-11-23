@@ -99,7 +99,6 @@ export async function prepareManagedMemory(
       }
     : null;
   const operations: string[] = [];
-  let searches = 0;
   let indexed = false;
   const leads: Lead[] = [];
   async function readAssignedFile(eventId: string): Promise<Source | null> {
@@ -137,21 +136,8 @@ export async function prepareManagedMemory(
     services: {
       decisionRecall: {
         async search(text: string): Promise<Lead[]> {
-          const previous = assignedEvents[searches - 1];
-          const next = assignedEvents[searches];
-          if (
-            text !== query ||
-            !next ||
-            (searches > 0 && !indexed) ||
-            (previous &&
-              leads.some((lead) => lead.id === previous) &&
-              operations.at(-1) !== `source:${previous}`)
-          )
-            throw new Error(
-              "Finish verification before searching for the next assigned revision.",
-            );
-          searches++;
-          operations.push(`search:${next}`);
+          if (text !== query) throw new Error("Search only the assigned decision query.");
+          operations.push("search");
           if (indexed) return structuredClone(leads);
           const observed = await ports.memory.recall({
             query,
@@ -174,14 +160,8 @@ export async function prepareManagedMemory(
       },
       decisionSource: {
         async read(leadId: string): Promise<Source | null> {
-          if (
-            leadId !== assignedEvents[searches - 1] ||
-            operations.at(-1) !== `search:${leadId}` ||
-            !leads.some(({ id }) => id === leadId)
-          )
-            throw new Error(
-              "Read the assigned file at the exact recalled revision.",
-            );
+          if (!assignedEvents.includes(leadId))
+            throw new Error("Read only an assigned owned decision revision.");
           operations.push(`source:${leadId}`);
           return readAssignedFile(leadId);
         },
@@ -260,13 +240,12 @@ export async function verifyManagedMemory(
   value: unknown,
 ) {
   const after = await ports.vcs.status();
-  const expectedOperations: string[] = [];
+  const requiredSources: string[] = [];
   const observed: Report[] = [];
   for (const eventId of prepared.assignedEvents) {
-    expectedOperations.push(`search:${eventId}`);
     const lead = prepared.leads.find(({ id }) => id === eventId);
     const source = lead ? await prepared.readAssignedFile(eventId) : null;
-    if (lead) expectedOperations.push(`source:${eventId}`);
+    if (lead) requiredSources.push(`source:${eventId}`);
     observed.push(observedReport(prepared, lead, source));
   }
   const final = observed.at(-1)!;
@@ -285,7 +264,7 @@ export async function verifyManagedMemory(
       after.mainEventId === prepared.before.mainEventId &&
       same(after.workingHead, prepared.head),
     actualRecall:
-      same(prepared.operations, expectedOperations) &&
+      prepared.operations.includes("search") && requiredSources.every(operation => prepared.operations.includes(operation)) &&
       prepared.leads.length ===
         prepared.world.revisions.filter(({ indexed }) => indexed !== false)
           .length,

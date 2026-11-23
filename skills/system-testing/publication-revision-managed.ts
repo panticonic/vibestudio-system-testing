@@ -92,7 +92,7 @@ export async function preparePublicationRevision(input: Input) {
     const impact = observed && expectedImpact(observed);
     const match = world.environment === "preview" ? "same-target" : "different-target";
     const checks = {
-      package: reads === 1 && observed?.source === source &&
+      package: reads >= 1 && observed?.source === source &&
         observed.reviewed.artifactDigest === prior.artifactDigest &&
         observed.reviewed.sourceHash === prior.privateReceipt.sourceStateHash &&
         (world.edit

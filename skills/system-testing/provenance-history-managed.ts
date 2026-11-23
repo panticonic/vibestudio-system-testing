@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+import { sameEvidenceMembers } from "./semantic-evidence.js";
 import type { VcsClient } from "@workspace/runtime";
 import {
   managedProvenanceHistoryWorlds,
@@ -106,16 +108,20 @@ export async function prepareManagedProvenanceHistory(
   }
   const readbacks: Awaited<ReturnType<typeof observe>>[] = [];
   async function readNext(check: ProvenanceHistoryCheck) {
-    const index = readbacks.length;
+    const index = request.checks.findIndex(allowed =>
+      allowed.path === check.path && allowed.walk === check.walk && allowed.scope === check.scope);
     const allowed = request.checks[index];
+    const previous = readbacks.find(read => isDeepStrictEqual(read.receipt.check, allowed));
+    if (previous) return structuredClone(previous.receipt);
     if (
       pending ||
       !allowed ||
+      (world.orderedChecks && index !== readbacks.length) ||
       allowed.path !== check.path ||
       allowed.walk !== check.walk ||
       allowed.scope !== check.scope
     )
-      throw new Error("Read only the next assigned VCS walk");
+      throw new Error("Read only an assigned VCS walk");
     pending = true;
     try {
       const read = await observe(allowed, index);
@@ -186,7 +192,7 @@ export async function prepareManagedProvenanceHistory(
       unchanged:
         after.clean &&
         JSON.stringify(after.workingHead) === JSON.stringify(workingHead),
-      exactReads: readbacks.length === request.checks.length,
+      exactReads: sameEvidenceMembers(readbacks.map(read => read.receipt.check), request.checks),
       history: readbacks.every(({ receipt, walk, fileId }) => {
         const { check } = receipt;
         if (check.path === "src/retired-ingress.ts")
@@ -206,8 +212,8 @@ export async function prepareManagedProvenanceHistory(
       report:
         report?.kind === "live-history" &&
         report.findings.length === expected.findings.length &&
-        expected.findings.every(({ check, status, evidence }, index) => {
-          const finding = report.findings[index];
+        expected.findings.every(({ check, status, evidence }) => {
+          const finding = report.findings.find(row => isDeepStrictEqual(row.check, check));
           return (
             finding?.status === status &&
             finding.check?.path === check.path &&

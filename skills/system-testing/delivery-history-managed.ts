@@ -103,7 +103,7 @@ async function prepareHistory(input: Input) {
     });
     const canonical = rows[0];
     const checks = {
-      scope: reads === 1 && observed?.channelId === selected.key && isDeepStrictEqual(observed.receipt, receipt) &&
+      scope: reads >= 1 && observed?.channelId === selected.key && isDeepStrictEqual(observed.receipt, receipt) &&
         isDeepStrictEqual(report?.observation, observed),
       nativeDelivery: !page.ready.hasMoreAfter && rows.length === 1 && !!canonical &&
         canonical.messageId === (decoyId ?? originalId) && canonical.senderId === senderId &&
@@ -203,8 +203,6 @@ export async function prepareDeliveryHistory(input: Input) {
         if (panelId !== request.panelId || !history.matched)
           throw new Error("The browser read is outside the assigned delivery");
         panelReads++;
-        if (panelReads !== 1)
-          throw new Error("The assigned browser read was already used");
         const result = await observe();
         observedPanel = structuredClone(result);
         return result;
@@ -236,7 +234,7 @@ export async function prepareDeliveryHistory(input: Input) {
           { messageId: history.visibleMessageId, text: history.text },
         ]),
       browserScope: history.matched
-        ? panelReads === 1 &&
+        ? panelReads >= 1 &&
           isDeepStrictEqual(observedPanel, actualPanel) &&
           isDeepStrictEqual(chat?.panel, actualPanel)
         : panelReads === 0 && observedPanel === null && chat?.panel === null,

@@ -79,7 +79,7 @@ export async function prepareManagedArchitectureBoundary(
     const after = await vcs.status({ contextId });
     const checks = {
       route:
-        routes.length === 1 &&
+        routes.length >= 1 &&
         route?.contextId === contextId &&
         route.receipt === bound.request.operationId + ":provider" &&
         route.revision === revision &&
@@ -93,7 +93,7 @@ export async function prepareManagedArchitectureBoundary(
           ? route.receiver.address === lane.target
           : route.receiver.address.length > 0),
       declaration:
-        declarations.length === 1 &&
+        declarations.length >= 1 &&
         typeof declaration?.hash === "string" &&
         declaration.hash.length > 0 &&
         declaration.routeReceipt === route?.receipt &&

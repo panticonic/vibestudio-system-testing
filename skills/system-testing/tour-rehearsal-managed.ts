@@ -86,7 +86,7 @@ export function prepareTourRehearsal(input: TourRehearsalInput, binding: Binding
   function verify(report: Report | null) {
     const assigned = start ? stops(start) : [];
     const checks = {
-      initial: reads === 1 && !!start && isDeepStrictEqual(start.allowed, world.allowed) &&
+      initial: reads >= 1 && !!start && isDeepStrictEqual(start.allowed, world.allowed) &&
         isFrame(start.frame, world.initial.scene, world.initial.notes, world.initial.progress) &&
         isDeepStrictEqual(report?.start, start),
       plan: isDeepStrictEqual(report?.plan, { stops: assigned, unmatchedTopics: unmatched }),

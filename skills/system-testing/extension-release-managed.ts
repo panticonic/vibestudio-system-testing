@@ -137,7 +137,7 @@ export async function prepareManagedExtensionRelease(
     const afterRuntime = await extensions.status(world.name);
     const checks = {
       source:
-        sourceReads.length === 1 &&
+        sourceReads.length >= 1 &&
         source?.operationId === bound.request.operationId &&
         source.contextId === contextId &&
         source.name === world.name &&
@@ -158,7 +158,7 @@ export async function prepareManagedExtensionRelease(
           : source.working.hash === source.published.hash &&
             source.published.methods.includes(world.method)),
       runtime:
-        runtimeReads.length === 1 &&
+        runtimeReads.length >= 1 &&
         runtime?.operationId === bound.request.operationId &&
         runtime.name === world.name &&
         runtime.source === world.source &&

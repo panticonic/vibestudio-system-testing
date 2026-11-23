@@ -1,3 +1,4 @@
+import { includesEvidence } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { fs, gad, panelTree, vcs, type PanelHandle } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -55,6 +56,17 @@ type Expected =
       status: ClientActionReceipt["status"];
     }
   | { kind: "channel"; view: ChannelReviewRequest["view"] };
+/** Native observations prove requested state coverage. Only actual effects
+ * carry a prescribed sequence; repeated reads do not change that sequence. */
+export function checkClientObservationTrace(trace: readonly Expected[], expected: readonly Expected[]): boolean {
+  return isDeepStrictEqual(trace.filter(step => step.kind !== "observe"),
+    expected.filter(step => step.kind !== "observe")) &&
+    expected.filter(step => step.kind === "observe").every(step =>
+      trace.some(actual => actual.kind === "observe" &&
+        actual.surface === step.surface && actual.stage === step.stage &&
+        (step.width === undefined || actual.width === step.width) &&
+        (step.overflow === undefined || actual.overflow === step.overflow)));
+}
 export type ClientDiagnosticsWorld = {
   kind: "clientDiagnostics";
   workspace: "examples";
@@ -214,6 +226,7 @@ export async function prepareOpenClientDiagnostics(
   let writing = false;
   const moved = new Set<string>();
   const views: ClientView[] = [];
+  const issuedViews = new Map<string, { view: ClientView; revision: string }>();
   const effects: ClientActionReceipt[] = [];
   const trace: Expected[] = [];
   let saved: ClientHandoff | null = null;
@@ -355,6 +368,7 @@ export async function prepareOpenClientDiagnostics(
         current = view;
         currentRevision = native.revision;
         views.push(view);
+        issuedViews.set(view.id, { view, revision: native.revision });
         trace.push({
           kind: "observe",
           surface: surfaceId,
@@ -365,6 +379,8 @@ export async function prepareOpenClientDiagnostics(
         return log("observe", [surfaceId], view);
       },
       async apply(viewId: string, action: ClientViewAction) {
+        const issued = issuedViews.get(viewId);
+        if (issued) { current = issued.view; currentRevision = issued.revision; }
         const currentSurface = current?.surface.id;
         const finish = (status: ClientActionReceipt["status"]) => {
           const result = { status, id: crypto.randomUUID() };
@@ -571,20 +587,7 @@ export async function prepareOpenClientDiagnostics(
     );
     const final = Object.fromEntries(fresh.map(([id, row]) => [id, row.dom]));
     const expected = world.expected.steps;
-    const exactTrace =
-      trace.length === expected.length &&
-      expected.every((step, index) => {
-        const actual = trace[index];
-        if (step.kind === "observe")
-          return (
-            actual?.kind === "observe" &&
-            actual.surface === step.surface &&
-            actual.stage === step.stage &&
-            (step.width === undefined || actual.width === step.width) &&
-            (step.overflow === undefined || actual.overflow === step.overflow)
-          );
-        return isDeepStrictEqual(actual, step);
-      });
+    const exactTrace = checkClientObservationTrace(trace, expected);
     const latest = durable.at(-1);
     const channelStep = expected.find((step) => step.kind === "channel");
     const roster =
@@ -631,7 +634,10 @@ export async function prepareOpenClientDiagnostics(
     const checks = {
       exactOwnedClientOrder:
         exactTrace &&
-        isDeepStrictEqual(report?.views, views) &&
+        Array.isArray(report?.views) && report.views.every(view => includesEvidence(views, view)) &&
+        checkClientObservationTrace(report.views.map(view => ({kind:"observe" as const,
+          surface:view.surface.id,stage:view.stage,width:view.width,overflow:view.overflow})),
+          expected.filter(step => step.kind === "observe")) &&
         isDeepStrictEqual(report?.effects, effects),
       joinedCurrentRendererFields:
         views.every((view) => {

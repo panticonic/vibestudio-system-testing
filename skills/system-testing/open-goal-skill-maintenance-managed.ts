@@ -297,10 +297,15 @@ export async function prepareSkillMaintenance(
       },
       async confirm(id: string, revision: string) {
         requireOwner(id);
-        if (confirmed !== null || revision !== working.revision)
+        if (revision !== working.revision)
           throw new Error(
             "Confirm only the exact inspected skill frontier once",
           );
+        if (confirmed !== null) {
+          const previous = journal.findLast(row => row.method === "confirm");
+          if (!previous) throw new Error("The confirmed frontier lost its native evidence");
+          return structuredClone(previous.result) as {current: string; status: "denied" | "current" | "changed"};
+        }
         if (world.advance) {
           const row = working.items.find((item) => item.path === canary)!;
           await edit(seeded.workingHead, "coedit", [
@@ -326,10 +331,8 @@ export async function prepareSkillMaintenance(
       },
       async readback(id: string) {
         requireOwner(id);
-        if (!confirmed || final)
-          throw new Error(
-            "Read the working skill back once after the decision",
-          );
+        if (!confirmed)
+          throw new Error("Read the working skill back after the decision");
         const state = (await status()).workingHead;
         const current = await view(state, workingPath);
         final = await native.observe(workingPath, current.revision, criterion);

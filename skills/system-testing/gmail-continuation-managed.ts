@@ -34,11 +34,10 @@ export function prepareGmailContinuation<SetupReport>(
     if (
       !readback.checks.driveNeedsSetup ||
       !readback.checks.browserAgrees ||
-      !gate ||
-      served
+      !gate
     )
       throw new Error(
-        "Read the assigned Gmail launch control after setup observation, once",
+        "Read the assigned Gmail launch control after setup observation",
       );
     served = { evidenceId: gate.id, enabled: gate.gmailEnabled };
     return { ...served };

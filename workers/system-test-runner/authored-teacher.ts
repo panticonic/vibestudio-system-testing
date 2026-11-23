@@ -261,18 +261,20 @@ ${options.bindingCode}
       }
       const rootRecord=calls.find(call=>call.callId===rootCallIds[0])?.record;
       if(!rootRecord || rootRecord.definition.name!==${JSON.stringify(options.openGoal ? options.entry!.callable : "runWorkflow")}) captureErrors.push("The authored workflow root was not observed");
-      if(rootRecord?.outcome!=="done") captureErrors.push("Assigned authored root did not complete successfully");
+      const rootOutcome=rootRecord?.outcome??null;
+      if(rootRecord && rootOutcome!=="done" && executionError===null)
+        executionError={name:"AuthoredExecutionFailure",message:"Assigned authored root ended with "+rootOutcome};
       const children=calls.filter(call=>call.record?.parent_call_id===rootCallIds[0]).map(call=>call.record);
       if(!${Boolean(options.openGoal)} && (JSON.stringify(children.map(record=>record.definition.name).sort())!==JSON.stringify(expectedSkills) || children.some(record=>record.outcome!=="done")))
-        captureErrors.push("The shared workflow did not record the completed assigned skills as direct children");
+        executionError??={name:"AuthoredExecutionFailure",message:"The shared workflow did not complete the assigned skill results"};
       if(requiredOrder) {
         const ordered=requiredOrder.map(name=>children.find(record=>record.definition.name===name));
         if(ordered.some((record,index)=>!record || !Number.isFinite(Date.parse(record.started_at)) ||
           !Number.isFinite(Date.parse(record.ended_at)) ||
           (index>0 && !(Date.parse(ordered[index-1]?.ended_at)<=Date.parse(record.started_at)))))
-          captureErrors.push("A dependent skill began before its prerequisite completed");
+          executionError??={name:"AuthoredExecutionFailure",message:"A dependent skill began before its required prerequisite completed"};
       }
-      let utilityValue={report,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
-        trainingEligible:executionError===null&&captureErrors.length===0};
+      let utilityValue={report,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,rootOutcome,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
+        trainingEligible:rootOutcome==="done"&&executionError===null&&captureErrors.length===0};
   `;
 }

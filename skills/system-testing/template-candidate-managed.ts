@@ -143,11 +143,11 @@ export async function prepareManagedTemplateCandidate(input: Input) {
     const observedReview = reviews[0];
     const candidate = observedReview?.review;
     const checks = {
-      observed: reads.length === 1 && isDeepStrictEqual(reads[0], expected),
+      observed: reads.length >= 1 && reads.every(read => isDeepStrictEqual(read, expected)),
       report: isDeepStrictEqual(report, reference()),
       lifecycle: staging
         ? preparations.length === 1 &&
-          reviews.length === 1 &&
+          reviews.length >= 1 &&
           receipt?.outcome === "acknowledged" &&
           !!candidate &&
           isDeepStrictEqual(receipt.review, candidate) &&

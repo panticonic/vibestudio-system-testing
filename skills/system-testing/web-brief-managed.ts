@@ -221,7 +221,7 @@ export function prepareManagedResearchIntake(
     sources: [...world.sources],
     retrievedAt: Date.now(),
   });
-  let started = false;
+  let collection: Promise<Awaited<ReturnType<typeof collect>>> | undefined;
   let projection: Awaited<ReturnType<typeof read>> | undefined;
   async function collect() {
     const pages = [];
@@ -276,11 +276,11 @@ export function prepareManagedResearchIntake(
   async function read(
     operationId: string,
   ): Promise<Awaited<ReturnType<typeof collect>>> {
-    if (operationId !== request.operationId || started)
-      throw new Error("Read only the assigned research evidence once");
-    started = true;
-    projection = await collect();
-    return structuredClone(projection);
+    if (operationId !== request.operationId)
+      throw new Error("Read only the assigned research evidence");
+    const pending = collection ??= collect();
+    try { projection = await pending; return structuredClone(projection); }
+    catch (error) { if (collection === pending) collection = undefined; throw error; }
   }
   type IntakeReport = {
     findings?: {

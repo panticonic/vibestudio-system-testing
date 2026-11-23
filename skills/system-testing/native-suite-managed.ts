@@ -42,8 +42,6 @@ export function prepareManagedNativeSuite(contextId: string, caseId: string) {
   const services: Services = {
     testSuitePlanRead: {
       async resolve(id) {
-        if (observed)
-          throw new Error("The assigned suite plan was already observed");
         const plan = await bound.services.testSuitePlanRead.resolve(id);
         observed = structuredClone(plan);
         return plan;

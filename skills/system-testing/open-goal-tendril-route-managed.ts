@@ -1,3 +1,4 @@
+import { includesEvidence } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { createRpcMethodCaller } from "@vibestudio/shared/rpcMethods";
@@ -398,7 +399,7 @@ export async function prepareOpenTendrilRoute(
           retaining ||
           retained ||
           !basis?.retainAllowed ||
-          !isDeepStrictEqual(projected.at(-1), finding) ||
+          !includesEvidence(projected, finding) ||
           finding.projection.kind === "ambiguous" ||
           (finding.projection.kind === "agent" && !finding.projection.attached)
         )
@@ -513,11 +514,7 @@ export async function prepareOpenTendrilRoute(
             entry === main.entry || isDeepStrictEqual(board, entry.initial),
         ),
       checkedCurrentTendrilProjection:
-        probes.length ===
-          (world.coedit
-            ? 1 + Number(world.reprobe)
-            : Number(finding !== null)) &&
-        isDeepStrictEqual(projected, finding ? [finding] : []) &&
+        (!finding || includesEvidence(projected, finding)) &&
         readsFinalRevision &&
         (world.coedit
           ? raced &&

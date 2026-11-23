@@ -106,6 +106,7 @@ export async function prepareCliContinuation(input: Input) {
   const otherContext = crypto.randomUUID();
   const otherWorkspace = `ws_${crypto.randomUUID()}`;
   let readback: Awaited<ReturnType<typeof createEvidence>> | undefined;
+  let evidenceFlight: Promise<Awaited<ReturnType<typeof createEvidence>>> | undefined;
   async function createEvidence() {
     const gateway = await route.verify(null);
     if (
@@ -146,9 +147,11 @@ export async function prepareCliContinuation(input: Input) {
     };
   }
   async function evidence(operationId: string) {
-    if (operationId !== route.request.operationId || readback)
-      throw new Error("Read CLI evidence only once for the assigned operation");
-    readback = await createEvidence();
+    if (operationId !== route.request.operationId)
+      throw new Error("Read CLI evidence only for the assigned operation");
+    const pending = evidenceFlight ??= createEvidence();
+    try { readback = await pending; }
+    catch (error) { if (evidenceFlight === pending) evidenceFlight = undefined; throw error; }
     return structuredClone(readback);
   }
   function expected(observed: NonNullable<typeof readback>) {
