@@ -186,7 +186,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
         isDeepStrictEqual(main,await vcs.mainState())&&untouched?.content.kind==="text"&&untouched.content.text===canary&&
         (expectedBytes===null?output===null:output?.content.kind==="bytes"&&output.content.base64===expectedBytes)&&
         (!reference||isDeepStrictEqual(refRead?.asset,reference)&&refRead?.base64===imageFixtureBytes.png[2]),
-      matchedNativeImageReport:isDeepStrictEqual(value,report()),
+      matchedNativeImageReport:isDeepStrictEqual(value,{outcome,saved}),
     };
     return {caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...report(),
       native:{providerBoundary:"owned-deterministic-sse",transport,repositoryId,originalDigest:originalRead?.asset.digest??null},effects:structuredClone(effects)};
@@ -199,8 +199,9 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     const rejectedWrongBytes=await reject(()=>services.illustrationOriginal.save(scope,initialBasis.head,seedJob?.id??"fresh","unverified-original"));
     const complete=outcome as ReturnType<typeof report>["outcome"];
     if(complete?.original&&world.save)await services.illustrationOriginal.save(scope,initialBasis.head,complete.job.id,complete.original.digest);
-    const answer=report(),proof=await verify(answer);
-    const checks={...proof.checks,rejectedForeignAttempt,rejectedWrongBytes};
+    const answer={outcome,saved},proof=await verify(answer);
+    const rejectedInventedOriginal=!(await verify({...answer,outcome:{...answer.outcome,original:{digest:"invented",bytes:1,mime:"image/png"}}})).passed;
+    const checks={...proof.checks,rejectedForeignAttempt,rejectedWrongBytes,rejectedInventedOriginal};
     return {...proof,checks,passed:Object.values(checks).every(Boolean),report:answer};
   }
   return {services,qualify,verify};
