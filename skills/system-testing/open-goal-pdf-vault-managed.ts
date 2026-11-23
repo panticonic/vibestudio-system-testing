@@ -86,23 +86,21 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
   };
 
   async function verify(value: unknown) {
-    const wrapper = value as { pdf: unknown; handoff: Handoff; vault: unknown } | null;
+    const wrapper = value as {source:Bound["source"]|null;holdReason:string|null;vault:unknown}|null;
     const result = wrapper;
-    const pdfResult = await pdf.verify(result?.pdf, { allowWorkingHeadChange: mayEdit });
+    const pdfResult = await pdf.verifyObserved({ allowWorkingHeadChange: mayEdit });
     const vaultResult = mayEdit ? await vault.verify(result?.vault) : null;
     const after = await vcs.status({ contextId });
     const expectedQuotes = world.pdf.expected.text?.quotes ?? [];
     const selectedQuotes = bound?.source.citations.map(({ page, quote }) => ({ page, text: quote }));
     const attempts = vaultResult?.revisionAttempts ?? [];
     const coedited = concurrent && vaultResult?.workingFiles[concurrent.path];
-    const reason = result?.handoff?.status === "hold" && typeof result.handoff.reason === "string"
-      ? result.handoff.reason.trim().toLowerCase() : "";
+    const reason = typeof result?.holdReason === "string" ? result.holdReason.trim().toLowerCase() : "";
     const checks = {
       exactOriginalPdf: pdfResult.passed,
-      verifiedHandoff: mayEdit ? !!bound && isDeepStrictEqual(result?.pdf, attestedReport) &&
-        isDeepStrictEqual(result?.handoff, bound) && bound.source.document === world.pdf.expected.document &&
+      verifiedHandoff: mayEdit ? !!bound && !!attestedReport && result?.holdReason===null && isDeepStrictEqual(result?.source, bound.source) && bound.source.document === world.pdf.expected.document &&
         isDeepStrictEqual(selectedQuotes, expectedQuotes)
-        : !bound && pdfResult.passed && reason.length > 0,
+        : !bound && result?.source===null && result?.vault===null && pdfResult.passed && reason.length > 0,
       exactWorkingVault: mayEdit ? vaultResult?.passed === true
         : isDeepStrictEqual(initial.workingHead, after.workingHead),
       concurrentRevision: concurrent ? !!concurrentReceipt && !isDeepStrictEqual(concurrentReceipt.previous, concurrentReceipt.next) &&
@@ -128,9 +126,11 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
       : hold(`Missing approved page ${world.pdf.expected.missing?.join(", ")}.`);
     if (mayEdit && handoff.status !== "bound") throw new Error("The reference could not attest the approved PDF lines.");
     const outcome = handoff.status === "bound" ? (await vault.reference()).outcome : null;
-    const verified = await verify({ pdf: reference.outcome, handoff, vault: outcome });
+    const result={source:handoff.status==="bound"?handoff.source:null,holdReason:handoff.status==="hold"?handoff.reason:null,vault:outcome};
+    const verified = await verify(result);
+    const rejectedInventedSource=!(await verify({...result,source:{document:"invented",digest:"invented",citations:[]}})).passed;
     const checks = { ...verified.checks, exactPdfReference: reference.verification.passed,
-      rejectsForgedQuotation, rejectsPrematureVaultAccess };
+      rejectsForgedQuotation, rejectsPrematureVaultAccess,rejectedInventedSource };
     return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
   }
 
