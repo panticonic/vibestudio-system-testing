@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { prepareOutcomeWorkspace } from "./open-goal-outcome-workspace-managed.js";
 import { outcomeWorkspaceWorlds } from "./open-goal-outcome-workspace-worlds.js";
-import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
+import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
 vi.mock("@workspace/runtime", () => ({contextId:"owned-context",rpc:{call:vi.fn()},fs:{readFile,readdir,rm,writeFile,
   mkdtemp:(prefix:string)=>mkdtemp(join(tmpdir(),prefix)),
   exists:async(path:string)=>{try{await access(path);return true;}catch{return false;}},

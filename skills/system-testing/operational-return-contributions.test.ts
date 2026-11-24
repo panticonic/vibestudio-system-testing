@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import {expect,it} from "vitest";
-import {observeInvocation} from "./observed-invocation.js";
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import {observeInvocation} from "@workspace/application-outcomes/observed-invocation";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import {assetFindingContributions,packageResultContributions,intentOutcomeContributions} from "./operational-return-contributions.js";
 function observe(root:unknown,children:{id:string;source:string;value:unknown}[]){
  const texts=new Map<string,string>();

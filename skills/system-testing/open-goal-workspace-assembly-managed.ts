@@ -1,5 +1,5 @@
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";

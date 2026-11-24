@@ -1,6 +1,6 @@
 import {expect,it} from "vitest";
 import {recoveryHandoffMatches,deliveredFactsMatch} from "./retained-task-content.js";
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 const contract={effects:{checks:["savedContent"],rationale:"Actual persisted handoff or delivered message content satisfies the user goal."},returnedValue:{checks:["laterSummary"],required:false,rationale:"A later response does not substitute for the retained content."}};
 const expected={disposition:"hold",citations:[{messageId:"accepted-note",text:"Approval is pending"}],reason:["approval","pending"]};
 const text=(review:unknown)=>JSON.stringify({schema:"vibestudio.session-recovery-handoff/1",review});

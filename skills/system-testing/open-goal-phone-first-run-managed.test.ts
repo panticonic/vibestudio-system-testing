@@ -1,4 +1,4 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { expect, it, vi } from "vitest";
 import { preparePhoneFirstRun } from "./open-goal-phone-first-run-managed.js";
 import { openPhoneFirstRunWorlds } from "./open-goal-phone-first-run-worlds.js";

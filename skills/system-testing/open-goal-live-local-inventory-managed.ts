@@ -1,5 +1,5 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
-import type { InvocationObservations } from "./observed-invocation.js";
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs, vcs } from "@workspace/runtime";
 import type { prepareLocalModelComparison } from "@workspace-skills/local-model-task-bindings/live";

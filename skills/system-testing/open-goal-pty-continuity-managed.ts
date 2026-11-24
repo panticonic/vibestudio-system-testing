@@ -1,5 +1,5 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
-import type { InvocationObservations } from "./observed-invocation.js";
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { readPtyStream, type PtyStreamHello, type PtyStreamPosition } from "@workspace/pty-stream";

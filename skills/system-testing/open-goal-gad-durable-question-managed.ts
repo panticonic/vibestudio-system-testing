@@ -1,6 +1,6 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { gad, rpc, runtime } from "@workspace/runtime";
 import { agenticEventSchema } from "@workspace/agentic-protocol";

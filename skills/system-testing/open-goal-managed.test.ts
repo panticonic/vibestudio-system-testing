@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
+import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
 import { prepareOpenGoal } from "./open-goal-managed.js";
 import { openGoalWorlds } from "./open-goal-worlds.js";
 

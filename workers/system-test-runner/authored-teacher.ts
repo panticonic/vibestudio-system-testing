@@ -1,4 +1,4 @@
-import type { SemanticOutcomeContract } from "@workspace-skills/system-testing/semantic-outcome-contract";
+import type { SemanticOutcomeContract } from "@workspace/application-outcomes/semantic-outcome-contract";
 
 export type VibestudioSkill =
   | "repairPanel"
@@ -139,8 +139,8 @@ export function openGoalTeacherCode(options: {executorModel: string; bindingCode
 /** Return the captured run even when its independent verifier or retire step fails. */
 export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCode>[0], runId: string) {
   return `
-    import { assessSemanticOutcome } from "@workspace-skills/system-testing/semantic-outcome-contract";
-    import { observeInvocation } from "@workspace-skills/system-testing/observed-invocation";
+    import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
+    import { observeInvocation } from "@workspace/application-outcomes/observed-invocation";
     import { createNatlangRecordsClient } from "@workspace/natlang-records/client";
     ${options.bindingCode}
     let teacher, verification = null;

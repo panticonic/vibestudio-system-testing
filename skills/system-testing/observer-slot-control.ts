@@ -1,5 +1,5 @@
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
-import {observeInvocation} from "./observed-invocation.js";
+import {observeInvocation} from "@workspace/application-outcomes/observed-invocation";
 /** Synthetic transport metadata for native qualification only: never an attested application execution. */
 export function referenceObserver(value:unknown) {
  const text=JSON.stringify(value),hash=sha256HexSyncText(text),id="observer-slot-control";

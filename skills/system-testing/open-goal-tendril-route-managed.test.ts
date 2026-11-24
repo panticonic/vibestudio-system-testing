@@ -1,4 +1,4 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { expect, it } from "vitest";
 import {
   mkdtemp,

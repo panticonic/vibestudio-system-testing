@@ -1,6 +1,6 @@
 import {intentOutcomeContributions} from "./operational-return-contributions.js";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText,stableSha256Hex} from "@vibestudio/content-addressing";
 import type {CatalogEntry,CatalogHit} from "@vibestudio/service-schemas/docs";

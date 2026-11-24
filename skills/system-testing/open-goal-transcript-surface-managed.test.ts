@@ -1,9 +1,9 @@
 import {createHash} from "node:crypto";
-import {observeInvocation} from "./observed-invocation.js";
+import {observeInvocation} from "@workspace/application-outcomes/observed-invocation";
 import {describe,it,expect} from "vitest";
 import {prepareTranscriptSurface} from "./open-goal-transcript-surface-managed.js";
 import {openTranscriptSurfaceWorlds} from "./open-goal-transcript-surface-worlds.js";
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 
 describe("transcript application values with independent native projection",()=>{
   for(const world of openTranscriptSurfaceWorlds) it(world.id,async()=>{

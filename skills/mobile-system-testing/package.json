@@ -19,7 +19,8 @@
     "@workspace/runtime": "workspace:*",
     "@workspace-skills/phone-setup": "workspace:*",
     "@vibestudio/service-schemas": "workspace:*",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@workspace/application-outcomes": "workspace:*"
   },
   "devDependencies": {
     "@workspace-clients/mobile-browser": "workspace:*"

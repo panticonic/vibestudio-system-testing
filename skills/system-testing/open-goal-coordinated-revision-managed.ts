@@ -1,6 +1,6 @@
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual as equal } from "node:util";
 import { compareUtf16CodeUnits } from "@vibestudio/content-addressing";

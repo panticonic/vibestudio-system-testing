@@ -1,5 +1,5 @@
-import {observeInvocation} from "./observed-invocation.js";
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {observeInvocation} from "@workspace/application-outcomes/observed-invocation";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";

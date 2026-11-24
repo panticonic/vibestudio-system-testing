@@ -1,6 +1,6 @@
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import type {InvocationObservations} from "./observed-invocation.js";
-import {type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
+import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { gitUpstreamStatusRowSchema, type GitUpstreamStatusRow } from "@vibestudio/service-schemas/gitInterop";

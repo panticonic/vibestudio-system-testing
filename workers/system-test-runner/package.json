@@ -156,7 +156,8 @@
     "@workspace-skills/open-user-goal": "workspace:*",
     "@workspace/runtime": "workspace:*",
     "@vibestudio/rpc": "workspace:*",
-    "@workspace/system-test-health": "workspace:*"
+    "@workspace/system-test-health": "workspace:*",
+    "@workspace/application-outcomes": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^3.2.7",

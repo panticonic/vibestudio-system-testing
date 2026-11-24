@@ -1,6 +1,6 @@
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
@@ -307,10 +307,10 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       groundedPortfolioDecision:!!findings&&decision?.status===world.status&&decision.status===findings.status&&
         decision.write===findings.write&&typeof decision.explanation==="string"&&decision.explanation.length<=650&&
         world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivatePortfolioHandoff:findings?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&.write?!!receipt&&!!artifact&&files.length===1&&
+      verifiedPrivatePortfolioHandoff:!!findings&&(findings.write?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.basis===final.id&&artifact===stagedText&&
         receipt.digest===sha256HexSyncText(artifact):
-        receipt===null&&files.length===0,
+        receipt===null&&files.length===0),
       preservedPortfolioWorkspace:saved.mainEventId===before.mainEventId&&isDeepStrictEqual(saved.workingHead,before.workingHead),
       rejectedPortfolioRetarget:await services.demoPortfolioState.read(other)===null&&
         await services.demoPortfolioForecast.preview(other,final.id,1)===null&&

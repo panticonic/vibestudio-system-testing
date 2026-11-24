@@ -1,4 +1,4 @@
-import type {ApplicationReturnContribution} from "./observed-application-outcome.js";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 export const intentOutcomeContributions:readonly ApplicationReturnContribution[]=[{checks:["exactIntentOutcome"],rootPath:["outcome"],producerSourceSuffix:"discoverScopedIntent/concludeIntentReview.nl",producerPath:[]}];
 export const packageResultContributions:readonly ApplicationReturnContribution[]=[
  {checks:["returnedPackageFinding"],rootPath:["finding"],producerSourceSuffix:"reviewInstalledPackage/decidePackage.nl",producerPath:[]},

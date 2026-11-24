@@ -1,7 +1,7 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import {referenceObserver} from "./observer-slot-control.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { createMissionsClient, type MissionRpc } from "@vibestudio/service-schemas/clients/missionsClient";
 import { MISSION_REVISION_CHANGED, missionRevisionDigest } from "@vibestudio/automation/mission";

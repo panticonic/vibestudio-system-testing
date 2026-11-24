@@ -1,7 +1,7 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import {referenceObserver} from "./observer-slot-control.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";

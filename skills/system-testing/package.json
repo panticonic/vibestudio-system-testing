@@ -47,8 +47,6 @@
     }
   },
   "exports": {
-    "./semantic-outcome-contract": "./semantic-outcome-contract.ts",
-    "./observed-application-outcome": "./observed-application-outcome.ts",
     "./remote-deployment-managed": "./remote-deployment-managed.ts",
     "./remote-commission-managed": "./remote-commission-managed.ts",
     "./approval-transition-managed": "./approval-transition-managed.ts",
@@ -305,8 +303,7 @@
     "./local-messaging-contract": "./local-messaging/contract.ts",
     "./native-startup-diagnostic": "./native-startup-diagnostic.ts",
     "./doctor": "./doctor.ts",
-    "./config": "./config.ts",
-    "./observed-invocation": "./observed-invocation.ts"
+    "./config": "./config.ts"
   },
   "dependencies": {
     "@workspace-skills/open-audience-response": "workspace:*",
@@ -393,7 +390,8 @@
     "@workspace-workers/local-messaging-fixture": "workspace:*",
     "@workspace-workers/notification-state-fixture": "workspace:*",
     "@workspace/pubsub": "workspace:*",
-    "@workspace/system-test-health": "workspace:*"
+    "@workspace/system-test-health": "workspace:*",
+    "@workspace/application-outcomes": "workspace:*"
   },
   "devDependencies": {
     "@workspace-skills/open-user-goal": "workspace:*",

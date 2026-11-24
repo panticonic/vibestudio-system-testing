@@ -1,4 +1,4 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { mkdtemp, rm, readFile, writeFile, mkdir, readdir, rename, access } from "node:fs/promises";
 import path from "node:path";
 import { expect, it, vi } from "vitest";

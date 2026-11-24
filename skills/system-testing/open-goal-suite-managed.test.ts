@@ -1,4 +1,4 @@
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { beforeEach, expect, it, vi } from "vitest";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";

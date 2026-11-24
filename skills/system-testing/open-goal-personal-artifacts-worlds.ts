@@ -1,4 +1,4 @@
-import type { SemanticOutcomeContract } from "./semantic-outcome-contract.js";
+import type { SemanticOutcomeContract } from "@workspace/application-outcomes/semantic-outcome-contract";
 
 type Bookmark = { key: string; folder: string; title: string; path: string };
 type Visit = { title: string; path: string; time: number };

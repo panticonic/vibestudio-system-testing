@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {createHash} from "node:crypto";
-import {observeInvocation} from "./observed-invocation.js";
+import {observeInvocation} from "@workspace/application-outcomes/observed-invocation";
 import { act, render, cleanup } from "@testing-library/react";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";

@@ -1,7 +1,7 @@
 import {projectAuthorizationEvidence} from "./project-authorization-evidence.js";
 import { createScopedProjectDraft } from "./scoped-project-draft.js";
 import { sameProjectSourceSelection } from "./project-source-identity.js";
-import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
+import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
 import { preparedContentProjectOutcomeContract } from "./prepared-content-project-outcome.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";

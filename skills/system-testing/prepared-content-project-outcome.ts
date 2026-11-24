@@ -1,4 +1,4 @@
-import type { SemanticOutcomeContract } from "./semantic-outcome-contract.js";
+import type { SemanticOutcomeContract } from "@workspace/application-outcomes/semantic-outcome-contract";
 
 /** These goals request a private artifact or an authorization-preserving hold.
  * The final explanatory disposition can honestly flag further local review. */

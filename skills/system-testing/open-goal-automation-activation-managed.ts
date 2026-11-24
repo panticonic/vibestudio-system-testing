@@ -1,5 +1,5 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "./observed-application-outcome.js";
-import type { InvocationObservations } from "./observed-invocation.js";
+import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { createMissionsClient } from "@vibestudio/service-schemas/clients/missionsClient";
 import { missionRevisionDigest, type MissionRecord, type MissionTrigger } from "@vibestudio/automation/mission";

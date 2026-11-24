@@ -1,6 +1,6 @@
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import {composeSemanticOutcomes,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {composeSemanticOutcomes,type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import type { NativeStartupDiagnostic, NativeStartupAcknowledgement } from "./native-startup-diagnostic.js";
 import { credentials, fs, panelTree, web } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";

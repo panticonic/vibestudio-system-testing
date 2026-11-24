@@ -1,7 +1,7 @@
-import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
+import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {referenceObserver} from "./observer-slot-control.js";
-import type {InvocationObservations} from "./observed-invocation.js";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { contextId as activeContext, rpc, runtime } from "@workspace/runtime";
 import { prepareOpenLocalDelivery } from "./open-goal-local-delivery-managed.js";

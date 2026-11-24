@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
+import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
 import { preparedContentProjectOutcomeContract as contract } from "./prepared-content-project-outcome.js";
 
 it("requires the real project return as well as independent retained state", () => {
