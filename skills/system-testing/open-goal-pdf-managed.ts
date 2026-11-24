@@ -394,7 +394,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const nativeObservationsRetained = observedEvidence().observations.text.length === textReads.length;
     const wrong: PdfGoalReport = { ...outcome, selection: { ...choice, document: `./${choice.document}` },
       recommendation: { action: "needs-review", rationale: "Unverified." } };
-    const negative = await verifyEvidence(wrong);
+    const negative = await verify(wrong);
     const checks = { ...verified.checks, independentNativeObservations: nativeVerified.passed, observerSlotValidated, unreadObservationRejected, nativeObservationsRetained, aliasRejected, rejectsUnverifiedReport: !negative.outcomeDimensions.returnedValue.passed };
     return {outcome,verification:assessSemanticOutcome({...verified,checks},pdfOutcomeContract(["independentNativeObservations","observerSlotValidated","unreadObservationRejected","nativeObservationsRetained","aliasRejected","rejectsUnverifiedReport"]))};
   }
