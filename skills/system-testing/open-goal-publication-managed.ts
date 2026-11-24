@@ -311,7 +311,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
         reason: "Compare the exact package and destination receipts." } : null,
     });
     const checks = { ...verified.observedChecks, rejectsDestinationAlias, rejectsStaleReview };
-    return assessSemanticOutcome({...verified,checks,observedChecks:checks},{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsStaleReview"]}});
+    return assessSemanticOutcome({...verified,checks},{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsStaleReview"]}});
   }
 
   return { goal, services, verify, qualify };

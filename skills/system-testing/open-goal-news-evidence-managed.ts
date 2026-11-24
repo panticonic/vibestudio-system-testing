@@ -429,7 +429,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       returnedNewsSchedule:isDeepStrictEqual(returned?.schedule,expectedFindings.schedule),
       returnedNewsBriefing:isDeepStrictEqual(returned?.briefing,expectedFindings.briefing),returnedNewsReceipt:isDeepStrictEqual(returnedHandoff,expectedHandoff)};
     const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"The actual native edition, reader windows, originals, authority and retained private bytes establish effects."},returnedValue:{checks:["exactRequestedNewsFindings","returnedNewsPlan","returnedNewsSchedule","returnedNewsBriefing",...Object.keys(readerChecks)],required:true,rationale:"The caller requested the news findings and citation handles."},incidentalValues:{checks:["returnedNewsReceipt"],rationale:"An echo of the native retained handoff is optional presentation."}};
-    return assessObservedApplicationOutcome({...proof,observedChecks:checks,observedChildReturns,checks,passed:proof.passed&&exactReturnedFindings},contract,raw,observations,[
+    return assessObservedApplicationOutcome({...proof,observedChildReturns,checks,passed:proof.passed&&exactReturnedFindings},contract,raw,observations,[
       {checks:["returnedNewsPlan"],rootPath:["explanation"],producerSourceSuffix:"reviewNewsEvidence/decideNewsEvidenceHandoff.nl",producerPath:["explanation"]},
       {checks:["returnedNewsSchedule"],rootPath:["schedule"],producerSourceSuffix:"reviewNewsEvidence/reviewNewsOwnerCadence/installed/reviewers/reviewSchedule.nl",producerPath:[]},
       {checks:["returnedNewsBriefing"],rootPath:["briefing"],producerSourceSuffix:"reviewNewsEvidence/groundNewsEdition/reviewNewsDevelopments.nl",producerPath:["result"]},

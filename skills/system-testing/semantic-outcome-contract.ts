@@ -12,10 +12,57 @@ type Verification = {
   [name: string]: unknown;
 };
 
+/** Adding independent checks may extend an assessment, never rewrite its observations. */
+export function semanticOutcomeObservations(verification: Verification): Record<string, boolean> {
+  const prior = (verification.observedChecks ?? {}) as Record<string, boolean>;
+  if (!prior || typeof prior !== "object" || Array.isArray(prior) ||
+      Object.values(prior).some(value => typeof value !== "boolean") ||
+      !verification.checks || typeof verification.checks !== "object" || Array.isArray(verification.checks) ||
+      Object.entries(verification.checks).some(([name, value]) => typeof value !== "boolean" ||
+        (Object.hasOwn(prior, name) && prior[name] !== value)))
+    throw new Error("The outcome projection must preserve its original observations");
+  return { ...prior, ...verification.checks };
+}
+
+/** Compose independent application requirements without making optional receipts mandatory. */
+export function composeSemanticOutcomes(...outcomes: readonly Verification[]) {
+  const observedChecks: Record<string, boolean> = {};
+  const dimensions = new Map<string, "effects" | "returnedValue" | "incidentalValues">();
+  const reasons = {effects: new Set<string>(), returnedValue: new Set<string>(), incidentalValues: new Set<string>()};
+  const incorrectReturnValues: unknown[] = [];
+  for (const outcome of outcomes) {
+    const assessed = assessSemanticOutcome(outcome);
+    for (const [name, value] of Object.entries(assessed.observedChecks)) {
+      if (Object.hasOwn(observedChecks, name) && observedChecks[name] !== value)
+        throw new Error(`Conflicting independent application observations: ${name}`);
+      observedChecks[name] = value;
+    }
+    for (const dimension of ["effects", "returnedValue", "incidentalValues"] as const) {
+      const clause = assessed.outcomeContract[dimension];
+      if (!clause) continue;
+      const target = dimension === "returnedValue" && !assessed.outcomeContract.returnedValue.required ? "incidentalValues" : dimension;
+      reasons[target].add(clause.rationale);
+      for (const name of clause.checks) {
+        if (dimensions.has(name) && dimensions.get(name) !== target)
+          throw new Error(`Conflicting independent application requirements: ${name}`);
+        dimensions.set(name, target);
+      }
+    }
+    if (Array.isArray(outcome.incorrectReturnValues)) incorrectReturnValues.push(...outcome.incorrectReturnValues);
+  }
+  const clause = (dimension: "effects" | "returnedValue" | "incidentalValues") => ({
+    checks: [...dimensions].filter(([, owner]) => owner === dimension).map(([name]) => name),
+    rationale: [...reasons[dimension]].join(" ") || "No independent requirements in this dimension.",
+  });
+  return assessSemanticOutcome({passed:false, checks:observedChecks, incorrectReturnValues}, {
+    effects:clause("effects"), returnedValue:{...clause("returnedValue"),required:true}, incidentalValues:clause("incidentalValues"),
+  });
+}
+
 export function assessSemanticOutcome<T extends Verification>(
   verification: T,
   contract?: SemanticOutcomeContract,
-): T & { outcomeContract: SemanticOutcomeContract; outcomeDimensions: {
+): T & { observedChecks: Record<string, boolean>; outcomeContract: SemanticOutcomeContract; outcomeDimensions: {
   effects: { passed: boolean; checks: Record<string, boolean> };
   returnedValue: { required: boolean; passed: boolean; checks: Record<string, boolean>; incorrectReturns?: {definition:{name:string;source:string};required:boolean;valueJson:string;sha256:string;contribution?:unknown}[] };
   incidentalValues?: { passed: boolean; checks: Record<string, boolean>; incorrectReturns: {definition:{name:string;source:string};required:boolean;valueJson:string;sha256:string;contribution?:unknown}[] };
@@ -28,11 +75,7 @@ export function assessSemanticOutcome<T extends Verification>(
   };
   // Domain verifiers and their callers may both assess the same outcome.
   // Preserve the original observations when required checks are projected out.
-  const observedChecks = (verification.observedChecks ?? verification.checks) as Record<string, boolean>;
-  if (!observedChecks || typeof observedChecks !== "object" ||
-      Object.values(observedChecks).some(value => typeof value !== "boolean") ||
-      Object.entries(verification.checks).some(([name, value]) => observedChecks[name] !== value))
-    throw new Error("The outcome projection must preserve its original observations");
+  const observedChecks = semanticOutcomeObservations(verification);
   const names = [...declared.effects.checks, ...declared.returnedValue.checks, ...(declared.incidentalValues?.checks ?? [])];
   if (new Set(names).size !== names.length || names.length !== Object.keys(observedChecks).length ||
       names.some(name => !Object.hasOwn(observedChecks, name)) ||

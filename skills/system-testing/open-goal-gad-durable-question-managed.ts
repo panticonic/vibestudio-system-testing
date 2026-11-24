@@ -124,7 +124,7 @@ export function bindOpenGadDurableQuestion(
       !(await verify({...report, question:{...question, message:question.message === null ? native.messages[0] ?? {} : {...question.message, sequence:question.message.sequence + 1}}})).passed &&
       !(await verify({...report, participant:{...participant, member:participant.member === null ? observedRoster.members[0] ?? {} : {...participant.member,participantId:"same-display-foreign-id"}}})).passed;
     const checks={...accepted.observedChecks,rejectedForeignReceipt,rejectedAlteredEvidence};
-    return assessSemanticOutcome({...accepted,checks,observedChecks:checks,report,rejectedForeignReceipt,rejectedAlteredEvidence},
+    return assessSemanticOutcome({...accepted,checks,report,rejectedForeignReceipt,rejectedAlteredEvidence},
       {...accepted.outcomeContract,effects:{...accepted.outcomeContract.effects,checks:[...accepted.outcomeContract.effects.checks,"rejectedForeignReceipt","rejectedAlteredEvidence"]}});
   }
 

@@ -2,6 +2,7 @@ import {createHash} from "node:crypto";
 import {expect,it,vi} from "vitest";
 import {observeInvocation} from "./observed-invocation.js";
 import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
+import {assessSemanticOutcome} from "./semantic-outcome-contract.js";
 vi.mock("@vibestudio/content-addressing",()=>({sha256HexSyncText:(text:string)=>createHash("sha256").update(text).digest("hex")}));
 const definition={name:"actualApplication",source:"fixture/application.ts"};
 function recorded(value:unknown){
@@ -9,6 +10,15 @@ function recorded(value:unknown){
  return observeInvocation({evalRunId:"run",rootCallIds:["root"],captureErrors:[],calls:[{callId:"root",summary:{run_id:"run",owner_key:"owner",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition,outcome:"done",output:{complete:true,hash}}}]},async reference=>reference===hash?text:null);
 }
 const contract={effects:{checks:["nativeWrite"],rationale:"The private document was actually stored."},returnedValue:{checks:["answer"],required:true,rationale:"The caller requested an answer as well as the document."},incidentalValues:{checks:["receipt"],rationale:"The receipt echo is optional presentation."}};
+it("uses retained observations when rebinding an already projected successful optional return",async()=>{
+ const value={answer:"supported",receipt:"actual"};
+ const assessed=assessSemanticOutcome({passed:true,checks:{nativeWrite:true,answer:true,receipt:true}},contract);
+ expect(assessed.checks).not.toHaveProperty("receipt");
+ const rebound=await assessObservedApplicationOutcome(assessed,contract,value,recorded(value));
+ expect(rebound.passed).toBe(true);
+ expect(rebound.incorrectReturnValues).toEqual([]);
+ expect(rebound.outcomeDimensions.incidentalValues?.checks.receipt).toBe(true);
+});
 it("retains successful native work and masks the exact wrong optional root return",async()=>{
  const value={answer:"supported",receipt:"invented"};
  const outcome=await assessObservedApplicationOutcome({passed:false,checks:{nativeWrite:true,answer:true,receipt:false}},contract,value,recorded(value));

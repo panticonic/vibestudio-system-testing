@@ -206,7 +206,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     const answer={outcome,saved},proof=await verify(answer);
     const rejectedInventedOriginal=!(await verify({...answer,outcome:{...answer.outcome,original:{digest:"invented",bytes:1,mime:"image/png"}}})).outcomeDimensions.returnedValue.passed;
     const checks={...proof.checks,rejectedForeignAttempt,rejectedWrongBytes,rejectedInventedOriginal};
-    return {...proof,checks,passed:Object.values(checks).every(Boolean),report:answer};
+    return {...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignAttempt","rejectedWrongBytes","rejectedInventedOriginal"]}},checks,passed:Object.values(checks).every(Boolean),report:answer};
   }
   return {services,qualify,verify};
 }

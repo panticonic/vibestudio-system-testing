@@ -207,7 +207,7 @@ export async function prepareOutcomeWorkspace(input: Input, world: OutcomeWorksp
       const unauthorizedWrite = await alias.services.goalWorkspace.revise(world.authority, alternate.authority.sha256, "altered");
       const checks = { ...positive.checks, alternateEvidenceRoute: alternate.passed,
         rejectedFalseSuccess: !unchanged.passed && !wrongResult.outcomeDimensions.returnedValue.passed, protectedAuthority: unauthorizedWrite.status === "unavailable" };
-      return { ...positive, checks, passed: Object.values(checks).every(Boolean) };
+      return { ...positive, outcomeContract:{...positive.outcomeContract,effects:{...positive.outcomeContract.effects,checks:[...positive.outcomeContract.effects.checks,"alternateEvidenceRoute","rejectedFalseSuccess","protectedAuthority"]}}, checks, passed: Object.values(checks).every(Boolean) };
     } finally {
       await alias.close();
     }

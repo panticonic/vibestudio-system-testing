@@ -220,7 +220,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     const rejectedInventedAssessment=!(await verify({...report,assessment:{disposition:"invented",decisiveSequences:[]}})).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongScopeAndStaleApproval: safeGuards.every(Boolean),
       rejectedForeignResult,rejectedInventedAssessment };
-    return { ...proof, checks, passed: Object.values(checks).every(Boolean), report };
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongScopeAndStaleApproval","rejectedForeignResult","rejectedInventedAssessment"]}}, checks, passed: Object.values(checks).every(Boolean), report };
   }
 
   return { services, verify, qualify };

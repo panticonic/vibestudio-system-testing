@@ -237,7 +237,7 @@ caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).e
     const proof=await verify(report);
     const rejectedInventedScope=!(await verify({...report,affected:["other-local-scope"]})).outcomeDimensions.returnedValue.passed;
     const checks={...proof.checks,rejectedUnknownReference,rejectedInventedScope};
-    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnknownReference","rejectedInventedScope"]}},...proof,checks,passed:Object.values(checks).every(Boolean),report};
+    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnknownReference","rejectedInventedScope"]}},checks,passed:Object.values(checks).every(Boolean),report};
   }
   return {services,qualify,verify};
 }

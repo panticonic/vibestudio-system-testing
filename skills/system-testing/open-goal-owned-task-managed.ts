@@ -302,7 +302,7 @@ export async function prepareOwnedTaskRecovery(
     const proof=await verifyEvidence(outcome,{foreignCard,wrongAttempt});
     const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
     const checks={...proof.observedChecks,observerSlotValidated};
-    return assessSemanticOutcome({...proof,checks,observedChecks:checks,observerSlotValidated},{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"observerSlotValidated"]}});
+    return assessSemanticOutcome({...proof,checks,observerSlotValidated},{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"observerSlotValidated"]}});
   }
   async function verify(value:unknown,invocation?:InvocationObservations){return verifyEvidence(value,undefined,invocation);}
     return { goal: world.goal, services, verify, qualify, close: local.close };

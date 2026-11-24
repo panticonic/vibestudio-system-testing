@@ -320,7 +320,7 @@ export async function prepareOpenOwnedPreviewGoal(input: Input) {
       }
     }
     const checks = { ...result.observedChecks, rejectsDestinationAlias, rejectsRevisionAlias, rejectsUnapprovedAdvance: !hold || rejectsUnapprovedAdvance };
-    return assessSemanticOutcome({...result,checks,observedChecks:checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsRevisionAlias","rejectsUnapprovedAdvance"]}});
+    return assessSemanticOutcome({...result,checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsRevisionAlias","rejectsUnapprovedAdvance"]}});
   }
 
   return { goal, services, verify, qualify };

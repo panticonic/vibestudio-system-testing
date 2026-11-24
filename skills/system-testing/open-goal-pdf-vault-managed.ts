@@ -138,7 +138,7 @@ export async function prepareOpenPdfVaultGoal(input: Input, prepareVault: Prepar
     const rejectedInventedSource=!(await verify({...result,source:{document:"invented",digest:"invented",citations:[]}})).outcomeDimensions.returnedValue.passed;
     const checks = { ...verified.checks, exactPdfReference: reference.verification.passed,
       rejectsForgedQuotation, rejectsPrematureVaultMutation,rejectedInventedSource };
-    return { ...verified, checks, passed: Object.values(checks).every(Boolean) };
+    return { ...verified, outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"exactPdfReference","rejectsForgedQuotation","rejectsPrematureVaultMutation","rejectedInventedSource"]}}, checks, passed: Object.values(checks).every(Boolean) };
   }
 
   return { goal, services, verify, qualify };

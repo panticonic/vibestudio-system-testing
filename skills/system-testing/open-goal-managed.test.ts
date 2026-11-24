@@ -2,6 +2,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
 import { prepareOpenGoal } from "./open-goal-managed.js";
 import { openGoalWorlds } from "./open-goal-worlds.js";
 
@@ -16,12 +18,49 @@ vi.mock("@workspace/runtime", () => ({
       return fixture.directory;
     },
   },
-  web: {},
+  web: {
+    async fetch({url}:{url:string}) {
+      const text="They are not available for registration or transfer.";
+      return {url,title:"Example domains",digest:createHash("sha256").update(text).digest("hex"),size:Buffer.byteLength(text),head:text,headBytes:Buffer.byteLength(text),session:"public",truncated:false};
+    },
+    async read({digest,offset=0,limit=8000}:{digest:string;offset?:number;limit?:number}) {
+      const text="They are not available for registration or transfer.".slice(offset,offset+limit);
+      return {digest,offset,text,bytes:Buffer.byteLength(text),nextOffset:offset+Buffer.byteLength(text)};
+    },
+  },
 }));
 
 afterEach(async () => {
   if (fixture.directory) await rm(fixture.directory, { recursive: true, force: true });
   fixture.directory = "";
+});
+
+it("composes the tutorial's real research and revision requirements without stale observations",async()=>{
+  const world=openGoalWorlds.find(({id})=>id==="verify-and-correct-tutorial");
+  if(world?.kind!=="research-and-edit")throw Error("Expected the combined tutorial task");
+  const prepared=await prepareOpenGoal({contextId:"owned-context",caseId:world.id});
+  if(!("goalWorkspace"in prepared.services))throw Error("Expected combined workspace bindings");
+  const services=prepared.services;
+  const page=await services.web.fetch({url:"https://www.iana.org/help/example-domains"});
+  const research={status:"answered",question:world.goal,statements:[{text:world.referenceAnswer,cites:[{
+    url:page.url,quote:"not available for registration or transfer",retrieved:new Date(services.goalDiscovery.snapshotTime()).toISOString().slice(0,10),
+  }]}]};
+  await services.goalWorkspace.read(world.source);
+  const original=await services.goalWorkspace.read(world.destination);
+  const blocked=await prepared.verify({research,revision:{status:"blocked",reason:"No edit selected"}});
+  expect(()=>assessSemanticOutcome(blocked)).not.toThrow();
+  expect(blocked.passed).toBe(false);
+  expect(blocked.checks.exactDocumentReadback).toBe(false);
+  expect((await services.goalWorkspace.revise(world.destination,original!.version,world.expected)).status).toBe("changed");
+  const fresh=await services.goalWorkspace.read(world.destination);
+  await services.goalWorkspace.revise(world.destination,fresh!.version,world.expected);
+  await services.goalWorkspace.read(world.destination);
+  const complete=await prepared.verify({research,revision:null});
+  expect(assessSemanticOutcome(complete).passed).toBe(true);
+  expect(complete.observedChecks.reportedStoredRevision).toBe(false);
+  expect(complete.outcomeDimensions.incidentalValues?.checks.reportedStoredRevision).toBe(false);
+  const unsupported=await prepared.verify({research:{...research,statements:[]},revision:null});
+  expect(assessSemanticOutcome(unsupported).passed).toBe(false);
 });
 
 it("requires fresh observations and independently reads back a recovered revision", async () => {

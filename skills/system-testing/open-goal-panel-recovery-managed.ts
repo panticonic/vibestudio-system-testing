@@ -312,7 +312,7 @@ export async function prepareOpenPanelRecovery(input: Input) {
       enforcesHold = denied.result === "denied" && (await read(selected.panel)).revision === first.revision;
     }
     const checks = { ...result.checks, rejectsCatalogAlias, rejectsStaleCatalog, rejectsWrongEvidence, enforcesHold };
-    return { ...result, checks, passed: Object.values(checks).every(Boolean) };
+    return { ...result, outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectsCatalogAlias","rejectsStaleCatalog","rejectsWrongEvidence","enforcesHold"]}}, checks, passed: Object.values(checks).every(Boolean) };
   }
 
   return { goal, services, verify, qualify };

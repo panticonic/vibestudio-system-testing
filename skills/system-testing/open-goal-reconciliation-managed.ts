@@ -349,7 +349,7 @@ export async function prepareOpenReconciliation(
     const result = await verify({ integration: progress, handoff, window, archive: comparison });
     const scope = foreignDenied && stale.status === "changed";
     const checks={...result.observedChecks,rejectedInvalidIntegrationScope:scope};
-    return assessSemanticOutcome({...result,checks,observedChecks:checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedInvalidIntegrationScope"]}});
+    return assessSemanticOutcome({...result,checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedInvalidIntegrationScope"]}});
   }
   return { goal: scenario.goal, services, verify, qualify };
 }

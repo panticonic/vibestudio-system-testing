@@ -1,6 +1,6 @@
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
-import {assessSemanticOutcome,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {assessSemanticOutcome,semanticOutcomeObservations,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import type {InvocationObservations,ObservedCall,ObservedReturn} from "./observed-invocation.js";
 export type ReturnPath=readonly (string|number)[];
 /** Authored against the actual domain composition, never a fabricated returned definition. */
@@ -20,7 +20,8 @@ export async function assessObservedApplicationOutcome<T extends {passed:boolean
  verification:T,contract:SemanticOutcomeContract,actualValue:unknown,invocation?:InvocationObservations,
  contributions:readonly ApplicationReturnContribution[]=[],
 ){
- const failed=[...contract.returnedValue.checks,...contract.incidentalValues?.checks??[]].filter(name=>verification.checks[name]!==true);
+ const observedChecks=semanticOutcomeObservations(verification);
+ const failed=[...contract.returnedValue.checks,...contract.incidentalValues?.checks??[]].filter(name=>observedChecks[name]!==true);
  const required=(checks:readonly string[])=>contract.returnedValue.required&&checks.some(name=>contract.returnedValue.checks.includes(name));
  const incorrectReturnValues:{definition:{name:string;source:string};value:unknown;valueJson:string;required:boolean;contribution:ApplicationReturnWitness}[]=[];
  const unboundReturnContributions:{checks:readonly string[];reason:string}[]=[];
@@ -44,7 +45,7 @@ export async function assessObservedApplicationOutcome<T extends {passed:boolean
    const prior=(verification as {incorrectReturnValues?:unknown}).incorrectReturnValues;
    if(Array.isArray(prior))for(const item of prior){
     if(!item||typeof item.callId!=="string"||!Array.isArray(item.checks)||!item.checks.length||
-      item.checks.some((name:unknown)=>typeof name!=="string"||!contract.incidentalValues?.checks.includes(name)||verification.checks[name]!==false))
+      item.checks.some((name:unknown)=>typeof name!=="string"||!contract.incidentalValues?.checks.includes(name)||observedChecks[name]!==false))
      throw new Error("An independently checked incidental return needs its actual call ID and failed incidental checks");
     const call=calls.get(item.callId),producer=call?await read(call):undefined,chain=call?lineage(call):null;
     if(!producer||!chain||!sampled(producer)||!isDeepStrictEqual(item.definition,producer.definition)||!isDeepStrictEqual(item.value,producer.value)||

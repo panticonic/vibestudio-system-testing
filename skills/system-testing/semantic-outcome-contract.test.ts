@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessSemanticOutcome } from "./semantic-outcome-contract.js";
+import { assessSemanticOutcome, composeSemanticOutcomes } from "./semantic-outcome-contract.js";
 
 describe("application outcome contracts", () => {
   const effectsOnly = {
@@ -53,4 +53,32 @@ it("does not hide wrong optional returned values behind an empty incidental chec
  expect(masked.outcomeDimensions.incidentalValues).toBeUndefined();expect(masked.outcomeDimensions.returnedValue.incorrectReturns).toHaveLength(1);
  const unbound=assessSemanticOutcome({passed:false,checks:{stored:true,answer:false}},contract);
  expect(unbound.outcomeDimensions.returnedValue.passed).toBe(false);expect(unbound.outcomeDimensions.incidentalValues).toBeUndefined();
+});
+
+it("extends independent checks without dropping optional observations or allowing rewrites", () => {
+ const contract={effects:{checks:["stored"],rationale:"Stored document."},returnedValue:{checks:["receipt"],required:false,rationale:"Optional receipt."}};
+ const first=assessSemanticOutcome({passed:false,checks:{stored:true,receipt:false}},contract);
+ const extended=assessSemanticOutcome({...first,checks:{...first.checks,aliasRejected:true}}, {...contract,effects:{...contract.effects,checks:["stored","aliasRejected"]}});
+ expect(extended.passed).toBe(true);
+ expect(extended.observedChecks).toEqual({stored:true,receipt:false,aliasRejected:true});
+ expect(extended.outcomeDimensions.returnedValue.passed).toBe(false);
+ expect(()=>assessSemanticOutcome({...extended,checks:{...extended.checks,stored:false}})).toThrow("preserve its original observations");
+ expect(()=>assessSemanticOutcome({...first,checks:{...first.checks,undeclared:true}})).toThrow("every independent application check");
+});
+
+it("composes requested research and stored edits while keeping a receipt incidental", () => {
+ const edit=assessSemanticOutcome({passed:false,checks:{readDraft:true,storedEdit:true,revisionReceipt:false}}, {
+  effects:{checks:["readDraft","storedEdit"],rationale:"Actual document bytes."},returnedValue:{checks:["revisionReceipt"],required:false,rationale:"No receipt was requested."}});
+ const research=assessSemanticOutcome({passed:true,checks:{readSource:true,groundedAnswer:true}}, {
+  effects:{checks:["readSource"],rationale:"Exact source bytes."},returnedValue:{checks:["groundedAnswer"],required:true,rationale:"The user requested the source and answer."}});
+ const combined=composeSemanticOutcomes(edit,research);
+ expect(combined.passed).toBe(true);
+ expect(combined.outcomeDimensions.returnedValue.checks).toEqual({groundedAnswer:true});
+ expect(combined.outcomeDimensions.incidentalValues?.checks).toEqual({revisionReceipt:false});
+ expect(assessSemanticOutcome(combined)).toEqual(combined);
+ const missingEdit=assessSemanticOutcome({...edit,checks:{readDraft:true,storedEdit:false,revisionReceipt:false},observedChecks:undefined});
+ expect(composeSemanticOutcomes(missingEdit,research).passed).toBe(false);
+ const wrongAnswer=assessSemanticOutcome({...research,checks:{readSource:true,groundedAnswer:false},observedChecks:undefined});
+ expect(composeSemanticOutcomes(edit,wrongAnswer).passed).toBe(false);
+ expect(()=>composeSemanticOutcomes(edit,missingEdit)).toThrow("Conflicting independent application observations");
 });

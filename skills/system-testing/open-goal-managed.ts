@@ -1,5 +1,5 @@
 import {assessObservedApplicationOutcome} from "./observed-application-outcome.js";
-import type {SemanticOutcomeContract} from "./semantic-outcome-contract.js";
+import {composeSemanticOutcomes,type SemanticOutcomeContract} from "./semantic-outcome-contract.js";
 import type {InvocationObservations} from "./observed-invocation.js";
 import type { NativeStartupDiagnostic, NativeStartupAcknowledgement } from "./native-startup-diagnostic.js";
 import { credentials, fs, panelTree, web } from "@workspace/runtime";
@@ -45,7 +45,7 @@ export async function prepareOpenGoal({ contextId, caseId, panelId, source }: In
   ) => ({
     ...edit, semanticReviewRequired:publicEvidence.semanticReviewRequired,semanticReviewInput:publicEvidence.semanticReviewInput, searches: publicEvidence.searches, fetched: publicEvidence.fetched,
     citationSources: publicEvidence.citationSources,
-    checks: { ...edit.checks, ...publicEvidence.checks }, passed: edit.passed && publicEvidence.passed,
+    ...composeSemanticOutcomes(edit, publicEvidence),
   });
   return {
     goal: world.goal,
