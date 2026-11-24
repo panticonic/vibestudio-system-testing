@@ -1,0 +1,29 @@
+# Workspace edit validation mechanism
+
+The shared implementation is `skills/system-testing/open-goal-managed.ts:183` (`prepareWorkspaceGoal`). Its exact-document predicate at line 256 conflates independent byte readback with equality to an authored example. All direct workspace-edit/research-and-edit worlds use it through `prepareOpenGoal` (lines 38-41); six owned-research edit worlds use it through `open-goal-owned-research-managed.ts:63`. `WorkspaceEditFixture` is declared in `open-goal-owned-research-worlds.ts:9`; its `expected` text is a reference execution, not a user request for literal output. Existing source/world references are unchanged.
+
+Inventory searches: `git grep prepareWorkspaceGoal`, `git grep WorkspaceEditFixture`, and whole-SST `world.expected` equality searches. Other matching code compares domain enums, artifact identities, literal paths, source digests or structured values rather than this prose-reference predicate; it does not implement this workspace editor. The common function has no engine-specific implementation: it runs in the SST application and consumes native file observations before teacher export.
+
+Affected shared checks and consumers:
+
+- `discoveredWorkspace` currently prescribes reading an arbitrary original source/target route, while the source and current target observations still need independent identity.
+- `recoveredConcurrentEdit` currently prescribes a read of the intermediate revision and a write against that exact revision; its useful requirement is preservation and use of a real current revision after injected concurrent modification.
+- `exactDocumentReadback` must bind exact retained bytes to a native read; it must not impose example prose.
+- `preservedOtherDocuments` remains exact because the user explicitly protects them.
+- Unchanged target spans and the actual concurrent addition must remain exact, including literal requested data; content in the authorized edit region is judged against the actual request and authoritative observations.
+- `composeSemanticOutcomes`, owned research composition, and the authored-teacher outcome wrapper retain all independent requirements.
+- Independent review inputs in Base workspace-edit, public research/edit and owned research/edit must include the actual retained edit. The Host public-claims typed reviewer currently expressly ignores filesystem edits and needs the same new document evidence/rubric; pure workspace edits use the existing generic rubric reviewer. No additional teacher execution is needed.
+
+Original wave 0047 tutorial: corrected registration statement plus IANA/RFC attribution in the changed paragraph; original setup, all other files and the concurrent beginner paragraph preserved exactly; final hash independently read. It is rejected solely because the corrected paragraph is not the authored example. Original packet and all original validator fields remain immutable. Recovery will bind a new assessment to these original observations and an explicit independent content audit, never rewrite an original failed result or reconstruct a teacher trace.
+
+## Full open-goal comparison inventory
+
+Whole-family search covered `text/content/body/answer/summary/reason` strict equality and deep-equality uses in every `open-goal-*-managed.ts`, plus stringified equality. Current changes include the second generated-prose oracle at `open-goal-product-owned-managed.ts` (`exact_runbook_result`): mutating Google runbooks now preserve exact protected lines and require independent review of retained time/venue content, rather than equality to `world.after`. Inspection/hold outcomes remain exact unchanged-byte checks.
+
+Input/identity comparisons retained: bridge-delivery's `approvedText`/`releaseText` compares immutable existing input files, not authored teacher output; system-candidate `installedSide` binds original candidate/source bytes; source-attribution compares exact source fragments; capability-plan, deployed-interface, build-incidents, extension-dossier, local-width, provider-handoff, scheduled-recovery and workspace-share bind actual emitted/stored structured packets and hashes; source/receipt/DOM/history comparisons attest observed identity and preserved state. Typed disposition/reason strings are enum contracts, not prose gold.
+
+Editorial publication is a remaining distinct source mechanism: `open-goal-editorial-managed.ts:268` constrains writes to `corrected(snapshot.candidate.text)` and line 366 constrains readback. Several goals explicitly request approved wording; some request fact correction without literal copy. A goal-sensitive editorial scope/content review followup is needed before claiming every prose gate across all families is resolved. This first successor does not silently weaken that approved-copy boundary.
+
+Capture eligibility (`workers/system-test-runner/authored-teacher.ts`) now describes complete, exact-identity capture independently of root termination. Root outcome and execution errors stay intact; independent goal requirements determine whether whole or partial work is usable. Host exporter and Python importer changes are coordinated in the cancellation strand.
+
+Validation: `vibe-workspace-edit-all-consumers-final-20261124` actually passed 29 tests in 7 files (205 MiB peak), including all 11 shared edit worlds, original wave0047 wording, protected/coedit/stale negatives, multiple genuine revisions, Google runbook equivalent field wording, and unchanged capture-error rejection. A legacy TS mock needed its declared name explicitly preserved just as ProgramLoader does; production name checks remain strict. Host `vibe-workspace-edit-host-all-20261124` passed 10 tests at 193.3 MiB, including exact reviewer input custody and checkpoint cancellation before provider loading. No teacher or reviewer inference was used by these tests.

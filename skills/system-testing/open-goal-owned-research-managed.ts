@@ -166,6 +166,7 @@ export async function prepareOpenOwnedResearch(input: { contextId: string; caseI
       fetched: [...pages.values()], fetchReceipts, cacheReceipts, readback, document,
       semanticReviewRequired:true,semanticReviewInput:{kind:"public-claims",actual:{goal:world!.goal,
         answer:JSON.stringify(research??null),citations:cites.map(({url,quote})=>({url,quote})),
+        ...(document?{documentEdits:document.semanticReviewInput.actual.documentEdits}:{}),
         sourceScope:[...entries.keys()],sources:readback.map(source=>({url:source.url,
           title:[...pages.values()].find(page=>page.url===source.url)?.title??"",retrieved:date,sha256:source.digest,text:source.text}))}} },contract,value,invocation);
   }

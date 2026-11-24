@@ -57,6 +57,8 @@ it("composes the tutorial's real research and revision requirements without stal
   await services.goalWorkspace.read(world.destination);
   const complete=await prepared.verify({research,revision:null});
   expect(assessSemanticOutcome(complete).passed).toBe(true);
+  expect(complete.semanticReviewRequired).toBe(true);
+  expect(complete.semanticReviewInput.actual.documentEdits[0]?.retainedText).toBe(world.expected);
   expect(complete.observedChecks.reportedStoredRevision).toBe(false);
   expect(complete.outcomeDimensions.incidentalValues?.checks.reportedStoredRevision).toBe(false);
   const unsupported=await prepared.verify({research:{...research,statements:[]},revision:null});

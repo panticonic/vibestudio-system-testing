@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { prepareGoogleRunbook, prepareNewsEditionReview } from "./open-goal-product-owned-managed.js";
+import {googleRunbookWorlds} from "./open-goal-product-owned-worlds.js";
 
 vi.mock("@workspace/runtime", () => ({ contextId: "owned", fs: {}, vcs: {} }));
 vi.mock("@vibestudio/content-addressing", () => ({
@@ -20,9 +21,29 @@ function workspace() {
       mkdtemp: async (label: string) => "/scratch/" + label,
       writeFile: async (path: string, text: string) => void files.set(path, text),
       readFile: async (path: string) => files.get(path),
+      rename:async (from:string,to:string)=>{files.set(to,files.get(from)!);files.delete(from);},
     },
   } as never;
 }
+
+it("requires semantic review of actual runbook edits while allowing equivalent field wording",async()=>{
+ const world=googleRunbookWorlds.find(world=>world.action==="revise")!;
+ const selection={calendarId:"operations",eventId:"ramp-shift-brief",startsAt:"2026-10-22T10:30:00Z",description:"Venue: North safety bay"};
+ const review={decision:{selection}};
+ const calendar={services:{},verify:async()=>({passed:true}),verifyObserved:async()=>({passed:true,handoff:null,readback:{observed:{status:"current",record:selection}}})};
+ const prepared=await prepareGoogleRunbook({...input,caseId:world.id},world,calendar as never,workspace());
+ const first=await prepared.services.googleRunbook.read();
+ const target=first.documents.find(document=>document.path==="operations-runbook.md")!;
+ const alternative=world.after.replace("Start:","Time:")+(world.coedit??"");
+ expect((await prepared.services.googleRunbook.apply(review as never,{...target,text:alternative})).status).toBe("changed");
+ const fresh=(await prepared.services.googleRunbook.read()).documents.find(document=>document.path===target.path)!;
+ const write=await prepared.services.googleRunbook.apply(review as never,{...fresh,text:alternative});
+ const proof=await prepared.verify({decision:{action:"revise",path:target.path,approval:"APP-RAMP",reason:"Approved time and venue"},attribution:null,write});
+ expect(proof.checks.exact_runbook_result).toBe(true);
+ expect(proof.semanticReviewRequired).toBe(true);
+ expect(proof.semanticReviewInput?.actual.documentEdits[0]?.retainedText).toBe(alternative);
+ expect(alternative).not.toBe(world.after+(world.coedit??""));
+});
 
 it("rejects an incomplete News edition while retaining the native workspace checks", async () => {
   const verify = vi.fn(() => ({ passed: false }));

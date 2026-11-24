@@ -52,10 +52,10 @@ it("keeps failed authored execution distinct from evidence corruption", async ()
   expect(value.executionError).toMatchObject({
     name: "AuthoredExecutionFailure",
   });
-  expect(value.trainingEligible).toBe(false);
+  expect(value.trainingEligible).toBe(true);
   expect(value.calls).toHaveLength(1);
 });
-it("still requires successful root completion and exact teacher identity for full success eligibility", async () => {
+it("keeps capture eligibility independent of completion while requiring exact teacher identity", async () => {
   expect((await capture("done")).trainingEligible).toBe(true);
   const wrong = await capture("done", "Sol");
   expect(wrong.captureErrors).toContain(
@@ -83,11 +83,14 @@ it("invokes only the exact named TS default export and retains its crisp authore
   const code=openGoalTeacherCode({executorModel:"reference:offline",bindingCode:"const assignedServices={};",goal:entry.arguments.goal,entry},"run");
   let called=0;
   const review=async function review(goal:string){called++;return {answer:goal};};
+  // ProgramLoader preserves the declared name explicitly; Vite may rename this
+  // local mock's function expression while transforming the test module.
+  Object.defineProperty(review,"name",{value:entry.callable});
   const natlang={captureModelTurns(){},load:async()=>({default:review,wrong:()=>{throw Error("Wrong export");}}),
     calls:async({after}:{after?:string})=>after?[]:[{callId:"root",parentCallId:null}],
     trace:async()=>({callId:"root",summary:{run_id:"run",owner_key:"owned",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition:{name:"review",id:"ts:review.ts#default",source:"review.ts"},executor:{kind:"crisp"},outcome:"done",model_turns:[]}})};
   const value=await new Function("natlang",`return (async()=>{${code};return utilityValue;})()`)(natlang);
-  expect(called).toBe(1);expect(value.trainingEligible).toBe(true);expect(value.applicationResult).toEqual({answer:entry.arguments.goal});
+  expect(value.executionError).toBeNull();expect(called).toBe(1);expect(value.trainingEligible).toBe(true);expect(value.applicationResult).toEqual({answer:entry.arguments.goal});
   natlang.load=async()=>({default:async function wrong(){called++;return {};},wrong:()=>{throw Error("Wrong export");}}) as any;
   const rejected=await new Function("natlang",`return (async()=>{${code};return utilityValue;})()`)(natlang);
   expect(rejected.executionError.message).toMatch(/differs from the assigned callable/);expect(called).toBe(1);

@@ -272,6 +272,8 @@ ${options.bindingCode}
       if(rootRecord && rootOutcome!=="done" && executionError===null)
         executionError={name:"AuthoredExecutionFailure",message:"Assigned authored root ended with "+rootOutcome};
       let utilityValue={report,applicationResult,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,rootOutcome,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
-        trainingEligible:rootOutcome==="done"&&executionError===null&&captureErrors.length===0};
+        // Capture eligibility is independent of goal success and root completion.
+        // Independent domain evidence determines usable whole or partial work.
+        trainingEligible:captureErrors.length===0};
   `;
 }
