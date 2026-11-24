@@ -1,7 +1,7 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
+import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -179,21 +179,21 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
       if(channelId!==lane.key)return null;
       return serializeByKey(journalReads, channelId, async () => {
         if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
-        if(snapshots.length===1&&later.length)await save(later);
         const value=project(await ports.read(lane));
         snapshots.push(value);
+        if(snapshots.length===1&&later.length)await save(later);
         return structuredClone(value);
       });
     }},
     imageCandidateOriginal:{async read(briefId:string,id:string){
       const previous=briefId===brief.id?reads.find(read=>read.candidateId===id):undefined;
       if(previous)return structuredClone(previous);
-      if(briefId!==brief.id||snapshots.length!==2||readBusy)
+      if(briefId!==brief.id||!snapshots.length||readBusy)
         return refused(id);
       readBusy=true;
       try {
         const journal=await ports.read(lane);
-        if(journal.through!==snapshots[1].through)return refused(id);
+        if(journal.through!==snapshots.at(-1)?.through)return refused(id);
         const read=await inspect(journal,id);
         if(read.status!=="refused")reads.push(read);
         return structuredClone(read);
@@ -202,12 +202,12 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     imageCandidateHandoff:{async stage(report:ImageReport){
       if(!world.note||handoff||stageBusy||report?.plan?.briefId!==brief.id||!report.plan.localHandoff||report.plan.mode!==world.mode||
         report.handoff!==null||report.decision?.action!=="stage"||!report.decision.explanation?.trim()||
-        report.decision.explanation.length>600||!sameEvidenceMembers(report.reads,reads)||snapshots.length!==2)return null;
+        report.decision.explanation.length>600||!sameEvidenceMembers(report.reads,reads)||!snapshots.length)return null;
       stageBusy=true;
       try {
         const id=report.decision.candidateId;
         const journal=await ports.read(lane);
-        if(!id||journal.through!==snapshots[1].through||(brief.reference&&currentRights(journal)?.rights!=="local-handoff"))
+        if(!id||journal.through!==snapshots.at(-1)?.through||(brief.reference&&currentRights(journal)?.rights!=="local-handoff"))
           return null;
         const read=await inspect(journal,id);
         const original=reads.find(value=>value.candidateId===id);
@@ -259,10 +259,10 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
-      exactImageFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],project(initial))&&
-        isDeepStrictEqual(snapshots[1],project(latest))&&seeded.size===latest.rows.length&&
+      exactImageFrontiers:includesEvidence(snapshots,project(initial))&&
+        includesEvidence(snapshots,project(latest))&&seeded.size===latest.rows.length&&
         latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))&&new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
-      exactImageBrief:discovered&&snapshots.length===2,
+      exactImageBrief:discovered&&snapshots.length>0,
       groundedImageAssessment:isDeepStrictEqual(outcome?.assessment?.queue,queue)&&
         Array.isArray(assessed)&&assessed.length===idsInScope.size&&new Set(assessed.map(value=>value.id)).size===assessed.length&&
         assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&

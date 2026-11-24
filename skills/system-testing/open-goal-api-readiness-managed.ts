@@ -1,7 +1,7 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
+import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -219,7 +219,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     }},
     quietIntegrationProtocol:{
       async open(id:string,message:string){
-        const current=snapshots[1];
+        const current=snapshots.at(-1);
         if(!current||!publicPlan(id,message,current)||(await ports.read(lane)).through!==current.through)return null;
         if(bound)return structuredClone(bound.request);
         bound=bindIntegrationReview({goal:world.goal,destinations},async({id,url,use})=>{
@@ -251,7 +251,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     integrationCredentialLookup:{async resolve(receipt:string,id:string){
       const previous=observations.find(row=>row.id===id);
       if(bound&&seenPlan?.receipt===receipt&&previous)return structuredClone(previous);
-      if(!bound||audited||!snapshots[1]||(await ports.read(lane)).through!==snapshots[1].through)
+      if(!bound||audited||!snapshots.at(-1)||(await ports.read(lane)).through!==snapshots.at(-1)?.through)
         throw new Error("The quiet review no longer owns this selection frontier");
       if(!(world.lookupAfter?.[id]??[]).every(required=>observations.some(row=>row.id===required)))
         throw new Error("Observe the user-requested prerequisite destination first");
@@ -261,14 +261,14 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
       return structuredClone(result);
     }},
     quietIntegrationHandoff:{async stage(report:ReadinessReport){
-      if(!index.scope.mayStage||writing||handoff||report?.plan?.action!=="stage"||report.handoff!==null||!snapshots[1])return null;
+      if(!index.scope.mayStage||writing||handoff||report?.plan?.action!=="stage"||report.handoff!==null||!snapshots.at(-1))return null;
       writing=true;
       try{
         const current=await ports.read(lane);
         const status=await ports.status();
         const {explanation,...plan}=report.plan;
         if(!explanation?.trim()||!isDeepStrictEqual(plan,actionFor(current,profileId))||!verifiedReview(report.review,report.audit)||
-          current.through!==snapshots[1].through||status.mainEventId!==before.mainEventId||
+          current.through!==snapshots.at(-1)?.through||status.mainEventId!==before.mainEventId||
           !isDeepStrictEqual(status.workingHead,before.workingHead))return null;
         const text=body(report);
         if(countBytes(text)>max)return null;
@@ -295,7 +295,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
-      exactIntegrationFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(current,snapshots[1])&&
+      exactIntegrationFrontiers:includesEvidence(snapshots,initial)&&includesEvidence(snapshots,current)&&
         current.rows.length===maps.size&&current.rows.every(row=>isDeepStrictEqual(row.selection,maps.get(row.messageId)))&&
         new Set(current.rows.map(row=>row.envelopeId)).size===current.rows.length,
       trustedIntegrationSelection:planned.action==="hold"?!calls.length&&seenPlan===null&&!observations.length:

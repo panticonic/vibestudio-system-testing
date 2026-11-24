@@ -3,6 +3,8 @@ import { matchUrlBoundCredentialCandidates, findCredentialBinding } from "@vibes
 import { findMatchingUrlAudience } from "@vibestudio/credential-client/urlAudience";
 import { credentialLifecycle } from "@vibestudio/credential-client/credentialStatus";
 import { prepareOpenApiReadiness } from "./open-goal-api-readiness-managed.js";
+vi.mock("./session-replay-managed.js",()=>({createOwnedHeadlessChannel:vi.fn(),withOwnedChannelClient:vi.fn()}));
+vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:vi.fn()}));
 vi.mock("@workspace/runtime", () => ({ contextId: null, fs: {}, rpc: {}, vcs: {}, credentials: {} }));
 vi.mock("@workspace-skills/scratch-handoff-bindings", () => ({ bindScratchHandoff: (fs:{writeFile(path:string,text:string):Promise<void>}) => ({ scratchHandoffWrite: { stage: async (text:string) => {const path="/.tmp/evidence-handoff-proof/handoff.json";await fs.writeFile(path,text);return {path,bytes:new TextEncoder().encode(text).length};} } }) }));
 async function prepare(caseId: string) {
@@ -24,17 +26,18 @@ async function prepare(caseId: string) {
   } as never);
   return {...prepared,readArtifact:()=>JSON.parse(saved.get("/.tmp/evidence-handoff-proof/handoff.json")??"null")};
 }
-async function open(caseId: string) {
+async function open(caseId: string, count = 2) {
   const prepared = await prepare(caseId), s = prepared.services;
   const index = await s.quietIntegrationIndex.list(), profile = index.profiles[0]!;
-  await s.quietIntegrationJournal.read(index.scope.channelId);
-  const frontier = (await s.quietIntegrationJournal.read(index.scope.channelId))!;
+  let frontier: Awaited<ReturnType<typeof s.quietIntegrationJournal.read>> = null;
+  for(let i=0;i<count;i++)frontier=(await s.quietIntegrationJournal.read(index.scope.channelId))!;
+  if(!frontier)throw new Error("Observe an actual native frontier");
   const request = (await s.quietIntegrationProtocol.open(profile.id, frontier.rows[0]!.messageId))!;
   const plan = await s.integrationPlanRead.observe(request.operationId);
   return { prepared, s, index, profile, frontier, request, plan };
 }
-it("accepts reordered and repeated integration observations, rejecting invented native state", async () => {
-  const { prepared, s, index, profile, frontier, request, plan } = await open("api-readiness-api-versus-git-read");
+it.each([1,2,4])("accepts %i frontier reads and reordered repeated integration observations, rejecting invented native state", async count => {
+  const { prepared, s, index, profile, frontier, request, plan } = await open("api-readiness-api-versus-git-read",count);
   expect(await s.quietIntegrationProtocol.open(profile.id, frontier.rows[0]!.messageId)).toEqual(request);
   expect(await s.integrationPlanRead.observe(request.operationId)).toEqual(plan);
   const metadata = await s.integrationCredentialLookup.resolve(plan.receipt, "meta");

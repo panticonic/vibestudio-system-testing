@@ -1,6 +1,7 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
+import { includesEvidence } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -256,28 +257,30 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     welcomeResourceResolution:{
       async resolve(resourceId:string) {
         const resource=resources.find(row=>row.id===resourceId);
-        if (!resource || !snapshots[1] || resolution) return null;
-        resolution=resolveResource(snapshots[1],resource);
+        const current=snapshots.at(-1);
+        if (!resource || !current || resolution || (await ports.read(lane)).through!==current.through) return null;
+        resolution=resolveResource(current,resource);
         return structuredClone(resolution);
       },
     },
     onboardingRead:{
       async inspect() {
-        if (!resolution || !snapshots[1] || ownerRead) throw new Error("Use the current resolved Personal owner");
-        ownerRead=observeOwner(snapshots[1],resolution);
+        const current=snapshots.at(-1);
+        if (!resolution || !current || ownerRead || (await ports.read(lane)).through!==current.through) throw new Error("Use the current resolved Personal owner");
+        ownerRead=observeOwner(current,resolution);
         return structuredClone(ownerRead);
       },
     },
     explorerTextProbe:{
       async input(id:string) {
-        if (!nativeProbe || id!==resolution?.probe?.operationId || probeInput || (await ports.read(lane)).through!==snapshots[1]?.through)
+        if (!nativeProbe || id!==resolution?.probe?.operationId || probeInput || (await ports.read(lane)).through!==snapshots.at(-1)?.through)
           throw new Error("Use the explicitly authorized current Personal probe");
         probeInput=await nativeProbe.services.explorerTextProbe.input(id);
         return structuredClone(probeInput);
       },
       async run(id:string,plan:ExplorerPlan) {
         if (!nativeProbe || id!==resolution?.probe?.operationId || !probeInput || probeRun ||
-            (await ports.read(lane)).through!==snapshots[1]?.through) throw new Error("Only one exact local retry is authorized");
+            (await ports.read(lane)).through!==snapshots.at(-1)?.through) throw new Error("Only one exact local retry is authorized");
         const receipt=await nativeProbe.services.explorerTextProbe.run(id,plan);
         probeRun={plan:structuredClone(plan),receipt:structuredClone(receipt)};
         return receipt;
@@ -286,7 +289,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     welcomeLocalHandoff:{
       async stage(plan:WelcomePlan,reviews:WelcomeReviews) {
         if (!scope.mayStage || writing || handoff || plan?.action!=="stage" || plan.resourceId!==resolution?.resourceId ||
-            plan.channelId!==lane.key || !snapshots[1]) return null;
+            plan.channelId!==lane.key || !snapshots.at(-1)) return null;
         writing=true;
         try {
           const latest=await ports.read(lane);
@@ -331,7 +334,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactWelcomeResource:!!plan&&plan.resourceId===expected.target&&isDeepStrictEqual(resolution,native),
-      exactWelcomeFrontiers:snapshots.length===2&&isDeepStrictEqual(initial,snapshots[0])&&isDeepStrictEqual(latest,snapshots[1])&&
+      exactWelcomeFrontiers:includesEvidence(snapshots,initial)&&includesEvidence(snapshots,latest)&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(seeded.get(row.messageId),row.record))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
       exactWelcomeDecision:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&

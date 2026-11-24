@@ -1,0 +1,2797 @@
+{
+  "scope": "All 115 actual exported worlds in five named families, pinned eab9d92 predecessor; no model or provider calls",
+  "uncheckedWithinRequestedScope": [],
+  "worlds": [
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-archive-mark-print-versus-preview",
+      "goal": "Compare the Archive mark attempts for the records desk. Leave a private pointer to the saved original that keeps the unlettered border. The draft panel may still be showing the replacement.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "stage",
+        "label": "circular",
+        "queue": [
+          "circular"
+        ],
+        "code": "preview-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 21
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-old-plate-named-variant",
+      "goal": "I need the original file details for the morning glass variant of Greenhouse plate. A later version is selected and useful to the design team. Keep the review pointed at the named earlier version and leave no note.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "morning glass",
+        "queue": [
+          "morning glass"
+        ],
+        "code": "verified-historical"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 25
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-transport-no-license-inference",
+      "goal": "Could we hand the current River ferry study over to the internal deck? Put a pointer in scratch only if we have affirmative permission for the harbor reference. Report which permission is missing.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "rights-unknown"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 29
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-portrait-read-only-reference",
+      "goal": "Read back the exact current Winter coat study for the portrait review. We only need to inspect the file during this review.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "review crop",
+        "queue": [
+          "review crop"
+        ],
+        "code": "verified-review-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 32
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-canceled-selected-after-preview",
+      "goal": "Which saved Lamp pattern, if any, currently backs the chosen version? The second attempt flashed a preview when the job was interrupted. Keep the answer tied to what is selected now.",
+      "authoredTransitions": {
+        "late": {
+          "delayedPreview": "second"
+        }
+      },
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "cancelled-attempt"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 35
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-retry-attempt-not-stale-success",
+      "goal": "I need to know whether the selected Clay texture finished its retry. The earlier job showed a saved result. Check the current attempt before claiming completion.",
+      "authoredTransitions": {
+        "late": {
+          "receipts": [
+            {
+              "label": "proof",
+              "retry": true,
+              "state": "failed",
+              "receipt": false,
+              "save": "preview-only"
+            }
+          ]
+        }
+      },
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "failed-retry"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 39
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-transparent-png-brief",
+      "goal": "We need a PNG for the Oak perimeter overlay. Compare the retained renditions and leave a private scratch pointer to one that meets the brief and has its original saved.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "stage",
+        "label": "overlay",
+        "queue": [
+          "overlay"
+        ],
+        "code": "required-format"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 43
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-jpeg-extensions-normalized",
+      "goal": "Verify that the current Stone elevation original really is suitable for the conservation team's JPEG workflow. Tell me how it is stored as well as what format the source verifies.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "survey original",
+        "queue": [
+          "survey original"
+        ],
+        "code": "verified-jpeg"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 47
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-format-disagrees-native",
+      "goal": "The Pin map says WebP in the activity log. Can the current original actually be used where a WebP is required? Verify the retained data before answering.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [
+          "small map"
+        ],
+        "code": "native-format-mismatch"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 51
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-receipt-path-extension-disagrees",
+      "goal": "Check whether we can trust the saved Timber samples item when the format in the receipt and the path extension are different. I only need a decision about the current item.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "suffix-mismatch"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 55
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-lost-retention-after-selection",
+      "goal": "I need a private note pointing to the selected Moon dial original for the exhibit team, if it's still retained. Check the object itself. A successful generation receipt may still be visible.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [
+          "dial front"
+        ],
+        "code": "missing-original"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 59
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-damaged-original-other-digest",
+      "goal": "The Garden directory has a saved receipt for the chosen drawing. Tell me whether that receipt describes the original currently returned by the workspace image store.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [
+          "directory print"
+        ],
+        "code": "digest-mismatch"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 62
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-prompt-changed-direction",
+      "goal": "Compare Dry dock before we leave a pointer for the support-block review. Keep the intended empty dock. Use original bytes for the suitable saved candidate.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "stage",
+        "label": "empty frame",
+        "queue": [
+          "empty frame"
+        ],
+        "code": "material-prompt-drift"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 66
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-harmless-prompt-rewrite",
+      "goal": "The provider paraphrased Stair details. Check whether the current result is still a candidate for inspecting all three handrail joints. Read back its original if the purpose was preserved.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "joint sheet",
+        "queue": [
+          "joint sheet"
+        ],
+        "code": "equivalent-prompt"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 70
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-different-approved-scene-reference",
+      "goal": "Choose a door-frieze source for my private Masonry notes from the saved attempts. It has to derive from door four's survey image, even if the newest cutout looks close.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "stage",
+        "label": "survey trace",
+        "queue": [
+          "survey trace"
+        ],
+        "code": "wrong-reference"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 74
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-unlabeled-provider-receipt",
+      "goal": "We have a saved-looking current Rain inset entry. Verify the original is attributable to this completed provider attempt before putting it in the team's shortlist.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "unattributed-completion"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 78
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-selection-refresh-invalidates-draft",
+      "goal": "Make a private pointer to the current Pier board original that is selected now. A preview for the first board might still arrive after the selection moved.",
+      "authoredTransitions": {
+        "late": {
+          "select": "berth board",
+          "delayedPreview": "high tide"
+        }
+      },
+      "requiredOutcome": {
+        "action": "stage",
+        "label": "berth board",
+        "queue": [
+          "berth board"
+        ],
+        "code": "selection-refreshed"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 81
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-other-project-lookalike",
+      "goal": "Find the chosen Market symbol in Farm stall evidence. A similarly named object from another market project appears in the retained activity, and I need the one from this brief only.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "peach source",
+        "queue": [
+          "peach source"
+        ],
+        "code": "owned-selection"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 85
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-held-glaze-local-rights-withdrawn",
+      "goal": "The ceramics archive asked for an internal Glaze map pointer. Please check the maker's latest permission before recording any local handoff, and explain the current position if it changed.",
+      "authoredTransitions": {
+        "late": {
+          "rights": "revoked"
+        }
+      },
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "rights-revoked"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 89
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-held-prairie-save-retargeted",
+      "goal": "I need the old boundary before version of Prairie edge, specifically as originally saved. Tell me whether that saved output is still attributable to it after a later item reused the destination.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "superseded-save"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 93
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-held-poster-compare-no-mutation",
+      "goal": "Check both retained Shelf catalogue originals for the reading room. Tell me which is currently selected and what both original receipts say. This is a comparison for discussion.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "label update",
+        "queue": [
+          "label update",
+          "first print"
+        ],
+        "code": "compared-originals"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 97
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-held-venus-running-different-attempt",
+      "goal": "Can the new Venus scale go into our private telescope notes today? Leave a local pointer only if the new selected attempt has finished and its own original is retained.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "hold",
+        "label": null,
+        "queue": [],
+        "code": "attempt-running"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 101
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-held-trail-publish-request-is-not-local",
+      "goal": "Check the public submission readiness of the chosen Violet trail badge. It should already have a usable original by now. The eventual submission is external, so I only need the verified decision here.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "action": "report",
+        "label": "route marker",
+        "queue": [
+          "route marker"
+        ],
+        "code": "verified-no-publication"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 105
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "image-candidate",
+      "id": "image-candidate-held-local-rights-restored",
+      "goal": "Canal linocut needed a maker approval update. Check whether the latest permission allows an internal archive pointer and, if it does, stage a private note grounded in the current original.",
+      "authoredTransitions": {
+        "late": {
+          "rights": "local-handoff"
+        }
+      },
+      "requiredOutcome": {
+        "action": "stage",
+        "label": "keeper print",
+        "queue": [
+          "keeper print"
+        ],
+        "code": "rights-restored"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-worlds.ts",
+        "line": 109
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+        "line": 262
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-closure-not-mirrors",
+      "goal": "Compare our saved and archived Bridge closure reporting. Prepare a private handoff based on the original closure notice, and account for copies that shouldn't count as separate readings.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "stage",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 22
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-archive-after-pause",
+      "goal": "The Budget minutes are in the archive but today's inbox seems quiet. Check whether the owner is paused and whether a manual review remains possible. Use the actual minutes in the recap.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "report",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 29
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-triage-independent-saved",
+      "goal": "Reconcile the Ferry schedule backlog and the saved bulletin. Tell me why those counts can differ and which original bulletin supports our summary.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "report",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 35
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-missing-primary-bytes",
+      "goal": "The Station design digest names an official drawing and a commentary. Check the original retained bytes before making an evidence note. Hold if we only have commentary.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "primary-read-missing",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 42
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-analyst-lane-scope",
+      "goal": "We are reviewing the Hearing order from an analyst fork. Compare the saved order with the archive and confirm the original evidence. Then tell me whether that analyst owns any manual newsroom briefing lane.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "report",
+        "schedule": "analyst-schedule-unavailable"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 49
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-foreign-similar-outlet",
+      "goal": "Resolve the Seed library article against the exact reader. Compare the archive and saved copy. Another edition's similarly titled article may be on screen. Only stage a private note grounded in our original.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "stage",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 55
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-conserved-archival-claim",
+      "goal": "Compare the archived and current Tram fares copy before making my local update. If it just repeats the old fare claim, explain what's already covered and leave scratch alone.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "already-covered",
+        "action": "report",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 63
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-verified-correction-follow-up",
+      "goal": "Check the archived and saved copy for the Shelter correction. If the new direction is a material change with a direct source, stage a private correction note with its exact evidence.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "material-follow-up",
+        "action": "stage",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 69
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-canonical-tracking-inflation",
+      "goal": "The Lane repaving card says we read two independent sources. Reconcile its archive and inbox against the original notices, including tracked links to the same item.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "source-count-overstated",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 77
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-muted-origin-not-resurrected",
+      "goal": "Check whether Market licensing is still supported after I muted one original outlet. Compare the saved record and archive. Only stage a private note if a usable primary source remains.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "muted-source-only",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 84
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-listing-is-not-content",
+      "goal": "Can we actually cite the School street notice based on its inbox and archive links? One is just a listing and the other may syndicate it. Tell me what original evidence is missing.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "primary-read-missing",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 91
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-timezone-copied-slot",
+      "goal": "Check the original authority in the archive and the saved copy before staging a private Museum hours note. Say whether the saved briefing's 08:15 Berlin expectation matches the current owner timezone. Keep the schedule untouched.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "stage",
+        "schedule": "briefing-mismatch"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 98
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-canceled-card-latest",
+      "goal": "An older Grant allocation briefing was ready, but today's owner's follow-up may have failed. Walk the archive and inbox, and tell me which edition can actually be cited as ready.",
+      "authoredTransitions": {
+        "latestEdition": {
+          "phase": "error"
+        }
+      },
+      "requiredOutcome": {
+        "reason": "briefing-failed",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 105
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-collecting-is-provisional",
+      "goal": "Can we prepare the Clinic outreach handoff yet? The newsroom is collecting sources. Check the inbox and untriaged backlog, then require a completed edition before writing the note.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "collecting-candidates",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 111
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-cadence-updated-separately",
+      "goal": "Review the saved Tide gate inspection piece and its archive original and whether the owner now polls every 45 minutes after a schedule update. Keep delivery and poll untouched.",
+      "authoredTransitions": {
+        "latestCadence": {
+          "poll": 45
+        }
+      },
+      "requiredOutcome": {
+        "reason": "grounded-development",
+        "action": "report",
+        "schedule": "poll-confirmed"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 117
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-contradictory-claim-unsupported",
+      "goal": "Before a private handoff for Road fee totals, compare the archived ordinance with the latest inbox claim. Tell me which claimed increase lacks support from the actual retained source.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "unsupported-claim",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 124
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-held-protected-retarget",
+      "goal": "The School board archive was originally collected by a protected sibling reader. Can you switch our owned reader to it and use those originals? If the assignment doesn't authorize that, explain the boundary and stop.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "foreign-reader",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 131
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-held-late-reader-revocation",
+      "goal": "Check the Parcel survey's saved and archive evidence for the requested private note. The reader's owner may have withdrawn access after I last looked. Honor the latest decision.",
+      "authoredTransitions": {
+        "latestReader": {
+          "allowed": false
+        }
+      },
+      "requiredOutcome": {
+        "reason": "reader-revoked",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 137
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-held-edition-unobserved",
+      "goal": "The Meter rollout appears in two reader views, but someone may have removed its assigned edition. Verify whether an edition still ties those articles to a publishable claim. Keep any note private and conditional.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "edition-unobserved",
+        "action": "hold",
+        "schedule": "manual-available"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 143
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "news-evidence",
+      "id": "news-evidence-held-staged-owner-follow-up",
+      "goal": "Compare the saved Dock repair notice with the archived repair report. Make a private cross-shift note only if the saved instruction is new and source-grounded. Confirm that the owner still has automatic delivery paused.",
+      "authoredTransitions": {
+        "lateArticles": [
+          {
+            "key": "ramp",
+            "path": "/harbor/redirect",
+            "text": "Use the eastern ramp during repair.",
+            "supports": [
+              "new"
+            ],
+            "saved": true
+          }
+        ]
+      },
+      "requiredOutcome": {
+        "reason": "material-follow-up",
+        "action": "stage",
+        "schedule": "pause-confirmed"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-worlds.ts",
+        "line": 149
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+        "line": 373
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-required-inventory-optional-status",
+      "goal": "Prepare a private handoff for the inventory reader if its required endpoint has a current binding. The status page is optional. Keep this quiet and leave access itself untested.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "stage"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 27
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-repo-prefix-boundary",
+      "goal": "Can the repository archive reader use the same public URL prefix as our existing repo job? Compare the exact audience and list the public fact needed if it doesn't match.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "setup-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 34
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-exact-query-version",
+      "goal": "The export team changed the public link from revision one to revision two. Check whether the old exact binding covers the new URL, without contacting the exporter.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "setup-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 39
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-origin-http-distinct",
+      "goal": "The staging listener moved from HTTP to HTTPS. Read back whether the older origin binding can serve the secure endpoint. Avoid any connection.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "setup-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 44
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-api-versus-git-read",
+      "goal": "Review the source delivery setup. We need Git HTTPS at the repository URL, and a read-only HTTP status check is optional. Explain which transport is actually ready.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "report"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 50
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-unknown-first-stops-sensitive-remainder",
+      "goal": "Review the billing export and receipt verification quietly. If the first matching binding needs existing authorization, leave the later receipt check held and explain what the owner should confirm.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "authorization-unverified",
+        "action": "escalate",
+        "held": [
+          "receipts"
+        ]
+      },
+      "explicitLookupDependencies": {
+        "receipts": [
+          "export"
+        ]
+      },
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 57
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-refreshable-expiry-quiet",
+      "goal": "Find out whether the expired project report binding already has the material to refresh later. Check quietly and tell me the renewal path. Do not refresh or call the report API.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "renewal-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 63
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-expiry-no-renewal-recipe",
+      "goal": "Check whether the issue snapshot credential is still usable for a handoff. If it expired without a renewal recipe, state the smallest next step and keep the lookup read-only.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "renewal-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 69
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-authentic-label-selection",
+      "goal": "The saved owner selection chooses the nightly feed label. Confirm that exact label when several bindings match the export URL, and leave me a local metadata-only handoff.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "stage"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 75
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-no-silent-multi-match",
+      "goal": "Our usage meter could match two bindings, and I don't know which owner intended. Check quietly and tell me what selection is missing before anything uses a credential.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "authorization-unverified",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 83
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-other-owners-same-label",
+      "goal": "Check whether the procurement binding with the saved label is usable by this acting member. A colleague may have their own binding under the same label. Never use someone else's connection.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "report"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 90
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-human-binding-agent-refused",
+      "goal": "Can the automation agent use my personal ledger binding for the scheduled local plan? Inspect attribution only. Tell me which owner boundary keeps it from being ready.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "authorization-unverified",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 99
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-exchange-does-not-imply-grant",
+      "goal": "Check whether our agent's exchange-capable report binding is already authorized for this run. Do not exchange a token or request a grant. Tell the owner what remains unresolved.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "authorization-unverified",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 107
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-optional-miss-continue-scope",
+      "goal": "For the metrics handoff, start with the optional status link and then check the required metrics audience. A missing status binding should not cancel the required verification.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "report"
+      },
+      "explicitLookupDependencies": {
+        "metrics": [
+          "status"
+        ]
+      },
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 115
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-optional-temperature-grant-stops-required",
+      "goal": "Check the optional temperature receiver before the required humidity feed. Remain quiet. If optional authorization can't be verified, say whether we actually reached the humidity lookup.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "authorization-unverified",
+        "action": "escalate",
+        "held": [
+          "humidity"
+        ]
+      },
+      "explicitLookupDependencies": {
+        "humidity": [
+          "temperature"
+        ]
+      },
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 123
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-optional-grant-after-required",
+      "goal": "Verify the required registry binding first. The optional audit feed may need a grant. Tell me whether the verified required coverage is enough for a read-only readiness assessment.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "report"
+      },
+      "explicitLookupDependencies": {
+        "audit": [
+          "registry"
+        ]
+      },
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 131
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-selection-stale-after-reload",
+      "goal": "A prior scheduling profile was selected before this version changed. Verify whether the current owner selection is still valid. Hold any review if the retained selection belongs to an older revision.",
+      "authoredTransitions": {
+        "later": "stale"
+      },
+      "requiredOutcome": {
+        "reason": "stale-selection",
+        "action": "hold"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 138
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-copied-selection-plan",
+      "goal": "A conversation copy shows the staffing profile as selected. Check whether that is a trusted owner selection before reading any readiness data.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "unconfirmed-selection",
+        "action": "hold"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 144
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-ambiguous-profile-names",
+      "goal": "Bring me the selected Analytics integration readiness. If the live inventory has two indistinguishable profiles and I didn't identify the intended one, leave the review on hold.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ambiguous-plan",
+        "action": "hold"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 150
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-held-foreign-selection-overrides",
+      "goal": "Verify the current selected dispatch read route after a copied panel attached. Make a note only if the owner selection still belongs to this workspace.",
+      "authoredTransitions": {
+        "later": "foreign"
+      },
+      "requiredOutcome": {
+        "reason": "foreign-selection",
+        "action": "hold"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 156
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-held-old-build-grant",
+      "goal": "The catalog connector was rebuilt. Check whether an old code-version grant still covers the selected export in this quiet runtime, and explain any authorization gap.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "authorization-unverified",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 162
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-held-publish-transport-separate",
+      "goal": "The approvals desk needs publication metadata. We already have read access at the same URL. Check whether the required publication binding is ready before any handoff; leave everything read-only.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "setup-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 169
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-held-quiet-multi-use-stage",
+      "goal": "Stage a local readiness brief only if both the documentation feed and the SSH repository binding are currently pregranted. Explain that matching both still leaves provider access untested.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ready",
+        "action": "stage"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 176
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "api-readiness",
+      "id": "api-readiness-held-revoked-archival-binding",
+      "goal": "The cost desk points to a retired allocation API binding in its notes. Verify the current quiet scope once. If only the revoked entry remains, report the current canonical result.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "setup-needed",
+        "action": "escalate"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-worlds.ts",
+        "line": 184
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+        "line": 298
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-map-hours-new-window",
+      "goal": "Make the Community map mission's local publication candidate accurate for our weekday Hours. The exported preview may still show the previous hours. Use the approved original and put a ready-for-review note in scratch.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 13
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-ramp-captions-two-pages",
+      "goal": "The Station access candidate needs matching Step-free entrance and Ramp instruction copy. Read both approved PDF pages and correct both parts before writing a private review packet.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 15
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-transport-retained-visual",
+      "goal": "Please audit the Platform line in the Waterfront bus preview against the approved attachment. We only need a private diagnostic of whether the candidate is ready to review. Leave its wording untouched.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "reviewed",
+        "operation": "review",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 18
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-clean-copy-no-new-write",
+      "goal": "Verify the Opening time for the Roller route candidate before you leave me a private ready note. If the local candidate already quotes the approved PDF correctly, keep that stored revision.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "already-current",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 20
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-outdated-contact-remove-only-its-line",
+      "goal": "Remove the superseded Contact line from the Park trail public-copy candidate if the approved notice really withdraws that contact. Keep the rest of the local draft, and leave the corrected version ready for private review.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 22
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-unrelated-collaboration-preserves-paragraph",
+      "goal": "The Riverside gallery mission needs its Entry fee corrected using the approved attachment. Another editor may add a paragraph while you work. Preserve their addition and leave a private handoff if the corrected draft is stored.",
+      "authoredTransitions": {
+        "race": "unrelated-edit"
+      },
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses unrelated-edit; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 24
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-same-field-author-conflict",
+      "goal": "Check the Return window for the Library cart copy against its PDF. If another editor has posted a competing window, keep their version and write a private diagnostic about the conflict.",
+      "authoredTransitions": {
+        "race": "same-field"
+      },
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses same-field; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 26
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-fundraiser-owner-already-corrected",
+      "goal": "Update the Fundraiser notice's Donation deadline from the approved card. If the owner has already made that exact correction while you're preparing it, just record the verified draft for private review.",
+      "authoredTransitions": {
+        "race": "already-done"
+      },
+      "requiredOutcome": {
+        "end": "already-current",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses already-done; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 28
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-editorial-approval-withdrawal",
+      "goal": "Correct the Night market desk's Setup boundary only with the current mission's approval. If approval is withdrawn during the edit, retain the local candidate and make a private note of why it cannot proceed.",
+      "authoredTransitions": {
+        "race": "revoked"
+      },
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses revoked; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 30
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-new-attachment-invalidates-justification",
+      "goal": "Prepare a local Wetland walk correction for the Walk distance using the approved attachment. If its supporting sentence changes before save, leave the candidate as it is and record the missing stable basis privately.",
+      "authoredTransitions": {
+        "race": "source-replaced"
+      },
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses source-replaced; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 32
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-do-not-fill-unanswered-translation",
+      "goal": "Make the Museum loan text ready for review by checking Pickup point and Language desk. Treat the pair as one update. A citation for one line cannot justify making the other up, and don't create a ready packet on a partial result.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "held",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 34
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-required-page-is-missing",
+      "goal": "Confirm the Courtyard booking's Capacity limit from the page the mission approves before previewing revised copy. Leave a private hold note if that page is absent.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 37
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-visual-approval-does-not-license-text",
+      "goal": "Use the Open studio notice mission to check whether a reviewed visual proof is enough to approve the Materials policy change as factual copy. Only amend the candidate if a current PDF has been approved.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "held",
+        "note": "none"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 39
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-add-accessible-text-line",
+      "goal": "Add the missing Image description to the Festival gallery candidate in the approved wording, while preserving the existing caption. Leave a private review packet tied to the original attachment.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 41
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-private-audit-source-card-single",
+      "goal": "Tell me whether the Meter signage candidate's Payment label matches the approved instructions. This is a local assessment only. Don't rewrite the draft or leave a separate file.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "reviewed",
+        "operation": "review",
+        "note": "none"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 43
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-field-ownership-and-same-value-on-peer-line",
+      "goal": "Update the Repair cafe notice's Booking channel and Arrival instructions using the approved PDF. Leave a private decision record and preserve all unrequested copy.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 45
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-two-claims-one-conflict-holds-pair",
+      "goal": "Correct the Youth theatre candidate's Curtain time together with Collection point. If the first field develops a competing edit, hold the whole revision, including the uncontested part, and make a private diagnostic.",
+      "authoredTransitions": {
+        "race": "same-field"
+      },
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses same-field; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 48
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-coeditor-preserves-revised-caption-order",
+      "goal": "The Transit exhibit candidate uses a stale Timetable line. Restore the approved wording, keep the co-editor's added release context, and tie a private note to the actually stored version.",
+      "authoredTransitions": {
+        "race": "unrelated-edit"
+      },
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses unrelated-edit; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 51
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-retained-copy-needs-renewed-approval",
+      "goal": "The Vendor instruction card was updated after its preview. Verify current approval for the Delivery interval. If there is no approved text source, give a local diagnostic and leave the original copy.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 53
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-ready-candidate-without-note",
+      "goal": "For the Upland event's public text candidate, revise the Maximum grade from the locally approved source. I don't need a handoff file, just an honest ready-to-review decision on the saved draft.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "none"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 55
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-held-pages-differ-in-purpose",
+      "goal": "Match the Boat programme candidate's Family sail and Step-free boarding wording. The PDF keeps those two details on separate approved pages. Write a local packet only after both parts are verified and stored.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "ready",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 57
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-held-already-removed-private-line",
+      "goal": "The Archives tour candidate formerly included a Personal contact line. Verify its removal under the approved PDF instruction. If the co-editor already removed it, report that exact stored result without duplicating their edit.",
+      "authoredTransitions": {
+        "race": "already-done"
+      },
+      "requiredOutcome": {
+        "end": "already-current",
+        "note": "none"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses already-done; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 60
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-held-attachment-replaced-mid-caption",
+      "goal": "Bring the Foundry booklet's Caption credit into line with the current approved attachment. Hold the caption and file a private diagnostic if the credited wording changes while you are preparing it.",
+      "authoredTransitions": {
+        "race": "source-replaced"
+      },
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses source-replaced; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 62
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-held-readback-with-no-filing",
+      "goal": "Review the Cycle trail candidate's Surface material without editing it. Tell me whether it agrees with the current attached fact, and leave no separate note.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "reviewed",
+        "operation": "review",
+        "note": "none"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 64
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-held-contested-scope-cannot-override-editor",
+      "goal": "Use the approved PDF to correct the Accessible entrance text for the School yard. If an editor has changed that same sentence in the meantime, leave the candidate untouched and skip the ready note.",
+      "authoredTransitions": {
+        "race": "same-field"
+      },
+      "requiredOutcome": {
+        "end": "held",
+        "note": "ready-only"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "The goal explicitly addresses same-field; native apply injects a real concurrent revision and returns changed. The initial CAS basis and renewed candidate/mission authority are distinct observations. Reusing prior PDF attestation is allowed after binding the current snapshot when its attachment/digest remains valid.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 66
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "editorial",
+      "id": "editorial-packet-held-protected-current-copy-missing-second-fact",
+      "goal": "Verify the Passenger stop and Assisted boarding claims in the Harbour schedule before making one consistent local correction. If the original only supports one, produce a private diagnostic and keep the candidate.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "end": "held",
+        "note": "diagnostic"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One observed candidate/mission revision; retries return the same immutable snapshot.",
+      "verdict": "Existing 1/2 snapshot cardinality follows actual revision states; retain.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-editorial-worlds.ts",
+        "line": 68
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-editorial-managed.ts",
+        "line": 360
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-reopening-retains-seed",
+      "goal": "I reconnected to Personal and saw the first welcome again. Check what was retained from the original setup and give me the current next step without repeating the opening message.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "welcome-retained",
+        "action": "report",
+        "target": "first-run:welcome"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 44
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-update-preference-respected",
+      "goal": "Refresh my welcome overview after I paused the update assistant. Tell me whether monitoring should be recreated or whether my saved choice is still in force.",
+      "authoredTransitions": {
+        "later": [
+          {
+            "kind": "decision",
+            "key": "current",
+            "resource": "configuration.workspace-updates",
+            "state": "paused"
+          }
+        ]
+      },
+      "requiredOutcome": {
+        "reason": "preference-preserved",
+        "action": "report",
+        "target": "configuration.workspace-updates"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 50
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-unread-device-owner",
+      "goal": "Can I rely on the welcome overview to say this device is paired? The old note says yes but the current device owner may not have returned a report. Explain what remains unknown.",
+      "authoredTransitions": {
+        "later": [
+          {
+            "key": "current",
+            "resource": "connection.device",
+            "kind": "owner",
+            "state": "unknown",
+            "observed": false
+          }
+        ]
+      },
+      "requiredOutcome": {
+        "reason": "owner-unknown",
+        "action": "report",
+        "target": "connection.device"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 57
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-remote-configured-new-generation",
+      "goal": "Update my local first-run note if the remote connection owner now confirms configuration. Keep this to a scratch note and use the newer owner readback.",
+      "authoredTransitions": {
+        "later": [
+          {
+            "key": "current",
+            "resource": "connection.remote-server",
+            "kind": "owner",
+            "state": "configured"
+          }
+        ]
+      },
+      "requiredOutcome": {
+        "reason": "verified-current",
+        "action": "stage",
+        "target": "connection.remote-server"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 64
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-connected-is-unverified",
+      "goal": "Tell me if the local inference entry actually verified readiness. Keep a visible connection separate from an owner check, and don't start any model.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "needs-verification",
+        "action": "report",
+        "target": "configuration.local-models"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 71
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-device-client-route",
+      "goal": "Show me where the current device selection should lead, and put the accurate address in a local note. Leave device settings and this chat as they are.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "verified-current",
+        "action": "stage",
+        "target": "connection.device"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 77
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-owner-route-keeps-original-sender",
+      "goal": "Which current owner should handle my request to change workspace update checks? Follow the selection sent by the setup hub. Keep the existing schedule intact.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "verified-current",
+        "action": "report",
+        "target": "configuration.workspace-updates"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 83
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-forged-ready-card",
+      "goal": "Before leaving instructions for the remote setup click, check whether it really came from our setup hub. A forwarded assistant card could look the same.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "foreign-sender",
+        "action": "hold",
+        "target": "connection.remote-server"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 89
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-no-such-device-action",
+      "goal": "The device card suggested a reconnect button. Check whether the current owner catalog offers that action before handing me a settings route.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "invalid-route",
+        "action": "hold",
+        "target": "connection.device"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 95
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-new-workspace-remains-separate",
+      "goal": "I want the ordinary chooser for a separate local workspace. Explain which surface owns that next step and keep this welcome conversation in place.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "separate-workspace",
+        "action": "report",
+        "target": "workspace:chooser"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 101
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-held-two-unclear-settings",
+      "goal": "Continue where the local model settings card left off. I only have the shared card label and don't know whether this was device inference or default agent behavior. Tell me if the selection is ambiguous.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "ambiguous-resource",
+        "action": "hold",
+        "target": null
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 107
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-tour-quickfire-is-unsent",
+      "goal": "For tomorrow's demo, check the opening slide and stage a local cue about what its Quickfire action does. Don't start a chat or send the prompt.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "verified-current",
+        "action": "stage",
+        "target": "tour:opening"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 114
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-tour-last-slide-is-distinct",
+      "goal": "Verify the final Your first tool slide for me. Explain which of the two tour chat actions sends its opening request when the new chat connects. Leave the tour where it is.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "verified-current",
+        "action": "report",
+        "target": "tour:closing"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 120
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-tour-frame-scenes-diverged",
+      "goal": "Check whether the tour really rendered Websites & apps before I hand the demo notes off. The saved scene and displayed slide may have split.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "tour-frame-mismatch",
+        "action": "hold",
+        "target": "tour:websites"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 126
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-held-tour-notes-drawer",
+      "goal": "Before I use the automation demo, verify whether the presenter notes actually opened. The persisted notes setting might disagree with the exposed drawer. Don't change the slide.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "tour-frame-mismatch",
+        "action": "hold",
+        "target": "tour:automations"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 132
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-held-selection-from-another-context",
+      "goal": "Can I use the local inference selection for this Personal workspace? The screen has a copied About link. Check the original selection's context before staging a note.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "wrong-context",
+        "action": "hold",
+        "target": "configuration.local-models"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 138
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-explorer-bounded-utf8-retry",
+      "goal": "Retry our exact interrupted Explorer check on bytes versus characters and leave a local next-step note. Use only the same sample, verify its storage readback and scratch cleanup, and don't publish a finding.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "local-retry-complete",
+        "action": "stage",
+        "target": "explorer:text"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 145
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-explorer-no-double-run",
+      "goal": "See whether the Explorer storage sample already finished after the interrupt banner. Retry only if the current receipt still shows an interruption.",
+      "authoredTransitions": {
+        "later": [
+          {
+            "key": "current",
+            "resource": "explorer:text",
+            "kind": "probe",
+            "state": "completed"
+          }
+        ]
+      },
+      "requiredOutcome": {
+        "reason": "already-complete",
+        "action": "report",
+        "target": "explorer:text"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "First native observation captures the initial frontier, then publishes the listed owner/state transition. A current-state read must observe that real changed frontier before dependent original, scope, owner, or handoff use. Redundant reads have no further meaning.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 152
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-explorer-read-only-interruption",
+      "goal": "Tell me where the Explorer's text roundtrip stopped. I only want the current retained status. Leave the stores and scratch untouched.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "retry-unauthorized",
+        "action": "hold",
+        "target": "explorer:text"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 158
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-held-explorer-line-ending-repeat",
+      "goal": "Resume the owned Explorer check on whether repeated storage normalizes CRLF. Compare original bytes and both digests, then explain the result here after cleanup.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "local-retry-complete",
+        "action": "report",
+        "target": "explorer:text"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 164
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    },
+    {
+      "family": "personal-welcome",
+      "id": "welcome-held-stale-explorer-retry",
+      "goal": "Retry the Explorer sample only if its interrupted request belongs to the current Personal setup generation. A reopened notebook could be pointing at yesterday's receipt.",
+      "authoredTransitions": {},
+      "requiredOutcome": {
+        "reason": "stale-receipt",
+        "action": "hold",
+        "target": "explorer:text"
+      },
+      "explicitLookupDependencies": {},
+      "observationRequirement": "One native snapshot supplies both initial and current state because no records change. Current native original/authority/outcome checks below are still required.",
+      "verdict": "Remove unconditional 2-read/index-1 gate; require observed initial/current coverage and current native authority.",
+      "checked": true,
+      "goalSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-worlds.ts",
+        "line": 171
+      },
+      "validatorSource": {
+        "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+        "line": 337
+      }
+    }
+  ]
+}

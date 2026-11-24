@@ -1,7 +1,7 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
+import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -298,7 +298,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       } finally {busy=false;}
     }},
     newsEvidenceReader:{async read(channelId:string,selection:ReaderSelection){
-      const latest=snapshots[1];
+      const latest=snapshots.at(-1);
       if (!latest||channelId!==lane.key||!selection||authority(scope,latest).reason!=="verified-reader"||
           !["inbox","saved","backlog","archive"].includes(selection.kind)||
           selection.kind==="archive"&&selection.query!==world.topic||
@@ -310,7 +310,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       return structuredClone(result);
     }},
     newsEvidenceSource:{async read(channelId:string,message:string){
-      const latest=snapshots[1];
+      const latest=snapshots.at(-1);
       if (!latest||channelId!==lane.key||authority(scope,latest).reason!=="verified-reader"||
           !currentEdition(latest)||(await ports.read(lane)).through!==latest.through) return null;
       const previous=sources.find(entry=>entry.message===message);
@@ -322,7 +322,7 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       return structuredClone(value);
     }},
     newsEvidenceHandoff:{async stage(report:NewsEvidenceReport){
-      if (!scope.mayStage||writing||handoff||report?.plan?.action!=="stage"||report.handoff!==null||!snapshots[1])return null;
+      if (!scope.mayStage||writing||handoff||report?.plan?.action!=="stage"||report.handoff!==null||!snapshots.at(-1))return null;
       writing=true;
       try {
         const latest=await ports.read(lane);
@@ -370,8 +370,8 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
     const plan=outcome?.plan;
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();
     const checks={
-      exactNewsFrontiers:snapshots.length===2&&isDeepStrictEqual(snapshots[0],readerProjection(initial))&&
-        isDeepStrictEqual(snapshots[1],readerProjection(latest))&&
+      exactNewsFrontiers:includesEvidence(snapshots,readerProjection(initial))&&
+        includesEvidence(snapshots,readerProjection(latest))&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.messageId)))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
       exactNewsAuthority:(nativeOnly || !!plan&&plan.readerMessage===independent.boundary.message&&plan.channelId===scope.channelId&&plan.topic===topic)&&
