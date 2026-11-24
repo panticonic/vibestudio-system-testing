@@ -24,7 +24,7 @@ const settings = {
     "skills/spectrolite-review",
     "skills/spectrolite-review-fixtures",
   ],
-  resources: [PANEL_AUTOMATION_RESOURCE],
+  sharedResources: [PANEL_AUTOMATION_RESOURCE],
   authorityPolicy: panelControlAuthorityPolicy("observe-real-spectrolite"),
 };
 

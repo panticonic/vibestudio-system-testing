@@ -6,8 +6,10 @@ import type {
 /**
  * Panel creation and CDP inspection share the same workerd-hosted runtime and
  * driver lifecycle. Treat that constrained platform surface as one scheduler
- * resource so test concurrency cannot create overlapping panel hosts that
- * exhaust the runtime before their cleanup is acknowledged.
+ * resource. Global tree/focus tests hold it exclusively; audited fixtures with
+ * independent contexts, panels and CDP sessions participate in shared mode.
+ * Either lease covers execution and acknowledged cleanup, so exclusive tests
+ * never inspect a tree while another fixture is changing it.
  */
 export const PANEL_AUTOMATION_RESOURCE = "workerd:panel-automation";
 

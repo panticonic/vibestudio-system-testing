@@ -320,12 +320,12 @@ const templateSettings = {
   spectrolite: {
     requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-spectrolite"),
-    resources: [PANEL_AUTOMATION_RESOURCE],
+    sharedResources: [PANEL_AUTOMATION_RESOURCE],
   },
   vaultWork: {
     requiresUnits: ["skills/open-user-goal", "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
     authorityPolicy: panelControlAuthorityPolicy("inspect-vault-knowledge"),
-    resources: [PANEL_AUTOMATION_RESOURCE],
+    sharedResources: [PANEL_AUTOMATION_RESOURCE],
   },
   google: { requiresUnits: ["skills/open-user-goal", "skills/google-drive", "packages/google-workspace"] },
   calendar: { requiresUnits: ["skills/open-user-goal", "skills/open-calendar-goal", "packages/google-workspace"] },
@@ -335,7 +335,7 @@ const templateSettings = {
     requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest",
       "skills/spectrolite-review", "skills/spectrolite-review-fixtures", "panels/spectrolite"],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-pdf-vault"),
-    resources: [PANEL_AUTOMATION_RESOURCE],
+    sharedResources: [PANEL_AUTOMATION_RESOURCE],
   },
   pdf: { requiresUnits: ["skills/open-user-goal", "skills/pdf-intake", "skills/pdf-intake-bindings", "extensions/pdf-ingest"] },
 };

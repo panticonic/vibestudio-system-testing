@@ -218,6 +218,9 @@ export interface TestCase {
    * concurrency; disjoint cases still run in parallel.
    */
   resources?: string[];
+  /** Participate in the same resource without exclusive mutation: shared cases
+   * may overlap each other, but never a case holding it in resources. */
+  sharedResources?: string[];
   /**
    * Give tests that create/publish workspace repos one fresh semantic task
    * context and a typed repository creation scope. Depending on the selected

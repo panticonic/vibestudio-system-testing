@@ -133,6 +133,7 @@ export class TestRunner {
     );
     const pending = new Set(filtered.map((_test, index) => index));
     const activeResources = new Set<string>();
+    const activeSharedResources = new Map<string, number>();
     let scheduleWaiters: Array<() => void> = [];
 
     const resourcesFor = (test: TestCase): string[] => [
@@ -151,16 +152,26 @@ export class TestRunner {
     const claimRunnable = async (): Promise<{
       index: number;
       resources: string[];
+      sharedResources: string[];
     } | null> => {
       for (;;) {
         if (this.cancelled) return null;
+        const waitingExclusive = new Set<string>();
         for (const index of pending) {
-          const resources = resourcesFor(filtered[index]!);
-          if (resources.some((resource) => activeResources.has(resource)))
+          const test = filtered[index]!;
+          const resources = resourcesFor(test);
+          const sharedResources = [...new Set((test.sharedResources ?? []).filter(Boolean))]
+            .filter(resource => !resources.includes(resource));
+          if (resources.some(resource => activeResources.has(resource) || activeSharedResources.has(resource)) ||
+              sharedResources.some(resource => activeResources.has(resource) || waitingExclusive.has(resource))) {
+            for (const resource of resources) waitingExclusive.add(resource);
             continue;
+          }
           pending.delete(index);
           for (const resource of resources) activeResources.add(resource);
-          return { index, resources };
+          for (const resource of sharedResources)
+            activeSharedResources.set(resource, (activeSharedResources.get(resource) ?? 0) + 1);
+          return { index, resources, sharedResources };
         }
         if (pending.size === 0) return null;
         await new Promise<void>((resolve) => scheduleWaiters.push(resolve));
@@ -209,6 +220,11 @@ export class TestRunner {
         } finally {
           for (const resource of claim.resources)
             activeResources.delete(resource);
+          for (const resource of claim.sharedResources) {
+            const remaining = activeSharedResources.get(resource)! - 1;
+            if (remaining) activeSharedResources.set(resource, remaining);
+            else activeSharedResources.delete(resource);
+          }
           wakeSchedulers();
         }
       }
