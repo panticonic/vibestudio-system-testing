@@ -11,6 +11,7 @@ vi.mock("./open-goal-suite-managed.js", () => ({ prepareOpenGoalSuite: vi.fn() }
 
 const fixture = vi.hoisted(() => ({ directory: "" }));
 vi.mock("@workspace/runtime", () => ({
+  credentials:{resolveCredential:async()=>null},
   fs: {
     readFile, readdir, writeFile,
     async mkdtemp(prefix: string) {
@@ -19,6 +20,7 @@ vi.mock("@workspace/runtime", () => ({
     },
   },
   web: {
+    search:vi.fn(async({queries}:{queries:string[]})=>({provider:"duckduckgo",elapsedMs:1,results:queries.map(query=>({query,text:"provider unavailable",sources:[],error:"Actual upstream search refused"}))})),
     async fetch({url}:{url:string}) {
       const text="They are not available for registration or transfer.";
       return {url,title:"Example domains",digest:createHash("sha256").update(text).digest("hex"),size:Buffer.byteLength(text),head:text,headBytes:Buffer.byteLength(text),session:"public",truncated:false};
@@ -105,4 +107,16 @@ it("accepts a correct recovered edit after extra stale retries without requiring
   if (!("version" in result)) throw new Error("Expected stored revision");
   await workspace.read(world.destination);
   expect((await prepared.verify({ status: "edited", path: world.destination, version: result.version })).passed).toBe(true);
+});
+
+
+it("preserves failed public acquisition receipts before attempting a combined document edit",async()=>{
+  const {serializeRpcFailure}=await import("@vibestudio/rpc");
+  const world=openGoalWorlds.find(({id})=>id==="verify-and-correct-tutorial");
+  if(world?.kind!=="research-and-edit")throw Error("Expected combined research and edit");
+  const prepared=await prepareOpenGoal({contextId:"owned",caseId:world.id});
+  const error=await prepared.qualify().then(()=>{throw Error("Expected acquisition failure");},error=>error);
+  expect(serializeRpcFailure(error)).toMatchObject({message:expect.stringContaining("Actual upstream search refused"),
+    errorData:{publicReferenceAcquisition:{phase:"search-provider",caseId:world.id}}});
+  expect(await readFile(join(fixture.directory,world.destination),"utf8")).toBe(world.files[world.destination]);
 });

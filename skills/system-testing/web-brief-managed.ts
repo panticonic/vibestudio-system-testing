@@ -1,6 +1,7 @@
 import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { readVerifiedCachedPage } from "./verified-web-cache.js";
+import {publicReferenceAcquisitionFailure} from "./public-reference-acquisition.js";
 import { web } from "@workspace/runtime";
 import { bindAssignedResearch } from "@workspace-skills/web-research-bindings";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -152,13 +153,20 @@ export function prepareManagedWebBriefWorld(
         /assigned public URLs?/.test(error.message);
     }
     for (const url of world.sources) {
-      const page = await services.web.fetch({ url, session: "public" });
-      if (page.truncated && page.head.length < 9000)
-        await services.web.read({
-          digest: page.digest,
-          offset: page.headBytes,
-          limit: 9000 - page.head.length,
-        });
+      try {
+        const page = await services.web.fetch({ url, session: "public" });
+        if (page.truncated && page.head.length < 9000)
+          await services.web.read({
+            digest: page.digest,
+            offset: page.headBytes,
+            limit: 9000 - page.head.length,
+          });
+      } catch(error) {
+        throw publicReferenceAcquisitionFailure(
+          `Assigned public source acquisition failed for ${url}: ${error instanceof Error?error.message:String(error)}`,
+          {phase:"assigned-source",caseId,url,reads:reads.map(({requested,page})=>({requested,url:page.url,digest:page.digest,size:page.size,page:structuredClone(page)}))},
+          error);
+      }
     }
     try {
       await services.web.read({ digest: "0".repeat(64), offset: 0, limit: 40 });

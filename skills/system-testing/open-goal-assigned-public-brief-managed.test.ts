@@ -96,3 +96,20 @@ it("accepts a sufficient single authorized source for both requested claims, wit
   const forged=structuredClone(brief);forged.statements[0]!.cites[0]!.quote+=" Domain sales are open.";
   expect((await verify(forged)).checks.exact_citations).toBe(false);
 });
+
+it("retains the failed assigned URL, completed receipts and original native transport cause",async()=>{
+  const {serializeRpcFailure,deserializeRpcFailure}=await import("@vibestudio/rpc");
+  const world=assignedPublicBriefWorlds[0];
+  const transport=localTransport(world);
+  const original=transport.fetch.getMockImplementation()!;
+  transport.fetch.mockImplementationOnce(original).mockRejectedValueOnce(Error("Chromium ERR_CONNECTION_CLOSED"));
+  const prepared=prepareAssignedPublicBrief({contextId:"owned",caseId:world.id},world,transport);
+  const error=await prepared.qualify().then(()=>{throw Error("Expected source acquisition failure");},error=>error);
+  const wire=serializeRpcFailure(error);
+  expect(wire).toMatchObject({message:expect.stringContaining(world.sources[1]),
+    cause:{message:"Chromium ERR_CONNECTION_CLOSED"},
+    errorData:{publicReferenceAcquisition:{phase:"assigned-source",url:world.sources[1],
+      reads:[{requested:world.sources[0],url:world.sources[0],digest:expect.stringMatching(/^[a-f0-9]{64}$/)}]}}});
+  expect(deserializeRpcFailure(wire).errorData).toEqual(wire.errorData);
+  expect(transport.fetch).toHaveBeenCalledTimes(2);
+});

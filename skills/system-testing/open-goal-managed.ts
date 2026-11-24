@@ -12,6 +12,7 @@ import { prepareBrowserGoal } from "./open-goal-browser-managed.js";
 import { suiteGoalWorlds } from "./open-goal-suite-worlds.js";
 import { attestPublicSearch, type PublicSearchReceipt } from "./open-public-search-evidence.js";
 import { readVerifiedCachedPage } from "./verified-web-cache.js";
+import {publicReferenceAcquisitionFailure} from "./public-reference-acquisition.js";
 import { prepareOpenGoalSuite } from "./open-goal-suite-managed.js";
 import type { WorkspaceEditFixture } from "./open-goal-owned-research-worlds.js";
 import {checkWorkspaceEditEvidence} from "./workspace-edit-evidence.js";
@@ -157,24 +158,57 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
     const statements = [];
     const retrieved = new Date(snapshotTime).toISOString().slice(0, 10);
     for (const { host, phrase } of required) {
-      const result = await services.goalDiscovery.search([`site:${host} "${phrase}"`]);
-      const candidates = new Set(result.flatMap(({ sources }) => sources.map(({ url }) => url)));
+      const visited = new Set<string>();
+      const attempts: {url:string;error?:string;finalUrl?:string;digest?:string;page?:Awaited<ReturnType<typeof services.web.fetch>>;cacheRead?:{bytes:number;sha256:string;exact:boolean}}[] = [];
+      const fetchFailures: unknown[] = [];
+      const evidence = (phase:string) => ({phase,host,caseId,
+        searches:searches.map(({provider,credentialChecks,result})=>({provider,credentialChecks,
+          results:result.results.map(({query,error,sources})=>({query,...(error?{error}:{}),urls:sources.map(({url})=>url)}))})),
+        attempts:[...attempts]});
       let found = false;
-      for (const url of [...candidates].slice(0, 5)) {
-        const hostname = new URL(url).hostname;
-        if (hostname !== host && !hostname.endsWith("." + host)) continue;
-        const page = await services.web.fetch({ url });
-        const read = await readVerifiedCachedPage(services.web.read, page);
-        if (!read.exact) throw new Error("The reference public search could not verify the cached page digest");
-        const text = normalize(read.text);
-        const offset = text.toLowerCase().indexOf(phrase);
-        if (offset < 0) continue;
-        const quote = text.slice(offset, offset + phrase.length);
-        statements.push({ text: referenceAnswer, cites: [{ url: page.url, quote, retrieved }] });
-        found = true;
-        break;
+      // Discovery follows the actual question; an unquoted fact is another
+      // query only after a successful search did not establish the source.
+      for (const query of [`site:${host} ${goal}`, `site:${host} ${phrase}`]) {
+        const receipt = await search([query]);
+        const failed = receipt.result.results.filter(row=>row.error);
+        if (failed.length) throw publicReferenceAcquisitionFailure(
+          `Reference public search provider ${receipt.provider} failed: ${failed.map(row=>row.error).join("; ")}`,
+          evidence("search-provider"));
+        for (const url of new Set(receipt.urls)) {
+          if (visited.has(url)) continue;
+          visited.add(url);
+          const hostname = new URL(url).hostname;
+          if (hostname !== host && !hostname.endsWith("." + host)) continue;
+          let page: Awaited<ReturnType<typeof services.web.fetch>>;
+          try {page = await services.web.fetch({url});}
+          catch(error) {attempts.push({url,error:error instanceof Error?error.message:String(error)});fetchFailures.push(error);continue;}
+          const attempt = {url,finalUrl:page.url,digest:page.digest,page:structuredClone(page)};
+          attempts.push(attempt);
+          const finalHost = new URL(page.url).hostname;
+          if (finalHost !== host && !finalHost.endsWith("." + host)) continue;
+          const read = await readVerifiedCachedPage(services.web.read, page).catch(error=>{
+            throw publicReferenceAcquisitionFailure(`Reference cached source read failed for ${page.url}`,
+              evidence("cache-read"),error);
+          });
+          Object.assign(attempt,{cacheRead:{bytes:new TextEncoder().encode(read.text).byteLength,
+            sha256:sha256HexSyncText(read.text),exact:read.exact}});
+          if (!read.exact) throw publicReferenceAcquisitionFailure(
+            "The reference public search could not verify the cached page digest", evidence("cache-integrity"));
+          const text = normalize(read.text);
+          const offset = text.toLowerCase().indexOf(normalize(phrase).toLowerCase());
+          if (offset < 0) continue;
+          const quote = text.slice(offset, offset + normalize(phrase).length);
+          statements.push({text:referenceAnswer,cites:[{url:page.url,quote,retrieved}]});
+          found = true;
+          break;
+        }
+        if (found) break;
       }
-      if (!found) throw new Error(`The reference public search did not yield evidence from ${host} for "${phrase}"`);
+      if (!found) throw publicReferenceAcquisitionFailure(
+        fetchFailures.length ? `Reference public source acquisition failed for ${host}` :
+          `Successful reference public searches did not establish evidence from ${host}`,
+        evidence(fetchFailures.length ? "candidate-fetch" : "source-discovery"),
+        fetchFailures.length ? new AggregateError(fetchFailures,"Public reference candidate fetches failed") : undefined);
     }
     return verify({ status: "answered", question: goal, statements });
   }
