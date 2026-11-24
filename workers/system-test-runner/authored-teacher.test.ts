@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { authoredTeacherCode, openGoalTeacherCode } from "./authored-teacher.js";
+import { authoredTeacherCode, openGoalTeacherCode, openGoalOutcomeCode } from "./authored-teacher.js";
 async function capture(outcome: string, model = "Luna") {
   const code = openGoalTeacherCode(
     {
@@ -94,4 +94,37 @@ it("invokes only the exact named TS default export and retains its crisp authore
   natlang.load=async()=>({default:async function wrong(){called++;return {};},wrong:()=>{throw Error("Wrong export");}}) as any;
   const rejected=await new Function("natlang",`return (async()=>{${code};return utilityValue;})()`)(natlang);
   expect(rejected.executionError.message).toMatch(/differs from the assigned callable/);expect(called).toBe(1);
+});
+
+async function captureObservedReturn(result: unknown, throws: boolean, resultType = "void", outcomeWrapper = false) {
+  const entry = {program:"skills/domain/review.nl",callable:"review",arguments:{goal:"Correct the owned text"},inputValues:["Correct the owned text"],parameterNames:["goal"],resultType};
+  const options = {executorModel:"Luna",bindingCode:"const assignedServices={};",goal:entry.arguments.goal,entry};
+  let verified:unknown = "not invoked";
+  const code = outcomeWrapper ? openGoalOutcomeCode({...options,bindingCode:"const assignedServices={};const prepared={verify:async value=>{observed(value);return {passed:true,checks:{actualEffect:true}};},close:async()=>{}};const actualContextId='ctx';"},"run").replace(/^    import .*;$/gm, "") : openGoalTeacherCode(options,"run");
+  const natlang = {captureModelTurns(){}, load:async()=>async()=>{if(throws)throw new Error("after effect");return result;},
+    calls:async({after}:{after?:string})=>after?[]:[{callId:"root",parentCallId:null}],
+    trace:async()=>({callId:"root",summary:{run_id:"run",owner_key:"owned",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition:{name:"review"},outcome:throws?"error":"done",model_turns:[]}})};
+  const captured = await new Function("natlang","observed","assessSemanticOutcome","observeInvocation","createNatlangRecordsClient","rpc",`return (async()=>{${code};return utilityValue;})()`)(natlang,(value:unknown)=>{verified=value;},(value:unknown)=>value,()=>({}),()=>({getValue(){}}),{});
+  return {value:JSON.parse(JSON.stringify(captured)),raw:captured,verified};
+}
+
+it("distinguishes actual completed void, ordinary null, and no return after an exception",async()=>{
+  const completed=(await captureObservedReturn(undefined,false)).value;
+  expect(completed.entry.resultType).toBe("void");
+  expect(completed.applicationResultKind).toBe("void");expect(completed.applicationResult).toBeNull();
+  const ordinary=(await captureObservedReturn(null,false,"Review | null")).value;
+  expect(ordinary.applicationResult).toBeNull();expect(Object.hasOwn(ordinary,"applicationResultKind")).toBe(false);
+  const failure=await captureObservedReturn(undefined,true);
+  const failed=failure.value;
+  expect(Object.hasOwn(failure.raw,"applicationResult")).toBe(false);expect(Object.hasOwn(failure.raw,"applicationResultKind")).toBe(false);
+  expect(failed.entry.resultType).toBe("void");expect(failed.executionError.message).toBe("after effect");
+  expect(Object.hasOwn(failed,"applicationResult")).toBe(false);expect(Object.hasOwn(failed,"applicationResultKind")).toBe(false);
+});
+
+it("marks independent void evidence only after observing an actual completed undefined return",async()=>{
+  const completed=await captureObservedReturn(undefined,false,"void",true);
+  expect(completed.verified).toBeUndefined();expect(completed.value.verification.actualResultKind).toBe("void");expect(completed.value.verification.actualResult).toBeNull();
+  const failed=await captureObservedReturn(undefined,true,"void",true);
+  expect(failed.value.verification.passed).toBe(true);expect(failed.value.teacher.executionError.message).toBe("after effect");
+  expect(Object.hasOwn(failed.value.verification,"actualResultKind")).toBe(false);expect(Object.hasOwn(failed.value.teacher,"applicationResultKind")).toBe(false);
 });
