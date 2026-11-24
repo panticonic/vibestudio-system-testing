@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["catalog","observed","durable"],["handoffText"]);
 import {recoveryHandoffMatches} from "./retained-task-content.js";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -263,7 +265,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const actualHandoffText=artifact?await fs.readFile(artifact.path,"utf8"):null;
     const hasArtifact = Boolean(artifact && handoffText && stagedReview &&
       handoffText === formatHandoff(stagedReview) && typeof actualHandoffText==="string" && actualHandoffText === handoffText &&
-      recoveryHandoffMatches(actualHandoffText,{disposition:world.expected.disposition,citations,reason:world.expected.reason}) &&
+      recoveryHandoffMatches(actualHandoffText,{disposition:world.expected.disposition,citations}) &&
       artifact.sha256 === sha256HexSyncText(handoffText));
     const checks = {
       discoveredRetainedSources: catalog.length === world.sessions.length,
@@ -272,8 +274,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       boundNativeReplay: replays.every(Boolean),
       preservedRetainedChannels: channelReads.every(({ matched }) => matched),
       groundedRecoveryDecision: isDeepStrictEqual(report?.handoff,artifact)&&report?.review?.disposition === world.expected.disposition && isDeepStrictEqual(report.review.citations, citations) &&
-        typeof reason === "string" && !!reason.trim() &&
-        (world.expected.reason ?? []).every((term) => reason.toLowerCase().includes(term.toLowerCase())),
+        typeof reason === "string" && !!reason.trim(),
       verifiedRecoveryHandoff: world.expected.stage ? hasArtifact : artifact === null,
     };
     return {

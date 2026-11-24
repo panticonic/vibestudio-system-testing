@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["thread","listed","snapshots","independent","exactDraft"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -252,7 +253,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
       exactDictationSelection: !!plan && samePlan(plan,latest) && plan.reason === expected.reason && plan.action === expected.action &&
         plan.captureId === captureIds.get(expected.capture) && isDeepStrictEqual(plan.segmentMessages,expected.selected.map(key => messageIds.get(key))) &&
         plan.acknowledgementMessage === (expected.acknowledgement ? messageIds.get(expected.acknowledgement) : null) &&
-        plan.draftRevision === expected.revision && (plan.transcript?.text ?? null) === expected.text && expected.claim.test(plan.explanation),
+        plan.draftRevision === expected.revision && (plan.transcript?.text ?? null) === expected.text && typeof plan.explanation === "string",
       exactInstalledDraft: exactDraft ? isDeepStrictEqual(outcome?.review,exactDraft) : outcome?.review === null,
       verifiedLocalCorrection: local ? !!exactDraft && !!artifact && !!handoff && !!bytes &&
         scratch.length === 1 && handoff.path === `/.tmp/${scratch[0]}/handoff.json` &&

@@ -24,6 +24,11 @@ it("qualifies a PDF reference and its rejected answer through the public outcome
   const {outcome,verification}=await prepared.reference();
   expect(verification.passed).toBe(true);
   expect(verification.checks.rejectsUnverifiedReport).toBe(true);
+  const paraphrase={...outcome,recommendation:{...outcome.recommendation,rationale:"Keep the original text unchanged."}};
+  const reviewed=await prepared.verify(paraphrase);
+  expect(reviewed.passed).toBe(true);
+  expect(reviewed.semanticReviewRequired).toBe(true);
+  expect(reviewed.semanticReviewInput.actual.requestedReturn).toEqual(paraphrase);
   const negative=await prepared.verify({...outcome,document:{...outcome.document,name:"invented.pdf"}});
   expect(negative.outcomeDimensions.returnedValue.passed).toBe(false);
   expect(negative.outcomeDimensions.effects.passed).toBe(true);

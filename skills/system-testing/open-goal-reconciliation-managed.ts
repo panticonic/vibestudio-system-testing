@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["effects","window","race","release","mergeHead","nativeHead","archiveRecheck","integrationOracle"],["artifact"]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -277,7 +279,7 @@ export async function prepareOpenReconciliation(
       matchedReconciliationHandoff: (!archiveRecheck||archiveRecheck.passed)&&integration?.head===token(current.workingHead)&&
         isDeepStrictEqual(handoff?.artifact,artifact?{path:artifact.path,bytes:artifact.bytes}:null)&&integration?.status === expectedStatus && handoff?.status === scenario.expected.handoff &&
         isDeepStrictEqual(outcome?.window, window) &&
-        scenario.expected.reason.every(term => typeof integration.reason === "string" && integration.reason.toLowerCase().includes(term)),
+        typeof integration.reason === "string" && Boolean(integration.reason.trim()),
     };
     return assessObservedApplicationOutcome({
       contextId, caseId: input.caseId, goal: scenario.goal, passed: Object.values(checks).every(Boolean), checks,

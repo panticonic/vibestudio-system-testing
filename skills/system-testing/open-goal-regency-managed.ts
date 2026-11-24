@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","frontiers","forecasts","witnesses","advance"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -249,15 +250,14 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
         (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
       exactInstalledRegencyFindings:outcome?.findings?.length===findings.length&&
         isDeepStrictEqual(findings.map(item=>item.review.decision),world.expected),
-      groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string"&&result.explanation.length<=700&&
-        world.terms.every(term=>result.explanation.toLowerCase().includes(term.toLowerCase())),
+      groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string"&&result.explanation.length<=700,
       returnedRegencyAdvance:isDeepStrictEqual(outcome?.advance,advance),
       verifiedRegencyAdvance:after.accounts.month===currentExpected+neededAdvance&&
         (neededAdvance?!!advance&&!!selectedForecast&&advance.months===neededAdvance&&advance.basis===current.revision&&
           isDeepStrictEqual(advance.committed,after)&&isDeepStrictEqual(
             {...after.accounts,id:selectedForecast.accounts.id},selectedForecast.accounts)&&inPlay.at(-1)?.id===advance.id:
           advance===null&&isDeepStrictEqual(after,current)),
-      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision?.action===world.action&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.length<=700&&world.terms.every(term=>artifactDecision.explanation.toLowerCase().includes(term.toLowerCase())))&&!!note&&!!artifact&&files.length===1&&
+      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision?.action===world.action&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.length<=700)&&!!note&&!!artifact&&files.length===1&&
         note.path===`/.tmp/${files[0]}/handoff.json`&&note.revision===after.revision&&
         artifact===stagedText&&note.digest===sha256HexSyncText(artifact):
         note===null&&files.length===0,

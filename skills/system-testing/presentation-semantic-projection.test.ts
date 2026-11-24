@@ -1,3 +1,4 @@
+import {managedPresentationWorlds} from "./presentation-worlds.js";
 import { expect,it } from "vitest";
 import { checkPresentation,referencePresentation } from "./presentation-managed.js";
 import { renderComponent } from "@workspace-skills/visualize/render";
@@ -18,4 +19,13 @@ it("checks requested comparison data while allowing a grounded optional heading"
   expect(checkPresentation(requirements,wrong)).toBeNull();
   view.rendered=renderComponent({component:"Compare",props:{...view.rendered.props,title:"North has 99 sockets"}});
   expect(checkPresentation(requirements,report)).toBeNull();
+});
+
+it("does not prescribe English keywords for a structurally correct missing-data disposition",()=>{
+ const world=managedPresentationWorlds.find(world=>world.expected.some(view=>view.status==="needs-review"))!;
+ const report=referencePresentation(world),held=report.views.find(view=>view.status==="needs-review");
+ if(!held||held.status!=="needs-review")throw Error("Expected missing-data view");
+ held.reason="No measurements have been supplied for that comparison.";
+ expect(checkPresentation(world,report)).not.toBeNull();
+ held.reason="";expect(checkPresentation(world,report)).toBeNull();
 });

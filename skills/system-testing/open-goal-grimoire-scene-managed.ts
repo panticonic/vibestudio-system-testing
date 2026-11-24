@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["docket","view","scope","gate","readback","journal"],["body"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -299,10 +301,7 @@ export async function prepareOpenGrimoireScene(
     if (
       plan.action !== "stage-scene" ||
       !plan.description ||
-      plan.description === observed.scene.description ||
-      facts.some((fact) => !plan.description?.includes(fact.title)) ||
-      (facts.some((fact) => fact.kind === "planned") &&
-        !/\b(?:proposed|planned|future)\b/iu.test(plan.description))
+      plan.description === observed.scene.description
     )
       return null;
     const candidate = installed.validateScene({
@@ -614,7 +613,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       gate,
       receipt,
       readback,
-      journal: structuredClone(journal),
+      journal: structuredClone(journal), body,
     };
   }
 

@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["catalog","observations","attempt","readback","nativeProofs","boundaries","rosterReadbacks"],[]);
 import {deliveredFactsMatch} from "./retained-task-content.js";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import type { WorkspaceRuntime } from "@workspace/runtime/hosted";
@@ -323,7 +325,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       }),
       verifiedOriginalLocalReceipts: wanted.length === world.expected.evidence.length &&
         wanted.every(item => item.acknowledged),
-      matchedLocalDeliveryDecision: isDeepStrictEqual(outcome?.delivery,sent?{attempt:sent.attempt,readback:sent.readback}:null)&&outcome?.status === world.expected.status && Boolean(reason && (world.expected.mentions ?? []).every(group => group.some(term => reason.includes(term)))),
+      matchedLocalDeliveryDecision: isDeepStrictEqual(outcome?.delivery,sent?{attempt:sent.attempt,readback:sent.readback}:null)&&outcome?.status === world.expected.status && Boolean(reason?.trim()),
       exactLocalRecipientAndReadback: world.expected.send ? Boolean(sent?.didRead && sent.readback?.acknowledged &&
         sent.lane.spec.key === world.expected.send.room && sent.to === ref(world.expected.send.recipient) &&
         deliveredFactsMatch(sent.readback.content,world.expected.send.facts) &&

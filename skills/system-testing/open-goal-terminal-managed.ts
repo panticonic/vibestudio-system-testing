@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["initial","opened","events","observedExit","discovery","checkPlan","checkResults"],["stagedText"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -358,7 +359,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
         events.every(event => event.operation !== "retire" || event.absentFromRegistry) &&
         after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead, before.workingHead) && opened?.note === await memo(),
       resultGrounded: outcome?.summary?.disposition === final.disposition && typeof outcome.summary.explanation === "string" &&
-        new TextEncoder().encode(outcome.summary.explanation).length <= 480 && final.evidence.every(rule => rule.test(outcome.summary.explanation)),
+        new TextEncoder().encode(outcome.summary.explanation).length <= 480,
       rejectedForeignAction: negative,
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactLiveChecklist", "verifiedTerminalContinuity", "exactNativeExit", "exactNativeChecks", "verifiedLocalHandoff", "protectedOwnedContext", "rejectedForeignAction"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["returnedTerminalState", "returnedTerminalChecks", "exactTerminalDiscovery", "resultGrounded"],required:!!world!.discovery||!!world!.checks||events.length===0,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedTerminalHandoff"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};

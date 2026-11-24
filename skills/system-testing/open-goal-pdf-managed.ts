@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["selection","documents","revision","binding","observations"],[]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
@@ -289,8 +291,6 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
     const claims = expected.text;
     const readPages = textReads.flatMap(receipt => receipt.pages.map(({ number }) => number));
     const wantedCitations = claims ? exactCitations(textReads, claims.quotes) : [];
-    const proposedRationale = report?.recommendation?.rationale;
-    const rationale = typeof proposedRationale === "string" ? proposedRationale.toLowerCase() : "";
     const snapshot = publicDocuments(documents);
     const layoutChecks=Object.fromEntries(layouts.map((layout,index)=>[`returnedPdfLayout${index}`,(()=>{
           const {page,kind,order}=layout;
@@ -337,7 +337,7 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
             raster.inkPixels > 0 && (!expected.ink || isDeepStrictEqual(raster.inkBounds, expected.ink));
         }),
       groundedRecommendation: report?.recommendation?.action === expected.action &&
-        expected.evidenceTerms.every(term => rationale.includes(term.toLowerCase())),
+        typeof report.recommendation.rationale === "string",
       protectedHeads: before.mainEventId === after.mainEventId && (allowWorkingHeadChange || isDeepStrictEqual(before.workingHead, after.workingHead)),
     };
     return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks, selection, documents: snapshot, revision, binding,

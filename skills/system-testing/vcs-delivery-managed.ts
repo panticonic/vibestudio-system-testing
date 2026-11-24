@@ -1,3 +1,4 @@
+import {observedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import { requireAssignedWorld } from "./assigned-world.js";
 import { isDeepStrictEqual } from "node:util";
 import { vcs } from "@workspace/runtime";
@@ -51,7 +52,6 @@ export async function prepareManagedVcsDelivery(
     const after = await vcs.status();
     const assignedChanged = scenario.seedPath === scenario.path;
     const file = observed?.file;
-    const checkText = report?.review?.checks.join(" ").toLowerCase() ?? "";
     const effect = report?.review?.effect.toLowerCase() ?? "";
     const checks = {
       contextPreserved:
@@ -89,18 +89,18 @@ export async function prepareManagedVcsDelivery(
         report.chain.main.state === "current" &&
         !!effect &&
         (assignedChanged
-          ? scenario.terms.every((term) => effect.includes(term)) &&
-            scenario.terms.some((term) => checkText.includes(term))
+          ? Array.isArray(report.review?.checks) && report.review.checks.every(check=>typeof check==="string")
           : report.review?.checks.length === 0),
     };
-    return {
+    const proof={
       passed: Object.values(checks).every(Boolean),
       contextId,
       caseId,
       request: bound.request,
       snapshot: observed,
-      checks,
+      checks,goal:scenario.goal,
     };
+    return {...proof,...observedContentReview(proof,{effects:{checks:["contextPreserved","exactState","assignedFile"],rationale:"Actual assigned native snapshot"},returnedValue:{checks:["report"],required:true,rationale:"Requested interpretation"}},report,["snapshot"])};
   }
 
   async function qualify() {

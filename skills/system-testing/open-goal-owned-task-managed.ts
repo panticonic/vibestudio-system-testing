@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["effects","current","original","delivery","nativeDeliveryError","raceInjected"],[]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
@@ -257,7 +258,7 @@ export async function prepareOwnedTaskRecovery(
           isDeepStrictEqual(observedBoard.get(primary.id), observed)),
       independentlyJoinedOwnerHandoff: nativeDelivery!==null&&assessSemanticOutcome(nativeDelivery).outcomeDimensions.effects.passed,
       exactTaskRecoveryReport: isDeepStrictEqual(outcome?.original,knownRecord)&&isDeepStrictEqual(outcome?.delivery,actualDelivery)&&outcome?.task === primary.id && outcome?.revision === observed.revision && outcome.status === observed.status &&
-        Boolean(reason) && world.expected.reason.every(term => reason.includes(term)),
+        Boolean(reason.trim()),
       ...(controls ? { rejectedForeignTaskOrPriorSend: controls.foreignCard && controls.wrongAttempt } : {}),
     };
     return assessObservedApplicationOutcome({

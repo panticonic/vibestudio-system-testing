@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["observed"],["stagedBody"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -248,7 +249,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       const pinned = sourceRevision && await versionedSkill(row.dirPath, sourceRevision);
       return !!raw && !!citation && !!pinned && pinned.text === raw &&
         isDeepStrictEqual(pinned.revision, citation.revision) && citation.sha256 === sha256HexSyncText(raw) &&
-        raw.includes(citation.quote) && expected.supports.test(citation.quote) && loadedCitation(citation);
+        raw.includes(citation.quote) && loadedCitation(citation);
     }));
     const foundMissing = assignment.missing;
     const exactNegative = foundMissing?.kind === "method"
@@ -286,8 +287,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       exactCapabilitySourceRevision: valid && sourceRevision !== null && isDeepStrictEqual(plan.sourceRevision, sourceRevision) &&
         isDeepStrictEqual(sourceRevision, before.workingHead) && isDeepStrictEqual(sourceRevision, after.workingHead),
       reconciledPlanningEvidence: valid && corrected &&
-        assignment.decision.claims.every(claim => claim.test(plan.rationale)) &&
-        plan.memoDisposition === (assignment.memoDisposition ?? "none") &&
+                plan.memoDisposition === (assignment.memoDisposition ?? "none") &&
         isDeepStrictEqual(plan.overview, currentOverview) && isDeepStrictEqual(overview, currentOverview),
       respectedNegativeScope: valid && negative && exactNegative &&
         isDeepStrictEqual(plan.missing, foundMissing ? [foundMissing] : []) &&
@@ -314,7 +314,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     return assessObservedApplicationOutcome({ caseId: assignment.id, contextId: input.contextId, goal: assignment.goal,
       checks, passed: Object.values(checks).every(Boolean),
       observed: { docIds: byCapabilityId([...seen]), described: [...described.values()], loaded: [...loaded.values()],
-        memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged } },{effects:{checks:["observedLiveCatalog","verifiedCapabilityHandoff","protectedCapabilityWorkspace"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["boundExactMethodSchemas","loadedInstalledKnowledge","exactCapabilitySourceRevision","reconciledPlanningEvidence","respectedNegativeScope"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:["returnedCapabilityReceipt"],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},outcome,invocation,[{"checks":["boundExactMethodSchemas","loadedInstalledKnowledge","exactCapabilitySourceRevision","reconciledPlanningEvidence","respectedNegativeScope"],"rootPath":["plan"],"producerSourceSuffix":"workOnCapabilityGoal/workspace/synthesizeCapabilityPlan.nl","producerPath":[]}]);
+        memo: currentMemo, sourceRevision, overview, unavailable: [...sought.entries()].filter(([, value]) => !value).map(([name]) => name), staged },stagedBody },{effects:{checks:["observedLiveCatalog","verifiedCapabilityHandoff","protectedCapabilityWorkspace"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["boundExactMethodSchemas","loadedInstalledKnowledge","exactCapabilitySourceRevision","reconciledPlanningEvidence","respectedNegativeScope"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:["returnedCapabilityReceipt"],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},outcome,invocation,[{"checks":["boundExactMethodSchemas","loadedInstalledKnowledge","exactCapabilitySourceRevision","reconciledPlanningEvidence","respectedNegativeScope"],"rootPath":["plan"],"producerSourceSuffix":"workOnCapabilityGoal/workspace/synthesizeCapabilityPlan.nl","producerPath":[]}]);
   }
   async function verify(report: unknown,invocation?:InvocationObservations) {
     const response = report as CapabilityGoalReport | null;

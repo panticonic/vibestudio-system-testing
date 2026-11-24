@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","frames","evidence"],["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
@@ -330,9 +331,8 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
       nativeChatReadiness:proof.review.ready===(world.status==="ready"),
       groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review),
       groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
-        typeof decision.explanation==="string"&&decision.explanation.length<=650&&
-        world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&!!handoff&&!!artifact&&files.length===1&&
+        typeof decision.explanation==="string"&&decision.explanation.length<=650,
+      verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&!!handoff&&!!artifact&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact):
         handoff===null&&files.length===0,

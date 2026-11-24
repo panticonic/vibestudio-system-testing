@@ -125,7 +125,7 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
     }));
     const requiredGuidance = expected.guidance.every(guide => {
       const fresh = freshSkillIndex.find(item => item.dirPath === guide.dirPath);
-      return actual.guidance.some(citation => citation.skillPath === fresh?.skillPath && guide.rule.test(citation.quote));
+      return actual.guidance.some(citation => citation.skillPath === fresh?.skillPath);
     });
     return requiredGuidance && conformedRoutes.every(Boolean) && conformedSkills.every(Boolean);
   }

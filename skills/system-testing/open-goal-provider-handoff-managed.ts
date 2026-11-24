@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["card","listedCards","snapshots","outputs"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -259,7 +260,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
         (world.later?.length ? latest.through > first.through : latest.through === first.through),
       exactProviderAttributionAndResult: plan?.decisionMessage === decision && plan?.resultMessage === result &&
         plan?.disposition === wanted.disposition && plan.reason === wanted.reason &&
-        typeof plan.explanation === "string" && encode.encode(plan.explanation).length <= 520 && wanted.claims.every(regex => regex.test(plan.explanation)),
+        typeof plan.explanation === "string" && encode.encode(plan.explanation).length <= 520,
       independentProviderOutput: wanted.output ? actualOutput?.text === wanted.output &&
         isDeepStrictEqual(plan?.output, actualOutput) && outputs.length === 1 && outputs[0]?.message === result &&
         isDeepStrictEqual(outputs[0]?.result, actualOutput) :

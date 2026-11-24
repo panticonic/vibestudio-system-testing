@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["effects","survey","finding"],["handoffText"]);
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -230,7 +232,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     return actual?.preferred === expectedPreferred && actual.executor?.ref === names[1] &&
       actual.executor.state === (executor?.state ?? "absent") && actual.executor.usable === usable &&
       Boolean(actual.executor.detail?.trim()) && Array.isArray(actual.advice) &&
-      (usable || actual.advice.some(line => typeof line === "string" && line.includes("billed"))) &&
+      actual.advice.every(line => typeof line === "string" && Boolean(line.trim())) &&
       actual.models?.length === rows.length && rows.every((row, index) => {
         const checked = actual.models[index];
         return checked?.ref === local(row.slug) && checked.state === row.state && checked.usable === inventoried(row) &&
@@ -271,10 +273,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       decoder.decode(await readBytes(path, 32 * 1024)) === text));
     const stageCount = effects.filter(effect => effect.service === "localWidthHandoff" && effect.method === "stage" && effect.result !== null).length;
     const shouldStage = world.release === "include-hold" || (world.release === "verified" && world.expected === "verified");
+    let handoffText:string|null=null;
     let handoff = !shouldStage && stored === null && !added.length && !stageCount;
     if (shouldStage && stored && added.length === 1 && stageCount === 1) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
+      handoffText=body;
       handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" && body === stagedText &&
         bytes.length === stored.bytes && sha256HexSyncText(body) === stored.sha256;
     }
@@ -294,7 +298,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      effects, survey: actual.survey, finding: fact, handoff: stored };
+      effects, survey: actual.survey, finding: fact, handoff: stored, handoffText };
   }
 
   async function qualify() {

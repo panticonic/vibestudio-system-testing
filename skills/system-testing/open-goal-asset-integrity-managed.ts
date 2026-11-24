@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["approved","working","findings","journal"],["receiptBytes"]);
 import {assetFindingContributions} from "./operational-return-contributions.js";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -784,10 +786,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedAssetDisposition:
         outcome?.status === world.expected.status &&
         typeof outcome.reason === "string" &&
-        Boolean(outcome.reason.trim()) &&
-        world.expected.reason.every((term) =>
-          outcome.reason.toLowerCase().includes(term),
-        ),
+        Boolean(outcome.reason.trim()),
       independentlyReadExactRecovery: world.expected.copies.length
         ? Boolean(
             output &&

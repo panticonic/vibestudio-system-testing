@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","snapshots","independent","result","membershipReads","artifactReads"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -317,7 +318,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
         independent.reason === expected.reason && independent.action === expected.action &&
         independent.attemptMessage === (expected.attempt ? issued.get(expected.attempt) : null) &&
         independent.resultMessage === (expected.result ? issued.get(expected.result) : null) &&
-        typeof plan.explanation === "string" && bytes(plan.explanation) <= 600 && expected.claims.every(check=>check.test(plan.explanation)),
+        typeof plan.explanation === "string" && bytes(plan.explanation) <= 600,
       verifiedArtifactAndImpact: independent.artifact ? !!result && !!outcome && historyFindings(outcome.history,result) &&
         outcome.history?.result?.persistedContract === expected.history && artifactReads.length === 1 &&
         artifactReads[0]!.message === independent.resultMessage && isDeepStrictEqual(artifactReads[0]!.value,independent.artifact) :

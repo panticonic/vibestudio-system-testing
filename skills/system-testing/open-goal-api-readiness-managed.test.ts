@@ -65,7 +65,7 @@ it("retains explicit user observation prerequisites and the sealed receipt", asy
   await expect(s.integrationCredentialLookup.resolve("foreign", "metrics")).rejects.toThrow(/assigned integration plan/);
 });
 
-it("checks the actual saved semantic note independently of a later returned summary",async()=>{
+it("binds actual saved prose independently of the returned answer for meaning review",async()=>{
   const good=await prepare("api-readiness-required-inventory-optional-status");
   const reference=await good.qualify();
   expect(reference.checks).toEqual(Object.fromEntries(Object.keys(reference.checks).map(name=>[name,true])));
@@ -73,11 +73,15 @@ it("checks the actual saved semantic note independently of a later returned summ
   const saved=good.readArtifact();
   const native=await good.verify({plan:{...saved.plan,explanation:"An unsupported later return."},review:saved.review.result,facts:saved.audit.facts,handoff:null});
   expect(native.outcomeDimensions.effects.passed).toBe(true);
-  expect(native.outcomeDimensions.returnedValue.passed).toBe(false);
+  expect(native.semanticReviewRequired).toBe(true);
+  expect(native.semanticReviewInput.actual.requestedReturn).toMatchObject({plan:{explanation:"An unsupported later return."}});
+  expect(JSON.parse(String(native.semanticReviewInput.actual.artifacts.artifact)).plan.explanation).toBe(saved.plan.explanation);
   const bad=await prepare("api-readiness-required-inventory-optional-status"),stage=bad.services.quietIntegrationHandoff.stage;
   bad.services.quietIntegrationHandoff.stage=report=>stage({...report,plan:{...report.plan,explanation:"An unsupported persisted summary."}});
   const rejected=await bad.qualify();
-  expect(rejected.outcomeDimensions.effects.passed).toBe(false);
-  expect(rejected.outcomeDimensions.effects.checks.verifiedPrivateIntegrationNote).toBe(false);
+  expect(rejected.outcomeDimensions.effects.passed).toBe(true);
+  expect(rejected.semanticReviewRequired).toBe(true);
+  expect(JSON.parse(String(rejected.semanticReviewInput.actual.artifacts.artifact)).plan.explanation).toBe("An unsupported persisted summary.");
+  expect(rejected.semanticReviewInput.actual.requestedReturn).not.toMatchObject({plan:{explanation:"An unsupported persisted summary."}});
   expect(rejected.outcomeDimensions.returnedValue.passed).toBe(true);
 });

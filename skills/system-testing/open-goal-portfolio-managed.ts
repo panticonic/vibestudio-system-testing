@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","frames","projection","garden","realm"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -305,9 +306,8 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       exactInstalledRealmCriteria:!!findings&&isDeepStrictEqual(outcome?.realm,findings.realmResults)&&
         isDeepStrictEqual(findings.realmResults.map(row=>row.review.decision),world.readings[1]),
       groundedPortfolioDecision:!!findings&&decision?.status===world.status&&decision.status===findings.status&&
-        decision.write===findings.write&&typeof decision.explanation==="string"&&decision.explanation.length<=650&&
-        world.words.every(word=>decision.explanation.toLowerCase().includes(word.toLowerCase())),
-      verifiedPrivatePortfolioHandoff:!!findings&&(findings.write?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&world.words.every(word=>artifactExplanation.toLowerCase().includes(word.toLowerCase()))&&!!receipt&&!!artifact&&files.length===1&&
+        decision.write===findings.write&&typeof decision.explanation==="string"&&decision.explanation.length<=650,
+      verifiedPrivatePortfolioHandoff:!!findings&&(findings.write?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.basis===final.id&&artifact===stagedText&&
         receipt.digest===sha256HexSyncText(artifact):
         receipt===null&&files.length===0),

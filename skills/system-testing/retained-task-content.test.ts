@@ -9,7 +9,7 @@ it("rejects an incorrect saved recovery decision even when a later public answer
  expect(assessSemanticOutcome({passed:true,checks:{savedContent:recoveryHandoffMatches(saved,expected),laterSummary:true}},contract).passed).toBe(false);
 });
 it("preserves a correct retained recovery decision when a later optional answer is wrong",()=>{
- const saved=text({...expected,reason:"The approval remains pending."});
+ const saved=text({...expected,reason:"The owner has not yet granted permission."});
  expect(assessSemanticOutcome({passed:false,checks:{savedContent:recoveryHandoffMatches(saved,expected),laterSummary:false}},contract).passed).toBe(true);
  expect(recoveryHandoffMatches(text({...expected,citations:[{messageId:"foreign-note"}],reason:"approval pending"}),expected)).toBe(false);
 });

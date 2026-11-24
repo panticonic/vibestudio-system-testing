@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","snapshots","reads"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
@@ -252,8 +253,7 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
   }
   function explain(report:ImageReport|undefined) {
     const text=report?.decision?.explanation;
-    return typeof text==="string"&&text.length<=600&&
-      world.expected.evidence.every(term=>text.toLowerCase().includes(term.toLowerCase()));
+    return typeof text==="string"&&text.length<=600;
   }
   async function verify(raw:unknown,invocation?:InvocationObservations) {
     const returned=raw as {candidates?:ImageAssessment["candidates"];originals?:ImageReport["reads"];decision?:ImageReport["decision"];handoff?:ImageReport["handoff"]}|null;
@@ -291,7 +291,7 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
         isDeepStrictEqual(independent.map(read=>read.status),observed),
       groundedImageDecision:result?.action===expected.action&&result.candidateId===selected&&
         (selected===null||winner?.status==="verified")&&explain(outcome),
-      verifiedPrivateImageHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&artifactExplanation.length<=600&&world.expected.evidence.every(term=>artifactExplanation.toLowerCase().includes(term.toLowerCase()))&&!!winner&&!!handoff&&!!artifact&&
+      verifiedPrivateImageHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&artifactExplanation.length<=600&&!!winner&&!!handoff&&!!artifact&&
         newFiles.length===1&&handoff.path===`/.tmp/${newFiles[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact):
         newFiles.length===0&&handoff===null,

@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["current","journal","preview","display"],[]);
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -311,7 +313,7 @@ export async function prepareOpenLocalPresentation(
 async function verifyNativeApplication(report: unknown, invocation?: InvocationObservations) {
     const resolved = report as Outcome | null;
     const outcome = resolved;
-    const { target, requirements, holds, notes } = world.expected;
+    const { target, requirements, holds } = world.expected;
     const currentRecords = await Promise.all([...seeds.keys()].map(read));
     const current =
       currentRecords.find((record) => record.id === target) ?? null;
@@ -343,10 +345,7 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
           : null;
     const matchedScope =
       true;
-    const notesText =
-      outcome?.status === "visible" && Array.isArray(outcome.notes)
-        ? outcome.notes.join(" ").toLowerCase()
-        : "";
+
     const checks = {
       discoveredPresentationRecords:
         (current ? reads.has(current.id) : listed),
@@ -378,12 +377,11 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
           ? outcome?.status === "held" &&
             outcome.revision === (current?.revision ?? null) &&
             typeof outcome.reason === "string" &&
-            holds.every((term) => outcome.reason.toLowerCase().includes(term))
+            Boolean(outcome.reason.trim())
           : outcome?.status === "visible" &&
             isDeepStrictEqual(outcome.receipt, saved?.preview) &&
             Array.isArray(outcome.notes) &&
-            outcome.notes.length === (notes.length ? 1 : 0) &&
-            notes.every((note) => notesText.includes(note))),
+            outcome.notes.every(note=>typeof note==="string"&&Boolean(note.trim()))),
       ),
       independentlyVerifiedPresentationDom: Boolean(
         display?.passed &&

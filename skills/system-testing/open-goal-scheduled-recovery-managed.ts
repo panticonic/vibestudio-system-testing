@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["current","authorization","delivery","effects"],[]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -442,7 +444,7 @@ export async function prepareOwnedScheduledRecovery(
       independentlyRecoveredLocalHandoff: (world.expected.handoff ? nativeHandoff :
           effects.every(entry => entry.service !== "scheduledHandoff" || entry.method !== "submit") &&
           afterDestination.length === destination.baseline.length),
-      exactScheduledRecoveryReport: isDeepStrictEqual(outcome?.delivery,delivery)&&isDeepStrictEqual(outcome?.authorization,authorization)&&Boolean(reason) && world.expected.reason.every(term => reason.includes(term)) &&
+      exactScheduledRecoveryReport: isDeepStrictEqual(outcome?.delivery,delivery)&&isDeepStrictEqual(outcome?.authorization,authorization)&&Boolean(reason.trim()) &&
         isDeepStrictEqual(outcome?.schedule, current),
       ...(controls ? { rejectedForeignScheduleAndWrongAttempt: controls.foreignSchedule && controls.wrongAttempt } : {}),
     };

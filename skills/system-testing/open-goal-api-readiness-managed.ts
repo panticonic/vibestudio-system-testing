@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","snapshots","planned","calls","seenPlan","observations","audit"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
@@ -311,8 +312,8 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         (expected.held===undefined||sameEvidenceMembers(completed.held,expected.held)) : expected.rows.length===0,
       groundedIntegrationDisposition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),planned)&&
         plan.action===expected.action&&plan.reason===expected.reason&&
-        typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedPrivateIntegrationNote:expected.action==="stage"?typeof artifactExplanation==="string"&&countBytes(artifactExplanation)<=660&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&!!handoff&&!!data&&!!artifact&&found.length===1&&
+        typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660,
+      verifiedPrivateIntegrationNote:expected.action==="stage"?typeof artifactExplanation==="string"&&countBytes(artifactExplanation)<=660&&!!handoff&&!!data&&!!artifact&&found.length===1&&
         handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&handoff.bytes===data.length&&
         handoff.sha256===sha256HexSyncText(artifact):
         found.length===0&&handoff===null,

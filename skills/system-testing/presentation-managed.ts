@@ -66,14 +66,7 @@ export function checkPresentation(world: PresentationWorld, value: unknown) {
         "labels" in assigned ||
         assigned.status !== "needs-review" ||
         typeof actual.reason !== "string" ||
-        !(assigned.reasonTerms
-          ? assigned.reasonTerms.every((term) =>
-              actual.reason.toLowerCase().includes(term.toLowerCase()),
-            )
-          : /(?:capacity|capacities)/iu.test(actual.reason)) ||
-        !/(?:missing|unconfirmed|unavailable|unknown|absent|not (?:given|provided|confirmed|verified|collected|available)|lack)/iu.test(
-          actual.reason,
-        )
+        !actual.reason.trim()
       ) {
         return null;
       }

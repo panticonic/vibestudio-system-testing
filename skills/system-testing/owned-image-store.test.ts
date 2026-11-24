@@ -95,6 +95,15 @@ it("qualifies the missing-original world without releasing identical unrelated i
     const proof=await prepared.qualify();expect(proof.passed).toBe(true);
     expect(proof.reads).toMatchObject([{status:"missing",original:null}]);
     expect(proof.handoff).toBeNull();
+    const actual=proof.semanticReviewInput.actual.requestedReturn as {decision:{explanation:string}};
+    const paraphrase={...actual,decision:{...actual.decision,explanation:"The source file was removed, so I cannot hand it off."}};
+    const reviewed=await prepared.verify(paraphrase);
+    // Crisp observations admit equivalent words; the independent review receives
+    // this exact answer and original-read evidence, rather than a gold word list.
+    expect(reviewed.passed).toBe(true);
+    expect(reviewed.semanticReviewInput.actual.requestedReturn).toEqual(paraphrase);
+    expect(reviewed.semanticReviewInput.actual.observations.reads).toMatchObject([{status:"missing"}]);
+    expect(reviewed.semanticReviewRequired).toBe(true);
   }finally{await prepared.close();}
   await expect(native.call("shared",imagesRpcMethods.readAsset,[peer.id])).resolves.toMatchObject({base64});
   expect(native.retired).toEqual(["private-1"]);

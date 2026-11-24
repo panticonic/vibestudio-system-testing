@@ -1,3 +1,4 @@
+import {observedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import { openScheduledRecoveryWorlds } from "./open-goal-scheduled-recovery-worlds.js";
 import { validateNativeStartupDiagnostic, type NativeStartupDiagnostic } from "./native-startup-diagnostic.js";
 import { openGoalGoogleSetupWorlds } from "./open-goal-google-setup-worlds.js";
@@ -2662,6 +2663,8 @@ export class HeadlessRunner {
         teacher,
         verification: {
           ...observation,
+          ...observedContentReview({goal:world.request.goal,request:world.request,observation},{effects:{checks:[],rationale:"Native rendering readback is checked independently"},returnedValue:{checks:[],required:true,rationale:"Requested component findings and missing-data explanations"}},report,["request","observation"]),
+          nativeContentObservation:observation,
           checks: { ...observation.checks, exactReport: true, protectedHeadUnchanged },
           passed: observation.passed && protectedHeadUnchanged,
         },

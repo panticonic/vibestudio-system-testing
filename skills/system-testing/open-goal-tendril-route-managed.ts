@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["current","finding","journal"],["receiptBytes"]);
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { includesEvidence } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -547,10 +549,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         isDeepStrictEqual(outcome?.receipt,retained)&&outcome?.status === expected.decision &&
         isDeepStrictEqual(outcome.finding, finding) &&
         typeof outcome.reason === "string" &&
-        outcome.reason.trim() &&
-        expected.reason.every((term) =>
-          outcome.reason.toLowerCase().includes(term),
-        ),
+        outcome.reason.trim(),
       ),
       retainedOnlyExactLocalTendrilEvidence: expected.retain
         ? Boolean(

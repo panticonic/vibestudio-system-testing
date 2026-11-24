@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {assessObservedApplicationOutcome as assessNativeOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["index","snapshots","reads","sources","independent"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
@@ -383,8 +385,8 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
       exactNewsCadence:(nativeOnly || isDeepStrictEqual(outcome?.schedule,independent.schedule))&&independent.schedule.result.findings[0]?.code===expected.schedule,
       groundedNewsEdition:nativeOnly ? independent.plan.reason===expected.reason&&independent.plan.action===expected.action : !!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
         isDeepStrictEqual(outcome?.briefing,independent.briefing)&&plan.reason===expected.reason&&plan.action===expected.action&&
-        typeof plan.explanation==="string"&&byteCount(plan.explanation)<=660&&expected.claims.every(pattern=>pattern.test(plan.explanation)),
-      verifiedPrivateNewsHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&byteCount(artifactExplanation)<=660&&expected.claims.every(pattern=>pattern.test(artifactExplanation))&&(nativeOnly||!!outcome)&&!!handoff&&!!artifact&&!!written&&files.length===1&&
+        typeof plan.explanation==="string"&&byteCount(plan.explanation)<=660,
+      verifiedPrivateNewsHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&byteCount(artifactExplanation)<=660&&(nativeOnly||!!outcome)&&!!handoff&&!!artifact&&!!written&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&!!stagedEvidence&&(nativeOnly||!!outcome&&isDeepStrictEqual(JSON.parse(body(outcome)),JSON.parse(body(stagedEvidence))))&&artifact===body(stagedEvidence)&&handoff.sha256===sha256HexSyncText(artifact)&&
         handoff.bytes===written.length&&(nativeOnly||!!outcome&&isDeepStrictEqual(handoff,outcome.handoff)):
         files.length===0&&handoff===null&&(nativeOnly||outcome?.handoff===null),
@@ -411,21 +413,21 @@ export async function prepareOpenNewsEvidenceWorld(input:{contextId:string;caseI
   async function verifyObserved() {
     const proof=await verifyEvidence(null,true);
     const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"Only actual native journal, source, reader, authority and retained byte observations are assessed here."},returnedValue:{checks:[],required:false,rationale:"This native observation primitive receives no application return value."}};
-    return assessObservedApplicationOutcome(proof,contract,undefined);
+    return assessNativeOutcome(proof,contract,undefined);
   }
   async function verify(raw:unknown,observations?:InvocationObservations) {
     const returned=raw as ReturnType<typeof result>|null;
     const report=await referenceEvidence(returned?.explanation??"");
     const proof=await verifyObserved();
     const text=returned?.explanation;
-    const exactReturnedFindings=isDeepStrictEqual(raw,result(report))&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text));
+    const exactReturnedFindings=isDeepStrictEqual(raw,result(report))&&typeof text==="string"&&byteCount(text)<=660;
     const observedChildReturns=observations ? await observations.returns(call=>/reviewNewsEvidence(?:\.nl)?$/.test(call.definition.name)||/reviewNewsEvidence\.nl$/.test(call.definition.source)):[];
     const {handoff:returnedHandoff,...returnedFindings}=returned??{};
     const {handoff:expectedHandoff,...expectedFindings}=result(report);
     const readerChecks=Object.fromEntries(expectedFindings.readers.map((reader,index)=>[`returnedNewsReader${index}`,isDeepStrictEqual(returned?.readers?.[index],reader)]));
     const checks={...proof.checks,...readerChecks,
       exactRequestedNewsFindings:returned?.readers?.length===expectedFindings.readers.length&&isDeepStrictEqual(returned?.sources,expectedFindings.sources),
-      returnedNewsPlan:returned?.topic===expectedFindings.topic&&returned?.action===expectedFindings.action&&typeof text==="string"&&byteCount(text)<=660&&world.expected.claims.every(pattern=>pattern.test(text)),
+      returnedNewsPlan:returned?.topic===expectedFindings.topic&&returned?.action===expectedFindings.action&&typeof text==="string"&&byteCount(text)<=660,
       returnedNewsSchedule:isDeepStrictEqual(returned?.schedule,expectedFindings.schedule),
       returnedNewsBriefing:isDeepStrictEqual(returned?.briefing,expectedFindings.briefing),returnedNewsReceipt:isDeepStrictEqual(returnedHandoff,expectedHandoff)};
     const contract:SemanticOutcomeContract={effects:{checks:Object.keys(proof.checks),rationale:"The actual native edition, reader windows, originals, authority and retained private bytes establish effects."},returnedValue:{checks:["exactRequestedNewsFindings","returnedNewsPlan","returnedNewsSchedule","returnedNewsBriefing",...Object.keys(readerChecks)],required:true,rationale:"The caller requested the news findings and citation handles."},incidentalValues:{checks:["returnedNewsReceipt"],rationale:"An echo of the native retained handoff is optional presentation."}};

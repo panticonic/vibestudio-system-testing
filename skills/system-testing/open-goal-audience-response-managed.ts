@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["current","observed","operated"],[]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual as equal } from "node:util";
@@ -141,7 +142,7 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
   };
   function validAnswer(answer:AudienceAnswer|undefined){
     return !!answer&&typeof answer.text==="string"&&answer.text.length<=450&&!!answer.text.trim()&&
-      equal(answer.facts,expectedAnswer)&&expectedAnswer.every(fact=>answer.text.includes(fact.value));
+      equal(answer.facts,expectedAnswer);
   }
   async function verify(raw:unknown,invocation?:InvocationObservations){
     const candidate=raw as AudienceReport|null;
@@ -169,7 +170,7 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const contract:SemanticOutcomeContract={effects:{checks:["exactAudienceRecord", "appropriateAudienceFormat", "verifiedNativeAudienceRendering", "verifiedAudienceInteraction", "preservedAudienceState"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["boundedGroundedAudienceAnswer"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedAudienceReceipt"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
     return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      report:report??null,observed},contract,raw,invocation,[{"checks":["boundedGroundedAudienceAnswer"],"rootPath":["answer"],"producerSourceSuffix":"chooseAudienceResponse/answerFromRecord.nl"}]);
+      report:report??null,current,observed,operated},contract,raw,invocation,[{"checks":["boundedGroundedAudienceAnswer"],"rootPath":["answer"],"producerSourceSuffix":"chooseAudienceResponse/answerFromRecord.nl"}]);
   }
   async function qualify(){
     const record=await services.nativeAudienceResponse.readRecord();

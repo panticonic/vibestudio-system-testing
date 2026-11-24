@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["discoveries","observations","readbacks","edits","candidateChecks","commits","race","independent"],[]);
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -265,7 +267,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       exactLocalRolloutEvent: world.expected.release ? Boolean(state.commit && actualCommit === state.commit.eventId && current.clean) : state.commit === null && isDeepStrictEqual(current.committed, baseline.committed),
       matchedRolloutOutcome: isDeepStrictEqual(report?.release,state.commit)&&report?.unitId === target.id &&
         report.status === world.expected.status && report.revision === finalRevision &&
-        Boolean(reason && (world.expected.mentions ?? []).every(terms => terms.some(term => reason.includes(term)))),
+        Boolean(reason?.trim()),
       ...(negatives ? { rejectedForeignRolloutUnit: negatives.foreign, rejectedProtectedSourceEdit: negatives.protectedPolicy } : {}),
     };
     return {

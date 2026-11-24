@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["observed","reads","buildReceipts"],["durableText"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
@@ -320,7 +321,7 @@ export async function prepareOpenWorkspaceAssembly(input: { contextId: string; c
       returnedAssemblyBuilds: valid&&isDeepStrictEqual(plan.builds,[...established.values()])&&
         isDeepStrictEqual(plan.builds.map(item => ({ unit: item.unit, result: item.result })), expected.builds) &&
         plan.builds.every(item => item.result === "ok" ? item.cached && item.buildKeys.length > 0 : item.diagnosticCodes.length > 0),
-      groundedRolloutDisposition: valid && plan.disposition === expected.disposition && expected.claims.every(rule => rule.test(plan.rationale))
+      groundedRolloutDisposition: valid && plan.disposition === expected.disposition
     };};
     const requestedPlan=planRequirements(plan);
     const artifactPlan=durablePayload?.plan;
