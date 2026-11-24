@@ -250,7 +250,6 @@ async function verifyNativeApplication(raw:unknown,observations?:InvocationObser
         rejectedIntentRetarget:await services.nativeIntentDiscovery.inspect(methods.worker,workerKey+"-older")===null&&
           await services.nativeIntentDiscovery.inspect("service:unknown.operation",owner)===null,
       };
-      await close();
       return {
         outcomeContract:{
           effects:{checks:["exactIntentNotice","installedIntentDiscovery","exactIntentActionSelection","independentlyScopedIntentResults","exactPrivateIntentNote","preservedIntentWorkspace","rejectedIntentRetarget"],rationale:"Installed capability contracts and actual scoped reads ground the conclusion; native writes establish any requested private note."},

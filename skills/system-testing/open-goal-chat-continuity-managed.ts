@@ -190,6 +190,15 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     {channelId:active.key,messageId:world.receipt==="unknown-id"?crypto.randomUUID():original,
       senderId:world.receipt==="wrong-sender"?crypto.randomUUID():sourceRow.sender,text:world.message};
   const agents:Agent[]=[];
+  let closing:Promise<void>|undefined;
+  function close():Promise<void>{
+    return closing??=(async()=>{
+      const retired=await Promise.allSettled(agents.map(agent=>ports.retire(agent.id)));
+      const failures=retired.filter(row=>row.status==="rejected");
+      if(failures.length)throw new AggregateError(failures.map(row=>row.reason),"Could not retire owned chat continuity workers");
+    })();
+  }
+  try {
   let worker:Agent|null=null;
   if(world.worker&&world.worker!=="missing") {
     worker=await ports.createWorker(owner);
@@ -294,7 +303,6 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     const decision=report?.disposition;
     const oldWorker=opening?.worker;
     const newWorker=latest.worker;
-    const retired=await Promise.allSettled(agents.map(agent=>ports.retire(agent.id)));
     const exactWorker=world.worker==="detached"?!!oldWorker?.active&&!!newWorker&&!newWorker.active&&
       oldWorker.participantId===newWorker.participantId&&newWorker.endedRevision===newWorker.revision&&
       newWorker.revision>oldWorker.revision:
@@ -318,8 +326,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         latest.consumer.channelId===active.key?independentlyRead:independentlyArchived,latest.consumer.settled)),
       exactNativeChatWorker:exactWorker&&(!newWorker||
         isDeepStrictEqual(retainedWorkerRelationship(independentlyRead.events,newWorker.participantId),
-          {active:newWorker.active,revision:newWorker.revision,endedRevision:newWorker.endedRevision,handle:newWorker.handle}))&&
-        retired.every(row=>row.status==="fulfilled"),
+          {active:newWorker.active,revision:newWorker.revision,endedRevision:newWorker.endedRevision,handle:newWorker.handle})),
       nativeChatReadiness:proof.review.ready===(world.status==="ready"),
       groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review),
       groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
@@ -352,5 +359,10 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:"invented"}})).outcomeDimensions.returnedValue.passed;
     return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
   }
-  return {services,verify,qualify};
+  return {services,verify,qualify,close};
+  } catch(error) {
+    try {await close();}
+    catch(cleanup) {throw new AggregateError([error,cleanup],"Chat continuity setup and cleanup failed");}
+    throw error;
+  }
 }

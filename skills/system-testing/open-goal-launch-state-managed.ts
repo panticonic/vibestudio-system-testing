@@ -241,7 +241,6 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
         rejectedLaunchRetarget:await services.launchStateRead.read(alternate.id)===null&&
           await services.launchStateRead.seal(alternate.id)===null&&await services.launchStateWrite.patch(alternate.id,baseline.digest,plan.patch)===null,
       };
-      await close();
       const contract:SemanticOutcomeContract={effects:{checks:["exactLaunchSlot", "reconciledLaunchScope", "exactLaunchPreflight", "exactNativePatchResult", "independentLaunchReadback", "protectedLaunchSiblings", "exactPrivateLaunchNote", "rejectedLaunchRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedLaunchReadback", "exactLaunchDecision"],required:!shouldAttempt,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedLaunchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
     return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),index,plan,frames,readback,
