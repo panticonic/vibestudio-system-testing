@@ -159,7 +159,9 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
         verification = await prepared.verify(actualResult, observations);
         verification = {
           ...assessSemanticOutcome(verification, ${JSON.stringify(options.outcomeContract)}),
-          entry: teacher.entry, actualResult,
+          entry: teacher.entry,
+          actualResult: teacher.applicationResultKind === "void" ? null : actualResult,
+          ...(teacher.applicationResultKind === "void" ? { actualResultKind: "void" } : {}),
         };
       }
       catch (error) { recordFailure("verification", error); }
@@ -222,7 +224,7 @@ ${options.bindingCode}
       const programPath=${JSON.stringify(options.openGoal ? options.entry!.program : "skills/vibestudio-workflows/runWorkflow.nl")};
       const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};
       const expectedRemaining=${JSON.stringify(expectedRemaining)};
-      let report=null, applicationResult=null, executionError=null;
+      let report=null, applicationResult, applicationResultKind, applicationReturned=false, executionError=null;
       try {
         const loaded=await natlang.load(programPath,{services:assignedServices});
         const root=programPath.endsWith(".ts")?loaded?.default:loaded;
@@ -230,7 +232,9 @@ ${options.bindingCode}
         ${options.openGoal && options.entry!.program.endsWith(".ts") ? `if(root.name!==${JSON.stringify(options.entry!.callable)}) throw new Error("The authored TypeScript default export differs from the assigned callable");` : ""}
         ${requireMountedDomains(domains)}
         const workflow=await root(${requestCode});
-        applicationResult=workflow;
+        applicationReturned=true;
+        applicationResult=workflow===undefined?null:workflow;
+        applicationResultKind=workflow===undefined?"void":undefined;
         ${options.openGoal ? "report=workflow;" : `
         const returnedSkills=workflow.results.map(result=>result.kind==="domain"?result.domain+"/"+result.operation:result.kind);
         if(JSON.stringify([...returnedSkills].sort())!==JSON.stringify(expectedAssignments) ||
@@ -271,7 +275,7 @@ ${options.bindingCode}
       const rootOutcome=rootRecord?.outcome??null;
       if(rootRecord && rootOutcome!=="done" && executionError===null)
         executionError={name:"AuthoredExecutionFailure",message:"Assigned authored root ended with "+rootOutcome};
-      let utilityValue={report,applicationResult,${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,rootOutcome,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
+      let utilityValue={report,...(applicationReturned?{applicationResult,...(applicationResultKind===undefined?{}:{applicationResultKind})}:{}),${options.openGoal ? `entry:${JSON.stringify({program:options.entry!.program,callable:options.entry!.callable,resultType:options.entry!.resultType,arguments:options.entry!.arguments,argumentJson:Object.fromEntries(options.entry!.parameterNames.map(name=>[name,JSON.stringify(options.entry!.arguments[name])]))})},` : ""}executionError,rootOutcome,captureErrors,rootCallIds,calls,evalRunId:${JSON.stringify(runId)},programPath,
         // Capture eligibility is independent of goal success and root completion.
         // Independent domain evidence determines usable whole or partial work.
         trainingEligible:captureErrors.length===0};
