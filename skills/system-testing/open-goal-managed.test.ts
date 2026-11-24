@@ -13,7 +13,7 @@ const fixture = vi.hoisted(() => ({ directory: "" }));
 vi.mock("@workspace/runtime", () => ({
   credentials:{resolveCredential:async()=>null},
   fs: {
-    readFile, readdir, writeFile,
+    readFile, readdir, writeFile:vi.fn(writeFile),
     async mkdtemp(prefix: string) {
       fixture.directory = await mkdtemp(join(tmpdir(), prefix));
       return fixture.directory;
@@ -115,8 +115,11 @@ it("preserves failed public acquisition receipts before attempting a combined do
   const world=openGoalWorlds.find(({id})=>id==="verify-and-correct-tutorial");
   if(world?.kind!=="research-and-edit")throw Error("Expected combined research and edit");
   const prepared=await prepareOpenGoal({contextId:"owned",caseId:world.id});
+  const {fs}=await import("@workspace/runtime");
+  const initializedWrites=vi.mocked(fs.writeFile).mock.calls.length;
   const error=await prepared.qualify().then(()=>{throw Error("Expected acquisition failure");},error=>error);
   expect(serializeRpcFailure(error)).toMatchObject({message:expect.stringContaining("Actual upstream search refused"),
     errorData:{publicReferenceAcquisition:{phase:"search-provider",caseId:world.id}}});
+  expect(vi.mocked(fs.writeFile)).toHaveBeenCalledTimes(initializedWrites);
   expect(await readFile(join(fixture.directory,world.destination),"utf8")).toBe(world.files[world.destination]);
 });

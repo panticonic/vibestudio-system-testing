@@ -84,15 +84,15 @@ function preparePublicResearch({ contextId, caseId }: Input, world: PublicResear
       search: queries => web.search({ queries }),
     }, queries);
     searches.push(receipt);
-    return structuredClone(receipt.result);
+    return receipt;
   }
   const services = {
     goalDiscovery: {
-      async search(queries: string[]) { return (await search(queries)).results; },
+      async search(queries: string[]) { return structuredClone((await search(queries)).result.results); },
       snapshotTime: () => snapshotTime,
     },
     web: {
-      async search({queries}: {queries: string[]}) { return search(queries); },
+      async search({queries}: {queries: string[]}) { return structuredClone((await search(queries)).result); },
       async fetch(options: Parameters<typeof web.fetch>[0]) {
         const searchIndex = searches.findIndex(receipt => receipt.urls.includes(options.url));
         const requested = new URL(options.url);

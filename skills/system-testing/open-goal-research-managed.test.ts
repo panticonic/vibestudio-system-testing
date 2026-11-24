@@ -154,3 +154,13 @@ it("retains original candidate transport failures instead of reporting an empty 
     errorData:{publicReferenceAcquisition:{phase:"candidate-fetch",attempts:[{url:sources.url,error:"Actual source ERR_CONNECTION_CLOSED"}]}},
     cause:{errors:[{message:"Actual source ERR_CONNECTION_CLOSED"}]}});
 });
+
+
+it("keeps public search responses separate from the internally attested receipt",async()=>{
+  const prepared=await prepareOpenGoal({contextId:"owned",caseId:"explain-reserved-example-domains"});
+  if(!("goalDiscovery"in prepared.services)||!("web"in prepared.services))throw Error("Expected research bindings");
+  const response=await prepared.services.web.search({queries:["example domains"]});
+  expect(response).toMatchObject({provider:"duckduckgo",results:[{query:"example domains",sources:[{url:sources.url},{url:sources.unrelated}]}]});
+  expect(response).not.toHaveProperty("result");
+  expect(await prepared.services.goalDiscovery.search(["example domains"])).toEqual(response.results);
+});
