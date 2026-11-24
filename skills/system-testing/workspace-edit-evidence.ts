@@ -10,13 +10,13 @@ export type WorkspaceEditObservations = {
 /** The authored example identifies editable lines, never the required prose. */
 export function workspaceEditScope(world:WorkspaceEditFixture) {
   const original=world.files[world.destination]!;
-  if(!original || !world.expected.endsWith(world.concurrentAddition))throw Error("Workspace edit lacks its original scope and concurrent addition");
+  if(typeof original!=="string" || !world.expected.endsWith(world.concurrentAddition))throw Error("Workspace edit lacks its original scope and concurrent addition");
   const reference=world.expected.slice(0,world.expected.length-world.concurrentAddition.length);
   const before=original.match(/.*(?:\n|$)/gu)!.filter(Boolean),after=reference.match(/.*(?:\n|$)/gu)!.filter(Boolean);
   let first=0,lastBefore=before.length,lastAfter=after.length;
   while(first<lastBefore&&first<lastAfter&&before[first]===after[first])first++;
   while(lastBefore>first&&lastAfter>first&&before[lastBefore-1]===after[lastAfter-1]){lastBefore--;lastAfter--;}
-  if(first===lastBefore)throw Error("Workspace edit needs a nonempty authored change region");
+  if(first===lastBefore&&first===lastAfter)throw Error("Workspace edit needs an authored change region");
   return {prefix:before.slice(0,first).join(""),original:before.slice(first,lastBefore).join(""),suffix:before.slice(lastBefore).join(""),reference:after.slice(first,lastAfter).join("")};
 }
 

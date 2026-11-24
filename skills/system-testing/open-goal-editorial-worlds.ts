@@ -6,7 +6,7 @@ type Draft = {
   operation?:PacketPlan["operation"]; end:PacketDecision["status"]; terms:string[];
   topology?:"same-page"|"split-pages"|"missing-page"|"partial-evidence"|"no-approval";
   race?:"unrelated-edit"|"same-field"|"source-replaced"|"revoked"|"already-done";
-  preview?:string; split?:"test";
+  preview?:string; split?:"test";literalApprovedWording?:boolean;
 };
 const field=(label:string,before:string|null,after:string|null):Correction=>({label,before,after});
 const records:Draft[]=[
@@ -48,13 +48,13 @@ const records:Draft[]=[
   {id:"two-claims-one-conflict-holds-pair",title:"Youth theatre",goal:"Correct the Youth theatre candidate's Curtain time together with Collection point. If the first field develops a competing edit, hold the whole revision, including the uncontested part, and make a private diagnostic.",
     fields:[field("Curtain time","7 pm","6 pm"),field("Collection point","South hall","Front foyer")],
     race:"same-field",topology:"split-pages",note:"diagnostic",end:"held",terms:["conflict","curtain"]},
-  {id:"coeditor-preserves-revised-caption-order",title:"Transit exhibit",goal:"The Transit exhibit candidate uses a stale Timetable line. Restore the approved wording, keep the co-editor's added release context, and tie a private note to the actually stored version.",
+  {id:"coeditor-preserves-revised-caption-order",literalApprovedWording:true,title:"Transit exhibit",goal:"The Transit exhibit candidate uses a stale Timetable line. Restore the approved wording, keep the co-editor's added release context, and tie a private note to the actually stored version.",
     fields:[field("Timetable","Hourly until 8","Every half hour until 8")],race:"unrelated-edit",note:"ready-only",end:"ready",terms:["timetable","edit"]},
   {id:"retained-copy-needs-renewed-approval",title:"Vendor instruction",goal:"The Vendor instruction card was updated after its preview. Verify current approval for the Delivery interval. If there is no approved text source, give a local diagnostic and leave the original copy.",
     fields:[field("Delivery interval","Ten minutes","Fifteen minutes")],topology:"no-approval",note:"diagnostic",end:"held",terms:["approval","delivery"]},
   {id:"ready-candidate-without-note",title:"Upland event",goal:"For the Upland event's public text candidate, revise the Maximum grade from the locally approved source. I don't need a handoff file, just an honest ready-to-review decision on the saved draft.",
     fields:[field("Maximum grade","Ten percent","Eight percent")],note:"none",end:"ready",terms:["grade","draft"]},
-  {id:"held-pages-differ-in-purpose",title:"Boat programme",goal:"Match the Boat programme candidate's Family sail and Step-free boarding wording. The PDF keeps those two details on separate approved pages. Write a local packet only after both parts are verified and stored.",
+  {id:"held-pages-differ-in-purpose",literalApprovedWording:true,title:"Boat programme",goal:"Match the Boat programme candidate's Family sail and Step-free boarding wording. The PDF keeps those two details on separate approved pages. Write a local packet only after both parts are verified and stored.",
     fields:[field("Family sail","Starts on Friday","Starts on Sunday"),field("Step-free boarding","Marina entrance","Fishing gate")],
     topology:"split-pages",note:"ready-only",end:"ready",terms:["boarding","family"],split:"test"},
   {id:"held-already-removed-private-line",title:"Archives tour",goal:"The Archives tour candidate formerly included a Personal contact line. Verify its removal under the approved PDF instruction. If the co-editor already removed it, report that exact stored result without duplicating their edit.",

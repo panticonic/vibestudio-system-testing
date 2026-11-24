@@ -26,10 +26,12 @@ it("proves a requested document effect independently of an incidental return rec
   try {
     await prepared.services.goalWorkspace.read(world.authority);
     const original=await prepared.services.goalWorkspace.read(world.target!);
-    const desired=original!.text.replace("10:00",world.doors);
+    const desired=original!.text.replace("Doors open: 10:00",`The doors open at ${world.doors}.`);
     await prepared.services.goalWorkspace.revise(world.target!,original!.version,desired);
     const result=assessSemanticOutcome(await prepared.verify(null));
     expect(result.passed).toBe(true);
+    expect(result.semanticReviewRequired).toBe(true);
+    expect(result.semanticReviewInput.actual.documents[world.target!]).toBe(desired);
     expect(result.outcomeDimensions.returnedValue).toMatchObject({required:false,passed:false});
   } finally {await prepared.close();}
 });
