@@ -5,12 +5,14 @@ import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
-import { contextId, fs, images, rpc, vcs } from "@workspace/runtime";
+import { contextId, fs, rpc, runtime, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type { Candidate, EvidenceRow, Format, ImageAssessment, ImageHandoff, ImageIndex,
   ImageJournal, ImagePlan, ImageRead, ImageReport, JournalRecord } from "@workspace-skills/open-image-candidate/types";
+import type { ImagesService } from "@workspace/runtime/images";
+import { createOwnedImageStore } from "./owned-image-store.js";
 import { imageFixtureBytes } from "./open-goal-image-fixture-bytes.js";
 import { openImageCandidateWorlds, ownedBrief, type ImageSeed } from "./open-goal-image-candidate-worlds.js";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -47,19 +49,31 @@ export async function readImageNative(lane:Lane, client=rpc):Promise<ImageJourna
 }
 
 type Ports={
-  contextId:string|null;fs:typeof fs;status:typeof vcs.status;images:Pick<typeof images,"importAsset"|"readAsset"|"release">;
+  contextId:string|null;fs:typeof fs;status:typeof vcs.status;images:Pick<ImagesService,"importAsset"|"readAsset"|"release">;close?():Promise<void>;
   open:typeof createOwnedHeadlessChannel;append:typeof appendNative;read:typeof readImageNative;
   readBytes(path:string,limit:number):Promise<Uint8Array>;
 };
-function livePorts():Ports {
-  return { contextId,fs,status:input=>vcs.status(input),images,open:createOwnedHeadlessChannel,append:appendNative,
-    read:readImageNative,readBytes:(path,max)=>readWorkspaceBytes(rpc,path,max) };
+async function livePorts(context:string):Promise<Ports> {
+  if(contextId!==context)throw new Error("Image candidate context is not owned");
+  const owned=await createOwnedImageStore(context,{runtime,rpc});
+  return { contextId,fs,status:input=>vcs.status(input),images:owned.images,close:owned.close,
+    open:createOwnedHeadlessChannel,append:appendNative,read:readImageNative,
+    readBytes:(path,max)=>readWorkspaceBytes(rpc,path,max) };
 }
 
 type CandidateRow=EvidenceRow&{record:Candidate};
 const candidateRow=(row:EvidenceRow):row is CandidateRow=>row.record.kind==="candidate";
 
-export async function prepareOpenImageCandidate(input:{contextId:string;caseId:string},ports=livePorts()) {
+export async function prepareOpenImageCandidate(input:{contextId:string;caseId:string},replay?:Ports) {
+  const ports=replay??await livePorts(input.contextId);
+  try { return {...await bindImageCandidate(input,ports),close:async()=>{await ports.close?.();}}; }
+  catch(original){
+    try{await ports.close?.();}catch(cleanup){throw new AggregateError([original,cleanup],"Image candidate setup and cleanup failed",{cause:original});}
+    throw original;
+  }
+}
+
+async function bindImageCandidate(input:{contextId:string;caseId:string},ports:Ports) {
   const world=openImageCandidateWorlds.find(entry=>entry.id===input.caseId);
   if(!world||!input.contextId||ports.contextId!==input.contextId) throw new Error("Image candidate context is not owned");
   const owner=input.contextId;
@@ -108,7 +122,11 @@ export async function prepareOpenImageCandidate(input:{contextId:string;caseId:s
 
   const selection=(label:string):JournalRecord=>({kind:"selection",briefId:brief.id,candidateId:version(label),owner});
   const rights=(value:NonNullable<typeof world.rights>):JournalRecord=>({kind:"rights",briefId:brief.id,reference:brief.reference,rights:value,owner});
-  const candidates=await Promise.all(world.seeds.map(record));
+  const seededCandidates=await Promise.allSettled(world.seeds.map(record));
+  const failures=seededCandidates.flatMap(value=>value.status==="rejected"?[value.reason]:[]);
+  if(failures.length===1)throw failures[0];
+  if(failures.length)throw new AggregateError(failures,"Image candidate seeding failed");
+  const candidates=seededCandidates.flatMap(value=>value.status==="fulfilled"?[value.value]:[]);
   await save([rights(world.rights??"local-handoff"),...candidates,selection(world.selected??world.seeds[0].label)]);
   const initial=await ports.read(lane);
   const later:JournalRecord[]=[];
