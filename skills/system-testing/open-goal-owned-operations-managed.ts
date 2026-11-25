@@ -1,8 +1,10 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessNativeGoal=bindObservedContentReview(["docket","effects","audit"],["dossierReadback"]);
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
-import { createOwnedOperations, verifyOwnedOperations } from "@workspace/natlang-services";
+import { createOwnedOperations, verifyOwnedOperationCustody } from "@workspace/natlang-services";
 import { operationsDocketEvidenceSchema, operationsDossierMethods } from "@workspace/natlang-services/ownedOperationsContracts";
 import { contextId, fs, rpc, runtime, vcs } from "@workspace/runtime";
 import type { z } from "zod";
@@ -72,6 +74,16 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
       throw new Error("Use the current exact owned docket revision");
     return evidence;
   }
+  function boundOperation(report: Report | null, audit: ReturnType<typeof owned.audit>, request: Evidence["request"]) {
+    if(!report)return true;
+    const parsed=operationsDossierMethods.retain.args.safeParse(["","",report]);
+    if(!parsed.success || report.kind!==request.kind)return false;
+    const sourceIds=request.kind==="incident-handoff"?request.signals.map(row=>row.id):request.after.map(row=>row.id);
+    return report.handles.every(handle=>audit.opened.some(row=>isDeepStrictEqual(row.handle,handle))) &&
+      report.cleanup.retiredIds.every(id=>audit.retiredIds.includes(id)) &&
+      report.cleanup.destroyedContextIds.every(id=>audit.destroyedContextIds.includes(id)) &&
+      report.handoff.evidenceIds.every(id=>sourceIds.includes(id));
+  }
   let retaining: { report: Report; promise: Promise<Receipt> } | undefined;
   const services = {
     operationsDocket: {
@@ -100,13 +112,16 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
       async retain(id: string, revision: string, value: Report) {
         const report = operationsDossierMethods.retain.args.parse([id, revision, value])[2];
         const basis = await select(id, revision);
+        if(basis.authority!=="local-exercise" || !basis.retainWhenReady)
+          throw new Error("The current docket does not authorize a private dossier");
+        await owned.close();
         const audit = owned.audit();
         const retained = audit.snapshots.find(row => row.phase === "before-cleanup" && row.handle.role === "release");
         const newest = retained?.value.checkpoints.at(-1)?.assessment;
         const exactCurrent = basis.request.kind === "release-continuation" &&
           basis.request.after.length > 0 && basis.request.after.every(gate => gate.state === "approved") &&
           newest?.decision === "ready" && isDeepStrictEqual([...newest.evidenceIds].sort(), basis.request.after.map(gate => gate.id).sort());
-        const verified = verifyOwnedOperations(audit, world.expected, report).passed;
+        const verified = verifyOwnedOperationCustody(audit).passed && boundOperation(report,audit,basis.request) && report.handoff.decision===newest?.decision;
         if (basis.authority !== "local-exercise" || !basis.retainWhenReady ||
             report.kind !== "release-continuation" || !exactCurrent || !verified)
           throw new Error("The current release evidence and scoped retention authority do not permit a private dossier");
@@ -143,33 +158,35 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
       }
       return true;
     });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessNativeGoal(proof,proof.outcomeContract,value,invocation,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations): Promise<OpenGoalDomainVerification & {
-    docket: Docket; effects: Effects; audit: ReturnType<typeof owned.audit>; outcome: Outcome | null; artifact: Receipt | null;
+    docket: Docket; effects: Effects; audit: ReturnType<typeof owned.audit>; outcome: Outcome | null; artifact: Receipt | null; dossierReadback:string|null;
   }> {
     const report = value as Outcome | null;
     const outcome = report ?? null;
     const reread = await read(current.id);
     const retiredReread = await read(retired.id);
+    await owned.close();
     const audit = owned.audit();
     const held = world.authority === "review-only";
-    const expectedDossier = !held && world.retainWhenReady && world.expected.decision === "ready";
+    const expectedDossier = !held && reread.retainWhenReady && reread.request.kind==="release-continuation" && reread.request.after.every(gate=>gate.state==="approved");
     const staged = dossiers[0] ?? null;
     const independentBytes = staged ? text.decode(await readWorkspaceBytes(rpc, staged.result.path, MAX_DOCKET_BYTES)) : null;
     const checks = {
-      exactCurrentOwnedDocket: list.length > 0 && list.every(rows => isDeepStrictEqual(rows, [retiredReread.docket, reread.docket])) &&
+      exactCurrentOwnedDocket: list.every(rows => isDeepStrictEqual(rows, [retiredReread.docket, reread.docket])) &&
         reads.some(observed => isDeepStrictEqual(observed, reread)),
-      exactBoundRoleDisposition: isDeepStrictEqual(outcome?.dossier,staged?.result??null)&&typeof outcome?.reason === "string" && outcome.reason.trim().length > 0 &&
-        (held ? outcome.disposition === "held" && outcome.operation === null :
-          outcome.disposition === "reviewed" && !!outcome.operation && verifyOwnedOperations(audit, world.expected, outcome.operation).passed),
-      preservedAuthorization: held
-        ? audit.opened.length === 0 && audit.snapshots.length === 0 && !audit.programRequestedCleanup
-        : audit.programRequestedCleanup && audit.remainingContextIds.length === 0 && audit.remainingEntityIds.length === 0,
+      exactBoundRoleDisposition: !!outcome && typeof outcome.reason === "string" && outcome.reason.trim().length>0 &&
+        ["reviewed","held"].includes(outcome.disposition) &&
+        (outcome.docket===null || isDeepStrictEqual(outcome.docket,reread.docket)) &&
+        (outcome.dossier===null || isDeepStrictEqual(outcome.dossier,staged?.result)) &&
+        boundOperation(outcome.operation,audit,reread.request),
+      preservedAuthorization: (held ? audit.opened.length===0 && audit.snapshots.length===0 : true) &&
+        verifyOwnedOperationCustody(audit).passed,
       actualPrivateDossierReadback: expectedDossier
         ? dossiers.length === 1 && !!staged && independentBytes === staged.record &&
           sha256HexSyncText(independentBytes) === staged.result.digest
@@ -179,13 +196,13 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     return {
       outcomeContract:{effects:{checks:["exactCurrentOwnedDocket", "preservedAuthorization", "actualPrivateDossierReadback", "preservedWorkspaceHead"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
-        returnedValue:{checks:["exactBoundRoleDisposition"],required:!expectedDossier,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        returnedValue:{checks:["exactBoundRoleDisposition"],required:world.requestedReturnRequired,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
 
       contextId: input.contextId, caseId: input.caseId, goal: input.goal,
       passed: Object.values(checks).every(Boolean), checks, docket: current, effects: { list, reads, dossiers },
-      audit, outcome, artifact: staged?.result ?? null,
+      audit, outcome, dossierReadback:independentBytes, artifact: staged?.result ?? null,
     };
   }
 
