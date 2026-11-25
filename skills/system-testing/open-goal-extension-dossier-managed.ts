@@ -277,7 +277,11 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
         return capture("extensionDossierRead", "discover", [], discovery);
       },
       async candidate(id: string) {
-        candidate = await currentCandidate(requireObserved(id));
+        if (id !== bound.request.operationId) throw new Error("Read the exact owned extension candidate");
+        discovery ??= await currentAssignment();
+        // The candidate is bound to the assigned immutable heads. Reading it
+        // does not require an earlier actor read of unrelated runtime status.
+        candidate = await currentCandidate(baselineReview);
         return capture("extensionDossierRead", "candidate", [id], candidate.delta);
       },
       async history(id: string) {
@@ -377,11 +381,13 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
   async function qualify() {
     const assignment = await services.extensionDossierRead.discover();
     const id = assignment.request.operationId;
-    const source = await services.extensionReleaseRead.source(id);
-    const runtime = await services.extensionReleaseRead.runtime(id);
+    const [, source, runtime, history] = await Promise.all([
+      services.extensionDossierRead.candidate(id),
+      services.extensionReleaseRead.source(id),
+      services.extensionReleaseRead.runtime(id),
+      services.extensionDossierRead.history(id),
+    ]);
     const review = expectedReview(source, runtime, world.method);
-    await services.extensionDossierRead.candidate(id);
-    const history = await services.extensionDossierRead.history(id);
     if (!candidate) throw new Error("Reference candidate was not observed");
     const decision = decisionFor(assignment, review, candidate, history);
     const dossier = canStage(assignment, decision) ? await services.extensionDossierWrite.stage(decision) : null;
