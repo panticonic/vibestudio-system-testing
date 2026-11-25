@@ -61,6 +61,7 @@ const upgraded = note(
 export const openVaultRendererWorlds = [
   world({
     id: "vault-repair-visible-link-with-identical-public-label",
+    requestedReturnRequired: false,
     goal: "The working Overnight Gate Copy points its Gate instructions label at the wrong same-titled record. Follow the approval to the exact endorsed record, then correct the working link while preserving the displayed label and key-ring reminder. Follow the repaired link to verify it.",
     openPath: gateApproval,
     files: {
@@ -100,6 +101,7 @@ export const openVaultRendererWorlds = [
   }),
   world({
     id: "vault-confirm-which-identical-title-shortcut-wins",
+    requestedReturnRequired: true,
     split: "test",
     goal: "At Sculpture Index, follow the ordinary Handling Memo shortcut and then its explicit signed replacement. Tell me why the shortcut chose the older record even with two matching titles. Compare the glove advice, and leave both paths untouched.",
     openPath: "Sculpture Index.mdx",
@@ -140,6 +142,7 @@ export const openVaultRendererWorlds = [
   }),
   world({
     id: "vault-distinguish-example-syntax-from-a-live-reference",
+    requestedReturnRequired: true,
     goal: "A trainee flagged the old target in the example on Recipe Index as a broken dependency. Inspect which link is live, walk only that live route, and tell the trainee what remains safe to copy from the code sample. Don't create a missing note.",
     openPath: "Recipe Index.mdx",
     files: {
@@ -171,6 +174,7 @@ export const openVaultRendererWorlds = [
   }),
   world({
     id: "vault-hold-render-failure-even-after-source-compiles",
+    requestedReturnRequired: true,
     split: "test",
     goal: "Stage a local review for the Shift Lead only if the linked Shift Gauge Card actually renders. If it fails, preserve the exact preview error and leave the current and committed card alone. Don't issue a receipt from source code alone.",
     openPath: "Gauge Review.mdx",
@@ -202,6 +206,7 @@ export const openVaultRendererWorlds = [
   }),
   world({
     id: "vault-recover-module-preview-then-stage-working-proof",
+    requestedReturnRequired: false,
     goal: "Component Waiver authorizes replacing the broken inline startup module in the linked Evening Status Card with the approved callout. Keep its service label, verify the actual new rendering, and leave a draft-only receipt for Maintenance Desk.",
     openPath: approvedComponent,
     files: {
@@ -234,6 +239,7 @@ export const openVaultRendererWorlds = [
   }),
   world({
     id: "vault-distinguish-module-load-failure-from-render-failure",
+    requestedReturnRequired: true,
     goal: "Release Desk sees two failed inline previews. Follow the Startup Proof and its linked Runtime Proof. Tell me which fault occurs before rendering and which appears when a component renders, with the exact messages. Don't edit either file.",
     openPath: "Release Desk.mdx",
     files: {

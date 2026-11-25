@@ -42,6 +42,7 @@ type Link = { name: string; folder: string; text: string; findings?: Findings };
 type Entry = {
   id: string;
   goal: string;
+  requestedReturnRequired: boolean;
   start: string;
   startText: string;
   startFindings?: Findings;
@@ -57,6 +58,7 @@ type Entry = {
 function evidence({
   id,
   goal: request,
+  requestedReturnRequired,
   start,
   startText,
   startFindings,
@@ -88,6 +90,7 @@ function evidence({
   return goal({
     id,
     goal: request,
+    requestedReturnRequired,
     openPath,
     files,
     draft,
@@ -100,6 +103,7 @@ function evidence({
 const evidenceGoals = [
   evidence({
     id: "vault-compare-dock-shift-authority",
+    requestedReturnRequired: true,
     start: "Dock Index",
     goal: "Do we give the night crew the time in the radio transcript or the signed shift order? From Dock Index, review the transcript and the order it cites, then state the exact controlling time and why it wins. Leave both records alone.",
     startText: "Start at [[Radio Transcript]].",
@@ -120,6 +124,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-compare-two-unsigned-instrument-records",
+    requestedReturnRequired: true,
     split: "test",
     start: "Calibration Card",
     goal: "The calibration card links to two readings for the same instrument. Work through both records using the first reading's cross-link. Decide whether either can be treated as a released calibration and give both numbers to the owner. Do not choose a winner merely because one was written later.",
@@ -141,6 +146,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-use-replacement-venue-decision",
+    requestedReturnRequired: true,
     start: "Venue Bulletin",
     goal: "The public Venue Bulletin still cites yesterday's briefing. Trace the replacement chain from the bulletin through the old briefing to the final ruling, and tell me which venue is now authoritative. Report both destinations without editing.",
     startText: "Venue as discussed: [[Draft Venue Brief]].",
@@ -161,6 +167,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-separate-budget-draft-from-adopted-cap",
+    requestedReturnRequired: true,
     start: "Budget Decision Register",
     goal: "We need the adopted expense ceiling, and I think the working finance copy contains a later proposal. Read the Board Cap and then the Finance Working Copy it links, comparing the latter to its committed text. Tell me the authorized and proposed amounts.",
     startText: "The adopted figure starts at [[Board Cap]].",
@@ -188,6 +195,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-attribute-correct-interview-version",
+    requestedReturnRequired: true,
     start: "Interview Index",
     goal: "I'm writing the oral history caption. Check the archive excerpt and the release card that corrects it. Preserve the literal wording of both in your advice and identify what authenticated the correction.",
     startText: "Start with [[Archive Excerpt]].",
@@ -208,6 +216,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-show-unsatisfied-checklist-authority",
+    requestedReturnRequired: true,
     split: "test",
     start: "Mixing Instructions",
     goal: "Two linked drafts disagree about where the mixing checklist belongs. Read both before advising me. Neither claims to be the safety owner's release, so leave the destination open and record both proposed locations for the owner.",
@@ -229,6 +238,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-trace-retired-conservation-ledger",
+    requestedReturnRequired: true,
     start: "Loan Transfer",
     startFindings: [broken],
     goal: "Did the old Conservation Ledger simply move, or was it retired? Review the broken link in Loan Transfer, then follow the retirement register and successor it cites. Report both labels and leave the tombstone intact.",
@@ -258,6 +268,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-catch-identical-label-pointing-at-archive",
+    requestedReturnRequired: true,
     start: "Visitor Counter",
     startFindings: [doc],
     goal: "Two links on Visitor Counter display Info Desk. Check the counter note, follow the old desk and then the current desk it links. Tell me which actual record is open for use today and where the visitor should go.",
@@ -280,6 +291,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-avoid-substitute-for-withdrawn-supplier",
+    requestedReturnRequired: true,
     split: "test",
     start: "Order Draft",
     startFindings: [broken],
@@ -309,6 +321,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-review-linked-route-through-display-alias",
+    requestedReturnRequired: true,
     start: "Guest Intake",
     startFindings: [doc],
     goal: "A volunteer followed the Registration link and thought it was general admission. Review what the aliased link really points to, then follow that record's referral. Tell me the two places handle, before anyone edits the intake card.",
@@ -330,6 +343,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-check-freight-print-warning-in-renderer",
+    requestedReturnRequired: true,
     start: "Freight Print Desk",
     startFindings: [doc],
     goal: "We print freight labels only if their warning appears in an actual callout. Read the approval's expected wording, then check the working Freight Print Proof against its committed proof and the renderer. Do not update either.",
@@ -354,6 +368,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-assess-unchanged-advisory-with-unrelated-draft",
+    requestedReturnRequired: true,
     split: "test",
     start: "Breakwater Summary",
     goal: "Check whether the Boarding Card really renders the colored boarding advisory and whether its text still matches the committed version. A separate draft in the vault shouldn't affect that comparison.",
@@ -375,6 +390,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-compare-translated-callout-rendering",
+    requestedReturnRequired: true,
     start: "Language Booth",
     goal: "The Language Booth needs the accessible notice in both languages. Follow the French card and its English companion. Confirm which card actually renders the requested callout, citing both literal instructions.",
     startText: "Start at [[French Access Card]].",
@@ -399,6 +415,7 @@ const evidenceGoals = [
   }),
   evidence({
     id: "vault-assess-uncommitted-poster-that-renders",
+    requestedReturnRequired: true,
     start: "Festival Poster Index",
     startFindings: [doc],
     goal: "Compare the working poster with the committed poster. The new text may already render, but tell me whether that makes it the signed copy. Report both the signed and working directions.",
@@ -431,6 +448,7 @@ type DocumentEdit = {
 type JointEdit = {
   id: string;
   goal: string;
+  requestedReturnRequired: boolean;
   authority: string;
   approval: string;
   first: DocumentEdit;
@@ -442,6 +460,7 @@ type JointEdit = {
 function joint({
   id,
   goal: request,
+  requestedReturnRequired,
   authority,
   approval,
   first,
@@ -459,6 +478,7 @@ function joint({
   return goal({
     id,
     goal: request,
+    requestedReturnRequired,
     openPath: start,
     split,
     files: {
@@ -493,6 +513,7 @@ function joint({
 const jointGoals = [
   joint({
     id: "vault-repair-access-directions-across-public-and-internal-cards",
+    requestedReturnRequired: false,
     authority: "Accessibility Ruling",
     goal: "The signed Accessibility Ruling supersedes both directions. Update the Visitor Entry Card first, prove its advisory still renders, then use its linked Steward Card to update that instruction too. Keep both personal reminders.",
     approval:
@@ -512,6 +533,7 @@ const jointGoals = [
   }),
   joint({
     id: "vault-update-quiet-hour-and-event-sign-with-different-details",
+    requestedReturnRequired: false,
     authority: "Noise Permit",
     goal: "Read the permit, update the venue's Quiet Hour Sheet and then its linked Event Exit Sign. The internal sheet needs the new time, and the public sign needs the approved exit street. Do not copy the internal time into the public sign.",
     approval:
@@ -530,6 +552,7 @@ const jointGoals = [
   }),
   joint({
     id: "vault-reconcile-a-changing-steward-note-with-wardens-copy",
+    requestedReturnRequired: false,
     authority: "Firewatch Approval",
     split: "test",
     goal: "The Firewatch Approval controls the new muster point. Update the working Steward Checklist first, then fix the linked Warden Copy. If the steward file changes while you are working, preserve the new material and rebase the correction. Keep the committed vault untouched.",
@@ -549,6 +572,7 @@ const jointGoals = [
   }),
   joint({
     id: "vault-fix-donor-instructions-without-sharing-internal-id",
+    requestedReturnRequired: false,
     authority: "Donor Desk Approval",
     goal: "Use the approval to fix the operating Receipt Checklist and then its linked public Drop-off Card. Keep the staff-only disposition code on the internal sheet. The public card should gain only the approved return address.",
     approval:
@@ -567,6 +591,7 @@ const jointGoals = [
   }),
   joint({
     id: "vault-sync-the-caption-and-preserve-two-language-confirmations",
+    requestedReturnRequired: false,
     authority: "Caption Signoff",
     goal: "Read Caption Signoff, fix the French Caption Sheet, and then its linked English Companion Card. Preserve the printed line breaks and the English callout. Read both working revisions after writing them.",
     approval:
@@ -586,6 +611,7 @@ const jointGoals = [
   }),
   joint({
     id: "vault-rebase-print-labels-after-catalog-owner-moves-working-head",
+    requestedReturnRequired: true,
     authority: "Specimen Label Decision",
     split: "test",
     goal: "Apply the museum's signed specimen identifier to the Gallery Label and then its linked Inventory Slip. The registrar may add a note to the working label during the update. Preserve that note and its callout; give me independent working readback from both documents.",
@@ -610,6 +636,7 @@ const jointGoals = [
 const handoffGoals = [
   evidence({
     id: "vault-stage-clean-wardrobe-review-for-costume-desk",
+    requestedReturnRequired: false,
     start: "Costume Lead",
     goal: "Review the linked Wardrobe Holding Plan and its live advisory. If the exact committed plan is clean and renders, leave a local review receipt addressed to Costume Desk. Do not send it.",
     startText: "Owner: Costume Desk. Review [[Wardrobe Holding Plan]].",
@@ -631,6 +658,7 @@ const handoffGoals = [
   }),
   evidence({
     id: "vault-stage-vetting-receipt-for-uncommitted-proof",
+    requestedReturnRequired: false,
     start: "Prototype Review",
     goal: "The Design Bench wants to review the current Assembly Warning proof, even if it's a working-only change. Compare it to the committed version, check the rendered callout, then stage a local receipt for Design Bench under the correct working disposition.",
     startText: "Approved reviewer: Design Bench. Follow [[Assembly Warning]].",
@@ -655,6 +683,7 @@ const handoffGoals = [
   }),
   evidence({
     id: "vault-hold-handoff-when-inline-notice-no-longer-renders",
+    requestedReturnRequired: true,
     start: "Piano Move Review",
     split: "test",
     goal: "Prepare a local handoff for the Piano Team only if the linked Ramp Packing Standard has a live advisory. The working copy might have removed the callout. Compare it with the committed copy and say what holds the handoff. Do not change the standard.",
@@ -683,6 +712,7 @@ const handoffGoals = [
   }),
   evidence({
     id: "vault-explain-draft-only-handoff-from-globally-dirty-vault",
+    requestedReturnRequired: true,
     start: "Market Brief",
     goal: "The Market Clerk needs a local receipt for the Stall Assignment card. Verify both its actual rendering and whether its content matches the commit. Treat the review as draft-only if the vault has unrelated uncommitted work, and explain why the exact card and vault can differ in readiness.",
     startText: "Market Clerk owns this review. Open [[Stall Assignment]].",

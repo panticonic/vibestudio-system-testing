@@ -1,0 +1,305 @@
+{
+  "schema": "vibestudio.literal-vault-return-obligations/1",
+  "worlds": [
+    {
+      "id": "vault-compare-dock-shift-authority",
+      "goalSha256": "dbc6bd8cf0cc133c1bb05a87b6090a9a3f8347a51bdcf832f28fc0f7f0213e70",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-compare-two-unsigned-instrument-records",
+      "goalSha256": "17fda70fb21cfcaea3d6c3bbfceecfbb79d7958895c0189308b26cea40c5e4f4",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-use-replacement-venue-decision",
+      "goalSha256": "519b1cbe2471c22057b35ea352885d6a45fc5563da72bfed542f0c297ff25fcd",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-separate-budget-draft-from-adopted-cap",
+      "goalSha256": "96b4723473a5f649bc5a79c44e4d4a967bc066fd4a41a0c1e9670cefad079230",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-attribute-correct-interview-version",
+      "goalSha256": "8dc5bfdb480fef51c1f933a8ea5931a490fc0ed15dfb9dc02471cfb9b7925b0a",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-show-unsatisfied-checklist-authority",
+      "goalSha256": "95f08ac74b66544d274b4153a79e7d0a97de7a4b64462d87afd811a94eaa1549",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-trace-retired-conservation-ledger",
+      "goalSha256": "81ac0bc8b598916bae772eb4eefbfb66ad35d32b222a40467ae04cc9556443d1",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-catch-identical-label-pointing-at-archive",
+      "goalSha256": "10c304717f14fb71cdd78d9356c5d71df7bf3aa61ad5c06e4116087e3306c6d1",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-avoid-substitute-for-withdrawn-supplier",
+      "goalSha256": "79315938a7c3bd3f8d41f9eac31ddc1d651ebf866a7f7143af1febde7232579e",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-review-linked-route-through-display-alias",
+      "goalSha256": "da64612d992c8525cb5857cb96e71899c7d9ce660ad5be25eeaded433767d919",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-check-freight-print-warning-in-renderer",
+      "goalSha256": "be35fef3190d452d5cde52b614f90bd5a810069c9d1655d32c6a37ebcfca73ef",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-assess-unchanged-advisory-with-unrelated-draft",
+      "goalSha256": "1b66282c7ffd1430e1b25f8a2aedc4dcb568619c965f6675ed4fee3bde333e8d",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-compare-translated-callout-rendering",
+      "goalSha256": "be8c61d3c12ca1c682244c67a0ef6e58854530dd48c5d1a5c9368e86418d66bf",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-assess-uncommitted-poster-that-renders",
+      "goalSha256": "a63b30cbb89bd1665793a5c863e0bfbb0996de5f9506ea9f87e2457ee21909bc",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-repair-access-directions-across-public-and-internal-cards",
+      "goalSha256": "5692fd3f8f404eda235e8a281b101b93a361fc4ca7d79ea1c99f1a04325813fc",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-update-quiet-hour-and-event-sign-with-different-details",
+      "goalSha256": "2d85e8daa1fd62456e62721f5b8e3ea11a90cb1e9e662b19bdaff4e555c59d90",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-reconcile-a-changing-steward-note-with-wardens-copy",
+      "goalSha256": "09587259a0d43258ea63b4d3bec70adb4826335b5a387e964b85f4cf25482a48",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-fix-donor-instructions-without-sharing-internal-id",
+      "goalSha256": "a6e99643efbb283e4d43920ad4f77bc382fd4ac5dee68500fe0ac54d249aebb6",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-sync-the-caption-and-preserve-two-language-confirmations",
+      "goalSha256": "d93ba422311b4fb2e84f6bc40509bd297cd91b9b3a2cf84a27e6895e84e132c8",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-rebase-print-labels-after-catalog-owner-moves-working-head",
+      "goalSha256": "b03c817c1dc6f1a47e88206f94cc38090b4dbfbbc385d4471709b9fcba750d59",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-stage-clean-wardrobe-review-for-costume-desk",
+      "goalSha256": "f5d55b9aff0e6e205a87dd3543c132d70c44503ef5d16eb1ddf157224a625701",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-stage-vetting-receipt-for-uncommitted-proof",
+      "goalSha256": "2f2fd01ddae3c827dc8c843c4cb1c30cac05f752280fe3e8880fcba5e0a28de8",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-hold-handoff-when-inline-notice-no-longer-renders",
+      "goalSha256": "fc157d07b56c421119fe7a2c0defd257ccdbfdad26148fde088d07c7b8d6607b",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-explain-draft-only-handoff-from-globally-dirty-vault",
+      "goalSha256": "483a7676819cba8406d278674fb140320d6a35e3659805ee6617b48dd30830bc",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-repair-visible-link-with-identical-public-label",
+      "goalSha256": "70758cf8be05af9349dc499705dc6900eb01b452948dfad016fc3d9852d3a4c6",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-confirm-which-identical-title-shortcut-wins",
+      "goalSha256": "396456862ebf085783a78a01839e43e4af4ba4e3cd701360d8765e8a153c4f37",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-distinguish-example-syntax-from-a-live-reference",
+      "goalSha256": "6a58609a7a511f0759b9ff4c5300f8a3f4bb9cf31ffc7a6881f7ffd0f0e46f1a",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-hold-render-failure-even-after-source-compiles",
+      "goalSha256": "e4fe97a5557da1dc90cbc87c1d437b656e0e0c42b1f65f8c5a2e7e03793eb393",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-recover-module-preview-then-stage-working-proof",
+      "goalSha256": "97e68d972dfa0dbd6e2312ea116becb2fd67c84ccb1ee7a71d078000fab1d2c6",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-distinguish-module-load-failure-from-render-failure",
+      "goalSha256": "043a0816d9cf229b1776209a8de703a13d4450ec9c1f1795c35d93991ddd1b75",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-quiet-room-after-sound-check",
+      "goalSha256": "6c98b40d59d4623ae01c273e6e97c206f0d8beef498615223ddc49bec4c67778",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-assisted-loading-separate-addresses",
+      "goalSha256": "5bc3eff7a62123f816efd0a5fcc60280b2d0b6e16634e0b161c6465a5ff9aad8",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-paper-map-cycle",
+      "goalSha256": "221ba951040bf04628c3afcf5e651642095755f10fa573223bf4366cdc494d1e",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-match-display-alias-to-policy",
+      "goalSha256": "65c0941f28c8bd3d0733c4ae1a1803669ace0fdf69d43f391004863752867d1e",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-exchange-limit-two-valid-windows",
+      "goalSha256": "784df606d8a496c0cbd33ed3872502485e8cf395c5f63d0e41eeed09a0f0b1aa",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-choose-approved-recording-excerpt",
+      "goalSha256": "4190f90d5eca5e6703d8b738a4d043931181275ef535c3c4c52218c6f10f9ba6",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-graphic-signature-missing",
+      "goalSha256": "77afd65483fe6dae727f83df8984f1d32d64f02683227992e2c922866557d4a3",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-inspection-write-after-owner-update",
+      "goalSha256": "c0ebcea2af3368ed29378b37e5cedde740a52e95026de82baf9fe155afd32e2b",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-compound-effective-boundaries",
+      "goalSha256": "656531c8e8a94fcf605dde708fa22a8c6154e01116f7daa2e7b810ae65cfde69",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-draft-seat-count-and-signed-limit",
+      "goalSha256": "b2ef9e676bc10e717e5855f925a44b4d9f7e2c3f033ba060aaf1884f67d88bc1",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-approved-small-format-only",
+      "goalSha256": "d69bb3f8249c3c050cdfef068af2b5bae7ef713e35b5c60992653c7d4a8add1d",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-training-copy-keeps-owner-remark",
+      "goalSha256": "92fefdbe4fe6e66294f96ee6adb41222548f7d90c0e1131e7248466d664f5303",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-tombstone-avoids-live-name-collision",
+      "goalSha256": "7dd1ed3ebf2fe6189aa122d85f82e5e2ce7387f0e82e3e995d963060978d51b6",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-steward-desk-two-measurements",
+      "goalSha256": "502fdbe53e1875d73bab800f4bf0e056632d416584f5b8b3933ff58984e996aa",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-map-with-conditioned-access",
+      "goalSha256": "c586b9ca1663bda663a2a0dcacbedd5bb60115407a0cdf38988f7f7fa011ff15",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-sealed-sample-chain",
+      "goalSha256": "67c884db2df9f74aa9b095e4a74a33a7c4468fe30a528ef6eac233e3f7fd5b2d",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-subtitle-rights-scope",
+      "goalSha256": "52b363ebc9941aaa9f77a04c1d2a161cf7396359f443eb09e696006e3733bbd2",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-hold-unattested-bridge-load",
+      "goalSha256": "b6ff671067239e04b1c4161f8806211b5cf7a6ec5fc374045ffca0d51403b999",
+      "requestedReturnRequired": true,
+      "rationale": "User requests a finding, explanation, comparison, exact message/quotation, or independent working readback."
+    },
+    {
+      "id": "vault-graph-variance-date-with-corrected-working-proof",
+      "goalSha256": "6a53645ec4b0143827ff6af2f15a00882395000ed96848bc3c110b94ffe653c8",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    },
+    {
+      "id": "vault-graph-easement-season-alias-split",
+      "goalSha256": "dc3ecae4e1fc85ace1057e1f8a6db9b875aae8fa7bb9a555b3a8b3976cdde992",
+      "requestedReturnRequired": false,
+      "rationale": "Requested native edit/local review and its prerequisites; no additional returned answer requested."
+    }
+  ]
+}

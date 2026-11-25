@@ -8,6 +8,7 @@ type Note = [path: string, body: string, draft?: string];
 type GraphCase = {
   id: string;
   goal: string;
+  requestedReturnRequired: boolean;
   notes: Record<string, Note>;
   start: string;
   route: Visit[];
@@ -102,6 +103,7 @@ function graph(input: GraphCase): VaultKnowledgeWorld {
     workspace: "spectrolite",
     id: "vault-graph-" + input.id,
     goal: input.goal,
+    requestedReturnRequired: input.requestedReturnRequired,
     sourceGroup: "vibestudio:spectrolite-graph:" + input.id,
     ...(input.held ? { split: "test" } : {}),
     openPath: path(input.start),
@@ -143,6 +145,7 @@ function graph(input: GraphCase): VaultKnowledgeWorld {
 export const openVaultGraphWorlds = [
   graph({
     id: "quiet-room-after-sound-check",
+    requestedReturnRequired: false,
     goal: "The Quiet Room card has the wrong opening time. Check both the staffing commitment and the sound-check restriction before correcting the visitor card. Keep the lift directions and leave the Quiet Room card open.",
     notes: {
       index: [
@@ -175,6 +178,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "assisted-loading-separate-addresses",
+    requestedReturnRequired: false,
     goal: "Please reconcile the assisted loading instructions. The parking map and the steward's commitment govern different people. Correct the customer sign and the desk note so visitors and escorts stop queuing in the same place. Leave the desk note open.",
     notes: {
       index: [
@@ -222,6 +226,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "paper-map-cycle",
+    requestedReturnRequired: true,
     goal: "Can we rely on the map shelf's closure notice? Its desk note and distribution record refer to each other. Find the actual authority, consider the alternate record, and come back to the map shelf without changing anything.",
     notes: {
       index: ["Map Shelf", "Investigate {desk} and {dispatch}."],
@@ -252,6 +257,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "match-display-alias-to-policy",
+    requestedReturnRequired: false,
     goal: "Two links titled ‘Packing rules’ have the same wording on the Transfer Index. Check the live and archive destinations before fixing the detachable packing card's shortcut. Keep ‘Packing rules’ as the visible label and leave the card open.",
     notes: {
       index: [
@@ -287,6 +293,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "exchange-limit-two-valid-windows",
+    requestedReturnRequired: false,
     goal: "The two signed exchange instructions disagree because one is for Friday and the other for setup on Saturday. Fix the Exchange Sign to name both windows, preserve the lost-ticket instruction, and leave the sign open.",
     notes: {
       index: [
@@ -324,6 +331,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "choose-approved-recording-excerpt",
+    requestedReturnRequired: false,
     goal: "We need a local review receipt for the Recording Desk, only for the excerpt the speaker's consent and archive control sheet both permit. Check the scope in both records, then verify the exact rendered Listening Copy and hand that copy off locally. Do not change the source.",
     notes: {
       index: [
@@ -364,6 +372,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "graphic-signature-missing",
+    requestedReturnRequired: true,
     goal: "Consider a local handoff of the Valve Diagram to the Shift Annotator. The mechanical check says which tag is right, but the signed instruction requires the diagram to actually show the tag. If the current diagram has no rendered proof, hold the handoff. Leave it open and explain the two different facts.",
     notes: {
       index: [
@@ -403,6 +412,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "inspection-write-after-owner-update",
+    requestedReturnRequired: false,
     goal: "The scaffold inspection card still says the old interval. Use the inspector's sign-off and the weather note to set the wet-weather review to 25 minutes. Preserve any new steward text if the card moves while you work. Leave the corrected card open.",
     notes: {
       index: [
@@ -445,6 +455,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "compound-effective-boundaries",
+    requestedReturnRequired: true,
     goal: "The Overnight Permit index points to a published extension and its separate location condition. Find both and tell me exactly where and until when the night team can work. Leave the index open and make no edits.",
     notes: {
       index: [
@@ -469,6 +480,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "draft-seat-count-and-signed-limit",
+    requestedReturnRequired: true,
     goal: "Tell the booking steward which occupancy figure is safe to use. The signed permit and room model both matter and the capacity sketch is a working revision. Explain the committed limit, the current draft proposal and what makes the draft conditional. Leave the capacity sketch open without editing.",
     notes: {
       index: [
@@ -500,6 +512,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "approved-small-format-only",
+    requestedReturnRequired: true,
     goal: "The label designer wants to know whether the approved wording can go on the pocket card as well as the large sign. The accessibility note and design consent have different scopes. Make only the permitted change to the pocket card and keep its specimen ID. Leave the pocket card open.",
     notes: {
       index: [
@@ -540,6 +553,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "training-copy-keeps-owner-remark",
+    requestedReturnRequired: false,
     goal: "Check the approval for the training instructions and the maintenance exception before adjusting the Practice Card. Preserve the owner's co-edit and any uses of the old wording outside training. Verify the working Practice Card callout and stage a local draft receipt for the Teaching Lead.",
     notes: {
       index: [
@@ -586,6 +600,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "tombstone-avoids-live-name-collision",
+    requestedReturnRequired: true,
     goal: "The Procurement Index has a dead vendor record and an abnormally similar branch for a live vendor. Use the separation note and the retirement register to say whether the dead record can be replaced. Leave Procurement Index open and preserve all pointers.",
     notes: {
       index: [
@@ -627,6 +642,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "steward-desk-two-measurements",
+    requestedReturnRequired: true,
     goal: "Work out why the Training Desk saw two ramp readings with the same title and report which is the live record. Bring the two measurements and the meter log together without changing any note. Return to the Training Desk when done.",
     notes: {
       index: [
@@ -664,6 +680,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "map-with-conditioned-access",
+    requestedReturnRequired: false,
     goal: "Correct the staff Entry Instructions for the temporary alternate access. Verify the building memo plus the date-specific restriction before editing, and keep the usual entrance for other days. Leave the corrected instructions open.",
     notes: {
       index: [
@@ -703,6 +720,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "sealed-sample-chain",
+    requestedReturnRequired: false,
     held: true,
     goal: "Audit the two sealed soil samples and update the Chamber Tag and Courier Log only if the signed numbering and lab rule agree. Keep the archive example untouched. Leave the Courier Log open so the lab can inspect it.",
     notes: {
@@ -746,6 +764,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "subtitle-rights-scope",
+    requestedReturnRequired: false,
     held: true,
     goal: "Prepare the Access Curator's local subtitle review from the exact authorized interval. The interview rights note grants more time than the accessibility approval. Do not widen the audience or edit the cut. Verify the rendered Subtitle Proof and leave it open.",
     notes: {
@@ -785,6 +804,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "hold-unattested-bridge-load",
+    requestedReturnRequired: true,
     held: true,
     goal: "Two teams reported different bridge load limits under the same label. Check both, then trace the review record before deciding whether any single number is defensible. Leave the bridge index open and keep all source notes intact.",
     notes: {
@@ -822,6 +842,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "variance-date-with-corrected-working-proof",
+    requestedReturnRequired: false,
     held: true,
     goal: "The Freestanding Banner proof still uses the wrong variance date. Read the compliance authorization and the custodial log first. Correct only the working proof, keep any new owner text, then stage a local draft review for the Floor Supervisor once the callout renders.",
     notes: {
@@ -870,6 +891,7 @@ export const openVaultGraphWorlds = [
   }),
   graph({
     id: "easement-season-alias-split",
+    requestedReturnRequired: false,
     held: true,
     goal: "The winter directions say the same thing as the summer card even though two identically labelled links describe different easements. Find both records and fix only the winter card with its permitted dates and gate. Preserve the emergency contact and leave the winter card open.",
     notes: {
