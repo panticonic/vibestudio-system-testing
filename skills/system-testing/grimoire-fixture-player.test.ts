@@ -1,3 +1,22 @@
+const cancellation = vi.hoisted(() => ({
+  signal: null as AbortSignal | null,
+  error: null as Error | null,
+}));
+vi.mock("@workspace/testkit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workspace/testkit")>();
+  return {
+    ...actual,
+    activeTestContext: () =>
+      cancellation.signal
+        ? { signal: cancellation.signal }
+        : actual.activeTestContext(),
+    waitFor: (...args: Parameters<typeof actual.waitFor>) =>
+      cancellation.error
+        ? Promise.reject(cancellation.error)
+        : actual.waitFor(...args),
+  };
+});
+import { TestAssertionError } from "@workspace/testkit";
 import { expect, it, vi } from "vitest";
 import {
   advanceOwnedGrimoirePanel,
@@ -127,4 +146,29 @@ it("retains the existing successful native visit acknowledgement", async () => {
     visitOwnedGrimoirePanel(p.panel, fixture, { day: 1, phase: 3 }, "Rill"),
   ).resolves.toBeUndefined();
   expect(p.close).toHaveBeenCalledOnce();
+});
+
+it("preserves the original cancelled-wait error identity and still joins the page", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const original = new TestAssertionError(
+    "waitFor aborted: cancelled by owner",
+  );
+  cancellation.signal = controller.signal;
+  cancellation.error = original;
+  const p = nativePanel(() => ({ clock: "", busy: false, error: "" }));
+  try {
+    const error = await advanceOwnedGrimoirePanel(p.panel, fixture, {
+      day: 1,
+      phase: 3,
+    }).then(
+      () => null,
+      (error) => error,
+    );
+    expect(error).toBe(original);
+    expect(p.close).toHaveBeenCalledOnce();
+  } finally {
+    cancellation.signal = null;
+    cancellation.error = null;
+  }
 });
