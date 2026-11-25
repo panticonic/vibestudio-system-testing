@@ -207,6 +207,7 @@ export async function prepareOpenTerminalAppRepair(
   type Observation = Awaited<ReturnType<typeof check>>;
   let initial: Observation | null = null;
   let final: Observation | null = null;
+  const observedRevisions = new Set<string>();
   let finishedBuild: Evidence | null = null;
   let artifact: {
     source: string;
@@ -286,8 +287,8 @@ export async function prepareOpenTerminalAppRepair(
       !app.mayEdit ||
       !app.mayTest ||
       !initial ||
-      revision !== initial.evidence.revision ||
-      applied
+      !observedRevisions.has(revision) ||
+      movedRevision !== null
     )
       throw new Error(
         "The exact terminal repair authority or observed source is absent",
@@ -372,17 +373,20 @@ export async function prepareOpenTerminalAppRepair(
     terminalRepairObserve: {
       async read(id: string) {
         chosen(id);
-        if (initial)
-          throw new Error(
-            "This repair assignment has one reviewed source revision",
-          );
-        initial = await check(appRepair);
-        return record("terminalRepairObserve", "read", [id], initial.public);
+        const observation = await check(appRepair);
+        initial ??= observation;
+        observedRevisions.add(observation.evidence.revision);
+        return record("terminalRepairObserve", "read", [id], observation.public);
       },
     },
     terminalRepairApply: {
       async edit(id: string, revision: string, edits: Edits) {
         applied = await apply(id, revision, edits);
+        // A later edit invalidates the prior final readback and artifact. The
+        // journal still retains those actual earlier observations.
+        final = null;
+        finishedBuild = null;
+        artifact = null;
         return record(
           "terminalRepairApply",
           "edit",
@@ -397,14 +401,14 @@ export async function prepareOpenTerminalAppRepair(
         if (
           !initial ||
           !app.mayTest ||
-          final ||
-          applied?.status === "moved" ||
-          revision !== (applied?.revision ?? initial.evidence.revision)
+          movedRevision !== null ||
+          (!observedRevisions.has(revision) && revision !== applied?.revision)
         )
           throw new Error(
             "Final verification needs the exact observed terminal candidate",
           );
         final = await check(appRepair, revision);
+        observedRevisions.add(final.evidence.revision);
         finishedBuild = final.evidence;
         return record(
           "terminalRepairFinal",
@@ -487,7 +491,10 @@ async function verifyNativeApplication(raw: unknown, observations?: InvocationOb
           (row) => row.path === entry && row.text === original.broken,
         ),
       authorizedRepairOrHold:
-        (expectedPlan === "repair" ? edits.length===1&&!!applied : edits.length===0),
+        (expectedPlan === "repair"
+          ? edits.length > 0 && !!applied &&
+            (world.mode !== "hold-moved" || edits.length === 1)
+          : edits.length === 0),
       exactNativeTestAndArtifact: kept
         ? Boolean(
             rechecked &&
