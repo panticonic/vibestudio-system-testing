@@ -1222,8 +1222,12 @@ describe("native startup diagnostic owner route", () => {
       if (method.name === "runtime.destroyContext") return undefined;
       throw new Error("Unexpected diagnostic RPC: "+method.name);
     });
-    const runner = new HeadlessRunner("outer-context");
+    const runner = new HeadlessRunner("outer-context").forTest("native-reference-diagnostic", {nativeReference:true});
     expect(await runner.runOpenGoal(world,new AbortController().signal,true,{epoch:"native_epoch_123"})).toEqual(expected);
+    const creation=mocks.rpc.call.mock.calls.find(([,method]) => method.name === "runtime.createContext")!;
+    const policy=creation[2][0].testPolicy;
+    for(const capability of ["model.use","internal-model-runtime.use"])
+      expect(policy.authority.find((rule: {capability:{key:string};tier:string}) => rule.capability.key===capability && rule.tier==="gated").decision).toBe("deny");
     expect(mocks.createWithAgent).not.toHaveBeenCalled();
     expect(mocks.rpc.call).toHaveBeenCalledWith("main",mainRpcMethods["runtime.destroyContext"],[{contextId:"native-diag-context",recursive:true}]);
     mocks.rpc.call.mockClear();

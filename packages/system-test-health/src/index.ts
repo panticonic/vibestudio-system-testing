@@ -1,7 +1,7 @@
 /** Infrastructure checks consume real registry names; fixture execution belongs to the registry owner. */
 import {modelSettingsRpcMethods} from "@workspace/model-catalog/rpc-contract";
 import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
-import {systemTestDoctorResultSchema,type SystemTestDoctorResult} from "@vibestudio/service-schemas/systemTestRunner";
+import {systemTestDoctorResultSchema,systemTestDoctorOptionsSchema,type SystemTestDoctorOptions,type SystemTestDoctorResult} from "@vibestudio/service-schemas/systemTestRunner";
 
 /**
  * Say what to do about an unusable agent model, not only that it is unusable.
@@ -46,7 +46,9 @@ export async function systemTestDoctor(
   modelRoute: SystemTestHealthModelRoute,
   catalogNames: readonly string[],
   {rpc,workers}: SystemTestHealthPorts,
+  rawOptions?: SystemTestDoctorOptions,
 ): Promise<SystemTestDoctorResult> {
+  const options=systemTestDoctorOptionsSchema.parse(rawOptions??{});
   const checks: SystemTestDoctorResult["checks"] = [];
   const capture = async (
     name: string,
@@ -163,7 +165,7 @@ export async function systemTestDoctor(
     },
     "the workspace has a valid standalone runtime configuration",
   );
-  await capture(
+  if(!options.nativeReference) await capture(
     "model",
     async () => {
       const service = await workers.resolveService(
@@ -220,6 +222,8 @@ export async function systemTestDoctor(
     },
     "system-test agent models are configured and credentialed",
   );
+
+  else checks.push({name:"native-reference-mode",ok:true,detail:"Provider availability was not requested for model-free reference qualification",data:{providerAvailabilityChecked:false}});
 
   return systemTestDoctorResultSchema.parse({
     ok: checks.every((check) => check.ok),

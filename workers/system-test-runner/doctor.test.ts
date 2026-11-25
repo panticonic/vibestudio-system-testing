@@ -15,3 +15,15 @@ it("native doctor passes its actual registry to the lean finite child",async()=>
  }});
  expect((await instance.doctor("openai-codex:gpt-6-luna")).ok).toBe(true);expect(health).toHaveBeenCalledOnce();
 });
+
+it("native-reference doctor forwards explicit mode to the same finite health child",async()=>{
+ const {instance}=await createTestDO(SystemTestRunnerDO,{} as never);
+ const health=vi.fn(async(_model:unknown,_names:unknown,_ports:unknown,options:unknown)=>{
+  expect(options).toEqual({nativeReference:true});return{ok:true,checks:[{name:"native-reference-mode",ok:true,detail:"No provider availability requested"}]};
+ });
+ Object.assign(instance,{runHarnessUtility:async(_kind:string,code:string)=>new Function("systemTestDoctor","rpc","workers","return(async()=>{"+code.replace(/^\s*import[^\n]+;\s*$/gm,"")+"return utilityValue;})();")(health,{},{} )});
+ expect((await instance.doctor(null,{nativeReference:true})).ok).toBe(true);
+ expect(health).toHaveBeenCalledOnce();
+ await expect(instance.doctor("TEST:model",{nativeReference:true})).rejects.toThrow("mutually exclusive");
+ expect(health).toHaveBeenCalledOnce();
+});

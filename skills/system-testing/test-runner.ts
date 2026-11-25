@@ -326,6 +326,7 @@ export class TestRunner {
         ? this.runner.forTest(test.name, {
             workspaceRepoFixture: test.workspaceRepoFixture,
             authorityPolicy: test.authorityPolicy,
+            ...(test.nativeReference ? { nativeReference: true as const } : {}),
           })
         : this.runner;
     let session: HeadlessSession | undefined;

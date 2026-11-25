@@ -7,7 +7,7 @@ const route={primaryModel:"openai-codex:gpt-6-luna",fallbackModel:null,fallbackT
 const ports={rpc:{call:mocks.call},workers:{resolveService:mocks.resolveService}};
 describe("minimal doctor",()=>{
  beforeEach(()=>{
-  mocks.call.mockReset();mocks.resolveService.mockResolvedValue({kind:"durable-object",targetId:"models"});
+  mocks.call.mockReset();mocks.resolveService.mockReset();mocks.resolveService.mockResolvedValue({kind:"durable-object",targetId:"models"});
   mocks.call.mockImplementation(async(_target,method,args)=>{
    if(method.name==="build.listUnits")return[{name:"workers/agent-worker",kind:"worker",status:"ready"}];
    if(method.name==="workspace.getConfig")return{extensions:[]};
@@ -23,6 +23,15 @@ describe("minimal doctor",()=>{
   expect(mocks.call.mock.calls.some(call=>call[1].name==="workspace.validateConfig")).toBe(true);
   expect(mocks.call.mock.calls.some(call=>call[1].name==="inspectModels")).toBe(true);
   expect(mocks.call.mock.calls.every(call=>!["run","complete","stream"].includes(call[1].name))).toBe(true);
+ });
+ it("native reference skips only provider availability and still rejects native readiness failures",async()=>{
+  mocks.resolveService.mockRejectedValue(new Error("No provider should be consulted"));
+  const native=await systemTestDoctor(route,["native-reference"],ports,{nativeReference:true});
+  expect(native.ok).toBe(true);expect(mocks.resolveService).not.toHaveBeenCalled();
+  expect(mocks.call.mock.calls.some(call=>call[1].name==="inspectModels")).toBe(false);
+  expect(native.checks.map(check=>check.name)).toEqual(["test-catalog","server","system-testing-build","agent-worker","required-extensions","workspace-configuration","native-reference-mode"]);
+  mocks.call.mockImplementation(async(_target,method)=>{if(method.name==="build.listUnits")return[];if(method.name==="workspace.getConfig")return{extensions:[]};return{};});
+  expect((await systemTestDoctor(route,["native-reference"],ports,{nativeReference:true})).ok).toBe(false);
  });
  it("does not turn an empty or duplicated registry into healthy readiness",async()=>{
   expect((await systemTestDoctor(route,[],ports)).checks[0].ok).toBe(false);

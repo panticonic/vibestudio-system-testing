@@ -341,6 +341,7 @@ const templateSettings = {
 };
 managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestCase => ({
   ...settings,
+  ...(qualification ? { nativeReference: true as const } : {}),
   requiresUnits: world.kind === "suite" ? [...new Set(["skills/open-user-goal", "skills/native-suite-review", "extensions/test-runner", ...world.routes.map(route => route.target)])] :
     world.kind === "browser" ? ["skills/open-user-goal"] : ["skills/web-research"],
   ...(world.kind === "research" || world.kind === "research-and-edit"

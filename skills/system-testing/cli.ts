@@ -82,6 +82,7 @@ export function systemTestProgressCheckpoint(
 }
 
 export interface SystemTestRunOptions {
+  nativeReference?: true;
   runId: string;
   contextId: string;
   names?: string[];
@@ -151,6 +152,7 @@ export interface SystemTestRunRecord {
   /** Present only after the run reaches a terminal state. */
   completedAt?: string;
   config: {
+    nativeReference?: true;
     contextId: string;
     names: string[];
     category?: string;
@@ -264,6 +266,7 @@ export function listSystemTests(
       name: test.name,
       category: test.category,
       description: test.description,
+      ...(test.nativeReference ? { nativeReference: true as const } : {}),
       ...(test.explicitOnly ? { explicitOnly: true as const } : {}),
       orchestrated: typeof test.orchestrate === "function" || usesPanelRepairTeacher(test),
       requiresUnits: [...(test.requiresUnits ?? [])],
@@ -620,14 +623,15 @@ export function getSystemTestRun(
 }
 
 /** The public CLI supplies the same current authoritative registry as execution. */
-export async function systemTestDoctor(expectedModel?: string | null): Promise<SystemTestDoctorResult> {
-  return inspectSystemTestHealth(expectedModel, listSystemTests().map(test => test.name));
+export async function systemTestDoctor(expectedModel?: string | null, options?: import("@vibestudio/service-schemas/systemTestRunner").SystemTestDoctorOptions): Promise<SystemTestDoctorResult> {
+  return inspectSystemTestHealth(expectedModel, listSystemTests().map(test => test.name), options);
 }
 
 function selectTests(options: SystemTestRunOptions): {
   selected: TestCase[];
   notInstalled: Array<{ name: string; missingUnits: string[] }>;
 } {
+  if(options.nativeReference && options.model!==undefined)throw new Error("Native-reference runs cannot request an inference model");
   const tests = allTests();
   const names = [...new Set((options.names ?? []).filter(Boolean))];
   const known = new Map(tests.map((test) => [test.name, test]));
@@ -643,6 +647,8 @@ function selectTests(options: SystemTestRunOptions): {
     ).filter((test) => test.category === options.category);
   }
   selected = selectExplicitSystemTests(selected, names);
+  if(options.nativeReference && selected.some(test=>test.nativeReference!==true))
+    throw new Error("Native-reference admission requires only source-declared native reference cases");
   const notInstalled: Array<{ name: string; missingUnits: string[] }> = [];
   selected = selected.filter((test) => {
     const missingUnits = missingUnitsFor(test, options.installedUnits);
@@ -710,6 +716,7 @@ function runConfig(
 ): SystemTestRunRecord["config"] {
   return {
     contextId: options.contextId,
+    ...(options.nativeReference?{nativeReference:true as const}:{}),
     names: selected.map((test) => test.name),
     ...(options.category ? { category: options.category } : {}),
     all: options.all === true,
