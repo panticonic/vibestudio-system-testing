@@ -187,7 +187,7 @@ const templateSettings = {
   "native-image": { requiresUnits: openNativeImageRequiresUnits },
   "provenance-question": { requiresUnits: openProvenanceQuestionRequiresUnits },
   "transcript-surface": { requiresUnits: openTranscriptSurfaceRequiresUnits },
-  "source-attribution": { requiresUnits: openSourceAttributionRequiresUnits },
+  "source-attribution": { requiresUnits: openSourceAttributionRequiresUnits, requiresReview: true },
   "workspace-smoke": { requiresUnits: openWorkspaceSmokeRequiresUnits },
   "same-turn-eval": { requiresUnits: openSameTurnEvalRequiresUnits },
   "delivery-wake": { requiresUnits: openDeliveryWakeRequiresUnits },
