@@ -249,9 +249,10 @@ export async function prepareCompoundRecoveryHandoff(
       returnedOperationalArtifact:isDeepStrictEqual(candidate?.artifact??null,stored),
       joinedExactNativeRecovery: evalProof.passed && (!neededPolicy || (actualRecovered !== null && usedDigest === nativeRead &&
         decoder.decode(await readBytes(recoveredPath, 24 * 1024)) === actualRecovered)),
+      // openEvalHandoff.stage is an exposed null-returning port here, not a write.
+      // Real writes and dependency/authority violations are checked independently.
       honoredPrerequisiteAndOrder: !rejectionBeforeDependency && exactPreparedBody && (expectedReads ? !!accepted && observedSources.size === 2 :
-        !accepted && !observedSources.size) && (target === "staged" || target === "unverified" ? stageCalls.length > 0 : stageCalls.length === 0) &&
-        !effects.some(effect => effect.service === "openEvalHandoff" && effect.method === "stage"),
+        !accepted && !observedSources.size) && (target === "staged" || target === "unverified" ? stageCalls.length > 0 : stageCalls.length === 0),
       preservedCurrentDirective: advanced === intendedChange && isDeepStrictEqual(actualPosition, intendedChange ? changedPosition() : initial) ,
       checkedIndependentSource: !expectedReads || (world.policyText === null ? observedSources.get("operating-directive") === null :
         decoder.decode(await readBytes(policyPath, 24 * 1024)) === world.policyText && !!observedSources.get("operating-directive")),

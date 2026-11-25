@@ -1,0 +1,215 @@
+{
+  "schema": "vibestudio.observed-outcome-gate-audit/1",
+  "sourceBase": "39aa5be11f41e4719d9a848af5f4f311b84884e0",
+  "inventory": {
+    "compound": {
+      "worlds": 19,
+      "implementation": "skills/system-testing/open-goal-compound-recovery-managed.ts",
+      "removed": "Absolute rejection of the deliberately side-effect-free openEvalHandoff.stage port.",
+      "preserved": [
+        "native receipt joins",
+        "independent digest readback",
+        "preparation dependencies",
+        "source authority",
+        "exact prepared body",
+        "current directive",
+        "real scratch writes",
+        "protected state"
+      ]
+    },
+    "migration": {
+      "worlds": 20,
+      "train": 15,
+      "test": 5,
+      "mandatoryMeaningReviews": 20,
+      "implementation": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "reviewObservations": [
+        "journal",
+        "observations",
+        "readIds",
+        "nativePrepared",
+        "protectedMain"
+      ],
+      "reviewArtifacts": [
+        "handoff",
+        "receiptText"
+      ],
+      "removed": [
+        "hidden status enum equality",
+        "unrequested candidate ID echo",
+        "keyword answer matching",
+        "hidden status enum in persisted receipt comparison"
+      ],
+      "preserved": [
+        "exact native source reads",
+        "current dossier revisions",
+        "native candidate owner and operation",
+        "protected deployment",
+        "authorized handoff audience/candidate",
+        "actual stage-call to exact retained-byte binding",
+        "mandatory source-bound meaning review",
+        "explicitly requested answer presence"
+      ]
+    }
+  },
+  "migrationGoalAudit": [
+    {
+      "id": "template-migration-stage-owner-reviewed-field-guide",
+      "split": "train",
+      "goal": "The Field Guide steward authorized an isolated review of the available Examples release. Check the approval and exact owner before preparing it. Leave the current deployment in place, confirm the native candidate, and leave Mira a local handoff.",
+      "requestedAnswerRequired": false,
+      "rationale": "Requested native candidate confirmation and local handoff; retained artifact is authoritative, separate returned explanation is incidental."
+    },
+    {
+      "id": "template-migration-stage-only-counter-copy-own-release",
+      "split": "train",
+      "goal": "Two Cutover Review records look alike. Find the one belonging to the Counter Desk and prepare only its approved native Examples candidate. Tell me what separates the other record. Do not publish or leave a handoff.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks to tell what separates the other record, alongside native preparation."
+    },
+    {
+      "id": "template-migration-stage-reviewed-compatible-examples-with-deferred-checks",
+      "split": "train",
+      "goal": "Audit the Tool Chest migration before staging anything. The new dependency approval may supersede the old constraint. If the exact Examples target is supported, prepare its isolated review and state what may still need testing. Leave protected deployment alone.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks to state what still needs testing, alongside conditional native preparation."
+    },
+    {
+      "id": "template-migration-handoff-draft-does-not-prove-deployment",
+      "split": "train",
+      "goal": "Is the Training Shelf migration already adopted? Check its local preview receipt against the installed template and give Jo a local decision receipt if the existing owner note permits it. Don't open a second candidate.",
+      "requestedAnswerRequired": true,
+      "rationale": "Asks whether adoption occurred, alongside a conditional local decision receipt."
+    },
+    {
+      "id": "template-migration-reject-foreign-warehouse-candidate",
+      "split": "train",
+      "goal": "Can the Warehouse group take over this Migration Ready card? Match the candidate owner's current transfer authority to the card and deployment, then tell the steward which ownership block remains. Leave no handoff.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks to tell the steward which ownership block remains."
+    },
+    {
+      "id": "template-migration-obsolete-runtime-dependency-despite-green-preview",
+      "split": "train",
+      "goal": "The Dispatch board shows a green preview of the migration. Decide whether that is enough to adopt the draft when its runtime dependency is marked obsolete. Record the blocker for the local Release Desk only if the owner note allows.",
+      "requestedAnswerRequired": false,
+      "rationale": "Requests the blocker recorded locally if permitted; retained artifact carries the requested decision."
+    },
+    {
+      "id": "template-migration-dependency-pin-cannot-be-updated-by-local-note",
+      "split": "train",
+      "goal": "A draft claims the Library upgrade can use a floating vendor alias. Check the installed pin and the retained compatibility rule. Decide if the local draft is acceptable and keep the release unchanged.",
+      "requestedAnswerRequired": true,
+      "rationale": "Requests an acceptability decision with no mutation or retained answer artifact."
+    },
+    {
+      "id": "template-migration-same-release-similar-preview",
+      "split": "train",
+      "goal": "The Index desk has a preview named Renewal. Determine whether the actual approved release matching the workspace's installed template has already been deployed, and whether that changes what we can conclude about the similarly named preview.",
+      "requestedAnswerRequired": true,
+      "rationale": "Requests findings about actual deployment and what follows for the similarly named preview."
+    },
+    {
+      "id": "template-migration-wrong-protected-base-receipt",
+      "split": "train",
+      "goal": "See if the old Facilities review can be relied on for our current template. Compare the recorded approval head with protected main and say what evidence has to be refreshed. Do not stage anything.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks to say what evidence must be refreshed."
+    },
+    {
+      "id": "template-migration-approval-changes-during-observation",
+      "split": "train",
+      "goal": "Check whether the Parcel review may be handed to Pri. The owner is still editing today's decision. If it changes while you inspect it, reread the current record before acting.",
+      "requestedAnswerRequired": true,
+      "rationale": "Requests whether handoff is currently allowed, including the current changed authority."
+    },
+    {
+      "id": "template-migration-matching-version-no-release-action",
+      "split": "train",
+      "goal": "The Help Room says we need to reinstall the Examples release that is already recorded on main. Check the exact release memo against the installed template. If it really is unchanged, do nothing.",
+      "requestedAnswerRequired": false,
+      "rationale": "Conditional execution says do nothing if unchanged; no separate answer is required."
+    },
+    {
+      "id": "template-migration-reviewable-not-authorized-to-adopt",
+      "split": "train",
+      "goal": "The Model Shelf team needs a local migration review for Syl. Confirm the candidate and its matching dependency layers, but tell them separately whether adoption has been authorized. Use an internal review receipt only.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks to tell separately whether adoption was authorized, alongside the local review receipt."
+    },
+    {
+      "id": "template-migration-recovered-receipt-wrong-channel",
+      "split": "train",
+      "goal": "The Return Desk misplaced its old migration record, and the only receipt I can find has the same title in a different group's archive. Tell me if I can treat that as evidence of the Return Desk's current adoption. Keep it read-only.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks whether the foreign receipt proves current adoption."
+    },
+    {
+      "id": "template-migration-pointed-to-foreign-retained-artifact",
+      "split": "train",
+      "goal": "The Garden team wants an action note about the available migration, but their retained approval names a different owner under the same display label. If that blocks the action, record just the hold for the local Orchard Clerk.",
+      "requestedAnswerRequired": false,
+      "rationale": "Requests just a retained local hold note if the action is blocked."
+    },
+    {
+      "id": "template-migration-held-untrusted-widget-source",
+      "split": "test",
+      "goal": "The Harbors review is asking us to retain the shiny widget from a different source. Compare both the dependency policy and its candidate's authority before doing anything. Keep the actual installation protected.",
+      "requestedAnswerRequired": true,
+      "rationale": "Requests comparison of dependency policy and candidate authority before any action; no retained artifact substitutes for findings."
+    },
+    {
+      "id": "template-migration-held-draft-moves-applied-evidence",
+      "split": "test",
+      "goal": "Audit the Far Gate candidate against its retained installation note. The duty officer may correct that note during this review. Make sure whether actual deployment is still claimed before leaving a local adoption conclusion.",
+      "requestedAnswerRequired": true,
+      "rationale": "Requests an adoption conclusion using the current corrected installation evidence."
+    },
+    {
+      "id": "template-migration-held-valid-receipt-for-current-deployment",
+      "split": "test",
+      "goal": "Recover the Trail Cabin adoption basis for the Post Desk. Compare the draft receipt with the real installed event. Leave the exact local proof only if today's owner note gives Post Desk the right audience.",
+      "requestedAnswerRequired": false,
+      "rationale": "Requests exact local proof under current audience authority; retained artifact is authoritative."
+    },
+    {
+      "id": "template-migration-held-approval-for-obsolete-base",
+      "split": "test",
+      "goal": "Someone says the Spares candidate was already approved. Check whether that approval names today's installed source and reject a review that has an older dependency pin. No new preparation.",
+      "requestedAnswerRequired": true,
+      "rationale": "Requests current-source approval assessment and rejection of stale review, without a new preparation."
+    },
+    {
+      "id": "template-migration-held-missing-original-owner-chain",
+      "split": "test",
+      "goal": "Check the Team Archive's migration candidate. The document title and preview look compelling, but we need to know which current owner can approve the change. Give only the evidence that survives the owner check.",
+      "requestedAnswerRequired": true,
+      "rationale": "Explicitly asks to give only evidence surviving the owner check."
+    },
+    {
+      "id": "template-migration-handoff-review-with-version-ownership",
+      "split": "train",
+      "goal": "The Catalog team has an approved local review draft but no deployment. Check the review version and compatible dependency against the installed workspace. Leave a local ready-for-review package for the Build Desk and no other owner.",
+      "requestedAnswerRequired": false,
+      "rationale": "Requests a local ready-for-review package for the exact authorized audience; no separate explanation requested."
+    }
+  ],
+  "checks": {
+    "focusedTests": 6,
+    "actualCompoundChronologyReplay": true,
+    "earlyDependentReadNegative": true,
+    "missingIndependentReadbackNegative": true,
+    "archivedMigrationActualReturnUsed": true,
+    "missingNativeSourcesNegative": true,
+    "requiredAnswerMissingAfterHandoffNegative": true,
+    "effectOnlyHandoffWithAbsentOptionalReturnPositive": true,
+    "alternativeRetainedStatusBinding": true,
+    "falseAdoptionClaimStillRequiresBoundReview": true
+  },
+  "unchecked": [
+    "No paid or model semantic review performed; migration result remains pending mandatory meaning review.",
+    "No archived packet retrospectively rewritten or registered.",
+    "Authoring harbour failure not recovered or independently inspected.",
+    "Unrelated native event-count guards not altered or certified globally."
+  ]
+}

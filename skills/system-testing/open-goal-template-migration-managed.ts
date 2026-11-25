@@ -1,4 +1,10 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {migrationReviewGuidance} from "./native-domain-review.js";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(
+  ["journal", "observations", "readIds", "nativePrepared", "protectedMain"],
+  ["handoff", "receiptText"],
+);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -418,6 +424,7 @@ export async function prepareOpenTemplateMigration(
       return true;
     });
     const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    assessed.semanticReviewInput.rubric += migrationReviewGuidance;
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -445,12 +452,17 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const receiptText = actualReceipt
       ? new TextDecoder("utf-8", { fatal: true }).decode(actualReceipt)
       : null;
+    const stagedStatus = journal.find(row =>
+      row.service === "templateMigration" && row.method === "stageHandoff" &&
+      row.result !== null && isDeepStrictEqual(row.result, handoff))?.args[2];
     const expectedReceipt =
       world.handoff &&
       JSON.stringify({
         recipient: world.handoff.recipient,
         candidateId: world.handoff.candidateId,
-        status: world.expected.status,
+        // Bind retained bytes to the actual admitted stage call. The meaning
+        // of this actor-supplied label is reviewed, never compared to a hidden enum.
+        status: stagedStatus,
         mainEvent: initial.mainEventId,
         dossierRevision: observedRevision,
         deployedPin: offer.source.commit,
@@ -530,17 +542,15 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
           )
         : events.handoffs === 0 &&
           !(await fs.readdir(directory)).includes("migration.json"),
+      // The goal requires an accurate domain answer, not a hidden enum, ID
+      // echo or fixture vocabulary. Mandatory source-bound content review below
+      // establishes its meaning against actual native observations and artifacts.
       exactMigrationDisposition:
-        isDeepStrictEqual(output?.handoff,handoff)&&output?.status === world.expected.status &&
-        output.candidateId === world.expected.candidateId &&
-        typeof output.answer === "string" &&
-        world.expected.facts.every((term) =>
-          output.answer.toLowerCase().includes(term.toLowerCase()),
-        ),
+        typeof output?.answer === "string" && output.answer.trim().length > 0,
     };
     return {
       outcomeContract:{effects:{checks:["observedExactTemplateDeployment", "readExactOwnedMigrationSources", "matchedNativeCandidateOwnership", "preservedProtectedTemplateDeployment", "honoredChangedDossier", "verifiedLocalMigrationHandoff"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["exactMigrationDisposition"],required:!nativePrepared&&!handoff,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        returnedValue:{checks:["exactMigrationDisposition"],required:world.requestedAnswerRequired,rationale:"The unchanged user goal explicitly determines whether a separate answer is required; successful native effects never replace a requested explanation, while effect-only goals do not require incidental report echoes."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
 
