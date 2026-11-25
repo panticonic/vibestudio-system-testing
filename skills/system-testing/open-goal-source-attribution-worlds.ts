@@ -3,14 +3,14 @@ type Edit = { kind: "edit"; path: string; before: string; after: string; intent?
 type Transfer = { kind: "copy" | "move"; path: string; destination: string };
 type Question = { path: string; text: string; origin: "external" | "native"; intent?: string; via?: "copies-content" | "preserves-content" };
 export type SourceAttributionWorld = { id: string; kind: "source-attribution"; workspace: "system"; sourceGroup: string; split?: "test";
-  goal: string; mayRetain: boolean;
+  goal: string; mayRetain: boolean; requestedReturnRequired: boolean;
   gates: "open" | "stale" | "closed"; files: File[]; actions: (Edit | Transfer)[];
   questions: Question[]; complete: "supported" | "partial" | "unverifiable"; candidates?: string[] };
 
 type Seed = {
   id: string; goal: string; source: string; files: File[]; actions?: (Edit | Transfer)[];
   questions?: Question[]; candidates?: string[]; mayRetain?: boolean; gates?: SourceAttributionWorld["gates"];
-  complete?: SourceAttributionWorld["complete"]; held?: boolean;
+  complete?: SourceAttributionWorld["complete"]; held?: boolean; requestedReturnRequired?: boolean;
 };
 const file = (path: string, text: string): File => ({ path, text });
 const edit = (path: string, before: string, after: string, intent?: string): Edit => ({ kind: "edit", path, before, after, intent });
@@ -74,6 +74,7 @@ const seeds: Seed[] = [
     actions: [edit("visitor-agreement.md", "staff signatures = one", "staff signatures = two", "Retain proof from both the shift lead and the equipment escort")],
     questions: [native("visitor-agreement.md", "staff signatures = two", "Retain proof from both the shift lead and the equipment escort")], mayRetain: true, gates: "closed" },
   { id: "stale-in-flight-retention", source: "backup-console-shared-signoff-race",
+    requestedReturnRequired: false,
     goal: "Review the current backup window for the overnight console and keep an exact private note as long as your evidence still matches the source revision when you write it. It is moving fast this morning.",
     files: [file("console/window.yaml", "backup starts 02:40\n"), file("console/notes.md", "Check the resume panel too\n")],
     actions: [edit("console/window.yaml", "backup starts 02:40", "backup starts 03:20", "Wait for final nightly invoice reconciliation")],
@@ -99,6 +100,7 @@ const seeds: Seed[] = [
     actions: [copy("warehouse/stock.md", "bike/stock.md"), edit("bike/stock.md", "spares = 4", "spares = 6", "Keep two back wheels in reserve for the school route")],
     questions: [native("bike/stock.md", "spares = 6", "Keep two back wheels in reserve for the school route"), external("warehouse/stock.md", "spares = 4")] },
   { id: "old-rationale-replaced", source: "community-radio-repeater-approval-history",
+    requestedReturnRequired: false,
     goal: "The radio repeater used to turn down after ten minutes to spare a battery. It now runs a shorter guard period. Find the decision that supports the period actually in the schedule and leave the desk a private note about the current rule.",
     files: [file("repeater.txt", "guard window = 20m\nmode = accessible\n"), file("service-note.txt", "Last reschedule completed\n")],
     actions: [edit("repeater.txt", "guard window = 20m", "guard window = 10m", "Preserve capacity on the backup battery"), edit("repeater.txt", "guard window = 10m", "guard window = 6m", "Release the public check-in channel before the next safety call")],
@@ -114,6 +116,7 @@ const seeds: Seed[] = [
     candidates: ["activation/key-policy.txt"],
     questions: [external("activation/key-policy.txt", "issue two keys to each shift")], complete: "partial", held: true },
   { id: "held-copy-before-lock-change", source: "held-museum-borrower-lock-map",
+    requestedReturnRequired: false,
     goal: "We still have two lock lists for the museum crates. Verify whether the visitor storage copy took up the new double-signout rule or is carrying the old single-signout rule. Please keep a private handoff for the move team.",
     files: [file("registrar/lock-list.txt", "signout = one\nshade = navy\n"), file("binder.md", "Visitors use the second lock list\n")],
     actions: [copy("registrar/lock-list.txt", "visitor/lock-list.txt"), edit("registrar/lock-list.txt", "signout = one", "signout = two", "Account for the second key transfer before the next freight pickup")],
@@ -124,6 +127,7 @@ const seeds: Seed[] = [
     actions: [edit("crossing.txt", "clearance = 60 cm", "clearance = 74 cm", "Fit the wider wheeled accessibility ramp safely")],
     questions: [native("crossing.txt", "clearance = 74 cm", "Fit the wider wheeled accessibility ramp safely")], mayRetain: true, gates: "closed", held: true },
   { id: "held-revision-moves-during-write", source: "held-dorm-quiet-night-start",
+    requestedReturnRequired: false,
     goal: "We changed the dorm quiet-hours start in today's notice. Track its actual rationale, and only store the short briefing if the revision is still exact by the time you save. Don't replace the notice.",
     files: [file("quiet-hours.txt", "quiet begins 21:00\n"), file("notice-board.txt", "Talk to the dorm assistant\n")],
     actions: [edit("quiet-hours.txt", "quiet begins 21:00", "quiet begins 22:00", "Let the late lab group clear the lower hallway")],
@@ -154,5 +158,6 @@ export const openSourceAttributionWorlds: SourceAttributionWorld[] = seeds.map(s
   kind: "source-attribution", id: "source-attribution-" + seed.id, workspace: "system", goal: seed.goal,
   ...(seed.held ? { split: "test" as const } : {}), sourceGroup: "vibestudio:source-attribution:" + seed.source,
   files: seed.files, actions: seed.actions ?? [], questions: seed.questions ?? [], candidates: seed.candidates,
-  mayRetain: seed.mayRetain ?? false, gates: seed.gates ?? "open", complete: seed.complete ?? "supported",
+  mayRetain: seed.mayRetain ?? false, requestedReturnRequired: seed.requestedReturnRequired ?? true,
+  gates: seed.gates ?? "open", complete: seed.complete ?? "supported",
 }));

@@ -13,7 +13,7 @@ function ports(){
  };
  return {contextId:"owned",vcs,upload:async(text:string)=>{const id="blob:"+blobs.size;blobs.set(id,text);return id;},dir:async()=>"owned-review",entries:async()=>[...notes.keys()].map(path=>path.slice(path.lastIndexOf("/")+1)),write:async(path:string,text:string)=>{notes.set(path,text);},read:async(path:string)=>bytes(notes.get(path)??"")};
 }
-const world:SourceAttributionWorld={id:"meaning",kind:"source-attribution",workspace:"system",sourceGroup:"unit:meaning",goal:"Explain where the cap came from, using the native source history. Do not save a note.",mayRetain:false,gates:"open",files:[{path:"cap.txt",text:"cap=3\n"},{path:"notes.txt",text:"Current cap is documented\n"}],actions:[],questions:[{path:"cap.txt",text:"cap=3",origin:"external"}],complete:"partial"};
+const world:SourceAttributionWorld={id:"meaning",kind:"source-attribution",workspace:"system",sourceGroup:"unit:meaning",goal:"Explain where the cap came from, using the native source history. Do not save a note.",mayRetain:false,requestedReturnRequired:true,gates:"open",files:[{path:"cap.txt",text:"cap=3\n"},{path:"notes.txt",text:"Current cap is documented\n"}],actions:[],questions:[{path:"cap.txt",text:"cap=3",origin:"external"}],complete:"partial"};
 
 it("separates actual native source custody from semantic completeness and binds mandatory review to the real requested value",async()=>{
  const fixture=await prepareSourceAttribution({caseId:world.id,contextId:"owned"},world,ports() as never);
@@ -57,4 +57,30 @@ it("retains an authorized uncertainty finding with its actual disposition and bi
  expect(proof.semanticReviewInput.actual.artifacts.retainedText).toBe(proof.retainedText);
  // This establishes exact authorized persistence, not the requested answer's
  // adequacy. Mandatory semantic review still decides that from native facts.
+});
+
+it("does not demand a redundant root result after a requested note is natively retained",async()=>{
+ const noteWorld={...world,mayRetain:true,requestedReturnRequired:false,goal:"Keep an accurate private note of the available source evidence and its limits."};
+ const fixture=await prepareSourceAttribution({caseId:world.id,contextId:"owned"},noteWorld,ports() as never);
+ const assignment=await fixture.services.sourceOriginEvidence.discover();
+ const file=await fixture.services.sourceOriginEvidence.read(assignment.id,assignment.candidates[0]!.id);
+ await fixture.services.sourceOriginReceipt.retain(assignment.id,file!.state,{disposition:"unverifiable",claims:[]});
+ const proof=await fixture.verify(undefined);
+ expect(proof.checks.verifiedOwnedSourceReceipt).toBe(true);
+ expect(proof.outcomeDimensions.returnedValue.required).toBe(false);
+ expect(proof.semanticReviewInput.actual.requestedReturn).toBeNull();
+ expect(proof.semanticReviewInput.expected.requestedReturnRequired).toBe(false);
+ expect(proof.semanticReviewInput.actual.artifacts.retainedText).toBe(proof.retainedText);
+ expect(proof.passed).toBe(true);
+ expect(proof.semanticReviewRequired).toBe(true);
+});
+
+it("qualifies a missing-source reference using a genuinely unissued-lineage negative, not a private disposition",async()=>{
+ const missingWorld={...world,goal:"Can you establish the missing guide's origin? Leave it unresolved if no exact source remains.",candidates:["missing-guide.txt"],questions:[],complete:"unverifiable" as const};
+ const fixture=await prepareSourceAttribution({caseId:world.id,contextId:"owned"},missingWorld,ports() as never);
+ const proof=await fixture.qualify();
+ expect(proof.checks.rejectedWrongLineage).toBe(true);
+ expect(proof.checks.readExactCurrentSource).toBe(true);
+ expect(proof.passed).toBe(true);
+ expect(proof.semanticReviewRequired).toBe(true);
 });

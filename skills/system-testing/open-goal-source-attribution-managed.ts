@@ -342,7 +342,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract: {
         effects: {checks:["readExactCurrentSource", "tracedExactGraphOwner", "preservedWorkspaceSources", "verifiedOwnedSourceReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
-        returnedValue: {checks:["matchedSourceAttributionReport"],required:true,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        returnedValue: {checks:["matchedSourceAttributionReport"],required:world.requestedReturnRequired!==false,rationale:"A requested query conclusion is application data. Note-only goals are judged by their actual retained evidence or authorized hold, without requiring an extra root result copy."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
       incorrectReturnValues:[],
@@ -358,9 +358,9 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const rejectedForeignRoot = await rejected(() => services.sourceOriginGraph.inspect(assignment.id, "other-root"));
     const rejectedStaleState = await rejected(() => services.sourceOriginReceipt.retain(assignment.id, "older-state", report.conclusion));
     const altered = { ...report, conclusion: { ...report.conclusion,
-      claims: report.conclusion.claims.map(item => ({ ...item, span: "older-span" })) } };
-    const rejectedWrongLineage = report.conclusion.claims.length ? !(await verify(altered)).outcomeDimensions.returnedValue.passed :
-      !(await verify({ ...report, conclusion: { disposition: "supported", claims: [] } })).outcomeDimensions.returnedValue.passed;
+      claims: report.conclusion.claims.length ? report.conclusion.claims.map(item => ({ ...item, span: "older-span" })) :
+        [{fragment:"unissued-fragment",span:"unissued-span",origin:"native",intent:null,refs:["unissued-root"]}] } };
+    const rejectedWrongLineage = !(await verify(altered)).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedForeignRoot, rejectedStaleState, rejectedWrongLineage };
     return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRoot","rejectedStaleState","rejectedWrongLineage"]}}, passed: Object.values(checks).every(Boolean), checks, report };
   }
