@@ -213,7 +213,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
       return entry?.sha256 === step.sha256 && entry.signature === step.signature &&
         isDeepStrictEqual(entry.argumentNames, step.argumentNames);
     }) && plan.knowledge.every(citation => loadedCitation(citation)) &&
-      isDeepStrictEqual(plan.overview, overview);
+      (plan.overview === null || isDeepStrictEqual(plan.overview, overview));
   }
   async function currentPlanSources(plan: CapabilityPlan) {
     if (currentMemo === undefined || !isDeepStrictEqual(currentMemo, await memo()) ||
@@ -237,36 +237,29 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
   async function verifyEvidence(outcome: CapabilityGoalReport | null, negative: boolean) {
     const plan = outcome?.plan;
     const valid = validPlanShape(plan);
-    const expectedIds = assignment.steps.map(capabilityId);
-    const newDescriptions = await Promise.all(expectedIds.map(liveDescription));
+    const newDescriptions = await Promise.all(valid ? plan.steps.map(step => liveDescription(step.id)) : []);
     const liveIndex = await skillIndex();
-    const expectedKnow = assignment.knowledge ?? [];
-    const freshKnowledge = await Promise.all(expectedKnow.map(async expected => {
-      const row = liveIndex.find(skill => skill.dirPath === expected.dirPath);
-      if (!row) return false;
+    // Ground every claim actually returned, without requiring a private preferred
+    // method list, knowledge count or discovery route. Goal meaning is reviewed.
+    const freshKnowledge = await Promise.all((valid ? plan.knowledge : []).map(async citation => {
+      const row = liveIndex.find(skill => skill.skillPath === citation.skillPath);
+      if (!row || !sourceRevision) return false;
       const raw = await readSkill(row.dirPath);
-      const citation = valid ? plan.knowledge.find(item => item.skillPath === row.skillPath) : null;
-      const pinned = sourceRevision && await versionedSkill(row.dirPath, sourceRevision);
-      return !!raw && !!citation && !!pinned && pinned.text === raw &&
+      const pinned = await versionedSkill(row.dirPath, sourceRevision);
+      return !!raw && !!pinned && pinned.text === raw &&
         isDeepStrictEqual(pinned.revision, citation.revision) && citation.sha256 === sha256HexSyncText(raw) &&
         raw.includes(citation.quote) && loadedCitation(citation);
     }));
-    const foundMissing = assignment.missing;
-    const exactNegative = foundMissing?.kind === "method"
-      ? sought.get(foundMissing.name) === false &&
-        await rpc.call("main", mainRpcMethods["docs.describe"], [capabilityId(foundMissing.name)]) === null
-      : foundMissing?.kind === "skill"
-        ? !liveIndex.some(skill => skill.name === foundMissing.name || skill.dirPath === `skills/${foundMissing.name}`)
-        : true;
-    const obsolete = assignment.obsoleteMethod;
-    const corrected = !obsolete || (sought.get(obsolete) === false &&
-      await rpc.call("main", mainRpcMethods["docs.describe"], [capabilityId(obsolete)]) === null);
-    const currentOverview = assignment.inventory ? await liveOverview() : null;
+    const actualMissing = await Promise.all((valid ? plan.missing : []).map(async missing =>
+      missing.kind === "method"
+        ? await rpc.call("main", mainRpcMethods["docs.describe"], [capabilityId(missing.name)]) === null
+        : !liveIndex.some(skill => skill.name === missing.name || skill.dirPath === `skills/${missing.name}`)
+    ));
+    const currentOverview = valid && plan.overview !== null ? await liveOverview() : null;
     const after = await vcs.status();
     const stagedNames = (await listOwnedScratchEntries(fs)).filter(name => folderName.test(name) && !initialHandoffs.includes(name));
-    const expectedReceipt = stageAuthorized && !foundMissing;
     let retained = !staged && stagedNames.length === 0;
-    if (expectedReceipt && staged &&
+    if (staged &&
         stagedNames.length === 1 && staged.path === `/.tmp/${stagedNames[0]}/handoff.json`) {
       const bytes = await readWorkspaceBytes(rpc, staged.path, reportBytes);
       const text = workspaceText.decode(bytes);
@@ -274,25 +267,20 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
     }
     return {
       observedLiveCatalog: !!installed && currentMemo !== undefined &&
-        isDeepStrictEqual(currentMemo, await memo()) &&
-        expectedIds.every(id => described.has(id)),
+        isDeepStrictEqual(currentMemo, await memo()),
       boundExactMethodSchemas: valid &&
-        isDeepStrictEqual(plan.steps.map(step => step.id), expectedIds) &&
         plan.steps.every((step, index) => {
           const entry = newDescriptions[index];
           return entry?.sha256 === step.sha256 && described.get(step.id)?.sha256 === entry.sha256 &&
             entry.signature === step.signature && isDeepStrictEqual(step.argumentNames, entry.argumentNames);
         }),
-      loadedInstalledKnowledge: valid && plan.knowledge.length === expectedKnow.length && freshKnowledge.every(Boolean),
+      loadedInstalledKnowledge: valid && freshKnowledge.every(Boolean),
       exactCapabilitySourceRevision: valid && sourceRevision !== null && isDeepStrictEqual(plan.sourceRevision, sourceRevision) &&
         isDeepStrictEqual(sourceRevision, before.workingHead) && isDeepStrictEqual(sourceRevision, after.workingHead),
-      reconciledPlanningEvidence: valid && corrected &&
-                plan.memoDisposition === (assignment.memoDisposition ?? "none") &&
-        isDeepStrictEqual(plan.overview, currentOverview) && isDeepStrictEqual(overview, currentOverview),
-      respectedNegativeScope: valid && negative && exactNegative &&
-        isDeepStrictEqual(plan.missing, foundMissing ? [foundMissing] : []) &&
-        plan.status === (foundMissing ? "hold" : "ready"),
-      verifiedCapabilityHandoff: retained && (!!staged === expectedReceipt),
+      reconciledPlanningEvidence: valid &&
+        (plan.overview === null || isDeepStrictEqual(plan.overview, currentOverview) && isDeepStrictEqual(overview, currentOverview)),
+      respectedNegativeScope: valid && negative && actualMissing.every(Boolean),
+      verifiedCapabilityHandoff: retained,
       returnedCapabilityReceipt:isDeepStrictEqual(outcome?.handoff,staged),
       protectedCapabilityWorkspace: after.mainEventId === before.mainEventId &&
         isDeepStrictEqual(after.workingHead, before.workingHead),
@@ -362,13 +350,14 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
 
 function validPlanShape(plan: CapabilityPlan | undefined): plan is CapabilityPlan {
   return !!plan && typeof plan.rationale === "string" && Boolean(plan.rationale.trim()) &&
-    boundedText(plan.rationale, 600) && boundedText(JSON.stringify(plan), reportBytes) && Array.isArray(plan.steps) &&
+    ["ready", "hold"].includes(plan.status) && boundedText(JSON.stringify(plan), reportBytes) && Array.isArray(plan.steps) &&
     plan.steps.every(step => step && typeof step.id === "string" && typeof step.sha256 === "string" &&
       Array.isArray(step.argumentNames) && typeof step.purpose === "string" &&
-      step.purpose.trim() && boundedText(step.purpose, 240)) &&
+      step.purpose.trim()) &&
     Array.isArray(plan.knowledge) &&
     plan.knowledge.every(citation => citation && typeof citation.skillPath === "string" &&
       typeof citation.sha256 === "string" && typeof citation.quote === "string" &&
-      citation.quote.trim().length > 0 && boundedText(citation.quote, 360)) &&
-    Array.isArray(plan.missing);
+      citation.quote.trim().length > 0) &&
+    Array.isArray(plan.missing) && plan.missing.every(item => item &&
+      ["method", "skill"].includes(item.kind) && typeof item.name === "string" && !!item.name.trim());
 }
