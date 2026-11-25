@@ -281,10 +281,10 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const boundaryCalls = methods("architectureProviderRead");
     const exactRoute = sameEvidenceMembers(boundaryCalls, bound ? ["resolve", "declaration"] : []) &&
       exactBoundary(current, architecture);
-    const shouldStage = canStage(review, decision);
+    const mayStage = canStage(review, decision);
     let handoffText:string|null = null;
-    let handoff = !shouldStage && stored === null && !added.length && !stageCalls.length;
-    if (shouldStage && stored && added.length === 1 && stageCalls.includes("stage")) {
+    let handoff = stored === null && !added.length && !stageCalls.length;
+    if (mayStage && stored && added.length === 1 && stageCalls.includes("stage")) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
       handoffText = body;
@@ -306,7 +306,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract:{
         effects:{checks:["inspectedExactInstalledDefinition", "verifiedExactProviderBoundary", "honoredRetainedReviewScope", "verifiedExactLocalHandoff", "preservedWorkspaceState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["distinguishedDeployedDefinition"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        returnedValue:{checks:["distinguishedDeployedDefinition"],required:true,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),

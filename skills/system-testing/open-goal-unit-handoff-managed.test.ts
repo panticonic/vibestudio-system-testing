@@ -133,3 +133,21 @@ it("rejects an edit with retained inspection authority even when the real catalo
   await expect(fixture.services.unitIdentity.stage(id, observed.revision, icon!.choice.id)).rejects.toThrow(/assigned revision/);
   expect(runtime.vcs.edit).not.toHaveBeenCalled();
 });
+
+it("accepts a source-grounded manifest finding without repeated component receipt lists", async () => {
+  const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-shell-build-after-comment")!;
+  await setup(world);
+  const fixture=await prepareUnitHandoff(world);
+  const original=await fixture.qualify();
+  const report=structuredClone(original.unitHandoff.report)!;
+  expect(report.design?.native?.components?.length).toBeGreaterThan(0);
+  report.design!.native!.components!.at(-1)!.evidenceIds=[];
+  const proof=await fixture.verify(report);
+  expect(proof.passed).toBe(true);
+  expect(proof.semanticReviewRequired).toBe(true);
+  expect(proof.semanticReviewInput.actual.observations.nativeReviewEvidence).toEqual(proof.nativeReviewEvidence);
+  expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(report);
+  expect(proof.nativeReviewEvidence).not.toHaveProperty("expect");
+  report.design!.native!.components!.at(-1)!.evidenceIds=["foreign-receipt"];
+  expect((await fixture.verify(report)).outcomeDimensions.returnedValue.checks.manifest_versions).toBe(false);
+});

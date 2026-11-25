@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["nativeReviewEvidence"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -312,6 +313,13 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       evidenceIds: ids, components };
   }
 
+  // Every supplied identifier must name an actual native receipt. Neither a
+  // repeated list nor a particular explanatory component tree is requested data.
+  function findingEvidenceBound(value: Finding | null, ids: readonly string[]): boolean {
+    return !!value && Array.isArray(value.evidenceIds) && value.evidenceIds.every(id => ids.includes(id)) &&
+      (value.components === undefined || Array.isArray(value.components) && value.components.every(row => findingEvidenceBound(row, ids)));
+  }
+
   async function verify(report: Report | null,invocation?:InvocationObservations) {
     const after = await vcs.status({ contextId });
     const protectedUnchanged = after.mainEventId === before.mainEventId;
@@ -334,7 +342,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       nativeDesign.working.candidateDigest === expected.working.contentHash &&
       nativeDesign.published.candidateDigest === expected.main.contentHash &&
       nativeDesign.working.receipt?.errorCode === workingError && nativeDesign.published.receipt?.errorCode === mainError &&
-      report.design.manifest === finding && isDeepStrictEqual(report.design.native, reviewFromObservation())
+      report.design.manifest === finding && findingEvidenceBound(report.design.native, reviewFromObservation().evidenceIds)
       : !nativeDesign && report?.design === null;
     const identityBound = wantIdentity ? !!report?.identity && !!nativeIdentity && !!expected &&
       nativeIdentity.repoPath === expected.unit.path && nativeIdentity.revision === revisionOf(working) &&
@@ -366,6 +374,9 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
     };
     const contract:SemanticOutcomeContract={effects:{checks:["observedOwnedUnitEvidence", "local_effect_and_protected_main"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["owned_selection", "manifest_versions", "build_lifecycle", "catalog_and_artwork", "conclusion"],required:!mustStage,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
     return assessObservedApplicationOutcome({ caseId: world.id, contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+      nativeReviewEvidence: {calls:structuredClone(calls), scope, lifecycle, nativeDesign, nativeIdentity, nativeCandidate, nativeChange,
+        working:revisionOf(after.workingHead), protectedEvent:after.mainEventId, target:selectedPath,
+        currentManifestHash:current?.contentHash??null, protectedManifestHash:protectedManifest?.contentHash??null, currentArtwork},
       unitHandoff: { calls: structuredClone(calls), report, working: revisionOf(after.workingHead),
         protectedEvent: after.mainEventId, target: selectedPath, expect: { decision, finding, action, mustStage } } },contract,report,invocation,[{"checks":["owned_selection"],"rootPath":["path"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["plan","path"]},{"checks":["manifest_versions"],"rootPath":["design"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["design"]},{"checks":["build_lifecycle"],"rootPath":["design"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["design"]},{"checks":["catalog_and_artwork"],"rootPath":["identity"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["identity"]},{"checks":["conclusion"],"rootPath":["reason"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["reason"]}]);
   }
