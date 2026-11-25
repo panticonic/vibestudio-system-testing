@@ -121,10 +121,39 @@ it("distinguishes actual completed void, ordinary null, and no return after an e
   expect(Object.hasOwn(failed,"applicationResult")).toBe(false);expect(Object.hasOwn(failed,"applicationResultKind")).toBe(false);
 });
 
-it("marks independent void evidence only after observing an actual completed undefined return",async()=>{
+it("emits a void witness only for an observed successful undefined return",async()=>{
   const completed=await captureObservedReturn(undefined,false,"void",true);
-  expect(completed.verified).toBeUndefined();expect(completed.value.verification.actualResultKind).toBe("void");expect(completed.value.verification.actualResult).toBeNull();
-  const failed=await captureObservedReturn(undefined,true,"void",true);
-  expect(failed.value.verification.passed).toBe(true);expect(failed.value.teacher.executionError.message).toBe("after effect");
-  expect(Object.hasOwn(failed.value.verification,"actualResultKind")).toBe(false);expect(Object.hasOwn(failed.value.teacher,"applicationResultKind")).toBe(false);
+  expect(completed.verified).toBeUndefined();
+  for(const proof of [completed.raw.verification,completed.value.verification]){
+    expect(Object.hasOwn(proof,"actualResult")).toBe(true);
+    expect(proof.actualResult).toBeNull();expect(proof.actualResultKind).toBe("void");
+  }
+});
+
+it("omits both independent return witnesses after void and nonvoid root exceptions",async()=>{
+  for(const resultType of ["void","Review"]){
+    const failed=await captureObservedReturn(undefined,true,resultType,true);
+    expect(failed.verified).toBeUndefined();
+    for(const packet of [failed.raw,failed.value]){
+      expect(packet.verification.passed).toBe(true);
+      expect(packet.teacher.executionError.message).toBe("after effect");
+      expect(packet.teacher.rootOutcome).toBe("error");
+      expect(packet.teacher.calls).toHaveLength(1);
+      for(const field of ["actualResult","actualResultKind"])expect(Object.hasOwn(packet.verification,field)).toBe(false);
+      for(const field of ["applicationResult","applicationResultKind"])expect(Object.hasOwn(packet.teacher,field)).toBe(false);
+    }
+  }
+});
+
+it("retains genuine null and ordinary values without a fabricated void marker",async()=>{
+  for(const result of [null,{answer:"actual"}]){
+    const completed=await captureObservedReturn(result,false,"Review | null",true);
+    expect(completed.verified).toEqual(result);
+    for(const packet of [completed.raw,completed.value]){
+      expect(Object.hasOwn(packet.verification,"actualResult")).toBe(true);
+      expect(packet.verification.actualResult).toEqual(result);
+      expect(Object.hasOwn(packet.verification,"actualResultKind")).toBe(false);
+      expect(Object.hasOwn(packet.teacher,"applicationResultKind")).toBe(false);
+    }
+  }
 });

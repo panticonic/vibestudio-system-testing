@@ -153,15 +153,19 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
       ${openGoalTeacherCode({ ...options, bindingCode: "" }, runId)}
       teacher = utilityValue;
       try {
-        const actualResult = teacher.report;
+        const applicationReturned = Object.hasOwn(teacher, "applicationResult");
+        const completedVoid = applicationReturned && teacher.applicationResultKind === "void";
+        const actualResult = applicationReturned && !completedVoid ? teacher.applicationResult : undefined;
         const records = createNatlangRecordsClient(rpc);
         const observations = observeInvocation(teacher, hash => records.getValue(hash));
         verification = await prepared.verify(actualResult, observations);
         verification = {
           ...assessSemanticOutcome(verification, ${JSON.stringify(options.outcomeContract)}),
           entry: teacher.entry,
-          actualResult: teacher.applicationResultKind === "void" ? null : actualResult,
-          ...(teacher.applicationResultKind === "void" ? { actualResultKind: "void" } : {}),
+          ...(applicationReturned ? {
+            actualResult: completedVoid ? null : actualResult,
+            ...(completedVoid ? { actualResultKind: "void" } : {}),
+          } : {}),
         };
       }
       catch (error) { recordFailure("verification", error); }
