@@ -1,5 +1,9 @@
 import type { PanelHandle } from "@workspace/runtime";
-import { waitFor, TestAssertionError } from "@workspace/testkit";
+import {
+  waitFor,
+  TestAssertionError,
+  activeTestContext,
+} from "@workspace/testkit";
 
 export type GrimoireClock = { day: number; phase: number };
 export type GrimoireFixturePanel = { contextId: string; estateKey: string };
@@ -13,6 +17,7 @@ async function settlePlayer<T extends PlayerState>(
   ready: (state: T) => boolean,
   label: string,
 ): Promise<void> {
+  const signal = activeTestContext()?.signal;
   let last: T | undefined;
   try {
     await waitFor(
@@ -23,7 +28,7 @@ async function settlePlayer<T extends PlayerState>(
       { timeoutMs: 30_000, label },
     );
   } catch (error) {
-    if (!(error instanceof TestAssertionError)) throw error;
+    if (signal?.aborted || !(error instanceof TestAssertionError)) throw error;
     const diagnostic = new TestAssertionError(
       `${error.message}; actual owned Grimoire player state: ${JSON.stringify(last ?? null)}`,
       {
