@@ -3,7 +3,7 @@
   "producers": [
     {
       "path": "workers/system-test-runner/authored-teacher.ts: captureWorkflow/openGoalOutcomeCode",
-      "coverage": "authoredTeacherCode/domainTeacherCode/composedTeacherCode/openGoalTeacherCode all share the boundary after binding and before captureModelTurns/load"
+      "coverage": "authoredTeacherCode/domainTeacherCode/composedTeacherCode/openGoalTeacherCode all share the boundary after binding/capture configuration and immediately before assigned program load"
     },
     {
       "path": "workers/system-test-runner/local-messaging-teacher.ts; owned-operations-teacher.ts",
@@ -42,6 +42,7 @@
       "coverage": "no change: lifecycle is campaign retry accounting, never an independent positive outcome or training certificate"
     }
   ],
+  "nativeOwnerAdmission": "Canonical suite selection now requires explicit nativeReference mode for every native descriptor before fixture creation, so an ordinary paid-owner device cannot execute an oracle without inheriting the no-inference owner ceiling",
   "unchecked": [
     "Actual finite Eval-to-worker RPC integration with the new method under a running owned Vibe instance (unit/source compile and canonical RPC serialization checked)",
     "Historical fixture errors without this producer marker: generic orchestration phase is insufficient; no retrospective raw changes",

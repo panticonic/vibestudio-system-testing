@@ -552,6 +552,21 @@ describe("system-testing CLI-neutral API", () => {
     await expect(runSystemTests({runId:"TEST-native",contextId:"TEST-context",names:["alpha"],nativeReference:true,model:"TEST:model"})).rejects.toThrow("inference model");
     expect(mocks.runSuite).not.toHaveBeenCalled();
   });
+  it("refuses native reference execution without explicit owner mode before creating fixtures",async()=>{
+    mocks.extraTests.push({name:"native-reference",category:"fixture",description:"TEST-only native",nativeReference:true,orchestrate:async()=>({})});
+    try {
+      await expect(runSystemTests({runId:"TEST-native",contextId:"TEST-context",names:["native-reference"]})).rejects.toThrow("explicit native-reference owner admission");
+      expect(mocks.runSuite).not.toHaveBeenCalled();
+    } finally {mocks.extraTests.length=0;}
+  });
+  it("admits the same declared native reference when its owner explicitly selects model-free mode",async()=>{
+    mocks.extraTests.push({name:"native-reference",category:"fixture",description:"TEST-only native",nativeReference:true,orchestrate:async()=>({})});
+    mocks.runSuite.mockRejectedValue(new Error("TEST-only admitted suite boundary"));
+    try {
+      await expect(runSystemTests({runId:"TEST-native",contextId:"TEST-context",names:["native-reference"],nativeReference:true})).rejects.toThrow("TEST-only admitted suite boundary");
+      expect(mocks.runSuite.mock.calls[0]?.[0]).toEqual([expect.objectContaining({name:"native-reference",nativeReference:true})]);
+    } finally {mocks.extraTests.length=0;}
+  });
   it("advertises only explicit source-declared native references", () => {
     mocks.extraTests.push({name:"native-reference",category:"fixture",description:"TEST-only native",nativeReference:true,orchestrate:async()=>({}),requiresUnits:["skills/fixture"]});
     try {expect(listSystemTests({installedUnits:["skills/fixture"]}).at(-1)).toMatchObject({name:"native-reference",nativeReference:true,installed:true,orchestrated:true});}

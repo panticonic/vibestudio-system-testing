@@ -7,6 +7,7 @@ it("authenticates the finite Eval and retains a monotonic boundary until release
   const release = runs.register("run", "eval:owned");
   expect(runs.evidence("run")?.teacherStarted).toBe(false);
   expect(() => runs.start("run", "eval:foreign")).toThrow("another finite Eval");
+  expect(() => runs.start("run", null)).toThrow("another finite Eval");
   expect(runs.evidence("run")?.teacherStarted).toBe(false);
   runs.start("run", "eval:owned");
   runs.start("run", "eval:owned");
@@ -24,7 +25,7 @@ it("does not certify uninstrumented sources or ambiguous boundaries", () => {
 });
 
 it("runs the real generated boundary after fixture binding and before any assigned load", async () => {
-  for (const failure of ["fixture", "load", "root", null]) {
+  for (const failure of ["fixture", "capture", "load", "root", null]) {
     const events: string[] = [];
     const runs = new AuthoredLifecycles();
     runs.register("run", "eval:owned");
@@ -38,7 +39,7 @@ it("runs the real generated boundary after fixture binding and before any assign
     const instrumented = instrumentAuthoredStart(code, 'events.push("start"); runs.start("run", "eval:owned");');
     expect(instrumented).not.toBeNull();
     const natlang = {
-      captureModelTurns() { events.push("capture"); },
+      captureModelTurns() { events.push("capture"); if(failure === "capture") throw Error("capture setup failed"); },
       async load() { events.push("load"); if (failure === "load") throw Error("load failed"); return async () => {
         events.push("root"); if (failure === "root") throw Error("root failed"); return "actual";
       }; },
@@ -47,16 +48,17 @@ it("runs the real generated boundary after fixture binding and before any assign
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     try {
       const result = await new AsyncFunction("events", "failure", "runs", "natlang", instrumented + "\nreturn utilityValue;")(events, failure, runs, natlang);
-      expect(failure).not.toBe("fixture");
+      expect(["fixture","capture"]).not.toContain(failure);
       expect(result.executionError === null).toBe(failure === null);
     } catch (error) {
-      if (failure !== "fixture") throw error;
-      expect(String(error)).toContain("fixture failed");
+      if (failure !== "fixture" && failure !== "capture") throw error;
+      expect(String(error)).toContain(failure === "fixture" ? "fixture failed" : "capture setup failed");
     }
     expect(events[0]).toBe("fixture");
-    expect(runs.evidence("run")?.teacherStarted).toBe(failure !== "fixture");
+    expect(runs.evidence("run")?.teacherStarted).toBe(failure !== "fixture" && failure !== "capture");
     if (failure === "fixture") expect(events).toEqual(["fixture"]);
-    else expect(events.slice(0, 4)).toEqual(["fixture", "start", "capture", "load"]);
+    else if(failure === "capture") expect(events).toEqual(["fixture","capture"]);
+    else expect(events.slice(0, 4)).toEqual(["fixture", "capture", "start", "load"]);
   }
 });
 

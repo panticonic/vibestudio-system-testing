@@ -9,7 +9,7 @@ export class AuthoredLifecycles {
     this.runs.set(runId, run);
     return () => { if (this.runs.get(runId) === run) this.runs.delete(runId); };
   }
-  start(runId: string, callerId: string): void {
+  start(runId: string, callerId: string | null): void {
     const run = this.runs.get(runId);
     if (!run || run.runtimeId !== callerId)
       throw new Error("Authored lifecycle belongs to another finite Eval");

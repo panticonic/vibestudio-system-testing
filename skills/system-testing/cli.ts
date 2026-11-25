@@ -647,6 +647,8 @@ function selectTests(options: SystemTestRunOptions): {
     ).filter((test) => test.category === options.category);
   }
   selected = selectExplicitSystemTests(selected, names);
+  if(!options.nativeReference && selected.some(test=>test.nativeReference===true))
+    throw new Error("Source-declared native references require explicit native-reference owner admission");
   if(options.nativeReference && selected.some(test=>test.nativeReference!==true))
     throw new Error("Native-reference admission requires only source-declared native reference cases");
   const notInstalled: Array<{ name: string; missingUnits: string[] }> = [];
