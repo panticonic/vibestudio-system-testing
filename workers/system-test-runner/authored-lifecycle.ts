@@ -36,9 +36,10 @@ export function instrumentAuthoredStart(source: string, startCode: string): stri
 
 export function authoredLifecycleFailure(runs: AuthoredLifecycles, runId: string, error: unknown): unknown {
   const evidence = runs.evidence(runId);
-  if (!evidence) return error;
+  // Even an uninstrumented utility gets a trusted outer envelope. Otherwise a
+  // guest-thrown errorData could impersonate a no-start witness at the reader.
   return Object.assign(new Error(error instanceof Error ? error.message : String(error), { cause: error }), {
-    errorData: { authoredLifecycle: evidence },
+    errorData: { authoredLifecycle: evidence ?? null },
   });
 }
 

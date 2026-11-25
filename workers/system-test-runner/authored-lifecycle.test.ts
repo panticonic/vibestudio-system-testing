@@ -65,7 +65,9 @@ it("carries runner evidence through canonical RPC and bounded failure serializat
   const { systemTestFailure } = await import("../../skills/system-testing/structured-error.js");
   const runs = new AuthoredLifecycles();
   const guest = Object.assign(new Error("original failure"), {errorData:{authoredLifecycle:{teacherStarted:false}}});
-  expect(authoredLifecycleFailure(runs, "unknown", guest)).toBe(guest);
+  const unknown = systemTestFailure("orchestration", deserializeRpcFailure(serializeRpcFailure(authoredLifecycleFailure(runs, "unknown", guest))));
+  expect(unknown.error.errorData).toEqual({authoredLifecycle:null});
+  expect(unknown.error.cause?.errorData).toEqual(guest.errorData);
   runs.register("run", "eval:owned");
   runs.start("run", "eval:owned");
   const wrapped = authoredLifecycleFailure(runs, "run", guest);
