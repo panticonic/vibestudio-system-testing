@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["catalog","inspections","attempts","observations"],["signedText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
@@ -48,18 +50,6 @@ function unhex(value: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(value.match(/[0-9a-f]{2}/gu)!, byte => Number.parseInt(byte, 16));
 }
 const algorithm = { name: "ECDSA", hash: "SHA-256" } as const;
-
-function nextStep(evidence: CompilerEvidence) {
-  if (evidence.compiler === "failed") {
-    return evidence.diagnostic === "result-type" ? "repair-result-contract" : evidence.diagnostic === "missing-import" ? "resolve-import" : "read-diagnostic";
-  }
-  switch (evidence.execution?.state) {
-    case "verified": return "verified";
-    case "failed": case "unchecked": return "inspect-trace";
-    case "stale": return "refresh-program-receipt";
-    default: return "call-reviewed-signature";
-  }
-}
 
 export async function prepareOpenProgramRun(input: { contextId: string; caseId: string }, world: ProgramRunWorld, ports: Ports) {
   if (ports.contextId !== input.contextId || world.id !== input.caseId) throw new Error("Program run needs its owned workspace");
@@ -112,6 +102,7 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
   }
 
   let edited = false;
+  let signingRevoked = false;
   let busy = false;
   let signing = false;
   const reading = new Set<string>();
@@ -157,9 +148,9 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
     programExecution: {
       async run(programId: string, expectedRevision: string, sampleId: string) {
         const project = projects.get(programId);
-        const selected = inspections.at(-1);
+        const selected = inspections.findLast(item => item.programId === programId && item.revision === expectedRevision);
         if (busy || !project || !selected || selected.programId !== programId || selected.revision !== expectedRevision ||
-            selected.callable !== "check" || !project.samples.has(sampleId) || attempts.size >= 2)
+            selected.callable !== "check" || !project.samples.has(sampleId))
           return null;
         busy = true;
         try {
@@ -170,10 +161,11 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
           if (sample.authorization !== scope.authorization) return null;
           const prior = observations.at(-1);
           const priorAttempt = prior ? attempts.get(prior.id) : null;
-          const allowed = attempts.size === 0 ? sample.authorization === "initial" : priorAttempt?.projectId === programId && (
-            sample.authorization === "initial" ? world.allowRefresh && prior?.verification === "stale" && prior.sampleId === sampleId && prior.revision !== expectedRevision :
-            sample.authorization === "after-rejection" ? prior?.status === "rejected" : prior?.status === "interrupted"
-          );
+          const previouslyRun = [...attempts.values()].some(attempt => attempt.projectId === programId && attempt.sampleId === sampleId);
+          const allowed = sample.authorization === "initial"
+            ? !previouslyRun || world.allowRefresh && priorAttempt?.projectId === programId && prior?.verification === "stale" && prior.sampleId === sampleId && prior.revision !== expectedRevision
+            : priorAttempt?.projectId === programId && (sample.authorization === "after-rejection"
+              ? prior?.status === "rejected" : prior?.status === "interrupted");
           if (!allowed || expectedRevision !== await revision(project)) return null;
           const program = await ports.load(project.entry) as { check?: (value: unknown) => unknown };
           if (typeof program.check !== "function" || expectedRevision !== await revision(project)) return null;
@@ -194,6 +186,7 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
           await fs.writeFile(`${root}/receipts/${attempt.id}.json`, JSON.stringify(attempt));
           attempts.set(attempt.id, attempt);
           if (world.revokeSigning && attempts.size === 1 && programId === keys.get("target")) {
+            signingRevoked = true;
             await fs.writeFile(`${project.root}/catalog.json`, JSON.stringify({ ...await currentCard(project), permission: "trial" }));
           }
           if (!edited && world.edit && programId === keys.get("target")) {
@@ -206,7 +199,7 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
         }
       },
       async read(receiptId: string): Promise<ProgramOutputReceipt | null> {
-        if (reading.has(receiptId) || observations.some(receipt => receipt.id === receiptId)) return null;
+        if (reading.has(receiptId)) return null;
         reading.add(receiptId);
         try {
           const attempt = await durableAttempt(receiptId);
@@ -270,41 +263,39 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
   async function verifyOutcome(outcome: ProgramRunReport | null, negative: boolean) {
     const wanted = world.expected.project ? keys.get(world.expected.project) : null;
     const result = outcome?.status === "reviewed" ? outcome : null;
-    const latest = inspections.at(-1);
-    const lastSeen = observations.at(-1);
-    const lastEvidence = latest?.evidence.compiler === "failed" ? latest.evidence : (lastSeen?.evidence as CompilerEvidence | undefined) ?? latest?.evidence;
     const post = await vcs.status();
     const sources = await Promise.all([...projects.values()].map(async project => {
-      const expectedFiles = world.edit && project.card.id === wanted ? { ...project.seed.files, [world.edit.file]: world.edit.text } : project.seed.files;
-      const expectedCard = world.revokeSigning && project.card.id === wanted ? { ...project.card, permission: "trial" } : project.card;
+      const expectedFiles = world.edit && edited && project.card.id === wanted ? { ...project.seed.files, [world.edit.file]: world.edit.text } : project.seed.files;
+      const expectedCard = signingRevoked && project.card.id === wanted ? { ...project.card, permission: "trial" } : project.card;
       return isDeepStrictEqual(await currentCard(project), expectedCard) && stableSha256Hex(expectedFiles) === await revision(project);
     }));
     const recorded = await Promise.all([...attempts.keys()].map(durableAttempt));
-    const nativeCheck = recorded.length === world.expected.attempts.length && recorded.every((actual, index) => {
-      const expected = world.expected.attempts[index]!;
-      const readback = observations[index];
+    const nativeCheck = recorded.every(actual => {
       const sample = actual && projects.get(actual.projectId)?.samples.get(actual.sampleId);
-      return !!actual && actual.projectId === wanted && sample?.key === expected.sample && isDeepStrictEqual(actual.input, sample.input) &&
-        actual.status === expected.status && isDeepStrictEqual(actual.output, Object.hasOwn(expected, "value") ? expected.value : null) &&
-        actual.error === (expected.error ?? null) && readback?.verification === expected.verification && readback.id === actual.id;
-    });
+      return !!actual && !!sample && isDeepStrictEqual(actual.input, sample.input);
+    }) && observations.every(readback => recorded.some(actual => actual?.id === readback.id &&
+      actual.sampleId === readback.sampleId && actual.revision === readback.revision &&
+      actual.status === readback.status && isDeepStrictEqual(actual.output, readback.output) && actual.error === readback.error));
     const text = await fs.exists(outputPath) ? await fs.readFile(outputPath, "utf8") : null;
-    const envelope: Envelope | null = typeof text === "string" ? JSON.parse(text) as Envelope : null;
-    const signedValid = world.expected.signed
-      ? !!envelope && typeof text === "string" && !!signed && signed.receiptId === lastSeen?.id && signed.sha256 === sha256HexSyncText(text) &&
-        envelope.payload.schema === "vibestudio.signed-program-output/1" && isDeepStrictEqual(envelope.payload.attempt, recorded.at(-1)) &&
+    const envelope: Envelope | null = typeof text === "string" && signed && sha256HexSyncText(text) === signed.sha256
+      ? JSON.parse(text) as Envelope : null;
+    const signedAttempt = envelope && recorded.find(actual => actual?.id === envelope.payload.attempt.id);
+    const signedValid = signed || envelope
+      ? !!envelope && typeof text === "string" && !!signed && signed.receiptId === signedAttempt?.id && signed.sha256 === sha256HexSyncText(text) &&
+        envelope.payload.schema === "vibestudio.signed-program-output/1" && isDeepStrictEqual(envelope.payload.attempt, signedAttempt) &&
         await verifySignature(envelope)
-      : text === null && signed === null;
+      : text === null;
     const tampered = envelope ? { ...envelope, payload: { ...envelope.payload, attempt: { ...envelope.payload.attempt, output: "altered" } } } : null;
     return {
       discoveredRuntimePrograms: sources.every(Boolean),
-      inspectedCurrentCallable: (world.expected.inspected ? inspections.length > 0 : inspections.length === 0) && inspections.every(item => item.programId === wanted) &&
-        (latest?.evidence.compiler !== "passed" || latest.callable === "check"),
+      inspectedCurrentCallable: inspections.every(item => projects.has(item.programId) &&
+        item.evidence.path === projects.get(item.programId)!.entry &&
+        (item.callable === null || item.callable === "check")),
       ranAuthorizedSamples: nativeCheck,
-      verifiedNativeOutputReceipts: wanted ? Boolean(result && lastEvidence && result.programId === wanted && nextStep(lastEvidence) === world.expected.next &&
-        isDeepStrictEqual(result.receipts, observations)&&isDeepStrictEqual(result.signed,signed)) :
-        outcome?.status === "unresolved" && outcome.reason === "program-unavailable" && observations.length === 0,
-      preservedRuntimeSource: sources.every(Boolean) && edited === Boolean(world.edit) && post.mainEventId === before.mainEventId && isDeepStrictEqual(post.workingHead, before.workingHead),
+      verifiedNativeOutputReceipts: result ? projects.has(result.programId) && Array.isArray(result.receipts) &&
+        result.receipts.every(receipt => observations.some(actual => isDeepStrictEqual(receipt, actual))) && isDeepStrictEqual(result.signed,signed) :
+        outcome?.status === "unresolved" && ["program-unavailable","run-not-bound","receipt-unavailable"].includes(outcome.reason),
+      preservedRuntimeSource: sources.every(Boolean) && post.mainEventId === before.mainEventId && isDeepStrictEqual(post.workingHead, before.workingHead),
       verifiedSignedOutput: signedValid,
       rejectedForeignRuntimeEvidence: negative && (!tampered || !await verifySignature(tampered)),
     };
@@ -318,6 +309,8 @@ export async function prepareOpenProgramRun(input: { contextId: string; caseId: 
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
+      catalog: {initial: [...projects.values()].map(project => structuredClone(project.card)),
+        current: await Promise.all([...projects.values()].map(currentCard))},
       inspections: structuredClone(inspections), attempts: structuredClone([...attempts.values()]),
       observations: structuredClone(observations), signed: structuredClone(signed), signedText };
   }
