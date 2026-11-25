@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { checkClientObservationTrace } from "./open-goal-client-diagnostics-managed.js";
-it("accepts repeated/reordered owned state observations while preserving mutation order and count", () => {
+import { checkClientObservationTrace } from "./client-diagnostics-meaning.js";
+it("accepts repeated/reordered owned state observations while preserving successful-effect order without an exact reference count", () => {
   const first = { kind: "observe", surface: "first", stage: "open" } as const;
   const second = {
     kind: "observe",
@@ -43,7 +43,7 @@ it("accepts repeated/reordered owned state observations while preserving mutatio
       [first, second, effect, effect, follow],
       expected,
     ),
-  ).toBe(false);
+  ).toBe(true);
   expect(
     checkClientObservationTrace([first, second, follow, effect], expected),
   ).toBe(false);

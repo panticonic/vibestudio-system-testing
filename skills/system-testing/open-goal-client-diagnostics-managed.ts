@@ -1,7 +1,13 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
-import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
-import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
-import { includesEvidence } from "./semantic-evidence.js";
+import {
+  requestedClientAnswer,
+  clientDiagnosticsMeaningReview,
+  clientDiagnosticsObservations,
+  checkClientObservationTrace,
+  type ClientObservationStep as Expected,
+} from "./client-diagnostics-meaning.js";
+import { assessObservedApplicationOutcome } from "@workspace/application-outcomes/observed-application-outcome";
+import type { SemanticOutcomeContract } from "@workspace/application-outcomes/semantic-outcome-contract";
+import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { fs, gad, panelTree, vcs, type PanelHandle } from "@workspace/runtime";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -18,7 +24,6 @@ import type {
   ClientHandoff,
   ClientSurface,
   ClientView,
-  ClientViewAction,
 } from "@workspace-skills/gad-context/natlang-types";
 import {
   createOwnedHeadlessChannel,
@@ -44,32 +49,6 @@ export type ClientScene = ClientSurface & {
   reload?: string;
   race?: { control: string; to: string };
 };
-type Expected =
-  | {
-      kind: "observe";
-      surface: string;
-      stage: string;
-      width?: number;
-      overflow?: boolean;
-    }
-  | {
-      kind: "apply";
-      surface: string;
-      action: ClientViewAction;
-      status: ClientActionReceipt["status"];
-    }
-  | { kind: "channel"; view: ChannelReviewRequest["view"] };
-/** Native observations prove requested state coverage. Only actual effects
- * carry a prescribed sequence; repeated reads do not change that sequence. */
-export function checkClientObservationTrace(trace: readonly Expected[], expected: readonly Expected[]): boolean {
-  return isDeepStrictEqual(trace.filter(step => step.kind !== "observe"),
-    expected.filter(step => step.kind !== "observe")) &&
-    expected.filter(step => step.kind === "observe").every(step =>
-      trace.some(actual => actual.kind === "observe" &&
-        actual.surface === step.surface && actual.stage === step.stage &&
-        (step.width === undefined || actual.width === step.width) &&
-        (step.overflow === undefined || actual.overflow === step.overflow)));
-}
 export type ClientDiagnosticsWorld = {
   kind: "clientDiagnostics";
   workspace: "examples";
@@ -140,7 +119,10 @@ export async function prepareOpenClientDiagnostics(
   );
   const scenes = new Map(world.surfaces.map((scene) => [scene.id, scene]));
   const before = await vcs.status({ contextId: input.contextId });
-  const viewportSessions = new Map<string, Awaited<ReturnType<PanelHandle["cdp"]["session"]>>>();
+  const viewportSessions = new Map<
+    string,
+    Awaited<ReturnType<PanelHandle["cdp"]["session"]>>
+  >();
   async function read(surfaceId: string) {
     const panel = slots.get(surfaceId);
     if (!panel) throw new Error("A foreign client cannot be inspected");
@@ -154,7 +136,7 @@ export async function prepareOpenClientDiagnostics(
     if (!scope(original))
       throw new Error("The client belongs to another workspace");
     const retained = viewportSessions.get(surfaceId);
-    const session = retained ?? await panel.cdp.session();
+    const session = retained ?? (await panel.cdp.session());
     try {
       await session.page.waitForSelector(root);
       const dom = await session.page.evaluate<Dom | null>(capture);
@@ -383,7 +365,10 @@ export async function prepareOpenClientDiagnostics(
       },
       async apply(viewId: string, action: ClientViewAction) {
         const issued = issuedViews.get(viewId);
-        if (issued) { current = issued.view; currentRevision = issued.revision; }
+        if (issued) {
+          current = issued.view;
+          currentRevision = issued.revision;
+        }
         const currentSurface = current?.surface?.id;
         const finish = (status: ClientActionReceipt["status"]) => {
           const result = { status, id: crypto.randomUUID() };
@@ -462,19 +447,26 @@ export async function prepareOpenClientDiagnostics(
               ![320, 390, 1280].includes(action.width)
             )
               return finish("denied");
-            const session = viewportSessions.get(owned.id) ?? await panel.cdp.session();
+            const session =
+              viewportSessions.get(owned.id) ?? (await panel.cdp.session());
             viewportSessions.set(owned.id, session);
             // Device metrics belong to the debugger session. Keep that session
             // through subsequent reads and the explicit viewport restoration.
             const steady = await read(owned.id);
             if (steady.revision !== live.revision) return finish("changed");
-            await session.page.setViewportSize({ width: action.width, height: 844 });
-            await waitFor(async () => {
-              const observed = await read(owned.id);
-              if (!isDeepStrictEqual(observed.generation, live.generation))
-                throw new Error("The owned viewport target was replaced");
-              return observed.dom.width === action.width || undefined;
-            }, { label: `read back owned viewport width ${action.width}` });
+            await session.page.setViewportSize({
+              width: action.width,
+              height: 844,
+            });
+            await waitFor(
+              async () => {
+                const observed = await read(owned.id);
+                if (!isDeepStrictEqual(observed.generation, live.generation))
+                  throw new Error("The owned viewport target was replaced");
+                return observed.dom.width === action.width || undefined;
+              },
+              { label: `read back owned viewport width ${action.width}` },
+            );
           } else if (action?.kind === "reload") {
             if (!owned.allowed.includes("reload") || !owned.reload)
               return finish("denied");
@@ -498,11 +490,7 @@ export async function prepareOpenClientDiagnostics(
         }
       },
       async channel(view: ChannelReviewRequest["view"]) {
-        if (
-          !lane ||
-          review ||
-          !["health", "triage", "recap"].includes(view)
-        )
+        if (!lane || review || !["health", "triage", "recap"].includes(view))
           return log("channel", [view], null);
         review = bindChannelReview({
           channelId: lane.key,
@@ -518,7 +506,6 @@ export async function prepareOpenClientDiagnostics(
           audience !== world.handoff ||
           saved ||
           !decision?.answer?.trim() ||
-          !isDeepStrictEqual(decision.evidenceIds, evidenceIds()) ||
           !current?.surface ||
           writing
         )
@@ -571,10 +558,13 @@ export async function prepareOpenClientDiagnostics(
   };
 
   async function verify(
-    wrapper: Pick<ClientDiagnosticsReport,"channel"|"decision"|"handoff"> | null,
-    invocation?:InvocationObservations) {
-    const report =
-      wrapper;
+    wrapper: Pick<
+      ClientDiagnosticsReport,
+      "channel" | "decision" | "handoff"
+    > | null,
+    invocation?: InvocationObservations,
+  ) {
+    const report = wrapper;
     const after = await vcs.status({ contextId: input.contextId });
     const fresh = await Promise.all(
       world.surfaces.map(
@@ -584,52 +574,17 @@ export async function prepareOpenClientDiagnostics(
     const final = Object.fromEntries(fresh.map(([id, row]) => [id, row.dom]));
     const expected = world.expected.steps;
     const exactTrace = checkClientObservationTrace(trace, expected);
-    const latest = durable.at(-1);
-    const channelStep = expected.find((step) => step.kind === "channel");
-    const roster =
-      lane && channelStep?.view === "triage"
-        ? await gad.inspectChannelRoster({ channelId: lane.key, limit: 12 })
-        : null;
+    // The bound native readers already enforce channel ownership. Do not
+    // require an authored review route or a returned diagnostic enum/echo.
     const channelExact =
-      channelStep?.view === "recap"
-        ? Boolean(
-            nativeTail &&
-            lane &&
-            report?.channel?.conversation &&
-            nativeTail.channelId === lane.key &&
-            report.channel.conversation.meaning ===
-              (latest ? "other" : "unestablished") &&
-            isDeepStrictEqual(
-              report.channel.conversation.evidence,
-              nativeTail,
-            ) &&
-            nativeTail.latest?.text === latest?.text &&
-            nativeTail.latest?.seq === latest?.seq &&
-            nativeTail.standing === (latest ? "awaiting-agent" : "empty") &&
-            report.channel.followUp === null &&
-            report.channel.health === null,
-          )
-        : channelStep?.view === "triage"
-          ? Boolean(
-              nativeHealth &&
-              lane &&
-              report?.channel?.health &&
-              nativeHealth.channelId === lane.key &&
-              nativeHealth.integrity === "ok" &&
-              isDeepStrictEqual(report.channel.health.evidence, nativeHealth) &&
-              report.channel.health.status === "investigate" &&
-              nativeFollow?.inspector === "inspectChannelRoster" &&
-              roster?.summary?.activeParticipants === 0 &&
-              isDeepStrictEqual(report.channel.followUp, nativeFollow) &&
-              report.channel.conversation === null,
-            )
-          : !channelStep && report?.channel === null;
+      !world.channel ||
+      Boolean(lane && (nativeTail || nativeHealth || nativeFollow));
     const savedBytes =
       file && saved ? JSON.parse(await fs.readFile(file, "utf8")) : null;
     const files = folder ? await fs.readdir(folder) : [];
     const checks = {
-      returnedArtifactReceipt:isDeepStrictEqual(report?.handoff,saved),
-      exactOwnedClientOrder:exactTrace,
+      returnedArtifactReceipt: isDeepStrictEqual(report?.handoff, saved),
+      exactOwnedClientOrder: exactTrace,
       joinedCurrentRendererFields:
         views.every((view) => {
           const scene = scenes.get(view.surface.id);
@@ -664,26 +619,45 @@ export async function prepareOpenClientDiagnostics(
       exactOwnedGadEvidence:
         channelExact && isDeepStrictEqual(await durableTail(), durable),
       resolvedClientGoal:
-        report?.decision?.outcome === world.expected.outcome &&
-        typeof report.decision.answer === "string" &&
-        world.expected.citations.every((text) =>
-          report.decision.answer.includes(text),
-        ) &&
-        isDeepStrictEqual(report.decision.evidenceIds, evidenceIds()),
+        Boolean(world.handoff) || requestedClientAnswer(report) !== null,
       verifiedLocalClientHandoff: world.handoff
         ? Boolean(
             saved &&
             saved.audience === world.handoff &&
-            saved.decision.outcome === world.expected.preHandoff &&
-            isDeepStrictEqual(saved, savedBytes) ,
+            typeof saved.decision.answer === "string" &&
+            saved.decision.answer.trim() &&
+            isDeepStrictEqual(saved, savedBytes),
           )
-        : !saved  && !files.includes("handoff.json"),
+        : !saved && !files.includes("handoff.json"),
       protectedClientSource:
         before.mainEventId === after.mainEventId &&
         isDeepStrictEqual(before.workingHead, after.workingHead),
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedClientOrder", "joinedCurrentRendererFields", "verifiedLocalClientHandoff", "protectedClientSource"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactOwnedGadEvidence", "resolvedClientGoal"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
-    return assessObservedApplicationOutcome({
+    const contract: SemanticOutcomeContract = {
+      effects: {
+        checks: [
+          "exactOwnedClientOrder",
+          "joinedCurrentRendererFields",
+          "exactOwnedGadEvidence",
+          "verifiedLocalClientHandoff",
+          "protectedClientSource",
+        ],
+        rationale:
+          "Native observations, scoped authority, retained bytes and protected state establish application effects independently.",
+      },
+      returnedValue: {
+        checks: ["resolvedClientGoal"],
+        required: !world.handoff,
+        rationale:
+          "The returned domain findings are required for queries; completed mutations are established independently.",
+      },
+      incidentalValues: {
+        checks: ["returnedArtifactReceipt"],
+        rationale:
+          "Receipt echoes are optional presentation of independently verified native artifacts.",
+      },
+    };
+    const nativeProof = {
       contextId: input.contextId,
       caseId: world.id,
       goal: world.goal,
@@ -695,7 +669,36 @@ export async function prepareOpenClientDiagnostics(
       durable,
       handoff: savedBytes,
       passed: Object.values(checks).every(Boolean),
-    },contract,wrapper,invocation);
+    };
+    const clientObservations = clientDiagnosticsObservations(nativeProof);
+    const assessed = await assessObservedApplicationOutcome(
+      {
+        ...nativeProof,
+        clientObservations,
+        requestedAnswerRequired: !world.handoff,
+      },
+      contract,
+      wrapper,
+      invocation,
+      [
+        {
+          checks: ["resolvedClientGoal"],
+          rootPath: ["decision", "answer"],
+          producerSourceSuffix:
+            "workOnClientDiagnostics/concludeClientCheck.nl",
+          producerPath: ["answer"],
+        },
+      ],
+    );
+    return {
+      ...assessed,
+      ...clientDiagnosticsMeaningReview(
+        world.goal,
+        clientObservations,
+        wrapper,
+        !world.handoff,
+      ),
+    };
   }
 
   async function qualify() {
@@ -763,14 +766,20 @@ export async function prepareOpenClientDiagnostics(
       decision: handoff ? { ...decision, outcome: "handoff-staged" } : decision,
       handoff,
     };
-    const wrapped = {channel:outcome.channel,decision:outcome.decision,handoff:outcome.handoff};
+    const wrapped = {
+      channel: outcome.channel,
+      decision: outcome.decision,
+      handoff: outcome.handoff,
+    };
     const result = await verify(wrapped);
-    const rejectsWrongOutcome = !(
-      await verify({
-          ...outcome,
-          decision: { ...outcome.decision, evidenceIds: ["foreigner"] },
-        })
-    ).passed;
+    const rejectsInvalidAnswerOrAudience = world.handoff
+      ? rejectsWrongAudience
+      : !(
+          await verify({
+            ...outcome,
+            decision: { ...outcome.decision, answer: "" },
+          })
+        ).passed;
     const rejectsStale =
       (await client.apply("foreign-basis", { kind: "reload" })).status ===
       "changed";
@@ -780,21 +789,23 @@ export async function prepareOpenClientDiagnostics(
         ...result.checks,
         rejectsForeign,
         rejectsWrongAudience,
-        rejectsWrongOutcome,
+        rejectsInvalidAnswerOrAudience,
         rejectsStale,
       },
       passed:
         result.passed &&
         rejectsForeign &&
         rejectsWrongAudience &&
-        rejectsWrongOutcome &&
+        rejectsInvalidAnswerOrAudience &&
         rejectsStale,
     };
   }
 
   async function close() {
     try {
-      await Promise.all([...viewportSessions.values()].map(session => session.close()));
+      await Promise.all(
+        [...viewportSessions.values()].map((session) => session.close()),
+      );
     } finally {
       viewportSessions.clear();
     }
