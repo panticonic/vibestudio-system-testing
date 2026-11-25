@@ -46,7 +46,7 @@ export type PersonalArtifactWorld = {
     collectionHeld: boolean;
   };
 };
-type Inputs = Omit<PersonalArtifactWorld, "kind" | "workspace" | "expected" | "outcomeContract"> & {
+type Inputs = {requestedReturnRequired:boolean} & Omit<PersonalArtifactWorld, "kind" | "workspace" | "expected" | "outcomeContract"> & {
   library?: LibraryStep[];
   collection?: PanelStep[];
   selected?: string | null;
@@ -54,6 +54,7 @@ type Inputs = Omit<PersonalArtifactWorld, "kind" | "workspace" | "expected" | "o
   collectionHeld?: boolean;
 };
 function world({
+  requestedReturnRequired,
   library = [],
   collection = [],
   selected = null,
@@ -68,8 +69,8 @@ function world({
         rationale: "These tasks request bookmark and panel changes or preservation. The final native library and panel readbacks independently establish those effects.",
       },
       returnedValue: {
-        checks: ["reportedArtifactEvidence"], required: libraryHeld || collectionHeld,
-        rationale: libraryHeld || collectionHeld
+        checks: ["reportedArtifactEvidence"], required: requestedReturnRequired,
+        rationale: requestedReturnRequired
           ? "This authored goal requires a grounded hold decision when the owned evidence cannot identify a unique authorized change; independently checked native effects alone cannot supply that requested answer."
           : "The authored goal requests persistent workspace effects, established by independent final native readbacks.",
       },
@@ -125,6 +126,7 @@ const group = (key: string, parent: string, title: string): Panel => ({
 export const openPersonalArtifactWorlds = [
   world({
     id: "recover-current-corridor-brief-for-shift",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:corridor-shift",
     goal: "The evening desk lost its corridor brief. Recover the newest Corridor brief we actually visited into Desk, call it Current corridor brief, and leave its link on the Shift panel under ‘Evening reference’. Preserve other bookmarks and notes.",
     collectionTitle: "Evening desk",
@@ -162,6 +164,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "archive-exhibit-checklist-and-link-review",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:exhibit-readiness",
     goal: "Get the exhibit checklist out of Inbox and into Archive under the title Approved exhibit checklist. Put its link on the Agenda under Review with the heading Exhibit evidence. The Agenda under Intake belongs to a different team.",
     collectionTitle: "Gallery opening",
@@ -199,6 +202,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "dedupe-verifiable-courier-route",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:courier-same-url",
     goal: "There are two copies of the courier route. Remove the temporary one from Inbox only if the Register copy is an exact URL match. Then link the retained copy on Dispatch using the heading Retained courier route.",
     collectionTitle: "Dispatch board",
@@ -232,6 +236,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "preserve-safety-note-during-handoff-replan",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:collection-concurrent-note",
     goal: "Link the existing route confirmation on the Handover panel as Confirmed route. The supervisor is also updating the Safety panel, so refresh if needed and preserve whichever safety note is current when you write.",
     collectionTitle: "Morning response",
@@ -267,6 +272,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "retain-billing-owner-edit-while-filing-brief",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:library-concurrent-label",
     goal: "File the ownership brief in Reviews and put its link on Owner Review under Ownership brief. Billing is renaming its own reference in parallel. Don't undo the billing change if your library snapshot has gone stale.",
     collectionTitle: "Monthly ownership",
@@ -296,6 +302,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "hold-tied-lease-visits-and-record-review-action",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:latest-lease-tie",
     goal: "Recover the latest Lease reference into Agreements and link it on Legal only if there is a clear latest visit. If the Lease visits tie, leave the library and Legal alone and put ‘Lease reference pending review’ in Follow-up.",
     collectionTitle: "Agreement intake",
@@ -320,6 +327,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "set-up-aftercare-group-and-retain-prepared-reference",
+    requestedReturnRequired: false,
     sourceGroup: "vibestudio:personal-artifacts:aftercare-panel-group",
     goal: "The Aftercare board needs a separate Follow-ups group. Create it, move Callback into it, and link the already saved Callback instructions on the moved panel under Aftercare instructions. Don’t change the library.",
     collectionTitle: "Aftercare board",
@@ -347,6 +355,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "stop-before-replacing-distinct-library-sources",
+    requestedReturnRequired: true,
     split: "test",
     sourceGroup: "vibestudio:personal-artifacts:held-water-duplicate",
     goal: "Facilities asked whether the Archived treatment guide replaces the Active treatment guide. Remove the Active copy and hand off the Archived one under Confirmed guide only if both URLs match. Otherwise preserve both and leave the Signoff note untouched.",
@@ -364,6 +373,7 @@ export const openPersonalArtifactWorlds = [
   }),
   world({
     id: "choose-correct-archive-note-for-education-shift",
+    requestedReturnRequired: false,
     split: "test",
     sourceGroup: "vibestudio:personal-artifacts:held-education-shift",
     goal: "The education shift wants the original field sheet for comparison. Recover the earliest version of the Field sheet we visited into History and link it on Comparison under Original field sheet. Leave the newer edition alone.",

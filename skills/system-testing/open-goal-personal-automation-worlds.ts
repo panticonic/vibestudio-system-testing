@@ -32,6 +32,7 @@ export type PersonalAutomationWorld = {
   sourceGroup: string;
   split?: "test";
   goal: string;
+  requestedReturnRequired: boolean;
   monitors: Monitor[];
   expected: {
     findings: Finding[];
@@ -134,6 +135,7 @@ const absent = (key: string, name: string): Finding => ({
 function world(
   id: string,
   goal: string,
+  requestedReturnRequired: boolean,
   monitors: Monitor[],
   findings: Finding[],
   disposition: PersonalAutomationWorld["expected"]["disposition"],
@@ -147,6 +149,7 @@ function world(
     sourceGroup: `vibestudio:personal-automation:${id}`,
     ...(split ? { split } : {}),
     goal,
+    requestedReturnRequired,
     monitors,
     expected: { findings, disposition, ...(order ? { order } : {}) },
   };
@@ -156,6 +159,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "freeze-only-floor-recalibration",
     "Freeze Floor Recalibration for Site Operations. The Research monitor with that name still covers the lab and must remain active.",
+    false,
     [
       active("floor", "Floor Recalibration", "Site Operations"),
       active("lab", "Floor Recalibration", "Research"),
@@ -166,6 +170,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "resume-three-stage-returns-chain",
     "Returns is ready to resume Return Index, Receipt Reconciliation and Dispatch Rollup. Respect the dependencies shown in the installed definitions and don't start any run now.",
+    false,
     [
       paused("rollup", "Dispatch Rollup", "Returns", { needs: ["receipt"] }),
       paused("index", "Return Index", "Returns"),
@@ -184,6 +189,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "contain-freeze-with-downstream-first",
     "Place the Documentation workflow's Example Pages and Manual Index on hold. Pause Example Pages before its index so the index remains available until the dependent pages are paused.",
+    false,
     [
       active("index", "Manual Index", "Documentation"),
       active("pages", "Example Pages", "Documentation", { needs: ["index"] }),
@@ -196,6 +202,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "resume-signed-floor-and-hold-revised",
     "Reopen Floor Inventory and Night Inventory for the audit if their reviewed definitions still match. Don't let a changed night review block the floor.",
+    false,
     [
       paused("night", "Night Inventory", "Audit", { fault: "before-review" }),
       paused("floor", "Floor Inventory", "Audit"),
@@ -206,6 +213,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "restore-dock-with-missing-booking-worker",
     "Bring Dock Ledger and Booking Review back to active. Report either one as unavailable if you can't identify it and leave other Dock workers alone.",
+    true,
     [
       paused("ledger", "Dock Ledger", "Dock"),
       paused("standby", "Booking Backup", "Dock"),
@@ -216,6 +224,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "protected-contractor-freeze",
     "Hold the weekday inspection by pausing Back Hall Inspection only if it is ours to change. The contractor retained control of that monitor.",
+    false,
     [
       active("inspection", "Back Hall Inspection", "Contractor", {
         permitted: [],
@@ -228,6 +237,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "readback-ack-lost-before-dependent",
     "Restore Receiving Window, then its consumer Next Shift List. If the first confirmation is lost, let a readback establish whether the list can proceed without retrying the receiving change.",
+    false,
     [
       paused("list", "Next Shift List", "Receiving", { needs: ["window"] }),
       paused("window", "Receiving Window", "Receiving", { fault: "lost-ack" }),
@@ -239,6 +249,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "retain-dependent-after-dispatch-break",
     "Resume Translation Registry and its dependent Label Print. A scheduling request may get interrupted. If you can't verify the registry is active after one attempt, leave Label Print paused and say why.",
+    true,
     [
       paused("registry", "Translation Registry", "Labels", {
         fault: "lost-before-dispatch",
@@ -251,6 +262,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "confirm-neighbor-already-paused",
     "Freeze Backlog Sweep and Partner Intake while contracts are reviewed. Preserve an existing pause and verify both states without forcing a second pause.",
+    true,
     [
       active("sweep", "Backlog Sweep", "Contracts"),
       paused("intake", "Partner Intake", "Contracts"),
@@ -262,6 +274,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "raced-definition-holds-and-review-continues",
     "Pause Board Packet and Draft Reminder on their approved definitions. If Board Packet is edited as the request goes out, record the held packet and still pause the independent reminder.",
+    true,
     [
       active("packet", "Board Packet", "Governance", {
         fault: "revision-race",
@@ -274,6 +287,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "verify-only-preview-freeze",
     "For the setup rehearsal, review whether Workshop Intake and Badge List are active or paused. Don't change their states. We only need the current status of both.",
+    true,
     [
       paused("intake", "Workshop Intake", "Setup", { permitted: [] }),
       active("badge", "Badge List", "Setup", { permitted: [] }),
@@ -284,6 +298,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "accept-peer-pause-without-repeating",
     "Freeze Camera Cues for the safety check. If a colleague pauses it at the same time, confirm the resulting pause and leave the existing definition alone.",
+    true,
     [
       active("cues", "Camera Cues", "Stage", { fault: "already-race" }),
       active("console", "Light Console", "Stage"),
@@ -294,6 +309,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "edited-dependency-after-resume",
     "Restore Position Register, then its dependent Exhibit List. Keep the list paused if you can't confirm the register is active on the same revision you reviewed, even if a new definition claims to be active.",
+    false,
     [
       paused("register", "Position Register", "Exhibits", {
         fault: "after-effect-edit",
@@ -306,6 +322,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "restore-two-service-branches",
     "Reopen Permit Index, Pickup Alerts and the dependent Renewal Sheet. Permit Index is already serving signed data, so preserve it. Renewal Sheet can resume once the listed prerequisite is active.",
+    false,
     [
       paused("renewal", "Renewal Sheet", "Permits", { needs: ["index"] }),
       active("index", "Permit Index", "Permits"),
@@ -321,6 +338,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "limited-pause-scope-across-teams",
     "Pause review monitors for the North reception team only. Daily Review and Weekly Review both count; leave the identically named West team monitors alone.",
+    false,
     [
       active("north-day", "Daily Review", "North Reception"),
       paused("north-week", "Weekly Review", "North Reception"),
@@ -333,6 +351,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "do-not-edit-unreviewed-queue",
     "Reopen Safety Calendar and Equipment Register only if both have recorded reviews for their current definitions. If either review is absent, don't make either change.",
+    false,
     [
       paused("calendar", "Safety Calendar", "Safety", { reviewed: false }),
       paused("register", "Equipment Register", "Safety"),
@@ -343,6 +362,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "gate-readiness-with-two-prerequisites",
     "Resume Dispatch Badge only when both Validated Addresses and Route Ledger are currently active. Don't start or change either prerequisite for this request.",
+    false,
     [
       paused("badge", "Dispatch Badge", "Courier", {
         needs: ["addresses", "ledger"],
@@ -356,6 +376,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "separate-start-of-shift-modes",
     "Start the day by resuming Opening Checklist and pausing Overnight Sweep. Keep Overnight Escalations available and run nothing immediately.",
+    false,
     [
       paused("opening", "Opening Checklist", "Front Desk"),
       active("sweep", "Overnight Sweep", "Front Desk"),
@@ -367,6 +388,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "refuse-action-unsupported-on-owned-peer",
     "Pause Furniture Review and Events Queue if your approval covers those controls. Leave any queue with resume-only permission active and verify the other.",
+    true,
     [
       active("furniture", "Furniture Review", "Operations"),
       active("events", "Events Queue", "Operations", { permitted: ["resume"] }),
@@ -377,6 +399,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "confirm-same-revision-after-pause-receipt-loss",
     "Pause Cooling Register for checks. The response may cut out. Compare with the controller's actual revision and state before saying whether it is frozen, and don't send a second request.",
+    true,
     [
       active("cooling", "Cooling Register", "Warehouse", { fault: "lost-ack" }),
       active("loading", "Loading Register", "Warehouse"),
@@ -387,6 +410,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "release-when-all-owned-dependencies-exist",
     "Resume the College Store Order List only once all configured upstream prerequisites are active. Don't change any of the prerequisite definitions: they are read-only for this handoff.",
+    false,
     [
       paused("order", "Order List", "College Store", {
         needs: ["rates", "hours"],
@@ -401,6 +425,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "keep-standby-when-one-required-review-is-missing",
     "Coordinate the Café switch: open Morning Queue only if Morning Station is visible and active. Separately, Overnight Stock should stay paused while the switch is unresolved.",
+    false,
     [
       paused("queue", "Morning Queue", "Café", { needs: ["station"] }),
       paused("stock", "Overnight Stock", "Café"),
@@ -412,6 +437,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "held-clinic-receipt-race",
     "Resume Interview Schedule, then Candidate Checklist. If the schedule changes to a new definition after the controller starts it, don't enable the checklist on that unreviewed revision.",
+    false,
     [
       paused("schedule", "Interview Schedule", "Clinic Staffing", {
         fault: "after-effect-edit",
@@ -429,6 +455,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "held-night-depot-restoration",
     "Bring Night Depot Badge and Depot Delivery Sheet back online. Resume its prerequisite Depot Roster if needed. The backup roster doesn't qualify. If the roster's response gets interrupted, read back before continuing.",
+    false,
     [
       paused("badge", "Night Depot Badge", "Depot", { needs: ["roster"] }),
       paused("sheet", "Depot Delivery Sheet", "Depot"),
@@ -447,6 +474,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "held-coastal-shift-no-pause-on-shared-monitor",
     "Pause the Coastal office Schedule Review if that monitor is actually ours to control. A separate schedule with the same name belongs to Inland and must remain active.",
+    false,
     [
       active("coastal", "Schedule Review", "Coastal", {
         permitted: ["resume"],
@@ -461,6 +489,7 @@ export const openPersonalAutomationWorlds = [
   world(
     "held-workshop-verify-and-freeze",
     "During Workshop handoff, pause Toolbox Review on its approved definition, confirm that the Storefront Reset remains in its current state, and leave the similarly named training Toolbox Review alone. If our toolbox revision changed, report that explicitly.",
+    true,
     [
       active("tools", "Toolbox Review", "Workshop", { fault: "before-review" }),
       paused("reset", "Storefront Reset", "Workshop"),
