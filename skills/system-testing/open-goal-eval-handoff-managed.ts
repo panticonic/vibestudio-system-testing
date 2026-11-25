@@ -248,7 +248,7 @@ export async function prepareOpenEvalHandoff(input: { contextId: string; caseId:
       const selected=expectedRun?ownedCases.find(observation=>observation.attempt.runId===expectedRun.card.runId):null;
       const readback=selected?blobReads.get(selected.attempt.runId):null;
       const expectedResult=selected&&readback&&selected.resultDigest?{jobId:selected.jobId,runId:selected.attempt.runId,runDigest:selected.runDigest,resultDigest:selected.resultDigest,readback}:null;
-      checks.returnedEvalReviews=reported?.reviews.length===ownedCases.length;
+      checks.returnedEvalReviews=expected.active ? Array.isArray(reported?.reviews) && reported.reviews.length===ownedCases.length : reported===null && ownedCases.length===0;
       for(const [index,passed] of perReviewChecks.entries())checks[`returnedEvalReview${index}`]=passed;
       checks.reconciledEvalHandoff=expected.active ? reported?.jobId===jobId&&reported.reviews.length===expected.observations.length&&isDeepStrictEqual(reported.decision,expectedDecision) : outcome?.status==="unresolved"&&outcome.reason==="job-unavailable"&&trials.size===0;
       checks.returnedEvalResult=isDeepStrictEqual(reported?.result??null,expectedResult);
