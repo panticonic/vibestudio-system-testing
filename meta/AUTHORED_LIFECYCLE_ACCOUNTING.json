@@ -1,0 +1,51 @@
+{
+  "mechanism": "Trusted assigned-program start boundary; missing captures alone are never no-start evidence",
+  "producers": [
+    {
+      "path": "workers/system-test-runner/authored-teacher.ts: captureWorkflow/openGoalOutcomeCode",
+      "coverage": "authoredTeacherCode/domainTeacherCode/composedTeacherCode/openGoalTeacherCode all share the boundary after binding and before captureModelTurns/load"
+    },
+    {
+      "path": "workers/system-test-runner/local-messaging-teacher.ts; owned-operations-teacher.ts",
+      "coverage": "teacher builders delegate to shared authored/composed generator; qualification builders intentionally do not certify teacher start"
+    },
+    {
+      "path": "workers/system-test-runner/index.ts:runHarnessUtility/markAssignedProgramStarted",
+      "coverage": "private per-utility exact Eval caller, monotonic false-to-true; failure and disposal preserve original causes; no boundary means unknown"
+    }
+  ],
+  "transport": [
+    {
+      "path": "workers/system-test-runner/contract.ts",
+      "coverage": "existing typed worker RPC; exact native caller authentication in receiver"
+    },
+    {
+      "path": "skills/system-testing/runner.ts:runOpenGoal; tests/web-brief-managed.ts:orchestrate; test-runner.ts:systemTestFailure",
+      "coverage": "existing typed RPC exception flow, bounded errorData retained; no message regex or nested guest cause accepted"
+    },
+    {
+      "path": "skills/system-testing/structured-error.ts",
+      "coverage": "existing bounded/redacted errorData and cause projection; canonical RPC roundtrip tested"
+    }
+  ],
+  "consumers": [
+    {
+      "path": "Host scripts/collect-live-workflow-teacher.mjs and export-live-workflow-teacher.mjs",
+      "coverage": "full original execution.failure survives raw/inspect; no new export/admission channel"
+    },
+    {
+      "path": "scripts/neuralese_data/vibestudio_campaign.py:outcomes/infrastructure_failure/publish_status",
+      "coverage": "strict outer runner evidence; pre-load failures do not consume attempts/exposure, old unknown remains conservative"
+    },
+    {
+      "path": "Python load_episode/NativeIR and Node materializer/SFT",
+      "coverage": "no change: lifecycle is campaign retry accounting, never an independent positive outcome or training certificate"
+    }
+  ],
+  "unchecked": [
+    "Actual finite Eval-to-worker RPC integration with the new method under a running owned Vibe instance (unit/source compile and canonical RPC serialization checked)",
+    "Historical fixture errors without this producer marker: generic orchestration phase is insufficient; no retrospective raw changes",
+    "Failures before instrumented utility registration remain unknown",
+    "No new inference, provider transport, local engine, model codec, loss or sampling changes; all four engines retain existing paths (docs/ENGINE_PARITY.md)"
+  ]
+}
