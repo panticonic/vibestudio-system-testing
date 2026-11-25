@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["card","assignment","phases","build","journal"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { workspaceReadinessFromLog } from "@vibestudio/shared/mobileWorkspaceReadiness";
@@ -383,25 +384,14 @@ export async function preparePhoneFirstRun(
   async function verify(report: unknown,observations?: InvocationObservations) {
     const proof=await verifyNativeApplication(report,observations);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedPhoneDecision"],"rootPath":[],"producerSourceSuffix":"planPhoneFirstRun/decidePhoneFirstRun.nl","producerPath":[]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=report;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,[]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
-    const outcome = report as {action:string;reason:string} | null;
+    const outcome = report;
     const phases = readPhases(world, id, targetId);
     const build = await buildEvidence();
     const { expected } = world;
@@ -458,7 +448,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
         build.abi === build.expectedAbi &&
         build.providerPackage === "@workspace-extensions/react-native" &&
         match("phoneFirstRun", "provider", [id], build),
-      returnedPhoneDecision: outcome?.action===expected.action&&typeof outcome.reason==="string"&&!!outcome.reason.trim(),
+      returnedPhoneDecision: typeof outcome==="string"&&!!outcome.trim(),
       matchedReadOnlyPhoneDisposition:
         after.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(after.workingHead, baseline.workingHead) &&
@@ -509,15 +499,13 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
         guidance: null,
       };
     }
-    const report = {action:world.expected.action,reason:"Exact retained phone setup evidence."};
+    const report = "Qualification reference: "+world.expected.action;
     const result = await verify(report);
-    const wrong = structuredClone(report);
-    wrong.action = "invented" as typeof wrong.action;
-    const rejectedForeignProof = !(await verify(wrong)).outcomeDimensions.returnedValue.passed;
-    const checks = { ...result.checks, rejectedArchive, rejectedForeignProof };
+    const rejectedMissingPhoneFinding = !(await verify("")).outcomeDimensions.returnedValue.passed;
+    const checks = { ...result.checks, rejectedArchive, rejectedMissingPhoneFinding };
     return {
       ...result,
-      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedArchive","rejectedForeignProof"]}},
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedArchive","rejectedMissingPhoneFinding"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,
