@@ -76,9 +76,9 @@ export function bindOpenGadDurableQuestion(
     const expectedMessage = expected.message === null ? null : native.messages[expected.message];
     const expectedMember = expected.member === null ? null :
       roster?.members?.find(row => row.participantId === native.roster[expected.member!]?.participantId);
-    const ready = expected.question === "current" && expected.participant === "confirmed";
     const participantRequired = world.participantRequirement === "required" ||
       world.participantRequirement === "if-current-question" && expected.question === "current";
+    const ready = expected.question === "current" && (!participantRequired || expected.participant === "confirmed");
     const currentRoster = roster?.members?.filter(member => member.leftAt === null).map(member => member.participantId).sort();
     const rosterMatches = !!roster && roster.members.length === native.roster.length && native.roster.every(entry =>
       roster!.members.some(member => member.participantId === entry.participantId && member.handle === entry.handle &&
@@ -91,18 +91,20 @@ export function bindOpenGadDurableQuestion(
       exactIndividualPublications: !!history && history.channelId === channelId && historyMatches &&
         history.through === (native.messages.at(-1)?.sequence ?? null) &&
         isDeepStrictEqual(native.messages.map(message => message.textBlocks), world.messages.map(text => [text])),
-      exactRetainedRoster: roster?.channelId === channelId && roster.complete && rosterMatches &&
+      exactRetainedRoster: !participantRequired && roster === null || roster?.channelId === channelId && roster.complete && rosterMatches &&
         isDeepStrictEqual(currentRoster, [...native.active].sort()),
       exactQuestionDisposition: !!outcome && outcome.question?.status === expected.question &&
         isDeepStrictEqual(outcome.question.message, expectedMessage),
-      exactParticipantDisposition: !!outcome && outcome.participant?.status === expected.participant &&
+      exactParticipantDisposition: !participantRequired && outcome?.participant?.status === "not-requested" && outcome.participant.member === null ||
+        !!outcome && outcome.participant?.status === expected.participant &&
         isDeepStrictEqual(outcome.participant.member, expectedMember),
+      exactOptionalRosterReceipt: participantRequired || outcome?.rosterReceipt == null || outcome.rosterReceipt === roster?.receipt,
       derivedReadOnlyHandoff: outcome?.channelId === channelId && outcome.historyReceipt === history?.receipt &&
-        outcome.rosterReceipt === roster?.receipt && outcome.disposition === (ready ? "ready" : "hold") &&
+        (!participantRequired || outcome.rosterReceipt === roster?.receipt) && outcome.disposition === (ready ? "ready" : "hold") &&
         typeof outcome.explanation === "string" && outcome.explanation.trim().length > 0,
     };
     return assessObservedApplicationOutcome({ contextId, caseId: world.id, sourceGroup: world.sourceGroup, goal: world.goal,
-      passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:["exactIndividualPublications","exactRetainedRoster"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactQuestionDisposition","derivedReadOnlyHandoff",...(participantRequired?["exactParticipantDisposition"]:[])],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:participantRequired?[]:["exactParticipantDisposition"],rationale:"An independently false optional typed participant result is still masked at its actual source; it does not create an unrequested membership obligation for the goal."}},raw,invocation,[{"checks":["exactQuestionDisposition"],"rootPath":["question"],"producerSourceSuffix":"reviewDurableQuestion/reviewQuestion/interpretQuestion.nl","producerPath":[]},{"checks":["exactParticipantDisposition"],"rootPath":["participant"],"producerSourceSuffix":"reviewDurableQuestion/reviewParticipant/evaluateRoster.nl","producerPath":[]}]);
+      passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:["exactIndividualPublications","exactRetainedRoster"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactQuestionDisposition","derivedReadOnlyHandoff",...(participantRequired?["exactParticipantDisposition"]:[])],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:["exactOptionalRosterReceipt",...(!participantRequired?["exactParticipantDisposition"]:[])],rationale:"An independently false optional typed participant result is still masked at its actual source; it does not create an unrequested membership obligation for the goal."}},raw,invocation,[{"checks":["exactQuestionDisposition"],"rootPath":["question"],"producerSourceSuffix":"reviewDurableQuestion/reviewQuestion/interpretQuestion.nl","producerPath":[]},{"checks":["exactParticipantDisposition"],"rootPath":["participant"],"producerSourceSuffix":"reviewDurableQuestion/reviewParticipant/evaluateRoster.nl","producerPath":[]}]);
   }
 
   async function qualify() {
