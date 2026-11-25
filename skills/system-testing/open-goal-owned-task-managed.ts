@@ -3,6 +3,7 @@ import {bindObservedContentReview} from "@workspace/application-outcomes/observe
 const assessObservedApplicationOutcome=bindObservedContentReview(["effects","current","original","delivery","nativeDeliveryError","raceInjected","resultArtifacts"],[]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
+import {bytesToBase64} from "@vibestudio/rpc";
 import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
@@ -56,7 +57,8 @@ function parseRecord(receipt: Receipt | null): BoundAttempt | null {
 export async function prepareOwnedTaskRecovery(
   input: { contextId: string; caseId: string }, world: OwnedTaskWorld, store: TaskPort,
   dependencies = { activeContext, runtime, rpc, prepareOpenLocalDelivery,
-    put:async(text:string)=>(await rpc.call("main",mainRpcMethods["blobstore.putText"],[text])).digest,
+    put:async(owner:string,text:string)=>(await rpc.call("main",mainRpcMethods["blobstore.putRetained"],[{owner,base64:bytesToBase64(new TextEncoder().encode(text))}])).digest,
+    release:(owner:string)=>rpc.call("main",mainRpcMethods["blobstore.releaseRetention"],[{owner}]),
     get:(digest:string):Promise<string|null>=>rpc.call("main",mainRpcMethods["blobstore.getText"],[digest]) },
 ) {
   const { contextId, caseId } = input;
@@ -85,13 +87,21 @@ export async function prepareOwnedTaskRecovery(
     facts: [world.assignment.attempt, world.assignment.artifact],
   } : undefined;
   const artifactRefs=new Map<string,ArtifactRef>();
-  for(const lane of world.lanes)if(lane.artifactContents){
+  const retentionOwners=new Set<string>();
+  async function releaseArtifacts(){
+    const released=await Promise.allSettled([...retentionOwners].map(async owner=>{await dependencies.release(owner);retentionOwners.delete(owner);}));
+    const errors=released.flatMap(item=>item.status==="rejected"?[item.reason]:[]);
+    if(errors.length)throw new AggregateError(errors,"Could not release native task artifact ownership");
+  }
+  try {for(const lane of world.lanes)if(lane.artifactContents){
     if(!lane.record||lane.record.phase!=="accepted")throw new Error("Retained accepted output needs its actual accepted attempt");
     const {content,mediaType}=lane.artifactContents;
-    const digest=await dependencies.put(content);
+    const owner=`owned-task-output:${contextId}:${primary.id}:${lane.key}`;
+    retentionOwners.add(owner);
+    const digest=await dependencies.put(owner,content);
     if(digest!==sha256HexSyncText(content))throw new Error("Native task artifact publication digest mismatch");
     artifactRefs.set(lane.key,{digest,mediaType});
-  }
+  }}catch(error){try{await releaseArtifacts();}catch(cleanup){throw new AggregateError([error,cleanup],"Task artifact publication failed");}throw error;}
   const localWorld: OpenLocalDeliveryWorld = {
     id: caseId, goal: world.goal, kind: "local-delivery", workspace: "system", sourceGroup: world.sourceGroup,
     rooms: world.lanes.map(lane => ({
@@ -105,7 +115,13 @@ export async function prepareOwnedTaskRecovery(
       status: handoffSpec ? "delivered" : "held", ...(handoffSpec ? { send: handoffSpec } : {}),
     },
   };
-  const local = await dependencies.prepareOpenLocalDelivery(input, localWorld, { runtime: dependencies.runtime, rpc: dependencies.rpc });
+  const local = await dependencies.prepareOpenLocalDelivery(input, localWorld, { runtime: dependencies.runtime, rpc: dependencies.rpc }).catch(async error=>{
+    try{await releaseArtifacts();}catch(cleanup){throw new AggregateError([error,cleanup],"Task lane setup failed");}throw error;
+  });
+  let closing=false;
+  const artifactReads=new Set<Promise<unknown>>();
+  let closePromise:Promise<void>|undefined;
+  function close(){return closePromise??=(async()=>{closing=true;await Promise.allSettled([...artifactReads]);await local.close();await releaseArtifacts();})();}
   const effects: Effect[] = [];
   const matched = new Map<string, Lane>();
   const observedBoard = new Map<string, Awaited<ReturnType<typeof taskView>>>();
@@ -195,7 +211,9 @@ export async function prepareOwnedTaskRecovery(
         rooms = await local.services.localDeliveryCatalog.discover();
         return record("ownedTaskAttempts", "discover", [], rooms);
       },
-      async readArtifact(id:string,revision:number,room:string,basis:string):Promise<TaskArtifact> {
+      readArtifact(id:string,revision:number,room:string,basis:string):Promise<TaskArtifact> {
+        if(closing)return Promise.reject(new Error("Task artifact owner is closed"));
+        const read=(async()=>{
         const current=observedBoard.get(id),lane=matched.get(room);
         if(id!==primary.id||!current||current.revision!==revision||!isDeepStrictEqual(current,await taskView(id))||
            !lane||lane.basis!==basis||!exactCurrent(current,lane)||lane.record?.phase!=="accepted")
@@ -205,6 +223,7 @@ export async function prepareOwnedTaskRecovery(
         const content=await dependencies.get(reference.digest);
         if(typeof content!=="string"||sha256HexSyncText(content)!==reference.digest)throw new Error("Retained task artifact is missing or changed");
         return record("ownedTaskAttempts","readArtifact",[id,revision,room,basis],{name:lane.record.artifact,reference,content});
+        })();artifactReads.add(read);void read.then(()=>artifactReads.delete(read),()=>artifactReads.delete(read));return read;
       },
       async inspect(room: string, recipient: string | null) {
         if (recipient !== null && !/^@?[a-z0-9-]{1,48}$/u.test(recipient))
@@ -344,5 +363,5 @@ export async function prepareOwnedTaskRecovery(
     return assessSemanticOutcome({...proof,checks,observerSlotValidated},{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"observerSlotValidated"]}});
   }
   async function verify(value:unknown,invocation?:InvocationObservations){return verifyEvidence(value,undefined,invocation);}
-    return { goal: world.goal, services, verify, qualify, close: local.close };
+    return { goal: world.goal, services, verify, qualify, close };
 }
