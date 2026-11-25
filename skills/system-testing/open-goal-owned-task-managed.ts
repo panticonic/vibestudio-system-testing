@@ -1,3 +1,4 @@
+import {ownedTaskReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["effects","current","original","delivery","nativeDeliveryError","raceInjected"],[]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
@@ -261,11 +262,13 @@ export async function prepareOwnedTaskRecovery(
         Boolean(reason.trim()),
       ...(controls ? { rejectedForeignTaskOrPriorSend: controls.foreignCard && controls.wrongAttempt } : {}),
     };
-    return assessObservedApplicationOutcome({
+    const assessed=await assessObservedApplicationOutcome({
       contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
       effects, current: observed, original: knownRecord, expectedHandoff: Boolean(handoffSpec),
       delivery: nativeDelivery?.readback ?? null, nativeDeliveryError, raceInjected,
     },{effects:{checks:[...["discoveredActualOwnedTask","exactCurrentAttemptEvidence","verifiedNativeTaskRecovery","preservedOtherCardsAndDependencies","honoredObservedTaskRace","independentlyJoinedOwnerHandoff"],...(controls?["rejectedForeignTaskOrPriorSend"]:[])],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactTaskRecoveryReport"],required:!world.expected.update&&!world.expected.handoff,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
+    assessed.semanticReviewInput.rubric+=ownedTaskReviewGuidance;
+    return assessed;
   }
 
   async function qualify() {

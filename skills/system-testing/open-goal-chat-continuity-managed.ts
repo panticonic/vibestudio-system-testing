@@ -1,3 +1,4 @@
+import {observedChatWorkerIdentity,chatContinuityReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["index","frames","evidence"],["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
@@ -342,8 +343,10 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactOwnedChatSelection", "exactChatFrontiers", "independentDurableChatReceipt", "exactFirstPartyChatProjection", "exactNativeChatWorker", "verifiedPrivateChatHandoff", "preservedChatWorkspace", "rejectedChatRetarget", "nativeChatReadiness"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["groundedChatDeliveryReview", "groundedChatContinuityDisposition"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedChatHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
-    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,plan,frames,evidence:proof,decision:decision??null,handoff,artifact},contract,raw,invocation,[{"checks":["groundedChatDeliveryReview"],"rootPath":["review"],"producerSourceSuffix":"workOnChatContinuity/reviewChatContinuity/policy/reviewConversation.nl"},{"checks":["groundedChatContinuityDisposition"],"rootPath":["disposition"],"producerSourceSuffix":"workOnChatContinuity/decideChatContinuity.nl"}]);
+    const assessed=await assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      index,plan,frames,evidence:{...proof,nativeWorkerIdentity:observedChatWorkerIdentity(index,frames)},decision:decision??null,handoff,artifact},contract,raw,invocation,[{"checks":["groundedChatDeliveryReview"],"rootPath":["review"],"producerSourceSuffix":"workOnChatContinuity/reviewChatContinuity/policy/reviewConversation.nl"},{"checks":["groundedChatContinuityDisposition"],"rootPath":["disposition"],"producerSourceSuffix":"workOnChatContinuity/decideChatContinuity.nl"}]);
+    assessed.semanticReviewInput.rubric+=chatContinuityReviewGuidance;
+    return assessed;
   }
   async function qualify() {
     await services.chatContinuityIndex.list();
