@@ -264,6 +264,7 @@ export function listSystemTests(
       name: test.name,
       category: test.category,
       description: test.description,
+      ...(test.nativeReference ? { nativeReference: true as const } : {}),
       ...(test.explicitOnly ? { explicitOnly: true as const } : {}),
       orchestrated: typeof test.orchestrate === "function" || usesPanelRepairTeacher(test),
       requiresUnits: [...(test.requiresUnits ?? [])],

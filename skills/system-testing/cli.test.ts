@@ -547,6 +547,11 @@ describe("system-testing CLI-neutral API", () => {
     ]);
   });
 
+  it("advertises only explicit source-declared native references", () => {
+    mocks.extraTests.push({name:"native-reference",category:"fixture",description:"TEST-only native",nativeReference:true,orchestrate:async()=>({}),requiresUnits:["skills/fixture"]});
+    try {expect(listSystemTests({installedUnits:["skills/fixture"]}).at(-1)).toMatchObject({name:"native-reference",nativeReference:true,installed:true,orchestrated:true});}
+    finally {mocks.extraTests.length=0;}
+  });
   it("attests panel repair as an orchestrated catalog entry", () => {
     mocks.extraTests.push({
       name: "panel-draft-unmount",

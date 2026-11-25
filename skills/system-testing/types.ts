@@ -180,6 +180,8 @@ export type TestAuthorityPolicy =
     >);
 
 export interface TestCase {
+  /** Canonical fixture reference: deny model inference before creating any task context. */
+  nativeReference?: true;
   /** Requires an exact name: excluded from category, all, and default staged runs. */
   explicitOnly?: boolean;
   name: string;

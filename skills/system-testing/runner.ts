@@ -1,3 +1,4 @@
+import { nativeReferenceAuthority } from "./native-reference-authority.js";
 import {observedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import { openScheduledRecoveryWorlds } from "./open-goal-scheduled-recovery-worlds.js";
 import { validateNativeStartupDiagnostic, type NativeStartupDiagnostic } from "./native-startup-diagnostic.js";
@@ -623,6 +624,7 @@ export class HeadlessRunner {
     opts?: {
       workspaceRepoFixture?: WorkspaceRepoCreationScope;
       authorityPolicy?: TestAuthorityPolicy;
+      nativeReference?: true;
     },
   ): HeadlessRunner {
     const repoNameStem = `system-test-${slugifyTestName(testName)}-`;
@@ -668,7 +670,7 @@ export class HeadlessRunner {
                 }
               : "disabled",
         },
-        authority: [
+        authority: nativeReferenceAuthority(opts?.nativeReference === true, [
           {
             ruleId: "model-credential",
             capability: { kind: "exact", key: "credential.use" },
@@ -734,7 +736,7 @@ export class HeadlessRunner {
           },
           ...fixturePublicationAuthority(workspaceRepoFixture),
           ...(authorityPolicy?.authority ?? []),
-        ],
+        ]),
         unexpectedPrompts: "fail",
       },
     );
