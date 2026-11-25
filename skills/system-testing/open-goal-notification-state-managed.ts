@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
@@ -320,13 +321,13 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
         rejectStale.status === "stale" || rejectStale.status === "unavailable",
       rejectedWrongOutput,
     };
-    return {
+    return assessNativeQualification({
       ...proof,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignLane","rejectedStaleAck","rejectedWrongOutput"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,
-    };
+    });
   }
 
   return { services: { notificationState: service }, verify, qualify, close };

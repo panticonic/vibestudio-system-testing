@@ -17,6 +17,7 @@ it("replays the actual native private handoff after lost response and preserves 
   async readBytes(path:string,limit:number){if(!files.has(path))throw Error("Missing native file");return new TextEncoder().encode(files.get(path)!).slice(0,limit);}};
  const prepared=await prepareWorkspaceShare({contextId:"owned",caseId:world.id},world,ports as any);
  const first=await prepared.qualify();expect(first.passed).toBe(true);expect(first.handoff).not.toBeNull();
+ expect(first.outcomeDimensions.effects.checks).toEqual(Object.fromEntries(first.outcomeContract.effects.checks.map(name=>[name,first.checks[name]])));
  const request=first.observation,decision=first.decision;
  // An interrupted caller retries exactly the already-committed request.
  expect(await prepared.services.workspaceShareHandoff.stage(request,decision)).toEqual(first.handoff);

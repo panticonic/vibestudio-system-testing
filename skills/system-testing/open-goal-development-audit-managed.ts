@@ -1,5 +1,5 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
-import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {assessNativeQualification, type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { createReceiverRpcMethods } from "@vibestudio/shared/rpcMethods";
@@ -220,7 +220,7 @@ export async function bindDevelopmentAudit(input: Input, world: DevelopmentAudit
     const rejectedInventedAssessment=!(await verify({...report,assessment:{disposition:"invented",decisiveSequences:[]}})).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongScopeAndStaleApproval: safeGuards.every(Boolean),
       rejectedForeignResult,rejectedInventedAssessment };
-    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongScopeAndStaleApproval","rejectedForeignResult","rejectedInventedAssessment"]}}, checks, passed: Object.values(checks).every(Boolean), report };
+    return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongScopeAndStaleApproval","rejectedForeignResult","rejectedInventedAssessment"]}}, checks, passed: Object.values(checks).every(Boolean), report });
   }
 
   return { services, verify, qualify };

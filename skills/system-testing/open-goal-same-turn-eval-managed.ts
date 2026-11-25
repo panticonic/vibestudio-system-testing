@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { Buffer } from "node:buffer";
@@ -295,7 +296,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const verified = await verify(report);
     const rejectedWrongRevision = !(await verify({ ...report, recovery: {...(recovery??{}),scopeId:"other-scope"} })).outcomeDimensions.returnedValue.passed;
     const checks = { ...verified.checks, rejectedWrongScope, rejectedWrongAttempt, rejectedUnneededRetry, rejectedWrongRevision };
-    return { ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectedWrongScope","rejectedWrongAttempt","rejectedUnneededRetry","rejectedWrongRevision"]}}, passed: Object.values(checks).every(Boolean), checks, report };
+    return assessNativeQualification({ ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectedWrongScope","rejectedWrongAttempt","rejectedUnneededRetry","rejectedWrongRevision"]}}, passed: Object.values(checks).every(Boolean), checks, report });
   }
   async function close() {
     if (!scopeOpened || closed) return;

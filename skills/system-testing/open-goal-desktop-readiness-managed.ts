@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -504,13 +505,13 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       rejectedAdmission,
       rejectedWrongReadback,
     };
-    return {
+    return assessNativeQualification({
       ...proof,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedDesk","rejectedAdmission","rejectedWrongReadback"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,
-    };
+    });
   }
   return { services, verify, qualify };
 }

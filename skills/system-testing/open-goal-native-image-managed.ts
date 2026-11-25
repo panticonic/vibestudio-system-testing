@@ -1,5 +1,5 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
-import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {assessNativeQualification, type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex } from "@vibestudio/content-addressing";
@@ -206,7 +206,7 @@ async function bindNativeImage(input:{contextId:string;caseId:string},world:Nati
     const answer={outcome,saved},proof=await verify(answer);
     const rejectedInventedOriginal=!(await verify({...answer,outcome:{...answer.outcome,original:{digest:"invented",bytes:1,mime:"image/png"}}})).outcomeDimensions.returnedValue.passed;
     const checks={...proof.checks,rejectedForeignAttempt,rejectedWrongBytes,rejectedInventedOriginal};
-    return {...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignAttempt","rejectedWrongBytes","rejectedInventedOriginal"]}},checks,passed:Object.values(checks).every(Boolean),report:answer};
+    return assessNativeQualification({...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignAttempt","rejectedWrongBytes","rejectedInventedOriginal"]}},checks,passed:Object.values(checks).every(Boolean),report:answer});
   }
   return {services,qualify,verify};
 }

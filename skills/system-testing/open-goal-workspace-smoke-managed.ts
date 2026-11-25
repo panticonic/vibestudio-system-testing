@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -267,7 +268,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const proof = await verify(report);
     const rejectedWrongSource = !(await verify({ ...report, decision: { ...decision, disposition: "invented" } })).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongDigest, rejectedWrongRuntime, rejectedWrongSource };
-    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongDigest","rejectedWrongRuntime","rejectedWrongSource"]}}, passed: Object.values(checks).every(Boolean), checks, report };
+    return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongDigest","rejectedWrongRuntime","rejectedWrongSource"]}}, passed: Object.values(checks).every(Boolean), checks, report });
   }
   async function close() { if (opened && !closed) { await ports.dispose(scopeKey); closed = true; } }
   return { services, qualify, verify, close };

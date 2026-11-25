@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["approved","working","findings","journal"],["receiptBytes"]);
 import {nativeAssetFindings} from "./asset-native-findings.js";
@@ -805,14 +806,14 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       recovery: stage?.status === "staged" ? stage.receipt : null,
     };
     const proof = await verify(outcome);
-    return {
+    return assessNativeQualification({
       ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnassignedAssetEvidence"]}},
       passed: proof.passed && rejectedAlias && rejectedSource,
       checks: {
         ...proof.checks,
         rejectedUnassignedAssetEvidence: rejectedAlias && rejectedSource,
       },
-    };
+    });
   }
   return { goal: world.goal, services, verify, qualify, close };
 }
