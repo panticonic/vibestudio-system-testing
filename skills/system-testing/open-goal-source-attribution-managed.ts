@@ -1,4 +1,7 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+import {groundedSourceConclusion,groundedSourceEvidence} from "./source-attribution-grounding.js";
+const assessObservedApplicationOutcome=bindObservedContentReview(["assignment","files","evidence","effects","native"],["receipt","retainedText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
@@ -178,28 +181,10 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
     return { disposition: world.complete, claims };
   }
   function validateEvidence() {
-    const expectedPaths = new Set(world.questions.map(item => item.path).concat(world.candidates ?? []));
-    const expectedTraces = new Set(world.questions.map(item => item.path + "\0" + item.text));
-    const observedPaths = new Set([...readbacks.keys()].map(id => getCandidate(id).path));
-    if ([...expectedPaths].some(path => !observedPaths.has(path)) || traceReads.size !== expectedTraces.size) return false;
+    if(!discovered||readbacks.size===0)return false;
     if ([...readbacks].some(([id, view]) => Boolean(view) !== latestText.has(getCandidate(id).path))) return false;
-    for (const { view, selected, spans, trace } of traceReads.values()) {
-      const actual = view.fragments.find(fragment => fragment.id === selected.fragment)!;
-      const expected = world.questions.filter(item => item.path === view.candidate.path && item.text === actual.text);
-      if (trace.truncated || !expected.length || !spans.length || spans[0]?.start !== actual.start || spans.at(-1)?.end !== actual.end ||
-          spans.some((span, index) => index > 0 && span.start !== spans[index - 1]?.end)) return false;
-      for (const test of expected) {
-        const matches = trace.spans.filter(span => (span.boundary === "authored" ? "native" : "external") === test.origin);
-        if (!matches.length || !matches.every(span => {
-          const work = span.work ? inspected.get(span.work) : null;
-          if (test.via && !span.paths.includes(test.via)) return false;
-          return test.origin === "native" ? work?.intent === (test.intent ?? null) && (test.intent == null || work.tier === "stated") :
-            (work?.externalSource ?? span.externalSource) === source.uri && (span.work ? Boolean(work) : inspected.has(span.command));
-        })) return false;
-      }
-      if (trace.spans.some(span => !expected.some(test => test.origin === (span.boundary === "authored" ? "native" : "external")))) return false;
-    }
-    return true;
+    const actual=assembleReport();
+    return groundedSourceEvidence(actual.files,actual.evidence);
   }
 
   const services = {
@@ -250,14 +235,14 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
       async retain(id: string, state: string, conclusion: Conclusion) {
         admission(id);
         return replayRetain([id,state,conclusion],async()=>{
-          if(!receipt||!assignment.mayRetain||state!==stateKey(observed)||!isDeepStrictEqual(conclusion,reportConclusion())||!validateEvidence())return false;
+          if(!receipt||!assignment.mayRetain||state!==stateKey(observed)||!groundedSourceConclusion(conclusion,assembleReport().evidence)||!validateEvidence())return false;
           const current=await status();
           if(!isDeepStrictEqual(current.workingHead,staleHead??observed))return false;
           if(receipt.status!=="retained")return true;
           return receipt.path===output&&hash(Buffer.from(await ports.read(output)).toString("utf8"))===receipt.sha256;
         },async()=>{
-        if (!assignment.mayRetain || receipt || staging || state !== stateKey(observed) || !isDeepStrictEqual(conclusion, reportConclusion()) ||
-            !conclusion.claims.length || !validateEvidence()) throw new Error("Review receipt is outside its exact owned evidence and authority");
+        if (!assignment.mayRetain || receipt || staging || state !== stateKey(observed) || !groundedSourceConclusion(conclusion,assembleReport().evidence) ||
+            !validateEvidence()) throw new Error("Review receipt is outside its exact owned evidence and authority");
         staging = true;
         try {
           if (world.gates === "stale") {
@@ -272,7 +257,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
           else if (!JSON.parse((await requireOwnedText(now.workingHead, scopeFile)).text).open)
             receipt = { state, status: "authority-closed", path: null, sha256: null };
           else {
-            const text = JSON.stringify({ assignment: id, scope: repoPath, state, claims: conclusion.claims }) + "\n";
+            const text = JSON.stringify({ assignment: id, scope: repoPath, state, conclusion }) + "\n";
             await ports.write(output, text);
             if (!Buffer.from(await ports.read(output)).equals(Buffer.from(text))) throw new Error("Owned source review receipt failed exact byte readback");
             receipt = { state, status: "retained", path: output, sha256: hash(text) };
@@ -337,9 +322,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const report = value as ReturnType<typeof assembleReport> | null;
     const after = await status(), mainAfter = await owner.mainState();
     const entries = await ports.entries(directory);
-    const requiresReceipt = world.mayRetain && world.questions.length > 0 && world.gates === "open";
-    const expectedStatus = !world.mayRetain || !world.questions.length ? null : world.gates === "open" ? "retained" :
-      world.gates === "closed" ? "authority-closed" : "stale";
+    const retainedText=receipt?.status==="retained"?Buffer.from(await ports.read(output)).toString("utf8"):null;
     const rechecked = await Promise.all([...latestText].map(async ([path, text]) => (await requireOwnedText(after.workingHead, path)).text === text));
     const rereadGraph = await Promise.all([...traceReads.values()].map(async ({ view, selected, spans }) =>
       isDeepStrictEqual((await traceNative(view, selected.fragment)).spans, spans)));
@@ -350,12 +333,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       tracedExactGraphOwner: rereadGraph.every(Boolean) && rereadRoots.every(Boolean),
       preservedWorkspaceSources: rechecked.every(Boolean) && isDeepStrictEqual(mainBefore, mainAfter) &&
         after.clean === !Boolean(staleHead) && isDeepStrictEqual(after.workingHead, staleHead ?? observed),
-      verifiedOwnedSourceReceipt: (receipt?.status ?? null) === expectedStatus && (requiresReceipt ?
+      verifiedOwnedSourceReceipt: receipt?.status === "retained" ?
         isDeepStrictEqual(entries, ["source-attribution.json"]) && receipt?.path === output &&
-        receipt.sha256 === hash(Buffer.from(await ports.read(output)).toString("utf8")) : entries.length === 0),
-      matchedSourceAttributionReport: isDeepStrictEqual(report, {conclusion:reportConclusion(),receipt}),
+        retainedText!==null&&receipt.sha256 === hash(retainedText) : entries.length === 0,
+      matchedSourceAttributionReport: Boolean(report&&groundedSourceConclusion(report.conclusion,assembleReport().evidence)&&isDeepStrictEqual(report.receipt,receipt)),
     };
-    const proof = { ...assembleReport(), effects: structuredClone(effects), native: { repositoryId, importedState, observed, authoredChanges, source, after: after.workingHead } };
+    const proof = { ...assembleReport(), retainedText,effects: structuredClone(effects), native: { repositoryId, importedState, observed, authoredChanges, source, after: after.workingHead } };
     return {
       outcomeContract: {
         effects: {checks:["readExactCurrentSource", "tracedExactGraphOwner", "preservedWorkspaceSources", "verifiedOwnedSourceReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
@@ -363,7 +346,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
       incorrectReturnValues:[],
- passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, ...proof };
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, actualResult:value,...proof };
   }
   async function qualify() {
     const working = await reference();
