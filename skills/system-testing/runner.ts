@@ -1143,7 +1143,9 @@ export class HeadlessRunner {
         warm = await this.openPanelClient("about/workspace", {
           contextId, ref: `ctx:${contextId}`, parentId: null, focus: false, signal,
         });
-        await waitForText(warm, "Workspace");
+        // openPanelClient already joins activation, materialization and the
+        // native boot-ready attempt. Warming this device does not require the
+        // unrelated About page to contain a particular visible heading.
       }
       const owner = await this.createFixtureWorker(contextId);
       const channel = await rpc.call("main", mainRpcMethods["runtime.createEntity"], [{

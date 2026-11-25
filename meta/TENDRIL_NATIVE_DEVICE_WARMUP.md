@@ -1,0 +1,9 @@
+# Owned Tendril device warmup
+
+Actual0073 live-tendril-board-orchard-layout-preserve-timer failed before teacher dispatch while waiting15s for an About panel to contain the word Workspace. That text is not the requested board layout or timer outcome.
+
+Inventory: HeadlessRunner.withOwnedTendril opens an ordinary owned panel only when no online headless presentation target exists. Its openPanelClient is testkit.openPanel, which delegates to runtime.openPanel. packages/runtime/src/shared/panelRuntime.ts2171–2228 explicitly joins durable slot activation, native materialization and waitUntilReady before returning. The extra About text gate was therefore not the device readiness contract. It is removed; scoped context/ref/panel opening, downstream native Tendril checks, panel archive and recursive owned-context destruction remain. The separate News content-text wait tests requested source content and is unchanged. No timeout was raised or missing native state fabricated.
+
+The historical About DOM contents and underlying cause of that specific missing text were not captured and remain unchecked. This change removes an unrelated readiness assumption, not a claim that every renderer/network problem is solved. The public runner lifecycle control verifies a boot-ready warm panel can proceed without reading its text and still joins cleanup. No new Vibe instance, model inference or native qualification is implied by that component control.
+
+Actual public runner control passed with a boot-ready owned panel whose snapshot rejects any content read; the control joins panel archive and context destruction. Together with existing runner/route controls, 23 tests passed (13.51s, 453.3 MiB combined job peak). This is a mocked-port component control, not a new native application qualification.
