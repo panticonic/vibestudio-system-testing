@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessNativeGoal=bindObservedContentReview(["docket","inventoryReadback"]);
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs, vcs } from "@workspace/runtime";
@@ -51,7 +53,7 @@ export async function prepareOpenLiveLocalInventory(
       }
       return true;
     });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessNativeGoal(proof,proof.outcomeContract,value,invocation,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -80,7 +82,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
  contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
-      passed: Object.values(checks).every(Boolean), native, docket, available: [prior, card], outcome };
+      passed: Object.values(checks).every(Boolean), native, docket, inventoryReadback:{request:prepared.request,rows:native.rows,inspected:native.inspected}, available: [prior, card], outcome };
   }
 
   async function qualify() {
