@@ -1,0 +1,117 @@
+{
+  "source": "8eec4d1e077abb31cb0f20b83c2831f507a78c96",
+  "actualOriginalSha256": "ed3bb92cc1c2b552e324b1549a3f810437c27eae9dacdbf1cfa682ae57a5979f",
+  "candidates": [
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "line": 447,
+      "text": "const actualProof = world.during"
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "line": 449,
+      "text": ": (world.proof ?? [independent.issue]);"
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "line": 456,
+      "text": "const readback = journal.find("
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "line": 504,
+      "text": "isDeepStrictEqual([...plan.proof].sort(),[...actualProof].sort()) : true) &&"
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "line": 574,
+      "text": ": (world.proof ?? [native.issue ?? \"\"]);"
+    },
+    {
+      "path": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "line": 456,
+      "text": "const stagedStatus = journal.find(row =>"
+    },
+    {
+      "path": "skills/system-testing/open-goal-scaffold-managed.ts",
+      "line": 451,
+      "text": "const readback = journal.find((row) => row.method === \"readback\")"
+    },
+    {
+      "path": "skills/system-testing/open-goal-desktop-readiness-managed.ts",
+      "line": 380,
+      "text": "const sourceRead = journal.find((row) => row.method === \"observe\")"
+    },
+    {
+      "path": "skills/system-testing/open-goal-notification-state-managed.ts",
+      "line": 205,
+      "text": "const refresh = journal.find((row) => row.method === \"refresh\")?.result as"
+    },
+    {
+      "path": "skills/system-testing/open-goal-notification-state-managed.ts",
+      "line": 209,
+      "text": "const ack = journal.find((row) => row.method === \"acknowledge\")?.result as"
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "line": 617,
+      "text": "const readback = journal.find((row) => row.method === \"readback\")"
+    },
+    {
+      "path": "skills/system-testing/project-authorization-evidence.ts",
+      "line": 4,
+      "text": "const admitted=receipt ? journal.find(entry=>entry.service==='contentProjectScope' && entry.method==='confirm' &&"
+    },
+    {
+      "path": "skills/system-testing/open-goal-automation-activation-managed.ts",
+      "line": 285,
+      "text": "const commitWitness=journal.find(row=>row.service===\"automationActivationCommit\");"
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "line": 484,
+      "text": "const readback = journal.find((row) => row.method === \"readback\")"
+    },
+    {
+      "path": "skills/system-testing/open-goal-phone-first-run-managed.ts",
+      "line": 413,
+      "text": "const start = journal.find((row) => row.method === \"start\")?.result as"
+    },
+    {
+      "path": "skills/system-testing/open-goal-phone-first-run-managed.ts",
+      "line": 416,
+      "text": "const readback = journal.find((row) => row.method === \"readiness\")"
+    },
+    {
+      "path": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "line": 480,
+      "text": "const gate = journal.find((row) => row.method === \"confirm\")?.result as"
+    },
+    {
+      "path": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "line": 483,
+      "text": "const proof = journal.find((row) => row.method === \"stage\")?.result as"
+    },
+    {
+      "path": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "line": 486,
+      "text": "const compiled = journal.find((row) => row.service === \"authoringCompiler\")"
+    }
+  ],
+  "confirmed": [
+    "examples-adoption: first readback overrides later exact receipt readback; private proof-set rejects extra native-grounded evidence",
+    "system-candidate,grimoire-scene,scaffold: same first-readback actor-route gate despite verifier already independently reading native current state and retained artifact"
+  ],
+  "change": "Native verifier authoritative readback from current native head/world and exact retained bytes. Actor journal remains unchanged historical evidence; no synthetic actor call. Exact artifact digest/current authority remain required. Adoption proof items remain validated against actual composition; semantic goal review judges adequacy.",
+  "open": [
+    "skill-maintenance confirm/stage/compiler first records: must inspect authority/history separately before changing",
+    "automation activation commit and desktop/notification/phone observations: distinct protocols, not presumed stale readback defects",
+    "other private proof-set/digest/count gates require literal goal/native protocol inventory; not blanket relaxed"
+  ],
+  "engines": "SST fixture validators execute in shared TypeScript code under Node test and native Workerd; no Core/llama/wllama/Python/SGLang implementation of fixture journal interpretation. Host and Python consume bound proof checks and mandatory goal review, unchanged here.",
+  "validation": {
+    "component": "six actual Adoption factory controls passed, 195.8 MiB peak; real native composition/parser with VCS/FS port seam, no full live native qualification claim",
+    "source": "all four modified shared TypeScript validators transpile without syntax diagnostics",
+    "unchecked": "No new live native runs; other three factory protocols not dynamically replayed in this focused control set"
+  }
+}

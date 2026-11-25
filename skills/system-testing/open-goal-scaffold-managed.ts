@@ -448,8 +448,8 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const actual = await units();
     const draft = journal.findLast(row => row.service === write && row.method === "prepare");
     const disposition = result && "disposition" in result ? result : null;
-    const readback = journal.find((row) => row.method === "readback")
-      ?.result as Readback | undefined;
+    const readback: Readback = {main: final.mainEventId,
+      draft: stableSha256Hex(final.workingHead), units: actual.map(projection)};
     const staging = world.disposition === "prepare";
     const exact = (
       service: string,
@@ -536,7 +536,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       independentVcsReadbackAndMain: Boolean(
         readback &&
-        exact(read, "readback", [key, receipt?.draft ?? null], readback) &&
         readback.main === before.mainEventId &&
         readback.draft === stableSha256Hex(final.workingHead) &&
         isDeepStrictEqual(readback.units, actual.map(projection)) &&

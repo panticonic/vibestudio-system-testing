@@ -614,8 +614,8 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const body = bytes
       ? new TextDecoder("utf-8", { fatal: true }).decode(bytes)
       : null;
-    const readback = journal.find((row) => row.method === "readback")
-      ?.result as Readback | undefined;
+    const readback: Readback = {main: initial.mainEventId, event: end,
+      artifactDigest: body === null ? null : sha256HexSyncText(body)};
     const exact = (
       service: string,
       method: string,
@@ -689,7 +689,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       independentReadbackAndProtectedMain: Boolean(
         readback &&
-        exact(read, "readback", [key, path], readback) &&
         readback.main === initial.mainEventId &&
         readback.event === end &&
         readback.artifactDigest === (receipt?.digest ?? null),

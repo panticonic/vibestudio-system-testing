@@ -481,8 +481,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       );
     };
     const path = receipt?.path ?? null;
-    const readback = journal.find((row) => row.method === "readback")
-      ?.result as GrimoireSceneReadback | undefined;
     const stages =
       world.action === "stage-scene" || world.action === "stage-note";
     const bytes = path ? await ports.readBytes(path, maxBytes) : null;
@@ -490,6 +488,8 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ? new TextDecoder("utf-8", { fatal: true }).decode(bytes)
       : null;
     const staged = body ? JSON.parse(body) : null;
+    const readback: GrimoireSceneReadback = {ownerId, sceneDigest: final.view.sceneDigest,
+      frontier: final.view.frontier, fileDigest: body === null ? null : sha256HexSyncText(body)};
     const expectedFacts = [
       ...(view?.anchors ?? []),
       ...(proposed ? [proposed] : []),
@@ -588,7 +588,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       preservedNativeWorld: Boolean(
         readback &&
-        exact(namespaces.read, "readback", [key, path], readback) &&
         readback.sceneDigest === final.view.sceneDigest &&
         readback.frontier === final.view.frontier &&
         readback.fileDigest === (receipt?.digest ?? null) &&
