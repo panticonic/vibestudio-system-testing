@@ -98,6 +98,36 @@ export function checkPresentation(world: PresentationWorld, value: unknown) {
   return views;
 }
 
+export function selectedPresentationViews(report: PresentationReport): NonNullable<ReturnType<typeof checkPresentation>> | null {
+  if (
+    !report ||
+    !Array.isArray(report.views) ||
+    report.views.length > 12 ||
+    new Set(report.views.map((view) => view?.id)).size !== report.views.length
+  )
+    return null;
+  const views: NonNullable<ReturnType<typeof checkPresentation>> = [];
+  for (const view of report.views) {
+    if (!view || typeof view.id !== "string" || !view.id) return null;
+    if (view.status !== "ready") continue;
+    try {
+      const rendered = renderComponent(view.rendered);
+      if (rendered.mdx !== view.rendered.mdx || rendered.mdx.length > 8_192)
+        return null;
+      views.push({
+        id: view.id,
+        mdx: rendered.mdx,
+        selector: catalogSelectors[rendered.component],
+        labels: [],
+      });
+    } catch {
+      return null;
+    }
+  }
+  return views;
+}
+
+
 export async function observePresentation(
   panel: PanelHandle,
   prepared: NonNullable<ReturnType<typeof checkPresentation>>,
@@ -144,6 +174,7 @@ export async function observePresentation(
       rendered: boolean[];
       errors: number;
       interactions: unknown[];
+      controls?: {tag:string;role:string|null;label:string;disabled:boolean;checked:string|null;type:string|null}[][];
     }>(
       `(async () => {
         const selectors = ${selectors};
@@ -194,6 +225,12 @@ export async function observePresentation(
             revision: document.querySelector("[data-presentation-preview]")?.getAttribute("data-presentation-revision") ?? null,
             ids: views.map((view) => view.getAttribute("data-presentation-view")),
             texts: views.map((view) => view.textContent),
+            controls: views.map(view => Array.from(view.querySelectorAll('button,input,select,textarea,[role="radio"],[role="checkbox"]')).map(control => ({
+              tag:control.tagName.toLowerCase(),role:control.getAttribute("role"),
+              label:control.getAttribute("aria-label") ?? control.textContent?.trim() ?? "",
+              disabled:control.disabled === true || control.getAttribute("aria-disabled") === "true",
+              checked:control.getAttribute("aria-checked"),type:control.getAttribute("type")
+            }))),
             rendered: views.map((view, i) => !!selectors[i] && !!view.querySelector(selectors[i])),
             errors,
           };

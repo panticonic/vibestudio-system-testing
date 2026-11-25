@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["current","journal","preview","display"],[]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["current","journal","preview","previewDisplay"],["report","display"]);
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -11,11 +11,10 @@ import {
   vcs,
   type PanelHandle,
 } from "@workspace/runtime";
-import { renderComponent } from "@workspace-skills/visualize/render";
 import type { PresentationReport } from "@workspace-skills/visualize/types";
 import {
-  catalogSelectors,
   checkPresentation,
+  selectedPresentationViews,
   observePresentation,
   referencePresentation,
 } from "./presentation-managed.js";
@@ -80,34 +79,6 @@ function defaultPorts(): Ports {
   };
 }
 
-function selectedViews(report: PresentationReport): Prepared | null {
-  if (
-    !report ||
-    !Array.isArray(report.views) ||
-    report.views.length > 12 ||
-    new Set(report.views.map((view) => view?.id)).size !== report.views.length
-  )
-    return null;
-  const views: Prepared = [];
-  for (const view of report.views) {
-    if (!view || typeof view.id !== "string" || !view.id) return null;
-    if (view.status !== "ready") continue;
-    try {
-      const rendered = renderComponent(view.rendered);
-      if (rendered.mdx !== view.rendered.mdx || rendered.mdx.length > 8_192)
-        return null;
-      views.push({
-        id: view.id,
-        mdx: rendered.mdx,
-        selector: catalogSelectors[rendered.component],
-        labels: [],
-      });
-    } catch {
-      return null;
-    }
-  }
-  return views;
-}
 
 export async function prepareOpenLocalPresentation(
   input: Assignment,
@@ -173,6 +144,7 @@ export async function prepareOpenLocalPresentation(
   let saved: {
     preview: Receipt;
     report: PresentationReport;
+    display: Awaited<ReturnType<typeof observePresentation>>;
   } | null = null;
   const effect = <T>(method: string, args: unknown[], result: T): T => {
     journal.push(
@@ -231,13 +203,8 @@ export async function prepareOpenLocalPresentation(
               revision: (await read(id)).revision,
             });
           }
-          const selected = selectedViews(report);
-          if (
-            !selected?.length ||
-            !selected.every((view) =>
-              basis.sections.some((section) => section.id === view.id),
-            )
-          )
+          const selected = selectedPresentationViews(report);
+          if (!selected?.length)
             return finish({
               status: "unavailable",
               reason:
@@ -280,6 +247,7 @@ export async function prepareOpenLocalPresentation(
           saved = {
             preview: receipt,
             report: structuredClone(report),
+            display: structuredClone(display),
           };
           return finish({ status: "visible", receipt });
         } finally {
@@ -310,10 +278,10 @@ export async function prepareOpenLocalPresentation(
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
-async function verifyNativeApplication(report: unknown, invocation?: InvocationObservations) {
+async function verifyNativeApplication(report: unknown, _invocation?: InvocationObservations) {
     const resolved = report as Outcome | null;
     const outcome = resolved;
-    const { target, requirements, holds } = world.expected;
+    const { target, holds } = world.expected;
     const currentRecords = await Promise.all([...seeds.keys()].map(read));
     const current =
       currentRecords.find((record) => record.id === target) ?? null;
@@ -325,9 +293,7 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
     const attempts = journal.filter((row) => row.method === "preview");
     const previewState = await panel.stateArgs.get<PreviewState>();
     const rendering =
-      saved && requirements
-        ? checkPresentation(requirements, saved.report)
-        : null;
+      saved ? selectedPresentationViews(saved.report) : null;
     const observe = (views: Prepared, revision?: string) =>
       ports.observe(
         panel,
@@ -350,7 +316,7 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
       discoveredPresentationRecords:
         (current ? reads.has(current.id) : listed),
       retainedSourceIntegrity: currentRecords.every(
-        ({ revision, ...value }) => {
+        ({ revision: _revision, ...value }) => {
           const seed = seeds.get(value.id)!;
           return isDeepStrictEqual(
             value,
@@ -421,6 +387,7 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
       report: saved?.report ?? null,
       preview: saved?.preview ?? null,
       display,
+      previewDisplay: saved?.display ?? null,
     };
   }
 

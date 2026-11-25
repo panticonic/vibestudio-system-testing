@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["current","observed","operated"],[]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["current","observed","operated"],["presentation"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual as equal } from "node:util";
@@ -8,7 +8,7 @@ import { contextId, fs, panelTree, vcs, type PanelHandle } from "@workspace/runt
 import type { AudienceAnswer,AudienceInteraction,AudienceModel,AudiencePrepared,AudienceReceipt,AudienceRecord,
   AudienceReport } from "@workspace-skills/open-audience-response/types";
 import { audienceCost, renderAudienceCalculator } from "@workspace-skills/open-audience-response/calculator";
-import { checkPresentation, observePresentation, referencePresentation } from "./presentation-managed.js";
+import { checkPresentation, selectedPresentationViews, observePresentation, referencePresentation } from "./presentation-managed.js";
 import type { OpenAudienceWorld } from "./open-goal-audience-response-worlds.js";
 
 type Input={contextId:string;caseId:string;panelId?:string;source?:string};
@@ -98,7 +98,7 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
   let wrote=0;
   function visual(candidate:AudiencePrepared):Display|null{
     if(!candidate||world.mode==="plain")return null;
-    const ordinary=checkPresentation(reference,candidate.presentation);
+    const ordinary=selectedPresentationViews(candidate.presentation);
     if(!ordinary)return null;
     if(world.mode==="catalog")return candidate.modelId===null&&ordinary.length?ordinary:null;
     if(!world.model||candidate.modelId!==world.model.id||ordinary.length)return null;
@@ -170,11 +170,10 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     const contract:SemanticOutcomeContract={effects:{checks:["exactAudienceRecord", "appropriateAudienceFormat", "verifiedNativeAudienceRendering", "verifiedAudienceInteraction", "preservedAudienceState"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["boundedGroundedAudienceAnswer"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedAudienceReceipt"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
     return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      report:report??null,current,observed,operated},contract,raw,invocation,[{"checks":["boundedGroundedAudienceAnswer"],"rootPath":["answer"],"producerSourceSuffix":"chooseAudienceResponse/answerFromRecord.nl"}]);
+      report:report??null,current,observed,operated,presentation:sent},contract,raw,invocation,[{"checks":["boundedGroundedAudienceAnswer"],"rootPath":["answer"],"producerSourceSuffix":"chooseAudienceResponse/answerFromRecord.nl"}]);
   }
   async function qualify(){
     const record=await services.nativeAudienceResponse.readRecord();
-    const choice={mode:world.mode,reason:"The exact user decision determines the useful response format."};
     const answer={facts:expectedAnswer,text:expectedAnswer.map(fact=>fact.value).join("; ")};
     const prepared=world.mode==="plain"?null:{presentation:referencePresentation(reference),modelId:world.model?.id??null};
     const rejected=await services.nativeAudienceResponse.render(record.id,"stale",prepared??{presentation:null,modelId:null})===null;
