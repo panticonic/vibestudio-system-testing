@@ -1,7 +1,9 @@
 import {ownedTaskReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["effects","current","original","delivery","nativeDeliveryError","raceInjected"],[]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["effects","current","original","delivery","nativeDeliveryError","raceInjected","resultArtifacts"],[]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {sha256HexSyncText} from "@vibestudio/content-addressing";
+import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
 import {referenceObserver} from "./observer-slot-control.js";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -30,10 +32,12 @@ type Handoff = {
   readback: Awaited<ReturnType<LocalDelivery["services"]["localDeliveryReadback"]["read"]>>;
 };
 type Receipt = NonNullable<LocalView["prior"]>;
-type BoundAttempt = AttemptRecord & { taskId: string };
+type ArtifactRef={digest:string;mediaType:string};
+type TaskArtifact={name:string;reference:ArtifactRef;content:string};
+type BoundAttempt = AttemptRecord & { taskId: string; artifactRef?:ArtifactRef };
 type Lane = { lane: LocalView["room"]; basis: string; owner: string | null; receipt: Receipt | null; record: BoundAttempt | null };
 type Effect = { service: string; method: string; args: unknown[]; result: unknown };
-type Outcome = { task?: string; revision?: number; status?: BoardStatus; original?: Receipt | null; delivery?: Handoff | null; reason?: string };
+type Outcome = { task?: string; revision?: number; status?: BoardStatus; original?: Receipt | null; delivery?: Handoff | null; result?:TaskArtifact; reason?: string };
 type TaskAssignment = Omit<AttemptRecord, "phase">;
 const stableTask = ({ updatedAt: _updatedAt, ...task }: Task) => task;
 const phase = new Set(["failed", "cancelled", "draft", "ready", "accepted"]);
@@ -51,7 +55,9 @@ function parseRecord(receipt: Receipt | null): BoundAttempt | null {
 
 export async function prepareOwnedTaskRecovery(
   input: { contextId: string; caseId: string }, world: OwnedTaskWorld, store: TaskPort,
-  dependencies = { activeContext, runtime, rpc, prepareOpenLocalDelivery },
+  dependencies = { activeContext, runtime, rpc, prepareOpenLocalDelivery,
+    put:async(text:string)=>(await rpc.call("main",mainRpcMethods["blobstore.putText"],[text])).digest,
+    get:(digest:string):Promise<string|null>=>rpc.call("main",mainRpcMethods["blobstore.getText"],[digest]) },
 ) {
   const { contextId, caseId } = input;
   if (!contextId || contextId !== dependencies.activeContext || caseId !== world.id)
@@ -78,12 +84,20 @@ export async function prepareOwnedTaskRecovery(
     room: expectedDestination.key, recipient: expectedDestination.recipient,
     facts: [world.assignment.attempt, world.assignment.artifact],
   } : undefined;
+  const artifactRefs=new Map<string,ArtifactRef>();
+  for(const lane of world.lanes)if(lane.artifactContents){
+    if(!lane.record||lane.record.phase!=="accepted")throw new Error("Retained accepted output needs its actual accepted attempt");
+    const {content,mediaType}=lane.artifactContents;
+    const digest=await dependencies.put(content);
+    if(digest!==sha256HexSyncText(content))throw new Error("Native task artifact publication digest mismatch");
+    artifactRefs.set(lane.key,{digest,mediaType});
+  }
   const localWorld: OpenLocalDeliveryWorld = {
     id: caseId, goal: world.goal, kind: "local-delivery", workspace: "system", sourceGroup: world.sourceGroup,
     rooms: world.lanes.map(lane => ({
       key: lane.key, title: lane.title, maySend: Boolean(lane.deliver),
       participants: [[lane.recipient, lane.recipient.replaceAll("-", " ")], ...(lane.extra ? [lane.extra] : [])],
-      ...(lane.record ? { prior: { to: lane.recipient, content: JSON.stringify({ ...lane.record, taskId: lane.recordScope === "archive" ? oldCard.id : primary.id }) } } : {}),
+      ...(lane.record ? { prior: { to: lane.recipient, content: JSON.stringify({ ...lane.record,...(artifactRefs.has(lane.key)?{artifactRef:artifactRefs.get(lane.key)}:{}), taskId: lane.recordScope === "archive" ? oldCard.id : primary.id }) } } : {}),
       ...(lane.interrupted ? { lostAcknowledgement: true } : {}),
     })),
     expected: {
@@ -102,7 +116,7 @@ export async function prepareOwnedTaskRecovery(
 
   const record = <T>(service: string, method: string, args: unknown[], result: T) => {
     effects.push({ service, method, args, result: structuredClone(result) });
-    return result;
+    return structuredClone(result);
   };
   async function taskView(id: string) {
     const task = options.find(option => option.id === id);
@@ -181,6 +195,17 @@ export async function prepareOwnedTaskRecovery(
         rooms = await local.services.localDeliveryCatalog.discover();
         return record("ownedTaskAttempts", "discover", [], rooms);
       },
+      async readArtifact(id:string,revision:number,room:string,basis:string):Promise<TaskArtifact> {
+        const current=observedBoard.get(id),lane=matched.get(room);
+        if(id!==primary.id||!current||current.revision!==revision||!isDeepStrictEqual(current,await taskView(id))||
+           !lane||lane.basis!==basis||!exactCurrent(current,lane)||lane.record?.phase!=="accepted")
+          throw new Error("Read only the inspected current owned attempt's artifact");
+        const reference=lane.record.artifactRef;
+        if(!reference||![...artifactRefs.values()].some(known=>isDeepStrictEqual(reference,known)))throw new Error("The accepted receipt has no retained artifact reference");
+        const content=await dependencies.get(reference.digest);
+        if(typeof content!=="string"||sha256HexSyncText(content)!==reference.digest)throw new Error("Retained task artifact is missing or changed");
+        return record("ownedTaskAttempts","readArtifact",[id,revision,room,basis],{name:lane.record.artifact,reference,content});
+      },
       async inspect(room: string, recipient: string | null) {
         if (recipient !== null && !/^@?[a-z0-9-]{1,48}$/u.test(recipient))
           throw new Error("Use the exact local recipient handle");
@@ -245,6 +270,13 @@ export async function prepareOwnedTaskRecovery(
       const isReopened = world.race?.field === "prerequisite" && world.race.title === seeded.title;
       return isDeepStrictEqual(stableTask(task), isReopened ? { ...stableTask(seeded), status: "review", revision: seeded.revision + 1 } : stableTask(seeded));
     });
+    const resultArtifacts:{record:BoundAttempt;artifact:TaskArtifact}[]=[];
+    for(const lane of world.lanes){
+      const reference=artifactRefs.get(lane.key);if(!reference)continue;
+      const content=await dependencies.get(reference.digest);
+      if(typeof content!=="string"||sha256HexSyncText(content)!==reference.digest)throw new Error("Retained task artifact is missing or changed");
+      resultArtifacts.push({record:{...lane.record!,taskId:lane.recordScope==="archive"?oldCard.id:primary.id,artifactRef:reference},artifact:{name:lane.record!.artifact,reference,content}});
+    }
     const reason = typeof outcome?.reason === "string" ? outcome.reason.toLowerCase() : "";
     const checks = {
       discoveredActualOwnedTask: observedBoard.has(primary.id) &&
@@ -258,15 +290,16 @@ export async function prepareOwnedTaskRecovery(
         (!world.race || changes.some(change => change.status === "changed") &&
           isDeepStrictEqual(observedBoard.get(primary.id), observed)),
       independentlyJoinedOwnerHandoff: nativeDelivery!==null&&assessSemanticOutcome(nativeDelivery).outcomeDimensions.effects.passed,
+      attestedReturnedTaskArtifact:outcome?.result===undefined||resultArtifacts.some(item=>item.record.taskId===observed.task.id&&item.record.owner===observed.owner&&item.record.attempt===observed.attempt&&item.record.artifact===observed.artifact&&isDeepStrictEqual(item.artifact,outcome.result)),
       exactTaskRecoveryReport: isDeepStrictEqual(outcome?.original,knownRecord)&&isDeepStrictEqual(outcome?.delivery,actualDelivery)&&outcome?.task === primary.id && outcome?.revision === observed.revision && outcome.status === observed.status &&
         Boolean(reason.trim()),
       ...(controls ? { rejectedForeignTaskOrPriorSend: controls.foreignCard && controls.wrongAttempt } : {}),
     };
     const assessed=await assessObservedApplicationOutcome({
       contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      effects, current: observed, original: knownRecord, expectedHandoff: Boolean(handoffSpec),
+      effects, resultArtifacts, current: observed, original: knownRecord, expectedHandoff: Boolean(handoffSpec),
       delivery: nativeDelivery?.readback ?? null, nativeDeliveryError, raceInjected,
-    },{effects:{checks:[...["discoveredActualOwnedTask","exactCurrentAttemptEvidence","verifiedNativeTaskRecovery","preservedOtherCardsAndDependencies","honoredObservedTaskRace","independentlyJoinedOwnerHandoff"],...(controls?["rejectedForeignTaskOrPriorSend"]:[])],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactTaskRecoveryReport"],required:!world.expected.update&&!world.expected.handoff,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
+    },{effects:{checks:[...["discoveredActualOwnedTask","exactCurrentAttemptEvidence","verifiedNativeTaskRecovery","preservedOtherCardsAndDependencies","honoredObservedTaskRace","independentlyJoinedOwnerHandoff"],...(controls?["rejectedForeignTaskOrPriorSend"]:[])],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactTaskRecoveryReport","attestedReturnedTaskArtifact"],required:!world.expected.update&&!world.expected.handoff,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation);
     assessed.semanticReviewInput.rubric+=ownedTaskReviewGuidance;
     return assessed;
   }
@@ -301,8 +334,10 @@ export async function prepareOwnedTaskRecovery(
         task.task.title + " " + task.attempt + " " + task.artifact);
       delivery = { attempt, readback: await services.ownedTaskHandoff.read(attempt.attemptId) };
     }
-    const original = world.expected.selected ? matched.get(roomFor(world.expected.selected).id)?.receipt ?? null : null;
-    const outcome={task:task.task.id,revision:task.revision,status:task.status,original,delivery,reason:world.expected.reason.join(" ")||"Actual current task evidence verified"};
+    const selected = world.expected.selected ? matched.get(roomFor(world.expected.selected).id) : null;
+    const original = selected?.receipt ?? null;
+    const result=selected?.record?.artifactRef?await services.ownedTaskAttempts.readArtifact(task.task.id,task.revision,selected.lane.id,selected.basis):undefined;
+    const outcome={task:task.task.id,revision:task.revision,status:task.status,original,delivery,...(result?{result}:{}),reason:world.expected.reason.join(" ")||"Actual current task evidence verified"};
     const proof=await verifyEvidence(outcome,{foreignCard,wrongAttempt});
     const observerSlotValidated=(await verify(outcome,referenceObserver(outcome))).passed;
     const checks={...proof.observedChecks,observerSlotValidated};

@@ -6,6 +6,7 @@ export type AttemptRecord = {
 type Assignment = Omit<AttemptRecord, "phase">;
 type LaneSeed = {
   key: string; title: string; recipient: string; extra?: [handle: string, name: string];
+  artifactContents?: {mediaType:string;content:string};
   record?: AttemptRecord; recordScope?: "archive"; inspectRecipient?: string; deliver?: boolean; interrupted?: boolean;
 };
 type Race = { field: "attempt" | "owner"; value: string } | { field: "prerequisite"; title: string };
@@ -132,7 +133,7 @@ export const openOwnedTaskWorlds = [
     disposition(null, null, null, "conflict"), { allowed: ["review"] }),
   openTask("inbox-owner-not-current-recipient", "Storage", volume,
     "Find the actual accepted measurements for Storage volume audit. Leave a local follow-up for @stock-auditor only in Volume Today if they still belong there. Don't send it to the archive crew.",
-    [prior("result", "Storage measurements", "volume-desk", volume, "accepted"), { ...empty("current", "Volume Today", "volume-triage"), inspectRecipient: "stock-auditor" },
+    [{...prior("result", "Storage measurements", "volume-desk", volume, "accepted"),artifactContents:{mediaType:"text/csv",content:"storage_zone,capacity_l,measured_l\nNorth,1200,1148\nSouth,900,836\n"}}, { ...empty("current", "Volume Today", "volume-triage"), inspectRecipient: "stock-auditor" },
       empty("archive", "Volume Archive", "stock-auditor")],
     disposition("result", null, null, "recipient")),
   openTask("right-recipient-in-one-room", "School timetable", calendar,
