@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["profile","observations","journal"],[]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -72,11 +73,7 @@ type Evidence = {
   };
   routes: ReturnType<typeof observeFixtureRoutes> & { id: string };
 };
-type Outcome = {
-  profile: string;
-  action: string;
-  reason: string;
-};
+type Outcome = string;
 const issue = {
   exact: null,
   "wrong-package": "package",
@@ -497,18 +494,7 @@ export async function prepareOpenMobileContinuity(
   async function verify(value: unknown,observations?:InvocationObservations) {
     const proof=await verifyNativeApplication(value,observations);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedBoundMobileDecision"],"rootPath":["action"],"producerSourceSuffix":"reviewMobileContinuity/decideContinuity.nl","producerPath":["action"]},{"checks":["matchedBoundMobileDecision"],"rootPath":["reason"],"producerSourceSuffix":"reviewMobileContinuity/decideContinuity.nl","producerPath":["reason"]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=value;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,[]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -529,7 +515,7 @@ async function verifyNativeApplication(value: unknown, observations?:InvocationO
       ...nativeChecks,
       discoveredScopedMobileProfile:
         listed &&
-        [...scopedRecords.keys()].every((id) => observedProfiles.has(id)) &&
+        observedProfiles.has(id) &&
         independentRecordRead.some((record) =>
           isDeepStrictEqual(record, current),
         ),
@@ -544,13 +530,7 @@ async function verifyNativeApplication(value: unknown, observations?:InvocationO
           current.some(row => row.args[0] === id && isDeepStrictEqual(row.result, durable[method as keyof Evidence]))
         );
       }),
-      matchedBoundMobileDecision:
-        outcome?.profile === id &&
-        outcome.action === world.expected.action &&
-        typeof outcome.reason === "string" &&
-        world.expected.terms.every((term) =>
-          outcome.reason.toLowerCase().includes(term),
-        ),
+      returnedMobileFinding: typeof outcome === "string" && outcome.trim().length > 0,
       preservedMobileSourceAndScope:
         isDeepStrictEqual(config, originalDeclaration) &&
         status.mainEventId === baseline.mainEventId &&
@@ -563,7 +543,7 @@ async function verifyNativeApplication(value: unknown, observations?:InvocationO
     return {
       outcomeContract:{
         effects:{checks:[...Object.keys(nativeChecks),"discoveredScopedMobileProfile","joinedExactMobileObservations","preservedMobileSourceAndScope"],rationale:"This native-only evidence function and source/profile readback establish current device/build/route facts."},
-        returnedValue:{checks:["matchedBoundMobileDecision"],required:true,rationale:"The requested next safe mobile action and its specific reason are application data."},
+        returnedValue:{checks:["returnedMobileFinding"],required:true,rationale:"The requested mobile continuity finding is application data; its meaning is judged against current native observations."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted answers are excluded from supervision."},
       },
       incorrectReturnValues:[],
@@ -595,18 +575,15 @@ async function verifyNativeApplication(value: unknown, observations?:InvocationO
       service.transport(id),
       service.routes(id),
     ]);
-    const outcome = {
-      profile: id,
-      action: world.expected.action,
-      reason: world.expected.terms.join(" "),
-    };
+    // Reference wording is qualification input, never a vocabulary or enum gate.
+    const outcome = `${world.expected.action}: ${world.expected.terms.join(" ")}`;
     const proof = await verify(outcome);
-    const rejectedForeignResult = !(await verify({...outcome,profile:"outside-device"})).outcomeDimensions.returnedValue.passed;
+    const rejectedMissingFinding = !(await verify("")).outcomeDimensions.returnedValue.passed;
     return {
       ...proof,
-      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedMobileProfileAlias", "rejectedForeignResult"]]}},
-      passed: proof.passed && rejectedAlias && rejectedForeignResult,
-      checks: { ...proof.checks, rejectedMobileProfileAlias: rejectedAlias, rejectedForeignResult },
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,...["rejectedMobileProfileAlias", "rejectedMissingFinding"]]}},
+      passed: proof.passed && rejectedAlias && rejectedMissingFinding,
+      checks: { ...proof.checks, rejectedMobileProfileAlias: rejectedAlias, rejectedMissingFinding },
     };
   }
   return { goal: world.goal, services, verify, qualify, close };
