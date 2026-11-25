@@ -22,3 +22,19 @@ it("preserves catalog truth checks and source-binds an explanation rather than t
  const proof=await fixture.verify(wrongExplanation);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(wrongExplanation);
  expect((await fixture.verify({report:{...report,state:"not-installed"},reason:"Invented availability"})).passed).toBe(false);
 });
+
+it("can complete a current catalog query after a real external state change and fresh native observations",async()=>{
+ const world=openLiveLocalInventoryWorlds.find(row=>row.id==="live-local-inventory-textile-notes-standalone")!;
+ let comparison:Awaited<ReturnType<typeof prepareLocalModelComparison>>;
+ const fixture=await prepareOpenLiveLocalInventory({contextId:"owned",caseId:world.id,goal:world.goal},world,async(contextId,selected)=>(comparison=await prepareLocalModelComparison(port,contextId,selected)));
+ const initial=await fixture.qualify();const original=inventory[0]!.state;
+ try{
+  inventory[0]!.state="starting";
+  expect((await fixture.verify({report:initial.native.expected,reason:"Old availability"})).passed).toBe(false);
+  for(const candidate of world.preferences)await fixture.services.localModelTaskInventory.inspect(candidate.ref);
+  const refreshed=await fixture.verify({report:comparison!.expected,reason:"The initial option is now starting; the current fallback remains eligible for a fresh conversation"});
+  expect(refreshed.passed).toBe(true);expect(refreshed.native.checks.currentInventory).toBe(true);
+  expect(refreshed.native.rows).not.toEqual(refreshed.native.initialRows);
+  expect(refreshed.semanticReviewInput.actual.observations.inventoryReadback.observations).toEqual(refreshed.native.observations);
+ }finally{inventory[0]!.state=original;}
+});

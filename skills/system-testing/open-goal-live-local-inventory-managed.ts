@@ -70,10 +70,10 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       exactCurrentLocalWorkload: isDeepStrictEqual(selected, docket) &&
         retained === serialized,
       exactLocalRequirements: isDeepStrictEqual(selected,docket),
-      realLocalCandidateReadback: native.checks.stableInventory && native.checks.exactReads,
+      realLocalCandidateReadback: native.checks.currentInventory && native.checks.exactReads,
       verifiedExactLocalDispositions: native.checks.handoff && native.checks.candidates,
       preservedLocalInventoryAndWorkspace: isDeepStrictEqual(original.workingHead, final.workingHead) &&
-        original.mainEventId === final.mainEventId && native.checks.stableInventory,
+        original.mainEventId === final.mainEventId && native.checks.currentInventory,
       matchedLocalInventoryGoal: typeof outcome?.reason === "string" && outcome.reason.trim().length > 0,
     };
     return {
@@ -82,7 +82,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
  contextId: input.contextId, caseId: input.caseId, goal: input.goal, checks,
-      passed: Object.values(checks).every(Boolean), native, docket, inventoryReadback:{request:prepared.request,rows:native.rows,inspected:native.inspected}, available: [prior, card], outcome };
+      passed: Object.values(checks).every(Boolean), native, docket, inventoryReadback:{request:prepared.request,rows:native.rows,inspected:native.inspected,initialRows:native.initialRows,observations:native.observations}, available: [prior, card], outcome };
   }
 
   async function qualify() {
