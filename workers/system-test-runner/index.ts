@@ -154,6 +154,8 @@ import {
   type PanelTeacherResult,
   systemTestDescriptorSchema,
   systemTestDoctorResultSchema,
+  systemTestDoctorOptionsSchema,
+  type SystemTestDoctorOptions,
   systemTestFailedRunSchema,
   systemTestRunConfigSchema,
   systemTestRunCompletionSchema,
@@ -4862,7 +4864,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     tier: "open",
     sensitivity: "read",
   })
-  async doctor(model?: string): Promise<SystemTestDoctorResult> {
+  async doctor(model?: string | null, rawOptions?: SystemTestDoctorOptions): Promise<SystemTestDoctorResult> {
+    const options=systemTestDoctorOptionsSchema.parse(rawOptions??{});
+    if(options.nativeReference&&model!=null)throw new Error("nativeReference and model are mutually exclusive");
     const catalogNames = allTests().map(test => test.name);
     const modelRoute = systemTestModelRoute(model ?? SYSTEM_TEST_AGENT_MODEL,typeof model !== "string");
     return systemTestDoctorResultSchema.parse(
@@ -4871,7 +4875,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         `
         import { systemTestDoctor } from "@workspace/system-test-health";
         import {rpc,workers} from "@workspace/runtime";
-        const utilityValue = await systemTestDoctor(${JSON.stringify(modelRoute)}, ${JSON.stringify(catalogNames)}, {rpc,workers});
+        const utilityValue = await systemTestDoctor(${JSON.stringify(modelRoute)}, ${JSON.stringify(catalogNames)}, {rpc,workers}, ${JSON.stringify(options)});
       `,
       ),
     );

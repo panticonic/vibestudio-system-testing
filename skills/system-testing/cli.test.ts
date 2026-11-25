@@ -547,6 +547,11 @@ describe("system-testing CLI-neutral API", () => {
     ]);
   });
 
+  it("rejects paid or mixed cases at native-reference admission before executing a suite", async () => {
+    await expect(runSystemTests({runId:"TEST-native",contextId:"TEST-context",names:["alpha"],nativeReference:true})).rejects.toThrow("source-declared native");
+    await expect(runSystemTests({runId:"TEST-native",contextId:"TEST-context",names:["alpha"],nativeReference:true,model:"TEST:model"})).rejects.toThrow("inference model");
+    expect(mocks.runSuite).not.toHaveBeenCalled();
+  });
   it("advertises only explicit source-declared native references", () => {
     mocks.extraTests.push({name:"native-reference",category:"fixture",description:"TEST-only native",nativeReference:true,orchestrate:async()=>({}),requiresUnits:["skills/fixture"]});
     try {expect(listSystemTests({installedUnits:["skills/fixture"]}).at(-1)).toMatchObject({name:"native-reference",nativeReference:true,installed:true,orchestrated:true});}
