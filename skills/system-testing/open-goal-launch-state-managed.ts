@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["index", "frames", "readback", "request", "witness", "effect"], ["artifact"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["index", "frames", "companionReadbacks", "protectedCompanion", "readback", "request", "witness", "effect"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {isDeepStrictEqual} from "node:util";
@@ -117,6 +117,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
     const plan:LaunchPlan={panelId:active.id,direction:world.policy==="readonly"?"read":world.policy==="test-rejection"?"test":"write",
       retain:world.note===true,patch:world.patch};
     const frames:LaunchSnapshot[]=[];
+    const companionReadbacks:LaunchSnapshot[]=[];
     let busy=false;
     let binding:Binding|null=null;
     let witness:Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null=null;
@@ -137,6 +138,11 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       launchStateRead:{
         async enumerate(){return structuredClone(index);},
         async read(panelId:string){
+          if(panelId===alternate.id){
+            const observed=await native(alternate,true);
+            companionReadbacks.push(observed);
+            return structuredClone(observed);
+          }
           if(panelId!==active.id)return null;
           if(frames.length>=2)return structuredClone(frames.at(-1)!);
           if(busy)return null;
@@ -239,12 +245,12 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
         protectedLaunchSiblings:isDeepStrictEqual(archive,archiveAfter)&&isDeepStrictEqual(status,initial),
         exactPrivateLaunchNote:world.note?!!artifact&&!!handoff&&written.length===1&&
           handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&written.length===0,
-        rejectedLaunchRetarget:await services.launchStateRead.read(alternate.id)===null&&
+        rejectedLaunchRetarget:await services.launchStateRead.read("foreign:"+active.id)===null&&
           await services.launchStateRead.seal(alternate.id)===null&&await services.launchStateWrite.patch(alternate.id,baseline.digest,plan.patch)===null,
       };
       const contract:SemanticOutcomeContract={effects:{checks:["exactLaunchSlot", "reconciledLaunchScope", "exactLaunchPreflight", "exactNativePatchResult", "independentLaunchReadback", "protectedLaunchSiblings", "exactPrivateLaunchNote", "rejectedLaunchRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedLaunchReadback", "exactLaunchDecision"],required:!shouldAttempt,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedLaunchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
-    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),index,plan,frames,readback,
+    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),index,plan,frames,companionReadbacks,protectedCompanion:{initial:archive,current:archiveAfter},readback,
         request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactLaunchDecision"],"rootPath":["result"],"producerSourceSuffix":"reconcilePanelLaunchState/concludeLaunchState.nl"}]);
     }
     async function qualify(){
