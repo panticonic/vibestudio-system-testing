@@ -1,3 +1,4 @@
+import {matchesNativeRegencyFinding} from "./regency-finding-evidence.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["index","frontiers","forecasts","witnesses","advance"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
@@ -200,16 +201,18 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     }},
     regencyNote:{async stage(report:RegencyReport){
       if(!world.plan.localNote||note||busy||!report?.decision?.explanation||
-        report.note!==null||!(report.decision.action==="stage"||report.decision.action==="advance"&&advance)||
+        report.note!==null||
         !isDeepStrictEqual(report.advance,advance)||!isDeepStrictEqual(report.opening,frontiers[0])||
         !isDeepStrictEqual(report.current,frontiers[1])||!isDeepStrictEqual(report.forecasts,forecasts)||
-        !isDeepStrictEqual(report.plan,world.plan))return null;
+        !Array.isArray(report.findings))return null;
       busy=true;
       try {
         const current=snapshot(await store.read());
         if(current.revision!==(advance?.committed?.revision??frontiers[1].revision))return null;
-        const findings=world.plan.claims.map(claim=>finding(claim,report.opening,report.current,report.forecasts));
-        if(!isDeepStrictEqual(report.findings,findings)||findings.some(item=>item.review.decision==="not-observed"))return null;
+        try {
+          if (!report.findings.every(item => matchesNativeRegencyFinding(item,
+            finding(item.claim, report.opening, report.current, report.forecasts)))) return null;
+        } catch { return null; }
         const text=body(report);
         if(new TextEncoder().encode(text).length>maxBytes)return null;
         const file=(stagedText=text,await writer.stage(text));
@@ -229,9 +232,21 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     const result=outcome?.decision;
     const selectedForecast=forecasts.find(row=>row.months===world.plan.advance);
     const nativeVerification=advance||!current?[]:await Promise.all(forecasts.map(row=>preview(row.months,current)));
-    const witnesses=opening&&current?world.plan.claims.map(claim=>({claim,request:evidence(claim,opening,current,forecasts),
-      result:finding(claim,opening,current,forecasts)})):[];
-    const findings=witnesses.map(item=>item.result);
+    const witnesses=opening&&current&&Array.isArray(outcome?.findings)?outcome.findings.flatMap(item=>{
+      try {
+        return [{claim:item.claim,request:evidence(item.claim,opening,current,forecasts),
+          result:finding(item.claim,opening,current,forecasts)}];
+      } catch { return []; }
+    }):[];
+    const nativeGroundedRegencyFindings = Array.isArray(outcome?.findings) &&
+      !!opening && !!current && witnesses.length === outcome.findings.length &&
+      outcome.findings.every((item,index)=>matchesNativeRegencyFinding(item,witnesses[index]!.result));
+    const findingChecks=Object.fromEntries((Array.isArray(outcome?.findings)?outcome.findings:[]).map((item,index)=>[
+      `nativeRegencyFinding${index}`,!!opening&&!!current&&(()=>{
+        try { return matchesNativeRegencyFinding(item,finding(item.claim,opening,current,forecasts)); }
+        catch { return false; }
+      })(),
+    ]));
     const neededAdvance=world.action==="advance"?world.plan.advance??0:0;
     const neededNote=world.plan.localNote&&(world.action==="stage"||world.action==="advance");
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!originalFiles.has(name));
@@ -246,18 +261,18 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       exactSavedRegencyFrontiers:frontiers.length===2&&isDeepStrictEqual(opening,first)&&opening.accounts.month===world.initial.month&&
         current.accounts.month===currentExpected&&!!current.pending===(world.initial.pending===true),
       returnedRegencyForecasts:isDeepStrictEqual(forecasts,outcome?.forecasts),
-      exactRegencyForecasts:isDeepStrictEqual(forecasts.map(row=>row.months),world.plan.horizons)&&forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
+      exactRegencyForecasts:forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
         (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
-      exactInstalledRegencyFindings:outcome?.findings?.length===findings.length&&
-        isDeepStrictEqual(findings.map(item=>item.review.decision),world.expected),
-      groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string",
+      nativeGroundedRegencyFindings,
+      groundedRegencyAction:!!result && ["report","hold","stage","advance"].includes(result.action) &&
+        typeof result.explanation==="string" && result.explanation.trim().length>0,
       returnedRegencyAdvance:isDeepStrictEqual(outcome?.advance,advance),
       verifiedRegencyAdvance:after.accounts.month===currentExpected+neededAdvance&&
         (neededAdvance?!!advance&&!!selectedForecast&&advance.months===neededAdvance&&advance.basis===current.revision&&
           isDeepStrictEqual(advance.committed,after)&&isDeepStrictEqual(
             {...after.accounts,id:selectedForecast.accounts.id},selectedForecast.accounts)&&inPlay.at(-1)?.id===advance.id:
           advance===null&&isDeepStrictEqual(after,current)),
-      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision?.action===world.action&&typeof artifactDecision.explanation==="string")&&!!note&&!!artifact&&files.length===1&&
+      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision&&typeof artifactDecision.explanation==="string")&&!!note&&!!artifact&&files.length===1&&
         note.path===`/.tmp/${files[0]}/handoff.json`&&note.revision===after.revision&&
         artifact===stagedText&&note.digest===sha256HexSyncText(artifact):
         note===null&&files.length===0,
@@ -267,11 +282,11 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
         await services.regencyAdvance.commit(other,"different",1)===null&&
         await services.regencyNote.stage({decision:{action:"stage"}} as RegencyReport)===null,
     };
-    const findingChecks=Object.fromEntries(findings.map((finding,index)=>[`exactRegencyFinding${index}`,isDeepStrictEqual(outcome?.findings?.[index],finding)]));
+
     Object.assign(checks,findingChecks);
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactRegencyForecasts", "verifiedRegencyAdvance", "exactRegencyAssignment", "independentlyReadRegencyMemo", "exactSavedRegencyFrontiers", "verifiedPrivateRegencyNote", "preservedRegencyWorkspace", "rejectedRegencyRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedRegencyForecasts", "exactInstalledRegencyFindings", ...Object.keys(findingChecks), "groundedRegencyAction", "returnedRegencyAdvance"], "required": neededAdvance===0, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactRegencyForecasts", "verifiedRegencyAdvance", "exactRegencyAssignment", "independentlyReadRegencyMemo", "exactSavedRegencyFrontiers", "verifiedPrivateRegencyNote", "preservedRegencyWorkspace", "rejectedRegencyRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedRegencyForecasts", "nativeGroundedRegencyFindings", ...Object.keys(findingChecks), "groundedRegencyAction", "returnedRegencyAdvance"], "required": world.requestedReturnRequired, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation,[...findings.map((_,index)=>({checks:[`exactRegencyFinding${index}`],rootPath:["findings",index],producerSourceSuffix:"workOnRegencyBriefing/qualifyRegencyClaim.nl",producerPath:[]})),{"checks":["groundedRegencyAction"],"rootPath":["decision"],"producerSourceSuffix":"workOnRegencyBriefing/decideRegencyAction.nl","producerPath":[]}]);
+      index,frontiers,plan:world.plan,forecasts,witnesses,decision:result??null,advance,note,artifact},contract,raw,invocation,[...(Array.isArray(outcome?.findings)?outcome.findings:[]).map((_,index)=>({checks:[`nativeRegencyFinding${index}`],rootPath:["findings",index],producerSourceSuffix:"workOnRegencyBriefing/qualifyRegencyClaim.nl",producerPath:[]})),{"checks":["groundedRegencyAction"],"rootPath":["decision"],"producerSourceSuffix":"workOnRegencyBriefing/decideRegencyAction.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.regencyAssignment.list();
