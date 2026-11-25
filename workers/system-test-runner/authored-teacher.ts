@@ -1,3 +1,4 @@
+import { AUTHORED_START_BOUNDARY } from "./authored-lifecycle.js";
 import type { SemanticOutcomeContract } from "@workspace/application-outcomes/semantic-outcome-contract";
 
 export type VibestudioSkill =
@@ -224,6 +225,7 @@ function captureWorkflow(
     );
   return `
 ${options.bindingCode}
+${AUTHORED_START_BOUNDARY}
       natlang.captureModelTurns({executorModel:${JSON.stringify(options.executorModel)}});
       const programPath=${JSON.stringify(options.openGoal ? options.entry!.program : "skills/vibestudio-workflows/runWorkflow.nl")};
       const expectedSkills=${JSON.stringify(expected)}, expectedAssignments=${JSON.stringify(expectedAssignments)}, requiredOrder=${JSON.stringify(options.requiredOrder ?? null)};

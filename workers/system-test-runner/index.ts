@@ -1,3 +1,4 @@
+import { AuthoredLifecycles, authoredLifecycleFailure, authoredHarnessSource } from "./authored-lifecycle.js";
 import {SYSTEM_TEST_AGENT_MODEL,systemTestModelRoute} from "@workspace-skills/system-testing/config";
 import { allTests } from "@workspace-skills/system-testing/stages";
 import { validateNativeStartupDiagnostic, nativeStartupDiagnosticCode } from "@workspace-skills/system-testing/native-startup-diagnostic";
@@ -475,6 +476,7 @@ function systemTestEvalCode(
 }
 
 export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver, ManagedChecklistReceiver {
+  private readonly authoredLifecycles = new AuthoredLifecycles();
   private readonly automationActivationLaunches = new OwnedAutomationActivationLaunches();
 
   protected createTables(): void {
@@ -697,6 +699,14 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
     return this.automationActivationLaunches.launch(this.rpcCallerId, this.rpcCallerKind);
   }
 
+  @rpc({
+    website: { kind: "closed", reason: "Marks the assigned program boundary for its exact finite harness Eval." },
+    requires: SYSTEM_TEST_OPERATOR, effect: { kind: "open" }, tier: "open", sensitivity: "write",
+  })
+  async markAssignedProgramStarted(runId: string): Promise<void> {
+    this.authoredLifecycles.start(runId, this.rpcCallerId);
+  }
+
   private async runHarnessUtility(
     kind: "doctor" | "list" | "teacher",
     code: string | ((runId: string, evalScope: string) => string),
@@ -711,6 +721,13 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
       kind,
       crypto.randomUUID(),
     );
+    const originalCode = typeof code === "function" ? code(runId, subKey) : code;
+    const instrumented = authoredHarnessSource(originalCode, this.rpcSelfId, runId);
+    const releaseLifecycle = instrumented === null ? undefined : this.authoredLifecycles.register(
+      runId, evalRuntimeId(this.rpcSelfId, subKey),
+    );
+    let operationError: unknown;
+    const withLifecycle = (error: unknown) => authoredLifecycleFailure(this.authoredLifecycles, runId, error);
     try {
       const execute = createEvalExecutor(createMainRpcCaller(this.rpc));
       const result = await execute({
@@ -720,7 +737,7 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         source: {
           kind: "inline",
           code: `
-          ${typeof code === "function" ? code(runId, subKey) : code}
+          ${instrumented ?? originalCode}
           const serialized = JSON.stringify(utilityValue);
           scope[${JSON.stringify(scopeKey)}] = serialized;
           return {
@@ -733,11 +750,9 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
         },
       });
       if (!result.success) {
-        throw new Error(
-          result.error
-            ? formatRpcFailure(deserializeRpcFailure(result.error))
-            : `system-test ${kind} eval failed`,
-        );
+        throw result.error
+          ? deserializeRpcFailure(result.error)
+          : new Error(`system-test ${kind} eval failed`);
       }
       const stored = parseStoredSystemTestRecord(result.returnValue);
       try {
@@ -747,10 +762,19 @@ export class SystemTestRunnerDO extends DurableObjectBase implements Integration
           { scopeKey: subKey, key: stored.scopeKey },
         ]);
       }
+    } catch (error) {
+      operationError = error;
+      throw withLifecycle(error);
     } finally {
-      await this.rpc.call("main", mainRpcMethods["eval.dispose"], [
-        { scopeKey: subKey },
-      ]);
+      try {
+        await this.rpc.call("main", mainRpcMethods["eval.dispose"], [{ scopeKey: subKey }]);
+      } catch (cleanup) {
+        throw withLifecycle(operationError === undefined ? cleanup : new AggregateError(
+          [operationError, cleanup], "Harness utility and disposal both failed",
+        ));
+      } finally {
+        releaseLifecycle?.();
+      }
     }
   }
 
