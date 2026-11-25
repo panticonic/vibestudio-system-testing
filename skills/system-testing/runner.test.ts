@@ -1,3 +1,4 @@
+import {managedTendrilWorlds} from "./tendril-worlds.js";
 import { durableObjectServiceFixture } from "@vibestudio/service-schemas/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { channelRpcMethods } from "@workspace-workers/pubsub-channel/contract";
@@ -1234,4 +1235,24 @@ describe("native startup diagnostic owner route", () => {
     await expect(runner.runOpenGoal({...world,goal:"changed"},new AbortController().signal,true,{epoch:"native_epoch_123"})).rejects.toThrow("exact scheduled world");
     expect(mocks.rpc.call).not.toHaveBeenCalled();
   });
+  it("warms an owned Tendril device through native boot readiness without requiring About-page text",async()=>{
+    const archive=vi.fn(async()=>{}),snapshot=vi.fn(async()=>{throw Error("Unrelated About content is not a device barrier");});
+    const runner=new HeadlessRunner("ctx-test");
+    const warm=vi.spyOn(runner,"openPanelClient").mockResolvedValue({id:"owned-warm",archive,snapshot} as never);
+    const worker=vi.spyOn(runner as unknown as {createFixtureWorker(contextId:string):Promise<string>},"createFixtureWorker").mockResolvedValue("owned-worker");
+    mocks.rpc.call.mockImplementation(async(_target,method)=>{
+      if(method.name==="runtime.createContext")return {contextId:"owned-tendril"};
+      if(method.name==="panelRuntime.listPresentationTargets")return [];
+      if(method.name==="runtime.createEntity")return {contextId:"owned-tendril"};
+      if(method.name==="qualifyManagedTendril")return {passed:true};
+      if(method.name==="runtime.destroyContext")return undefined;
+      throw Error("Unexpected native method "+method.name);
+    });
+    try{
+      await expect(runner.runManagedTendril(managedTendrilWorlds[0]!.id,true,new AbortController().signal)).resolves.toEqual({kind:"reference",result:{passed:true}});
+      expect(warm).toHaveBeenCalledOnce();expect(snapshot).not.toHaveBeenCalled();expect(archive).toHaveBeenCalledOnce();
+      expect(mocks.rpc.call.mock.calls.some(([,method,args])=>method.name==="runtime.destroyContext"&&(args[0] as {contextId:string}).contextId==="owned-tendril")).toBe(true);
+    }finally{warm.mockRestore();worker.mockRestore();}
+  });
+
 });
