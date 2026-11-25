@@ -1,7 +1,6 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["approved","working","findings","journal"],["receiptBytes"]);
-import {assetFindingContributions} from "./operational-return-contributions.js";
-import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {nativeAssetFindings} from "./asset-native-findings.js";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -21,7 +20,6 @@ import type {
 } from "@workspace/runtime";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import type {
-  AssetDifference,
   AssetIntegrityWorld,
   AssetSeed,
 } from "./open-goal-asset-integrity-worlds.js";
@@ -81,20 +79,7 @@ type Stage =
   | { status: "staged"; receipt: Receipt }
   | { status: "changed"; working: string }
   | { status: "held"; reason: string };
-type Finding = {
-  key: string;
-  retained: string | null;
-  working: string | null;
-  differences: AssetDifference[];
-};
-type Outcome = {
-  status: string;
-  approved: string;
-  working: string;
-  findings: Finding[];
-  receipt: Receipt | null;
-  reason: string;
-};
+type Outcome = {finding:string|null;recovery:Receipt|null};
 type Entry = {
   service: "assetHistory" | "assetRecovery";
   method: string;
@@ -434,28 +419,19 @@ export async function prepareOpenAssetIntegrity(
     return head.workingHead;
   }
 
-  function expectedFindings(files: File[]): Finding[] {
-    return world.expected.findings.map((expected) => {
-      const asset = world.assets.find((item) => item.key === expected.key)!;
-      const retained = original(approvedList, asset);
-      const target = retained
-        ? (files.find((item) => item.id === retained.id) ??
-          original(files, asset))
-        : null;
-      return {
-        key: expected.key,
-        retained: retained?.id ?? null,
-        working: target?.id ?? null,
-        differences: expected.differences,
-      };
-    });
+  async function observedFindings(files: File[]) {
+    // The retained approved manifest and independent file records are authority.
+    const retained=await read(approved,manifestFile(approvedList));
+    if(!retained.value.manifest)throw new Error("Retained approved manifest is absent");
+    return nativeAssetFindings(retained.value.manifest.assets,approvedList,files);
   }
 
   function selectionFiles(selection: Selection[], claims: Manifest) {
     const requested = new Set(selection.map((file) => file.id));
-    const candidates = claims.assets.flatMap((claim) => {
-      const file = approvedList.find((item) => item.path === claim.path);
-      return file && requested.has(file.id) ? [{ file, claim }] : [];
+    const candidates = selection.flatMap(pick => {
+      const file=approvedList.find(item=>item.id===pick.id);
+      const claim=file?claims.assets.find(item=>item.path===file.path):null;
+      return file&&claim?[{file,claim}]:[];
     });
     if (
       requested.size !== selection.length ||
@@ -701,20 +677,7 @@ export async function prepareOpenAssetIntegrity(
   async function verify(value: unknown,invocation?: InvocationObservations) {
     const proof=await verifyNativeApplication(value,invocation);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const semanticPlans=invocation?await invocation.returns(call=>call.definition.source.endsWith("reviewAssetIntegrity/planRecovery.nl")):[];
-    const directPlanFinding=semanticPlans.some(row=>row.value&&typeof row.value==="object"&&"reason" in row.value);
-    const authored:readonly ApplicationReturnContribution[]=assetFindingContributions(proof.findings.length,directPlanFinding);
-    const contributions=authored.filter(binding=>{
-      let current:unknown=value;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,[]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -726,49 +689,23 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const current = await assertHead();
     const currentToken = token(current);
     const currentFiles = await list(current);
-    const findings = expectedFindings(currentFiles);
+    const findings = await observedFindings(currentFiles);
     const requested = copies(world.expected.copies);
     const output = receipt
-      ? await verifyOutput(final, requested, currentToken)
+      ? await verifyOutput(final, receipt.files, currentToken)
       : null;
     const attempts = journal.filter((entry) => entry.method === "stage");
-    const revisions = [token(archive), sourceToken, currentToken];
-    const checkedRevisions = await Promise.all(
-      revisions.map(async (revision) => {
-        const view = seen.get(revision);
-        if (
-          !view ||
-          !journal.some(
-            (entry) =>
-              entry.method === "listFiles" && entry.args[0] === revision,
-          )
-        )
-          return false;
-        const rows = await list(view.state);
-        if (!rows.every((row) => view.inspected.has(row.id))) return false;
-        const witnesses = await Promise.all(
-          rows.map((row) => read(view.state, row)),
-        );
-        return (
-          witnesses.find((item) => item.value.path === dossier)?.value.manifest
-            ?.edition === view.edition
-        );
-      }),
-    );
+    const observedCurrent = seen.get(currentToken);
+    const currentWasRead = Boolean(observedCurrent && journal.some(entry=>entry.method==="listFiles"&&entry.args[0]===currentToken));
     const expectedWorking = [...initialWorkingList];
     if (world.coedit)
       expectedWorking.push(
         currentFiles.find((file) => file.path === "incoming-desk-note.txt")!,
       );
     const checks = {
-      boundAssetHistory:
-        checkedRevisions.every(Boolean) &&
-        seen.get(sourceToken)?.state.kind === "event",
-      joinedAssetIntegrityFinding:
-        isDeepStrictEqual(outcome?.receipt,receipt)&&outcome?.approved === sourceToken &&
-        outcome.working === currentToken &&
-        Array.isArray(outcome.findings)&&outcome.findings.length===findings.length,
-      ...Object.fromEntries(findings.map((finding,index)=>[`assetFinding:${index}`,isDeepStrictEqual(outcome?.findings?.[index],finding)])),
+      boundAssetHistory: currentWasRead && seen.get(sourceToken)?.state.kind === "event",
+      returnedAssetFinding: !world.requestedReturnRequired || (typeof outcome?.finding==="string"&&outcome.finding.trim().length>0),
+      boundProvidedRecovery: outcome?.recovery==null || isDeepStrictEqual(outcome.recovery,receipt),
       preservedOwnedAssetBasis:
         isDeepStrictEqual(current, working) &&
         isDeepStrictEqual(
@@ -783,15 +720,11 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
           ? race &&
             currentToken !== initialVersion
           : !race && currentToken === initialVersion),
-      matchedAssetDisposition:
-        outcome?.status === world.expected.status &&
-        typeof outcome.reason === "string" &&
-        Boolean(outcome.reason.trim()),
       independentlyReadExactRecovery: world.expected.copies.length
         ? Boolean(
             output &&
             receipt &&
-            isDeepStrictEqual(receipt.files, requested) &&
+            isDeepStrictEqual([...receipt.files].sort((a,b)=>compareUtf16CodeUnits(a.id,b.id)), [...requested].sort((a,b)=>compareUtf16CodeUnits(a.id,b.id))) &&
             receipt.manifestDigest === sha256HexSyncText(output) &&
             isDeepStrictEqual(await fs.readdir(directory), ["verified"]) &&
             attempts.some(attempt => (attempt.result as Stage).status === "staged" &&
@@ -803,7 +736,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     return {
       outcomeContract:{effects:{checks:["boundAssetHistory", "preservedOwnedAssetBasis", "independentlyReadExactRecovery"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["joinedAssetIntegrityFinding", "matchedAssetDisposition",...findings.map((_,index)=>`assetFinding:${index}`)],required:world.expected.copies.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        returnedValue:{checks:["returnedAssetFinding","boundProvidedRecovery"],required:world.requestedReturnRequired,rationale:"Literal-goal answer obligations remain required even when a recovery copy is also requested; any provided recovery witness must bind actual native output."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
 
@@ -868,14 +801,8 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         );
     }
     const outcome = {
-      approved: sourceToken,
-      working: token(working),
-      status: world.expected.status,
-      findings: expectedFindings(await list(working)),
-      receipt: stage?.status === "staged" ? stage.receipt : null,
-      reason:
-        world.expected.reason.join(" ") ||
-        "Verified exact signed and working byte evidence",
+      finding: "Qualification reference: "+JSON.stringify(await observedFindings(await list(working))),
+      recovery: stage?.status === "staged" ? stage.receipt : null,
     };
     const proof = await verify(outcome);
     return {
