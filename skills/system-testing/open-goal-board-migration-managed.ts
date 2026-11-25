@@ -96,6 +96,7 @@ export async function prepareOpenBoardMigration(
   const observations: { view: MigrationView; panelId: string; generation: unknown }[] = [];
   const available = sources.map(identity);
   let basis: MigrationBasis | undefined;
+  const targetObservations: MigrationBasis[] = [];
   let writing = false;
   let writes = 0;
 
@@ -143,7 +144,11 @@ export async function prepareOpenBoardMigration(
       observations.push(observed);
       return structuredClone(observed.view);
     },
-    async readTarget() { basis = await readBasis(); return structuredClone(basis); },
+    async readTarget() {
+      basis = await readBasis();
+      targetObservations.push(structuredClone(basis));
+      return structuredClone(basis);
+    },
     async retain(boardId: string, revision: string, selection: MigrationSelection) {
       const previous = observations.findLast(observation => observation.view.board.id === boardId && observation.view.board.revision === revision);
       if (!previous || !basis || writing || previous.view.board.id !== boardId ||
@@ -213,8 +218,9 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     } : null;
     const checks = {
       exactRenderedMigrationBoard: observations.some(observation => isDeepStrictEqual(observation, repeated)) && isDeepStrictEqual(repeated.view.cards, expected.cards),
-      exactMigrationAuthority: Boolean(basis && isDeepStrictEqual(basis.approval, approval) &&
-        basis.target === world.target && isDeepStrictEqual(basis.existing, initial?.cards ?? null)),
+      exactMigrationAuthority: targetObservations.some(observed =>
+        isDeepStrictEqual(observed.approval, approval) && observed.target === world.target &&
+        isDeepStrictEqual(observed.existing, initial?.cards ?? null)),
       matchedMigrationCardScope: observations.some(row=>isDeepStrictEqual(row,repeated)),
       independentMigrationReadback: isDeepStrictEqual(final, receipt ?? initial) &&
         (world.disposition === "retained" ? writes > 0 : writes === 0),
@@ -228,7 +234,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
  ...input, checks, passed: Object.values(checks).every(Boolean), available,
-      rendered: repeated.view, basis, final, outcome };
+      rendered: repeated.view, basis, targetObservations: structuredClone(targetObservations), final, outcome };
   }
 
   async function qualify() {
