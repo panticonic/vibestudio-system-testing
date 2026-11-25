@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {assessTerminalRepairGoal,terminalRepairReturnIsBound} from "./terminal-repair-return-evidence.js";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import type { VcsClient } from "@workspace/runtime";
@@ -446,7 +447,7 @@ export async function prepareOpenTerminalAppRepair(
       }
       return true;
     });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,raw,observations,contributions);
+    const assessed=await assessTerminalRepairGoal(proof,proof.outcomeContract,raw,observations,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -474,13 +475,11 @@ async function verifyNativeApplication(raw: unknown, observations?: InvocationOb
         : world.mode === "already-ready"
           ? "existing"
           : world.mode;
-    const disposition = world.mode === "repair" ? "verified" : world.mode;
     const edits = journal.filter(
       (entry) => entry.service === "terminalRepairApply",
     );
     const checks = {
-      returnedTerminalRepair: report?.outcome===disposition&&typeof report.explanation==="string"&&!!report.explanation.trim()&&
-        isDeepStrictEqual(report.artifact,kept?artifact:null),
+      returnedTerminalRepair: terminalRepairReturnIsBound(report,kept?artifact:null),
       exactOwnedTerminalSource:
         !!initial &&
         evidence.revision === initial.evidence.revision &&
