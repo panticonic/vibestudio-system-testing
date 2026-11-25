@@ -221,7 +221,7 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     imageCandidateHandoff:{async stage(report:ImageReport){
       if(!world.note||handoff||stageBusy||report?.plan?.briefId!==brief.id||!report.plan.localHandoff||report.plan.mode!==world.mode||
         report.handoff!==null||report.decision?.action!=="stage"||!report.decision.explanation?.trim()||
-        report.decision.explanation.length>600||!sameEvidenceMembers(report.reads,reads)||!snapshots.length)return null;
+        !sameEvidenceMembers(report.reads,reads)||!snapshots.length)return null;
       stageBusy=true;
       try {
         const id=report.decision.candidateId;
@@ -253,7 +253,7 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
   }
   function explain(report:ImageReport|undefined) {
     const text=report?.decision?.explanation;
-    return typeof text==="string"&&text.length<=600;
+    return typeof text==="string"&&Boolean(text.trim());
   }
   async function verify(raw:unknown,invocation?:InvocationObservations) {
     const returned=raw as {candidates?:ImageAssessment["candidates"];originals?:ImageReport["reads"];decision?:ImageReport["decision"];handoff?:ImageReport["handoff"]}|null;
@@ -275,23 +275,23 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     const observed=expected.observations??queue.map(()=>"verified");
     const foreign=crypto.randomUUID();
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
+    const diagnosticChecks={groundedImageAssessment:isDeepStrictEqual(outcome?.assessment?.queue,queue)&&
+        Array.isArray(assessed)&&assessed.length===idsInScope.size&&new Set(assessed.map(value=>value.id)).size===assessed.length&&
+        assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&
+          value.reasons.every(reason=>typeof reason==="string"&&reason.length>0))&&
+        queue.every(id=>assessed.some(value=>value.id===id&&value.eligible))};
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
       exactImageFrontiers:includesEvidence(snapshots,project(initial))&&
         includesEvidence(snapshots,project(latest))&&seeded.size===latest.rows.length&&
         latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))&&new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
       exactImageBrief:discovered&&snapshots.length>0,
-      groundedImageAssessment:isDeepStrictEqual(outcome?.assessment?.queue,queue)&&
-        Array.isArray(assessed)&&assessed.length===idsInScope.size&&new Set(assessed.map(value=>value.id)).size===assessed.length&&
-        assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&
-          value.reasons.every(reason=>typeof reason==="string"&&reason.length>0))&&
-        queue.every(id=>assessed.some(value=>value.id===id&&value.eligible)),
       returnedImageOriginals:Array.isArray(outcome?.reads)&&sameEvidenceMembers(outcome.reads,independent),
       independentlyReadImageOriginals:sameEvidenceMembers(reads,independent)&&
         isDeepStrictEqual(independent.map(read=>read.status),observed),
       groundedImageDecision:result?.action===expected.action&&result.candidateId===selected&&
         (selected===null||winner?.status==="verified")&&explain(outcome),
-      verifiedPrivateImageHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&artifactExplanation.length<=600&&!!winner&&!!handoff&&!!artifact&&
+      verifiedPrivateImageHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&Boolean(artifactExplanation.trim())&&!!winner&&!!handoff&&!!artifact&&
         newFiles.length===1&&handoff.path===`/.tmp/${newFiles[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact):
         newFiles.length===0&&handoff===null,
@@ -301,10 +301,12 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
         (await services.imageCandidateOriginal.read(brief.id,foreign)).status==="refused"&&
         await services.imageCandidateHandoff.stage({plan:{briefId:foreign}} as ImageReport)===null,
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactImageFrontiers", "exactImageBrief", "independentlyReadImageOriginals", "verifiedPrivateImageHandoff", "preservedImageWorkspace", "rejectedForeignImage"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["groundedImageAssessment", "returnedImageOriginals", "groundedImageDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
-    return assessObservedApplicationOutcome({contextId:owner,goal:world.goal,caseId:world.id,checks,passed:Object.values(checks).every(Boolean),
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactImageFrontiers", "exactImageBrief", "independentlyReadImageOriginals", "verifiedPrivateImageHandoff", "preservedImageWorkspace", "rejectedForeignImage"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedImageOriginals", "groundedImageDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const assessedOutcome=await assessObservedApplicationOutcome({contextId:owner,goal:world.goal,caseId:world.id,checks,diagnosticChecks,passed:Object.values(checks).every(Boolean),
       index,snapshots,reads:independent,plan:goalPlan,decision:result??null,handoff,artifact,
-      candidateId:selected,queue},contract,raw,invocation,[{"checks":["groundedImageAssessment"],"rootPath":["candidates"],"producerSourceSuffix":"workOnImageCandidateGoal/assessImageAttempts.nl","producerPath":["candidates"]},{"checks":["groundedImageDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnImageCandidateGoal/decideImageHandoff.nl","producerPath":[]}]);
+      candidateId:selected,queue},contract,raw,invocation,[{"checks":["groundedImageDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnImageCandidateGoal/decideImageHandoff.nl","producerPath":[]}]);
+    assessedOutcome.semanticReviewInput.rubric+=" Candidate eligibility/queue is an internal pre-original readback plan, not a claim that the native original is verified or usable. Judge requested usability, comparisons, provenance and any private artifact against the actual native original observations and returned domain explanation. Do not require exhaustive candidate bookkeeping or extra reasons beyond what the user requested; unsupported requested claims still fail.";
+    return assessedOutcome;
   }
 
   async function qualify() {

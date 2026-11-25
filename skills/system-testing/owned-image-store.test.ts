@@ -123,3 +123,30 @@ it("joins every admitted image import before failed fixture setup releases its s
   expect(native.retired).toEqual(["private-1"]);
   expect([...native.stores.get("private-1")!.values()].every(row=>row.owners.size===0)).toBe(true);
 });
+
+it("keeps a correct native format answer despite obsolete planner bookkeeping and never masks that leaf",async()=>{
+  const native=imageStores(),owned=await createOwnedImageStore("owned",native.ports as never);
+  const prepared=await prepareOpenImageCandidate({contextId:"owned",caseId:"image-candidate-format-disagrees-native"},candidatePorts(owned.images,owned.close) as never);
+  try{
+    const reference=await prepared.qualify();expect(reference.passed).toBe(true);
+    const actual=reference.semanticReviewInput.actual.requestedReturn as {candidates:{id:string;reasons:string[];eligible:boolean}[];originals:unknown[];decision:{action:string;candidateId:string|null;explanation:string};handoff:null};
+    const value={...actual,candidates:actual.candidates.map(candidate=>({...candidate,reasons:[]})),
+      decision:{...actual.decision,explanation:"The retained original is PNG, not verified WebP; hold it for the requested WebP workflow."}};
+    const root={callId:"root",parentCallId:null,definition:{name:"workOnImageCandidateGoal",source:"workOnImageCandidateGoal.ts"},outcome:"done",execution:{kind:"crisp",modelId:null,modelRequests:0},value,valueJson:JSON.stringify(value)};
+    const assessment={queue:value.candidates.map(candidate=>candidate.id),candidates:value.candidates};
+    const leaf={callId:"planner",parentCallId:"root",definition:{name:"assessImageAttempts",source:"workOnImageCandidateGoal/assessImageAttempts.nl"},outcome:"done",execution:{kind:"agent",modelId:"luna",modelRequests:1},value:assessment,valueJson:JSON.stringify(assessment)};
+    const returns=[root,leaf];
+    const proof=await prepared.verify(value,{calls:returns,returns:async select=>returns.filter(call=>!select||select(call))});
+    expect(proof.passed).toBe(true);
+    expect((await prepared.verify({...value,decision:{...value.decision,explanation:value.decision.explanation.repeat(20)}})).passed).toBe(true);
+    expect(proof.diagnosticChecks.groundedImageAssessment).toBe(false);
+    expect(proof.outcomeContract.returnedValue.checks).not.toContain("groundedImageAssessment");
+    expect(proof.outcomeDimensions.incidentalValues?.incorrectReturns).toEqual([]);
+    expect(proof.unboundReturnContributions).toEqual([]);
+    expect(proof.semanticReviewRequired).toBe(true);
+    expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(value);
+    expect(proof.semanticReviewInput.actual.observations.reads).toMatchObject([{status:"mismatch",original:{mime:"image/png"}}]);
+    expect((await prepared.verify({...value,originals:[]})).passed).toBe(false);
+    expect((await prepared.verify({...value,decision:{...value.decision,action:"report",candidateId:value.candidates[0]!.id,explanation:"It is a verified WebP and can be used."}})).passed).toBe(false);
+  }finally{await prepared.close();}
+});

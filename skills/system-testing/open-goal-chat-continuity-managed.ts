@@ -270,7 +270,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     }},
     chatContinuityHandoff:{async stage(report:ChatContinuityReport){
       if(!shouldWrite||!frames[1]||!report?.disposition?.write||report.disposition.status!==world.status||
-        !report.disposition.explanation?.trim()||report.disposition.explanation.length>650||
+        !report.disposition.explanation?.trim()||
         activeOperation||handoff||report.handoff!==null||!isDeepStrictEqual(report.plan,plan)||
         !isDeepStrictEqual(report.opening,frames[0])||!isDeepStrictEqual(report.current,frames[1]))return null;
       activeOperation=true;
@@ -331,8 +331,8 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
       nativeChatReadiness:proof.review.ready===(world.status==="ready"),
       groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review),
       groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
-        typeof decision.explanation==="string"&&decision.explanation.length<=650,
-      verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&!!handoff&&!!artifact&&files.length===1&&
+        typeof decision.explanation==="string"&&Boolean(decision.explanation.trim()),
+      verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation==="string"&&Boolean(artifactExplanation.trim())&&!!handoff&&!!artifact&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.digest===sha256HexSyncText(artifact):
         handoff===null&&files.length===0,

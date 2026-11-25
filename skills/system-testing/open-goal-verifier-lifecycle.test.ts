@@ -4,22 +4,26 @@ import {prepareOpenChatContinuity} from "./open-goal-chat-continuity-managed.js"
 import {prepareIntentDiscovery} from "./open-goal-intent-discovery-managed.js";
 import {prepareLaunchState} from "./open-goal-launch-state-managed.js";
 
+vi.mock("./session-replay-managed.js",()=>({createOwnedHeadlessChannel:vi.fn(),withOwnedChannelClient:vi.fn()}));
+vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:vi.fn()}));
 vi.mock("@workspace/runtime",()=>({contextId:null,fs:{},vcs:{},rpc:{},runtime:{},openPanel:vi.fn()}));
 const owner="owned-verifier-test";
-function scratch(){
-  const files=new Map<string,string>();
-  return {fs:{mkdtemp:async()=>"/.tmp/fixture",writeFile:async(path:string,text:string)=>{files.set(path,text);},
-    readdir:async()=>["fixture"],exists:async(path:string)=>files.has(path)},
+function scratch(realDirectories=false){
+  const files=new Map<string,string>(),directories=new Set<string>();
+  return {fs:{mkdtemp:async(prefix:string)=>{if(!realDirectories)return "/.tmp/fixture";const name=prefix+"-"+crypto.randomUUID();directories.add(name);return "/.tmp/"+name;},writeFile:async(path:string,text:string)=>{files.set(path,text);},
+    rename:async(from:string,to:string)=>{const text=files.get(from);if(text===undefined)throw Error("Missing pending native file");files.set(to,text);files.delete(from);},
+    rm:async(path:string)=>{for(const key of files.keys())if(key.startsWith(path+"/"))files.delete(key);directories.delete(path.split("/").at(-1)!);},
+    readdir:async()=>realDirectories?[...directories]:["fixture"],exists:async(path:string)=>files.has(path)},
     readBytes:async(path:string)=>new TextEncoder().encode(files.get(path)??"")};
 }
 const status=()=>Promise.resolve({contextId:owner,clean:true,integrating:[],mainEventId:"main",workingHead:{kind:"event",eventId:"head"},committed:{eventId:"main"}});
 
-function chatPorts(){
+function chatPorts(realScratch=false){
   const pages=new Map<string,unknown[]>();
-  let count=0,retired=false;
+  let count=0,retired=false,left=false;
   const agent={id:"owned-worker",objectKey:"original-worker",target:"worker-target",participantId:"worker-target"};
   const read=async(lane:{key:string})=>({ready:{snapshotLastSeq:pages.get(lane.key)!.length,hasMoreAfter:false},logEvents:structuredClone(pages.get(lane.key))});
-  const ports={...scratch(),contextId:owner,status,
+  const ports={...scratch(realScratch),contextId:owner,status,
     open:async(_owner:string,_title:string,key=`chat-${++count}`)=>{pages.set(key,[]);return {key,target:`do:workers/pubsub-channel:PubSubChannel:${key}`,expected:[]};},
     send:async(lane:{key:string},_owner:string,text:string)=>{
       const rows=pages.get(lane.key)!;const id=`message-${lane.key}`;
@@ -29,8 +33,8 @@ function chatPorts(){
     },read,audit:read,createWorker:async()=>agent,
     joinWorker:async(_agent:unknown,lane:{key:string})=>{const rows=pages.get(lane.key)!;rows.push({id:rows.length+1,
       type:"channel.subscription.opened",senderId:agent.participantId,payload:{participantId:agent.participantId,revision:1,delivery:"addressed",metadata:{type:"observer",handle:"local-continuity"}}});},
-    leaveWorker:async()=>{throw Error("Unexpected leave");},
-    workerState:async()=>{if(retired)throw Error("Owned worker is retired");return {objectKey:agent.objectKey,participantId:agent.participantId,active:true,revision:1,endedRevision:null,handle:"local-continuity",mode:"addressed-observer"};},
+    leaveWorker:async(_agent:unknown,lane:{key:string})=>{if(!realScratch)throw Error("Unexpected leave");left=true;const rows=pages.get(lane.key)!;rows.push({id:rows.length+1,type:"channel.subscription.ended",senderId:agent.participantId,payload:{participantId:agent.participantId,revision:2}});},
+    workerState:async()=>{if(retired)throw Error("Owned worker is retired");return {objectKey:agent.objectKey,participantId:agent.participantId,active:!left,revision:left?2:1,endedRevision:left?2:null,handle:"local-continuity",mode:"addressed-observer"};},
     retire:vi.fn(async()=>{retired=true;}),
   };
   return {ports:ports as unknown as NonNullable<Parameters<typeof prepareOpenChatContinuity>[1]>,retire:ports.retire};
@@ -95,4 +99,19 @@ it("retains launch panels for negative replay and archives only at final owner c
     expect(archive).not.toHaveBeenCalled();
   } finally {await prepared.close();}
   expect(archive).toHaveBeenCalledTimes(2);
+});
+
+it("retains requested held chat diagnostics and accepts substantive explanations beyond the old prose cap",async()=>{
+ const {ports}=chatPorts(true);
+ const prepared=await prepareOpenChatContinuity({contextId:owner,caseId:"chat-continuity-agent-left-but-history-is-readable"},ports);
+ try{
+  const reference=await prepared.qualify();expect(reference.passed).toBe(true);
+  const actual=reference.semanticReviewInput.actual.requestedReturn as {review:unknown;disposition:{status:string;write:boolean;explanation:string};handoff:unknown};
+  expect(actual.disposition).toMatchObject({status:"held",write:true});
+  const longer={...actual,disposition:{...actual.disposition,explanation:"The installed worker is no longer active, while the original retained history remains readable. ".repeat(12)}};
+  expect((await prepared.verify(longer)).outcomeDimensions.returnedValue.passed).toBe(true);
+  expect(reference.artifact).not.toBeNull();
+  // A correct verbal observation cannot substitute for the requested private diagnostic.
+  expect((await prepared.verify({...actual,disposition:{...actual.disposition,write:false},handoff:null})).outcomeDimensions.returnedValue.passed).toBe(false);
+ }finally{await prepared.close();}
 });
