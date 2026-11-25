@@ -193,14 +193,13 @@ export async function prepareReleaseReviewHandoff(
     await services.extensionReleaseRead.runtime(extension.request.operationId);
     const earlyWriteDenied =
       (await services.scratchHandoffWrite.stage("{}")) === null;
-    let partialAuthorityReadDenied = true;
+    const partialAuthorityReads: { operationId: string; denied: boolean }[] = [];
     const operations = authority.request.operations;
     for (const [index, { id }] of operations.entries()) {
       await services.assignedAuthorityRead.preflight(id);
       if (index + 1 < operations.length)
-        partialAuthorityReadDenied =
-          (await services.scratchHandoffRead.read("authority")) === null &&
-          partialAuthorityReadDenied;
+        partialAuthorityReads.push({ operationId: id,
+          denied: (await services.scratchHandoffRead.read("authority")) === null });
     }
     const materialized = await services.scratchHandoffRead.read("extension");
     if (!materialized || !transferred)
@@ -222,7 +221,7 @@ export async function prepareReleaseReviewHandoff(
       earlyWriteDenied,
       earlyAuthorityDenied,
       sourceOnlyReadDenied,
-      partialAuthorityReadDenied,
+      partialAuthorityReads,
       partialScratchWriteDenied,
     };
   }

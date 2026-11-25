@@ -1,3 +1,4 @@
+import { managedAuthorityReviewWorlds } from "../authority-review-worlds.js";
 import type { TestCase } from "../types.js";
 import type { ManagedReleaseReviewHandoffReceiver } from "../release-review-handoff-contract.js";
 import { managedReleaseReviewHandoffWorlds } from "../release-review-handoff-worlds.js";
@@ -107,16 +108,21 @@ managedReleaseReviewHandoffTests.push({
             earlyWriteDenied,
             earlyAuthorityDenied,
             sourceOnlyReadDenied,
-            partialAuthorityReadDenied,
+            partialAuthorityReads,
             partialScratchWriteDenied,
-          }) =>
-            verification.passed &&
+          }, index) => {
+            const operations = managedAuthorityReviewWorlds.find(world =>
+              world.id === managedReleaseReviewHandoffWorlds[index]?.authority)!.operations;
+            return verification.passed &&
             earlyReadDenied &&
             earlyWriteDenied &&
             earlyAuthorityDenied &&
             sourceOnlyReadDenied &&
-            partialAuthorityReadDenied &&
-            partialScratchWriteDenied,
+            Array.isArray(partialAuthorityReads) &&
+            partialAuthorityReads.length === Math.max(0, operations.length - 1) &&
+            partialAuthorityReads.every((read, index) => read.operationId === operations[index]?.id && read.denied === true) &&
+            partialScratchWriteDenied;
+          },
         ),
       details: { checks },
     };
