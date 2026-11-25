@@ -260,7 +260,7 @@ export async function prepareOpenProviderHandoff(input: { contextId: string; cas
         (world.later?.length ? latest.through > first.through : latest.through === first.through),
       exactProviderAttributionAndResult: plan?.decisionMessage === decision && plan?.resultMessage === result &&
         plan?.disposition === wanted.disposition && plan.reason === wanted.reason &&
-        typeof plan.explanation === "string" && encode.encode(plan.explanation).length <= 520,
+        typeof plan.explanation === "string",
       independentProviderOutput: wanted.output ? actualOutput?.text === wanted.output &&
         isDeepStrictEqual(plan?.output, actualOutput) && outputs.length === 1 && outputs[0]?.message === result &&
         isDeepStrictEqual(outputs[0]?.result, actualOutput) :

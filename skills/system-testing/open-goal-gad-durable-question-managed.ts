@@ -1,5 +1,6 @@
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["diagnostics"], []);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { gad, rpc, runtime } from "@workspace/runtime";
@@ -76,6 +77,8 @@ export function bindOpenGadDurableQuestion(
     const expectedMember = expected.member === null ? null :
       roster?.members?.find(row => row.participantId === native.roster[expected.member!]?.participantId);
     const ready = expected.question === "current" && expected.participant === "confirmed";
+    const participantRequired = world.participantRequirement === "required" ||
+      world.participantRequirement === "if-current-question" && expected.question === "current";
     const currentRoster = roster?.members?.filter(member => member.leftAt === null).map(member => member.participantId).sort();
     const rosterMatches = !!roster && roster.members.length === native.roster.length && native.roster.every(entry =>
       roster!.members.some(member => member.participantId === entry.participantId && member.handle === entry.handle &&
@@ -99,7 +102,7 @@ export function bindOpenGadDurableQuestion(
         typeof outcome.explanation === "string" && outcome.explanation.trim().length > 0,
     };
     return assessObservedApplicationOutcome({ contextId, caseId: world.id, sourceGroup: world.sourceGroup, goal: world.goal,
-      passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:["exactIndividualPublications","exactRetainedRoster"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactQuestionDisposition","exactParticipantDisposition","derivedReadOnlyHandoff"],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},raw,invocation,[{"checks":["exactQuestionDisposition"],"rootPath":["question"],"producerSourceSuffix":"reviewDurableQuestion/reviewQuestion/interpretQuestion.nl","producerPath":[]},{"checks":["exactParticipantDisposition"],"rootPath":["participant"],"producerSourceSuffix":"reviewDurableQuestion/reviewParticipant/evaluateRoster.nl","producerPath":[]}]);
+      passed: Object.values(checks).every(Boolean), checks, diagnostics: {history, roster, native} },{effects:{checks:["exactIndividualPublications","exactRetainedRoster"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["exactQuestionDisposition","derivedReadOnlyHandoff",...(participantRequired?["exactParticipantDisposition"]:[])],required:true,rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:participantRequired?[]:["exactParticipantDisposition"],rationale:"An independently false optional typed participant result is still masked at its actual source; it does not create an unrequested membership obligation for the goal."}},raw,invocation,[{"checks":["exactQuestionDisposition"],"rootPath":["question"],"producerSourceSuffix":"reviewDurableQuestion/reviewQuestion/interpretQuestion.nl","producerPath":[]},{"checks":["exactParticipantDisposition"],"rootPath":["participant"],"producerSourceSuffix":"reviewDurableQuestion/reviewParticipant/evaluateRoster.nl","producerPath":[]}]);
   }
 
   async function qualify() {
@@ -122,7 +125,7 @@ export function bindOpenGadDurableQuestion(
     const rejectedAlteredEvidence = !(await verify({...report, historyReceipt:"foreign"})).passed &&
       !(await verify({...report, disposition:disposition === "ready" ? "hold" : "ready"})).passed &&
       !(await verify({...report, question:{...question, message:question.message === null ? native.messages[0] ?? {} : {...question.message, sequence:question.message.sequence + 1}}})).passed &&
-      !(await verify({...report, participant:{...participant, member:participant.member === null ? observedRoster.members[0] ?? {} : {...participant.member,participantId:"same-display-foreign-id"}}})).passed;
+      !(await verify({...report, participant:{...participant, member:participant.member === null ? observedRoster.members[0] ?? {} : {...participant.member,participantId:"same-display-foreign-id"}}})).observedChecks.exactParticipantDisposition;
     const checks={...accepted.observedChecks,rejectedForeignReceipt,rejectedAlteredEvidence};
     return assessSemanticOutcome({...accepted,checks,report,rejectedForeignReceipt,rejectedAlteredEvidence},
       {...accepted.outcomeContract,effects:{...accepted.outcomeContract.effects,checks:[...accepted.outcomeContract.effects.checks,"rejectedForeignReceipt","rejectedAlteredEvidence"]}});

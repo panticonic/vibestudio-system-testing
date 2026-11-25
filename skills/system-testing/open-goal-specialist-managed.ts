@@ -318,7 +318,7 @@ export async function prepareOpenSpecialistHandoff(input: { contextId: string; c
         independent.reason === expected.reason && independent.action === expected.action &&
         independent.attemptMessage === (expected.attempt ? issued.get(expected.attempt) : null) &&
         independent.resultMessage === (expected.result ? issued.get(expected.result) : null) &&
-        typeof plan.explanation === "string" && bytes(plan.explanation) <= 600,
+        typeof plan.explanation === "string",
       verifiedArtifactAndImpact: independent.artifact ? !!result && !!outcome && historyFindings(outcome.history,result) &&
         outcome.history?.result?.persistedContract === expected.history && artifactReads.length === 1 &&
         artifactReads[0]!.message === independent.resultMessage && isDeepStrictEqual(artifactReads[0]!.value,independent.artifact) :

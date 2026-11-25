@@ -340,14 +340,14 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
       exactWelcomeDecision:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
         plan.reason===expected.reason&&plan.action===expected.action&&plan.message===(expected.key?messages.get(expected.key):null)&&
-        typeof plan.explanation==="string"&&bytes(plan.explanation)<=600,
+        typeof plan.explanation==="string",
       verifiedWelcomeOwner:independent.setup?!!checked&&checked.setup?.status===expected.setup&&
         isDeepStrictEqual(checked.setup,independent.setup.result)&&isDeepStrictEqual(ownerRead,resource&&native?observeOwner(latest,native):null):
         checked?.setup===null&&ownerRead===null,
       verifiedWelcomeTour:isDeepStrictEqual(checked?.tour,independent.tour?.result??null)&&(checked?.tour?.stage??null)===expected.tour,
       verifiedWelcomeRetry:expected.probe?independent.probeRequired&&qualityProbe(actualProbe):
         !independent.probeRequired&&probeInput===null&&probeRun===null&&checked?.probe===null,
-      exactWelcomeHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&bytes(artifactExplanation)<=600&&!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
+      exactWelcomeHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.sha256===sha256HexSyncText(artifact)&&handoff.bytes===data.length:
         files.length===0&&handoff===null,

@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "evidence", "decision", "continuation"], []);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -309,7 +311,7 @@ async function verifyNativeApplication(input: unknown, invocation?: InvocationOb
         observed?.notebook.revision === readRecord(originalValues[0]![notebookKey]!).revision &&
         observed?.notebook.settledDigest === hash(originalValues[0]![current.mode === "large-output" ? "ownedLargeResult" : notebookKey]!),
       respectedRecoveryDecision: isDeepStrictEqual(outcome?.continuation,continued?.receipt??null)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
+        outcome.finding.reason.trim().length > 0,
       verifiedExactContinuation: exactEffect &&
         effects.filter(effect => effect.service === "agentCapabilityContinue").length === (mayContinue ? 1 : 0),
       preservedOtherState: keys.every(key => after[0]![key] === originalValues[0]![key]) && isDeepStrictEqual(after.slice(1), originalValues.slice(1)) &&

@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "runs", "cases", "effects"], ["handoffText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -286,7 +288,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedOwnedBuildAndAttempt: reviewedId === (selected?.id ?? null),
       exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases),
       matchedReleaseDisposition: isDeepStrictEqual(outcome?.handoff,receipt)&&outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
-        typeof outcome.assessment.reason === "string" && outcome.assessment.reason.trim().length > 0 && outcome.assessment.reason.length <= 1400,
+        typeof outcome.assessment.reason === "string" && outcome.assessment.reason.trim().length > 0,
       verifiedPrivateHandoff: expectedBytes ? raw !== null && decode.decode(raw) === expectedBytes && !!receipt &&
         receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) : entries.length === 0 && receipt === null,
       noSuiteRerunOrUnassignedCase: sameEvidenceMembers(effects.map(item => item.method), expectedMethods),
@@ -298,7 +300,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
-      cases: nativeCases, assessment: outcome?.assessment, handoff: receipt, effects: structuredClone(effects),
+      cases: nativeCases, assessment: outcome?.assessment, handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {

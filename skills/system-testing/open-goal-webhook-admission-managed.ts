@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "evidence", "binding", "effects"], ["handoffText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -300,7 +302,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       exactNativeActiveAndTombstone: isDeepStrictEqual(observed, final),
       exactCurrentBinding: isDeepStrictEqual(match(final), expectedBinding),
       matchedAdmissionDisposition: isDeepStrictEqual(out?.handoff,handoff)&&out?.assessment?.disposition === world.expected && typeof out.assessment.reason === "string" &&
-        out.assessment.reason.trim().length > 0 && out.assessment.reason.length <= 1400,
+        out.assessment.reason.trim().length > 0,
       verifiedScopedPrivateAudit: isDeepStrictEqual(leafNames, wantedNames) &&
         (expectedNote ? actual && decoder.decode(actual) === expectedNote && handoff?.path === outputPath &&
           handoff.bytes === actual.length && handoff.sha256 === hash(expectedNote) : handoff === null && actual === null),
@@ -315,7 +317,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: owner, goal: world.goal, assignment, evidence: final, binding: expectedBinding,
-      assessment: out?.assessment, handoff, effects: structuredClone(effects), checks,
+      assessment: out?.assessment, handoff, handoffText: actual ? decoder.decode(actual) : null, effects: structuredClone(effects), checks,
       passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {

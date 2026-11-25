@@ -546,7 +546,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       // echo or fixture vocabulary. Mandatory source-bound content review below
       // establishes its meaning against actual native observations and artifacts.
       exactMigrationDisposition:
-        typeof output?.answer === "string" && output.answer.trim().length > 0,
+        !world.requestedAnswerRequired || typeof output?.answer === "string" && output.answer.trim().length > 0,
     };
     return {
       outcomeContract:{effects:{checks:["observedExactTemplateDeployment", "readExactOwnedMigrationSources", "matchedNativeCandidateOwnership", "preservedProtectedTemplateDeployment", "honoredChangedDossier", "verifiedLocalMigrationHandoff"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},

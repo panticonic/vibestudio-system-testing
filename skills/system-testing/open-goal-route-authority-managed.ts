@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["offer", "snapshots", "authority", "choice", "readback"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {isDeepStrictEqual} from "node:util";
@@ -182,8 +183,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     routeEvidenceHandoff:{async stage(report:OwnedRouteReview){
       if(!world.note||handoff||busy||!nominatedPreflight()||report?.handoff!==null||!matchesChoice(report.choice)||
         !exact(report.offer,offer)||!exact(report.authority,expectedAuthority())||!exact(report.readback,readback)||
-        report.outcome.status!==intendedOutcome()||typeof report.outcome.summary!=="string"||!report.outcome.summary.trim()||
-        report.outcome.summary.length>650||(world.route!=="external"&&!readback))return null;
+        report.outcome.status!==intendedOutcome()||typeof report.outcome.summary!=="string"||!report.outcome.summary.trim()||(world.route!=="external"&&!readback))return null;
       busy=true;
       try{
         if(!exact(await ports.vcs.status(),before))return null;
@@ -220,7 +220,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
         !!fresh&&!!readback&&readback.routeId===nominated.id&&exact(fresh,readback.records),
       preservedExactProtectedBasis:exact(after,before)&&after.mainEventId===initial.mainEventId,
       exactRouteConclusion:report?.outcome?.status===intendedOutcome()&&typeof report.outcome.summary==="string"&&
-        !!report.outcome.summary.trim()&&report.outcome.summary.length<=650,
+        !!report.outcome.summary.trim(),
       exactPrivateRouteNote:world.note?!!handoff&&!!artifact&&written.length===1&&
         handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):
         handoff===null&&written.length===0,

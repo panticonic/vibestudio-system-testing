@@ -297,8 +297,7 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
       },
     },
     editorialHandoff:{async stage(report:PacketReport){
-      if(!stageExpected||receipt||busy||!savedRead||!report?.decision?.write||!report.decision.explanation?.trim()||
-        report.decision.explanation.length>650||report.note!==null||report.decision.status!==world.end||
+      if(!stageExpected||receipt||busy||!savedRead||!report?.decision?.write||!report.decision.explanation?.trim()||report.note!==null||report.decision.status!==world.end||
         !isDeepStrictEqual(report.plan,plan)||!isDeepStrictEqual(report.opening,snapshots[0])||
         !isDeepStrictEqual(report.current,snapshots.at(-1))||!isDeepStrictEqual(report.sources,sources)||
         !isDeepStrictEqual(report.edit.stored,savedRead)||!isDeepStrictEqual(report.edit.attempts,attempts.map(item=>item.result)))return null;
@@ -366,9 +365,8 @@ export async function prepareOpenEditorial(input:{contextId:string;caseId:string
         (world.end==="ready"?writtenAttempts.some(item=>item.proposal.version===snapshots.at(-1)?.candidate?.version):writtenAttempts.length===0),
       verifiedEditorialReadback:(world.end==="ready"?writtenAttempts.some(item=>item.proposal.text===stored.text&&item.result.version===stored.version)&&editorialEditScope(snapshots.at(-1)!.candidate.text,stored.text,world.fields,world.literalApprovedWording):stored.text===changed)&&isDeepStrictEqual(stored,savedRead),
       returnedEditorialDocument:report?.document?.path===stored.path&&report.document.version===stored.version,
-      groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&
-        v.explanation.length<=650&&v.explanation.trim().length>0,
-      verifiedPrivateEditorialNote:stageExpected?!!(artifactDecision?.status===world.end&&artifactDecision.write===stageExpected&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.length<=650&&artifactDecision.explanation.trim().length>0)&&!!receipt&&!!artifact&&files.length===1&&
+      groundedEditorialDisposition:v?.status===world.end&&v.write===stageExpected&&typeof v.explanation==="string"&&v.explanation.trim().length>0,
+      verifiedPrivateEditorialNote:stageExpected?!!(artifactDecision?.status===world.end&&artifactDecision.write===stageExpected&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.trim().length>0)&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.candidateVersion===stored.version&&
         !!stagedReport&&artifact===body(stagedReport)&&receipt.digest===sha256HexSyncText(artifact):
         receipt===null&&files.length===0,

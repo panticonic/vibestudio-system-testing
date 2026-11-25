@@ -214,7 +214,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
         const { fact } = current.selected;
         if (!inventoryReads || stored || !authorized || !isDeepStrictEqual(before.workingHead, post.workingHead) ||
             !isDeepStrictEqual(factOnly(finding), fact) || (fact.witness && !lookedUp.has(fact.witness)) ||
-            typeof finding.reason !== "string" || !finding.reason.trim() || encoder.encode(finding.reason).length > 800)
+            typeof finding.reason !== "string" || !finding.reason.trim())
           return remember("localWidthHandoff", "stage", [finding], null);
         const text = packet(current, finding.reason);
         const saved = await scratch.scratchHandoffWrite.stage(text);

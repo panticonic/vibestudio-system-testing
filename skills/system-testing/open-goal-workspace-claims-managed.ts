@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["index", "packet", "choice", "evidence", "support", "test", "authority", "guideRevision"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual } from "node:util";
@@ -194,7 +195,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
       if(!world.note||!observed||staging||handoff||!report||report.handoff!==null||
         !isDeepStrictEqual(report.choice,choice)||!isDeepStrictEqual(report.packet,packet)||!isDeepStrictEqual(report.evidence,evidence)||
         !isDeepStrictEqual(report.support,expected)||report.disposition?.status!==disposition(expected)||
-        typeof report.disposition.summary!=="string"||!report.disposition.summary.trim()||report.disposition.summary.length>650)return null;
+        typeof report.disposition.summary!=="string"||!report.disposition.summary.trim())return null;
       staging=true;
       try{
         if(!isDeepStrictEqual(await ports.vcs.status(),before))return null;
@@ -230,7 +231,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
         leaf=>leaf.status==="granted"||leaf.tier==="open"),
       exactGroundedClaimSupport:isDeepStrictEqual(report?.support,support),
       exactGroundedClaimDisposition:report?.disposition?.status===disposition(support)&&
-        typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim()&&report.disposition.summary.length<=650,
+        typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim(),
       independentlyPreservedClaimContext:isDeepStrictEqual(before,after)&&after.mainEventId===initial.mainEventId,
       exactPrivateClaimNote:world.note?!!artifact&&!!handoff&&scratchFiles.length===1&&artifact===stagedText&&
         handoff.path===`/.tmp/${scratchFiles[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&scratchFiles.length===0,

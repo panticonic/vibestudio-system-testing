@@ -178,7 +178,7 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
       async stage(review: RecoveryFinding): Promise<RecoveryArtifact> {
         if (!world.canStage || artifact || running.size ||
             !["continue", "hold"].includes(review?.disposition) ||
-            typeof review.reason !== "string" || !review.reason.trim() || review.reason.length > 2_000 ||
+            typeof review.reason !== "string" || !review.reason.trim() ||
             !Array.isArray(review.citations) || review.citations.length === 0 ||
             new Set(review.citations.map(({ messageId }) => messageId)).size !== review.citations.length)
           throw new Error("Stage one authorized handoff backed by distinct complete replay notes");

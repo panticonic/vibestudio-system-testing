@@ -226,7 +226,7 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       } finally {running=false;}
     }},
     demoPortfolioHandoff:{async stage(report:PortfolioReport){
-      if(!report?.decision?.write||!report.decision.explanation||report.decision.explanation.length>650||receipt||
+      if(!report?.decision?.write||!report.decision.explanation||receipt||
         running||world.plan.note==="none"||!frames[1]||report.note!==null||
         !isDeepStrictEqual(report.opening,frames[0])||!isDeepStrictEqual(report.current,frames[1])||
         !isDeepStrictEqual(report.plan,planFor(frames[1]))||!isDeepStrictEqual(report.projection,projection))return null;
@@ -306,8 +306,8 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       exactInstalledRealmCriteria:!!findings&&isDeepStrictEqual(outcome?.realm,findings.realmResults)&&
         isDeepStrictEqual(findings.realmResults.map(row=>row.review.decision),world.readings[1]),
       groundedPortfolioDecision:!!findings&&decision?.status===world.status&&decision.status===findings.status&&
-        decision.write===findings.write&&typeof decision.explanation==="string"&&decision.explanation.length<=650,
-      verifiedPrivatePortfolioHandoff:!!findings&&(findings.write?typeof artifactExplanation==="string"&&artifactExplanation.length<=650&&!!receipt&&!!artifact&&files.length===1&&
+        decision.write===findings.write&&typeof decision.explanation==="string",
+      verifiedPrivatePortfolioHandoff:!!findings&&(findings.write?typeof artifactExplanation==="string"&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.basis===final.id&&artifact===stagedText&&
         receipt.digest===sha256HexSyncText(artifact):
         receipt===null&&files.length===0),

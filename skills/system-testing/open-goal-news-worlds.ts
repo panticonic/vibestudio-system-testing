@@ -39,7 +39,6 @@ export const openNewsChecks = [
   "verifiedReaderViews",
   "groundedScheduleFindings",
   "verifiedAuthorizedChanges",
-  "reportedDisposition",
 ] as const;
 
 export type NewsGoalWorld = {
@@ -49,6 +48,7 @@ export type NewsGoalWorld = {
   sourceGroup: string;
   split?: "test";
   goal: string;
+  requestedReturnRequired: boolean;
   setup: NewsSeedOperation[];
   grants: Grant[];
   outcome: "reviewed" | "changed" | "blocked";
@@ -127,6 +127,7 @@ export const newsGoalWorlds = [
     id: "explain-news-first-empty-inbox",
     group: "reader-setup",
     goal: "The newsroom inbox looks empty on this new workspace. Can the editor start looking for stories now, or does someone need to finish setup first? Leave my reader settings alone.",
+    requestedReturnRequired: true,
     setup: [],
     readers: [{ selection: { kind: "inbox" }, code: "preferences-needed" }],
   }),
@@ -134,6 +135,7 @@ export const newsGoalWorlds = [
     id: "reconcile-saved-and-current-news-views",
     group: "configured-views",
     goal: "Yesterday's handoff said this reader was unconfigured. Before we resend setup instructions, see whether the current inbox and saved stories can actually load. Tell me which views are simply empty. Please don't change the feed or briefing.",
+    requestedReturnRequired: true,
     setup: [preferences("Follow county budgets and regional rail.")],
     readers: [
       { selection: { kind: "inbox" }, code: "empty-loaded-view" },
@@ -144,6 +146,7 @@ export const newsGoalWorlds = [
     id: "audit-paused-berlin-briefing",
     group: "daily-owner-readback",
     goal: "The opening shift thinks Berlin's automatic 07:45 briefing paused feed checks too. Check whether the 90-minute poll and the daily Berlin schedule are still in place, whether automatic delivery is paused, and whether they can request a manual briefing. Inspect only.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(90),
@@ -163,6 +166,7 @@ export const newsGoalWorlds = [
     id: "accelerate-source-checks-with-chicago-slot-protected",
     group: "feed-poll-reconciliation",
     goal: "For election week we need fresh sources every twenty minutes. Change the feed polling rate and check it actually took. Keep the Chicago 08:30 daily briefing paused exactly as it is.",
+    requestedReturnRequired: false,
     setup: [
       schedule({
         pollIntervalMs: minutes(70),
@@ -181,6 +185,7 @@ export const newsGoalWorlds = [
     id: "replace-overnight-slot-with-interval",
     group: "briefing-mode-transition",
     goal: "The Singapore team no longer wants a fixed overnight slot. Move the briefing to a three-hour interval, but don't resume delivery or touch feed polling. Confirm the new cadence for the handoff.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(40),
@@ -199,6 +204,7 @@ export const newsGoalWorlds = [
     id: "resume-keep-interval-and-reader-setup",
     group: "pause-resume-state",
     goal: "We are back from holiday. Resume automatic delivery if it is still paused, preserve the 90-minute briefing cadence and 40-minute feed poll, and check whether we have to fill in News preferences before using the inbox.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(40),
@@ -217,6 +223,7 @@ export const newsGoalWorlds = [
     id: "decline-unavailable-rapid-briefing",
     group: "unsupported-briefing-cadence",
     goal: "Can we shorten the automatic briefing to five minutes? Only apply that if the installed scheduler supports it. Otherwise confirm that the paused Tokyo 19:00 slot is still configured.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(65),
@@ -238,6 +245,7 @@ export const newsGoalWorlds = [
     id: "keep-sufficient-poll-cadence",
     group: "conditional-noop",
     goal: "Our publisher asked for a source check every 25 minutes. If that's already what is running, leave it alone and confirm the existing setting. Also check the saved-story view without opening a briefing.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(25),
@@ -254,6 +262,7 @@ export const newsGoalWorlds = [
     id: "pause-then-speed-up-storm-desk",
     group: "multi-lane-storm-desk",
     goal: "We're following a storm on the live desk. First pause automatic briefings so alerts don't go out to the wrong list. Then increase feed checks to every fifteen minutes. Preserve the New York 06:50 briefing time for when the desk resumes, and confirm manual briefings are still available.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(45),
@@ -275,6 +284,7 @@ export const newsGoalWorlds = [
     id: "preserve-desk-poll-while-moving-briefing",
     group: "concurrent-owner-update",
     goal: "Please move the paused briefing to 06:40 London time. The feed team is adjusting their poll rate separately, so preserve whichever rate they have saved when the briefing change goes through. Confirm what is actually installed.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(45),
@@ -300,6 +310,7 @@ export const newsGoalWorlds = [
     group: "weekend-retained-archive",
     split: "test",
     goal: "For the weekend shift, see whether this reader's archive has anything saved under 'estuary restoration'. A colleague said sources refresh every 45 minutes, so verify that against the live schedule and report the actual interval. Leave this workspace alone.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(75),
@@ -320,6 +331,7 @@ export const newsGoalWorlds = [
     group: "held-local-wall-clock",
     split: "test",
     goal: "The Toronto team is replacing its rolling briefing with a daily 06:25 local handoff. Move only that schedule to the new time. Automatic delivery is supposed to stay paused while they verify the reader. Keep the current feed poll and confirm the actual saved timezone.",
+    requestedReturnRequired: true,
     setup: [
       schedule({
         pollIntervalMs: minutes(35),

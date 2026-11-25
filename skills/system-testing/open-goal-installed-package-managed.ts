@@ -1,5 +1,7 @@
 import {packageResultContributions} from "./operational-return-contributions.js";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "observed", "plan", "repair"], []);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -383,7 +385,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       returnedPackageRepair: isDeepStrictEqual(outcome?.repair,attempt),
       returnedPackageVerification: verificationMatches(outcome?.verification,plan),
       returnedPackageFinding: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
+        outcome.finding.reason.trim().length > 0,
       verifiedLocalManifestEffect: exactEffect && (attempt?.status ?? null) === expectedAttempt &&
         (!attempt || isDeepStrictEqual(attempt.observation, final.observation)),
       exactStateVerificationPlan: isDeepStrictEqual(resolved, plan),

@@ -181,7 +181,7 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
   }
   function samePlan(plan: DictationPlan, current: DictationSnapshot) {
     const {explanation,...facts} = plan;
-    return typeof explanation === "string" && encoder.encode(explanation).length <= 520 &&
+    return typeof explanation === "string" &&
       isDeepStrictEqual(facts,exactDisposition(thread,current));
   }
   const services = {

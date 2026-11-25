@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "survey", "observation", "architecture", "decision"], ["handoffText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -280,10 +282,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const exactRoute = sameEvidenceMembers(boundaryCalls, bound ? ["resolve", "declaration"] : []) &&
       exactBoundary(current, architecture);
     const shouldStage = canStage(review, decision);
+    let handoffText:string|null = null;
     let handoff = !shouldStage && stored === null && !added.length && !stageCalls.length;
     if (shouldStage && stored && added.length === 1 && stageCalls.includes("stage")) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
+      handoffText = body;
       handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" &&
         body === packet(current, decision, review, architecture) && bytes.length === stored.bytes && hash(body) === stored.sha256;
     }
@@ -294,7 +298,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       verifiedExactProviderBoundary: exactRoute,
       honoredRetainedReviewScope: scopeIntact && (!discovered || isDeepStrictEqual(discovered, expectedSurvey)),
       distinguishedDeployedDefinition: isDeepStrictEqual(outcome?.handoff,stored)&& outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
+        outcome.finding.reason.trim().length > 0,
       verifiedExactLocalHandoff: handoff &&
         priorOutputs.every(name => afterOutputs.includes(name)),
       preservedWorkspaceState: after.mainEventId === initial.mainEventId && isDeepStrictEqual(after.workingHead, initial.workingHead),
@@ -306,7 +310,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      effects: structuredClone(effects), survey: expectedSurvey, observation: current, architecture, decision, handoff: stored };
+      effects: structuredClone(effects), survey: expectedSurvey, observation: current, architecture, decision, handoff: stored, handoffText };
   }
 
   async function qualify() {

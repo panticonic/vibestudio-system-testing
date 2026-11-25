@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "observed", "current", "move", "identity", "consumers", "effects"], []);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -428,7 +430,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       verifiedCompatibleCallerLinks: changes && last.document.id === originalGuide.id &&
         (!shouldUpdate || !staleLinks(current).length) && last.source.note === expectedNote,
       matchedLocalMigrationPlan: isDeepStrictEqual(outcome?.move,moved)&&isDeepStrictEqual(outcome?.identity,aligned)&&isDeepStrictEqual(outcome?.consumers,updated)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200 &&
+        outcome.finding.reason.trim().length > 0 &&
         sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
       verifiedExactMutationReceipts: (moved?.status ?? null) === expectedMove && (aligned?.status ?? null) === expectedAlign &&
         (updated?.status ?? null) === expectedUpdate && [moved, aligned, updated].every(receipt =>

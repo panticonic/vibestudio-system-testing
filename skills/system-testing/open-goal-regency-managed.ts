@@ -199,7 +199,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       } finally {busy=false;}
     }},
     regencyNote:{async stage(report:RegencyReport){
-      if(!world.plan.localNote||note||busy||!report?.decision?.explanation||report.decision.explanation.length>700||
+      if(!world.plan.localNote||note||busy||!report?.decision?.explanation||
         report.note!==null||!(report.decision.action==="stage"||report.decision.action==="advance"&&advance)||
         !isDeepStrictEqual(report.advance,advance)||!isDeepStrictEqual(report.opening,frontiers[0])||
         !isDeepStrictEqual(report.current,frontiers[1])||!isDeepStrictEqual(report.forecasts,forecasts)||
@@ -250,14 +250,14 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
         (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
       exactInstalledRegencyFindings:outcome?.findings?.length===findings.length&&
         isDeepStrictEqual(findings.map(item=>item.review.decision),world.expected),
-      groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string"&&result.explanation.length<=700,
+      groundedRegencyAction:result?.action===world.action&&typeof result.explanation==="string",
       returnedRegencyAdvance:isDeepStrictEqual(outcome?.advance,advance),
       verifiedRegencyAdvance:after.accounts.month===currentExpected+neededAdvance&&
         (neededAdvance?!!advance&&!!selectedForecast&&advance.months===neededAdvance&&advance.basis===current.revision&&
           isDeepStrictEqual(advance.committed,after)&&isDeepStrictEqual(
             {...after.accounts,id:selectedForecast.accounts.id},selectedForecast.accounts)&&inPlay.at(-1)?.id===advance.id:
           advance===null&&isDeepStrictEqual(after,current)),
-      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision?.action===world.action&&typeof artifactDecision.explanation==="string"&&artifactDecision.explanation.length<=700)&&!!note&&!!artifact&&files.length===1&&
+      verifiedPrivateRegencyNote:neededNote?!!(artifactDecision?.action===world.action&&typeof artifactDecision.explanation==="string")&&!!note&&!!artifact&&files.length===1&&
         note.path===`/.tmp/${files[0]}/handoff.json`&&note.revision===after.revision&&
         artifact===stagedText&&note.digest===sha256HexSyncText(artifact):
         note===null&&files.length===0,

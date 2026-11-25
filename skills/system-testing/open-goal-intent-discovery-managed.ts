@@ -1,5 +1,7 @@
 import {intentOutcomeContributions} from "./operational-return-contributions.js";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["notice", "capabilities", "evidence"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText,stableSha256Hex} from "@vibestudio/content-addressing";
@@ -183,7 +185,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
         if(!writable||staging||handoff||!outcome||
           !required.every(row=>descriptions.has(row.methodId))||
           inspected.length!==required.length||outcome.status!==overall(inspected)||typeof outcome.summary!=="string"||
-          !outcome.summary.trim()||outcome.summary.length>700)return null;
+          !outcome.summary.trim())return null;
         staging=true;
         try{
           for(const value of inspected){
@@ -242,7 +244,7 @@ async function verifyNativeApplication(raw:unknown,observations?:InvocationObser
           inspected.some(item=>item.methodId===row.methodId&&item.scope===row.scope)),
         independentlyScopedIntentResults:inspected.length===required.length&&expectedScope&&isDeepStrictEqual(independent,inspected),
         exactIntentOutcome:report?.outcome?.status===overall(inspected)&&typeof report.outcome.summary==="string"&&
-          !!report.outcome.summary.trim()&&report.outcome.summary.length<=700,
+          !!report.outcome.summary.trim(),
         exactPrivateIntentNote:writable?!!artifact&&!!handoff&&files.length===1&&
           handoff.path===`/.tmp/${files[0]}/handoff.json`&&stagedOutcome!==null&&artifact===body(stagedOutcome)&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&files.length===0,
         returnedIntentNote:isDeepStrictEqual(report?.handoff,handoff),

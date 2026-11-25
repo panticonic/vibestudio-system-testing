@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["card", "installed", "composition", "gate", "journal"], ["noteText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -545,6 +547,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       composition: independent,
       gate,
       receipt,
+      noteText: body,
       readback,
       journal: structuredClone(journal),
     };

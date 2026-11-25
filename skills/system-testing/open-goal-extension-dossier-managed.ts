@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "review", "candidate", "history", "decision", "effects"], ["dossierText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -336,10 +338,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const shouldStage = canStage(found, decision);
     const added = afterOutputs.filter(name => scratchNames.test(name) && !preexisting.includes(name));
     const artifactCount = effects.filter(effect => effect.service === "extensionDossierWrite").length;
+    let dossierText:string|null = null;
     let note = !shouldStage && stored === null && added.length === 0 && artifactCount === 0;
     if (shouldStage && stored && added.length === 1 && artifactCount === 1) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
+      dossierText = body;
       note = stored.path === "/.tmp/" + added[0] + "/handoff.json" && bytes.length === stored.bytes &&
         sha256HexSyncText(body) === stored.sha256 && body === bodyFor(found, review, compared, active, decision);
     }
@@ -354,7 +358,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         compared.delta.publishedDigest === review.source.observation.published?.hash,
       reconciledNativeReleaseHistory: isDeepStrictEqual(history, active),
       respectedLocalReleaseDecision: isDeepStrictEqual(outcome?.dossier,stored)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
+        outcome.finding.reason.trim().length > 0,
       verifiedExactDossier: note && preexisting.every(name => afterOutputs.includes(name)),
       preservedProtectedSourceAndRuntime: after.mainEventId === initial.mainEventId &&
         isDeepStrictEqual(after.workingHead, assigned.workingHead) && baselineReview.runtime.observation.activeEv === review.runtime.observation.activeEv &&
@@ -367,7 +371,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      assignment: found, review, candidate: compared, history: active, decision, dossier: stored, effects: structuredClone(effects) };
+      assignment: found, review, candidate: compared, history: active, decision, dossier: stored, dossierText, effects: structuredClone(effects) };
   }
 
   async function qualify() {

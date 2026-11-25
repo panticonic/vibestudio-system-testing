@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["pair", "actual", "readReceipts", "staged", "rejectedForeign"], ["artifact"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { contextId, fs, rpc } from "@workspace/runtime";
@@ -114,7 +116,7 @@ async function verifyNativeApplication(raw: unknown, invocation?: InvocationObse
       separatedActualCurrentAndPrior: currentCheck.passed && priorCheck.passed,
       separateReleaseAndObservedResidue: currentCheck.evidence.protectedUnchanged && priorCheck.evidence.protectedUnchanged,
       exactUserAcceptanceDecision: isDeepStrictEqual(decision?.currentRemaining,current.reference.remainingIds)&&isDeepStrictEqual(outcome?.handoff,handoff)&&decision?.status === world.disposition && decision.note === expectedNote &&
-        typeof decision.explanation === "string" && decision.explanation.trim().length > 0 && decision.explanation.length <= 1200,
+        typeof decision.explanation === "string" && decision.explanation.trim().length > 0,
       verifiedPrivateCloseout: expectedNote
         ? artifact !== null && stages.length === 1 && stages[0]!.decision.status===world.disposition&&stages[0]!.decision.note===expectedNote&&artifact === contents(stages[0]) &&
           handoff?.sha256 === sha256HexSyncText(artifact)

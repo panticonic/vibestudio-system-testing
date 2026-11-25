@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["index", "frames", "readback", "request", "witness", "effect"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {isDeepStrictEqual} from "node:util";
@@ -195,7 +196,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
             !isDeepStrictEqual(report.plan,plan)||!isDeepStrictEqual(report.opening,frames[0])||
             !isDeepStrictEqual(report.current,frames[1])||!isDeepStrictEqual(report.effect,effect)||
             !isDeepStrictEqual(report.readback,readback)||report.result?.status!==world.outcome||
-            typeof report.result.summary!=="string"||!report.result.summary.trim()||report.result.summary.length>650)return null;
+            typeof report.result.summary!=="string"||!report.result.summary.trim())return null;
           busy=true;
           try {
             if(!isDeepStrictEqual(await native(active),readback))return null;
@@ -234,7 +235,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
         independentLaunchReadback:!!readback&&isDeepStrictEqual(final,readback)&&
           !!current&&sameIdentity(current,final)&&isDeepStrictEqual(final.state,expected),
         exactLaunchDecision:report?.result?.status===world.outcome&&typeof report.result.summary==="string"&&
-          !!report.result.summary.trim()&&report.result.summary.length<=650,
+          !!report.result.summary.trim(),
         protectedLaunchSiblings:isDeepStrictEqual(archive,archiveAfter)&&isDeepStrictEqual(status,initial),
         exactPrivateLaunchNote:world.note?!!artifact&&!!handoff&&written.length===1&&
           handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&written.length===0,

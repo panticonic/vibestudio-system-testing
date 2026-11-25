@@ -190,7 +190,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     return isDeepStrictEqual(value.request,bound.request)&&report.planReceipt===seenPlan.receipt&&
       sameEvidenceMembers(report.destinations,expected.observed.map(observation=>({observation,disposition:disposition(observation)})))&&
       sameEvidenceMembers(report.held,expected.held)&&report.status===statusOf(seenPlan.destinations,expected.observed)&&
-      (report.guidance===null?report.status==="ready":typeof report.guidance==="string"&&!!report.guidance.trim()&&countBytes(report.guidance)<=480)&&
+      (report.guidance===null?report.status==="ready":typeof report.guidance==="string"&&!!report.guidance.trim())&&
       sameEvidenceMembers(observations,expected.observed)&&isDeepStrictEqual(audit,audited)&&
       sameEvidenceMembers(audit.facts,expected.redacted)&&audit.approvals==="pregranted-only"&&audit.providerAccess==="unobserved";
   }
@@ -312,8 +312,8 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         (expected.held===undefined||sameEvidenceMembers(completed.held,expected.held)) : expected.rows.length===0,
       groundedIntegrationDisposition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),planned)&&
         plan.action===expected.action&&plan.reason===expected.reason&&
-        typeof plan.explanation==="string"&&countBytes(plan.explanation)<=660,
-      verifiedPrivateIntegrationNote:expected.action==="stage"?typeof artifactExplanation==="string"&&countBytes(artifactExplanation)<=660&&!!handoff&&!!data&&!!artifact&&found.length===1&&
+        typeof plan.explanation==="string",
+      verifiedPrivateIntegrationNote:expected.action==="stage"?typeof artifactExplanation==="string"&&!!handoff&&!!data&&!!artifact&&found.length===1&&
         handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&handoff.bytes===data.length&&
         handoff.sha256===sha256HexSyncText(artifact):
         found.length===0&&handoff===null,

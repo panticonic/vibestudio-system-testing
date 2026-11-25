@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["brief", "lens", "evidence"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual as equal } from "node:util";
@@ -186,7 +187,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
   const encode=(report:Omit<ConfigReport,"handoff">)=>JSON.stringify({visibility:"private-local",...report});
   const authorized=(outcome:ConfigOutcome)=>world.note==="always"||(world.note==="if-aligned"&&outcome.noteStatus==="matches");
   function exactDecision(value:ConfigOutcome|undefined,brief:ConfigBrief,evidence:ConfigEvidence) {
-    if(typeof value?.summary!=="string"||!value.summary.trim()||value.summary.length>700)return false;
+    if(typeof value?.summary!=="string"||!value.summary.trim())return false;
     const {summary:_,...fields}=value;
     return equal(fields,disposition(brief,evidence));
   }

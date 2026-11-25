@@ -1,0 +1,945 @@
+{
+  "schema": "vibestudio.open-goal-mechanism-audit/1",
+  "sourceBase": "3d081284b5541b94e4fd7402da3a61be867b8a3e",
+  "inventoryBeforeEdits": "/home/werg/vibe-broad-outcome-inventory-ops/candidates.json",
+  "fullScope": {
+    "templates": 8,
+    "candidateFiles": 265,
+    "candidateLines": 1711,
+    "sstOpenManagedFiles": 94,
+    "sstNamedChecks": 677,
+    "candidateIsNotDefectVerdict": true
+  },
+  "explanatoryCeilings": {
+    "predicates": 41,
+    "families": 28,
+    "literalGoalNumericLimitsFound": 0,
+    "entries": [
+      {
+        "file": "open-goal-agent-capability-managed.ts",
+        "line": 312,
+        "expression": "outcome.finding.reason.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 312,
+        "sourceSha256": "4a5b565b64d86b7c6e99d2bedbeb6bcceb207852a09b3e8a5d4565f9a60d5367"
+      },
+      {
+        "file": "open-goal-api-readiness-managed.ts",
+        "line": 193,
+        "expression": "countBytes(report.guidance)<=480",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 193,
+        "sourceSha256": "70549566f403c4cccc3d9b5e524cb73a5524add12cbdd2cfb5a997e29e59d994"
+      },
+      {
+        "file": "open-goal-api-readiness-managed.ts",
+        "line": 315,
+        "expression": "countBytes(plan.explanation)<=660",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 315,
+        "sourceSha256": "70549566f403c4cccc3d9b5e524cb73a5524add12cbdd2cfb5a997e29e59d994"
+      },
+      {
+        "file": "open-goal-audience-response-managed.ts",
+        "line": 144,
+        "expression": "answer.text.length<=450",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 144,
+        "sourceSha256": "f693a46ba6f46c3a346ea74fe2e4e37b876a5dcd5b24cf06626cf6145c58cbca"
+      },
+      {
+        "file": "open-goal-bridge-delivery-managed.ts",
+        "line": 271,
+        "expression": "decision.explanation.length<=900",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 271,
+        "sourceSha256": "f128f30426996db660798c739c6b6e69fa75528f521d9a18dc5a528cf48aab2a"
+      },
+      {
+        "file": "open-goal-deployed-interface-managed.ts",
+        "line": 297,
+        "expression": "outcome.finding.reason.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 297,
+        "sourceSha256": "1846942f77b18f87938593f124d6544fc67c30d10f7ddca513a0e6954093df69"
+      },
+      {
+        "file": "open-goal-dictation-managed.ts",
+        "line": 184,
+        "expression": "encoder.encode(explanation).length <= 520",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 184,
+        "sourceSha256": "fcb5ab013c4d479d55cab9aa4aecf24a33ad6c654efb435423198e328220abe0"
+      },
+      {
+        "file": "open-goal-editorial-managed.ts",
+        "line": 301,
+        "expression": "report.decision.explanation.length>650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 301,
+        "sourceSha256": "b0ff1f0a266b01b286d3caf456f43bd3b4aa29e4d3dd3d3f0526e147a6173355"
+      },
+      {
+        "file": "open-goal-editorial-managed.ts",
+        "line": 369,
+        "expression": "v.explanation.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 370,
+        "sourceSha256": "b0ff1f0a266b01b286d3caf456f43bd3b4aa29e4d3dd3d3f0526e147a6173355"
+      },
+      {
+        "file": "open-goal-editorial-managed.ts",
+        "line": 369,
+        "expression": "artifactDecision.explanation.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 371,
+        "sourceSha256": "b0ff1f0a266b01b286d3caf456f43bd3b4aa29e4d3dd3d3f0526e147a6173355"
+      },
+      {
+        "file": "open-goal-extension-dossier-managed.ts",
+        "line": 357,
+        "expression": "outcome.finding.reason.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 357,
+        "sourceSha256": "8e9802e2416c4bb0b3741fb4b1518cc7e6100b360a9e841c4327fa4354ec7810"
+      },
+      {
+        "file": "open-goal-installed-package-managed.ts",
+        "line": 386,
+        "expression": "outcome.finding.reason.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 386,
+        "sourceSha256": "8404a92a59325cecb131a431c615ea8b5bef28cebefe4fcc9881f0e61a7cea87"
+      },
+      {
+        "file": "open-goal-intent-discovery-managed.ts",
+        "line": 186,
+        "expression": "outcome.summary.length>700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 186,
+        "sourceSha256": "2c02e0a9d38becebe3a0a4cf4d36bb5d047b88783a7464e83ab6027ac5e35a67"
+      },
+      {
+        "file": "open-goal-intent-discovery-managed.ts",
+        "line": 245,
+        "expression": "report.outcome.summary.length<=700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 245,
+        "sourceSha256": "2c02e0a9d38becebe3a0a4cf4d36bb5d047b88783a7464e83ab6027ac5e35a67"
+      },
+      {
+        "file": "open-goal-launch-state-managed.ts",
+        "line": 198,
+        "expression": "report.result.summary.length>650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 198,
+        "sourceSha256": "e9d7a5338151b05958756e1d69aa70582ea3a0a6516d59a2d31c78b9d06cc31c"
+      },
+      {
+        "file": "open-goal-launch-state-managed.ts",
+        "line": 237,
+        "expression": "report.result.summary.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 237,
+        "sourceSha256": "e9d7a5338151b05958756e1d69aa70582ea3a0a6516d59a2d31c78b9d06cc31c"
+      },
+      {
+        "file": "open-goal-local-width-managed.ts",
+        "line": 217,
+        "expression": "encoder.encode(finding.reason).length > 800",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 217,
+        "sourceSha256": "439d0d5def1b3e412f6eb61faeb81016a911aa3d311bc9175cc37cf31e07e0ed"
+      },
+      {
+        "file": "open-goal-panel-source-migration-managed.ts",
+        "line": 431,
+        "expression": "outcome.finding.reason.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 431,
+        "sourceSha256": "e365b1cba4a140e8c6c4eca6bfac8ada0949d7e284c7246a455bd912038ee7cd"
+      },
+      {
+        "file": "open-goal-personal-welcome-managed.ts",
+        "line": 343,
+        "expression": "bytes(plan.explanation)<=600",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 343,
+        "sourceSha256": "9937321f3fbf001addb6be5e8f4658b2fcc9064492455fef6181a1c1cdf62f09"
+      },
+      {
+        "file": "open-goal-portfolio-managed.ts",
+        "line": 229,
+        "expression": "report.decision.explanation.length>650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 229,
+        "sourceSha256": "e4167ef2b497c279d63c6d1bccb935130496064f26ffa4a653cfce80d89915ae"
+      },
+      {
+        "file": "open-goal-portfolio-managed.ts",
+        "line": 309,
+        "expression": "decision.explanation.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 309,
+        "sourceSha256": "e4167ef2b497c279d63c6d1bccb935130496064f26ffa4a653cfce80d89915ae"
+      },
+      {
+        "file": "open-goal-provider-handoff-managed.ts",
+        "line": 263,
+        "expression": "encode.encode(plan.explanation).length <= 520",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 263,
+        "sourceSha256": "e244b07bbc59eac155a0321ce8ffbd32d2fa5df0571816cb3e2d0f719e5792f6"
+      },
+      {
+        "file": "open-goal-recovery-managed.ts",
+        "line": 181,
+        "expression": "review.reason.length > 2_000",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 181,
+        "sourceSha256": "3db98e32c53e958608bb79378ff2f3dee0f7feca1f83c648a1ecba5c1629cda6"
+      },
+      {
+        "file": "open-goal-regency-managed.ts",
+        "line": 202,
+        "expression": "report.decision.explanation.length>700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 202,
+        "sourceSha256": "62617789e039aa17a21c85eb211701d220be13126a7b86a4faa02b7aa76979be"
+      },
+      {
+        "file": "open-goal-regency-managed.ts",
+        "line": 253,
+        "expression": "result.explanation.length<=700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 253,
+        "sourceSha256": "62617789e039aa17a21c85eb211701d220be13126a7b86a4faa02b7aa76979be"
+      },
+      {
+        "file": "open-goal-regency-managed.ts",
+        "line": 260,
+        "expression": "artifactDecision.explanation.length<=700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 260,
+        "sourceSha256": "62617789e039aa17a21c85eb211701d220be13126a7b86a4faa02b7aa76979be"
+      },
+      {
+        "file": "open-goal-retained-memory-managed.ts",
+        "line": 192,
+        "expression": "outcome.summary.length<=700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 192,
+        "sourceSha256": "a1ecedef4e6b991081ff6fde4eb57bf86df8c70e6db57cf529d555728204dac9"
+      },
+      {
+        "file": "open-goal-route-authority-managed.ts",
+        "line": 186,
+        "expression": "report.outcome.summary.length>650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 186,
+        "sourceSha256": "68091f3e3431a3c038a11b4e5359b9979da418a5820eeb410d89ae54564ecae5"
+      },
+      {
+        "file": "open-goal-route-authority-managed.ts",
+        "line": 222,
+        "expression": "report.outcome.summary.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 223,
+        "sourceSha256": "68091f3e3431a3c038a11b4e5359b9979da418a5820eeb410d89ae54564ecae5"
+      },
+      {
+        "file": "open-goal-specialist-managed.ts",
+        "line": 321,
+        "expression": "bytes(plan.explanation) <= 600",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 321,
+        "sourceSha256": "501f0d025efdceab9caadcecd88a46a97bfe61aad507d9a4ffbc65b14e8a3ef7"
+      },
+      {
+        "file": "open-goal-system-release-managed.ts",
+        "line": 289,
+        "expression": "outcome.assessment.reason.length <= 1400",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 289,
+        "sourceSha256": "14998d07874874a552514c87cd8b4cd2b05cf05e65d9192e331f4e49c9eaf338"
+      },
+      {
+        "file": "open-goal-terminal-managed.ts",
+        "line": 362,
+        "expression": "new TextEncoder().encode(outcome.summary.explanation).length <= 480",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 362,
+        "sourceSha256": "a90daa12e11ff0992be331ca13fed5375b00b844dbde1b21abdb5c8189fe3a97"
+      },
+      {
+        "file": "open-goal-testkit-closeout-managed.ts",
+        "line": 117,
+        "expression": "decision.explanation.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 117,
+        "sourceSha256": "bde645873aa7c27d4a03e46888e724a73c5a143a55051da96a02298df835920e"
+      },
+      {
+        "file": "open-goal-webhook-admission-managed.ts",
+        "line": 303,
+        "expression": "out.assessment.reason.length <= 1400",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 303,
+        "sourceSha256": "019ad0957d0b285e45593ed3a967b2d5aa8aa636a561cf6180d732b08f1e5db2"
+      },
+      {
+        "file": "open-goal-workspace-claims-managed.ts",
+        "line": 197,
+        "expression": "report.disposition.summary.length>650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 197,
+        "sourceSha256": "12dd840243e30bd7e645af5fb813ff2811e002a1f732641d45d8cfbf28d1a4a0"
+      },
+      {
+        "file": "open-goal-workspace-claims-managed.ts",
+        "line": 233,
+        "expression": "report.disposition.summary.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 233,
+        "sourceSha256": "12dd840243e30bd7e645af5fb813ff2811e002a1f732641d45d8cfbf28d1a4a0"
+      },
+      {
+        "file": "open-goal-workspace-config-managed.ts",
+        "line": 189,
+        "expression": "value.summary.length>700",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 189,
+        "sourceSha256": "7324f694727c199ea11aef3cadaed64817faf6a544e2877fb195d2ea5b8a01b9"
+      },
+      {
+        "file": "open-goal-workspace-share-managed.ts",
+        "line": 271,
+        "expression": "outcome.finding.reason.length <= 1200",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 271,
+        "sourceSha256": "1a9d69bf600eb9e2449a69f84b0d5956c18b7c592b7efbbb1b52b05bec0e3048"
+      },
+      {
+        "file": "open-goal-api-readiness-managed.ts",
+        "line": 316,
+        "expression": "countBytes(artifactExplanation)<=660",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 316,
+        "sourceSha256": "70549566f403c4cccc3d9b5e524cb73a5524add12cbdd2cfb5a997e29e59d994"
+      },
+      {
+        "file": "open-goal-personal-welcome-managed.ts",
+        "line": 350,
+        "expression": "bytes(artifactExplanation)<=600",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 350,
+        "sourceSha256": "9937321f3fbf001addb6be5e8f4658b2fcc9064492455fef6181a1c1cdf62f09"
+      },
+      {
+        "file": "open-goal-portfolio-managed.ts",
+        "line": 310,
+        "expression": "artifactExplanation.length<=650",
+        "decision": "remove-unrequested-explanatory-field-ceiling",
+        "preserved": "Native artifact/readback byte bounds and nonempty required content guards remain.",
+        "originalLine": 310,
+        "sourceSha256": "e4167ef2b497c279d63c6d1bccb935130496064f26ffa4a653cfce80d89915ae"
+      }
+    ]
+  },
+  "reviewFieldExpansion": {
+    "agent-capability": [
+      [
+        "effects",
+        "assignment",
+        "evidence",
+        "decision",
+        "continuation"
+      ],
+      []
+    ],
+    "bridge-delivery": [
+      [
+        "index",
+        "scope",
+        "operations",
+        "bridgeRead",
+        "fileReads",
+        "commit"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "deployed-interface": [
+      [
+        "effects",
+        "survey",
+        "observation",
+        "architecture",
+        "decision"
+      ],
+      [
+        "handoffText"
+      ]
+    ],
+    "extension-dossier": [
+      [
+        "assignment",
+        "review",
+        "candidate",
+        "history",
+        "decision",
+        "effects"
+      ],
+      [
+        "dossierText"
+      ]
+    ],
+    "installed-package": [
+      [
+        "effects",
+        "assignment",
+        "observed",
+        "plan",
+        "repair"
+      ],
+      []
+    ],
+    "intent-discovery": [
+      [
+        "notice",
+        "capabilities",
+        "evidence"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "launch-state": [
+      [
+        "index",
+        "frames",
+        "readback",
+        "request",
+        "witness",
+        "effect"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "panel-source-migration": [
+      [
+        "assignment",
+        "observed",
+        "current",
+        "move",
+        "identity",
+        "consumers",
+        "effects"
+      ],
+      []
+    ],
+    "retained-memory": [
+      [
+        "brief",
+        "plan",
+        "evidence"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "route-authority": [
+      [
+        "offer",
+        "snapshots",
+        "authority",
+        "choice",
+        "readback"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "system-release": [
+      [
+        "assignment",
+        "runs",
+        "cases",
+        "effects"
+      ],
+      [
+        "handoffText"
+      ]
+    ],
+    "testkit-closeout": [
+      [
+        "pair",
+        "actual",
+        "readReceipts",
+        "staged",
+        "rejectedForeign"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "webhook-admission": [
+      [
+        "assignment",
+        "evidence",
+        "binding",
+        "effects"
+      ],
+      [
+        "handoffText"
+      ]
+    ],
+    "workspace-claims": [
+      [
+        "index",
+        "packet",
+        "choice",
+        "evidence",
+        "support",
+        "test",
+        "authority",
+        "guideRevision"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "workspace-config": [
+      [
+        "brief",
+        "lens",
+        "evidence"
+      ],
+      [
+        "artifact"
+      ]
+    ],
+    "workspace-share": [
+      [
+        "assignment",
+        "observation",
+        "decision",
+        "effects"
+      ],
+      [
+        "handoffText"
+      ]
+    ],
+    "gadDurableQuestion": [
+      [
+        "diagnostics"
+      ],
+      []
+    ],
+    "examplesAdoption": [
+      [
+        "card",
+        "installed",
+        "composition",
+        "gate",
+        "journal"
+      ],
+      [
+        "noteText"
+      ]
+    ]
+  },
+  "goalObligations": {
+    "gad": {
+      "source": "open-goal-gad-durable-question-worlds.ts",
+      "goalsUnchanged": true,
+      "entries": [
+        {
+          "id": "gad-preview-handoff",
+          "goal": "The preview thread changed direction. Tell me what I most recently asked and whether the current preview-review participant is actually on this thread before I hand it over.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-return-access",
+          "goal": "Make a private venue handoff. Find the live question about how visitors leave the site and confirm the active access-desk participant from the durable conversation.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-draft-withdrawal",
+          "goal": "I may have pulled back my question about the draft. Check the actual message sequence and whether draft-review is current, then tell me if anything is still ready to hand off.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-cultural-credit",
+          "goal": "What is my outstanding question for collections-desk on the label? The text in quotation marks might be archival. I need the actual current question and participant before circulating it privately.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-title-twin",
+          "goal": "Before a private handoff to asset-licensing, confirm my outstanding caption question and the real participant. A display name that sounds right cannot stand in for that handle.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-empty-hall",
+          "goal": "Is anything ready for hall-coordinator in the assigned hall conversation? Check the durable user record and whether anybody is actually on its roster before suggesting a handoff.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-resolved-ticket",
+          "goal": "Check whether the print-run question really still needs another answer. Confirm the current print-desk participant, but don't treat a question resolved later in the conversation as open.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-departed-safety",
+          "goal": "Find my last individual question about using the second stair, and tell me if the safety-desk participant can currently receive the handoff or only appears in past records.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-double-owner-local",
+          "goal": "I need the current question about the audit checklist and a unique audit-review participant before moving anything. Tell me where the durable evidence stops.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-current-owner-after-leave",
+          "goal": "Which question about the sign order still stands, and can you distinguish the current signs-desk participant from the one that left? Prepare a private readiness readout.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-no-receipt-question",
+          "goal": "The cost-review conversation may contain a copied question without a request from me. Decide whether there's a real user question to hand off and verify the actual participant.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-access-request-plain",
+          "goal": "Find my actual request for the seating-desk about companion seats, even if I phrased it without a question mark. Check current membership before treating it as ready.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-retired-no-question",
+          "goal": "If there's a pending caption question, tell me whether sound-desk is still here. The last record may describe completed work; report exactly what remains actionable.",
+          "participantRequirement": "if-current-question"
+        },
+        {
+          "id": "gad-one-message-boundary",
+          "goal": "Give me the exact user question that lighting-desk should validate for the lighting handoff. Keep the fixture's next message as separate context, and prove who is on the roster.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-accented-quote-only",
+          "goal": "My transcription includes French dialogue. Work out whether I actually asked a question for archives-desk and ground the operator note in the exact latest durable message that matters.",
+          "participantRequirement": "not-requested"
+        },
+        {
+          "id": "gad-absent-current-question",
+          "goal": "Preserve my exact question about the volunteer waiver for venue-desk. Check whether there's a persisted participant before calling this handoff ready.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-repeated-wording",
+          "goal": "I asked the same inventory question twice. Cite the newer individual publication and the durable inventory-desk participant that can handle it.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-double-hold",
+          "goal": "Review the late request in my catering handoff. If I withdrew it or catering-review was never enrolled, make both limitations explicit.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-held-night-access",
+          "goal": "For tonight's access handoff, recover the question I actually asked after we moved away from the central gate. Confirm there is one current night-access participant.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-held-wrong-desk-suffix",
+          "goal": "Confirm the exact user question for the label owner and check that label-owner really exists on this transcript's current roster. Similar roster labels have confused us before.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-held-unreadable-scope",
+          "goal": "Before routing the condition question to records-desk, prove the owned transcript is represented completely enough to identify the latest individual user question. Hold if the evidence is incomplete.",
+          "participantRequirement": "not-requested"
+        },
+        {
+          "id": "gad-held-two-shifts",
+          "goal": "Do we have one current intake-review owner for the loan question? The roster can include two active people under that role, and I need the precise question even if we have to hold.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-held-audio-already-answered",
+          "goal": "I need a decision on whether the last audio permissions question still needs a handoff to voice-rights. Confirm the roster separately from any later resolution in the conversation.",
+          "participantRequirement": "required"
+        },
+        {
+          "id": "gad-held-no-questions-no-coverage",
+          "goal": "Check whether there is a real question for tour-design on this channel, and whether the role has a current participant. The notes include a sample script, and a rehearsal line is insufficient.",
+          "participantRequirement": "required"
+        }
+      ]
+    },
+    "bridge": {
+      "source": "open-goal-bridge-delivery-worlds.ts",
+      "goalsUnchanged": true,
+      "entries": [
+        {
+          "id": "enable-local-rescue-window",
+          "goal": "Prepare Wardrobe repairs for backstage pickup. Compare the changed exchange contract and its release note with the retained repairs branch evidence, and commit the pair locally if it agrees.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "external-candidate-holds-local-rollforward",
+          "goal": "Can the Water table contract be advanced in our local working chain? Check whether the recorded upstream pull left an unresolved candidate before making a local commit. Retain a private decision either way.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "missing-target-is-not-synchronization",
+          "goal": "Audit the Backline power migration against the recorded qa/power target. Tell us whether the branch was found and what the two local files establish. Leave a private decision, with no commit.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "cross-remote-observation-is-not-approval",
+          "goal": "For Map edits, the cooperative and mirror remotes use the same work/path branch. Verify whether the retained acceptance belongs to the cooperative before an optional local commit; make a private decision record.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "refused-credential-cannot-inherit-old-counts",
+          "goal": "Review the Seating guide pair after an upstream check was refused. Separate the last successful observation from this attempt and leave the working state alone.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "old-observation-before-current-window",
+          "goal": "Floor route moved to a new review window. Determine whether the retained branch check is recent enough to support a local commit, and leave a private note without attempting another fetch.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "same-title-archive-uses-different-branch",
+          "goal": "Under Offer rotation, the current branch and archive have similar labels. Review the exact current release direction for the new guide rotation. The archive\u2019s branch observation cannot authorize a current local commit.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "divergence-blocks-local-ready-note",
+          "goal": "Check the Restock forms semantic pair against the last v3 comparison. Decide whether the local change should await reconciliation. Save the exact reason privately and leave the working chain alone.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "behind-branch-needs-exact-integration-first",
+          "goal": "The Tool cupboard update might be behind its observed branch. Decide whether to locally commit the paired edits now, and preserve them as a draft if incoming work is still ahead.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "local-commit-with-ahead-and-distinct-revision",
+          "goal": "Inspect Quiet hours\u2019 weekday update against the exact retained housing target. If the local contract and release note describe the same change and the branch receipt supports it, commit locally and record the new semantic event privately.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "missing-original-record-cannot-be-reconstructed",
+          "goal": "The Reading trolley file pair looks finished, but the original crates-branch evidence may be missing. Look for the exact artifact before approving a local commit or substituting archived evidence.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "release-note-retains-superseded-policy",
+          "goal": "Compare the Lab signoff contract with what its current release note promises. If the note still describes the former process, stop before the requested local commit even if the retained branch looks aligned.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "one-file-working-difference-is-not-paired",
+          "goal": "I intended a paired Survey draw change. Check whether the contract moved in this draft while the note stayed at an older committed state. Make a private review of what remains and do not auto-complete the work.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "release-note-changed-before-contract",
+          "goal": "Review Lift loading for a local commit of the whole release. The note may have been updated earlier than the contract. Confirm whether their current working and committed versions support the same action.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "review-saved-unchanged-approved-contract",
+          "goal": "Check the Market entry release contract and its note for current local differences, using the actual weekday observation as context. This is an inspection only, even if the branch was aligned.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "deleted-required-local-note",
+          "goal": "Review Volunteer signup after someone may have removed its required release note. The upstream record alone cannot fill in a missing local file. Keep a private decision about whether the pair can be committed.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "failed-fetch-after-success-is-distinct",
+          "goal": "Before a local commit of Exhibition badges, tell us whether the most recent winter lookup returned an actual branch observation or only old successful telemetry after a fetch failed.",
+          "requestedAnswerRequired": true
+        },
+        {
+          "id": "companion-repository-receipt-refused",
+          "goal": "The same vendor supplied Menu and Drinks with the same branch naming. Inspect the retained evidence for the Service menu repository itself and write a private readiness or hold note. Do not change either project.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "retained-empty-relationship-holds",
+          "goal": "Sound coaching has an incomplete status capture. Establish whether it actually observed the intended branch before finalizing a local commit. Leave the draft intact when the branch existence was never recorded.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "verify-existing-local-commit-without-remaking-it",
+          "goal": "Confirm whether the Choir stands update has already received its local semantic commit. Compare working, committed and protected bases and keep a private status record. Do not create a duplicate commit.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "held-current-branch-with-exact-paired-draft",
+          "goal": "The Seasonal catalog handoff needs a local semantic commit if the paired cover evidence and observed branch match. Leave a private handoff with the confirmed semantic event. No synchronization.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "held-old-observation-even-with-current-local-commit",
+          "goal": "Lighting profile is already committed locally. Review whether the retained levels-branch observation is still inside its accepted window and record the private conclusion without a new commit.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "held-candidate-trumps-apparent-alignment",
+          "goal": "Review Subtitles after a remote snapshot was retained. An apparently aligned branch count does not resolve a semantic candidate. Preserve the working pieces and leave a private explanation.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "held-draft-note-cannot-extend-contract-claim",
+          "goal": "Before the Loading slot local commit, check that the draft note describes the actual route and the current paired contract. Treat a superseded note as a hold even when the retained branch evidence agrees.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "held-vanished-branch-with-unchanged-main",
+          "goal": "Audit the Violin repair branch capture after a project rename. Does the original branch still exist in that retained observation? Compare it with the actual local file chain and keep a private review.",
+          "requestedAnswerRequired": false
+        },
+        {
+          "id": "held-history-from-refused-retarget",
+          "goal": "The Sponsors desk renamed the signer under Sponsor letters. Identify whether the last stored upstream success is historical after the exact winter check failed, before deciding whether to commit locally.",
+          "requestedAnswerRequired": true
+        }
+      ]
+    },
+    "news": {
+      "source": "open-goal-news-worlds.ts",
+      "goalsUnchanged": true,
+      "entries": [
+        {
+          "id": "explain-news-first-empty-inbox",
+          "goal": "The newsroom inbox looks empty on this new workspace. Can the editor start looking for stories now, or does someone need to finish setup first? Leave my reader settings alone.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "reconcile-saved-and-current-news-views",
+          "goal": "Yesterday's handoff said this reader was unconfigured. Before we resend setup instructions, see whether the current inbox and saved stories can actually load. Tell me which views are simply empty. Please don't change the feed or briefing.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "audit-paused-berlin-briefing",
+          "goal": "The opening shift thinks Berlin's automatic 07:45 briefing paused feed checks too. Check whether the 90-minute poll and the daily Berlin schedule are still in place, whether automatic delivery is paused, and whether they can request a manual briefing. Inspect only.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "accelerate-source-checks-with-chicago-slot-protected",
+          "goal": "For election week we need fresh sources every twenty minutes. Change the feed polling rate and check it actually took. Keep the Chicago 08:30 daily briefing paused exactly as it is.",
+          "requestedReturnRequired": false
+        },
+        {
+          "id": "replace-overnight-slot-with-interval",
+          "goal": "The Singapore team no longer wants a fixed overnight slot. Move the briefing to a three-hour interval, but don't resume delivery or touch feed polling. Confirm the new cadence for the handoff.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "resume-keep-interval-and-reader-setup",
+          "goal": "We are back from holiday. Resume automatic delivery if it is still paused, preserve the 90-minute briefing cadence and 40-minute feed poll, and check whether we have to fill in News preferences before using the inbox.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "decline-unavailable-rapid-briefing",
+          "goal": "Can we shorten the automatic briefing to five minutes? Only apply that if the installed scheduler supports it. Otherwise confirm that the paused Tokyo 19:00 slot is still configured.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "keep-sufficient-poll-cadence",
+          "goal": "Our publisher asked for a source check every 25 minutes. If that's already what is running, leave it alone and confirm the existing setting. Also check the saved-story view without opening a briefing.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "pause-then-speed-up-storm-desk",
+          "goal": "We're following a storm on the live desk. First pause automatic briefings so alerts don't go out to the wrong list. Then increase feed checks to every fifteen minutes. Preserve the New York 06:50 briefing time for when the desk resumes, and confirm manual briefings are still available.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "preserve-desk-poll-while-moving-briefing",
+          "goal": "Please move the paused briefing to 06:40 London time. The feed team is adjusting their poll rate separately, so preserve whichever rate they have saved when the briefing change goes through. Confirm what is actually installed.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "check-weekend-archive-and-cadence",
+          "goal": "For the weekend shift, see whether this reader's archive has anything saved under 'estuary restoration'. A colleague said sources refresh every 45 minutes, so verify that against the live schedule and report the actual interval. Leave this workspace alone.",
+          "requestedReturnRequired": true
+        },
+        {
+          "id": "move-held-briefing-to-local-wall-clock",
+          "goal": "The Toronto team is replacing its rolling briefing with a daily 06:25 local handoff. Move only that schedule to the new time. Automatic delivery is supposed to stay paused while they verify the reader. Keep the current feed poll and confirm the actual saved timezone.",
+          "requestedReturnRequired": true
+        }
+      ]
+    }
+  },
+  "freshActualFindings": {
+    "gad-retired-no-question": "Exact native history/roster remain required; conditional unrequested participant mismatch becomes incidental. Original false absent/null typed leaf and copied root remain source/hash-bound incorrect values, required:false. Mandatory goal meaning review remains pending.",
+    "bridge-delivery-release-note-retains-superseded-policy": "Current branch identity, exact file reads, real commit gate and private artifact guards remain; unrequested BridgeDecision status equality and missing optional explanation masks removed. Mandatory meaning review uses actual native file chain and retained bytes.",
+    "examples-adoption-transitive-review-helper": "Missing requested private record remains false; no waiver or recovery. All24 literal goals still under broader obligation audit."
+  },
+  "verification": {
+    "targetedTests": 44,
+    "ledgerUnit": "vibe-source37-shared-outcomes-20261125a",
+    "actualGadRootAndLeafMaskedAsOptional": true,
+    "nativeForbiddenBridgeCommitRejected": true,
+    "longSupportedExplanationPast900AcceptedPendingMeaningReview": true,
+    "nativeReceiptReplayAuthorityAndCorruptionNegativesRetained": true,
+    "modelCalls": 0,
+    "semanticReviewsRun": 0
+  },
+  "unchecked": [
+    "Remaining SST/Examples enum/report-ID/substring/route/count candidate classification in progress; this checkpoint is not whole-corpus clearance.",
+    "Six external templates independently owned by installed_deployment_mode; audit/fixes ongoing.",
+    "Original A/B source-bound canonical reassessment and genuine meaning review not yet run; archived evidence unchanged.",
+    "Genuine eval-handoff education-handbook failure remains false per independent parent diagnosis."
+  ]
+}

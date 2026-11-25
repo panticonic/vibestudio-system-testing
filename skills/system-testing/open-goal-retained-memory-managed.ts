@@ -1,4 +1,5 @@
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["brief", "plan", "evidence"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual as equal } from "node:util";
@@ -189,7 +190,7 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
     function validOutcome(outcome:MemoryOutcome|undefined,evidence:MemoryEvidence){
       const exact=citations(evidence);
       return !!outcome&&exact!==null&&outcome.disposition===world.required.disposition&&equal(outcome.citations,exact)&&
-        typeof outcome.summary==="string"&&!!outcome.summary.trim()&&outcome.summary.length<=700;
+        typeof outcome.summary==="string"&&!!outcome.summary.trim();
     }
     let stagedText:string|null=null;
   const services={

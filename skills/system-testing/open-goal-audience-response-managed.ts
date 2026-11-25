@@ -141,7 +141,7 @@ export async function prepareAudienceResponse(input:Input,world:OpenAudienceWorl
     },
   };
   function validAnswer(answer:AudienceAnswer|undefined){
-    return !!answer&&typeof answer.text==="string"&&answer.text.length<=450&&!!answer.text.trim()&&
+    return !!answer&&typeof answer.text==="string"&&!!answer.text.trim()&&
       equal(answer.facts,expectedAnswer);
   }
   async function verify(raw:unknown,invocation?:InvocationObservations){

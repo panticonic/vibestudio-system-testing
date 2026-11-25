@@ -1,4 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "observation", "decision", "effects"], ["handoffText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";
@@ -250,10 +252,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const allowWrite = canStage(decision);
     const outputs = filenames.filter(name => artifactNames.test(name) && !priorOutputs.includes(name));
     const handoffWrites = effects.filter(({ service, result }) => service === "workspaceShareHandoff" && result !== null);
+    let handoffText:string|null = null;
     let exactNote = staged === null && outputs.length === 0 && !allowWrite && handoffWrites.length === 0;
     if (allowWrite && staged && outputs.length === 1 && handoffWrites.length === 1) {
       const bytes = await readBytes(staged.path, staged.bytes);
       const text = decoder.decode(bytes);
+      handoffText = text;
       exactNote = staged.path === "/.tmp/" + outputs[0] + "/handoff.json" && bytes.length === staged.bytes &&
         digest(text) === staged.sha256 && text === packet(current, decision);
     }
@@ -268,7 +272,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         inspected?.invitation.member === projection.member && isDeepStrictEqual(inspected?.invitation, current.invitation) &&
         isDeepStrictEqual(inspected?.approval, auth),
       matchedLocalScopeDecision: isDeepStrictEqual(outcome?.handoff,staged)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 && outcome.finding.reason.length <= 1200,
+        outcome.finding.reason.trim().length > 0,
       verifiedPrivateHandoff: exactNote,
       preservedSharedAndNeighborState: intact && priorOutputs.every(name => filenames.includes(name)) &&
         before.mainEventId === head.mainEventId && isDeepStrictEqual(before.workingHead, head.workingHead),
@@ -280,7 +284,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean),
-      checks, assignment, observation: current, decision, handoff: staged, effects: structuredClone(effects) };
+      checks, assignment, observation: current, decision, handoff: staged, handoffText, effects: structuredClone(effects) };
   }
   async function qualify() {
     const assignment = await services.workspaceShareEvidence.discover();
