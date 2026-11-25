@@ -81,11 +81,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedAndroidDeliveryReport: native.checks.report,
     };
     return {
+      incorrectReturnValues:[],
+ ...input, scope, outcome, native, checks, passed: Object.values(checks).every(Boolean),
       outcomeContract:{effects:{checks:["boundExactAndroidDelivery", "exactNativeAndroidInventory", "independentlyVerifiedAndroidResult"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
         returnedValue:{checks:["matchedAndroidDeliveryReport"],required:!("receipt" in native&&native.receipt||"install" in native&&native.install),rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
-      incorrectReturnValues:[],
- ...input, scope, outcome, native, checks, passed: Object.values(checks).every(Boolean) };
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}}
+    };
   }
   async function qualify() {
     await androidDeliveryScope.read(input.goal);

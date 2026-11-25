@@ -171,12 +171,13 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         report.revision === after.view.revision && isDeepStrictEqual(returned, selected),
     };
     return {
-      outcomeContract:{effects:{checks:["discoveredBrowser", "readBackBrowser", "exactPanelOutcome", "respectedBrowserAuthority"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["reportedVisibleRows"],required:expectedChanges.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
-        incidentalValues:{checks:["incidentalBrowserSelection"],rationale:"An independently observed incorrect terminal row selection is held at its actual sampled definition; correct prior actions and native effects remain usable."}},
       incorrectReturnValues:incorrectSelections,
  passed: Object.values(checks).every(Boolean), ...input, goal, panelId: panel.id,
-      inspections, attempts: structuredClone(attempts), after, checks };
+      inspections, attempts: structuredClone(attempts), after, checks,
+      outcomeContract:{effects:{checks:["discoveredBrowser", "readBackBrowser", "exactPanelOutcome", "respectedBrowserAuthority"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
+        returnedValue:{checks:["reportedVisibleRows"],required:expectedChanges.length===0,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:["incidentalBrowserSelection"],rationale:"An independently observed incorrect terminal row selection is held at its actual sampled definition; correct prior actions and native effects remain usable."}}
+    };
   }
   async function qualify() {
     let view = await services.goalBrowser.inspect();

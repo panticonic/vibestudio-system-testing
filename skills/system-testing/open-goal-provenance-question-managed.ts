@@ -213,14 +213,15 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedRecordedQuestionReport: isDeepStrictEqual(actual,scoped.answer),
     };
     return {
+      incorrectReturnValues:[],
+caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),
+      native:{head,repositoryId,originalWork:proposed.workUnitId,counterWork,search:rawSearch,walks:[...nativeCounteractions]},
       outcomeContract: {
         effects: {checks:["retrievedVisibleRecordedIntent", "verifiedExactWorkCohort", "verifiedNativeCounteractionRationale", "preservedLocalQuestionScope"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
         returnedValue: {checks:["matchedRecordedQuestionReport"],required:true,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
-      },
-      incorrectReturnValues:[],
-caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).every(Boolean),checks,...scoped,effects:structuredClone(effects),
-      native:{head,repositoryId,originalWork:proposed.workUnitId,counterWork,search:rawSearch,walks:[...nativeCounteractions]}};
+      }
+    };
   }
   async function qualify() {
     await services.recordedQuestionDiscovery.discover();

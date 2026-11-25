@@ -229,12 +229,13 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedWorkspaceMigrationDisposition: isDeepStrictEqual(outcome?.receipt,receipt)&&outcome?.disposition === world.disposition && Boolean(outcome.reason.trim()),
     };
     return {
-      outcomeContract:{effects:{checks:["exactRenderedMigrationBoard", "exactMigrationAuthority", "matchedMigrationCardScope", "independentMigrationReadback", "preservedMigrationNeighbors"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
-        returnedValue:{checks:["matchedWorkspaceMigrationDisposition"],required:world.disposition!=="retained",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
  ...input, checks, passed: Object.values(checks).every(Boolean), available,
-      rendered: repeated.view, basis, targetObservations: structuredClone(targetObservations), final, outcome };
+      rendered: repeated.view, basis, targetObservations: structuredClone(targetObservations), final, outcome,
+      outcomeContract:{effects:{checks:["exactRenderedMigrationBoard", "exactMigrationAuthority", "matchedMigrationCardScope", "independentMigrationReadback", "preservedMigrationNeighbors"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
+        returnedValue:{checks:["matchedWorkspaceMigrationDisposition"],required:world.disposition!=="retained",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}}
+    };
   }
 
   async function qualify() {

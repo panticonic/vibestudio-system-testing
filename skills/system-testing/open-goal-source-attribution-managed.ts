@@ -340,13 +340,14 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     const proof = { ...assembleReport(), retainedText,effects: structuredClone(effects), native: { repositoryId, importedState, observed, authoredChanges, source, after: after.workingHead } };
     return {
+      incorrectReturnValues:[],
+ passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, actualResult:value,...proof,
       outcomeContract: {
         effects: {checks:["readExactCurrentSource", "tracedExactGraphOwner", "preservedWorkspaceSources", "verifiedOwnedSourceReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
         returnedValue: {checks:["matchedSourceAttributionReport"],required:world.requestedReturnRequired!==false,rationale:"A requested query conclusion is application data. Note-only goals are judged by their actual retained evidence or authorized hold, without requiring an extra root result copy."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
-      },
-      incorrectReturnValues:[],
- passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: context, goal: world.goal, checks, actualResult:value,...proof };
+      }
+    };
   }
   async function qualify() {
     const working = await reference();

@@ -1,5 +1,5 @@
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
-import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {extendSemanticOutcomeEffects, type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -306,13 +306,13 @@ export async function prepareOpenPanelRecovery(input: Input) {
       reason: "Confirmed the exact live marker and authority receipts." };
     const result = await verify(outcome);
     const rejectsWrongEvidence = !(await verify({ ...outcome, final: { ...outcome.final, evidence: ["foreign-panel"] } })).outcomeDimensions.returnedValue.passed;
-    let enforcesHold = true;
+    let enforcesHold: boolean | undefined;
     if (!target.surface.authorized && first.controls[0]) {
       const denied = await services.panelRecovery.apply(first.revision, { kind: "click", control: first.controls[0].id });
       enforcesHold = denied.result === "denied" && (await read(selected.panel)).revision === first.revision;
     }
-    const checks = { ...result.checks, rejectsCatalogAlias, rejectsStaleCatalog, rejectsWrongEvidence, enforcesHold };
-    return { ...result, outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectsCatalogAlias","rejectsStaleCatalog","rejectsWrongEvidence","enforcesHold"]}}, checks, passed: Object.values(checks).every(Boolean) };
+    return extendSemanticOutcomeEffects(result, { rejectsCatalogAlias, rejectsStaleCatalog, rejectsWrongEvidence,
+      ...(enforcesHold === undefined ? {} : { enforcesHold }) });
   }
 
   return { goal, services, verify, qualify };

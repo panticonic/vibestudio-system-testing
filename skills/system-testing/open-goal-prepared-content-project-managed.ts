@@ -1,7 +1,7 @@
 import {projectAuthorizationEvidence} from "./project-authorization-evidence.js";
 import { createScopedProjectDraft } from "./scoped-project-draft.js";
 import { sameProjectSourceSelection } from "./project-source-identity.js";
-import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
+import { assessSemanticOutcome, extendSemanticOutcomeEffects } from "@workspace/application-outcomes/semantic-outcome-contract";
 import { preparedContentProjectOutcomeContract } from "./prepared-content-project-outcome.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
@@ -336,9 +336,9 @@ export async function prepareOpenPreparedContentProject(
     const original=decision.selected[0];
     const rejectedWrongBasis=(await confirm(evidence.revision,{...decision,
       basis:decision.basis==="pending" ? "missing" : "pending"})).status!=="admitted";
-    const rejectedWrongSource=(await confirm(evidence.revision,{...decision,
-      selected:decision.selected.map((row,index)=>index===0 ? {...row,digest:"retired-alias-digest"} : row)})).status!=="admitted";
-    let rejectedRetiredAlias=true;
+    const rejectedWrongSource=original ? (await confirm(evidence.revision,{...decision,
+      selected:decision.selected.map((row,index)=>index===0 ? {...row,digest:"retired-alias-digest"} : row)})).status!=="admitted" : undefined;
+    let rejectedRetiredAlias: boolean | undefined;
     if (original) {
       const retired=evidence.records.find(row=>row.edition==="retired")!;
       const rejected=await confirm(evidence.revision,{...decision,selected:[{
@@ -370,8 +370,10 @@ export async function prepareOpenPreparedContentProject(
     const proof=await verify(report);
     const rejectedWrongDisposition=!(await verify({...report,outcome:expectedOutcome==="held" ? "committed" : "held"})).passed;
     const rejectedInventedHandle=!(await verify({...report,project:{...report.project,repoPath:"invented/project"}})).passed;
-    return {...proof,report,rejectedRetiredAlias,rejectedWrongDisposition,rejectedInventedHandle,rejectedWrongSource,rejectedWrongBasis,
-      passed:proof.passed && rejectedRetiredAlias && rejectedWrongDisposition && rejectedInventedHandle && rejectedWrongSource && rejectedWrongBasis};
+    const controls = { rejectedWrongDisposition, rejectedInventedHandle, rejectedWrongBasis,
+      ...(rejectedWrongSource === undefined ? {} : { rejectedWrongSource }),
+      ...(rejectedRetiredAlias === undefined ? {} : { rejectedRetiredAlias }) };
+    return { ...extendSemanticOutcomeEffects(proof, controls), report, ...controls };
   }
   return { services, verify, qualify };
 }

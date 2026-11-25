@@ -259,14 +259,15 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       matchedTranscriptSurfaceReport: isDeepStrictEqual(report, outcome),
     };
     return {
+      incorrectReturnValues:[],
+ caseId: world.id, contextId: input.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
+      ...outcome, native: { before: baseline.view, after: resulting, neighbor: neighboring.view, coordinates: difference.map(row => ({ id: row.id, envelope: row.messageId, owner: row.senderId, type: row.type })) }, effects: structuredClone(effects),
       outcomeContract: {
         effects: {checks:["boundCurrentTranscriptApproval", "provedCurrentNativeSurface", "exactScopedTranscriptDelta", "verifiedProjectedTranscriptEffect"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
         returnedValue: {checks:["matchedTranscriptSurfaceReport"],required:!published,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
-      },
-      incorrectReturnValues:[],
- caseId: world.id, contextId: input.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
-      ...outcome, native: { before: baseline.view, after: resulting, neighbor: neighboring.view, coordinates: difference.map(row => ({ id: row.id, envelope: row.messageId, owner: row.senderId, type: row.type })) }, effects: structuredClone(effects) };
+      }
+    };
   }
   async function qualify() {
     await services.transcriptApproval.discover();

@@ -274,8 +274,9 @@ export async function prepareOpenPdfInspection(contextId: string, world: OpenPdf
       protectedHeads: before.mainEventId === after.mainEventId &&
         (allowWorkingHeadChange || isDeepStrictEqual(before.workingHead, after.workingHead)),
     };
-    return {outcomeContract:{effects:{checks:["originalFiles","selectedNativeDocument","nativeTextRead","nativeLayoutRead","nativeRenderedArtifacts","protectedHeads"],rationale:"This native-only observation verifier checks actual PDF bytes, reads and raster artifacts without any model-returned answer."},returnedValue:{checks:[],required:false,rationale:"There is no model-generated answer in this native-only observation helper."}}, passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks,
-      documents: snapshot, ...observedEvidence() };
+    return { passed: Object.values(checks).every(Boolean), contextId, caseId, goal, checks,
+      documents: snapshot, ...observedEvidence(),outcomeContract:{effects:{checks:["originalFiles","selectedNativeDocument","nativeTextRead","nativeLayoutRead","nativeRenderedArtifacts","protectedHeads"],rationale:"This native-only observation verifier checks actual PDF bytes, reads and raster artifacts without any model-returned answer."},returnedValue:{checks:[],required:false,rationale:"There is no model-generated answer in this native-only observation helper."}}
+    };
   }
 
   async function verifyEvidence(value: unknown, { allowWorkingHeadChange = false } = {}) {
