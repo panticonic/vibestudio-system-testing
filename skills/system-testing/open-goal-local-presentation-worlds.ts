@@ -249,7 +249,7 @@ export const openLocalPresentationWorlds = [
       [
         section(
           "bench",
-          "Compare the interchangeable benches by grounded sockets and clear width; keep widths in cm.",
+          "Compare the interchangeable benches by socket count and clear width; keep widths in cm.",
           "North has 6 sockets and 80 cm width; South has 10 sockets and 110 cm width. Labels: Sockets, Width (cm).",
         ),
       ],
@@ -284,7 +284,7 @@ export const openLocalPresentationWorlds = [
       [
         section(
           "temperature",
-          "Surface the latest stable temperature and outstanding alerts as two headline figures.",
+          "Surface the recorded lowest temperature and open alarms as two headline figures.",
           "Lowest temperature: -18 °C. Open alarms: 2.",
         ),
         section(

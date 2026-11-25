@@ -29,3 +29,16 @@ it("does not prescribe English keywords for a structurally correct missing-data 
  expect(checkPresentation(world,report)).not.toBeNull();
  held.reason="";expect(checkPresentation(world,report)).toBeNull();
 });
+
+it("still requires the actual recorded refrigeration view and excludes the unrelated rumor",()=>{
+ const world=openLocalPresentationWorlds.find(world=>world.id==="present-local-cold-storage-status")!;
+ const requirements=world.expected.requirements!;
+ const report=referencePresentation(requirements);
+ expect(checkPresentation(requirements,report)?.[0]?.mdx).toContain("-18");
+ expect(checkPresentation(requirements,{views:[{id:"temperature",status:"needs-review",reason:"Unavailable"}],omitted:["rumor"]})).toBeNull();
+ const wrong=structuredClone(report),view=wrong.views[0];
+ if(view?.status!=="ready"||view.rendered.component!=="Stats")throw new Error("Expected recorded refrigeration values");
+ view.rendered=renderComponent({component:"Stats",props:{items:[{label:"Lowest temperature",value:"-11 °C"},{label:"Open alarms",value:2}]}});
+ expect(checkPresentation(requirements,wrong)).toBeNull();
+ expect(checkPresentation(requirements,{...report,omitted:[]})).toBeNull();
+});
