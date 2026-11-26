@@ -4,7 +4,7 @@ import type {SourceAttributionEvidence,SourceAttributionFile} from "@workspace-s
 
 const file:SourceAttributionFile={candidate:{id:"owned",name:"owned.txt",path:"owned.txt"},state:"actual-state",file:"actual-file",coordinateKind:"utf16",digest:"actual-bytes",fragments:[{id:"value",text:"cap=3",start:0,end:5}]};
 const evidence:SourceAttributionEvidence={selected:{candidate:file.candidate.id,fragment:"value"},trace:{file:file.file,state:file.state,fragment:"value",truncated:false,spans:[{id:"native-span",start:0,end:5,boundary:"authored",intentTier:"stated",paths:["copies-content"],work:"actual-work",command:"actual-command",externalSource:null}]},roots:[{ref:"actual-work",kind:"work-unit",label:"Decision",intent:"Keep one collection window free",tier:"stated",externalSource:null}]};
-const conclusion={disposition:"supported",claims:[{fragment:"value",span:"native-span",origin:"native",intent:"Preserve a free pickup window",refs:["actual-work"]}]};
+const conclusion={explanation:"The inspected native roots establish the recorded origin.",disposition:"supported",claims:[{fragment:"value",span:"native-span",origin:"native",intent:"Preserve a free pickup window",refs:["actual-work"]}]};
 
 it("validates independently observed frames without a reference path, trace count, or copied prose",()=>{
  expect(groundedSourceEvidence([file],[evidence])).toBe(true);
@@ -36,7 +36,13 @@ it.each([
 it("does not invent semantic correctness for shape-valid unsupported answers",()=>{
  // This is deliberately only native frame/citation grounding. Mandatory goal
  // review must reject absent requested meaning or false paraphrases.
- expect(groundedSourceConclusion({disposition:"unverifiable",claims:[]},[])).toBe(true);
+ expect(groundedSourceConclusion({explanation:"The inspected evidence does not establish the requested origin.",disposition:"unverifiable",claims:[]},[])).toBe(true);
  expect(groundedSourceConclusion({...conclusion,claims:[{...conclusion.claims[0],intent:"An unsupported reason"}]},[evidence])).toBe(true);
  expect(groundedSourceConclusion(null,[evidence])).toBe(false);
+});
+
+it('keeps an honest unavailable explanation outside opaque native identities',()=>{
+ expect(groundedSourceConclusion({explanation:"The requested handbook is absent; the cue sheet cannot establish its author's reason.",disposition:"unverifiable",claims:[]},[])).toBe(true);
+ expect(groundedSourceConclusion({explanation:"",disposition:"unverifiable",claims:[]},[])).toBe(false);
+ expect(groundedSourceConclusion({explanation:"The handbook is absent.",disposition:"unverifiable",claims:[{fragment:"handbook",span:"No source remains",origin:"unresolved",intent:null,refs:[]}]},[])).toBe(false);
 });

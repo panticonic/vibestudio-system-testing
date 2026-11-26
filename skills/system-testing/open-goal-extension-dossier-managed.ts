@@ -3,7 +3,6 @@ import {type ApplicationReturnContribution} from "@workspace/application-outcome
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "review", "candidate", "history", "decision", "effects"], ["dossierText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -214,7 +213,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
   type Review = Awaited<ReturnType<typeof readBound>>;
   type History = Awaited<ReturnType<typeof currentHistory>>;
   type Outcome = { assignment: Assignment; review: Review; candidate: Candidate; history: History;
-    finding: { decision: Decision; reason: string }; dossier: Dossier | null };
+    explanation: string; dossier: Dossier | null };
   let discovery: Assignment | undefined;
   let source: Source | undefined;
   let runtime: Runtime | undefined;
@@ -316,7 +315,7 @@ export async function prepareExtensionDossier(input: { contextId: string; caseId
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["respectedLocalReleaseDecision"],"rootPath":["finding"],"producerSourceSuffix":"reviewExtensionDossier/decideDossier.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=[];
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){
@@ -342,28 +341,29 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const decision = decisionFor(found, review, compared, active);
     const shouldStage = canStage(found, decision);
     const added = afterOutputs.filter(name => scratchNames.test(name) && !preexisting.includes(name));
-    const artifactCount = effects.filter(effect => effect.service === "extensionDossierWrite").length;
+    // A refused request is recorded for meaning review, but is not a write.
+    const written = effects.filter(effect => effect.service === "extensionDossierWrite" && effect.result !== null);
     let dossierText:string|null = null;
-    let note = !shouldStage && stored === null && added.length === 0 && artifactCount === 0;
-    if (shouldStage && stored && added.length === 1 && artifactCount === 1) {
+    // Permission does not request an artifact. Mandatory goal review decides
+    // whether the user's actual question also required a retained dossier.
+    let note = stored === null && added.length === 0 && written.length === 0;
+    if (shouldStage && stored && added.length === 1 && written.length === 1 && isDeepStrictEqual(written[0]!.result, stored)) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
       dossierText = body;
       note = stored.path === "/.tmp/" + added[0] + "/handoff.json" && bytes.length === stored.bytes &&
         sha256HexSyncText(body) === stored.sha256 && body === bodyFor(found, review, compared, active, decision);
     }
-    const expectedMethods = ["discover", "source", "runtime", "candidate", "history", ...(shouldStage ? ["stage"] : [])];
     const checks = {
-      boundOriginalOwnerScope: decoder.decode(originalScope) === scopeBytes && isDeepStrictEqual(discovery, found) &&
-        sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
+      boundOriginalOwnerScope: decoder.decode(originalScope) === scopeBytes && isDeepStrictEqual(discovery, found),
       usedExactInstalledReleaseReview: isDeepStrictEqual(source, review.source.observation) &&
         isDeepStrictEqual(runtime, review.runtime.observation),
       verifiedPackageDifference: isDeepStrictEqual(candidate, compared) &&
         compared.delta.workingDigest === review.source.observation.working?.hash &&
         compared.delta.publishedDigest === review.source.observation.published?.hash,
       reconciledNativeReleaseHistory: isDeepStrictEqual(history, active),
-      respectedLocalReleaseDecision: isDeepStrictEqual(outcome?.dossier,stored)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0,
+      respectedLocalReleaseDecision: Boolean(outcome && typeof outcome.explanation === "string" && outcome.explanation.trim() &&
+        (outcome.dossier === null || isDeepStrictEqual(outcome.dossier, stored))),
       verifiedExactDossier: note && preexisting.every(name => afterOutputs.includes(name)),
       preservedProtectedSourceAndRuntime: after.mainEventId === initial.mainEventId &&
         isDeepStrictEqual(after.workingHead, assigned.workingHead) && baselineReview.runtime.observation.activeEv === review.runtime.observation.activeEv &&
@@ -372,7 +372,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract:{
         effects:{checks:["boundOriginalOwnerScope", "usedExactInstalledReleaseReview", "verifiedPackageDifference", "reconciledNativeReleaseHistory", "verifiedExactDossier", "preservedProtectedSourceAndRuntime"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["respectedLocalReleaseDecision"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        returnedValue:{checks:["respectedLocalReleaseDecision"],required:world.requestedReturnRequired,rationale:"Literal requested assessments remain application data even after persistence; dossier-only goals do not require a redundant root copy."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
@@ -392,13 +392,16 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     if (!candidate) throw new Error("Reference candidate was not observed");
     const decision = decisionFor(assignment, review, candidate, history);
     const dossier = canStage(assignment, decision) ? await services.extensionDossierWrite.stage(decision) : null;
-    const result = {finding:{decision,reason:"Exact package, current release and retained owner scope."},dossier};
+    const result = {explanation:`Native package comparison: ${candidate.compatibility}; current owner scope: ${decision}. No live release was changed.`,dossier};
     const proof = await verify(result);
-    const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    const rejectedForeignReceipt = !(await verify({...result,dossier:{path:"/.tmp/unissued/handoff.json",bytes:1,sha256:"unissued"}})).outcomeDimensions.returnedValue.passed;
+    // Qualification proves that its own chosen write really happened; it does
+    // not impose that reference route on an independently reviewed teacher.
+    const referenceArtifact = !canStage(assignment, decision) || dossier !== null;
+    const checks = {...proof.checks,rejectedForeignReceipt,referenceArtifact};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignReceipt","referenceArtifact"]}}});
   }
 
   return { services, verify, qualify };

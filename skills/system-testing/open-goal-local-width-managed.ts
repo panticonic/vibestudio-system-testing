@@ -1,6 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["effects","survey","finding"],["handoffText"]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["effects","survey","finding","nativeInventory"],["handoffText"]);
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
@@ -26,10 +26,8 @@ type Survey = { scope: Scope; requirement: Need; providers: Provider[]; servers:
 type Facts = { disposition: WidthDisposition; ref: string | null; provider: string | null;
   advertisedWidth: number | null; witnessedWidth: number | null; witness: string | null };
 type Finding = Facts & { reason: string };
-type ReadinessLine = { ref: string; usable: boolean; state: string; detail: string; failure?: string };
-type Readiness = { models: ReadinessLine[]; executor: Omit<ReadinessLine, "failure">; preferred: string | null; advice: string[] };
 type Handoff = { path: string; bytes: number; sha256: string };
-type Outcome = { survey: Survey; readiness: Readiness; finding: Finding; handoff: Handoff | null };
+type Outcome = { finding: Finding; handoff: Handoff | null };
 type Effect = { service: string; method: string; args: unknown[]; result: unknown };
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
@@ -37,6 +35,12 @@ const local = (model: string) => "local:" + model;
 const inventoried = (row: LocalModelEntry) => row.state === "ready" || row.state === "startable";
 const names = [local("qwen3.8-27b"), local("lfm3-1.7b"), local("lfm2.5-2.6b")];
 const outputName = /^evidence-handoff-[a-f0-9]{32}$/u;
+/** Exact native listModels wire projection, shared by producer and verifier. */
+function inventoryProjection(rows: readonly LocalModelEntry[]) {
+  return rows.map(({slug,displayName,state,fit,download,errorMessage})=>({slug,displayName,state,
+    fit:{fit:fit.fit,estTokensPerSec:fit.estTokensPerSec},
+    download:download?{progress:download.progress,phase:download.phase}:null,errorMessage}));
+}
 const stateRank: WidthDisposition[] = ["verified", "short-width", "unproven-width", "startable", "incompatible", "provider-unavailable", "model-unavailable"];
 
 function evaluateWidth(need: Need, receipt: Witness) {
@@ -190,9 +194,7 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
       async listModels() {
         inventoryReads++;
         const rows = await readInventory();
-        return remember("localModels", "listModels", [], rows.map(({ slug, displayName, state, fit, download, errorMessage }) =>
-          ({ slug, displayName, state, fit: { fit: fit.fit, estTokensPerSec: fit.estTokensPerSec },
-            download: download ? { progress: download.progress, phase: download.phase } : null, errorMessage })));
+        return remember("localModels", "listModels", [], inventoryProjection(rows));
       },
     },
     localWidthEvidence: {
@@ -226,22 +228,6 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
     },
   };
 
-  function matchesReadiness(actual: Readiness | undefined, rows: LocalModelEntry[]) {
-    const expectedPreferred = names.find(ref => rows.some(row => local(row.slug) === ref && inventoried(row))) ?? null;
-    const executor = rows.find(row => local(row.slug) === names[1]);
-    const usable = executor ? inventoried(executor) : false;
-    return actual?.preferred === expectedPreferred && actual.executor?.ref === names[1] &&
-      actual.executor.state === (executor?.state ?? "absent") && actual.executor.usable === usable &&
-      Boolean(actual.executor.detail?.trim()) && Array.isArray(actual.advice) &&
-      actual.advice.every(line => typeof line === "string" && Boolean(line.trim())) &&
-      actual.models?.length === rows.length && rows.every((row, index) => {
-        const checked = actual.models[index];
-        return checked?.ref === local(row.slug) && checked.state === row.state && checked.usable === inventoried(row) &&
-          checked.failure === (row.state === "error" ? "engine" : undefined) && Boolean(checked.detail?.trim());
-      });
-  }
-
-  
   async function verify(value: unknown,invocation?: InvocationObservations) {
     const proof=await verifyNativeApplication(value,invocation);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
@@ -285,7 +271,8 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     }
     const checks = {
       retainedExactMachineScope: filesIntact.every(Boolean),
-      appliedInstalledReadiness: inventoryReads >= 1&&effects.some(effect=>effect.service==="localModels"&&matchesReadiness(effect.result,actual.rows)),
+      boundCurrentModelInventory: effects.filter(effect=>effect.service==="localModels").every(effect=>
+        effect.method==="listModels"&&isDeepStrictEqual(effect.args,[])&&isDeepStrictEqual(effect.result,inventoryProjection(actual.rows))),
       boundActualProviderAndWidth: isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
       exactEvidenceDisposition: isDeepStrictEqual(outcome?.handoff,stored)&&Boolean(outcome?.finding&&isDeepStrictEqual(factOnly(outcome.finding),fact))&&outcome?.finding?.disposition === world.expected && Boolean(outcome.finding.reason?.trim()),
       verifiedExactLocalHandoff: handoff &&
@@ -294,26 +281,17 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     return {
       outcomeContract:{
-        effects:{checks:["retainedExactMachineScope", "appliedInstalledReadiness", "boundActualProviderAndWidth", "verifiedExactLocalHandoff", "preservedWorkspaceState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        effects:{checks:["retainedExactMachineScope", "boundCurrentModelInventory", "boundActualProviderAndWidth", "verifiedExactLocalHandoff", "preservedWorkspaceState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
         returnedValue:{checks:["exactEvidenceDisposition"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      effects, survey: actual.survey, finding: fact, handoff: stored, handoffText };
+      effects:structuredClone(effects), survey: actual.survey, finding: fact, nativeInventory:{current:inventoryProjection(actual.rows),actorObserved:inventoryReads>0,readbacks:effects.filter(effect=>effect.service==="localModels")}, handoff: stored, handoffText };
   }
 
   async function qualify() {
     const survey = await services.localWidthEvidence.discover();
-    const inventory = await services.localModels.listModels();
-    const models = inventory.map(row => ({ ref: local(row.slug), state: row.state,
-      usable: row.state === "ready" || row.state === "startable", detail: row.state,
-      ...(row.state === "error" ? { failure: "engine" } : {}) }));
-    const usableExecutor = models.find(item => item.ref === names[1]);
-    const readiness: Readiness = { models,
-      executor: { ref: names[1]!, state: usableExecutor?.state ?? "absent", usable: usableExecutor?.usable ?? false, detail: "Retained inventory" },
-      preferred: names.find(ref => models.some(item => item.ref === ref && item.usable)) ?? null,
-      advice: usableExecutor?.usable ? [] : ["Hosted low-tier executor is billed when the local executor is unavailable."],
-    };
+    await services.localModels.listModels();
     const { selected, expectedWitnesses } = await evidence();
     for (const id of expectedWitnesses) await services.localWidthEvidence.readWitness(id);
     const finding = { ...selected.fact, reason: "Compare exact current selectable model and verified execution evidence." };

@@ -18,7 +18,7 @@ type TraceSpan = { id: string; start: number; end: number; boundary: VcsBlameSpa
 type Root = { ref: string; kind: string; label: string; intent: string | null; tier: string | null; externalSource: string | null };
 type Selection = { candidate: string; fragment: string };
 type Claim = { fragment: string; span: string; origin: "external" | "native" | "unresolved"; intent: string | null; refs: string[] };
-type Conclusion = { disposition: SourceAttributionWorld["complete"]; claims: Claim[] };
+type Conclusion = { explanation: string; disposition: SourceAttributionWorld["complete"]; claims: Claim[] };
 type Receipt = { state: string; status: "retained" | "authority-closed" | "stale"; path: string | null; sha256: string | null };
 type Ports = { contextId: string | null;
   vcs: Pick<VcsClient, "status" | "mainState" | "importSnapshot" | "edit" | "copy" | "move" | "commit" | "resolveRepository" | "readFile" | "blame" | "inspect">;
@@ -180,7 +180,12 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
   };
   function reportConclusion(): Conclusion {
     const claims = [...traceReads.values()].flatMap(({ selected, trace }) => trace.spans.map(span => pickSpan(selected.fragment, span, [...inspected.values()])));
-    return { disposition: world.complete, claims };
+    // Reference-only mechanical readout, not an independently accepted answer.
+    // Goal adequacy remains the mandatory semantic review's responsibility.
+    const explanation = claims.length ? claims.map(claim => claim.intent ??
+      `The inspected span ${claim.span} has ${claim.origin} lineage; no recorded purpose was established.`).join("\n") :
+      "No attributable current span was established by the inspected source evidence.";
+    return { explanation, disposition: world.complete, claims };
   }
   function validateEvidence() {
     if(!discovered||readbacks.size===0)return false;

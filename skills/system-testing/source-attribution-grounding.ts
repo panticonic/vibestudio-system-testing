@@ -18,7 +18,7 @@ export function groundedSourceEvidence(files:readonly SourceAttributionFile[],ev
 export function groundedSourceConclusion(value:unknown,evidence:readonly SourceAttributionEvidence[]):value is SourceAttributionConclusion {
  if(value===null||typeof value!=="object")return false;
  const conclusion=value as SourceAttributionConclusion;
- if(!["supported","partial","unverifiable"].includes(conclusion.disposition)||!Array.isArray(conclusion.claims))return false;
+ if(typeof conclusion.explanation!=="string"||!conclusion.explanation.trim()||!["supported","partial","unverifiable"].includes(conclusion.disposition)||!Array.isArray(conclusion.claims))return false;
  return conclusion.claims.every(claim=>{
   if(!claim||typeof claim!=="object"||!Array.isArray(claim.refs)||!claim.refs.length||!(claim.intent===null||typeof claim.intent==="string"))return false;
   return evidence.some(item=>{

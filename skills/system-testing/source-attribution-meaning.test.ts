@@ -20,7 +20,7 @@ it("separates actual native source custody from semantic completeness and binds 
  const assignment=await fixture.services.sourceOriginEvidence.discover();
  const other=assignment.candidates.find(candidate=>candidate.path==="notes.txt")!;
  await fixture.services.sourceOriginEvidence.read(assignment.id,other.id);
- const result={conclusion:{disposition:"unverifiable" as const,claims:[]},receipt:null};
+ const result={conclusion:{explanation:"The inspected evidence does not establish the requested origin.",disposition:"unverifiable" as const,claims:[]},receipt:null};
  const proof=await fixture.verify(result);
  expect(proof.checks.readExactCurrentSource).toBe(true);
  expect(proof.semanticReviewRequired).toBe(true);
@@ -35,7 +35,7 @@ it("separates actual native source custody from semantic completeness and binds 
 
 it("does not let verifier reads supply missing actor evidence or accept an invented span/receipt",async()=>{
  const fixture=await prepareSourceAttribution({caseId:world.id,contextId:"owned"},world,ports() as never);
- const result={conclusion:{disposition:"supported" as const,claims:[{fragment:"value",span:"unseen",origin:"native" as const,intent:"Invented",refs:["foreign"]}]},receipt:null};
+ const result={conclusion:{explanation:"The inspected native roots establish the recorded origin.",disposition:"supported" as const,claims:[{fragment:"value",span:"unseen",origin:"native" as const,intent:"Invented",refs:["foreign"]}]},receipt:null};
  const proof=await fixture.verify(result);
  expect(proof.checks.readExactCurrentSource).toBe(false);
  expect(proof.checks.matchedSourceAttributionReport).toBe(false);
@@ -48,7 +48,7 @@ it("retains an authorized uncertainty finding with its actual disposition and bi
  const fixture=await prepareSourceAttribution({caseId:world.id,contextId:"owned"},noteWorld,ports() as never);
  const assignment=await fixture.services.sourceOriginEvidence.discover();
  const file=await fixture.services.sourceOriginEvidence.read(assignment.id,assignment.candidates[0]!.id);
- const conclusion={disposition:"unverifiable" as const,claims:[]};
+ const conclusion={explanation:"The inspected evidence does not establish the requested origin.",disposition:"unverifiable" as const,claims:[]};
  const receipt=await fixture.services.sourceOriginReceipt.retain(assignment.id,file!.state,conclusion);
  const proof=await fixture.verify({conclusion,receipt});
  expect(proof.checks.verifiedOwnedSourceReceipt).toBe(true);
@@ -64,7 +64,7 @@ it("does not demand a redundant root result after a requested note is natively r
  const fixture=await prepareSourceAttribution({caseId:world.id,contextId:"owned"},noteWorld,ports() as never);
  const assignment=await fixture.services.sourceOriginEvidence.discover();
  const file=await fixture.services.sourceOriginEvidence.read(assignment.id,assignment.candidates[0]!.id);
- await fixture.services.sourceOriginReceipt.retain(assignment.id,file!.state,{disposition:"unverifiable",claims:[]});
+ await fixture.services.sourceOriginReceipt.retain(assignment.id,file!.state,{explanation:"The inspected evidence does not establish the requested origin.",disposition:"unverifiable",claims:[]});
  const proof=await fixture.verify(undefined);
  expect(proof.checks.verifiedOwnedSourceReceipt).toBe(true);
  expect(proof.outcomeDimensions.returnedValue.required).toBe(false);
