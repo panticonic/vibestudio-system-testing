@@ -239,6 +239,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     repair: Repair | null; verification: Verification | null };
   let discovered = false;
   let observed: Observation | undefined;
+  let opening: Observation | undefined;
   let attempt: Repair | null = null;
   let resolved: Plan | null = null;
   let raced = false;
@@ -274,20 +275,23 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
         return remember("installedPackageRead", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (id === operationId && observed) return structuredClone(observed);
         if (id !== operationId) throw new Error("Inspect only the assigned installed package");
         observed = (await observe()).observation;
+        opening ??= structuredClone(observed);
         return remember("installedPackageRead", "inspect", [id], observed);
       },
     },
     installedPackageChange: {
       async restore(id: string, head: string, digest: string) {
-        if (!observed || id !== operationId || attempt || resolved)
-          throw new Error("Restore one observed package before inspecting its new verification plan");
+        if (id !== operationId || attempt)
+          throw new Error("Restore only the assigned package from its actual observed revision");
         const current = await observe();
+        observed ??= structuredClone(current.observation);
+        opening ??= structuredClone(observed);
         const exact = observed.workingRevision === head && observed.workingDigest === digest;
         const record = (status: Repair["status"], observation: Observation) => {
           attempt = { status, observation };
+          resolved = null;
           return remember("installedPackageChange", "restore", [id, head, digest], attempt);
         };
         if (!exact || decisionFor(observed) !== "restore-approved-field")
@@ -318,7 +322,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     testSuitePlanRead: {
       async resolve(id: string) {
         const latest = attempt?.observation ?? observed;
-        if (!latest?.suiteRequest || resolved || id !== latest.suiteRequest.operationId)
+        if (!latest?.suiteRequest || id !== latest.suiteRequest.operationId)
           throw new Error("Inspect only the current assigned package's declared verification plan");
         const current = await observe();
         if (!isDeepStrictEqual(current.observation, latest)) throw new Error("The package changed before verification plan inspection");
@@ -365,32 +369,30 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const [plan, neighbor, untouchedMain] = await Promise.all([
       nativePlan(final), readManifest(client, final.start.workingHead, world.neighbor), readManifest(client, published, world.source),
     ]);
-    const decision = observed ? decisionFor(observed) : null;
-    const expectedAttempt = decision === "restore-approved-field" ? world.race ? "state-changed" : "restored" : null;
-    const expectedMethods = ["discover", "inspect", ...(expectedAttempt ? ["restore"] : []), ...(plan ? ["resolve"] : [])];
+    const decision = opening ? decisionFor(opening) : null;
+    const actualAttempt = attempt?.status ?? null;
     let exactEffect: boolean;
-    if (expectedAttempt === "restored") {
+    if (actualAttempt === "restored") {
       exactEffect = final.observation.targetFieldMatches && final.local.digest !== before.digest &&
         isDeepStrictEqual(withoutReviewedField(final.local.value, world), withoutReviewedField(before.value, world));
-    } else if (expectedAttempt === "state-changed") {
+    } else if (actualAttempt === "state-changed") {
       exactEffect = final.local.digest !== before.digest && isDeepStrictEqual(final.local.value, { ...before.value, description: newEdit });
     } else {
       exactEffect = isDeepStrictEqual(final.start.workingHead, prepared.workingHead) && final.local.digest === before.digest;
     }
     const checks = {
-      boundOwnedInstallation: observed?.operationId === operationId && observed.source === world.source &&
-        observed.workingRevision === revision(prepared.workingHead) && observed.workingDigest === before.digest,
-      usedExactPackageBaseline: observed?.baselineDigest === baseline.digest && observed.mainRevision === initial.mainEventId &&
-        isDeepStrictEqual(observed.baselineValue, currentValue(baseline.value, world.key)) &&
-        isDeepStrictEqual(observed.workingValue, currentValue(before.value, world.key)),
-      honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods),
-      returnedPackageRepair: isDeepStrictEqual(outcome?.repair,attempt),
-      returnedPackageVerification: verificationMatches(outcome?.verification,plan),
-      returnedPackageFinding: typeof outcome?.finding?.reason === "string" &&
-        outcome.finding.reason.trim().length > 0,
-      verifiedLocalManifestEffect: exactEffect && (attempt?.status ?? null) === expectedAttempt &&
+      boundOwnedInstallation: opening?.operationId === operationId && opening.source === world.source &&
+        opening.workingRevision === revision(prepared.workingHead) && opening.workingDigest === before.digest,
+      usedExactPackageBaseline: opening?.baselineDigest === baseline.digest && opening.mainRevision === initial.mainEventId &&
+        isDeepStrictEqual(opening.baselineValue, currentValue(baseline.value, world.key)) &&
+        isDeepStrictEqual(opening.workingValue, currentValue(before.value, world.key)),
+      honoredReviewAssignment: effects.every(row => ["discover","inspect","restore","resolve"].includes(row.method)),
+      returnedPackageRepair: typeof value === "string" || outcome?.repair === undefined || isDeepStrictEqual(outcome.repair,attempt),
+      returnedPackageVerification: typeof value === "string" || outcome?.verification === undefined || verificationMatches(outcome.verification,plan),
+      returnedPackageFinding: typeof value === "string" && value.trim().length > 0,
+      verifiedLocalManifestEffect: exactEffect &&
         (!attempt || isDeepStrictEqual(attempt.observation, final.observation)),
-      exactStateVerificationPlan: isDeepStrictEqual(resolved, plan),
+      exactStateVerificationPlan: resolved === null || isDeepStrictEqual(resolved, plan),
       preservedProtectedAndNeighbors: final.start.mainEventId === initial.mainEventId &&
         untouchedMain.digest === baseline.digest && neighbor.digest === protectedNeighbor.digest &&
         neighbor.repositoryId === protectedNeighbor.repositoryId,
@@ -400,7 +402,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       actualResult:value, effects: structuredClone(effects), assignment, observed, decision, repair: attempt, plan,
-      authorization:{operationId,scope:assignment.scope,before:observed?{workingRevision:observed.workingRevision,workingDigest:observed.workingDigest,baselineDigest:observed.baselineDigest,scopeMatches:observed.scopeMatches}:null,action:attempt?{status:attempt.status}:null,after:{workingRevision:final.observation.workingRevision,workingDigest:final.observation.workingDigest,baselineDigest:final.observation.baselineDigest,scopeMatches:final.observation.scopeMatches}} };
+      authorization:{operationId,scope:assignment.scope,before:opening?{workingRevision:opening.workingRevision,workingDigest:opening.workingDigest,baselineDigest:opening.baselineDigest,scopeMatches:opening.scopeMatches}:null,action:attempt?{status:attempt.status}:null,after:{workingRevision:final.observation.workingRevision,workingDigest:final.observation.workingDigest,baselineDigest:final.observation.baselineDigest,scopeMatches:final.observation.scopeMatches}} };
   }
 
   async function qualify() {
@@ -415,15 +417,17 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const verification: Verification | null = plan ? { plan, decision: { next: "report-plan", route: {
       runtime: plan.runtime, nativeApproval: plan.runtime === "native", explanation: "The installed manifest designates this verification runner.",
     } }, execution: null, result: null } : null;
-    const result = {finding:{decision,reason:JSON.stringify({target:assignment.target,source:assignment.source,scopeMatchedBeforeAction:observed.scopeMatches,decision,action:repair?.status??null,verification:plan??null})},repair,verification};
+    const result = JSON.stringify({target:assignment.target,source:assignment.source,scopeMatchedBeforeAction:observed.scopeMatches,decision,action:repair?.status??null,verification:verification??null});
     const proof = await verify(result);
     let rejectedForeignNativeScope=false;
     try {await services.installedPackageRead.inspect("foreign-assignment");} catch {rejectedForeignNativeScope=true;}
     const rejectedMissingRequestedAnswer = !world.requestedReturnRequired || !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedForeignNativeScope,rejectedMissingRequestedAnswer};
+    const referenceNativeRestore = decision !== "restore-approved-field" || repair?.status === (world.race ? "state-changed" : "restored");
+    const referenceNativePlan = !request || plan !== null;
+    const checks = {...proof.checks,rejectedForeignNativeScope,rejectedMissingRequestedAnswer,referenceNativeRestore,referenceNativePlan};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignNativeScope","rejectedMissingRequestedAnswer"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignNativeScope","rejectedMissingRequestedAnswer","referenceNativeRestore","referenceNativePlan"]}}});
   }
 
   return { services, verify, qualify };

@@ -1,0 +1,291 @@
+{
+  "workers/natlang-records": {
+    "name": "@workspace-workers/natlang-records",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "vibestudio": {
+      "title": "Natlang records",
+      "icon": "\ud83e\uddfe",
+      "kind": "worker",
+      "entry": "index.ts",
+      "durable": {
+        "classes": [
+          {
+            "className": "NatlangRecordsDO"
+          }
+        ]
+      },
+      "tests": [
+        {
+          "name": "native",
+          "runtime": "native",
+          "include": [
+            "**/*.test.ts"
+          ]
+        }
+      ],
+      "authority": {
+        "provides": [],
+        "requests": []
+      },
+      "services": [
+        {
+          "action": "keep and review the call records of your workspace's natural-language programs",
+          "authority": {
+            "binding": "declared",
+            "principals": [
+              "host",
+              "user",
+              "code",
+              "session",
+              "mission"
+            ]
+          },
+          "description": "Stores what natural-language programs did (calls, traces, values), accepts good, bad and fixed verdicts as tuning examples, and streams live progress to whoever is watching.",
+          "durableObject": {
+            "className": "NatlangRecordsDO"
+          },
+          "name": "natlang-records",
+          "notability": "everyday",
+          "presentation": {
+            "domain": "automation",
+            "verb": "manage"
+          },
+          "protocols": [
+            "vibestudio.natlang.v1"
+          ],
+          "title": "Natural-language program records"
+        }
+      ]
+    },
+    "dependencies": {
+      "@vibestudio/content-addressing": "workspace:*",
+      "@vibestudio/rpc": "workspace:*",
+      "@vibestudio/service-schemas": "workspace:*",
+      "@vibestudio/shared": "workspace:*",
+      "@workspace/natlang-records": "workspace:*",
+      "@workspace/runtime": "workspace:*"
+    },
+    "devDependencies": {
+      "@vibestudio/durable": "workspace:*",
+      "vitest": "^3.2.7"
+    },
+    "exports": {
+      ".": "./index.ts"
+    }
+  },
+  "workers/images": {
+    "name": "@workspace-workers/images",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "vibestudio": {
+      "tests": [
+        {
+          "name": "native",
+          "runtime": "native",
+          "include": [
+            "**/*.test.ts"
+          ]
+        }
+      ],
+      "title": "Images",
+      "icon": "\ud83c\udfa8",
+      "kind": "worker",
+      "entry": "index.ts",
+      "durable": {
+        "classes": [
+          {
+            "className": "ImagesDO"
+          }
+        ]
+      },
+      "authority": {
+        "provides": [],
+        "requests": [
+          {
+            "capability": "credential.use",
+            "resource": {
+              "kind": "prefix",
+              "prefix": ""
+            },
+            "tier": "gated",
+            "evidence": "intentional-broad"
+          }
+        ]
+      },
+      "services": [
+        {
+          "action": "generate and manage reusable image assets",
+          "authority": {
+            "binding": "declared",
+            "principals": [
+              "host",
+              "user",
+              "code",
+              "website",
+              "session",
+              "mission"
+            ]
+          },
+          "description": "Generate durable image assets, manage art direction, and read retained image content.",
+          "durableObject": {
+            "className": "ImagesDO"
+          },
+          "name": "images",
+          "notability": "everyday",
+          "presentation": {
+            "domain": "automation",
+            "verb": "manage"
+          },
+          "protocols": [
+            "vibestudio.images.v1"
+          ],
+          "title": "Generated image assets"
+        }
+      ]
+    },
+    "dependencies": {
+      "@workspace/runtime": "workspace:*",
+      "@workspace/harness": "workspace:*",
+      "@vibestudio/credential-client": "workspace:*",
+      "@vibestudio/content-addressing": "workspace:*",
+      "@workspace-extensions/image-service": "workspace:*",
+      "@vibestudio/rpc": "workspace:*",
+      "@vibestudio/service-schemas": "workspace:*"
+    },
+    "devDependencies": {
+      "@vibestudio/shared": "workspace:*",
+      "vitest": "^3.2.7"
+    },
+    "exports": {
+      ".": "./index.ts"
+    }
+  },
+  "workers/model-gateway": {
+    "name": "@workspace-workers/model-gateway",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "vibestudio": {
+      "title": "Model Gateway",
+      "icon": "./assets/icon.svg",
+      "kind": "worker",
+      "entry": "index.ts",
+      "durable": {
+        "classes": [
+          {
+            "className": "ModelGatewayDO"
+          }
+        ]
+      },
+      "tests": [
+        {
+          "name": "native",
+          "runtime": "native",
+          "include": [
+            "**/*.test.ts"
+          ]
+        }
+      ],
+      "authority": {
+        "provides": [],
+        "serviceRequests": [
+          {
+            "protocol": "vibestudio.models.v1",
+            "availability": "required"
+          }
+        ],
+        "requests": [
+          {
+            "capability": "credential.use",
+            "resource": {
+              "kind": "prefix",
+              "prefix": ""
+            },
+            "tier": "gated",
+            "evidence": "intentional-broad"
+          },
+          {
+            "capability": "model.use",
+            "resource": {
+              "kind": "prefix",
+              "prefix": "model:"
+            },
+            "tier": "gated",
+            "evidence": "bounded-dynamic"
+          },
+          {
+            "capability": "internal-model-runtime.use",
+            "resource": {
+              "kind": "exact",
+              "key": "local-models"
+            },
+            "tier": "gated",
+            "evidence": "exact"
+          },
+          {
+            "capability": "workspace-service:models",
+            "resource": {
+              "kind": "prefix",
+              "prefix": ""
+            },
+            "tier": "gated",
+            "evidence": "intentional-broad"
+          }
+        ]
+      },
+      "services": [
+        {
+          "action": "run AI model turns for your workspace's programs",
+          "authority": {
+            "binding": "declared",
+            "principals": [
+              "host",
+              "user",
+              "code",
+              "session",
+              "mission"
+            ]
+          },
+          "description": "Run one AI model turn, with tools, for an authorized caller. Provider credentials and model approvals stay with the host.",
+          "durableObject": {
+            "className": "ModelGatewayDO"
+          },
+          "name": "model-gateway",
+          "notability": "everyday",
+          "presentation": {
+            "domain": "automation",
+            "verb": "act"
+          },
+          "protocols": [
+            "vibestudio.model-gateway.v1"
+          ],
+          "title": "AI model gateway"
+        }
+      ]
+    },
+    "dependencies": {
+      "@panticonic/pi-ai": "1.2.0-vibestudio.3",
+      "@panticonic/pi-chord": "1.2.0-vibestudio.3",
+      "@panticonic/pi-durable": "1.2.0-vibestudio.3",
+      "@vibestudio/rpc": "workspace:*",
+      "@vibestudio/service-schemas": "workspace:*",
+      "@vibestudio/shared": "workspace:*",
+      "@workspace/agentic-do": "workspace:*",
+      "@workspace/model-catalog": "workspace:*",
+      "@workspace/model-gateway": "workspace:*",
+      "@workspace/natlang-pi": "workspace:*",
+      "@workspace/runtime": "workspace:*"
+    },
+    "devDependencies": {
+      "@vibestudio/durable": "workspace:*",
+      "@vibestudio/trajectory-identity": "workspace:*",
+      "vitest": "^3.2.7"
+    },
+    "exports": {
+      ".": "./index.ts"
+    }
+  }
+}
