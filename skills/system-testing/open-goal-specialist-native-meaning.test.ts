@@ -230,3 +230,10 @@ it.each(specialistHandoffWorlds)(
     );
   },
 );
+
+it("does not qualify a reference requiring a local artifact when the native stage was refused",async()=>{
+ const prepared=await prepareOpenSpecialistHandoff({contextId:"owned",caseId:"specialist-history-not-panel-proxy"},memoryPorts() as never);
+ prepared.services.ownedSpecialistHandoff.stage=async()=>null;
+ const proof=await prepared.qualify();expect(proof.passed).toBe(false);
+ expect(proof.observedChecks.referenceNativeLocalStage).toBe(false);
+});

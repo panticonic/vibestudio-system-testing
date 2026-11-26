@@ -1,3 +1,4 @@
+import {extendSemanticOutcomeEffects} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { bindObservedContentReview } from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome = bindObservedContentReview(
   [
@@ -871,10 +872,10 @@ export async function prepareOpenSpecialistHandoff(
     const missingAnswer = world.requestedAnswer
       ? await verify({ ...report, plan: { ...plan, explanation: "" } })
       : null;
-    return {
-      ...accepted,
-      passed: accepted.passed && (!missingAnswer || !missingAnswer.passed),
-    };
+    const qualified=extendSemanticOutcomeEffects(accepted,{
+      referenceNativeLocalStage:world.expected.action==="stage"?receipt!==null:receipt===null,
+    });
+    return {...qualified,passed:qualified.passed&&(!missingAnswer||!missingAnswer.passed)};
   }
   return { goal: world.goal, services, verify, qualify };
 }
