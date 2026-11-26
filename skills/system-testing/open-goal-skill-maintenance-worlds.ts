@@ -32,6 +32,7 @@ function task(
   split: "train" | "test",
   name: string,
   goal: string,
+  requestedReturnRequired:boolean,
   fixture: FixtureOptions,
 ) {
   return {
@@ -42,6 +43,7 @@ function task(
     split,
     name,
     goal,
+    requestedReturnRequired,
     ...fixture,
   } as const;
 }
@@ -51,7 +53,7 @@ export const openSkillMaintenanceWorlds = [
     "board-priorities-typed-batch",
     "train",
     "Review Board Queue",
-    "The reusable Review Board Queue is giving callers one priority label even when the retained trial expects the complete ordered queue. Repair the helper's contract for a list and keep the public entrypoint stable. Make a local working change only.",
+    "The reusable Review Board Queue is giving callers one priority label even when the retained trial expects the complete ordered queue. Repair the helper's contract for a list and keep the public entrypoint stable. Make a local working change only.", false,
     {
       before: [
         entry("run/triage/choosePriorities", { tickets: "string[]" }, "string"),
@@ -70,7 +72,7 @@ export const openSkillMaintenanceWorlds = [
     "invoice-currency-context",
     "train",
     "Invoice Triage",
-    "Invoice Triage lost the currency context on the nested amount check. The retained verification should make clear whether the problem is still current. If it is, make the reusable check accept an explicit currency and preserve its numeric result.",
+    "Invoice Triage lost the currency context on the nested amount check. The retained verification should make clear whether the problem is still current. If it is, make the reusable check accept an explicit currency and preserve its numeric result.", true,
     {
       before: [
         entry("run/verify/verifyAmount", { amount: "number" }, "number"),
@@ -89,7 +91,7 @@ export const openSkillMaintenanceWorlds = [
     "shelf-two-stage-check",
     "train",
     "Archive Shelf Review",
-    "Bring the Archive Shelf Review up to the retained check: it needs one nested stage that confirms a shelf reference and a separate one that lists the surviving titles. Fix both local contracts so each has a single responsibility.",
+    "Bring the Archive Shelf Review up to the retained check: it needs one nested stage that confirms a shelf reference and a separate one that lists the surviving titles. Fix both local contracts so each has a single responsibility.", false,
     {
       before: [
         entry("run/verify/confirmShelf", { shelf: "string" }, "string"),
@@ -106,7 +108,7 @@ export const openSkillMaintenanceWorlds = [
     "pickup-parent-public-id",
     "train",
     "Pickup Review",
-    "The Pickup Review caller now holds only a retained pickup ID. Make that ID a named input at the existing review boundary while keeping the helper's prior note input and the public review type intact.",
+    "The Pickup Review caller now holds only a retained pickup ID. Make that ID a named input at the existing review boundary while keeping the helper's prior note input and the public review type intact.", false,
     {
       before: [
         entry("run", { goal: "string" }, "string"),
@@ -120,7 +122,7 @@ export const openSkillMaintenanceWorlds = [
     "labels-move-cleaner-below-policy",
     "train",
     "Label Repair",
-    "A Label Repair caller found the cleaner sitting at the stale top-level helper path. Put the typed cleaner under the review stage, and retire the stale public helper name if the retained witness confirms that boundary is missing.",
+    "A Label Repair caller found the cleaner sitting at the stale top-level helper path. Put the typed cleaner under the review stage, and retire the stale public helper name if the retained witness confirms that boundary is missing.", false,
     {
       before: [entry("run/cleanLabel", { label: "string" }, "string")],
       target: [entry("run/review/cleanLabel", { label: "string" }, "string")],
@@ -132,7 +134,7 @@ export const openSkillMaintenanceWorlds = [
     "article-helper-add-under-intake",
     "train",
     "Article Intake",
-    "Article Intake needs a reusable title check under intake, where article titles are already validated before they are handed off. Add the missing typed confirmation callable without recasting the existing article review.",
+    "Article Intake needs a reusable title check under intake, where article titles are already validated before they are handed off. Add the missing typed confirmation callable without recasting the existing article review.", false,
     {
       before: [
         entry("run/intake/normalizeTitle", { title: "string" }, "string"),
@@ -147,7 +149,7 @@ export const openSkillMaintenanceWorlds = [
     "notice-authority-narrowed-to-child",
     "train",
     "Notice Desk Review",
-    "Notice Desk Review currently lets the whole entrypoint hold the notification reader. Confirm the retained boundary evidence and narrow the service to the exact compiled readNotice child inside inspect. Keep the same compiled code and service.",
+    "Notice Desk Review currently lets the whole entrypoint hold the notification reader. Confirm the retained boundary evidence and narrow the service to the exact compiled readNotice child inside inspect. Keep the same compiled code and service.", true,
     {
       before: [entry("run/inspect/readNotice", { id: "string" }, "string")],
       target: [entry("run/inspect/readNotice", { id: "string" }, "string")],
@@ -159,7 +161,7 @@ export const openSkillMaintenanceWorlds = [
     "labels-protected-authority",
     "train",
     "Records Labels",
-    "The Records Labels readout doesn't match the current labels check. Find which contract failed, but I'm a reviewer here. Leave the reusable skill untouched and tell me who needs to approve a correction.",
+    "The Records Labels readout doesn't match the current labels check. Find which contract failed, but I'm a reviewer here. Leave the reusable skill untouched and tell me who needs to approve a correction.", true,
     {
       before: [entry("run/review/recordLabel", { id: "string" }, "number")],
       target: [entry("run/review/recordLabel", { id: "string" }, "string")],
@@ -171,7 +173,7 @@ export const openSkillMaintenanceWorlds = [
     "archives-foreign-receipt",
     "train",
     "Archive Handoff",
-    "Archive Handoff has a failed check from the previous edition. Check whether it really proves a defect in the working skill before making any local repair, and stop if it belongs to the archive.",
+    "Archive Handoff has a failed check from the previous edition. Check whether it really proves a defect in the working skill before making any local repair, and stop if it belongs to the archive.", true,
     {
       before: [entry("run/choose/selectHandoff", { note: "string" }, "number")],
       target: [entry("run/choose/selectHandoff", { note: "string" }, "string")],
@@ -183,7 +185,7 @@ export const openSkillMaintenanceWorlds = [
     "receipts-concurrent-frontier",
     "train",
     "Receipt Recovery",
-    "I reviewed the Receipt Recovery change request, then another editor opened a new working revision. Preserve their work. Stage a local correction only if the failing evidence still names the exact current revision.",
+    "I reviewed the Receipt Recovery change request, then another editor opened a new working revision. Preserve their work. Stage a local correction only if the failing evidence still names the exact current revision.", false,
     {
       before: [
         entry("run/reconcile/pickReceipt", { options: "string[]" }, "boolean"),
@@ -199,7 +201,7 @@ export const openSkillMaintenanceWorlds = [
     "inventory-confirm-passing",
     "train",
     "Inventory Review",
-    "Someone proposed teaching Inventory Review a new number result. First inspect the retained checks and its exact count helper. If the typed count contract already passes, preserve the skill as-is.",
+    "Someone proposed teaching Inventory Review a new number result. First inspect the retained checks and its exact count helper. If the typed count contract already passes, preserve the skill as-is.", false,
     {
       before: [
         entry("run/inspect/countStock", { entries: "string[]" }, "number"),
@@ -214,7 +216,7 @@ export const openSkillMaintenanceWorlds = [
     "orders-buyer-lane",
     "train",
     "Order Intake",
-    "Order Intake is merging the buyer name with the order identifier. Fix the reusable child boundary so that the order identity and buyer supplied by upstream callers are two separate named inputs.",
+    "Order Intake is merging the buyer name with the order identifier. Fix the reusable child boundary so that the order identity and buyer supplied by upstream callers are two separate named inputs.", false,
     {
       before: [entry("run/intake/resolveOrder", { order: "string" }, "string")],
       target: [
@@ -231,7 +233,7 @@ export const openSkillMaintenanceWorlds = [
     "events-expiry-compare",
     "train",
     "Event Holds",
-    "When Event Holds decides whether a reserved room is still on hold, it needs the observation time, not just the expiry. Fix that internal boolean contract under the evidence stage and retain the stable top-level API.",
+    "When Event Holds decides whether a reserved room is still on hold, it needs the observation time, not just the expiry. Fix that internal boolean contract under the evidence stage and retain the stable top-level API.", false,
     {
       before: [
         entry("run/evidence/checkExpiry", { expiresAt: "number" }, "boolean"),
@@ -250,7 +252,7 @@ export const openSkillMaintenanceWorlds = [
     "survey-child-boolean-gate",
     "train",
     "Survey Review",
-    "Callers of Survey Review are treating the result of its eligibility gate as a free-form explanation. Align that nested gate with its intended yes/no meaning, while leaving the separate explanation callable intact.",
+    "Callers of Survey Review are treating the result of its eligibility gate as a free-form explanation. Align that nested gate with its intended yes/no meaning, while leaving the separate explanation callable intact.", false,
     {
       before: [
         entry("run/eligibility/eligible", { age: "number" }, "string"),
@@ -264,7 +266,7 @@ export const openSkillMaintenanceWorlds = [
     "shift-missing-audit",
     "train",
     "Shift Notes",
-    "Shift Notes needs a separate checklist audit under its handoff stage. Give that child a list of required checkpoints as input and a list of unresolved checkpoint names as output. Don't change the existing numbered note helper.",
+    "Shift Notes needs a separate checklist audit under its handoff stage. Give that child a list of required checkpoints as input and a list of unresolved checkpoint names as output. Don't change the existing numbered note helper.", false,
     {
       before: [entry("run/handoff/numberNote", { note: "string" }, "number")],
       target: [
@@ -281,7 +283,7 @@ export const openSkillMaintenanceWorlds = [
     "route-older-superseded",
     "train",
     "Routing Review",
-    "The failed helper report for Routing Review might have been attached to the archived skill rather than the open working copy. Identify the source of that evidence and only repair if it proves a current failure.",
+    "The failed helper report for Routing Review might have been attached to the archived skill rather than the open working copy. Identify the source of that evidence and only repair if it proves a current failure.", true,
     {
       before: [
         entry("run/diagnose/routeContext", { cue: "string" }, "boolean"),
@@ -295,7 +297,7 @@ export const openSkillMaintenanceWorlds = [
     "roster-stable-scope",
     "train",
     "Roster Check",
-    "A patch was proposed for Roster Check's name-list helper. Compare what the exact retained check asked for with the compiled working skill and avoid a cosmetic rewrite if the contract is already satisfied.",
+    "A patch was proposed for Roster Check's name-list helper. Compare what the exact retained check asked for with the compiled working skill and avoid a cosmetic rewrite if the contract is already satisfied.", true,
     {
       before: [
         entry("run/verify/rosterNames", { members: "string[]" }, "string[]"),
@@ -310,7 +312,7 @@ export const openSkillMaintenanceWorlds = [
     "payments-review-no-write",
     "train",
     "Payment Evidence",
-    "I need to diagnose the Payment Evidence policy's malformed nested receipt result. The owner has frozen edits for this review. Identify the current failing child and preserve its working and retained versions.",
+    "I need to diagnose the Payment Evidence policy's malformed nested receipt result. The owner has frozen edits for this review. Identify the current failing child and preserve its working and retained versions.", true,
     {
       before: [
         entry("run/review/receiptAccepted", { receipt: "string" }, "string"),
@@ -326,7 +328,7 @@ export const openSkillMaintenanceWorlds = [
     "clinical-handoff-coedit",
     "train",
     "Supplies Handoff",
-    "A coordinator started a coedit on Supplies Handoff after the retained count check ran. Check the authorization revision before repairing the tally helper. Keep her changes if the authorized moment has moved.",
+    "A coordinator started a coedit on Supplies Handoff after the retained count check ran. Check the authorization revision before repairing the tally helper. Keep her changes if the authorized moment has moved.", false,
     {
       before: [
         entry(
@@ -350,7 +352,7 @@ export const openSkillMaintenanceWorlds = [
     "warehouse-review-leaf-location",
     "train",
     "Bin Assignment",
-    "Bin Assignment's generator placed the reserve check outside the allocation folder. Repair its location under the allocation stage where future callers can find it, and remove the old callable so there is only one authoritative path.",
+    "Bin Assignment's generator placed the reserve check outside the allocation folder. Repair its location under the allocation stage where future callers can find it, and remove the old callable so there is only one authoritative path.", false,
     {
       before: [entry("run/reserveCheck", { bin: "string" }, "boolean")],
       target: [
@@ -364,7 +366,7 @@ export const openSkillMaintenanceWorlds = [
     "held-screening-batches",
     "test",
     "Committee Screen",
-    "Committee Screen currently treats an entire referral batch as one note. Review the exact retained regression and repair the sibling stages so the first accepts separate referral IDs and the second explains one held referral with the ID intact.",
+    "Committee Screen currently treats an entire referral batch as one note. Review the exact retained regression and repair the sibling stages so the first accepts separate referral IDs and the second explains one held referral with the ID intact.", false,
     {
       before: [
         entry("run/screen/chooseReferrals", { note: "string" }, "string[]"),
@@ -389,7 +391,7 @@ export const openSkillMaintenanceWorlds = [
     "held-safety-pass-no-change",
     "test",
     "Gate Validation",
-    "The morning report says Gate Validation needs a different disposition. Check the retained current acceptance witness and confirm whether its gate already returns the typed yes/no answer without making any change.",
+    "The morning report says Gate Validation needs a different disposition. Check the retained current acceptance witness and confirm whether its gate already returns the typed yes/no answer without making any change.", true,
     {
       before: [entry("run/gate/allowPassage", { gate: "string" }, "boolean")],
       target: [entry("run/gate/allowPassage", { gate: "string" }, "boolean")],
@@ -400,7 +402,7 @@ export const openSkillMaintenanceWorlds = [
     "held-neighbor-service-regression",
     "test",
     "Desk Triage",
-    "Desk Triage's ownership review says only its deepest notice probe should have the notification service. Use the latest check to put the scope on that exact callable and keep the public dispatcher free of the service.",
+    "Desk Triage's ownership review says only its deepest notice probe should have the notification service. Use the latest check to put the scope on that exact callable and keep the public dispatcher free of the service.", false,
     {
       before: [entry("run/check/notes/readUnseen", { id: "string" }, "string")],
       target: [entry("run/check/notes/readUnseen", { id: "string" }, "string")],
@@ -415,7 +417,7 @@ export const openSkillMaintenanceWorlds = [
     "held-authorization-lag",
     "test",
     "Hearing Intake",
-    "The Hearing Intake maintainer approved one snapshot before the clerk changed the docket metadata. Confirm whether that approval still covers the working head before changing the nested docket check. Keep the clerk's revision intact.",
+    "The Hearing Intake maintainer approved one snapshot before the clerk changed the docket metadata. Confirm whether that approval still covers the working head before changing the nested docket check. Keep the clerk's revision intact.", true,
     {
       before: [entry("run/triage/checkDocket", { docket: "string" }, "number")],
       target: [
@@ -429,7 +431,7 @@ export const openSkillMaintenanceWorlds = [
     "held-archive-same-local-name",
     "test",
     "Document Routing",
-    "Two editions of Document Routing have the same helper name. Find which edition produced the failing native check, and don't edit the operating skill when the evidence only belongs to the older copy.",
+    "Two editions of Document Routing have the same helper name. Find which edition produced the failing native check, and don't edit the operating skill when the evidence only belongs to the older copy.", true,
     {
       before: [entry("run/check/pickFolder", { document: "string" }, "string")],
       target: [
@@ -447,7 +449,7 @@ export const openSkillMaintenanceWorlds = [
     "held-review-approved-but-readonly",
     "test",
     "Equipment Returns",
-    "I am authorized to inspect the exact retained Equipment Returns run, but the actual skill edit isn't approved. Identify how the typed condition differs from the current child outcome and leave both source editions untouched.",
+    "I am authorized to inspect the exact retained Equipment Returns run, but the actual skill edit isn't approved. Identify how the typed condition differs from the current child outcome and leave both source editions untouched.", true,
     {
       before: [entry("run/confirm/isReturned", { item: "string" }, "string")],
       target: [entry("run/confirm/isReturned", { item: "string" }, "boolean")],
