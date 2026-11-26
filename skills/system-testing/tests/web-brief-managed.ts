@@ -176,7 +176,7 @@ const publicResearchAuthority = (_world: PublicResearchWorld): Pick<AgentExecuti
 const templateSettings = {
   "outcome-workspace": { requiresUnits: ["skills/open-user-goal"] },
   phoneFirstRun: { requiresUnits: ["skills/open-user-goal", "skills/phone-setup", "clients/mobile-browser", "extensions/mobile-debug", "extensions/react-native"] },
-  skillMaintenance: { requiresUnits: ["skills/open-user-goal", "skills/natlang-authoring"] },
+  skillMaintenance: { requiresReview:true, requiresUnits: ["skills/open-user-goal", "skills/natlang-authoring"] },
   desktopReadiness: { requiresUnits: ["skills/open-user-goal", "skills/clientdev", "clients/desktop-browser", "packages/client-update-core"] },
   notificationState: { requiresUnits: ["skills/open-user-goal", "workers/notification-state-fixture"] },
   "deployed-interface": { requiresUnits: openDeployedInterfaceRequiresUnits },

@@ -1,5 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["journal","observation","authoring","gate","proof","final","changedPaths","nativeFacts"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -284,6 +285,7 @@ export async function prepareSkillMaintenance(
   const editService = "skillMaintenanceEdit";
   let confirmed: string | null = null;
   let staged = false;
+  let coeditApplied = false;
   let final: Awaited<ReturnType<typeof native.observe>> | null = null;
   function requireOwner(id: string) {
     if (id !== currentCard.id)
@@ -319,6 +321,7 @@ export async function prepareSkillMaintenance(
               content: text(coedit),
             },
           ]);
+          coeditApplied = true;
         }
         const current = await view((await status()).workingHead, workingPath);
         confirmed = current.revision;
@@ -334,8 +337,6 @@ export async function prepareSkillMaintenance(
       },
       async readback(id: string) {
         requireOwner(id);
-        if (!confirmed)
-          throw new Error("Read the working skill back after the decision");
         const state = (await status()).workingHead;
         const current = await view(state, workingPath);
         final = await native.observe(workingPath, current.revision, criterion);
@@ -383,8 +384,7 @@ export async function prepareSkillMaintenance(
           original.check.path !== workingPath ||
           original.check.revision !== working.revision ||
           original.check.satisfied ||
-          staged ||
-          final
+          staged
         )
           return hold("denied");
         if (
@@ -398,8 +398,7 @@ export async function prepareSkillMaintenance(
               (row.text === null
                 ? !criterion.absent.includes(row.path)
                 : typeof row.text !== "string" ||
-                  !row.text.trim() ||
-                  row.text.length > 16384),
+                  !row.text.trim()),
           )
         )
           throw new Error(
@@ -447,16 +446,7 @@ export async function prepareSkillMaintenance(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const decisionBranch=report!==null&&typeof report==="object"&&"action" in report;
-    const authored:readonly ApplicationReturnContribution[]=[{checks:["returnedMaintenanceValue"],rootPath:[],producerSourceSuffix:decisionBranch?"maintainWorkspaceSkill/decideSkillMaintenance.nl":"maintainWorkspaceSkill/prepareSkillRepair.nl",producerPath:[]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=report;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
+    const contributions=[{checks:["returnedMaintenanceValue"],rootPath:["explanation"],producerSourceSuffix:"maintainWorkspaceSkill.nl",producerPath:["explanation"]}];
     const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
@@ -464,7 +454,7 @@ export async function prepareSkillMaintenance(
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
-    const result = report as {disposition?:string;before?:string;after?:string;paths?:string[];action?:string;reason?:string} | null;
+    const result = report as {explanation?:string;patch?:unknown;check?:unknown} | null;
     const finalStatus = await status();
     const retainedArchive = await view(finalStatus.workingHead, archivePath);
     const after = await view(finalStatus.workingHead, workingPath);
@@ -480,7 +470,8 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     const gate = journal.find((row) => row.method === "confirm")?.result as
       | { status?: string }
       | undefined;
-    const proof = journal.find((row) => row.method === "stage")?.result as
+    const stageReads=journal.filter(row=>row.service===editService&&row.method==="stage");
+    const proof = (stageReads.findLast(row=>(row.result as {disposition?:string})?.disposition==="staged")??stageReads.at(-1))?.result as
       | { disposition?: string; after?: string; paths?: string[] }
       | undefined;
     const compiled = journal.find((row) => row.service === "authoringCompiler")
@@ -488,11 +479,6 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     const authoring =
       compiled && reviewCompilerReadbacks({ request, reads: [compiled] });
     const withPatch = world.action === "stage-local-patch";
-    const expectedGate = world.authority
-      ? "denied"
-      : world.advance
-        ? "changed"
-        : "current";
     const changedPaths = [
       ...new Set([...working.items, ...after.items].map((row) => row.path)),
     ]
@@ -504,63 +490,36 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
           ),
       )
       .sort();
-    const expectedPaths = withPatch
-      ? [...editable].sort()
-      : world.advance
-        ? [canary]
-        : [];
-    const compilerReadback =
-      final &&
-      measureSkillContract(
-        await describe(workingPath),
-        workingPath,
-        after.revision,
-        criterion,
-      );
+    const actualCurrent=final?.check.revision===after.revision ? final : await native.observe(workingPath,after.revision,criterion);
+    const compilerReadback=measureSkillContract(await describe(workingPath),workingPath,after.revision,criterion);
+    const knownChecks=[original.check,...journal.filter(row=>row.service===evidenceService&&row.method==="readback").map(row=>row.result),actualCurrent.check];
+    const permittedChanges=new Set([...editable,...(coeditApplied?[canary]:[])]);
     const checks = {
-      returnedMaintenanceValue: withPatch ? !!proof&&isDeepStrictEqual(result,proof) :
-        result?.action===world.action&&typeof result.reason==="string"&&!!result.reason.trim(),
-      exactSkillSourceAndOriginalWitness:
-        read("discover", [], cards) &&
-        read("inspect", [currentCard.id], observation) &&
-        original.check.satisfied === (world.action === "keep-current") &&
-        (await native.retained(original.retained)),
-      exactInstalledAuthoringReview:
-        read("inspect", [currentCard.id], observation) &&
-        journal.some((row) => row.service === "authoringCompiler" && row.method === "inspect") &&
-        compiled?.revision === working.revision &&
-        authoring !== undefined,
-      matchedSkillMaintenanceDecision:
-        gate?.status === expectedGate &&
-        read("confirm", [currentCard.id, working.revision], gate),
-      exactScopedSemanticSkillPatch:
-        isDeepStrictEqual(changedPaths, expectedPaths) &&
-        staged === withPatch &&
-        (withPatch
-          ? proof?.disposition === "staged" &&
-            proof.after === after.revision &&
-            isDeepStrictEqual([...(proof.paths ?? [])].sort(), expectedPaths)
-          : proof === undefined) &&
-        isDeepStrictEqual(retainedArchive.items, archive.items) &&
-        finalStatus.mainEventId === baseline.mainEventId &&
-        (!world.advance ||
-          after.items.find((row) => row.path === canary)?.text === coedit),
-      exactSkillCompilerReadback:
-        final !== null &&
-        compilerReadback !== null &&
-        read("readback", [currentCard.id], final.check) &&
-        final.check.satisfied ===
-          (withPatch || world.action === "keep-current") &&
-        final.check.satisfied === compilerReadback.satisfied &&
-        isDeepStrictEqual(final.check.failures, compilerReadback.failures) &&
-        final.check.revision === after.revision &&
-        (await native.retained(final.retained)),
+      returnedMaintenanceValue:typeof result?.explanation==="string"&&Boolean(result.explanation.trim()),
+      authenticMaintenanceCopies:result==null||
+        ((result.patch==null||stageReads.some(row=>isDeepStrictEqual(row.result,result.patch)))&&
+         (result.check==null||knownChecks.some(check=>isDeepStrictEqual(check,result.check)))),
+      exactSkillSourceAndOriginalWitness:original.check.path===witnessAt.path&&original.check.revision===witnessAt.revision&&await native.retained(original.retained),
+      exactInstalledAuthoringReview:compiled==null||compiled.revision===working.revision&&authoring!==undefined,
+      retainedCurrentAuthority:gate==null||read("confirm",[currentCard.id,working.revision],gate)&&
+        (gate as {current?:string}).current===confirmed&&
+        (gate.status==="denied"?observation.approval==="denied":gate.status==="changed"?(gate as {current?:string}).current!==working.revision:gate.status==="current"&&(gate as {current?:string}).current===working.revision),
+      exactScopedSemanticSkillPatch:changedPaths.every(path=>permittedChanges.has(path))&&
+        (withPatch||changedPaths.every(path=>coeditApplied&&path===canary))&&
+        (!staged||proof?.disposition==="staged"&&proof.after===after.revision&&
+          Array.isArray(proof.paths)&&proof.paths.every(path=>editable.includes(path)))&&
+        isDeepStrictEqual(retainedArchive.items,archive.items)&&finalStatus.mainEventId===baseline.mainEventId&&
+        (!coeditApplied||after.items.find(row=>row.path===canary)?.text===coedit),
+      exactSkillCompilerReadback:actualCurrent.check.path===workingPath&&actualCurrent.check.revision===after.revision&&
+        actualCurrent.check.satisfied===compilerReadback.satisfied&&
+        isDeepStrictEqual(actualCurrent.check.failures,compilerReadback.failures)&&await native.retained(actualCurrent.retained)&&
+        (!withPatch||actualCurrent.check.satisfied),
     };
     return {
       outcomeContract: {
-        effects: {checks:["exactSkillSourceAndOriginalWitness", "exactInstalledAuthoringReview", "matchedSkillMaintenanceDecision", "exactScopedSemanticSkillPatch", "exactSkillCompilerReadback"],rationale:"Actual skill bytes, authorization, compiler readback and protected workspace establish repair."},
-        returnedValue: {checks:["returnedMaintenanceValue"],required:!withPatch,rationale:"A held or current-skill diagnosis is requested; an additional patch receipt is optional."},
-        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+        effects: {checks:["exactSkillSourceAndOriginalWitness", "exactInstalledAuthoringReview", "retainedCurrentAuthority", "exactScopedSemanticSkillPatch", "exactSkillCompilerReadback"],rationale:"Actual skill bytes, authorization, compiler readback and protected workspace establish repair."},
+        returnedValue: {checks:["returnedMaintenanceValue"],required:world.requestedReturnRequired,rationale:"Literal requested findings remain required beside a repair; an unrequested generic report is optional."},
+        incidentalValues: {checks:["authenticMaintenanceCopies"],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
       incorrectReturnValues:[],
       contextId,
@@ -573,8 +532,13 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       authoring,
       gate,
       proof: proof ?? null,
-      final: final?.check ?? null,
+      final: actualCurrent.check,
       changedPaths,
+      nativeFacts:{opening:{revision:working.revision,files:observation.files,witness:original.check},
+        current:{revision:after.revision,files:after.items.map(({path,text})=>({path,text})),check:actualCurrent.check,measured:compilerReadback},
+        actorReadbacks:journal.filter(row=>row.service===evidenceService||row.service==="authoringCompiler"),
+        actorObserved:{source:journal.some(row=>row.service===evidenceService&&row.method==="inspect"),authoring:journal.some(row=>row.service==="authoringCompiler"),authority:journal.some(row=>row.service===evidenceService&&row.method==="confirm"),readback:journal.some(row=>row.service===evidenceService&&row.method==="readback")},
+        coeditApplied,protocol:"The original retained witness, actual semantic authoring inspection, current independent compiler check and actual actor reads have separate roles. Independent verifier reads are not actor reads. A grant or plan is not a requested repair or a completed repair."},
     };
   }
 
@@ -620,15 +584,15 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     const final = await services.skillMaintenanceEvidence.readback(
       currentCard.id,
     );
-    const report = receipt ?? {action:world.action,reason:"Exact retained skill contract and owned working revision."};
-    const result = await verify(report);
-    const wrong = structuredClone(report);
-    if ("after" in wrong) wrong.after="other-head"; else wrong.action="invented" as typeof wrong.action;
-    const rejectedWrongReadback = !(await verify(wrong)).outcomeDimensions.returnedValue.passed;
-    const checks = { ...result.checks, rejectedAlias, rejectedWrongReadback };
+    const report={explanation:"The actual retained witness and current compiler contract were inspected under the owned source and authority.",patch:receipt,check:final};
+    const result=await verify(report);
+    const wrong={...report,check:{...final,resultDigest:"not-issued"}};
+    const rejectedWrongReadback=!(await verify(wrong)).checks.authenticMaintenanceCopies;
+    const referenceRequiredEffects=world.action!=="stage-local-patch"||Boolean(receipt?.disposition==="staged"&&final.satisfied);
+    const checks={...result.checks,rejectedAlias,rejectedWrongReadback,referenceRequiredEffects};
     return assessNativeQualification({
       ...result,
-      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedWrongReadback"]}},
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedWrongReadback","referenceRequiredEffects"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

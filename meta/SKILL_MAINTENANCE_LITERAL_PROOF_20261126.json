@@ -1,0 +1,14 @@
+{
+  "schema": "vibestudio.literal-obligations/1",
+  "source": {
+    "path": "/home/werg/vibe-skill-maintenance-semantic-sst/skills/system-testing/open-goal-skill-maintenance-worlds.ts",
+    "beforeCommit": "8027d1df79df3108da9e3703306ee6bf8ce0df13",
+    "beforeSha256": "66db677f0a2d3f060760b675d802103a5be8252966f52b1fe946e5b5ca3a43c3",
+    "afterSha256": "d41ebe6ec4aa914f0f6df6212beaf1241172f2449db487fb7db693d204011fa5"
+  },
+  "unchangedAllStringLiterals": true,
+  "worlds": 26,
+  "requestedReturnRequired": 11,
+  "effectOnlyOrConditionalInspection": 15,
+  "notes": "All goal/ID/split/name/native fixture literal values unchanged; only explicit per-literal return obligations added."
+}
