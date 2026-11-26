@@ -78,10 +78,9 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
   const effects: Effect[] = [];
   let issued = false;
   let compared: RunPair | null = null;
-  let reviewedId: string | null = null;
   let receipt: Receipt | null = null;
   let pending = false;
-  const reads: Case[] = [];
+  const readSets = new Map<string, Map<string, Case>>();
   const caseReads = new Map<string, Promise<Case>>();
   function capture<T>(service: string, method: string, args: unknown[], result: T): T {
     effects.push(structuredClone({ service, method, args, result }));
@@ -209,20 +208,22 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
         } finally { pending = false; }
       },
       async inspectCase(id: string, runId: string | null, name: string) {
-        if (!compared || !runId || pending || id !== assigned.id || runId !== choose(compared).runId ||
-            (reviewedId !== null && reviewedId !== runId) || !assigned.required.includes(name))
-          throw new Error("Read a required case from the exact selected System run");
+        if (!issued || !runId || pending || id !== assigned.id ||
+            ![assigned.current, assigned.earlier].includes(runId) || !assigned.required.includes(name))
+          throw new Error("Read an assigned case from an owned assigned System run");
         const key = JSON.stringify([runId, name]);
         const existing = caseReads.get(key);
         if (existing) return structuredClone(await existing);
-        const run = runId === compared.current.id ? compared.current : compared.earlier;
         const request = (async () => {
+          // The native read checks its own authority; a prior public compare call
+          // is not a prerequisite for reading an explicitly assigned attempt.
+          const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
+          const run = runId === current.id ? current : earlier;
+          if (run.context !== "same") throw new Error("Read only a run from the owned release context");
+          compared ??= { current, earlier };
           const proof = await readCase(run, name);
-          reviewedId = runId;
-          const prior = reads.findIndex(row => row.name === name);
-          if (prior < 0) reads.push(proof);
-          else reads[prior] = proof;
-          reads.sort((a,b)=>assigned.required.indexOf(a.name)-assigned.required.indexOf(b.name));
+          const values = readSets.get(runId) ?? new Map<string, Case>();
+          values.set(name, proof); readSets.set(runId, values);
           return capture("systemReleaseEvidence", "inspectCase", [id, runId, name], proof);
         })();
         caseReads.set(key, request);
@@ -232,14 +233,15 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
     },
     systemReleaseHandoff: {
       async stage(id: string, runId: string | null, disposition: Assessment["disposition"], cases: Case[]) {
-        if (!runId || runId !== reviewedId || pending || caseReads.size > 0 || receipt || id !== assigned.id ||
+        const reads = assigned.required.flatMap(name => readSets.get(runId ?? "")?.get(name) ?? []);
+        if (!runId || pending || caseReads.size > 0 || receipt || id !== assigned.id ||
             reads.length !== assigned.required.length || !sameEvidenceMembers(cases, reads) ||
             !["stage-acceptance", "stage-diagnostics"].includes(disposition) || assess(reads).disposition !== disposition)
           throw new Error("Stage only the authorized handoff for the complete exact selected run evidence");
         pending = true;
         try {
           const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
-          if (!isDeepStrictEqual(compared, { current, earlier }))
+          if (choose({ current, earlier }).runId !== runId || !isDeepStrictEqual(compared, { current, earlier }))
             throw new Error("Retained run coordinates changed before the local handoff");
           const canonical = dossier(disposition, runId, reads);
           if(new TextEncoder().encode(canonical).byteLength>maximumArtifact)return null;
@@ -278,16 +280,20 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
     const finalPair = { current, earlier };
     const selectedChoice = choose(finalPair);
-    const selected = selectedChoice.runId === current.id ? current : selectedChoice.runId === earlier.id ? earlier : null;
-    const nativeCases = selected ? await Promise.all(reads.map(row => readCase(selected, row.name))) : [];
+    const issuedCases = [...readSets].flatMap(([runId, values]) => [...values.values()].map(evidence => ({runId, evidence})));
+    const nativeCases = await Promise.all(issuedCases.map(async row => ({runId:row.runId,
+      evidence:await readCase(row.runId === current.id ? current : earlier,row.evidence.name)})));
     const entries = await artifact.entries(directory);
     const raw = entries.length === 1 && entries[0] === "release-evidence.json" ? await artifact.read(outputPath, maximumArtifact) : null;
     const stage = effects.find(row => row.service === "systemReleaseHandoff" && row.method === "stage");
-    const retainedBytes = stage && selected ? dossier(stage.args[2] as Assessment["disposition"], selected.id, nativeCases) : null;
+    const retainedRun = stage?.args[1];
+    const retainedCases = assigned.required.flatMap(name => nativeCases.find(row => row.runId === retainedRun && row.evidence.name === name)?.evidence ?? []);
+    const retainedBytes = stage && typeof retainedRun === "string" ? dossier(stage.args[2] as Assessment["disposition"], retainedRun, retainedCases) : null;
     const checks = {
       retainedNativeRunPair: compared === null || isDeepStrictEqual(compared, finalPair),
-      matchedOwnedBuildAndAttempt: reviewedId === null || reviewedId === (selected?.id ?? null),
-      exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases),
+      matchedOwnedBuildAndAttempt: issuedCases.every(row =>
+        [assigned.current,assigned.earlier].includes(row.runId) && (row.runId === current.id ? current : earlier).context === "same"),
+      exactRequiredCaseEvidence: sameEvidenceMembers(issuedCases, nativeCases),
       matchedReleaseDisposition: typeof value === "string" && value.trim().length > 0,
       verifiedPrivateHandoff: retainedBytes ? raw !== null && decode.decode(raw) === retainedBytes && !!receipt &&
         receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(retainedBytes) : entries.length === 0 && receipt === null,
@@ -297,7 +303,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       outcomeContract:systemReleaseGoalContract(world),
       incorrectReturnValues:[],
  actualResult:value, caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: selectedChoice,
-      cases: nativeCases, assessment: stage ? {disposition:stage.args[2]} : null, handoffProtocol:systemReleaseHandoffProtocol({contextId:owner,verifiedPrivateHandoff:checks.verifiedPrivateHandoff,receipt,text:raw?decode.decode(raw):null}), handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
+      cases: nativeCases.map(row => ({runId:row.runId,...row.evidence})), assessment: stage ? {disposition:stage.args[2]} : null, handoffProtocol:systemReleaseHandoffProtocol({contextId:owner,verifiedPrivateHandoff:checks.verifiedPrivateHandoff,receipt,text:raw?decode.decode(raw):null}), handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {

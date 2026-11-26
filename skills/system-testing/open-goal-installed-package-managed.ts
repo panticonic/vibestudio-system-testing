@@ -283,9 +283,11 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
     },
     installedPackageChange: {
       async restore(id: string, head: string, digest: string) {
-        if (!observed || id !== operationId || attempt)
+        if (id !== operationId || attempt)
           throw new Error("Restore only the assigned package from its actual observed revision");
         const current = await observe();
+        observed ??= structuredClone(current.observation);
+        opening ??= structuredClone(observed);
         const exact = observed.workingRevision === head && observed.workingDigest === digest;
         const record = (status: Repair["status"], observation: Observation) => {
           attempt = { status, observation };

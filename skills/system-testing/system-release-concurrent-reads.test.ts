@@ -12,7 +12,7 @@ describe("independent retained System release reads",()=>{
   const first=f.services.systemReleaseEvidence.inspectCase(a.id,seed.current,world.required[0]!);
   const duplicate=f.services.systemReleaseEvidence.inspectCase(a.id,seed.current,world.required[0]!);
   const second=f.services.systemReleaseEvidence.inspectCase(a.id,seed.current,world.required[1]!);
-  expect(reads).toEqual(world.required);gates.get(world.required[1]!)!.resolve();const witness=await second;expect(witness.name).toBe(world.required[1]);
+  await expect.poll(()=>[...reads]).toEqual(world.required);gates.get(world.required[1]!)!.resolve();const witness=await second;expect(witness.name).toBe(world.required[1]);
   gates.get(world.required[0]!)!.resolve();const [completion,again]=await Promise.all([first,duplicate]);expect(again).toEqual(completion);
   const proof=await f.verify("The actual two retained checks support this exact release.");expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
  });
