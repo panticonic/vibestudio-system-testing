@@ -655,24 +655,28 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       };
       const envelope = report;
       const result = await verify(envelope);
-      const rejectedForgedResult = !(
-        await verify({ ...report, candidateId: "wrong-candidate" })
+      const rejectedForeignCandidateAuthority =
+        (await services.templateMigration.authorizeStage(live.revision, "unowned-native-candidate")) === null;
+      const rejectedMissingRequestedAnswer = !world.requestedAnswerRequired || !(
+        await verify({ ...report, answer: "" })
       ).outcomeDimensions.returnedValue.passed;
       return assessNativeQualification({
-        ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedStale","rejectedWrongRecipient","rejectedForgedResult"]}},
+        ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedStale","rejectedWrongRecipient","rejectedForeignCandidateAuthority","rejectedMissingRequestedAnswer"]}},
         checks: {
           ...result.checks,
           rejectedAlias,
           rejectedStale,
           rejectedWrongRecipient,
-          rejectedForgedResult,
+          rejectedForeignCandidateAuthority,
+          rejectedMissingRequestedAnswer,
         },
         passed:
           result.passed &&
           rejectedAlias &&
           rejectedStale &&
           rejectedWrongRecipient &&
-          rejectedForgedResult,
+          rejectedForeignCandidateAuthority &&
+          rejectedMissingRequestedAnswer,
       });
     },
   };
