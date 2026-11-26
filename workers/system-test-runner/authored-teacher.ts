@@ -102,6 +102,8 @@ type ComposedTeacherOptions = {
   requestCode?: string;
   openGoal?: true;
   entry?: SemanticTaskEntry;
+  /** Trusted framework-owned service observation; never a model-supplied expression. */
+  nativeActionJournal?: true;
 };
 
 export type SemanticTaskEntry = {
@@ -127,7 +129,7 @@ function validateEntry(entry: SemanticTaskEntry): void {
     throw new Error("A semantic task needs its installed entry and exact application arguments");
 }
 
-export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string; goal: string; entry: SemanticTaskEntry; outcomeContract?: SemanticOutcomeContract}, runId: string) {
+export function openGoalTeacherCode(options: {executorModel: string; bindingCode: string; goal: string; entry: SemanticTaskEntry; outcomeContract?: SemanticOutcomeContract; nativeActionJournal?: true}, runId: string) {
   if (typeof options.goal !== "string" || !options.goal.trim()) {
     throw new Error("An open-goal teacher needs the catalog's user goal");
   }
@@ -141,9 +143,11 @@ export function openGoalTeacherCode(options: {executorModel: string; bindingCode
 export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCode>[0], runId: string) {
   return `
     import { assessSemanticOutcome } from "@workspace/application-outcomes/semantic-outcome-contract";
+    import { observeNativeActions } from "@workspace/application-outcomes/native-action-journal";
     import { observeInvocation } from "@workspace/application-outcomes/observed-invocation";
     import { createNatlangRecordsClient } from "@workspace/natlang-records/client";
     ${options.bindingCode}
+    const nativeActionObservation = observeNativeActions(assignedServices, {contextId:actualContextId,runId:${JSON.stringify(runId)}});
     let teacher, verification = null;
     const verificationErrors = [];
     const recordFailure = (phase, error) => verificationErrors.push({
@@ -151,8 +155,8 @@ export function openGoalOutcomeCode(options: Parameters<typeof openGoalTeacherCo
       message: error instanceof Error ? error.message : String(error),
     });
     try {
-      ${openGoalTeacherCode({ ...options, bindingCode: "" }, runId)}
-      teacher = utilityValue;
+      ${openGoalTeacherCode({ ...options, bindingCode: "", nativeActionJournal: true }, runId)}
+      teacher = {...utilityValue,nativeActionJournal:nativeActionObservation.snapshot()};
       try {
         const applicationReturned = Object.hasOwn(teacher, "applicationResult");
         const completedVoid = applicationReturned && teacher.applicationResultKind === "void";
@@ -232,7 +236,7 @@ ${AUTHORED_START_BOUNDARY}
       const expectedRemaining=${JSON.stringify(expectedRemaining)};
       let report=null, applicationResult, applicationResultKind, applicationReturned=false, executionError=null;
       try {
-        const loaded=await natlang.load(programPath,{services:assignedServices});
+        const loaded=await natlang.load(programPath,{services:${options.nativeActionJournal ? "nativeActionObservation.services" : "assignedServices"}});
         const root=programPath.endsWith(".ts")?loaded?.default:loaded;
         if(typeof root!=="function") throw new Error("The authored entry has no callable "+(programPath.endsWith(".ts")?"default export":"NL function"));
         ${options.openGoal && options.entry!.program.endsWith(".ts") ? `if(root.name!==${JSON.stringify(options.entry!.callable)}) throw new Error("The authored TypeScript default export differs from the assigned callable");` : ""}

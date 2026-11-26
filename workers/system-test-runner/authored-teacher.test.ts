@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { observeNativeActions } from "@workspace/application-outcomes/native-action-journal";
 import { authoredTeacherCode, openGoalTeacherCode, openGoalOutcomeCode } from "./authored-teacher.js";
 async function capture(outcome: string, model = "Luna") {
   const code = openGoalTeacherCode(
@@ -104,7 +105,7 @@ async function captureObservedReturn(result: unknown, throws: boolean, resultTyp
   const natlang = {captureModelTurns(){}, load:async()=>async()=>{if(throws)throw new Error("after effect");return result;},
     calls:async({after}:{after?:string})=>after?[]:[{callId:"root",parentCallId:null}],
     trace:async()=>({callId:"root",summary:{run_id:"run",owner_key:"owned",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition:{name:"review"},outcome:throws?"error":"done",model_turns:[]}})};
-  const captured = await new Function("natlang","observed","assessSemanticOutcome","observeInvocation","createNatlangRecordsClient","rpc",`return (async()=>{${code};return utilityValue;})()`)(natlang,(value:unknown)=>{verified=value;},(value:unknown)=>value,()=>({}),()=>({getValue(){}}),{});
+  const captured = await new Function("natlang","observed","assessSemanticOutcome","observeInvocation","createNatlangRecordsClient","rpc","observeNativeActions",`return (async()=>{${code};return utilityValue;})()`)(natlang,(value:unknown)=>{verified=value;},(value:unknown)=>value,()=>({}),()=>({getValue(){}}),{},observeNativeActions);
   return {value:JSON.parse(JSON.stringify(captured)),raw:captured,verified};
 }
 
