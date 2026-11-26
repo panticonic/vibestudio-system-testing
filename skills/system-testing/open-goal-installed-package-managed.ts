@@ -1,3 +1,4 @@
+import {installedPackageAuthorization} from "./installed-package-authorization-review.js";
 import {installedPackageGoalContract} from "./open-goal-review-contracts.js";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {packageResultContributions} from "./operational-return-contributions.js";
@@ -400,7 +401,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
       actualResult:value, effects: structuredClone(effects), assignment, observed, decision, repair: attempt, plan,
-      authorization:{operationId,scope:assignment.scope,before:observed?{workingRevision:observed.workingRevision,workingDigest:observed.workingDigest,baselineDigest:observed.baselineDigest,scopeMatches:observed.scopeMatches}:null,action:attempt?{status:attempt.status}:null,after:{workingRevision:final.observation.workingRevision,workingDigest:final.observation.workingDigest,baselineDigest:final.observation.baselineDigest,scopeMatches:final.observation.scopeMatches}} };
+      authorization:installedPackageAuthorization({operationId,scope:assignment.scope,before:observed,action:attempt,after:final.observation}) };
   }
 
   async function qualify() {

@@ -9,6 +9,7 @@ import {URL as NodeURL} from "node:url";
 import {createHash} from "node:crypto";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import {installedPackageGoalContract,systemReleaseGoalContract} from "./open-goal-review-contracts.js";
+import {installedPackageAuthorization} from "./installed-package-authorization-review.js";
 import {systemReleaseHandoffProtocol} from "./system-release-handoff-protocol.js";
 import {openInstalledPackageWorlds} from "./open-goal-installed-package-worlds.js";
 import {openSystemReleaseWorlds} from "./open-goal-system-release-worlds.js";
@@ -19,7 +20,7 @@ function nativeProof(row:typeof originalPackage){return {...row.nativeProof,pass
 function negativeOutput(proof:ReturnType<typeof nativeProof>,checks:Record<string,boolean>){return {goal:proof.goal,passed:false,checks};}
 it('keeps pre-action authority and post-action revision changes as distinct actual observations',async()=>{
  const row=originalPackage,proof=nativeProof(row),world=openInstalledPackageWorlds.find(w=>row.case.endsWith(w.id))!;
- expect(world.requestedReturnRequired).toBe(true);expect(proof.observed.scopeMatches).toBe(true);expect(proof.repair.status).toBe('restored');expect(proof.repair.observation.scopeMatches).toBe(false);expect(proof.repair.observation.workingDigest).not.toBe(proof.observed.workingDigest);
+ expect(world.requestedReturnRequired).toBe(true);expect(proof.observed.scopeMatches).toBe(true);expect(proof.repair.status).toBe('restored');expect(proof.repair.observation.scopeMatches).toBe(false);expect(proof.repair.observation.workingDigest).not.toBe(proof.observed.workingDigest);const authority=installedPackageAuthorization({operationId:proof.assignment.operationId,scope:proof.assignment.scope,before:proof.observed,action:proof.repair,after:proof.repair.observation});expect(authority.before?.scopeMatches).toBe(true);expect(authority.after.scopeMatches).toBe(false);expect(authority.action?.status).toBe('restored');
  expect(row.actualResult.verification.plan.suite).toBe('native');expect(row.actualResult.verification.execution).toBeNull();
  const check=bindObservedContentReview(['effects','assignment','observed','repair','plan']);
  const result=await check(proof,installedPackageGoalContract(world),row.actualResult);

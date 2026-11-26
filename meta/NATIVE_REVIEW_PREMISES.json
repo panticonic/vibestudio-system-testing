@@ -509,5 +509,11 @@
     "modules": "Both real Native factory modules import successfully with shared contracts",
     "declarations": "Canonical380 --check ACTUALPASS5.243s360.9MiB; service signatures and generated files unchanged.",
     "originalSourceIdentity": "Both caseSource repositories clean and exact Source48 tuples; each recorded validatorSHA equals exact frozen original module bytes. Original raw/review/source hashes retained."
+  },
+  "sharedReassessmentHook": {
+    "source": "installed-package-authorization-review.ts",
+    "change": "Extract live before/action/after projection unchanged for canonical immutable-capture reassessment; no authority/check/goal/runtime behavior change.",
+    "checked": "13 actual source-witness/shared-contract/module controls PASS3.227s310.7MiB; actual two82 original packets canonical preparation PASS with root/source/actor effects bound, pending independent review.",
+    "scope": "This is a separate successor of ready2b4;49 tuple remains immutable once selected."
   }
 }
