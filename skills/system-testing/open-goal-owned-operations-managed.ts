@@ -150,7 +150,8 @@ export async function prepareOpenOwnedOperations(input: { contextId: string; cas
     const proof=await verifyNativeApplication(value,invocation);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     const assessed=await assessNativeGoal(proof,proof.outcomeContract,value,invocation,
-      [{checks:["returnedOperationsFinding"],rootPath:[],producerSourceSuffix:"coordinateOwnedOperations.nl",producerPath:[]}]);
+      [{checks:["returnedOperationsFinding"],rootPath:[],producerSourceSuffix:"coordinateOwnedOperations.nl",producerPath:[]},
+       {checks:["returnedOperationsFinding"],rootPath:[],producerSourceSuffix:"coordinateOwnedOperations/explainOperationsFinding.nl",producerPath:[]}]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -182,7 +183,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     return {
       outcomeContract:{effects:{checks:["exactCurrentOwnedDocket", "preservedAuthorization", "actualPrivateDossierReadback", "preservedWorkspaceHead"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
-        returnedValue:{checks:["returnedOperationsFinding"],required:world.requestedReturnRequired,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        returnedValue:{checks:["returnedOperationsFinding"],required:world.requestedReturnRequired,trainingEvidence:"format-only",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
 
