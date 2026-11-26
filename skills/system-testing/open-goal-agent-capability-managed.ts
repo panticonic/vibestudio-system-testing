@@ -1,6 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "evidence", "decision", "continuation", "notebookState"], []);
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "evidence", "decision", "continuation", "notebookState", "retainedValueReads"], []);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -28,6 +28,7 @@ type Continuation = { kind: "confirmed-existing" | "retried-step"; original: str
   runDigest: string; resultDigest: string; valueDigest: string; revision: string };
 type Step = { card: Card; native: RetainedRun; mode: World["mode"] };
 type Effect = { service: string; method: string; args: unknown[]; result: unknown };
+type RetainedValue = import("@workspace-skills/open-user-goal/recoverAgentCapability/contract").RetainedNotebookValue;
 type Ports = { contextId: string; vcs: Pick<typeof vcs, "status">; native: Native };
 const hash = sha256HexSyncText;
 const notebookKey = "capabilityRecord";
@@ -200,6 +201,7 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
   }
   let discovered = false;
   const viewed = new Map<string, Evidence>();
+  const retainedValueReads: {id:string;resultDigest:string;revision:string;returned:boolean;values:RetainedValue[]|null;refusal?:string}[] = [];
   const effects: Effect[] = [];
   let continued: { native: RetainedRun; receipt: Continuation; decision: Decision } | null = null;
   let applying = false;
@@ -217,10 +219,41 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
       async inspect(id: string) {
         const step = steps.find(candidate => candidate.card.id === id);
         if (!step) throw new Error("Use only an owned notebook attempt");
-        if (viewed.has(id)) return structuredClone(viewed.get(id)!);
         const evidence = await inspect(step);
-        viewed.set(id, evidence);
+        // Preserve the original observed action basis for mutation verification,
+        // while returning truthful fresh scope observations on later reads.
+        if (!viewed.has(id)) viewed.set(id, evidence);
         return capture("agentCapabilityEvidence", "inspect", [id], evidence);
+      },
+      async readRetainedValues(id:string,resultDigest:string,revision:string):Promise<RetainedValue[]|null> {
+        const step=steps.find(candidate=>candidate.card.id===id);
+        const observed=viewed.get(id);
+        if(!step||step.card.notebook!==assignment.notebook||!observed){
+          retainedValueReads.push({id,resultDigest,revision,returned:false,values:null,refusal:"foreign-or-uninspected-action"});
+          throw new Error("Inspect the exact owned notebook action before reading its retained values");
+        }
+        const record=(values:RetainedValue[]|null)=>{
+          retainedValueReads.push(structuredClone({id,resultDigest,revision,returned:true,values}));
+          return capture("agentCapabilityEvidence","readRetainedValues",[id,resultDigest,revision],values);
+        };
+        if(observed.resultDigest!==resultDigest||step.card.revision!==revision)return record(null);
+        const fresh=await inspect(step);
+        if(fresh.resultDigest!==resultDigest||fresh.notebook.revision!==revision)return record(null);
+        // Only this action's published value keys are admitted. Protected
+        // neighboring scope keys and the opaque scope capability stay private.
+        const keys=[notebookKey,...(step.mode==="large-output"?["ownedLargeResult"]:[]),...(step.mode==="scope-values"?generated:[])];
+        const afterContinuation=step===current?continued?.receipt.runId??null:null;
+        const values=await Promise.all(keys.map(async key=>{
+          const content=await native.text(step.native.scopeKey,key);
+          return {attempt:structuredClone(step.card),runId:step.native.runId,revision,key,content,digest:hash(content),
+            observedAfterContinuation:afterContinuation};
+        }));
+        // Reject a value read spanning a revision/action change instead of
+        // silently rebasing its caller's original inspected authority.
+        if(!isDeepStrictEqual(fresh,await inspect(step))||(step===current?continued?.receipt.runId??null:null)!==afterContinuation)return record(null);
+        const primary=values.find(value=>value.key===(step.mode==="large-output"?"ownedLargeResult":notebookKey));
+        if(!primary||primary.digest!==fresh.notebook.settledDigest)throw new Error("Retained value bytes differ from the inspected native notebook digest");
+        return record(values);
       },
     },
     agentCapabilityContinue: {
@@ -266,7 +299,7 @@ export async function prepareAgentCapability(input: { contextId: string; caseId:
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(input: unknown, invocation?: InvocationObservations) {
-    const report = input as {explanation?:unknown;continuation?:unknown} | null;
+    const report = input as {explanation?:unknown;continuation?:unknown;retainedValues?:unknown} | null;
     const outcome = report;
     const observed = viewed.get(current.card.id);
     const earlier = await inspect(prior);
@@ -299,33 +332,46 @@ async function verifyNativeApplication(input: unknown, invocation?: InvocationOb
         observed?.notebook.settledDigest === hash(originalValues[0]![current.mode === "large-output" ? "ownedLargeResult" : notebookKey]!),
       respectedRecoveryDecision: typeof outcome?.explanation==="string"&&!!outcome.explanation.trim(),
       authenticReturnedContinuation:outcome?.continuation===null||outcome?.continuation===undefined||isDeepStrictEqual(outcome.continuation,continued?.receipt??null),
+      authenticReturnedValues:outcome?.retainedValues===undefined||Array.isArray(outcome.retainedValues)&&outcome.retainedValues.every(value=>
+        retainedValueReads.some(read=>read.values?.some(actual=>isDeepStrictEqual(value,actual)))),
+      verifiedRetainedValueReads:retainedValueReads.every(read=>read.values===null||read.values.every(value=>{
+        const index=[current,prior,other].findIndex(step=>step.card.id===read.id);
+        if(index<0||[current,prior,other][index]!.card.notebook!==assignment.notebook||value.digest!==hash(value.content)||
+          value.revision!==read.revision||value.runId!==[current,prior,other][index]!.native.runId)return false;
+        return value.observedAfterContinuation===null?value.content===originalValues[index]![value.key]:
+          index===0&&value.observedAfterContinuation===continued?.receipt.runId&&value.content===after[index]![value.key];
+      })),
       verifiedExactContinuation: exactEffect&&(!continued||mayContinue),
       preservedOtherState: keys.every(key => after[0]![key] === originalValues[0]![key]) && isDeepStrictEqual(after.slice(1), originalValues.slice(1)) &&
         initial.mainEventId === head.mainEventId && isDeepStrictEqual(initial.workingHead, head.workingHead),
     };
     return {
       outcomeContract:{
-        effects:{checks:["selectedExactOwnedAttempts", "verifiedNativeAdmissionAndFailure", "verifiedConsoleAndNotebookEvidence", "verifiedExactContinuation", "preservedOtherState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
+        effects:{checks:["selectedExactOwnedAttempts", "verifiedNativeAdmissionAndFailure", "verifiedConsoleAndNotebookEvidence", "verifiedRetainedValueReads", "verifiedExactContinuation", "preservedOtherState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
         returnedValue:{checks:["respectedRecoveryDecision"],required:world.requestedReturnRequired,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
-        incidentalValues:{checks:["authenticReturnedContinuation"],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+        incidentalValues:{checks:["authenticReturnedContinuation","authenticReturnedValues"],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
-      effects: structuredClone(effects), assignment, evidence: { current: observed, prior: earlier }, decision, continuation: continued?.receipt ?? null, notebookState:{before:readRecord(originalValues[0]![notebookKey]!),after:readRecord(after[0]![notebookKey]!),currentAction:currentView} };
+      effects: structuredClone(effects), assignment, evidence: { current: observed, prior: earlier }, decision, continuation: continued?.receipt ?? null, retainedValueReads:structuredClone(retainedValueReads), notebookState:{before:readRecord(originalValues[0]![notebookKey]!),after:readRecord(after[0]![notebookKey]!),currentAction:currentView} };
   }
   async function qualify() {
     const assignment = await services.agentCapabilityEvidence.discover();
     const a = await services.agentCapabilityEvidence.inspect(current.card.id);
     const b = await services.agentCapabilityEvidence.inspect(prior.card.id);
+    // Exercise the SAME admitted read port as the teacher. Hidden verifier
+    // scopeBytes must not stand in for an unavailable application capability.
+    const retainedValues=await services.agentCapabilityEvidence.readRetainedValues(a.attempt.id,a.resultDigest,a.notebook.revision);
     const decision = decisionFor(a);
     const continuation = decision === "confirm-continuation" || decision === "retry-exact-step"
       ? await services.agentCapabilityContinue.apply(a.attempt.id, a.resultDigest, a.notebook.revision, decision) : null;
-    const result = {explanation:"Use the exact admitted action and current durable notebook evidence.",continuation};
+    const result = {explanation:"Use the exact admitted action and current durable notebook evidence.",continuation,...(retainedValues===null?{}:{retainedValues})};
     const proof = await verify(result);
     const rejectedInventedApplicationValue = !(await verify({...result,explanation:""})).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    const referenceRetainedValueAdmission=a.notebook.revision===a.attempt.revision?retainedValues!==null&&retainedValues.length>0:retainedValues===null;
+    const checks = {...proof.checks,rejectedInventedApplicationValue,referenceRetainedValueAdmission};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),report:result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue","referenceRetainedValueAdmission"]}}});
   }
   return { services, verify, qualify, close: native.close };
 }
