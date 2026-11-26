@@ -8,12 +8,8 @@ import searchTerms from "@workspace-skills/sandbox/doc-search-terms";
 import type { RecoveryKnowledge, RecoveryRoute, RecoverySkill, TerminalDiscovery } from "@workspace-skills/open-terminal-operator/types";
 import type { DiscoveryExpectation } from "./open-goal-terminal-worlds.js";
 
-const bytes = new TextEncoder();
-const bounded = (text: string, max: number) => bytes.encode(text).length <= max;
-
-export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () => void) {
+export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () => void, observe:(operation:string,result:unknown)=>void=()=>{}) {
   let installed: RecoverySkill[] | null = null;
-  const hits = new Set<string>();
   const searchReceipts: { query: string; result: { id: string; qualifiedName: string; description: string }[] }[] = [];
   const loadReceipts: { dirPath: string; focus: string[]; result: RecoveryKnowledge }[] = [];
   const routes = new Map<string, RecoveryRoute>();
@@ -21,7 +17,7 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
 
   async function nativeIndex() {
     return (await rpc.call("main", mainRpcMethods["workspace.listSkills"], [])).map(row => ({
-      dirPath: row.dirPath, skillPath: row.skillPath, name: row.name, description: row.description.slice(0, 160),
+      dirPath: row.dirPath, skillPath: row.skillPath, name: row.name, description: row.description,
     }));
   }
   async function nativeRoute(id: string) {
@@ -30,12 +26,12 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
     const schema = await rpc.call("main", mainRpcMethods["docs.getSchema"], [id]);
     if (!schema || !isDeepStrictEqual(schema.argsSchema, row.argsSchema) ||
         !isDeepStrictEqual(schema.returnsSchema, row.returnsSchema)) return null;
-    return { id, qualifiedName: row.qualifiedName, description: row.description?.slice(0, 360) ?? "",
+    return { id, qualifiedName: row.qualifiedName, description: row.description ?? "",
       argumentNames: row.argumentNames ?? [], sha256: stableSha256Hex({ row, schema }) };
   }
   async function rawGuide(dirPath: string) {
     const raw = await rpc.call("main", mainRpcMethods["workspace.readSkill"], [dirPath]);
-    return raw && bounded(raw, 96 * 1024) ? raw : null;
+    return raw || null;
   }
   function evidence() {
     return {
@@ -48,33 +44,35 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
   const services = {
     async search(query: string) {
       admit();
-      if (typeof query !== "string" || !query.trim() || !bounded(query, 120)) return [];
+      if (typeof query !== "string" || !query.trim()) return [];
       const rows = await rpc.call("main", mainRpcMethods["docs.search"], [query, { surface: "service", limit: 8 }]);
       const result = rows.map(row => {
-        hits.add(row.id);
-        return { id: row.id, qualifiedName: row.qualifiedName, description: row.description?.slice(0, 280) ?? "" };
+        return { id: row.id, qualifiedName: row.qualifiedName, description: row.description ?? "" };
       });
       searchReceipts.push({ query, result });
+      observe("search",{query,result});
       return result;
     },
     async open(id: string) {
       admit();
-      if (typeof id !== "string" || !id.startsWith("service:") || !bounded(id, 256)) return null;
+      if (typeof id !== "string" || !id.startsWith("service:")) return null;
       const route = await nativeRoute(id);
       if (route) routes.set(id, route);
+      observe("open",{id,result:route});
       return route;
     },
     async installed() {
       admit();
       installed ??= await nativeIndex();
+      observe("installed",installed);
       return installed;
     },
     async load(dirPath: string, focus: string[]) {
       admit();
       installed ??= await nativeIndex();
       const skill = installed.find(item => item.dirPath === dirPath && item.skillPath === `${dirPath}/SKILL.md`);
-      if (!skill || !Array.isArray(focus) || !focus.length || focus.length > 6 ||
-          focus.some(term => typeof term !== "string" || !bounded(term, 64))) return null;
+      if (!skill || !Array.isArray(focus) || !focus.length ||
+          focus.some(term => typeof term !== "string")) return null;
       const raw = await rawGuide(dirPath);
       if (!raw) return null;
       const passages = rank(searchTerms(focus), sections(raw, 760).map(({ heading, text }) =>
@@ -83,6 +81,7 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
       const receipt = { skillPath: skill.skillPath, sha256: sha256HexSyncText(raw), passages };
       knowledge.set(receipt.skillPath, receipt);
       loadReceipts.push({ dirPath, focus: [...focus], result: receipt });
+      observe("load",{dirPath,focus,result:receipt});
       return receipt;
     },
   };
@@ -107,27 +106,25 @@ export function bindTerminalDiscovery(rpc: Pick<typeof rpc, "call">, admit: () =
     }
     return { routes, guidance };
   }
-  async function verify(actual: TerminalDiscovery | null, expected: DiscoveryExpectation | undefined) {
-    if (!expected) return actual === null && hits.size === 0 && installed === null;
-    if (!actual || !Array.isArray(actual.routes) || !Array.isArray(actual.guidance) ||
-        !expected.methods.every(name => actual.routes.some(route => route?.id === `service:${name}`))) return false;
+  async function verify(actual: TerminalDiscovery | null) {
+    if (!actual) return routes.size === 0 && knowledge.size === 0;
+    if (!Array.isArray(actual.routes) || !Array.isArray(actual.guidance)) return false;
     const conformedRoutes = await Promise.all(actual.routes.map(async report => {
       const fresh = await nativeRoute(report.id);
       return !!fresh && isDeepStrictEqual(report, fresh) && isDeepStrictEqual(routes.get(report.id), fresh);
     }));
-    const freshSkillIndex = await nativeIndex();
+    const freshSkillIndex = actual.guidance.length ? await nativeIndex() : [];
     const conformedSkills = await Promise.all(actual.guidance.map(async citation => {
       const fresh = freshSkillIndex.find(item => item.skillPath === citation?.skillPath);
-      if (!fresh || typeof citation.quote !== "string" || !citation.quote.trim() || !bounded(citation.quote, 260)) return false;
-      const [loaded, raw] = [knowledge.get(fresh.skillPath), await rawGuide(fresh.dirPath)];
-      return !!raw && !!loaded && citation.sha256 === loaded.sha256 && citation.sha256 === sha256HexSyncText(raw) &&
-        raw.includes(citation.quote) && loaded.passages.some(passage => passage.includes(citation.quote));
+      if (!fresh || typeof citation.quote !== "string" || !citation.quote.trim()) return false;
+      const [loaded, raw] = [loadReceipts.map(receipt=>receipt.result).filter(result=>result.skillPath===fresh.skillPath), await rawGuide(fresh.dirPath)];
+      return !!raw && citation.sha256 === sha256HexSyncText(raw) &&
+        raw.includes(citation.quote) && loaded.some(result=>result.sha256===citation.sha256&&result.passages.some(passage => passage.includes(citation.quote)));
     }));
-    const requiredGuidance = expected.guidance.every(guide => {
-      const fresh = freshSkillIndex.find(item => item.dirPath === guide.dirPath);
-      return actual.guidance.some(citation => citation.skillPath === fresh?.skillPath);
-    });
-    return requiredGuidance && conformedRoutes.every(Boolean) && conformedSkills.every(Boolean);
+    return conformedRoutes.every(Boolean) && conformedSkills.every(Boolean);
   }
-  return { services, qualify, verify, evidence };
+  async function verifyObserved(){
+    return verify({routes:[...routes.values()],guidance:[...knowledge.values()].flatMap(loaded=>loaded.passages.map(quote=>({skillPath:loaded.skillPath,sha256:loaded.sha256,quote})))});
+  }
+  return { services, qualify, verify, verifyObserved, evidence };
 }

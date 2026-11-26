@@ -1,0 +1,88 @@
+{
+  "schema": "vibestudio.terminal-runbook-native-inventory/1",
+  "baseline": "b359059e97101db105ebad80d930d1d1462fbd27",
+  "sources": [
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "sha256": "35e08acbf3eef96fe11cb329cee3d28bb209664cc56681c8fbaab0226d5af7ed"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-worlds.ts",
+      "sha256": "0f4411ae91a41c88abb31d66be7b6c7e566a4a31e61c3d76b08023a27e2be16b"
+    },
+    {
+      "path": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "sha256": "20d09a6cd548bb4bd4db805631205cd64a670abb2614d08b5c038aa73e46213f"
+    },
+    {
+      "path": "skills/system-testing/open-goal-product-owned-worlds.ts",
+      "sha256": "f12527e76103a7027f5c474cebfa80db43a03f9c7512a735cf46f9232ae6aee3"
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-discovery.ts",
+      "sha256": "3b68e8551f16b0b0349b657f2541cfbd2f36e1cfe97bb005b17ad840b3c92a6e"
+    }
+  ],
+  "scope": {
+    "terminal": "same-context session/PTY actual state, granted inputs/transitions, observed exits, declared fixed command protocol, retained scratch bytes. Explicit modality/order judged against actual event chronology; reference sequence/count and golden summary status are not authority.",
+    "googleRunbook": "six worlds; actual current Calendar identity/revision, approved-instruction capability, current document CAS, private granted path/protected passages/coedit, actual persisted bytes. Keep dedicated write source binding; query mandatory native meaning review.",
+    "otherProductOwnedFunctions": "NewsEditionReview and AssignedPublicBrief share module but are not changed by scoped Google function edits; their body/consumer audit remains open."
+  },
+  "constraintsToCorrect": [
+    "Private Terminal12turn/one-semantic-acquisition allowance in TS root.",
+    "Terminal exact private expected sequence/count, output status and mutation-inferred return requirement.",
+    "Google private query action/approval echo; missing read-only meaning review; apply private16k/one-written ceiling.",
+    "Discovery verifier requires private methods/guide choices and overwrites earlier valid loaded passages. Public service/catalog copying silently truncates descriptions and imposes fixture-only input/citation/guide size ceilings; use actual native contracts and recorded issued reads."
+  ],
+  "status": "ready, component-tested; no physical Native Hub qualification/meaning-review acceptance fabricated",
+  "validation": {
+    "publicComposition": {
+      "distinctPassed": 3,
+      "units": [
+        "vibe-terminal-findings-joint-20261126b",
+        "vibe-runbook-optional-attribution-joint-20261126c"
+      ],
+      "maxPeakGiB": 2.9,
+      "engines": "actual public ProgramLoader/Workerd evaluator with scripted gateway, exact Native callbacks; no provider"
+    },
+    "nativeComponents": {
+      "passed": 10,
+      "unit": "vibe-terminal-runbook-native-20261126i",
+      "peakMiB": 179.2,
+      "scope": "actual factory state/ownership/lifetime/ordering guards with injected PTY; actual memory-FS Runbook CAS/protected-write paths; Native docs/knowledge readback controls"
+    },
+    "hostBindings": {
+      "passed": 28,
+      "unit": "vibe-runbook-terminal-host-20261126d",
+      "scope": "actual generic admission + dedicated source-claim write bindings"
+    },
+    "declarations": {
+      "fresh": 380,
+      "unit": "vibe-terminal-runbook-declarations-20261126a"
+    },
+    "identity": {
+      "unit": "vibe-terminal-runbook-identity-20261126a",
+      "terminal": 38,
+      "runbook": 6,
+      "adjacentNewsUnchanged": 6,
+      "allOriginalFieldsUnchanged": true
+    },
+    "paidCalls": 0
+  },
+  "completed": [
+    "Both high-level roots now choose semantic coordination naturally across existing mounted codebases, preserving scoped exact Native effect boundaries.",
+    "Terminal public API is TerminalFindings {answer:string}; removed unused generic event/receipt/status report and projection helper without aliases. Native effect records stay authoritative.",
+    "Google attribution is honestly nullable when not requested/performed; actual Calendar and provenance hierarchies remain available.",
+    "Terminal explicit input/ordering remains a real goal obligation reviewed against completed Native journal and pre-teardown registry/process snapshot. Private reference sequence/count/disposition is not a teacher gate.",
+    "Native lifecycle cleanup always joins, including failed opening/reference and failed verification; original errors preserved with both failures retained if cleanup also fails.",
+    "Native discovery validates actually issued routes and all earlier loaded passages against current source, preserving full descriptions and canonical protocol delegation.",
+    "Runbook current-version/protected-source checks are applied before every real write, with stale CAS returning actual changed feedback. Private size/one-write limits removed.",
+    "Google query/hold mode receives mandatory native-bound review with no report copy inside Native observations; writable mode retains existing dedicated current document/edit-scope review."
+  ],
+  "unchecked": [
+    "All38 physical Hub/PTY Terminal factory references not rerun; tests inject exact Native PTY ports.",
+    "No live Calendar/provider or independent semantic admission review performed; raw failures unchanged.",
+    "Historical previously verified Terminal report-after-mutation captures still require bounded actual-answer audit before any completion reassessment.",
+    "Whole116-family coordinator census and remaining oracle inventory remain open beyond this completed batch."
+  ]
+}

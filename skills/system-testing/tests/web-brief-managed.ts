@@ -460,6 +460,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     }]),
     workspaceRepoFixture: { kind: "open-goal-owned-preview-panel", section: "panels", caseId: world.id },
   } : {}),
+  ...(world.kind === "google-runbook" ? { requiresReview: true } : {}),
   ...(world.kind === "publication" ? {
     requiresReview: true,
     requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "skills/publication-revision-bindings"],
