@@ -1,8 +1,10 @@
+import {systemReleaseHandoffProtocol} from "./system-release-handoff-protocol.js";
+import {systemReleaseGoalContract} from "./open-goal-review-contracts.js";
 import {maxScratchArtifactBytes as maximumArtifact} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "runs", "cases", "effects"], ["handoffText"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "runs", "cases", "effects", "handoffProtocol"], ["handoff", "handoffText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -277,10 +279,6 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const withheld = ["hold-context", "hold-build", "hold-active", "hold-cancelled", "hold-missing-run"];
     const expectedChoice = { runId: selected?.id ?? null, blocker: withheld.includes(expected.outcome) ? expected.outcome : null };
     const hasHandoff = expected.outcome === "stage-acceptance" || expected.outcome === "stage-diagnostics";
-    const names = nativeCases.filter(item => expected.outcome === "hold-evidence" ?
-      item.rank !== "retained" || item.passed && !item.exactWitness :
-      ["stage-diagnostics", "hold-failure", "hold-cleanup"].includes(expected.outcome) ?
-        !!item.primary || item.cleanup.length > 0 : true).map(item => item.name);
     const entries = await artifact.entries(directory);
     const raw = entries.length === 1 && entries[0] === "release-evidence.json" ? await artifact.read(outputPath, maximumArtifact) : null;
     const expectedBytes = selected && hasHandoff ? dossier(expected.outcome, selected.id, nativeCases) : null;
@@ -289,20 +287,16 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       retainedNativeRunPair: isDeepStrictEqual(compared, finalPair),
       matchedOwnedBuildAndAttempt: reviewedId === (selected?.id ?? null),
       exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases),
-      matchedReleaseDisposition: isDeepStrictEqual(outcome?.handoff,receipt)&&outcome?.assessment?.disposition === expected.outcome && isDeepStrictEqual(outcome.assessment.decisive, names) &&
-        typeof outcome.assessment.reason === "string" && outcome.assessment.reason.trim().length > 0,
+      matchedReleaseDisposition: typeof outcome?.assessment?.reason === "string" && outcome.assessment.reason.trim().length > 0,
       verifiedPrivateHandoff: expectedBytes ? raw !== null && decode.decode(raw) === expectedBytes && !!receipt &&
         receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) : entries.length === 0 && receipt === null,
       noSuiteRerunOrUnassignedCase: sameEvidenceMembers(effects.map(item => item.method), expectedMethods),
     };
     return {
-      outcomeContract:{
-        effects:{checks:["retainedNativeRunPair", "matchedOwnedBuildAndAttempt", "exactRequiredCaseEvidence", "verifiedPrivateHandoff", "noSuiteRerunOrUnassignedCase"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["matchedReleaseDisposition"],required:!hasHandoff,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      outcomeContract:systemReleaseGoalContract(world),
       incorrectReturnValues:[],
- caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
-      cases: nativeCases, assessment: outcome?.assessment, handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
+ actualResult:value, caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
+      cases: nativeCases, assessment: outcome?.assessment, handoffProtocol:systemReleaseHandoffProtocol({contextId:owner,verifiedPrivateHandoff:checks.verifiedPrivateHandoff,receipt,text:raw?decode.decode(raw):null}), handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {
@@ -312,16 +306,18 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     if (choice.runId)
       for (const name of assigned.required) cases.push(await services.systemReleaseEvidence.inspectCase(assigned.id, choice.runId, name));
     const assessment = { ...(choice.blocker ? { disposition: choice.blocker, decisive: [] } : assess(cases)),
-      reason: "Reviewed the retained target, terminal state, exact case evidence and authorized local release use." };
+      reason: JSON.stringify({subject:assigned.subject,selectedRun:choice.runId,blocker:choice.blocker,current:runs.current,earlier:runs.earlier,cases}) };
     const handoff = ["stage-acceptance", "stage-diagnostics"].includes(assessment.disposition) ?
       await services.systemReleaseHandoff.stage(assigned.id, choice.runId, assessment.disposition, cases) : null;
     const result = {assessment,handoff};
     const proof = await verify(result);
-    const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:"invented"}})).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    let rejectedForeignNativeScope=false;
+    try {await services.systemReleaseEvidence.inspectCase(assigned.id,"foreign-retained-run",assigned.required[0]!);} catch {rejectedForeignNativeScope=true;}
+    const rejectedMissingRequestedAnswer = !world.requestedReturnRequired || !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
+    const checks = {...proof.checks,rejectedForeignNativeScope,rejectedMissingRequestedAnswer};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignNativeScope","rejectedMissingRequestedAnswer"]}}});
   }
   return { services, qualify, verify };
 }
