@@ -287,7 +287,7 @@ const templateSettings = {
   "workspace-claims": { requiresUnits: workspaceClaimRequiresUnits },
   "bridge-delivery": { requiresUnits: openBridgeDeliveryRequiresUnits },
   "editorial-packet": { requiresUnits: openEditorialRequiresUnits, authorityPolicy: missionPlanningSettings.authorityPolicy },
-  examplesAdoption: { requiresUnits: ["skills/open-user-goal", "extensions/templates", "skills/template-candidate", "skills/scratch-handoff-bindings"] },
+  examplesAdoption: { requiresReview: true, requiresUnits: ["skills/open-user-goal", "extensions/templates", "skills/template-candidate", "skills/scratch-handoff-bindings"] },
   grimoireScene: { requiresUnits: ["skills/open-user-goal", "panels/grimoire", "workers/grimoire-world", "skills/examples-review-fixtures", "packages/living-canvas"],
     resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("open-owned-grimoire-player-panel", [{
