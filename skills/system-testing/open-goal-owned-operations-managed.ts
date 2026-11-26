@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessNativeGoal=bindObservedContentReview(["docket","effects","audit"],["dossierReadback"]);
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
@@ -255,10 +256,10 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       reason: operation?.handoff.summary ?? evidence.rationale,
     };
     const result = await verify(outcome);
-    return {
+    return assessNativeQualification({
       ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"deniedRetiredEdition"]}}, passed: result.passed && deniedRetiredEdition,
       checks: { ...result.checks, deniedRetiredEdition },
-    };
+    });
   }
   return { services, verify, qualify, close: owned.close };
 }

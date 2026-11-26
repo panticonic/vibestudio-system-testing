@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -200,7 +201,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const rejectsControlAlias = await services.goalBrowser.activate(`./${control}`, view.revision) === "unavailable" &&
       (await observe()).view.revision === view.revision;
     const checks = { ...verified.checks, rejectsControlAlias, rejectsWrongReadback: !negative.outcomeDimensions.returnedValue.passed };
-    return { ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsControlAlias","rejectsWrongReadback"]}}, checks, passed: Object.values(checks).every(Boolean) };
+    return assessNativeQualification({ ...verified,outcomeContract:{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsControlAlias","rejectsWrongReadback"]}}, checks, passed: Object.values(checks).every(Boolean) });
   }
   return { goal, services, verify, qualify };
 }

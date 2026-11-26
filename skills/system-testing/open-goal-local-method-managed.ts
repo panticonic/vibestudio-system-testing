@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -540,13 +541,13 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
           throw new Error("Re-drive changed a settled local method");
       }
       const rejectedAlteredEvidence = denied === 2 && rejected;
-      return {
+      return assessNativeQualification({
         ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},
         passed: verification.passed && rejectedAlteredEvidence,
         checks: { ...verification.checks, rejectedAlteredEvidence },
         referenceReport: report,
-      };
+      });
     }
     return { services, verify, qualify, close };
   } catch (error) {

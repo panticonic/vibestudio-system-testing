@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -238,7 +239,7 @@ caseId:world.id,contextId:context,goal:world.goal,passed:Object.values(checks).e
     const proof=await verify(report);
     const rejectedInventedScope=!(await verify({...report,affected:["other-local-scope"]})).outcomeDimensions.returnedValue.passed;
     const checks={...proof.checks,rejectedUnknownReference,rejectedInventedScope};
-    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnknownReference","rejectedInventedScope"]}},checks,passed:Object.values(checks).every(Boolean),report};
+    return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedUnknownReference","rejectedInventedScope"]}},checks,passed:Object.values(checks).every(Boolean),report});
   }
   return {services,qualify,verify};
 }

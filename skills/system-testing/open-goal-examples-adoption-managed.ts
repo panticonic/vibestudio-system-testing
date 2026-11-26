@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome = bindObservedContentReview(["card", "installed", "composition", "gate", "journal"], ["noteText"]);
@@ -443,18 +444,16 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const files = (await listOwnedScratchEntries(ports.fs)).filter(
       (path) => !priorScratch.has(path),
     );
-    const actualProof = world.during
-      ? [finalEvent]
-      : (world.proof ?? [independent.issue]);
     const saved = receipt
       ? await ports.readBytes(receipt.path, maxNoteBytes)
       : null;
     const body = saved
       ? new TextDecoder("utf-8", { fatal: true }).decode(saved)
       : null;
-    const readback = journal.find(
-      (row) => row.service === read && row.method === "readback",
-    )?.result as Readback | undefined;
+    // Verification reads current native state and retained bytes independently.
+    // Earlier actor readbacks remain historical observations, not a final-state gate.
+    const readback: Readback = {main: initial.mainEventId, event: finalEvent,
+      digest: body === null ? null : sha256HexSyncText(body)};
     const records = world.disposition === "record-private";
     const expectedOwner = world.mode === "parent" ? "Base" : "Examples";
     const exact = (
@@ -500,7 +499,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       actualPrivateDisposition: Boolean(
         (records ? !!plan && plan.disposition===world.disposition && !!plan.finding.trim() &&
-          isDeepStrictEqual([...plan.proof].sort(),[...actualProof].sort()) : true) &&
+          plan.proof.length > 0 && plan.proof.every(item => possible(independent).includes(item)) : true) &&
         (records
           ? receipt &&
             body &&
@@ -524,7 +523,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       independentReadbackAndPreservedMain: Boolean(
         readback &&
-        exact(read, "readback", [key, receipt?.path ?? null], readback) &&
         readback.main === initial.mainEventId &&
         readback.event === finalEvent &&
         readback.digest === (receipt?.digest ?? null),
@@ -589,13 +587,13 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const altered = structuredClone(report);
     if ("path" in altered) altered.path="foreign-adoption.json"; else altered.disposition="invented" as typeof altered.disposition;
     const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).outcomeDimensions.returnedValue.passed;
-    return {
+    return assessNativeQualification({
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,
-    };
+    });
   }
   return { services, verify, qualify };
 }

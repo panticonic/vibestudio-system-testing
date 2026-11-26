@@ -1,9 +1,45 @@
 import type { PanelHandle } from "@workspace/runtime";
-import { waitFor } from "@workspace/testkit";
+import {
+  waitFor,
+  TestAssertionError,
+  activeTestContext,
+} from "@workspace/testkit";
 
 export type GrimoireClock = { day: number; phase: number };
 export type GrimoireFixturePanel = { contextId: string; estateKey: string };
 type Panel = Pick<PanelHandle, "id" | "observe" | "stateArgs" | "cdp">;
+
+type PlayerState = { clock: string; busy: boolean; error: string };
+/** Preserve the actual owned renderer state when an existing fixture deadline
+ * expires. A read error can recover, so it must not become a new success gate. */
+async function settlePlayer<T extends PlayerState>(
+  read: () => Promise<T>,
+  ready: (state: T) => boolean,
+  label: string,
+): Promise<void> {
+  const signal = activeTestContext()?.signal;
+  let last: T | undefined;
+  try {
+    await waitFor(
+      async () => {
+        last = await read();
+        return ready(last) || undefined;
+      },
+      { timeoutMs: 30_000, label },
+    );
+  } catch (error) {
+    if (signal?.aborted || !(error instanceof TestAssertionError)) throw error;
+    const diagnostic = new TestAssertionError(
+      `${error.message}; actual owned Grimoire player state: ${JSON.stringify(last ?? null)}`,
+      {
+        expected: error.expected,
+        actual: { waitForActual: error.actual, playerState: last ?? null },
+      },
+    );
+    diagnostic.cause = error;
+    throw diagnostic;
+  }
+}
 
 const scenePrefix = "natlang-scene-";
 export function grimoireSceneEstate(key: string): string {
@@ -22,34 +58,53 @@ function clockLabel(index: number): string {
   return `DAY ${Math.floor(index / 4)} · ${phase}`;
 }
 
-export async function assertOwnedGrimoirePanel(panel: Panel, fixture: GrimoireFixturePanel): Promise<void> {
+export async function assertOwnedGrimoirePanel(
+  panel: Panel,
+  fixture: GrimoireFixturePanel,
+): Promise<void> {
   const observed = await panel.observe();
-  if (observed.panelId !== panel.id || observed.kind !== "workspace" ||
-      observed.source !== "panels/grimoire" || observed.contextId !== fixture.contextId ||
-      observed.requestedRef !== `ctx:${fixture.contextId}` ||
-      (await panel.stateArgs.get<{ estateKey?: string }>()).estateKey !== fixture.estateKey)
-    throw new Error("The Grimoire player panel is outside the exact owned garden");
+  if (
+    observed.panelId !== panel.id ||
+    observed.kind !== "workspace" ||
+    observed.source !== "panels/grimoire" ||
+    observed.contextId !== fixture.contextId ||
+    observed.requestedRef !== `ctx:${fixture.contextId}` ||
+    (await panel.stateArgs.get<{ estateKey?: string }>()).estateKey !==
+      fixture.estateKey
+  )
+    throw new Error(
+      "The Grimoire player panel is outside the exact owned garden",
+    );
 }
 
 /** Advance only the owned panel's normal player control. The native DO still decides player authority. */
-export async function advanceOwnedGrimoirePanel(panel: Panel, fixture: GrimoireFixturePanel, before: GrimoireClock): Promise<void> {
+export async function advanceOwnedGrimoirePanel(
+  panel: Panel,
+  fixture: GrimoireFixturePanel,
+  before: GrimoireClock,
+): Promise<void> {
   await assertOwnedGrimoirePanel(panel, fixture);
   const { page } = await panel.cdp.session();
   try {
     const index = grimoireClockIndex(before);
-    const current = () => page.evaluate<{ clock: string; busy: boolean }>(`({
+    const current = () =>
+      page.evaluate<PlayerState>(`({
       clock: document.querySelector(".garden-caption .eyebrow")?.textContent?.replace(/\\s+/gu, " ").trim() ?? "",
-      busy: document.querySelector("main.grimoire")?.getAttribute("aria-busy") !== "false"
+      busy: document.querySelector("main.grimoire")?.getAttribute("aria-busy") !== "false",
+      error: document.querySelector('main.grimoire [role="alert"]')?.textContent?.trim() ?? ""
     })`);
     async function settled(expected: number) {
-      await waitFor(async () => {
-        const state = await current();
-        return !state.busy && state.clock === clockLabel(expected) || undefined;
-      }, { timeoutMs: 30_000, label: `Owned Grimoire player settles at ${clockLabel(expected)}` });
+      await settlePlayer(
+        current,
+        (state) => !state.busy && state.clock === clockLabel(expected),
+        `Owned Grimoire player settles at ${clockLabel(expected)}`,
+      );
     }
     await settled(index);
     await assertOwnedGrimoirePanel(panel, fixture);
-    await page.getByRole("button", { name: "Observe quietly", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Observe quietly", exact: true })
+      .click();
     await settled(index + 1);
     await assertOwnedGrimoirePanel(panel, fixture);
   } finally {
@@ -70,23 +125,31 @@ export async function visitOwnedGrimoirePanel(
   const { page } = await panel.cdp.session();
   try {
     const expected = clockLabel(grimoireClockIndex(before));
-    const read = () => page.evaluate<{ clock: string; busy: boolean; notice: string }>(`({
+    const read = () =>
+      page.evaluate<PlayerState & { notice: string }>(`({
       clock: document.querySelector(".garden-caption .eyebrow")?.textContent?.replace(/\\s+/gu, " ").trim() ?? "",
       busy: document.querySelector("main.grimoire")?.getAttribute("aria-busy") !== "false",
-      notice: document.querySelector(".garden-observations p")?.textContent ?? ""
+      notice: document.querySelector(".garden-observations p")?.textContent ?? "",
+      error: document.querySelector('main.grimoire [role="alert"]')?.textContent?.trim() ?? ""
     })`);
-    await waitFor(async () => {
-      const state = await read();
-      return (!state.busy && state.clock === expected) || undefined;
-    }, { timeoutMs: 30_000, label: "owned Grimoire resident control" });
+    await settlePlayer(
+      read,
+      (state) => !state.busy && state.clock === expected,
+      "owned Grimoire resident control",
+    );
     await assertOwnedGrimoirePanel(panel, fixture);
-    await page.getByRole("button", { name: `Visit ${resident}`, exact: true }).click();
-    await waitFor(async () => {
-      const state = await read();
-      return (!state.busy && state.clock === expected &&
+    await page
+      .getByRole("button", { name: `Visit ${resident}`, exact: true })
+      .click();
+    await settlePlayer(
+      read,
+      (state) =>
+        !state.busy &&
+        state.clock === expected &&
         (state.notice.startsWith(`${resident} pauses to watch you.`) ||
-          state.notice.startsWith(`${resident} recognises your hand`))) || undefined;
-    }, { timeoutMs: 30_000, label: "owned Grimoire visit settles" });
+          state.notice.startsWith(`${resident} recognises your hand`)),
+      "owned Grimoire visit settles",
+    );
     await assertOwnedGrimoirePanel(panel, fixture);
   } finally {
     await page.close();

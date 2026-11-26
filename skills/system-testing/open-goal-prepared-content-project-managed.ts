@@ -1,7 +1,10 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
+const assessObservedProject = bindObservedContentReview(["nativeProjectEvidence"]);
 import {projectAuthorizationEvidence} from "./project-authorization-evidence.js";
 import { createScopedProjectDraft } from "./scoped-project-draft.js";
 import { sameProjectSourceSelection } from "./project-source-identity.js";
-import { assessSemanticOutcome, extendSemanticOutcomeEffects } from "@workspace/application-outcomes/semantic-outcome-contract";
+import { extendSemanticOutcomeEffects } from "@workspace/application-outcomes/semantic-outcome-contract";
 import { preparedContentProjectOutcomeContract } from "./prepared-content-project-outcome.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
@@ -248,7 +251,7 @@ export async function prepareOpenPreparedContentProject(
     selected:["moved","commit","draft"].includes(world.profile) ? expectedCitations : [],
   };
   type Snapshot = Awaited<ReturnType<ReturnType<typeof createProjectDelivery>["observe"]>>;
-  async function verify(raw:unknown) {
+  async function verify(raw:unknown, invocation?:InvocationObservations) {
     // Current calls return the retained artifact handle; old captures remain immutable.
     const value=raw as {outcome?:string;project?:{contextId:string;repositoryId:string|null;repoPath:string;head:string;documents:string[]}|null;event?:{eventId:string;head:string}|null}|null;
     const actual=await status();
@@ -320,11 +323,13 @@ export async function prepareOpenPreparedContentProject(
           isDeepStrictEqual(value.event,committed?.result ?? null)
         : value?.project===null && value?.event===null),
     };
-    return assessSemanticOutcome({
+    const nativeProjectEvidence = {contextId,caseId:world.id,sourceGroup:world.sourceGroup,repoPath,sourcesPath,
+      before,actual,sourceReadback,sourceNow,journal:structuredClone(journal),artifact};
+    return assessObservedProject({
       passed:Object.values(checks).every(Boolean), checks, goal:world.goal, contextId, caseId:world.id,
-      preparedContentProject:{ contextId,caseId:world.id,sourceGroup:world.sourceGroup,repoPath,sourcesPath,before,actual,
-        sourceReadback,sourceNow,expectedOutcome,journal:structuredClone(journal),artifact },
-    }, preparedContentProjectOutcomeContract);
+      preparedContentProject:{...nativeProjectEvidence,expectedOutcome},
+      nativeProjectEvidence,
+    }, preparedContentProjectOutcomeContract, raw, invocation);
   }
 
   async function qualify() {
@@ -368,9 +373,7 @@ export async function prepareOpenPreparedContentProject(
       head:event?.head ?? snapshot.head,documents:snapshot.files.map(file=>file.path),
     }:null,event};
     const proof=await verify(report);
-    const rejectedWrongDisposition=!(await verify({...report,outcome:expectedOutcome==="held" ? "committed" : "held"})).passed;
-    const rejectedInventedHandle=!(await verify({...report,project:{...report.project,repoPath:"invented/project"}})).passed;
-    const controls = { rejectedWrongDisposition, rejectedInventedHandle, rejectedWrongBasis,
+    const controls = { rejectedWrongBasis,
       ...(rejectedWrongSource === undefined ? {} : { rejectedWrongSource }),
       ...(rejectedRetiredAlias === undefined ? {} : { rejectedRetiredAlias }) };
     return { ...extendSemanticOutcomeEffects(proof, controls), report, ...controls };

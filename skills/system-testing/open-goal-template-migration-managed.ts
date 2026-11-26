@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {migrationReviewGuidance} from "./native-domain-review.js";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
@@ -656,7 +657,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       const rejectedForgedResult = !(
         await verify({ ...report, candidateId: "wrong-candidate" })
       ).outcomeDimensions.returnedValue.passed;
-      return {
+      return assessNativeQualification({
         ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedAlias","rejectedStale","rejectedWrongRecipient","rejectedForgedResult"]}},
         checks: {
           ...result.checks,
@@ -671,7 +672,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
           rejectedStale &&
           rejectedWrongRecipient &&
           rejectedForgedResult,
-      };
+      });
     },
   };
 }

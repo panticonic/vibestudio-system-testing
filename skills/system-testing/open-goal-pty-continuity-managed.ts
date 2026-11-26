@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { createHash } from "node:crypto";
@@ -299,7 +300,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       const proof = await verify(report);
       const rejectedWrongDecision = !(await verify({ ...report, decision: { ...decision, replayDigest: "wrong" } })).outcomeDimensions.returnedValue.passed;
       const checks = { ...proof.checks, rejectedForeignRead, rejectedWrongProof, rejectedWrongDecision };
-      return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRead","rejectedWrongProof","rejectedWrongDecision"]}}, passed: Object.values(checks).every(Boolean), checks, report };
+      return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRead","rejectedWrongProof","rejectedWrongDecision"]}}, passed: Object.values(checks).every(Boolean), checks, report });
     }
     return { services, verify, qualify, close };
   } catch (error) {

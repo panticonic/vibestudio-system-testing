@@ -1,0 +1,178 @@
+{
+  "schema": "vibestudio.qualified-dimensions-repair/1",
+  "baseline": "a9cf5b14f3faa299300ae05d3de2a8520c86a18a",
+  "changed": [
+    {
+      "path": "skills/mobile-system-testing/open-continuity.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-agent-capability-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-android-delivery-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-asset-integrity-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-automation-activation-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-board-migration-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-browser-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-cli-route-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-delivery-wake-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-deployed-interface-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-desktop-readiness-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-extension-dossier-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-installed-package-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-live-local-inventory-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-live-tendril-board-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-local-method-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-local-presentation-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-local-width-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-log-follower-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-native-image-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-notification-state-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-outcome-workspace-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-owned-operations-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-pdf-vault-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-phone-first-run-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-provenance-question-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-pty-continuity-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-same-turn-eval-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-scaffold-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-source-attribution-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-release-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-tendril-route-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-app-repair-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-transcript-surface-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-webhook-admission-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "publishers": 1
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-smoke-managed.ts",
+      "publishers": 1
+    }
+  ]
+}

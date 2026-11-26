@@ -77,7 +77,10 @@ it("checks a revision before activating and verifies the independently observed 
   expect(partial.incorrectReturnValues.some(row=>row.definition.name==="wrong-terminal-selection")).toBe(true);
   expect(partial.incorrectReturnValues.some(row=>row.definition.name==="correct-action")).toBe(false);
   cleanup();
-  expect((await bind(world).qualify()).passed).toBe(true);
+  const qualified = await bind(world).qualify();
+  expect(qualified.passed).toBe(true);
+  expect(qualified.outcomeDimensions.effects.checks.rejectsControlAlias).toBe(true);
+  expect(qualified.outcomeDimensions.effects.checks.rejectsWrongReadback).toBe(true);
 
 });
 

@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import {groundedSourceConclusion,groundedSourceEvidence} from "./source-attribution-grounding.js";
@@ -363,7 +364,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         [{fragment:"unissued-fragment",span:"unissued-span",origin:"native",intent:null,refs:["unissued-root"]}] } };
     const rejectedWrongLineage = !(await verify(altered)).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedForeignRoot, rejectedStaleState, rejectedWrongLineage };
-    return { ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRoot","rejectedStaleState","rejectedWrongLineage"]}}, passed: Object.values(checks).every(Boolean), checks, report };
+    return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignRoot","rejectedStaleState","rejectedWrongLineage"]}}, passed: Object.values(checks).every(Boolean), checks, report });
   }
   return { services, qualify, verify };
 }

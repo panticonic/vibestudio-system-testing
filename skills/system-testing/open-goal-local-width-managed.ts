@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["effects","survey","finding"],["handoffText"]);
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
@@ -322,9 +323,9 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const proof = await verify(result);
     const rejectedInventedApplicationValue = !(await verify({...result,finding:{...finding,disposition:"invented"}})).outcomeDimensions.returnedValue.passed;
     const checks = {...proof.checks,rejectedInventedApplicationValue};
-    return {...proof,checks,passed:Object.values(checks).every(Boolean),result,
+    return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}};
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}});
   }
 
   return { services, verify, qualify };

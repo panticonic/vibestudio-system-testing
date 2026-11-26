@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -338,7 +339,7 @@ caseId:world.id,contextId,goal:world.goal,checks,passed:Object.values(checks).ev
     const proof=await verify(report);
     const rejectedChangedClaim=!(await verify({...report,activation:{...(activation??{}),receipt:{missionId:"different-owned-job"}}})).outcomeDimensions.returnedValue.passed;
     const rejectedApprovalAliases=wrong.status==="held"&&wrong.receipt===null&&rejectedReceiptAlias&&rejectedChangedClaim;
-    return {...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedApprovalAliases"]}},passed:proof.passed&&rejectedApprovalAliases,checks:{...proof.checks,rejectedApprovalAliases},report};
+    return assessNativeQualification({...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedApprovalAliases"]}},passed:proof.passed&&rejectedApprovalAliases,checks:{...proof.checks,rejectedApprovalAliases},report});
   }
   return {services,verify,qualify,close};
 }

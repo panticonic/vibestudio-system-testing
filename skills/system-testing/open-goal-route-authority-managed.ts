@@ -1,3 +1,6 @@
+import {compareExactAuthority} from "./route-authority-observations.js";
+export {compareExactAuthority} from "./route-authority-observations.js";
+import {routeAuthorityReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome = bindObservedContentReview(["offer", "snapshots", "authority", "choice", "readback"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
@@ -7,7 +10,7 @@ import {sha256HexSyncText} from "@vibestudio/content-addressing";
 import {contextId,fs,rpc,vcs,type VcsClient} from "@workspace/runtime";
 import {bindAuthorityReview,type PreflightOperation} from "@workspace-skills/capabilities/workflow";
 import {bindScratchHandoff} from "@workspace-skills/scratch-handoff-bindings";
-import type {EvidenceBasis,ExactRouteRecord,OwnedRouteReview,RouteAuthorityObservation,RouteAuthorityReport,RouteChoice,RouteHandoff,
+import type {EvidenceBasis,ExactRouteRecord,OwnedRouteReview,RouteAuthorityObservation,RouteChoice,RouteHandoff,
   RouteOffer,RouteOutcome,RouteReadback,VisibleRoute} from "@workspace-skills/open-route-authority/types";
 import {listOwnedScratchEntries} from "./owned-scratch-entries.js";
 import {readWorkspaceBytes} from "./scratch-handoff-managed.js";
@@ -30,22 +33,6 @@ function livePorts():Ports{
   return {contextId,fs,vcs,bindAuthority:bindAuthorityReview,readBytes:(name,max)=>readWorkspaceBytes(rpc,name,max)};
 }
 
-export function compareExactAuthority(observations:RouteAuthorityObservation[],ceiling:RouteAuthorityReport["protectedLeaves"]):RouteAuthorityReport {
-  const protectedLeaves:RouteAuthorityReport["protectedLeaves"]=[];
-  const reviews:RouteAuthorityReport["reviews"]=observations.map(observation=>{
-    const scoped=observation.leaves.filter(leaf=>leaf.tier==="gated"||leaf.tier==="critical")
-      .map(({capability,resourceKey})=>({capability,resourceKey}));
-    for(const row of scoped)if(!protectedLeaves.some(known=>exact(known,row)))protectedLeaves.push(row);
-    const outside=scoped.filter(row=>!ceiling.some(allowed=>exact(allowed,row)));
-    const disposition=outside.length?"outside-ceiling":observation.decision==="denied"?"host-denied":
-      observation.decision==="acquirable"?"needs-acquisition":"eligible";
-    return {observation,outside,disposition};
-  });
-  const held=reviews.filter(row=>row.disposition==="outside-ceiling"||row.disposition==="host-denied")
-    .map(row=>row.observation.operationId);
-  return {status:held.length?"held":reviews.some(row=>row.disposition==="needs-acquisition")?"needs-acquisition":"eligible",
-    protectedLeaves,held,reviews};
-}
 
 export async function prepareRouteAuthority(input:{contextId:string;caseId:string},ports=livePorts()) {
   const world=openRouteAuthorityWorlds.find(row=>row.id===input.caseId);
@@ -229,8 +216,10 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     };
     const contract:SemanticOutcomeContract={effects:{checks:["exactRouteDiscovery", "exactScopedRoutePreflight", "exactCanonicalOriginCeiling", "selectedExactLocalAuthority", "nativeRouteReadback", "preservedExactProtectedBasis", "exactPrivateRouteNote", "rejectedRouteRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedRouteReadback", "exactRouteConclusion"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedRouteHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
-    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+    const assessed=await assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
       offer,snapshots,authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactRouteConclusion"],"rootPath":["outcome"],"producerSourceSuffix":"chooseAuthorizedEvidenceRoute/concludeEvidenceRoute.nl"}]);
+    assessed.semanticReviewInput.rubric+=routeAuthorityReviewGuidance;
+    return assessed;
   }
   async function qualify(){
     await services.routeEvidenceRead.discover();

@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessNativeGoal=bindObservedContentReview(["docket","inventoryReadback"]);
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
@@ -95,8 +96,8 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       reason: "Checked the exact local candidates and the bounded handoff requirements." };
     const proof = await verify(outcome);
     const rejectedInvalidLocalInventory = rejectedArchive && rejectedOutsideCandidate;
-    return { ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedInvalidLocalInventory"]}}, passed: proof.passed && rejectedInvalidLocalInventory,
-      checks: { ...proof.checks, rejectedInvalidLocalInventory } };
+    return assessNativeQualification({ ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedInvalidLocalInventory"]}}, passed: proof.passed && rejectedInvalidLocalInventory,
+      checks: { ...proof.checks, rejectedInvalidLocalInventory } });
   }
 
   return { services: { ...prepared.services, localInventoryDocket }, verify, qualify };

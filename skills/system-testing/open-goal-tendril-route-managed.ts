@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["current","finding","journal"],["receiptBytes"]);
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
@@ -666,11 +667,11 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     };
     const proof = await verify(outcome);
     const rejectedForeignTendrilEvidence = foreign && scoped;
-    return {
+    return assessNativeQualification({
       ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignTendrilEvidence"]}},
       passed: proof.passed && rejectedForeignTendrilEvidence,
       checks: { ...proof.checks, rejectedForeignTendrilEvidence },
-    };
+    });
   }
   return { goal: world.goal, services, verify, qualify, close };
 }

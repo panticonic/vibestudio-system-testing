@@ -1,6 +1,6 @@
 import {workspaceEditScope}from "./workspace-edit-evidence.js";
 import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
-import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
+import {assessNativeQualification, type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -214,7 +214,7 @@ export async function prepareOutcomeWorkspace(input: Input, world: OutcomeWorksp
       const unauthorizedWrite = await alias.services.goalWorkspace.revise(world.authority, alternate.authority.sha256, "altered");
       const checks = { ...positive.checks, alternateEvidenceRoute: alternate.passed,
         rejectedFalseSuccess: !unchanged.passed && !wrongResult.outcomeDimensions.returnedValue.passed, protectedAuthority: unauthorizedWrite.status === "unavailable" };
-      return { ...positive, outcomeContract:{...positive.outcomeContract,effects:{...positive.outcomeContract.effects,checks:[...positive.outcomeContract.effects.checks,"alternateEvidenceRoute","rejectedFalseSuccess","protectedAuthority"]}}, checks, passed: Object.values(checks).every(Boolean) };
+      return assessNativeQualification({ ...positive, outcomeContract:{...positive.outcomeContract,effects:{...positive.outcomeContract.effects,checks:[...positive.outcomeContract.effects.checks,"alternateEvidenceRoute","rejectedFalseSuccess","protectedAuthority"]}}, checks, passed: Object.values(checks).every(Boolean) });
     } finally {
       await alias.close();
     }

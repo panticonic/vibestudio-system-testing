@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -97,7 +98,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       independentlyVerifiedAndroidResult: Object.entries(native.checks).filter(([key])=>key!=="report").every(([,passed])=>passed),
       matchedAndroidDeliveryReport: native.checks.report,
     };
-    return { ...input, scope, native, checks,outcomeContract:{effects:{checks:["boundExactAndroidDelivery", "exactNativeAndroidInventory", "independentlyVerifiedAndroidResult"],rationale:"Native Android reference procedure establishes the owned inventory and effect."},returnedValue:{checks:["matchedAndroidDeliveryReport"],required:true,rationale:"The reference includes its exact requested native report."}}, passed: Object.values(checks).every(Boolean) };
+    return assessNativeQualification({ ...input, scope, native, checks,outcomeContract:{effects:{checks:["boundExactAndroidDelivery", "exactNativeAndroidInventory", "independentlyVerifiedAndroidResult"],rationale:"Native Android reference procedure establishes the owned inventory and effect."},returnedValue:{checks:["matchedAndroidDeliveryReport"],required:true,rationale:"The reference includes its exact requested native report."}}, passed: Object.values(checks).every(Boolean) });
   }
   return { services: { ...prepared.services, androidDeliveryScope }, verify, qualify };
 }

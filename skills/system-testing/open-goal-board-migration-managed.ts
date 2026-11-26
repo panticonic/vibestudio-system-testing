@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -257,7 +258,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       ...report, receipt: {...(receipt??{}),target:"other-target"},
     })).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectsForeignBoard, rejectsStaleMigration, rejectsUnapprovedMigration, rejectsRetargetedResult };
-    return { ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectsForeignBoard","rejectsStaleMigration","rejectsUnapprovedMigration","rejectsRetargetedResult"]}}, checks, passed: Object.values(checks).every(Boolean) };
+    return assessNativeQualification({ ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectsForeignBoard","rejectsStaleMigration","rejectsUnapprovedMigration","rejectsRetargetedResult"]}}, checks, passed: Object.values(checks).every(Boolean) });
   }
   async function close() {
     const outcomes = await Promise.allSettled([...handles.values()].map(handle => handle.archive()));

@@ -6,7 +6,7 @@ import {
   type ClientObservationStep as Expected,
 } from "./client-diagnostics-meaning.js";
 import { assessObservedApplicationOutcome } from "@workspace/application-outcomes/observed-application-outcome";
-import type { SemanticOutcomeContract } from "@workspace/application-outcomes/semantic-outcome-contract";
+import {extendSemanticOutcomeEffects, type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { fs, gad, panelTree, vcs, type PanelHandle } from "@workspace/runtime";
@@ -783,22 +783,9 @@ export async function prepareOpenClientDiagnostics(
     const rejectsStale =
       (await client.apply("foreign-basis", { kind: "reload" })).status ===
       "changed";
-    return {
-      ...result,
-      checks: {
-        ...result.checks,
-        rejectsForeign,
-        rejectsWrongAudience,
-        rejectsInvalidAnswerOrAudience,
-        rejectsStale,
-      },
-      passed:
-        result.passed &&
-        rejectsForeign &&
-        rejectsWrongAudience &&
-        rejectsInvalidAnswerOrAudience &&
-        rejectsStale,
-    };
+    return extendSemanticOutcomeEffects(result, {
+      rejectsForeign, rejectsWrongAudience, rejectsInvalidAnswerOrAudience, rejectsStale,
+    });
   }
 
   async function close() {

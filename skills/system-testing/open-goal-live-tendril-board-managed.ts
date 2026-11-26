@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -113,8 +114,8 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     if (changed.actual.presentation)
       changed.actual.presentation.slotId = "retired-board";
     const rejectedForeignTendrilBoard = rejectedArchive && !(await verify(changed)).outcomeDimensions.returnedValue.passed;
-    return { ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedForeignTendrilBoard"]}}, passed: result.passed && rejectedForeignTendrilBoard,
-      checks: { ...result.checks, rejectedForeignTendrilBoard } };
+    return assessNativeQualification({ ...result,outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedForeignTendrilBoard"]}}, passed: result.passed && rejectedForeignTendrilBoard,
+      checks: { ...result.checks, rejectedForeignTendrilBoard } });
   }
   return { services: { ...prepared.services, tendrilBoardDocket }, verify, qualify, close: prepared.close };
 }

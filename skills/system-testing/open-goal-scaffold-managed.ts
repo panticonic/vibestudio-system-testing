@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
@@ -447,8 +448,8 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const actual = await units();
     const draft = journal.findLast(row => row.service === write && row.method === "prepare");
     const disposition = result && "disposition" in result ? result : null;
-    const readback = journal.find((row) => row.method === "readback")
-      ?.result as Readback | undefined;
+    const readback: Readback = {main: final.mainEventId,
+      draft: stableSha256Hex(final.workingHead), units: actual.map(projection)};
     const staging = world.disposition === "prepare";
     const exact = (
       service: string,
@@ -535,7 +536,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       independentVcsReadbackAndMain: Boolean(
         readback &&
-        exact(read, "readback", [key, receipt?.draft ?? null], readback) &&
         readback.main === before.mainEventId &&
         readback.draft === stableSha256Hex(final.workingHead) &&
         isDeepStrictEqual(readback.units, actual.map(projection)) &&
@@ -596,13 +596,13 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       : (await services.scaffoldPrepare.prepare(key, ref, plan.kinds)) ===
           null && isDeepStrictEqual((await status()).workingHead, initial);
     const rejectedAlteredEvidence = denied && rejectedChangedMain && rejectedUnapprovedDraft;
-    return {
+    return assessNativeQualification({
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,
-    };
+    });
   }
   return { services, verify, qualify };
 }

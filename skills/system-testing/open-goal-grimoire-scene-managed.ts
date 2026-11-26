@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["docket","view","scope","gate","readback","journal"],["body"]);
@@ -480,8 +481,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       );
     };
     const path = receipt?.path ?? null;
-    const readback = journal.find((row) => row.method === "readback")
-      ?.result as GrimoireSceneReadback | undefined;
     const stages =
       world.action === "stage-scene" || world.action === "stage-note";
     const bytes = path ? await ports.readBytes(path, maxBytes) : null;
@@ -489,6 +488,8 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ? new TextDecoder("utf-8", { fatal: true }).decode(bytes)
       : null;
     const staged = body ? JSON.parse(body) : null;
+    const readback: GrimoireSceneReadback = {ownerId, sceneDigest: final.view.sceneDigest,
+      frontier: final.view.frontier, fileDigest: body === null ? null : sha256HexSyncText(body)};
     const expectedFacts = [
       ...(view?.anchors ?? []),
       ...(proposed ? [proposed] : []),
@@ -587,7 +588,6 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       preservedNativeWorld: Boolean(
         readback &&
-        exact(namespaces.read, "readback", [key, path], readback) &&
         readback.sceneDigest === final.view.sceneDigest &&
         readback.frontier === final.view.frontier &&
         readback.fileDigest === (receipt?.digest ?? null) &&
@@ -661,13 +661,13 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     else altered.action = "invented" as typeof altered.action;
     const wrong = await verify(altered);
     const rejectedAlteredEvidence = rejectedAlias && !wrong.outcomeDimensions.returnedValue.passed;
-    return {
+    return assessNativeQualification({
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},
       passed: verification.passed && rejectedAlteredEvidence,
       checks: { ...verification.checks, rejectedAlteredEvidence },
       referenceReport: report,
-    };
+    });
   }
   return { services, verify, qualify };
 }

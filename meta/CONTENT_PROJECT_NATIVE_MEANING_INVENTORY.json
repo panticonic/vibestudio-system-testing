@@ -1,0 +1,201 @@
+{
+  "literalGoals": [
+    {
+      "id": "after-hours-archive",
+      "profile": "commit",
+      "goal": "Give the duty archivist a private new project with the after-hours retrieval sequence and evidence for escalations. Use the retained current records and commit locally only with the signed approval.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "visitor-label-pilot",
+      "profile": "draft",
+      "goal": "Assemble a working private project for the visitor label trial with a practical session plan and clear privacy restrictions. Leave it as an uncommitted draft so the facilitator can review it.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "movement-signoff-missing",
+      "profile": "pending",
+      "goal": "Commit a new private shift handoff project for the evening crew if the retained owner record approves it. Hold the whole handoff if no one signed off the movement scheme.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "language-station",
+      "profile": "occupied",
+      "goal": "Create the Language station helper only if the designated project name is still unused. The front desk needs setup instructions and an anonymous feedback page. Keep any existing project untouched.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "fresh-contact-protocol",
+      "profile": "missing",
+      "goal": "Make a private Volunteer radio protocol project for team leads and commit it locally. Ground the emergency interruption route in the current safety record. Hold if that record is missing.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "cooling-tray-disagreement",
+      "profile": "conflict",
+      "goal": "Prepare a new Cooling tray exercise project from the current operator records. There may be two current versions of the safety guidance. If they disagree, keep the current folder and bounds untouched.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "reviewed-route-one-version",
+      "profile": "moved",
+      "goal": "Create and locally commit a private handoff for the approved Regional courier route. Approval binds this retained edition only. A newer owner note requires fresh review before creating anything.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "lending-packout",
+      "profile": "commit",
+      "goal": "Write a new local project for loan coordinators covering the pack-out ledger and return condition workflow. Commit the final private project if current records authorize it. Keep every distinction between new and lender-owned material.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "exhibit-audio-rehearsal",
+      "profile": "draft",
+      "goal": "Draft a private Audio rehearsal procedure so the coordinator can follow the timing and check clearance. Use authoritative records and leave the project in the current working context without a local commit.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "no-owner-setup",
+      "profile": "pending",
+      "goal": "Deliver a private keyboard lab project only if the current owner explicitly approves creation and a local commit. Do not start a draft if the retained approval is still pending.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "rain-route-briefing",
+      "profile": "commit",
+      "goal": "Put together a private Rain route briefing project, locally committed when the current guardrails support it. People need separate dry and wet instructions with the exact condition for switching.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "archive-tag-routing",
+      "profile": "occupied",
+      "goal": "Create the Archive tag routing project for the catalog team if its owned destination is still fresh. If someone has already started that exact archive project, stop and leave their work intact.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "meter-status-blank",
+      "profile": "missing",
+      "goal": "Make and locally commit a Meter status response project only if there's sufficient current evidence for both intake and the safe response to a blank display. Hold if the safety record cannot be established.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "initial-signage-scope",
+      "profile": "moved",
+      "goal": "Prepare a private Signage design handoff for local commit on the currently reviewed basis. If the owner supersedes the color approval during preparation, stop before establishing the project.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "return-bag-workflow",
+      "profile": "commit",
+      "goal": "Create a private Return bag workflow project for the desk, with practical labeling and escalation pages drawn from current evidence. Commit locally if there is exact approval for this edition.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "receipt-draft-branch",
+      "profile": "draft",
+      "goal": "Prepare a private working project for receipt reconciliation. Keep the count checklist and mismatch procedure separate. Retain it for local review without committing this working edition.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "grid-photo-use",
+      "profile": "conflict",
+      "goal": "If the current records agree about handling visitor photographs, make a private Grid photo labeling project. Do not assume an older rule resolves two contradictory active custody records.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "press-queue-eligibility",
+      "profile": "pending",
+      "goal": "Assemble and locally commit a new Press queue handoff only after the current owner permits both procedures. If the retained project authorization is pending, leave the destination empty.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "held-donor-metadata",
+      "profile": "commit",
+      "goal": "Make a locally committed private Donor metadata handbook. Join the current record intake procedure with the exact source for anonymity handling and keep the branch where attribution is not allowed clear.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "held-step-free-map",
+      "profile": "draft",
+      "goal": "Prepare a private draft project for proofreaders of the Step-free map. The retained owner may authorize a draft only, so preserve the exact local candidate for review and leave it uncommitted.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "held-returned-clearing",
+      "profile": "occupied",
+      "goal": "Create a private Returns clearing walkthrough if that same title isn't already used for an owned project. The unpublished starter belongs to its existing owner; preserve it and hold if there is a collision.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "held-projection-cue-moved",
+      "profile": "moved",
+      "goal": "Create and locally commit a private Projection cue response for this approved edition. If a new retained approval replaces it before you act, leave the project unwritten for the owner to review.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "held-sensor-check-safety",
+      "profile": "missing",
+      "goal": "Write a Sensor check handoff as a new private project only when the current safety instructions for warning lights are available. Do not use an out-of-date exception note to continue.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    },
+    {
+      "id": "held-quarantine-sorting",
+      "profile": "conflict",
+      "goal": "Prepare the Quarantine sorting guide for private local approval if current guidelines can be reconciled. If current label guidance disagrees, preserve both source records and leave the new project unwritten.",
+      "requestedReturnRequired": false,
+      "basis": "Artifact creation or conditional preservation is requested; no separate returned pointer/status is requested."
+    }
+  ],
+  "consumers": [
+    "skills/system-testing/prepared-content-project-outcome.ts",
+    "skills/system-testing/prepared-content-project-outcome.test.ts",
+    "skills/system-testing/open-goal-prepared-content-project-worlds.ts",
+    "skills/system-testing/open-goal-prepared-content-project-managed.ts verify/qualify",
+    "Host scripts/export-live-workflow-teacher.mjs workflow registration + native project artifact binding",
+    "Base packages/application-outcomes/{observed-application-outcome,observed-content-review}.ts canonical source-bound masks and required review",
+    "Canonical Python/Node NativeIR readers consume outcomeContract/Dimensions and mandatory accepted review without family-specific logic"
+  ],
+  "scope": "No Core/provider/learner/engine protocol change; shared authored TypeScript verifier and source-bound Host exporter cover native Workerd execution and Node component tests. Native project storage/CAS/source observations/commit lineage/protected state/artifact content review remain authoritative. Closed-function native task/artifact protocols unchanged.",
+  "findings": [
+    "Unconditionally required generic ContentProjectResult is not requested by any literal goal.",
+    "Qualification wrong generic pointer/status controls incorrectly reimpose that return requirement.",
+    "Only artifact-producing profiles declare review in Host; honest conditional holds also need native-bound goal meaning review."
+  ],
+  "exclusions": [
+    "Unknown inline fact citations remain invalid actual citations, not a requirement to add private inline tags; content-project-oracle rubric already explicitly disallows requiring citation markers/headings/file count.",
+    "Source ledger exact bytes, native authority, project head/revision, owner collision, protected main, actual document readability and commit lineage checks remain unchanged."
+  ],
+  "validation": {
+    "unit": "vibe-content-project-native-meaning-20261126e",
+    "actualPassed": 45,
+    "nodeAdmissionControls": 34,
+    "nativeContractAndArtifactControls": 11,
+    "elapsedSeconds": 6.671,
+    "memoryPeakMiB": 160.8,
+    "scope": "Pure Host content binding and shared SST authority/content/lifecycle components; no full live native project creation or teacher probe.",
+    "limits": "All24 goals audited; original captured trajectories unchanged. No retrospective recovery is asserted."
+  }
+}
