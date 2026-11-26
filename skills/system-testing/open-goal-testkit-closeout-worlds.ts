@@ -16,6 +16,7 @@ function goal(world: CloseoutDefinition) {
     id: "testkit-closeout-" + world.id,
     kind: "testkit-closeout" as const,
     workspace: "system" as const,
+    requestedReturnRequired: true as const,
     split: world.split ?? "train" as const,
     sourceGroup: "vibestudio:testkit-closeout:" + world.id,
   };
