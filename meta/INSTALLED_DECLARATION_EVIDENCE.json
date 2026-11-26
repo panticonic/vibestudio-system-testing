@@ -1,0 +1,153 @@
+{
+  "originalWorldSourceSha256": "70da6c98f76b651f6a1ff8871c9a98913cf73a984b233d198c63e49003eb123f",
+  "goals": [
+    {
+      "id": "installed-package-records-runtime-store-semantic-restore",
+      "target": "records",
+      "goal": "The local Natlang records package no longer resolves its durable records library. Restore the approved dependency in this workspace if it is ours and tell me which verification runner belongs to the result."
+    },
+    {
+      "id": "installed-package-image-preview-worker-dev-only-dependency",
+      "target": "images",
+      "goal": "Our Image worker's native suite can still see image-service during development, but its installed runtime is missing it. Reconcile the package with the reviewed install without disturbing other manifest fields."
+    },
+    {
+      "id": "installed-package-gateway-workspace-link-versus-registry-range",
+      "target": "gateway",
+      "goal": "The local Model gateway candidate seems to resolve a registry range where we were expecting the workspace gateway library. Check the reviewed installation and restore it locally if permitted. Don't connect to a model."
+    },
+    {
+      "id": "installed-package-records-healthy-avoid-unnecessary-write",
+      "target": "records",
+      "goal": "Before changing the Natlang records declaration, check whether the package is already the owned one we reviewed. Leave working source alone if so and tell me what the verification route actually is."
+    },
+    {
+      "id": "installed-package-image-receipt-for-protected-head-requires-recheck",
+      "target": "images",
+      "goal": "Before carrying forward an Image worker dependency repair, check which local revision the review covered. The protected release and working source may disagree. Don't alter the package if the old scope cannot be reused."
+    },
+    {
+      "id": "installed-package-gateway-inspect-without-provider-action",
+      "target": "gateway",
+      "goal": "I need the installed Model gateway worker's exact test and package context for a support note. The gateway should not connect to a provider, and local files should stay as they are."
+    },
+    {
+      "id": "installed-package-records-native-suite-wrong-execution-realm",
+      "target": "records",
+      "goal": "The Natlang records test handoff now points to the workerd runner where the reviewed package used a native suite. Restore the approved local declaration only if it belongs to this worker. I only need to know where verification can run."
+    },
+    {
+      "id": "installed-package-image-recover-declared-suite-without-opening-renderer",
+      "target": "images",
+      "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file."
+    },
+    {
+      "id": "installed-package-gateway-lost-suite-for-read-only-review",
+      "target": "gateway",
+      "goal": "Our Model gateway support team cannot find the previously declared local native verification entry. Diagnose the current installation and give me the evidence gap. I don't want a source edit for this review."
+    },
+    {
+      "id": "installed-package-records-contract-export-points-to-another-file",
+      "target": "records",
+      "goal": "The local Natlang records package changed where its contract import lands. Match the active worker's package and restore the reviewed export if authorized, without rebuilding or running the store."
+    },
+    {
+      "id": "installed-package-image-contract-gap-despite-good-worker",
+      "target": "images",
+      "goal": "The installed Image worker still resolves as a service, but a local client can't import its public contract. Separate the working package problem from the live receiver and keep the package unchanged until the owner returns."
+    },
+    {
+      "id": "installed-package-gateway-export-restore-with-stale-baseline",
+      "target": "gateway",
+      "goal": "Someone queued a Model gateway contract-export fix against a former protected package. Check whether this still authorizes restoring the current baseline. Leave an unapproved package alone."
+    },
+    {
+      "id": "installed-package-records-withdrawn-dependency-repair",
+      "target": "records",
+      "goal": "A local Natlang records dependency repair is waiting, but its reviewer suspended the approval. Describe the dependency and verification route without changing the working declaration."
+    },
+    {
+      "id": "installed-package-image-package-name-mismatch-is-not-install-evidence",
+      "target": "images",
+      "goal": "The local Image worker package has an inconsistent name even though the service still resolves. Decide whether the reviewed dependency edit applies to this exact package and keep mismatched ownership in view."
+    },
+    {
+      "id": "installed-package-gateway-keep-coeditor-context",
+      "target": "gateway",
+      "goal": "Repair the missing workspace dependency for the Model gateway only if our package still matches the current review. A coworker's release-description edit should survive and the gateway should remain idle."
+    },
+    {
+      "id": "installed-package-records-review-outrun-by-new-editor",
+      "target": "records",
+      "goal": "Restore the Natlang records runtime declaration only at the local revision I approved. If another editor changes the package while you are preparing the restore, keep their changes and tell me the current verification basis."
+    },
+    {
+      "id": "installed-package-image-verification-runtime-remap-inspect-only",
+      "target": "images",
+      "goal": "The native Image worker checklist now points at a browser route in local source. Tell me whether the browser plan really belongs to the current declaration and keep the file untouched."
+    },
+    {
+      "id": "installed-package-gateway-relationship-to-unrelated-suite",
+      "target": "gateway",
+      "goal": "The Model gateway has an unrelated support suite in the local manifest. Recover the approved gateway verification entry if it is missing, while preserving the support suite."
+    },
+    {
+      "id": "installed-package-records-export-restored-at-reviewed-working-scope",
+      "target": "records",
+      "goal": "The records contract disappeared from the local package. Restore the prior approved export only if the matched worker and the review still agree, then report the verification plan for what you actually saved."
+    },
+    {
+      "id": "installed-package-image-protected-package-is-already-current",
+      "target": "images",
+      "goal": "A reviewer asked to put back the Image worker\u2019s approved test entry. Start by checking the exact package. If the right declaration already exists, preserve it and report the current runner."
+    },
+    {
+      "id": "installed-package-held-gateway-wrong-receiver-approval",
+      "target": "gateway",
+      "goal": "A repair note for the Model gateway came from a nearby worker. Check whether the current installed gateway and dependency are covered by it before editing the package."
+    },
+    {
+      "id": "installed-package-held-image-coedit-after-read",
+      "target": "images",
+      "goal": "Restore the reviewed Image metadata dependency only under the exact working revision. Local review changes by another editor take precedence over my earlier factual check."
+    },
+    {
+      "id": "installed-package-held-records-active-protocol-with-foreign-local-name",
+      "target": "records",
+      "goal": "The records service looks healthy, but a rebase renamed the local package. Check whether its previous test plan really applies, and do not rename or edit anything without matching scope."
+    },
+    {
+      "id": "installed-package-held-gateway-native-suite-withdrawn",
+      "target": "gateway",
+      "goal": "The Model gateway's native verification entry dropped out of the candidate. The owner withdrew permission to repair it. Find the current supported verification scope without editing or executing the gateway."
+    },
+    {
+      "id": "installed-package-held-records-stale-working-contract-after-unrelated-edit",
+      "target": "records",
+      "goal": "The records package's contract export has drifted since the reviewed working revision. Check whether I can rely on the old repair approval before changing the installation."
+    },
+    {
+      "id": "installed-package-held-images-runtime-link-outside-review-baseline",
+      "target": "images",
+      "goal": "The Image worker still advertises its service, but a shared dependency now points at a different package version. Decide whether a restoration is supported by the earlier protected baseline review."
+    }
+  ],
+  "actualFailure": "0088 image-verification-runtime-remap-inspect-only: working suite runtime browser and actual plan browser; baseline native mismatch was wrongly used to deny current plan membership",
+  "inventory": {
+    "Base": "public reviewInstalledPackage.nl, private investigateInstalledPackage/decidePackage.nl, contract.ts, types.ts, model-owned nativeSuite mounted child, serviceDeclarations.generated.ts",
+    "SST": "open-goal-installed-package-managed.ts native producer, restore guard, qualifier; immutable source48 testdata preserved",
+    "Host": "generic observed-content binder retains assignment/observed/plan/repair/authorization. No field-specific targetFieldMatches check; no Host mapping change",
+    "offlineReaders": "original raw field names remain historical bytes; future capture carries renamed fact. No rewrite/compatibility shim",
+    "Reconciliation": "native apply/merge result accepted alone commits; changed/held are refusals. Shared review must distinguish attempted args from result and current state."
+  },
+  "validation": {
+    "nativeAndSharedReviewControls": 121,
+    "actualPublicJointLoaderControls": 5,
+    "publicPeakGiB": 3.1,
+    "canonicalServiceDeclarations": 380,
+    "inferenceCalls": 0,
+    "historicalRejectedPacketsRewritten": false,
+    "historicalReconciliationRecovery": "not attempted; original rejection retained",
+    "historicalInstalledPackageRecovery": "not warranted; original wrong conclusion retained"
+  }
+}
