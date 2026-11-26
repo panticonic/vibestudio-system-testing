@@ -572,8 +572,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
                 staged.candidate === undefined)
           : !receipt &&
             !body &&
-            !files.length &&
-            journal.every((row) => row.service !== namespaces.write)),
+            !files.length),
       ),
       preservedNativeWorld: Boolean(
         readback &&

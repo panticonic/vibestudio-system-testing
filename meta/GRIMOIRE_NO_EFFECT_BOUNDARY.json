@@ -1,0 +1,33 @@
+{
+  "schema": "vibestudio.grimoire-no-effect-inventory/1",
+  "baseline": "d88c5f7884fa41ad27afdca80b00a942a814fcfe",
+  "source": {
+    "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+    "sha256Before": "e00cc4b186fce1d9bfcbe991b274d2e1d2f9da4fb945937996f98adf66fb9c39"
+  },
+  "actualCase": "open-goal-grimoire-scene-old-pip-coordinates",
+  "rawSha256": "433b1e4f33647cc164c6a894b850ea674da75a162388ebb71bb139dd9d0da255",
+  "cause": "Null-returning Native stage with hold-stale plan stops before artifact()/textWriter.stage. No-effect branch nevertheless rejects any journaled call in write namespace. Namespace of a refused operation is not an observed mutation.",
+  "consumerInventory": [
+    "Managed-source inventory found same syntactic mechanism in ExamplesAdoption, Scaffold, LocalMethod and SystemCandidate as well as Grimoire. Grimoire is confirmed from actual77; other four authority/protocol contexts remain under audit, not declared defects by regex.",
+    "Base stageCaretakerArtifact exact passthrough and Native grimoireHandoff.stage preserve current owner/frontier/approval/artwork guards and return null without storage work.",
+    "Existing Host Grimoire admission map binds view/current/scope/gate/readback/journal/body; no Host schema or API change.",
+    "Core/serving engines do not implement this fixture predicate; no Core/SDK change."
+  ],
+  "limits": "Original packet preserved; no semantic review rerun, original completion not rewritten.",
+  "remainingConsumers": [
+    "skills/system-testing/open-goal-examples-adoption-managed.ts:522",
+    "skills/system-testing/open-goal-scaffold-managed.ts:537",
+    "skills/system-testing/open-goal-local-method-managed.ts:458",
+    "skills/system-testing/open-goal-system-candidate-managed.ts:690"
+  ],
+  "status": "ready narrow Native effect-classification fix",
+  "validation": {
+    "unit": "vibe-grimoire-no-effect-native-20261126a",
+    "passed": 2,
+    "peakMiB": 183.4,
+    "scope": "Actual prepareOpenGrimoireScene factory + memory FS + controlled native scene/clock ports, same old-Pip stale-scope/hold/null-stage protocol; actual unrequested retained artifact negative.",
+    "paidCalls": 0,
+    "originalReassessment": "not performed; actual original raw/proof untouched"
+  }
+}
