@@ -1,0 +1,993 @@
+{
+  "sourceSystemTesting": "234c4825afb4273357a44b184d0d296fb86985b8",
+  "query": "\\b(?:let|var)\\s+(pending|busy|reading|running|inFlight|writing)\\s*(?::\\s*boolean\\s*)?=\\s*false",
+  "rows": [
+    {
+      "file": "skills/system-testing/open-goal-regency-managed.ts",
+      "declarationLine": 113,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 113,
+          "code": "let busy=false;"
+        },
+        {
+          "line": 157,
+          "code": "if(key!==realm||busy)return null;"
+        },
+        {
+          "line": 159,
+          "code": "busy=true;"
+        },
+        {
+          "line": 165,
+          "code": "} finally {busy=false;}"
+        },
+        {
+          "line": 169,
+          "code": "if(key!==realm||!current||busy||"
+        },
+        {
+          "line": 181,
+          "code": "if(key!==realm||!current||busy||claimed||months!==world.plan.advance||current.pending)"
+        },
+        {
+          "line": 183,
+          "code": "busy=true;"
+        },
+        {
+          "line": 198,
+          "code": "} finally {busy=false;}"
+        },
+        {
+          "line": 201,
+          "code": "if(!world.plan.localNote||note||busy||!report?.decision?.explanation||"
+        },
+        {
+          "line": 207,
+          "code": "busy=true;"
+        },
+        {
+          "line": 221,
+          "code": "} finally {busy=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-dictation-managed.ts",
+      "declarationLine": 170,
+      "variable": "reading",
+      "references": [
+        {
+          "line": 170,
+          "code": "let reading = false;"
+        },
+        {
+          "line": 200,
+          "code": "if (reading) return null;"
+        },
+        {
+          "line": 201,
+          "code": "reading = true;"
+        },
+        {
+          "line": 208,
+          "code": "} finally { reading = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-dictation-managed.ts",
+      "declarationLine": 171,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 171,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 214,
+          "code": "plan.draftId !== thread.draftId || primaryReads < 1 || handoff || writing ||"
+        },
+        {
+          "line": 216,
+          "code": "writing = true;"
+        },
+        {
+          "line": 234,
+          "code": "} finally { writing = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-audience-response-managed.ts",
+      "declarationLine": 97,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 97,
+          "code": "let writing=false;"
+        },
+        {
+          "line": 120,
+          "code": "if(writing||receipt||!record||record.id!==id||record.revision!==revision||!equal(record,await read()))return null;"
+        },
+        {
+          "line": 123,
+          "code": "writing=true;"
+        },
+        {
+          "line": 139,
+          "code": "}finally{writing=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-client-diagnostics-managed.ts",
+      "declarationLine": 211,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 211,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 316,
+          "code": "if (writing || !slots.has(surfaceId))"
+        },
+        {
+          "line": 385,
+          "code": "if (!current || current.id !== viewId || writing)"
+        },
+        {
+          "line": 387,
+          "code": "writing = true;"
+        },
+        {
+          "line": 489,
+          "code": "writing = false;"
+        },
+        {
+          "line": 510,
+          "code": "writing"
+        },
+        {
+          "line": 513,
+          "code": "writing = true;"
+        },
+        {
+          "line": 533,
+          "code": "writing = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-coordinated-revision-managed.ts",
+      "declarationLine": 69,
+      "variable": "inFlight",
+      "references": [
+        {
+          "line": 69,
+          "code": "let inFlight=false;"
+        },
+        {
+          "line": 87,
+          "code": "if(inFlight||!last||last.scope.head!==head||"
+        },
+        {
+          "line": 96,
+          "code": "inFlight=true;"
+        },
+        {
+          "line": 116,
+          "code": "}finally{inFlight=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-panel-source-migration-managed.ts",
+      "declarationLine": 218,
+      "variable": "pending",
+      "references": [
+        {
+          "line": 218,
+          "code": "let pending = false;"
+        },
+        {
+          "line": 244,
+          "code": "if (!first || id !== assignment.id || moved || pending) throw new Error(\"Move only the assigned semantic repository once\");"
+        },
+        {
+          "line": 245,
+          "code": "pending = true;"
+        },
+        {
+          "line": 268,
+          "code": "pending = false;"
+        },
+        {
+          "line": 272,
+          "code": "if (!first || pending || aligned || id !== assignment.id) throw new Error(\"Align the assigned package identity once\");"
+        },
+        {
+          "line": 273,
+          "code": "pending = true;"
+        },
+        {
+          "line": 303,
+          "code": "pending = false;"
+        },
+        {
+          "line": 307,
+          "code": "if (!first || pending || updated || id !== assignment.id) throw new Error(\"Update the assigned caller guide once\");"
+        },
+        {
+          "line": 308,
+          "code": "pending = true;"
+        },
+        {
+          "line": 343,
+          "code": "pending = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/automation-lifecycle-managed.ts",
+      "declarationLine": 459,
+      "variable": "reading",
+      "references": [
+        {
+          "line": 459,
+          "code": "let reading = false;"
+        },
+        {
+          "line": 484,
+          "code": "reading"
+        },
+        {
+          "line": 489,
+          "code": "reading = true;"
+        },
+        {
+          "line": 499,
+          "code": "reading = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-outcome-workspace-managed.ts",
+      "declarationLine": 59,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 59,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 83,
+          "code": "if (writing || name !== world.target || typeof text !== \"string\" || text.length > maxDocumentLength)"
+        },
+        {
+          "line": 85,
+          "code": "writing = true;"
+        },
+        {
+          "line": 101,
+          "code": "writing = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-terminal-managed.ts",
+      "declarationLine": 105,
+      "variable": "running",
+      "references": [
+        {
+          "line": 105,
+          "code": "let running = false;"
+        },
+        {
+          "line": 132,
+          "code": "if (!session?.running || session.source !== checklistSource || !session.principalId ||"
+        },
+        {
+          "line": 176,
+          "code": "if (info.running || !info.exit) throw new Error(\"The native shell registry did not attest to an exit\");"
+        },
+        {
+          "line": 179,
+          "code": "running = false;"
+        },
+        {
+          "line": 205,
+          "code": "running = true;"
+        },
+        {
+          "line": 218,
+          "code": "if (!opened || !latest || !running || !grants.edit || staged || !change ||"
+        },
+        {
+          "line": 232,
+          "code": "if (!running || staged || (operation === \"quit\" ? !grants.finish : !grants.interrupt)) return null;"
+        },
+        {
+          "line": 235,
+          "code": "if (!grants.finish || running) return null;"
+        },
+        {
+          "line": 242,
+          "code": "(operation === \"resume\" ? running : !running) || !Object.hasOwn(sizes, request.size)) return null;"
+        },
+        {
+          "line": 249,
+          "code": "running = true;"
+        },
+        {
+          "line": 319,
+          "code": "const nativeOwnership=retired?owned===null:Boolean(owned&&process&&owned.source===checklistSource&&owned.principalId===session?.principalId&&process.running===running);"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-terminal-managed.ts",
+      "declarationLine": 110,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 110,
+          "code": "let busy = false;"
+        },
+        {
+          "line": 119,
+          "code": "if (busy || closed) throw new Error(\"Terminal operations must use the current serial owned session\");"
+        },
+        {
+          "line": 120,
+          "code": "busy = true;"
+        },
+        {
+          "line": 121,
+          "code": "try { return await work(); } finally { busy = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-program-run-managed.ts",
+      "declarationLine": 106,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 106,
+          "code": "let busy = false;"
+        },
+        {
+          "line": 152,
+          "code": "if (busy || !project || !selected || selected.programId !== programId || selected.revision !== expectedRevision ||"
+        },
+        {
+          "line": 155,
+          "code": "busy = true;"
+        },
+        {
+          "line": 198,
+          "code": "busy = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-system-release-managed.ts",
+      "declarationLine": 83,
+      "variable": "pending",
+      "references": [
+        {
+          "line": 83,
+          "code": "let pending = false;"
+        },
+        {
+          "line": 203,
+          "code": "if (!issued || pending || id !== assigned.id) throw new Error(\"Compare only the two assigned checkpoint headers\");"
+        },
+        {
+          "line": 204,
+          "code": "pending = true;"
+        },
+        {
+          "line": 209,
+          "code": "} finally { pending = false; }"
+        },
+        {
+          "line": 212,
+          "code": "if (!compared || !runId || pending || id !== assigned.id || runId !== choose(compared).runId ||"
+        },
+        {
+          "line": 217,
+          "code": "pending = true;"
+        },
+        {
+          "line": 225,
+          "code": "} finally { pending = false; }"
+        },
+        {
+          "line": 230,
+          "code": "if (!runId || runId !== reviewedId || pending || receipt || id !== assigned.id ||"
+        },
+        {
+          "line": 234,
+          "code": "pending = true;"
+        },
+        {
+          "line": 246,
+          "code": "} finally { pending = false; }"
+        }
+      ],
+      "assessment": "confirmed independent-read serialization defect"
+    },
+    {
+      "file": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "declarationLine": 132,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 132,
+          "code": "let writing=false;"
+        },
+        {
+          "line": 265,
+          "code": "if(!index.scope.mayStage||writing||handoff||report?.plan?.action!==\"stage\"||report.handoff!==null||!snapshots.at(-1))return null;"
+        },
+        {
+          "line": 266,
+          "code": "writing=true;"
+        },
+        {
+          "line": 280,
+          "code": "}finally{writing=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "declarationLine": 88,
+      "variable": "pending",
+      "references": [
+        {
+          "line": 88,
+          "code": "let pending = false;"
+        },
+        {
+          "line": 131,
+          "code": "if (pending || receipt || reads.size !== 2 || assignment.permission !== \"review-and-keep\" || assignment.approval !== snapshot)"
+        },
+        {
+          "line": 133,
+          "code": "pending = true;"
+        },
+        {
+          "line": 142,
+          "code": "} finally { pending = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-board-migration-managed.ts",
+      "declarationLine": 103,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 103,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 157,
+          "code": "if (!previous || !basis || writing || previous.view.board.id !== boardId ||"
+        },
+        {
+          "line": 160,
+          "code": "writing = true;"
+        },
+        {
+          "line": 188,
+          "code": "writing = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "declarationLine": 117,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 117,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 193,
+          "code": "if (!card.mayStage || writing || staged || !plan || plan.channelId !== card.channelId || plan.requestId !== request.id ||"
+        },
+        {
+          "line": 195,
+          "code": "writing = true;"
+        },
+        {
+          "line": 209,
+          "code": "} finally { writing = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "declarationLine": 160,
+      "variable": "reading",
+      "references": [
+        {
+          "line": 160,
+          "code": "let reading = false;"
+        },
+        {
+          "line": 246,
+          "code": "if (reading) return null;"
+        },
+        {
+          "line": 247,
+          "code": "reading=true;"
+        },
+        {
+          "line": 253,
+          "code": "} finally {reading=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "declarationLine": 161,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 161,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 290,
+          "code": "if (!scope.mayStage || writing || handoff || !plan || plan.resourceId!==resolution?.resourceId ||"
+        },
+        {
+          "line": 292,
+          "code": "writing=true;"
+        },
+        {
+          "line": 311,
+          "code": "} finally {writing=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-editorial-managed.ts",
+      "declarationLine": 124,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 124,
+          "code": "let busy=false;"
+        },
+        {
+          "line": 202,
+          "code": "if(busy)return null;"
+        },
+        {
+          "line": 203,
+          "code": "busy=true;"
+        },
+        {
+          "line": 214,
+          "code": "} finally {busy=false;}"
+        },
+        {
+          "line": 269,
+          "code": "if(!snapshot||!basis||busy||plan.operation!==\"revise\"||id!==firstMission.id||"
+        },
+        {
+          "line": 276,
+          "code": "busy=true;"
+        },
+        {
+          "line": 293,
+          "code": "} finally {busy=false;}"
+        },
+        {
+          "line": 296,
+          "code": "if(id!==firstMission.id||!snapshots.length||busy)return null;"
+        },
+        {
+          "line": 304,
+          "code": "if(!stageExpected||receipt||busy||!savedRead||!report?.decision||report.note!==null||"
+        },
+        {
+          "line": 308,
+          "code": "busy=true;"
+        },
+        {
+          "line": 320,
+          "code": "} finally {busy=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-owned-preview-managed.ts",
+      "declarationLine": 111,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 111,
+          "code": "let busy = false;"
+        },
+        {
+          "line": 176,
+          "code": "busy || advances.length >= 2 || current.artifactDigest !== reviewed.artifactDigest ||"
+        },
+        {
+          "line": 179,
+          "code": "busy = true;"
+        },
+        {
+          "line": 196,
+          "code": "} finally { busy = false; }"
+        },
+        {
+          "line": 202,
+          "code": "busy || !advances.length)"
+        },
+        {
+          "line": 204,
+          "code": "busy = true;"
+        },
+        {
+          "line": 222,
+          "code": "} finally { busy = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-automation-activation-managed.ts",
+      "declarationLine": 133,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 133,
+          "code": "let busy=false;"
+        },
+        {
+          "line": 201,
+          "code": "if (!observed || observed.current!==revision || current.length!==1 || latest.existing || created || busy ||"
+        },
+        {
+          "line": 204,
+          "code": "busy=true;"
+        },
+        {
+          "line": 225,
+          "code": "} finally {busy=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "declarationLine": 174,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 174,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 205,
+          "code": "if (staged || writing || !inspected) throw new Error(\"Stage one private handoff only after verifying its exact shared object\");"
+        },
+        {
+          "line": 206,
+          "code": "writing = true;"
+        },
+        {
+          "line": 218,
+          "code": "writing = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-panel-recovery-managed.ts",
+      "declarationLine": 85,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 85,
+          "code": "let busy = false;"
+        },
+        {
+          "line": 132,
+          "code": "if (!selected || busy) throw new Error(\"Bind one owned recovery panel before reading it.\");"
+        },
+        {
+          "line": 133,
+          "code": "busy = true;"
+        },
+        {
+          "line": 146,
+          "code": "} finally { busy = false; }"
+        },
+        {
+          "line": 152,
+          "code": "if (!selected || !current || busy || !selected.surface.authorized) return structuredClone(attempt);"
+        },
+        {
+          "line": 160,
+          "code": "busy = true;"
+        },
+        {
+          "line": 209,
+          "code": "} finally { busy = false; }"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/provenance-history-managed.ts",
+      "declarationLine": 49,
+      "variable": "pending",
+      "references": [
+        {
+          "line": 49,
+          "code": "let pending = false;"
+        },
+        {
+          "line": 117,
+          "code": "pending ||"
+        },
+        {
+          "line": 125,
+          "code": "pending = true;"
+        },
+        {
+          "line": 131,
+          "code": "pending = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-local-presentation-managed.ts",
+      "declarationLine": 144,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 144,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 184,
+          "code": "if (writing || saved)"
+        },
+        {
+          "line": 191,
+          "code": "writing = true;"
+        },
+        {
+          "line": 255,
+          "code": "writing = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "declarationLine": 121,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 121,
+          "code": "let busy=false;"
+        },
+        {
+          "line": 148,
+          "code": "if(busy)return null;"
+        },
+        {
+          "line": 149,
+          "code": "busy=true;"
+        },
+        {
+          "line": 158,
+          "code": "}finally{busy=false;}"
+        },
+        {
+          "line": 161,
+          "code": "if(binding||busy||panelId!==active.id||!authorized()||frames[1].digest!==basis||!isDeepStrictEqual(patch,plan.patch))return null;"
+        },
+        {
+          "line": 168,
+          "code": "if(panelId!==active.id||frames.length!==2||busy)return null;"
+        },
+        {
+          "line": 179,
+          "code": "if(!witness||witness.decision!==\"allowed\"||effect||busy||!authorized()||panelId!==active.id||frames[1].digest!==basis||"
+        },
+        {
+          "line": 181,
+          "code": "busy=true;"
+        },
+        {
+          "line": 198,
+          "code": "}finally{busy=false;}"
+        },
+        {
+          "line": 201,
+          "code": "if(!world.note||!readback||handoff||busy||!report||report.handoff!==null||"
+        },
+        {
+          "line": 206,
+          "code": "busy=true;"
+        },
+        {
+          "line": 214,
+          "code": "}finally{busy=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-specialist-managed.ts",
+      "declarationLine": 387,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 387,
+          "code": "let busy = false;"
+        },
+        {
+          "line": 541,
+          "code": "if (busy) return null;"
+        },
+        {
+          "line": 542,
+          "code": "busy = true;"
+        },
+        {
+          "line": 552,
+          "code": "busy = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-specialist-managed.ts",
+      "declarationLine": 388,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 388,
+          "code": "let writing = false;"
+        },
+        {
+          "line": 595,
+          "code": "writing ||"
+        },
+        {
+          "line": 605,
+          "code": "writing = true;"
+        },
+        {
+          "line": 649,
+          "code": "writing = false;"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "declarationLine": 106,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 106,
+          "code": "let busy=false;"
+        },
+        {
+          "line": 160,
+          "code": "if(!route||busy||route.basis===\"external\"||route.basis===\"alternate-link\"||"
+        },
+        {
+          "line": 162,
+          "code": "busy=true;"
+        },
+        {
+          "line": 166,
+          "code": "}finally{busy=false;}"
+        },
+        {
+          "line": 179,
+          "code": "if(!world.note||handoff||busy||!report?.choice||typeof report?.outcome?.summary!==\"string\"||!report.outcome.summary.trim()||"
+        },
+        {
+          "line": 181,
+          "code": "busy=true;"
+        },
+        {
+          "line": 189,
+          "code": "}finally{busy=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "declarationLine": 200,
+      "variable": "busy",
+      "references": [
+        {
+          "line": 200,
+          "code": "let busy=false;"
+        },
+        {
+          "line": 291,
+          "code": "if(busy)return null;"
+        },
+        {
+          "line": 292,
+          "code": "busy=true;"
+        },
+        {
+          "line": 299,
+          "code": "} finally {busy=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    },
+    {
+      "file": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "declarationLine": 201,
+      "variable": "writing",
+      "references": [
+        {
+          "line": 201,
+          "code": "let writing=false;"
+        },
+        {
+          "line": 326,
+          "code": "if (!scope.mayStage||writing||handoff||report?.plan?.action!==\"stage\"||report.handoff!==null||!snapshots.at(-1))return null;"
+        },
+        {
+          "line": 327,
+          "code": "writing=true;"
+        },
+        {
+          "line": 348,
+          "code": "} finally {writing=false;}"
+        }
+      ],
+      "assessment": "UNCHECKED: classify underlying IO resource, read/read versus mutation lifecycle before changing"
+    }
+  ],
+  "source49OriginalRawUnchanged": true,
+  "fixScope": "SystemRelease all30worlds, independent case reads keyed by actual run/name; stage waits all in-flight reads",
+  "otherCandidatesNotCleared": true
+}

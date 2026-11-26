@@ -82,6 +82,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
   let receipt: Receipt | null = null;
   let pending = false;
   const reads: Case[] = [];
+  const caseReads = new Map<string, Promise<Case>>();
   function capture<T>(service: string, method: string, args: unknown[], result: T): T {
     effects.push(structuredClone({ service, method, args, result }));
     return structuredClone(result);
@@ -214,20 +215,25 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
           throw new Error("Read a required case from the exact selected System run");
         const previous=reads.find(row=>row.name===name);
         if(previous)return structuredClone(previous);
-        pending = true;
-        try {
-          const run = runId === compared.current.id ? compared.current : compared.earlier;
+        const key = JSON.stringify([runId, name]);
+        const existing = caseReads.get(key);
+        if (existing) return structuredClone(await existing);
+        const run = runId === compared.current.id ? compared.current : compared.earlier;
+        const request = (async () => {
           const proof = await readCase(run, name);
           reviewedId = runId;
           reads.push(proof);
           reads.sort((a,b)=>assigned.required.indexOf(a.name)-assigned.required.indexOf(b.name));
           return capture("systemReleaseEvidence", "inspectCase", [id, runId, name], proof);
-        } finally { pending = false; }
+        })();
+        caseReads.set(key, request);
+        try { return await request; }
+        finally { caseReads.delete(key); }
       },
     },
     systemReleaseHandoff: {
       async stage(id: string, runId: string | null, disposition: Assessment["disposition"], cases: Case[]) {
-        if (!runId || runId !== reviewedId || pending || receipt || id !== assigned.id ||
+        if (!runId || runId !== reviewedId || pending || caseReads.size > 0 || receipt || id !== assigned.id ||
             reads.length !== assigned.required.length || !sameEvidenceMembers(cases, reads) ||
             !["stage-acceptance", "stage-diagnostics"].includes(disposition) || assess(reads).disposition !== disposition)
           throw new Error("Stage only the authorized handoff for the complete exact selected run evidence");
@@ -304,7 +310,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const runs = await services.systemReleaseEvidence.compare(assigned.id);
     const choice = choose(runs), cases = [];
     if (choice.runId)
-      for (const name of assigned.required) cases.push(await services.systemReleaseEvidence.inspectCase(assigned.id, choice.runId, name));
+      cases.push(...await Promise.all(assigned.required.map(name => services.systemReleaseEvidence.inspectCase(assigned.id, choice.runId, name))));
     const assessment = { ...(choice.blocker ? { disposition: choice.blocker, decisive: [] } : assess(cases)),
       reason: JSON.stringify({subject:assigned.subject,selectedRun:choice.runId,blocker:choice.blocker,current:runs.current,earlier:runs.earlier,cases}) };
     const handoff = ["stage-acceptance", "stage-diagnostics"].includes(assessment.disposition) ?
