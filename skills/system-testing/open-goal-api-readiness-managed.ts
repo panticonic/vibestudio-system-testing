@@ -130,7 +130,6 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What quiet binding metadata supports the readiness decision?"],
     sources:[{id:"scope",path:policyPath}]},ports.readBytes).scratchHandoffWrite;
 
-  let reading=false;
   let writing=false;
   let bound:ReturnType<typeof bindIntegrationReview>|null=null;
   let seenPlan:SealedPlan|null=null;
@@ -166,6 +165,13 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     return {...output,authorization:"pregranted",...installed.lifecycle(matched,fixtureClock),
       matched:{audience:known.url,match:known.match,selection:endpoint.label?"trusted-label":"unique-audience"}};
   }
+  function requiresNativeNote(current:SelectionFrontier) {
+    if(check(current,profileId).reason!=="selected")return false;
+    if(world.requestedArtifact==="trusted-current-selection")return true;
+    return world.requestedArtifact==="current-required-bindings"&&world.endpoints.filter(endpoint=>endpoint.required).every(endpoint=>{
+      const actual=fixtureLookup(endpoint);return actual.authorization==="pregranted"&&actual.state==="active";
+    });
+  }
   function expectedObservations(request:QuietRequest) {
     const redacted:LookupFact[]=[];
     const observed:DestinationObservation[]=[];
@@ -199,7 +205,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
       plan:report.plan,review:report.review,audit:report.audit});
   }
   function publicPlan(id:string,msg:string,current:SelectionFrontier) {
-    if(id!==profileId||world.ambiguous||index.scope.approvals!=="pregranted-only")return false;
+    if(id!==profileId||index.scope.approvals!=="pregranted-only")return false;
     const selected=check(current,id);
     return selected.reason==="selected"&&selected.message===msg;
   }
@@ -208,15 +214,10 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     quietIntegrationIndex:{async list(){return structuredClone(index);}},
     quietIntegrationJournal:{async read(channelId:string){
       if(channelId!==lane.key)return null;
-      if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
-      if(reading)return null;
-      reading=true;
-      try{
-        const current=await ports.read(lane);
-        snapshots.push(current);
-        if(snapshots.length===1&&world.later)await append([materialize(world.later)]);
-        return structuredClone(current);
-      }finally{reading=false;}
+      const current=await ports.read(lane);
+      snapshots.push(current);
+      if(snapshots.length===1&&world.later)await append([materialize(world.later)]);
+      return structuredClone(current);
     }},
     quietIntegrationProtocol:{
       async open(id:string,message:string){
@@ -268,7 +269,7 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         const current=await ports.read(lane);
         const status=await ports.status();
         const {explanation,...plan}=report.plan;
-        if(!explanation?.trim()||!isDeepStrictEqual(plan,actionFor(current,profileId))||!verifiedReview(report.review,report.audit)||
+        if(!requiresNativeNote(current)||!explanation?.trim()||!publicPlan(plan.profileId??"",plan.message??"",current)||plan.channelId!==lane.key||plan.through!==current.through||plan.providerAccess!=="unobserved"||!verifiedReview(report.review,report.audit)||
           current.through!==snapshots.at(-1)?.through||status.mainEventId!==before.mainEventId||
           !isDeepStrictEqual(status.workingHead,before.workingHead))return null;
         const text=body(report);
@@ -284,8 +285,6 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const value=raw as ApiReadinessResult|null;
     const outcome=value;
     const current=await ports.read(lane);
-    const planned=actionFor(current,world.ambiguous?null:profileId);
-    const expected=world.expected;
     const status=await ports.status();
     const found=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!baseline.has(name));
     const data=handoff?await ports.readBytes(handoff.path,max):null;
@@ -294,43 +293,48 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
     const completed=bound?expectedObservations(bound.request):null;
     const foreign=crypto.randomUUID();
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.plan?.explanation:null;}catch{return null;}})();
+    const trusted=check(current,profileId).reason==="selected";
+    const nativeFacts=world.endpoints.map(fixtureLookup);
+    const noteRequired=requiresNativeNote(current);
+    const nativeReview=!!bound&&!!seenPlan&&!!completed&&isDeepStrictEqual(audited?.facts,facts)&&
+      sameEvidenceMembers(facts,completed.redacted)&&sameEvidenceMembers(observations,completed.observed)&&
+      (observations.some(row=>row.state==="unverified")||destinations.filter(row=>row.required).every(endpoint=>observations.some(row=>row.id===endpoint.id)));
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
+      returnedIntegrationIdentity:!!plan&&plan.channelId===lane.key&&snapshots.some(frame=>frame.through===plan.through)&&
+        (plan.profileId===null||index.profiles.some(profile=>profile.id===plan.profileId))&&
+        (plan.message===null||snapshots.some(frame=>frame.rows.some(row=>row.messageId===plan.message)))&&plan.providerAccess==="unobserved",
       exactIntegrationFrontiers:includesEvidence(snapshots,initial)&&includesEvidence(snapshots,current)&&
         current.rows.length===maps.size&&current.rows.every(row=>isDeepStrictEqual(row.selection,maps.get(row.messageId)))&&
         new Set(current.rows.map(row=>row.envelopeId)).size===current.rows.length,
-      trustedIntegrationSelection:planned.action==="hold"?!calls.length&&seenPlan===null&&!observations.length:
-        calls.length===1&&calls[0]?.profileId===profileId&&calls[0]?.message===planned.message&&!!seenPlan&&
-        isDeepStrictEqual(seenPlan.destinations,destinations.map(({url,...endpoint})=>endpoint)),
-      explicitQuietIntegration:planned.action==="hold"?audited===null&&outcome?.review===null&&Array.isArray(outcome?.facts)&&outcome.facts.length===0:
-        !!bound&&verifiedReview(outcome.review?{request:bound.request,result:outcome.review}:null,audited)&&isDeepStrictEqual(outcome.facts,audited?.facts),
-      observedIntegrationLifecycles:bound ? !!completed && sameEvidenceMembers(facts,completed.redacted) &&
-        sameEvidenceMembers(observations,completed.observed) &&
-        expected.rows.filter(([id])=>world.expected.held!==undefined||world.endpoints.find(endpoint=>endpoint.id===id)?.required)
-          .every(([id,auth,state,refresh])=>facts.some(fact=>fact.destination===id&&fact.authorization===auth&&fact.state===state)&&
-            observations.some(row=>row.id===id&&row.canRefresh===(refresh??null))) &&
-        (expected.held===undefined||sameEvidenceMembers(completed.held,expected.held)) : expected.rows.length===0,
-      groundedIntegrationDisposition:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),planned)&&
-        plan.action===expected.action&&plan.reason===expected.reason&&
-        typeof plan.explanation==="string",
-      verifiedPrivateIntegrationNote:expected.action==="stage"?typeof artifactExplanation==="string"&&!!handoff&&!!data&&!!artifact&&found.length===1&&
-        handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&handoff.bytes===data.length&&
-        handoff.sha256===sha256HexSyncText(artifact):
-        found.length===0&&handoff===null,
+      trustedIntegrationSelection:trusted?!!bound&&calls.length===1&&calls[0]?.profileId===profileId&&
+        calls[0]?.message===check(current,profileId).message&&!!seenPlan&&
+        isDeepStrictEqual(seenPlan.destinations,destinations.map(({url,...endpoint})=>endpoint)):
+        !calls.length&&seenPlan===null&&!observations.length,
+      explicitQuietIntegration:trusted?nativeReview:audited===null&&bound===null&&!facts.length,
+      observedIntegrationLifecycles:facts.every(fact=>nativeFacts.some(native=>{const {canRefresh,...publicFact}=native;return isDeepStrictEqual(fact,publicFact);}))&&
+        observations.every(row=>nativeFacts.some(fact=>row.id===fact.destination&&row.state===fact.state&&row.canRefresh===fact.canRefresh)),
+      groundedIntegrationDisposition:!!plan&&typeof plan.explanation==="string"&&!!plan.explanation.trim(),
+      returnedQuietIntegration:trusted?!!bound&&verifiedReview(outcome?.review?{request:bound.request,result:outcome.review}:null,audited)&&isDeepStrictEqual(outcome?.facts,audited?.facts):
+        outcome?.review===null&&Array.isArray(outcome?.facts)&&outcome.facts.length===0,
+      verifiedPrivateIntegrationNote:handoff?noteRequired&&typeof artifactExplanation==="string"&&!!artifactExplanation.trim()&&
+        !!data&&!!artifact&&found.length===1&&handoff.path===`/.tmp/${found[0]}/handoff.json`&&artifact===stagedText&&
+        handoff.bytes===data.length&&handoff.sha256===sha256HexSyncText(artifact):!noteRequired&&found.length===0,
       preservedIntegrationWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
-      rejectedForeignIntegration:await services.quietIntegrationJournal.read(foreign)===null&&
-        await services.quietIntegrationProtocol.open(foreign,foreign)===null&&await services.quietIntegrationProtocol.audit(foreign)===null,
-    };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactIntegrationFrontiers", "trustedIntegrationSelection", "observedIntegrationLifecycles", "verifiedPrivateIntegrationNote", "preservedIntegrationWorkspace", "rejectedForeignIntegration"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["explicitQuietIntegration", "groundedIntegrationDisposition"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+      rejectedForeignIntegration:(await services.quietIntegrationJournal.read(foreign))===null&&
+        (await services.quietIntegrationProtocol.open(foreign,foreign))===null};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactIntegrationFrontiers","trustedIntegrationSelection","explicitQuietIntegration","observedIntegrationLifecycles","verifiedPrivateIntegrationNote","preservedIntegrationWorkspace","rejectedForeignIntegration"],rationale:"Current owned selection, native sealed quiet lookups, credential authority/lifecycle facts and requested conditional private-note bytes establish actual effects."},
+      returnedValue:{checks:["groundedIntegrationDisposition"],required:world.requestedReturnRequired,rationale:"The literal goal's requested explanation is reviewed against native observations; generic action/reason enums are not user outcomes."},
+      incidentalValues:{checks:["returnedArtifactReceipt","returnedQuietIntegration","returnedIntegrationIdentity"],rationale:"Exact optional receipt and closed native-review echoes remain independently checked without substituting for the requested answer or native effects."}};
     return assessObservedApplicationOutcome({caseId:input.caseId,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,planned,calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation,[{"checks":["groundedIntegrationDisposition"],"rootPath":["plan"],"producerSourceSuffix":"workOnApiReadinessGoal/decideApiReadiness.nl","producerPath":[]},{"checks":["explicitQuietIntegration"],"rootPath":["review"],"producerSourceSuffix":"workOnApiReadinessGoal/reviewQuietCredentials.nl","producerPath":["result"]}]);
+      index,snapshots,planned:{selection:check(current,profileId),trusted,nativeFacts},calls,seenPlan,observations,audit:audited,handoff,artifact},contract,raw,invocation,[{checks:["groundedIntegrationDisposition"],rootPath:["plan"],producerSourceSuffix:"workOnApiReadinessGoal/decideApiReadiness.nl"},{checks:["returnedIntegrationIdentity"],rootPath:["plan"],producerSourceSuffix:"workOnApiReadinessGoal/decideApiReadiness.nl"},{checks:["returnedQuietIntegration"],rootPath:["review"],producerSourceSuffix:"workOnApiReadinessGoal/reviewQuietCredentials.nl",producerPath:["result"]}]);
   }
   async function qualify() {
     await services.quietIntegrationIndex.list();
     await services.quietIntegrationJournal.read(lane.key);
     const current=await services.quietIntegrationJournal.read(lane.key);
     if(!current)throw new Error("Both owned selection frontiers are required");
-    const chosen=world.ambiguous?null:profileId;
+    const chosen=profileId;
     const selection=check(current,chosen);
     let review:ReadinessReport["review"]=null;
     let audit:QuietAudit|null=null;
@@ -350,13 +354,14 @@ export async function prepareOpenApiReadiness(input:{contextId:string;caseId:str
         guidance:status==="ready"?null:"Review only the observed public readiness gap."}};
       audit=await services.quietIntegrationProtocol.audit(request.operationId);
     }
-    const plan={...actionFor(current,chosen),explanation:world.expected.statement};
+    const plan={...actionFor(current,chosen),explanation:"Actual owned selection: "+JSON.stringify(selection)+"; native quiet metadata: "+JSON.stringify(audit?.facts??[])+". Provider access remains untested."};
     const outcome:ReadinessReport={plan,review,audit,handoff:null};
     if(plan.action==="stage")outcome.handoff=await services.quietIntegrationHandoff.stage(outcome);
     const report={plan:outcome.plan,review:outcome.review?.result??null,facts:outcome.audit?.facts??[],handoff:outcome.handoff};
     const accepted=await verify(report);
-    const forged=await verify({...report,plan:{...plan,through:-1}});
-    return {...accepted,passed:accepted.passed&&!forged.passed};
+    const nativeReferenceNote=world.requestedArtifact==="none"||plan.action!=="stage"||!!outcome.handoff;
+    const forged=await verify({...report,plan:{...plan,explanation:""}});
+    return {...accepted,referenceNativePrivateNote:nativeReferenceNote,passed:accepted.passed&&nativeReferenceNote&&!forged.checks.groundedIntegrationDisposition};
   }
   return {goal:world.goal,services,verify,qualify};
 }
