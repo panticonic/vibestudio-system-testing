@@ -185,7 +185,7 @@ const templateSettings = {
       resource: { kind: "exact", key: "webhooks.manage" }, tier: "gated", decision: "once" }],
   } },
   "native-image": { requiresUnits: openNativeImageRequiresUnits },
-  "provenance-question": { requiresUnits: openProvenanceQuestionRequiresUnits },
+  "provenance-question": { requiresUnits: openProvenanceQuestionRequiresUnits, requiresReview: true },
   "transcript-surface": { requiresUnits: openTranscriptSurfaceRequiresUnits },
   "source-attribution": { requiresUnits: openSourceAttributionRequiresUnits, requiresReview: true },
   "workspace-smoke": { requiresUnits: openWorkspaceSmokeRequiresUnits },
