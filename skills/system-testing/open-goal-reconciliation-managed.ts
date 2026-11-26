@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["effects","window","race","release","mergeHead","nativeHead","archiveRecheck","integrationOracle"],["artifact"]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["effects","window","race","release","mergeHead","nativeHead","archiveRecheck","integrationOracle","nativeReconciliation"],["artifact"]);
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
@@ -15,16 +15,16 @@ import type {
 import { bindManagedScratchHandoff, readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { verifyWorkspaceIntegration } from "./vcs-integration-oracle.js";
 import type { OwnedIntegrationWorld } from "./vcs-integration-fixture-contract.js";
+import {authenticReconciliationCitations} from "./reconciliation-artifact.js";
+import {maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import { seedReconciliationArchive } from "./reconciliation-archive.js";
 import type { ReconciliationWorld } from "./open-goal-reconciliation-worlds.js";
 
 type Ports = { fs: RuntimeFs; rpc: Pick<typeof RuntimeRpc, "call">; vcs: VcsClient };
 type Effect = { service: string; method: string; args: unknown[]; result: unknown };
-type Excerpt = { sourceId: string; firstLine: number; lastLine: number; text: string };
 type Window = ReconciliationWorld["assignment"]["companion"];
 const stageName = /^evidence-handoff-[a-f0-9]{32}$/u;
 const token = (state: VcsStateNodeRef) => JSON.stringify(state);
-const quoted = (text: string) => text.trimEnd().split(/\r?\n/u);
 
 export async function prepareOpenReconciliation(
   input: { contextId: string; caseId: string }, scenario: ReconciliationWorld,
@@ -77,7 +77,7 @@ export async function prepareOpenReconciliation(
     (await read(state, fixture.repositoryId, setting)).text;
   const archive = scenario.archive ? await seedReconciliationArchive(scenario.archive.entries, {
     baseline: fixture.commonSeedEvent, local: before.workingHead, incoming,
-  }, fs, rpc, readNative) : null;
+  }, fs, readNative) : null;
   const initialFiles = await Promise.all(world.files.map(async item => (await read(before.workingHead, item.repositoryId, item.path)).text));
   const journal = await Promise.all(world.files.map(async item => ({
     path: item.workspacePath,
@@ -211,7 +211,7 @@ export async function prepareOpenReconciliation(
     const result = scenario.expected.status === "integrated" ? await verifyWorkspaceIntegration(vcs, fixture) : null;
     const finalFiles = await Promise.all(world.files.map(async item => (await read(current.workingHead, item.repositoryId, item.path)).text));
     const nativeWindow = await read(current.workingHead, companion.repositoryId, companion.path);
-    const expectedWindow = scenario.race?.kind === "close-window"
+    const expectedWindow = scenario.race?.kind === "close-window" && race?.kind==="close-window"
       ? { ...scenario.assignment.companion, window: "closed", note: scenario.race.note }
       : scenario.assignment.companion;
     const canary = await read(current.workingHead, companion.repositoryId, companion.canaryPath);
@@ -220,72 +220,64 @@ export async function prepareOpenReconciliation(
     const traces = (service: string, method: string) => effects.filter(entry => entry.service === service && entry.method === method);
     const stages = traces("scratchHandoffWrite", "stage");
     const src = new Map(await Promise.all(sourcePairs.map(async ({ relative, id }) =>
-      [relative, { id, lines: quoted((await read(current.workingHead, fixture.repositoryId, relative)).text) }] as const)));
+      [id, (await read(current.workingHead, fixture.repositoryId, relative)).text] as const)));
     const dirs = (await listOwnedScratchEntries(fs)).filter(name => stageName.test(name) && !scratchBefore.includes(name));
     let artifact: EvidenceReceipt & { sha256: string } | null = null;
-    let evidenceMatches = !dirs.length;
-    if (scenario.expected.handoff === "staged" && dirs.length === 1) {
+    let evidenceMatches = !dirs.length&&stages.every(entry=>entry.result===null);
+    if (dirs.length === 1) {
       const path = "/.tmp/" + dirs[0] + "/handoff.json";
       try {
-        const bytes = await readWorkspaceBytes(rpc, path, 64 * 1024);
+        const bytes = await readWorkspaceBytes(rpc, path, maxScratchArtifactBytes);
         const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        const { answers } = JSON.parse(text) as { answers: { question: string; evidence: Excerpt[] }[] };
         artifact = { path, bytes: bytes.length, sha256: sha256HexSyncText(text) };
+        const issued = stages.filter(entry=>entry.result!==null);
         evidenceMatches = isDeepStrictEqual(await fs.readdir("/.tmp/" + dirs[0]), ["handoff.json"]) &&
-          stages.length === 1 && stages[0]?.args[0] === text && answers.length === scenario.evidence.length &&
-          scenario.evidence.every(({ question, path: source, keys }, index) => {
-            const found = src.get(source);
-            const answer = answers[index];
-            return found && answer?.question === question && answer.evidence.length === 1 &&
-              answer.evidence[0]?.sourceId === found.id && answer.evidence[0].firstLine === 1 &&
-              answer.evidence[0].lastLine === found.lines.length && answer.evidence[0].text === found.lines.join("\n") &&
-              keys.every(key => Object.hasOwn(JSON.parse(found.lines.join("\n")), key));
-          });
+          issued.length>0&&issued.every(entry=>entry.args[0]===text&&isDeepStrictEqual(entry.result,{path,bytes:bytes.length}))&&
+          authenticReconciliationCitations(text,src);
+
       } catch { evidenceMatches = false; }
     }
-    const stagedReads = traces("scratchHandoffRead", "read");
     const expectedStatus = scenario.expected.status;
     const observedRace = race;
     const closedAtEdit = scenario.race?.kind === "close-window" && scenario.race.at === "apply";
-    const observedStaleWrite = observedRace && traces("reconciliationNative", "apply").some(entry =>
-      entry.args[0] === observedRace.before && isDeepStrictEqual(entry.result, { status: "changed", head: observedRace.after }));
     const archiveRecheck = archive && scenario.archive
-      ? await archive.verify(scenario.archive.selected, outcome?.archive, current.workingHead) : null;
-    const checkedArchive = archiveRecheck
-      ? archiveRecheck.snapshots.every(Boolean)&&archive!.list().every(card=>traces("reconciliationArchive","read").some(entry=>entry.args[0]===card.id&&archiveRecheck.snapshots.some(snapshot=>isDeepStrictEqual(snapshot,entry.result))))&&traces("reconciliationArchive", "list").length > 0 &&
-        traces("reconciliationArchive", "readCurrent").some(entry =>
-          entry.args[0] === archiveRecheck.sourceId && entry.args[1] === token(current.workingHead) && entry.result !== null)
-      : !scenario.archive;
+      ? await archive.verify(outcome?.archive, current.workingHead) : null;
+    const checkedArchive = archiveRecheck ? archiveRecheck.passed : !scenario.archive;
+
     const checks = {
       recoveredRetainedReconciliation: checkedArchive,
-      observedOwnedIntegration: traces("reconciliationWindow", "read").length > 0 &&
-        traces("reconciliationNative", "observe").length > 0 && originalSourceUntouched,
+      retainedOwnedIntegrationSource: originalSourceUntouched,
       verifiedNativeIntegration: expectedStatus === "integrated"
         ? Boolean(result?.passed&&mergeHead&&token(current.workingHead)===mergeHead)
         : !mergeHead && current.clean === before.clean && isDeepStrictEqual(finalFiles, initialFiles) &&
-          token(current.workingHead) === (closedAtEdit ? observedRace?.after : token(before.workingHead)),
+          token(current.workingHead) === (closedAtEdit&&observedRace ? observedRace.after : token(before.workingHead)),
       protectedNeighborAndMain: current.mainEventId === before.mainEventId &&
         isDeepStrictEqual(current.committed, before.committed) && canary.text === companion.canaryText &&
         nativeWindow.text === JSON.stringify(expectedWindow) + "\n",
-      honoredRevisionOrWindowRace: scenario.race ? observedRace?.kind === scenario.race.kind &&
-        (observedRace.kind === "peer-edit" ? Boolean(observedStaleWrite)
-          : window.window === "closed" && (closedAtEdit ? Boolean(observedStaleWrite) : stages.some(entry => entry.result === null)))
-        : observedRace === null,
-      retainedVerifiedIntegrationEvidence: evidenceMatches &&
-        (scenario.expected.handoff === "none" ? stages.length === 0 && release === null
-          : Boolean(release && stagedReads.length && sourcePairs.every(pair =>
-              stagedReads.some(entry => entry.args[0] === pair.id && entry.result)))) &&
-        (scenario.expected.handoff === "staged" ? artifact !== null : artifact === null),
-      matchedReconciliationHandoff: (!archiveRecheck||archiveRecheck.passed)&&integration?.head===token(current.workingHead)&&
-        isDeepStrictEqual(handoff?.artifact,artifact?{path:artifact.path,bytes:artifact.bytes}:null)&&integration?.status === expectedStatus && handoff?.status === scenario.expected.handoff &&
-        isDeepStrictEqual(outcome?.window, window) &&
-        typeof integration.reason === "string" && Boolean(integration.reason.trim()),
+      honoredRevisionOrWindowRace: !observedRace || (observedRace.kind === "peer-edit"
+        ? observedRace.kind===scenario.race?.kind
+        : window.window==="closed"&&observedRace.kind===scenario.race?.kind),
+      retainedVerifiedIntegrationEvidence: evidenceMatches && (!artifact || Boolean(release&&mergeHead&&
+        traces("reconciliationWindow","release").some(entry=>entry.args[0]===release&&entry.result!==null))),
+      matchedReconciliationHandoff: typeof integration?.reason === "string" && Boolean(integration.reason.trim()),
+      authenticIntegrationCopy: integration==null||(integration.status===(mergeHead?"integrated":"held")&&
+        (mergeHead?[mergeHead,token(current.workingHead)].includes(integration.head):
+          [token(before.workingHead),token(current.workingHead),observedRace?.after].includes(integration.head))),
+      authenticWindowCopy: outcome?.window===undefined||[window,...traces("reconciliationWindow","read").map(entry=>entry.result)].some(observed=>isDeepStrictEqual(outcome.window,observed)),
+      authenticHandoffCopy: handoff==null||isDeepStrictEqual(handoff.artifact,artifact?{path:artifact.path,bytes:artifact.bytes}:null)&&
+        (artifact?handoff.status==="staged":handoff.status==="none"||handoff.status==="held"),
+      authenticArchiveCopy: !archiveRecheck||archiveRecheck.filedAuthentic,
+
     };
     return assessObservedApplicationOutcome({
       contextId, caseId: input.caseId, goal: scenario.goal, passed: Object.values(checks).every(Boolean), checks,
-      effects, window, race, release, mergeHead, artifact, nativeHead: token(current.workingHead), archiveRecheck,
+      effects, window, race, release, mergeHead, artifact,
+      nativeReconciliation:{opening:{head:token(before.workingHead),files:world.files.map((item,index)=>({path:item.workspacePath,text:initialFiles[index]}))},
+        sources:journal,final:{head:token(current.workingHead),window,files:world.files.map((item,index)=>({path:item.workspacePath,text:finalFiles[index]}))},
+        actorReadbacks:effects.filter(entry=>entry.method==="observe"||entry.method==="read"||entry.method==="readCurrent"||entry.method==="list"),
+        protocol:"Opening/final source values and archive rereads are independent native facts, not invented actor observations. Permission and actual VCS operations do not by themselves settle requested semantic answers or conditional note obligations."}, nativeHead: token(current.workingHead), archiveRecheck,
       integrationOracle: result ? { passed: result.passed, reasons: result.reasons, verificationPaths: result.verificationPaths } : null,
-    },{effects:{checks:["recoveredRetainedReconciliation","observedOwnedIntegration","verifiedNativeIntegration","protectedNeighborAndMain","honoredRevisionOrWindowRace","retainedVerifiedIntegrationEvidence"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["matchedReconciliationHandoff"],required:expectedStatus!=="integrated"&&scenario.expected.handoff!=="staged",rationale:"The requested domain answer is required; a redundant returned copy is optional after a requested native mutation or artifact is established."},incidentalValues:{checks:[],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation,[{"checks":["matchedReconciliationHandoff"],"rootPath":["integration"],"producerSourceSuffix":"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl","producerPath":["integration"]},{"checks":["matchedReconciliationHandoff"],"rootPath":["archive"],"producerSourceSuffix":"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl","producerPath":["archive"]}]);
+    },{effects:{checks:["recoveredRetainedReconciliation","retainedOwnedIntegrationSource","verifiedNativeIntegration","protectedNeighborAndMain","honoredRevisionOrWindowRace","retainedVerifiedIntegrationEvidence"],rationale:"Actual native observations, captured operations, protected state and persisted artifact bytes establish the requested effects independently of public copies."},returnedValue:{checks:["matchedReconciliationHandoff"],required:scenario.requestedReturnRequired,rationale:"The literal goal determines whether an answer or comparison is required; a requested mutation or retained note does not optionalize a separate requested answer."},incidentalValues:{checks:["authenticIntegrationCopy","authenticWindowCopy","authenticHandoffCopy","authenticArchiveCopy"],rationale:"Wrong optional returned receipts are masked with their actual hash-checked invocation definition and value."}},value,invocation,[{"checks":["matchedReconciliationHandoff","authenticIntegrationCopy"],"rootPath":["integration"],"producerSourceSuffix":"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl","producerPath":["integration"]},{"checks":["authenticArchiveCopy"],"rootPath":["archive"],"producerSourceSuffix":"workOnLocalReconciliationGoal/project/reconcileLocalGoal.nl","producerPath":["archive"]}]);
   }
 
   async function qualify() {
@@ -350,8 +342,11 @@ export async function prepareOpenReconciliation(
     const window = await services.reconciliationWindow.read();
     const result = await verify({ integration: progress, handoff, window, archive: comparison });
     const scope = foreignDenied && stale.status === "changed";
-    const checks={...result.observedChecks,rejectedInvalidIntegrationScope:scope};
-    return assessSemanticOutcome({...result,checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedInvalidIntegrationScope"]}});
+    const referenceRequiredEffects = (scenario.expected.status!=="integrated"||Boolean(mergeHead&&result.observedChecks.verifiedNativeIntegration))&&
+      (scenario.expected.handoff!=="staged"||Boolean(artifact&&result.observedChecks.retainedVerifiedIntegrationEvidence))&&
+      (!scenario.archive||Boolean(comparison&&result.observedChecks.authenticArchiveCopy));
+    const checks={...result.observedChecks,rejectedInvalidIntegrationScope:scope,referenceRequiredEffects};
+    return assessSemanticOutcome({...result,checks},{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedInvalidIntegrationScope","referenceRequiredEffects"]}});
   }
   return { goal: scenario.goal, services, verify, qualify };
 }
