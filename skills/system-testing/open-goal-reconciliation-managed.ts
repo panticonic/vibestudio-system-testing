@@ -148,6 +148,7 @@ export async function prepareOpenReconciliation(
         }));
         return remember("reconciliationNative", "observe", [], {
           head: actual.head, source: actual.source, baseline: token(fixture.commonSeedEvent), choices,
+          operationFeedback: effects.filter(entry=>entry.service==="reconciliationNative"&&(entry.method==="apply"||entry.method==="merge")).map(entry=>({kind:entry.method as "apply"|"merge",requestedHead:entry.args[0] as string,result:structuredClone(entry.result as ReconcileEffect)})),
           window: await readWindow(JSON.parse(actual.head) as VcsStateNodeRef),
           files: journal.map(row => ({ ...row, local: actual.files.find(item => item.path === row.path)?.text ?? "" })),
         });
