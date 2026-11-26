@@ -1,0 +1,329 @@
+{
+  "beforeEdits": true,
+  "source": "ad59b01ae2734c0dbac9301ec7a0f7d9398ff4ba",
+  "actualFailure": {
+    "run": "st_162486d23f354d6d8b003641bc6e0979",
+    "scope": 16,
+    "passed": 2,
+    "failed": 14,
+    "first": "open-goal-oracle-template-migration-recovered-receipt-wrong-channel",
+    "soleFalse": "rejectedForgedResult",
+    "allNativeStateAndAuthorityChecks": true
+  },
+  "cause": "qualify still treated arbitrary candidateId echo change as rejected returned value after user-goal meaning correctly ceased requiring unrequested candidateId. Native teacher verifier is unchanged.",
+  "migrationScope": "all20 literal worlds;15train/5test, explicit requestedAnswerRequired unchanged",
+  "change": "Reference negatives target actual foreign candidate authority and missing explicitly requested answer; semantic contradictions still require bound meaning review. No retroactive Native pass or fabricated semantic review.",
+  "otherReturnedValueNegatives": [
+    {
+      "file": "skills/system-testing/open-goal-extension-dossier-managed.ts",
+      "line": 397,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:\"invented\",reason:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "line": 589,
+      "predicate": "const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-audience-response-managed.ts",
+      "line": 182,
+      "predicate": "const rejectsIncorrectApplicationReturn=!(await verify({answer:{facts:[],text:\"\"},receipt})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-delivery-wake-managed.ts",
+      "line": 335,
+      "predicate": "const rejectedWrongScope = !(await verify({ ...report, choice: { ...choice, disposition: \"invented\" } })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-provenance-question-managed.ts",
+      "line": 244,
+      "predicate": "const rejectedMissingFindings=!(await verify({answer:\"\"})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-terminal-app-repair-managed.ts",
+      "line": 591,
+      "predicate": "rejectedAlias && !wrong.outcomeDimensions.returnedValue.passed && !altered.outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-native-image-managed.ts",
+      "line": 207,
+      "predicate": "const rejectedInventedOriginal=!(await verify({...answer,outcome:{...answer.outcome,original:{digest:\"invented\",bytes:1,mime:\"image/png\"}}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-agent-capability-managed.ts",
+      "line": 339,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:\"invented\",reason:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-coordinated-revision-managed.ts",
+      "line": 189,
+      "predicate": "const rejectedInventedDocument=!(await verify({...result,documents:[{path:\"invented\",version:\"invented\"}]})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "line": 659,
+      "predicate": ").outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-scaffold-managed.ts",
+      "line": 594,
+      "predicate": "!(await verify(undefined)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-outcome-workspace-managed.ts",
+      "line": 216,
+      "predicate": "rejectedFalseSuccess: !unchanged.passed && !wrongResult.outcomeDimensions.returnedValue.passed, protectedAuthority: unauthorizedWrite.status === \"unavailable\" };",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-browser-managed.ts",
+      "line": 203,
+      "predicate": "const checks = { ...verified.checks, rejectsControlAlias, rejectsWrongReadback: !negative.outcomeDimensions.returnedValue.passed };",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-terminal-managed.ts",
+      "line": 424,
+      "predicate": "return { ...proof,qualification:{scope:\"native-reference\",goalMeaningReview:\"pending\"}, passed: proof.passed && !altered.outcomeDimensions.returnedValue.passed };",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-workspace-smoke-managed.ts",
+      "line": 269,
+      "predicate": "const rejectedWrongSource = !(await verify({ ...report, decision: { ...decision, disposition: \"invented\" } })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "line": 332,
+      "predicate": "const rejectsInventedReceipt = (world.action === \"packet\" ? !wrong.outcomeDimensions.returnedValue.passed",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-desktop-readiness-managed.ts",
+      "line": 496,
+      "predicate": "const rejectedMissingFindings = !(await verify(negative)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-notification-state-managed.ts",
+      "line": 274,
+      "predicate": "!(await verify({...report,explanation:\"\"})).outcomeDimensions.returnedValue.passed : true;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-local-method-managed.ts",
+      "line": 534,
+      "predicate": "const rejected = !(await verify(wrong)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-local-width-managed.ts",
+      "line": 324,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,finding:{...finding,disposition:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-pdf-managed.ts",
+      "line": 399,
+      "predicate": "const checks = { ...verified.checks, independentNativeObservations: nativeVerified.passed, observerSlotValidated, unreadObservationRejected, nativeObservationsRetained, aliasRejected, rejectsUnverifiedReport: !negative.outcomeDimensions.returnedValue.passed };",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-log-follower-managed.ts",
+      "line": 309,
+      "predicate": "const rejectedWrongReport = !(await verify({ ...report, decision: { ...decision, state: \"invented\" } })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-system-release-managed.ts",
+      "line": 319,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "line": 219,
+      "predicate": "const rejectedForeignResult=!(await verify({...report,runId:\"foreign-run\"})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-development-audit-managed.ts",
+      "line": 220,
+      "predicate": "const rejectedInventedAssessment=!(await verify({...report,assessment:{disposition:\"invented\",decisiveSequences:[]}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-pty-continuity-managed.ts",
+      "line": 301,
+      "predicate": "const rejectedWrongDecision = !(await verify({ ...report, decision: { ...decision, replayDigest: \"wrong\" } })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-same-turn-eval-managed.ts",
+      "line": 297,
+      "predicate": "const rejectedWrongRevision = !(await verify({ ...report, recovery: {...(recovery??{}),scopeId:\"other-scope\"} })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "line": 256,
+      "predicate": "const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "line": 217,
+      "predicate": "const rejectedInvalidCitation=!(await verify({...application,outcome:{...outcome,citations:[{layer:\"commit\",ref:\"unissued-event\",coordinate:\"foreign-file\",quote:\"invented\"}]}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-board-migration-managed.ts",
+      "line": 259,
+      "predicate": "})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "line": 362,
+      "predicate": "const rejectsIncorrectApplicationReturn=!(await verify({...application,disposition:{...application.disposition,status:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-installed-package-managed.ts",
+      "line": 421,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,repair:{status:\"invented\"},finding:{decision:\"invented\",reason:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "line": 776,
+      "predicate": "!(await verify(altered)).outcomeDimensions.returnedValue.passed);",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-automation-activation-managed.ts",
+      "line": 340,
+      "predicate": "const rejectedChangedClaim=!(await verify({...report,activation:{...(activation??{}),receipt:{missionId:\"different-owned-job\"}}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-source-attribution-managed.ts",
+      "line": 365,
+      "predicate": "const rejectedWrongLineage = !(await verify(altered)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-deployed-interface-managed.ts",
+      "line": 330,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:\"invented\",reason:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "line": 297,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:\"invented\",reason:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-panel-recovery-managed.ts",
+      "line": 308,
+      "predicate": "const rejectsWrongEvidence = !(await verify({ ...outcome, final: { ...outcome.final, evidence: [\"foreign-panel\"] } })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "line": 315,
+      "predicate": "const rejectsIncorrectApplicationReturn=!world.requestedAnswerRequired || !(await verify({...application,decision:{...application.decision,explanation:\"\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "line": 283,
+      "predicate": "const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,noteStatus:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "line": 279,
+      "predicate": "const rejectsIncorrectApplicationReturn=!(await verify({...application,result:{...application.result,status:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-webhook-admission-managed.ts",
+      "line": 333,
+      "predicate": "const rejectedInventedApplicationValue = !(await verify({...result,assessment:{...assessment,disposition:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "line": 653,
+      "predicate": "(!world.requestedReturnRequired || !wrong.outcomeDimensions.returnedValue.passed);",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-phone-first-run-managed.ts",
+      "line": 505,
+      "predicate": "const rejectedMissingPhoneFinding = !(await verify(\"\")).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-transcript-surface-managed.ts",
+      "line": 285,
+      "predicate": "const rejectedInventedEffect = !(await verify({ ...report, decision: { effect: \"none\", reason: \"invented\" } })).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-pdf-vault-managed.ts",
+      "line": 107,
+      "predicate": "returnedVaultFindings:mayEdit?vaultResult?.outcomeDimensions.returnedValue.passed===true:true,",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-pdf-vault-managed.ts",
+      "line": 138,
+      "predicate": "const rejectedInventedSource=!(await verify({...result,source:{document:\"invented\",digest:\"invented\",citations:[]}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-skill-maintenance-managed.ts",
+      "line": 627,
+      "predicate": "const rejectedWrongReadback = !(await verify(wrong)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-live-tendril-board-managed.ts",
+      "line": 116,
+      "predicate": "const rejectedForeignTendrilBoard = rejectedArchive && !(await verify(changed)).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    },
+    {
+      "file": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "line": 235,
+      "predicate": "const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,status:\"invented\"}})).outcomeDimensions.returnedValue.passed;",
+      "status": "unchecked outside migration family; no blanket result-forgery claim"
+    }
+  ],
+  "verification": {
+    "unit": "vibe-native-migration-qualifier-20261126b",
+    "passed": 21,
+    "peakMiB": 185.7,
+    "kind": "Actual unchanged fixture/reference/verification code with independent in-memory VCS/blob/native-template IO adapter; not a Workerd/native-full replay",
+    "worldBytesSha256": "ee43d8dd965774e783a1b04515d2224b1b173ee15fb17663296f9df0ef72cc8c",
+    "all20": true,
+    "teacherVerifierChanged": false,
+    "semanticReview": "mandatory/pending, never fabricated",
+    "originalNativeFailures": "preserved unchanged; successor full-native replay pending"
+  }
+}
