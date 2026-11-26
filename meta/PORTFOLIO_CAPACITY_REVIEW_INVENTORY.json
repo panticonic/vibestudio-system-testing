@@ -1,0 +1,16 @@
+{
+  "observed": "0077 genuine Terra rejected correct equality2.6cargo==2.6capacity, interpreting the typed criterion label cargo-under-capacity as a strict inequality despite literal user within capacity.",
+  "sharedMechanism": [
+    "Examples examples-review-fixtures/oracle.ts:211-213 usescargo<=capacity",
+    "Examples examples-review/reviewExample/reviewRealm/inspectSettlement.nl documentsno greaterthan",
+    "SST portfolio native review binding",
+    "SST Regency native review binding"
+  ],
+  "scope": "Shared source-contract clarification and independent numeric relationships for both portfolio and Regency review; no desired outcome/reference labels/acceptance flags. All actual native guards and mandatory meaning review remain.",
+  "exclusions": {
+    "Examples": "Native comparatorandNLcontractalreadyagree; unchanged",
+    "Host": "Existing realm/nativeFacts bindings cover nested fields; no new map/schema",
+    "RuntimeEngines": "No transport/model/runtime/IR changes",
+    "OldReview": "Preserveoriginal; a separate source-bound reassessment+onegenuine review is needed for any admission."
+  }
+}

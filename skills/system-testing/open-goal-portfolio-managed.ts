@@ -1,3 +1,4 @@
+import {observedRealmCapacity,realmCapacityReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["index","frames","projection","garden","realm"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
@@ -5,7 +6,7 @@ import type {InvocationObservations} from "@workspace/application-outcomes/obser
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff,maxScratchArtifactBytes } from "@workspace-skills/scratch-handoff-bindings";
 import type { AcceptanceCard, GardenCriterion, GardenResult, GardenState, Horizon, PortfolioDecision, PortfolioFinding, PortfolioFrame,
   PortfolioIndex, PortfolioNote, PortfolioPlan, PortfolioProjection, PortfolioReport, RealmCriterion, RealmResult, RealmState } from "@workspace-skills/open-demo-portfolio/types";
 import { createOwnedHeadlessChannel } from "./session-replay-managed.js";
@@ -47,7 +48,7 @@ async function livePorts(input:Input):Promise<Ports> {
     realmPlayer:await bindRegencyFixturePlayer(panelTree.get(fixture.regency.panelId),input.contextId,fixture.regency),
     readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)};
 }
-const maxBytes=24*1024;
+const maxBytes=maxScratchArtifactBytes;
 const clock=(garden:GardenState)=>garden.day*4+garden.phase;
 
 export async function prepareOpenPortfolio(input:Input,installed:Installed,injected?:Ports) {
@@ -317,11 +318,14 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       returnedValue:{checks:["requestedPortfolioAnswer"],required:world.requestedAnswer,rationale:"Only goals that request returned findings require a nonempty explanation; independent meaning review checks the actual requested claims."},
       incidentalValues:{checks:["returnedArtifactReceipt"],rationale:"A receipt echo is not an additional requested effect."},
     };
-    return assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+    const assessed=await assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
       index,frames,projection:{observed:forecasts,returned:returnedProjection},
       garden:{initial:initial.garden,final:final.garden,actorFindings:outcome?.garden??null,nativeActions:appliedGarden},
-      realm:{initial:initial.realm,final:final.realm,actorFindings:outcome?.realm??null},
+      realm:{initial:initial.realm,final:final.realm,actorFindings:outcome?.realm??null,
+        capacityObservations:[observedRealmCapacity(final.realm,"saved"),...forecasts.map(value=>observedRealmCapacity(value.accounts,"forecast"))]},
       decision:decision??null,note:receipt,artifact},contract,raw,invocation);
+    assessed.semanticReviewInput.rubric+=realmCapacityReviewGuidance;
+    return assessed;
   }
 
   async function qualify() {
