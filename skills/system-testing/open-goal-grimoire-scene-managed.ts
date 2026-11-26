@@ -1,7 +1,8 @@
+import {observedGrimoireAuthority,grimoireReviewGuidance} from "./native-domain-review.js";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["docket","view","current","scope","gate","readback","journal"],["body"]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["docket","view","current","scope","gate","readback","journal","nativeFacts"],["body"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -453,6 +454,7 @@ export async function prepareOpenGrimoireScene(
     const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
+    assessed.semanticReviewInput.rubric+=grimoireReviewGuidance;
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
@@ -596,6 +598,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       passed: Object.values(checks).every(Boolean),
       checks,
       docket,
+      nativeFacts:observedGrimoireAuthority(scope,view??null,final.view,gate),
       view,
       current: final.view,
       scope,

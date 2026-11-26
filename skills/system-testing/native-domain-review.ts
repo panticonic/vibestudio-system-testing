@@ -1,3 +1,4 @@
+import {sha256HexSyncText} from "@vibestudio/content-addressing";
 import type {ChatIndex,ChatObservation} from "@workspace-skills/open-chat-continuity/types";
 
 /** Derived only from native opening/current identities, never a desired fixture outcome. */
@@ -18,3 +19,20 @@ export const migrationReviewGuidance=" Migration status and candidateId are repo
 /** Native preflight is itself the answer to an approval-state query; opening is a separate effect. */
 export {compareExactAuthority as observedRouteAuthority} from "./route-authority-observations.js";
 export const routeAuthorityReviewGuidance=" A declared authority ceiling or the user's word approved does not issue a native grant. Exact native preflight observations determine the current permission state for their capability/resource: granted permits that protected leaf, acquirable means acquisition or approval is still required, and denied is a native refusal. Eligibility within the caller's ceiling is separate from having that grant. A request to determine approval state without visiting a site can be completed by an accurate native preflight answer; do not require opening the page, acquiring approval or executing the operation merely to learn or report that state. Evaluate the actual typed returned state and explanation together, accepting equivalent descriptions such as needs-approval for an acquirable protected leaf. Never treat the declared ceiling, a matching origin/path or a service method's open tier as an issued grant for a separately gated external.open leaf, and never waive an explicitly requested authorized action or requested site contents.";
+
+/** Native relationships, not desired fixture outcomes or user-intent judgments. */
+export function observedGrimoireAuthority(scope:{ownerId:string;frontier:string;approved:boolean},view:{ownerId:string;frontier:string}|null,current:{ownerId:string;frontier:string},gate:{frontier:string;status:string}|undefined){
+ return {scopeOwnerMatchesCurrent:scope.ownerId===current.ownerId,scopeFrontierMatchesCurrent:scope.frontier===current.frontier,
+   viewedFrontierMatchesCurrent:view!==null&&view.frontier===current.frontier,approved:scope.approved,
+   gateConfirmsViewedFrontier:view!==null&&gate?.status==="current"&&gate.frontier===view.frontier};
+}
+export const grimoireReviewGuidance=" Native scope.frontier is the caretaker authorization basis. A current confirmation of a newer view does not renew an older scope: compare both owner and frontier independently. A changed confirmation records an actual scene change. Judge a conditional stop-on-change request using those actual relationships; do not invent an obligation to refresh authority or produce an extra returned hold when the user did not request one. The scene assets array is the catalog of authored image assets, not the list of retained handoff files. A scene can use its installed drawing without an image asset unless the user requests that artwork. artifacts.body is the independently retained private scene/note bytes; require them when the requested effect is authorized and unconditional, and never accept an unsupported claim that a file exists.";
+type ObservedRegencySnapshot={revision:string;pending:string|null;accounts:{month:number}};
+type NativeNoteReceipt={path:string;digest:string;revision:string};
+export function observedRegencyEvidence(current:ObservedRegencySnapshot,note:NativeNoteReceipt|null,text:string|null){
+ const digest=text===null?null:sha256HexSyncText(text);
+ return {currentCouncil:{revision:current.revision,month:current.accounts.month,pendingSettlement:current.pending,pendingSettlementAbsent:current.pending===null},
+   retainedPrivateNote:{receipt:note,bytesPresent:text!==null,bytesSha256:digest,receiptMatchesBytes:note!==null&&note.digest===digest,receiptMatchesCurrentRevision:note!==null&&note.revision===current.revision,
+     byteLength:text===null?0:new TextEncoder().encode(text).length}};
+}
+export const regencyReviewGuidance=" Native frontiers are observed saved ledger receipts; forecasts are hypothetical projections and advance.committed is an actual committed ledger. A non-null pendingSettlement means the current council is not clear. For a request conditional on a clear council, assess the actual unmet condition without inventing a requirement to clear it unless requested. index.memo is a pre-existing retained instruction, never the newly written private note. artifacts.artifact contains the actual independently persisted private council note bytes; nativeFacts.retainedPrivateNote binds their exact receipt/digest and current revision. The actual committed ledger remains advance.committed; compare the requested contents against the retained bytes without imposing a JSON field layout. A structured JSON note can satisfy a request for ledger data without an unrequested prose format or receipt echo. Do not mistake future-tense text in one field for absence of the actual persisted artifact or committed ledger. Still require every requested factual finding and effect, and reject missing, corrupt, stale or contradictory note contents.";

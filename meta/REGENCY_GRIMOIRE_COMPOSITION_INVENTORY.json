@@ -1,0 +1,70 @@
+{
+  "schema": "vibestudio.regency-grimoire-composition-inventory/1",
+  "sourceRefs": {
+    "base": "46eaf43345aec17a5348089ef65e6f4caab6d01e",
+    "systemTesting": "ad59b01ae2734c0dbac9301ec7a0f7d9398ff4ba"
+  },
+  "sources": [
+    {
+      "path": "skills/open-user-goal/workOnRegencyBriefing.ts",
+      "sha256Before": "c5b844a8861ef67e14e8db25b49b62749d51f157ec486f6d2c6d15c2536a7e69"
+    },
+    {
+      "path": "skills/open-user-goal/workOnRegencyBriefing/planRegencyReview.nl",
+      "sha256Before": "92cf012a70a431251de6fe7f2d3417e1e8576fa522f00c0208993c3ba2e7458d"
+    },
+    {
+      "path": "skills/open-user-goal/workOnRegencyBriefing/qualifyRegencyClaim.nl",
+      "sha256Before": "e26fbb58fa24df8a9beaf9cab268187ceb4f665bce08f3982bd5f55baa298c62"
+    },
+    {
+      "path": "skills/open-user-goal/careForGrimoireScene.nl",
+      "sha256Before": "5fc57425e23169a4794ddbde0ec6cba1ead52b8cb92d2edd8fe7256e4229e5a7"
+    },
+    {
+      "path": "skills/system-testing/open-goal-regency-managed.ts",
+      "sha256Before": "b097477faa9d5eec38f4624b41f9b98bc17f95697e98373ebd573fc9e4d385bc"
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "sha256Before": "bfd4dfa1d0d2efc583bb90142f171ceb52b793a465a8b6df7ed5e9ce2839252b"
+    },
+    {
+      "path": "skills/system-testing/native-domain-review.ts",
+      "sha256Before": "515395930dfffa06a9e619196d315dab3f40ac89011ad22b248d0206e8fc9e1d"
+    }
+  ],
+  "actual77Audit": "/home/werg/vibe-regency-scene-composition-ops/actual-0077-review-export-audit.json",
+  "confirmedMechanisms": [
+    "Regency topTS fixes discovery/two reads/forecast loop/all requested-claim review/action/note progression. Rich existing Native realm and installed pure review branches are available for natural hierarchical composition.",
+    "Native regencySaved.read returns cached second receipt forever, including after real authorized advance. exactSavedRegencyFrontiers hardrequires exactlytwo; forecasts block repeat horizon/after advance despite public readonly allowedHorizons. All actual source/basis/current-owner/Native physics must remain authenticated.",
+    "Regency note/returned projection exact-all lists impose private observation inventory rather than Native provenance; closed per-claim factual verdict/citation truth remains meaningful and must be preserved.",
+    "Grimoire root already natural and hierarchical; preserve it, avoid relabeling/count-only conversion. ad59 fixed actual null-stage/no-effect false gate separately and is immutable Source46 input.",
+    "Existing review77: incorrect grade accepted:false for appropriate pending hold; real Native persisted note bytes misclassified as absent; stale caretaker authorization misread as refreshed by a later view-current gate. Reuse existing Native-domain factual guidance, not another reviewer/acceptance channel."
+  ],
+  "consumerInventory": {
+    "base": "Entry registry/generated registry; Regency private planner/claim reviewer/decision/typed projection; real Examples realm workspace mount + installed examples-review mount. Grimoire existing Root/evidence/plan/currentness/typed receipt helpers + operational-results.test.",
+    "native": "SST Regency actor service bindings, authentic saved/forecast receipts, Native move and note readback; Grimoire ports/Native scene renderer/private artifacts; existing native-domain-review guidance consumers Chat/owned task/migration/route.",
+    "host": "Existing observed-content admission kinds regency-briefing and grimoireScene; any new Native fact fields must bind exact same proof fields. Dedicated source edit families excluded.",
+    "offlineReaders": "Python/Node capture/NativeIR consumers carry generic verification data; no Regency/Grimoire field dispatch. Originals/call identities/record schema untouched.",
+    "engines": "Authored programs use shared current Core ef3 and existing generated SDKs; no serving feature/compiler/transport mutation."
+  },
+  "openConsumerAudit": [
+    "Four other no-effect namespace gates: Adoption,Scaffold,LocalMethod,SystemCandidate. Native absence/transport state contexts to finish separately; no regex-only defect verdict."
+  ],
+  "status": "Native factual-review clarification ready; larger Regency coordinator/receipt protocol remains in progress",
+  "readyBatch": {
+    "scope": "Reuse existing Native-domain knowledge; expose factual pending settlement, receipt/current-revision/hash and distinct scene-view versus caretaker-scope currentness. No desired outcome/accepted flag or JSON-content schema imposed.",
+    "tests": {
+      "nativeUnit": "vibe-regency-scene-native-facts-20261126c",
+      "nativePassed": 8,
+      "nativePeakMiB": 184.4,
+      "hostUnit": "vibe-regency-scene-facts-host-20261126a",
+      "hostPassed": 23
+    },
+    "serviceApiChanged": false,
+    "declarationsChanged": false,
+    "paidCalls": 0,
+    "originalVerdicts": "Preserved; no reviewer rerun/reassessment/publication performed."
+  }
+}
