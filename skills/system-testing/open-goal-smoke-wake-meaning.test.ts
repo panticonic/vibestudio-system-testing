@@ -69,3 +69,10 @@ it('private reference verdicts and predictions cannot decide a teacher finding',
 it('cumulative reconnect admissions do not prescribe a route when the actual receiver and recovered mailbox are exact',async()=>{
  const world=openDeliveryWakeWorlds[0]!,t=await wakeFixture(world,2);try{const result=await t.fixture.qualify();expect(result.passed,JSON.stringify(result.checks)).toBe(true);expect(result.evidence?.connection.admittedSurfaces).toBe(2);expect(result.semanticReviewRequired).toBe(true);}finally{t.dispose();}
 });
+
+it('retains allocation failure and all actual owned cleanup failures',async()=>{
+ const {rpc,runtime}=await import('@workspace/runtime');const primary=new Error('native channel initialization failed'),cleanup=new Error('native retirement failed');
+ Object.assign(runtime,{createEntity:async()=>({id:'owned-allocation',targetId:'do:owned',kind:'do',contextId:'owned'}),retireEntity:async()=>{throw cleanup;}});Object.assign(rpc,{call:async()=>{throw primary;}});
+ try{await expect(prepareDeliveryWake({contextId:'owned',caseId:openDeliveryWakeWorlds[0]!.id},openDeliveryWakeWorlds[0]!)).rejects.toMatchObject({name:'AggregateError',errors:[primary,{name:'AggregateError',errors:[cleanup]}]});}
+ finally{Reflect.deleteProperty(runtime,'createEntity');Reflect.deleteProperty(runtime,'retireEntity');Reflect.deleteProperty(rpc,'call');}
+});

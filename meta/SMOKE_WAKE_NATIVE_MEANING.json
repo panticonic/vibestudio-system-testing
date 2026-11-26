@@ -609,5 +609,15 @@
     "cause": "recoverOwnedSubscription closes the client before returning; admittedSurfaces is cumulative successful openings, not live authority or mailbox multiplicity.",
     "fix": "Allow positive admission count; retain actual receiver/context/revision/cursor/range/native row and unique context checks.",
     "negative": "Zero-admission/unavailable, foreign recipient/revision/cursor and duplicate native mailbox guards unchanged."
+  },
+  "ownedCleanupFollowup": {
+    "inventory": [
+      "prepareDeliveryWake: bind failure followed by owned close (already preserved as AggregateError)",
+      "nativePorts: allocation/initialize failure followed by owned retire (previously replaced original with cleanup failure)",
+      "recoverOwnedSubscription: ready/join failure followed by client.close in finally (previously replaced original with close failure)"
+    ],
+    "fix": "Preserve original failure and actual cleanup failures together; propagate a cleanup-only failure without inventing a failed subscription. No timeout/retry or authority behavior changed.",
+    "checked": "65 actual controls PASS4.895s411MiB including primary+cleanup and cleanup-only negatives; old subscription retry test included.",
+    "sourceParent": "30752a66db2e33a262d85ed03297f0f0f4b114a8"
   }
 }

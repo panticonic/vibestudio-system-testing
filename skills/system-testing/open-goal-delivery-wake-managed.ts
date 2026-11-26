@@ -74,6 +74,7 @@ export async function recoverOwnedSubscription(port: RpcConnectOptions["rpc"], c
     replayMode: "stream", ...(resident ? { deliveryMode: "resident" } : {}),
     ...(coordinator ? { recoveryCoordinator: coordinator } : {}) });
   let lastFailure: string | undefined;
+  let operationFailure: Error | undefined;
   const unsubscribeErrors = client.onError(error => { lastFailure = error.message; });
   try {
     await client.ready(AbortSignal.timeout(7000));
@@ -82,12 +83,16 @@ export async function recoverOwnedSubscription(port: RpcConnectOptions["rpc"], c
   } catch (error) {
     if (mode !== "unavailable" || !firstRejected || attempts !== 1 || admittedSurfaces !== 0) {
       const transport = resident ? "resident join" : "stream subscription";
-      throw new Error(`Owned ${transport} failed after ${attempts} openings and ${admittedSurfaces} admissions: ${lastFailure ?? error}`,
+      operationFailure = new Error(`Owned ${transport} failed after ${attempts} openings and ${admittedSurfaces} admissions: ${lastFailure ?? error}`,
         { cause: error });
+      throw operationFailure;
     }
   } finally {
     unsubscribeErrors();
-    await client.close();
+    try { await client.close(); } catch (cleanup) {
+      if (operationFailure) throw new AggregateError([operationFailure,cleanup],"Owned delivery subscription and cleanup both failed");
+      throw cleanup;
+    }
   }
   return { channel, context, attempts, firstRejected, ready, admittedSurfaces };
 }
@@ -119,7 +124,7 @@ async function nativePorts(owner: string) {
     const ports: Ports = { contextId: owner, channel, projection,
       connect: mode => recoverOwnedSubscription(rpc, channel, channelTarget, owner, mode) };
     return { ports, close };
-  } catch (error) { await close(); throw error; }
+  } catch (error) { try { await close(); } catch (cleanup) { throw new AggregateError([error,cleanup],"Delivery native allocation and cleanup both failed"); } throw error; }
 }
 
 function seedWake(key: string, world: DeliveryWakeWorld) {
