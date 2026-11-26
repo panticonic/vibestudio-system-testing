@@ -1,0 +1,5 @@
+# Persisted assessment provenance
+
+The Native checkpoint audit proves which actor-authored assessment bytes were stored and survived restart, not that their semantic judgments are true. OwnedOperations now uses the existing `legacyCandidateLayout:true` review option until nested provenance roles are represented precisely. This retains the exact native proof and actor claims in candidate evidence; it does not label the nested assessment as authoritative reference truth.
+
+Actual successor test run vibe-owned-operations-review-provenance-20261126 used the integrated57 generic Base helper:56 native/oracle/byte tests and39 current Host binding controls passed. The worker-resource test explicitly asserts audit remains under actual.observations and neither expected.observations nor evidenceRoleLayout is invented. Existing Host exact legacy reconstruction accepts the unchanged bound evidence and rejects swapped/missing proof fields. No Host bypass, model call, goal waiver or pending-review promotion was added. This does not solve optional format-only training readout holds, owned separately.

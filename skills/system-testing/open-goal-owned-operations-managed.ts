@@ -1,6 +1,8 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessNativeGoal=bindObservedContentReview(["docket","effects","audit","nativeFacts"],["dossierReadback"]);
+// Persisted checkpoint assessments are actor-authored claims, not native semantic truth.
+// Keep the exact candidate evidence layout until nested provenance roles are representable.
+const assessNativeGoal=bindObservedContentReview(["docket","effects","audit","nativeFacts"],["dossierReadback"],{legacyCandidateLayout:true});
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
