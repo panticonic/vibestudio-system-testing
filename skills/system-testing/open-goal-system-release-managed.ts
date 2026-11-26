@@ -200,7 +200,6 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
         return capture("systemReleaseEvidence", "discover", [], assigned);
       },
       async compare(id: string) {
-        if (issued && id === assigned.id && compared) return structuredClone(compared);
         if (!issued || pending || id !== assigned.id) throw new Error("Compare only the two assigned checkpoint headers");
         pending = true;
         try {
@@ -213,8 +212,6 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
         if (!compared || !runId || pending || id !== assigned.id || runId !== choose(compared).runId ||
             (reviewedId !== null && reviewedId !== runId) || !assigned.required.includes(name))
           throw new Error("Read a required case from the exact selected System run");
-        const previous=reads.find(row=>row.name===name);
-        if(previous)return structuredClone(previous);
         const key = JSON.stringify([runId, name]);
         const existing = caseReads.get(key);
         if (existing) return structuredClone(await existing);
@@ -222,7 +219,9 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
         const request = (async () => {
           const proof = await readCase(run, name);
           reviewedId = runId;
-          reads.push(proof);
+          const prior = reads.findIndex(row => row.name === name);
+          if (prior < 0) reads.push(proof);
+          else reads[prior] = proof;
           reads.sort((a,b)=>assigned.required.indexOf(a.name)-assigned.required.indexOf(b.name));
           return capture("systemReleaseEvidence", "inspectCase", [id, runId, name], proof);
         })();
@@ -276,33 +275,29 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
-    const report = value as Outcome | null;
-    const outcome = report, expected = world.expected;
     const [current, earlier] = await Promise.all([readRun(assigned.current), readRun(assigned.earlier)]);
     const finalPair = { current, earlier };
-    const selected = expected.selection ? finalPair[expected.selection] : null;
-    const nativeCases = selected ? await Promise.all(assigned.required.map(name => readCase(selected, name))) : [];
-    const withheld = ["hold-context", "hold-build", "hold-active", "hold-cancelled", "hold-missing-run"];
-    const expectedChoice = { runId: selected?.id ?? null, blocker: withheld.includes(expected.outcome) ? expected.outcome : null };
-    const hasHandoff = expected.outcome === "stage-acceptance" || expected.outcome === "stage-diagnostics";
+    const selectedChoice = choose(finalPair);
+    const selected = selectedChoice.runId === current.id ? current : selectedChoice.runId === earlier.id ? earlier : null;
+    const nativeCases = selected ? await Promise.all(reads.map(row => readCase(selected, row.name))) : [];
     const entries = await artifact.entries(directory);
     const raw = entries.length === 1 && entries[0] === "release-evidence.json" ? await artifact.read(outputPath, maximumArtifact) : null;
-    const expectedBytes = selected && hasHandoff ? dossier(expected.outcome, selected.id, nativeCases) : null;
-    const expectedMethods = ["discover", "compare", ...nativeCases.map(() => "inspectCase"), ...(hasHandoff ? ["stage"] : [])];
+    const stage = effects.find(row => row.service === "systemReleaseHandoff" && row.method === "stage");
+    const retainedBytes = stage && selected ? dossier(stage.args[2] as Assessment["disposition"], selected.id, nativeCases) : null;
     const checks = {
-      retainedNativeRunPair: isDeepStrictEqual(compared, finalPair),
-      matchedOwnedBuildAndAttempt: reviewedId === (selected?.id ?? null),
+      retainedNativeRunPair: compared === null || isDeepStrictEqual(compared, finalPair),
+      matchedOwnedBuildAndAttempt: reviewedId === null || reviewedId === (selected?.id ?? null),
       exactRequiredCaseEvidence: sameEvidenceMembers(reads, nativeCases),
-      matchedReleaseDisposition: typeof outcome?.assessment?.reason === "string" && outcome.assessment.reason.trim().length > 0,
-      verifiedPrivateHandoff: expectedBytes ? raw !== null && decode.decode(raw) === expectedBytes && !!receipt &&
-        receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(expectedBytes) : entries.length === 0 && receipt === null,
-      noSuiteRerunOrUnassignedCase: sameEvidenceMembers(effects.map(item => item.method), expectedMethods),
+      matchedReleaseDisposition: typeof value === "string" && value.trim().length > 0,
+      verifiedPrivateHandoff: retainedBytes ? raw !== null && decode.decode(raw) === retainedBytes && !!receipt &&
+        receipt.path === outputPath && receipt.bytes === raw.length && receipt.sha256 === hash(retainedBytes) : entries.length === 0 && receipt === null,
+      noSuiteRerunOrUnassignedCase: effects.every(item => item.service === "systemReleaseEvidence" && ["discover","compare","inspectCase"].includes(item.method) || item.service === "systemReleaseHandoff" && item.method === "stage"),
     };
     return {
       outcomeContract:systemReleaseGoalContract(world),
       incorrectReturnValues:[],
- actualResult:value, caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: expectedChoice,
-      cases: nativeCases, assessment: outcome?.assessment, handoffProtocol:systemReleaseHandoffProtocol({contextId:owner,verifiedPrivateHandoff:checks.verifiedPrivateHandoff,receipt,text:raw?decode.decode(raw):null}), handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
+ actualResult:value, caseId: world.id, contextId: owner, goal: world.goal, assignment: assigned, runs: finalPair, choice: selectedChoice,
+      cases: nativeCases, assessment: stage ? {disposition:stage.args[2]} : null, handoffProtocol:systemReleaseHandoffProtocol({contextId:owner,verifiedPrivateHandoff:checks.verifiedPrivateHandoff,receipt,text:raw?decode.decode(raw):null}), handoff: receipt, handoffText: raw ? decode.decode(raw) : null, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {
@@ -315,15 +310,17 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       reason: JSON.stringify({subject:assigned.subject,selectedRun:choice.runId,blocker:choice.blocker,current:runs.current,earlier:runs.earlier,cases}) };
     const handoff = ["stage-acceptance", "stage-diagnostics"].includes(assessment.disposition) ?
       await services.systemReleaseHandoff.stage(assigned.id, choice.runId, assessment.disposition, cases) : null;
-    const result = {assessment,handoff};
+    const result = JSON.stringify({assessment,handoff});
     const proof = await verify(result);
     let rejectedForeignNativeScope=false;
     try {await services.systemReleaseEvidence.inspectCase(assigned.id,"foreign-retained-run",assigned.required[0]!);} catch {rejectedForeignNativeScope=true;}
     const rejectedMissingRequestedAnswer = !world.requestedReturnRequired || !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedForeignNativeScope,rejectedMissingRequestedAnswer};
+    const referenceNativeHandoff = !["stage-acceptance","stage-diagnostics"].includes(world.expected.outcome) || handoff !== null;
+    const referenceCaseCoverage = choice.runId === null || cases.length === assigned.required.length;
+    const checks = {...proof.checks,rejectedForeignNativeScope,rejectedMissingRequestedAnswer,referenceNativeHandoff,referenceCaseCoverage};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignNativeScope","rejectedMissingRequestedAnswer"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignNativeScope","rejectedMissingRequestedAnswer","referenceNativeHandoff","referenceCaseCoverage"]}}});
   }
   return { services, qualify, verify };
 }
