@@ -254,7 +254,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const outputs = filenames.filter(name => artifactNames.test(name) && !priorOutputs.includes(name));
     const handoffWrites = effects.filter(({ service, result }) => service === "workspaceShareHandoff" && result !== null);
     let handoffText:string|null = null;
-    let exactNote = staged === null && outputs.length === 0 && !allowWrite && handoffWrites.length === 0;
+    let exactNote = staged === null && outputs.length === 0 && (!world.requestedPrivateHandoff || !allowWrite) && handoffWrites.length === 0;
     if (allowWrite && staged && outputs.length === 1 && handoffWrites.length === 1) {
       const bytes = await readBytes(staged.path, staged.bytes);
       const text = decoder.decode(bytes);
@@ -272,17 +272,18 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       reconciledExactInviteAndRevision: inspected?.invitation.currentRevision === projection.currentRevision &&
         inspected?.invitation.member === projection.member && isDeepStrictEqual(inspected?.invitation, current.invitation) &&
         isDeepStrictEqual(inspected?.approval, auth),
-      matchedLocalScopeDecision: isDeepStrictEqual(outcome?.handoff,staged)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      matchedLocalScopeDecision: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
         outcome.finding.reason.trim().length > 0,
       verifiedPrivateHandoff: exactNote,
+      returnedHandoffMatchesActual: isDeepStrictEqual(outcome?.handoff,staged),
       preservedSharedAndNeighborState: intact && priorOutputs.every(name => filenames.includes(name)) &&
         before.mainEventId === head.mainEventId && isDeepStrictEqual(before.workingHead, head.workingHead),
     };
     return {
       outcomeContract:{
         effects:{checks:["selectedExactWorkspaceAndObject", "readExactMembershipAndRole", "reconciledExactInviteAndRevision", "verifiedPrivateHandoff", "preservedSharedAndNeighborState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["matchedLocalScopeDecision"],required:!allowWrite,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+        returnedValue:{checks:["matchedLocalScopeDecision"],required:!world.requestedPrivateHandoff,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
+        incidentalValues:{checks:["returnedHandoffMatchesActual"],rationale:"An optional receipt echo does not establish the requested scope finding or the actual persisted artifact; its original observation remains visible."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: ports.contextId, goal: world.goal, passed: Object.values(checks).every(Boolean),
       checks, assignment, observation: current, decision, handoff: staged, handoffText, effects: structuredClone(effects) };
@@ -291,7 +292,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const assignment = await services.workspaceShareEvidence.discover();
     const observation = await services.workspaceShareEvidence.inspect(assignment.document);
     const decision = decisionFor(observation);
-    const handoff = canStage(decision) ? await services.workspaceShareHandoff.stage(observation, decision) : null;
+    const handoff = world.requestedPrivateHandoff && canStage(decision) ? await services.workspaceShareHandoff.stage(observation, decision) : null;
     const result = {finding:{decision,reason:"Reviewed the exact current object, membership, invitation and authority."},handoff};
     const proof = await verify(result);
     const rejectedInventedApplicationValue = !(await verify({...result,finding:{decision:"invented",reason:"invented"}})).outcomeDimensions.returnedValue.passed;
