@@ -48,6 +48,9 @@ it("joins actual worker resources at verification without imposing an explicit m
   expect(native.entities.size).toBe(1);
   const proof=await fixture.verify("Customers remain affected despite recovery readiness");
   expect(proof.passed).toBe(true);expect(proof.audit.programRequestedCleanup).toBe(false);
+  expect(proof.semanticReviewInput.actual.observations.audit).toEqual(proof.audit);
+  expect(proof.semanticReviewInput.expected).not.toHaveProperty("observations");
+  expect(proof.semanticReviewInput.expected).not.toHaveProperty("evidenceRoleLayout");
   expect(proof.audit.retiredIds).toEqual([handle.id]);expect(native.entities.size).toBe(0);expect(native.contexts.size).toBe(0);
  }finally{await fixture.close();}
 });
