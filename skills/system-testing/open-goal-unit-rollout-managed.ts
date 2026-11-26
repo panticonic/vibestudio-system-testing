@@ -148,9 +148,8 @@ export async function prepareOpenUnitRollout(
         const unit = selected(id, revision);
         if (!view(unit).mayEdit || state.commit || proposal.length !== 1 || proposal[0]?.path !== targetEntry(unit) ||
             typeof proposal[0].after !== "string" || !proposal[0].after.trim() || proposal[0].after.length > 24_000 ||
-            proposal[0].after === proposal[0].before || !readbacks.some(read => read.id === id && read.revision === revision) ||
-            edits.filter(attempt => attempt.id === id).length >= 3)
-          throw new Error("Apply at most three justified production edits after reading the same current source");
+            proposal[0].after === proposal[0].before || !readbacks.some(read => read.id === id && read.revision === revision))
+          throw new Error("Apply only a justified owned production edit after reading the same current source");
         changing = true;
         try {
           const coedit = await injectRace(unit, "apply");
