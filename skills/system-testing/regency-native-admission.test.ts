@@ -5,7 +5,7 @@ vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:()=>{throw Error
 vi.mock("./regency-fixture-player.js",()=>({bindRegencyFixturePlayer:()=>{throw Error("No live player in component test");}}));
 vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/evidence-handoff-test/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
 import {prepareOpenRegency} from "./open-goal-regency-managed.js";
-async function fixture(caseId:string){
+async function fixture(caseId:string,readCount=2){
  let month=0,pending:any=null;const files=new Map<string,string>();
  const view=()=>({game:{world:{month},programs:{}},pending,painting:false});
  const store={read:async()=>view(),preview:async(months:number)=>({basis:{month},forecast:{month:month+months}})};
@@ -14,7 +14,7 @@ async function fixture(caseId:string){
  const fs={mkdtemp:async()=>"/.tmp/regency-review-test",writeFile:async(path:string,text:string)=>{files.set(path,text);},readdir:async()=>files.has("/.tmp/evidence-handoff-test/handoff.json")?["regency-review-test","evidence-handoff-test"]:["regency-review-test"]};
  const ports={contextId:"ctx",fs,status:async()=>({mainEventId:"main",workingHead:{id:"working"}}),open:async()=>"owned-channel",player:{seat:async()=>{},advance:async(id:string,months:number)=>{month+=months;pending={id};},cancel:async()=>{pending=null;}},readBytes:async(path:string)=>new TextEncoder().encode(files.get(path)??"")};
  const prepared=await prepareOpenRegency({contextId:"ctx",caseId,regencyFixture:{realm:"realm"} as never},installed as never,ports as never);
- const index=await prepared.services.regencyAssignment.list();const opening=await prepared.services.regencySaved.read(index.realm),current=await prepared.services.regencySaved.read(index.realm);
+ const index=await prepared.services.regencyAssignment.list();const opening=await prepared.services.regencySaved.read(index.realm),current=readCount===1?opening:await prepared.services.regencySaved.read(index.realm);
  return{prepared,index,opening:opening!,current:current!};
 }
 it("verifies an alternative claim decomposition against actual native accounts instead of the reference plan",async()=>{
@@ -26,6 +26,7 @@ it("verifies an alternative claim decomposition against actual native accounts i
  expect(await prepared.services.regencyNote.stage({...report,plan:{horizons:[2],claims:[claim],localNote:true,advance:null,treasuryFloor:null},opening,current} as never)).toBeNull();
  const proof=await prepared.verify(report);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
  expect(proof.semanticReviewInput?.actual.requestedReturn).toEqual(report);
+ expect((await prepared.verify({...report,forecasts:[{...forecast,accounts:{...forecast.accounts,treasury:999}}]})).passed).toBe(false);
  expect((await prepared.verify({...report,findings:[{...finding,review:{...finding.review,decision:"supported"}}]})).passed).toBe(false);
  expect((await prepared.verify({...report,findings:[{...finding,review:{...finding.review,evidenceIds:["foreign"]}}]})).passed).toBe(false);
 });
@@ -45,4 +46,36 @@ it("keeps the separately requested mixed conditional-execution finding required"
  const proof=await prepared.verify(undefined);
  expect(proof.outcomeContract.returnedValue.required).toBe(true);
  expect(proof.passed).toBe(false);expect(proof.semanticReviewRequired).toBe(true);
+});
+
+it("returns fresh saved observations after an authorized advance and authenticates historical forecast subsets",async()=>{
+ const {prepared,index,opening,current}=await fixture("regency-briefing-month-advance-and-observed-handoff");
+ const extra=await prepared.services.regencySaved.read(index.realm);expect(extra).toEqual(current);
+ const first=await prepared.services.regencyForecast.preview(index.realm,current.revision,3);
+ expect(first).not.toBeNull();
+ expect(await prepared.services.regencyForecast.preview(index.realm,current.revision,3)).toEqual(first);
+ const advance=await prepared.services.regencyAdvance.commit(index.realm,current.revision,3);expect(advance).not.toBeNull();
+ const fresh=await prepared.services.regencySaved.read(index.realm);expect(fresh).toEqual(advance!.committed);expect(fresh!.accounts.month).toBe(current.accounts.month+3);
+ expect(await prepared.services.regencyForecast.preview(index.realm,current.revision,1)).toBeNull();
+ const next=await prepared.services.regencyForecast.preview(index.realm,fresh!.revision,1);expect(next!.basis).toBe(fresh!.revision);
+ expect(await prepared.services.regencyForecast.preview("foreign",fresh!.revision,1)).toBeNull();
+ expect(await prepared.services.regencyForecast.preview(index.realm,fresh!.revision,4 as never)).toBeNull();
+ expect(await prepared.services.regencyAdvance.commit(index.realm,fresh!.revision,3)).toBeNull();
+ const report={plan:{horizons:[3],claims:[],localNote:true,advance:3,treasuryFloor:75},opening,current,forecasts:[first],findings:[],decision:{action:"advance",explanation:"The authorized three months actually committed; retain the resulting ledger."},advance,note:null};
+ expect(await prepared.services.regencyNote.stage({...report,forecasts:[{...first!,basis:"foreign"}]} as never)).toBeNull();
+ const note=await prepared.services.regencyNote.stage(report as never);expect(note).not.toBeNull();
+ const proof=await prepared.verify({...report,note});expect(proof.checks.exactSavedRegencyFrontiers).toBe(true);expect(proof.passed).toBe(true);
+ const forged=await prepared.verify({...report,note,forecasts:[{...first!,accounts:{...first!.accounts,treasury:999}}]});expect(forged.observedChecks.returnedRegencyForecasts).toBe(false);expect(forged.passed).toBe(true); // Optional root echoes cannot invalidate the independently retained real note.
+});
+it("allows independent readonly forecasts to overlap without treating the second as a mutation",async()=>{
+ const {prepared,index,current}=await fixture("regency-briefing-works-progress-versus-route-flow");
+ const results=await Promise.all([1,2,3].map(months=>prepared.services.regencyForecast.preview(index.realm,current.revision,months as 1|2|3)));
+ expect(results.map(row=>row?.months)).toEqual([1,2,3]);
+ expect(await prepared.services.regencyForecast.preview(index.realm,current.revision,1)).toEqual(results[0]);
+});
+
+it("accepts one authentic current observation when no historical change requires another read",async()=>{
+ const {prepared}=await fixture("regency-briefing-works-progress-versus-route-flow",1);
+ const proof=await prepared.verify({forecasts:[],findings:[],decision:{action:"report",explanation:"This is the current saved receipt."},advance:null,note:null});
+ expect(proof.observedChecks.exactSavedRegencyFrontiers).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
 });

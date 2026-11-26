@@ -130,7 +130,7 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     function account(key:"opening"|"current"|Horizon) {
       if(key==="opening")return opening.accounts;
       if(key==="current")return current.accounts;
-      return projections.find(row=>row.months===key)?.accounts;
+      return projections.find(row=>row.months===key&&row.basis===current.revision)?.accounts;
     }
     if(claim.kind==="settlement") {
       const current=account(claim.source);
@@ -156,7 +156,6 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
     }},
     regencySaved:{async read(key:string){
       if(key!==realm||busy)return null;
-      if(frontiers.length>=2)return structuredClone(frontiers.at(-1)!);
       index??={...initialIndex,memo:await readMemo()};
       busy=true;
       try {
@@ -167,25 +166,24 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       } finally {busy=false;}
     }},
     regencyForecast:{async preview(key:string,basis:string,months:Horizon){
-      const current=frontiers[1];
-      if(key!==realm||!current||basis!==current.revision||busy||claimed||
-        ![1,2,3].includes(months)||forecasts.length>=3||forecasts.some(row=>row.months===months))
+      const current=frontiers.findLast(row=>row.revision===basis);
+      if(key!==realm||!current||busy||
+        ![1,2,3].includes(months))
         return null;
-      busy=true;
-      try {
-        if(revision(await store.read())!==basis)return null;
+      if(revision(await store.read())!==basis)return null;
+        const existing=forecasts.find(row=>row.basis===basis&&row.months===months);
+        if(existing)return structuredClone(existing);
         const result=await preview(months,current);
         forecasts.push(result);
         return structuredClone(result);
-      } finally {busy=false;}
     }},
     regencyAdvance:{async commit(key:string,basis:string,months:Horizon){
-      const current=frontiers[1];
-      if(key!==realm||!current||basis!==current.revision||busy||claimed||months!==world.plan.advance||current.pending)
+      const current=frontiers.findLast(row=>row.revision===basis);
+      if(key!==realm||!current||busy||claimed||months!==world.plan.advance||current.pending)
         return null;
       busy=true;
       try {
-        const proposal=forecasts.find(row=>row.months===months);
+        const proposal=forecasts.find(row=>row.months===months&&row.basis===basis);
         if(!proposal||proposal.accounts.treasury<(world.plan.treasuryFloor??Number.NEGATIVE_INFINITY)||
           revision(await store.read())!==basis)return null;
         const prerequisites=world.plan.claims.filter(claim=>claim.kind==="settlement"&&
@@ -204,12 +202,13 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       if(!world.plan.localNote||note||busy||!report?.decision?.explanation||
         report.note!==null||
         !isDeepStrictEqual(report.advance,advance)||!isDeepStrictEqual(report.opening,frontiers[0])||
-        !isDeepStrictEqual(report.current,frontiers[1])||!isDeepStrictEqual(report.forecasts,forecasts)||
+        !frontiers.some(row=>isDeepStrictEqual(report.current,row))||
+        !Array.isArray(report.forecasts)||!report.forecasts.every(row=>forecasts.some(actual=>isDeepStrictEqual(actual,row)))||
         !Array.isArray(report.findings))return null;
       busy=true;
       try {
         const current=snapshot(await store.read());
-        if(current.revision!==(advance?.committed?.revision??frontiers[1].revision))return null;
+        if(current.revision!==(advance?.committed?.revision??frontiers.at(-1)!.revision))return null;
         try {
           if (!report.findings.every(item => matchesNativeRegencyFinding(item,
             finding(item.claim, report.opening, report.current, report.forecasts)))) return null;
@@ -227,25 +226,31 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
   async function verify(raw:unknown,invocation?:InvocationObservations) {
     const report=raw as RegencyReport|null;
     const outcome=report;
-    const [opening,current]=frontiers;
+    const opening=frontiers[0],current=advance?frontiers.find(row=>row.revision===advance!.basis):frontiers.at(-1);
     const currentExpected=world.initial.month+(world.initial.between??0);
     const after=snapshot(await store.read());
     const result=outcome?.decision;
-    const selectedForecast=forecasts.find(row=>row.months===world.plan.advance);
-    const nativeVerification=advance||!current?[]:await Promise.all(forecasts.map(row=>preview(row.months,current)));
+    const selectedForecast=forecasts.find(row=>row.months===world.plan.advance&&row.basis===(advance?.basis??current?.revision));
+    // Every projection was produced by preview() against a physical saved revision at issuance.
+    // Replaying an old projection against today's state would change its historical meaning.
+    const nativeForecastsValid=forecasts.every(row=>row.realm===realm&&frontiers.some(scope=>
+      scope.revision===row.basis&&row.accounts.month===scope.accounts.month+row.months));
+    function witnessedFinding(item:RegencyFinding) {
+      for(const scope of frontiers) {
+        const expected=finding(item.claim,opening,scope,forecasts);
+        if(matchesNativeRegencyFinding(item,expected))return {claim:item.claim,
+          request:evidence(item.claim,opening,scope,forecasts),result:expected};
+      }
+      return null;
+    }
     const witnesses=opening&&current&&Array.isArray(outcome?.findings)?outcome.findings.flatMap(item=>{
-      try {
-        return [{claim:item.claim,request:evidence(item.claim,opening,current,forecasts),
-          result:finding(item.claim,opening,current,forecasts)}];
-      } catch { return []; }
+      try {const witness=witnessedFinding(item);return witness?[witness]:[];} catch{return [];}
     }):[];
     const nativeGroundedRegencyFindings = Array.isArray(outcome?.findings) &&
-      !!opening && !!current && witnesses.length === outcome.findings.length &&
-      outcome.findings.every((item,index)=>matchesNativeRegencyFinding(item,witnesses[index]!.result));
+      !!opening && !!current && witnesses.length === outcome.findings.length;
     const findingChecks=Object.fromEntries((Array.isArray(outcome?.findings)?outcome.findings:[]).map((item,index)=>[
       `nativeRegencyFinding${index}`,!!opening&&!!current&&(()=>{
-        try { return matchesNativeRegencyFinding(item,finding(item.claim,opening,current,forecasts)); }
-        catch { return false; }
+        try {return witnessedFinding(item)!==null;}catch{return false;}
       })(),
     ]));
     const neededAdvance=world.action==="advance"?world.plan.advance??0:0;
@@ -259,11 +264,11 @@ export async function prepareOpenRegency(input:Input,installed:Installed,injecte
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.note,note),
       exactRegencyAssignment:index?.realm===realm,
       independentlyReadRegencyMemo:!!index&&isDeepStrictEqual(index.memo,await readMemo()),
-      exactSavedRegencyFrontiers:frontiers.length===2&&isDeepStrictEqual(opening,first)&&opening.accounts.month===world.initial.month&&
+      exactSavedRegencyFrontiers:frontiers.length>=1&&!!current&&isDeepStrictEqual(opening,first)&&opening.accounts.month===world.initial.month&&
         current.accounts.month===currentExpected&&!!current.pending===(world.initial.pending===true),
-      returnedRegencyForecasts:isDeepStrictEqual(forecasts,outcome?.forecasts),
-      exactRegencyForecasts:forecasts.every(row=>row.basis===current.revision&&row.realm===realm)&&
-        (advance?!!selectedForecast:isDeepStrictEqual(forecasts,nativeVerification)),
+      returnedRegencyForecasts:Array.isArray(outcome?.forecasts)&&outcome.forecasts.every(row=>
+        forecasts.some(actual=>isDeepStrictEqual(actual,row))),
+      exactRegencyForecasts:nativeForecastsValid&&(advance?!!selectedForecast:true),
       nativeGroundedRegencyFindings,
       groundedRegencyAction:!!result && ["report","hold","stage","advance"].includes(result.action) &&
         typeof result.explanation==="string" && result.explanation.trim().length>0,

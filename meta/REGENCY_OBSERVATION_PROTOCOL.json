@@ -1,0 +1,41 @@
+{
+  "mechanism": "Owned native saved observation and projection history, not private two-read/three-preview route",
+  "inventory": [
+    "regencySaved.read",
+    "regencyForecast.preview",
+    "regencyAdvance.commit",
+    "regencyNote.stage",
+    "evidence numeric-horizon resolution",
+    "verify witnesses/forecast/advance checks",
+    "qualify reference path"
+  ],
+  "corrections": [
+    "Saved reads refresh actual store after every authorized effect",
+    "One real observation suffices where no historical change needs another",
+    "Independent forecasts overlap and repeated same-basis queries reuse authentic completed evidence",
+    "Forecast selection always joins actual basis and horizon",
+    "Returned projections may be authentic subsets of observed history",
+    "Notes may use authentic issued account receipts and projection subsets",
+    "Findings bind actual issued accounts and basis-specific native projections"
+  ],
+  "preserved": [
+    "Assigned realm/context",
+    "Physical current revision and saved projection basis check",
+    "Native horizons 1|2|3",
+    "One user-authorized advance, duration, prerequisites, treasury floor and no pending turn",
+    "Actual native committed physics",
+    "Scratch retained bytes/digest and protected workspace",
+    "Mandatory meaning review judges requested completeness and current-vs-historical meaning"
+  ],
+  "tests": {
+    "unit": "vibe-regency-observation-protocol-20261126d",
+    "passed": 11,
+    "physicalNativeEngine": false,
+    "semanticGoalReviewExecuted": false
+  },
+  "remaining": [
+    "Larger NL root actual public loader proof pending independently",
+    "Existing note byte-resource ceiling still to audit against underlying scratch writer",
+    "Other four namespace-no-write predicates separately inventoried, not declared universally defective"
+  ]
+}
