@@ -1,3 +1,4 @@
+import {eligiblePhoneDesktops} from "@workspace-skills/phone-setup/eligibility";
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { expect, it, vi } from "vitest";
 import { preparePhoneFirstRun } from "./open-goal-phone-first-run-managed.js";
@@ -51,7 +52,7 @@ it("accepts repeated identical native read observations without admitting a pair
   await expect(prepared.services.phoneFirstRun.inspect(prior.assignment.id)).resolves.toEqual(prior.assignment);
   expect((await prepared.verify(prior.report)).passed).toBe(true);
   await expect(prepared.services.phoneSetupPair.provision()).rejects.toThrow("no preparation, installation or pairing authority");
-  expect((await prepared.verify(prior.report)).passed).toBe(false);
+  const refused=await prepared.verify(prior.report);expect(refused.outcomeDimensions.effects.passed).toBe(true);expect(refused.checks.noRefusedPhoneOperations).toBe(false);expect(refused.semanticReviewRequired).toBe(true);
 });
 
 it("requires the requested shell sign-off finding while preserving actual assigned phases and readonly custody",async()=>{
@@ -89,8 +90,35 @@ it("requires the requested shell sign-off finding while preserving actual assign
  expect(actual.outcomeDimensions.effects.passed).toBe(true);expect(actual.outcomeDimensions.returnedValue.passed).toBe(true);
  expect(actual.phases.status).toBe("await-connection");expect(actual.phases.observedShell).toBe(true);expect(actual.phases.observedConnection).toBe(false);
  expect(actual.semanticReviewRequired).toBe(true);expect(actual.semanticReviewInput!.actual.requestedReturn).toBe(answer);
- expect(actual.semanticReviewInput!.actual.observations).toEqual({card:actual.card,assignment:actual.assignment,phases:actual.phases,build:actual.build,journal:actual.journal});
+ expect(actual.semanticReviewInput!.actual.observations).toEqual({card:actual.card,assignment:actual.assignment,phases:actual.phases,build:actual.build,journal:actual.journal,refusedOperations:actual.refusedOperations});
  expect((await prepared.verify("")).outcomeDimensions.returnedValue.passed).toBe(false);
  expect((await prepared.verify({action:"inspect-native-evidence",reason:"shell"})).outcomeDimensions.returnedValue.passed).toBe(false);
- await expect(prepared.services.phoneSetupPair.provision()).rejects.toThrow();expect((await prepared.verify(answer)).outcomeDimensions.effects.passed).toBe(false);
+ await expect(prepared.services.phoneSetupPair.provision()).rejects.toThrow();const refused=await prepared.verify(answer);expect(refused.outcomeDimensions.effects.passed).toBe(true);expect(refused.refusedOperations.at(-1)).toMatchObject({service:"phoneSetupPair",method:"provision"});expect(refused.semanticReviewRequired).toBe(true);
+});
+
+async function makePhoneFixture(world:typeof openPhoneFirstRunWorlds[number]){
+ let version="baseline";const actualStarts=vi.fn(async()=>({receipt:"resume",pairedDeviceId:""}));
+ const prepared=await preparePhoneFirstRun({contextId:"owned",caseId:world.id},world,{
+  contextId:"owned",vcs:{status:async()=>({mainEventId:version,workingHead:{kind:"event",eventId:version}}),resolveRepository:async({repoPath}:{repoPath:string})=>({repoPath,repositoryId:repoPath}),readFile:async({repositoryId}:{repositoryId:string})=>({content:{kind:"text",text:JSON.stringify(repositoryId==="clients/mobile-browser"?{vibestudio:{client:{id:"browser",runtime:"react-native",hostAbi:"test-abi"}}}:{name:"@workspace-extensions/react-native"})},contentHash:repositoryId})},
+  workspacePhoneReadiness:()=>({state:world.expected.ready??"opening"}),
+  eligiblePhoneDesktops,
+  bindPhoneSetup:async(assignment:{paired:{deviceId:string}})=>({request:{goal:world.goal,operationId:"owned-native-operation"},services:{phoneSetupRead:{start:async()=>{actualStarts();return{receipt:"resume",pairedDeviceId:assignment.paired.deviceId}},readiness:async()=>({receipt:"readback",state:world.expected.ready??"opening"})}}}),
+ }as never);
+ return{prepared,actualStarts,changeWorkspace(){version="changed"}};
+}
+for(const world of openPhoneFirstRunWorlds)it(`retains actual phone reference authority and required answer: ${world.id}`,async()=>{
+ const {prepared}=await makePhoneFixture(world);const reference=await prepared.qualify();expect(reference.passed).toBe(true);
+ expect((await prepared.verify("")).outcomeDimensions.returnedValue.passed).toBe(false);
+});
+it("a refused read has no operation effect and remains bound into mandatory review",async()=>{
+ const world=openPhoneFirstRunWorlds.find(w=>w.id==="phone-first-run-compatible-package-setup-only")!;
+ const {prepared,actualStarts,changeWorkspace}=await makePhoneFixture(world);
+ const reference=await prepared.qualify();expect(reference.assignment.setupRequest).toBeNull();
+ await expect(prepared.services.phoneSetupRead.start("invented-operation")).rejects.toThrow("no preparation");
+ expect(actualStarts).not.toHaveBeenCalled();
+ const answer="The compatible release package is already retained. Pair it with the eligible desktop and verify connection and workspace readiness next; do not reinstall or request a source build.";
+ const proof=await prepared.verify(answer);expect(proof.outcomeDimensions.effects.passed).toBe(true);expect(proof.outcomeDimensions.returnedValue.passed).toBe(true);
+ expect(proof.checks.noRefusedPhoneOperations).toBe(false);expect(proof.refusedOperations).toEqual([{service:"phoneSetupRead",method:"start",reason:"The owned phone rehearsal has no preparation, installation or pairing authority"}]);
+ expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput!.actual.observations.refusedOperations).toEqual(proof.refusedOperations);
+ changeWorkspace();expect((await prepared.verify(answer)).outcomeDimensions.effects.passed).toBe(false);
 });

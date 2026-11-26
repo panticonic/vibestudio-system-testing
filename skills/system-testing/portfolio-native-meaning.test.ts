@@ -3,7 +3,7 @@ vi.mock('@workspace/runtime',()=>({contextId:null,fs:{},panelTree:{},rpc:{},vcs:
 vi.mock('./session-replay-managed.js',()=>({createOwnedHeadlessChannel:()=>{throw Error('No live channel in component control')}}));
 vi.mock('./scratch-handoff-managed.js',()=>({readWorkspaceBytes:()=>{throw Error('No live read in component control')}}));
 vi.mock('./regency-fixture-player.js',()=>({bindRegencyFixturePlayer:()=>{throw Error('No live player in component control')}}));
-vi.mock('@workspace-skills/scratch-handoff-bindings',()=>({bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{await fs.writeFile('/.tmp/evidence-handoff-test/handoff.json',text);return{path:'/.tmp/evidence-handoff-test/handoff.json'}}}})}));
+vi.mock('@workspace-skills/scratch-handoff-bindings',async()=>({...await vi.importActual<Record<string,unknown>>('@workspace-skills/scratch-handoff-bindings'),bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{await fs.writeFile('/.tmp/evidence-handoff-test/handoff.json',text);return{path:'/.tmp/evidence-handoff-test/handoff.json'}}}})}));
 import {prepareOpenPortfolio} from './open-goal-portfolio-managed.js';
 import {openPortfolioWorlds} from './open-goal-portfolio-worlds.js';
 const scope='11111111-1111-4111-8111-111111111111';
@@ -57,6 +57,11 @@ it('preserves conditional write authority and actual retained artifact bytes',as
  const f=await fixture('one-phase-cannot-pass-dawn');const report={...await answer(f),projection:null,decision:{status:'ready',write:true,explanation:'Invented readiness must not confer stage authority.'}};
  expect(await f.prepared.services.demoPortfolioHandoff.stage(report as never)).toBeNull();
  const audit=await fixture('repeat-visit-and-untallied-ferry');const actual={...await answer(audit),projection:null,decision:{status:'blocked',write:true,explanation:'Actual native diagnostic.'}};
- expect(await audit.prepared.services.demoPortfolioHandoff.stage({...actual,decision:{...actual.decision,explanation:'x'.repeat(25*1024)}} as never)).toBeNull();
+ expect(await audit.prepared.services.demoPortfolioHandoff.stage({...actual,decision:{...actual.decision,explanation:'x'.repeat(65*1024)}} as never)).toBeNull();
  const receipt=await audit.prepared.services.demoPortfolioHandoff.stage(actual as never);expect(receipt).not.toBeNull();audit.files.set(receipt!.path,'tampered');expect((await audit.prepared.verify(undefined)).checks.verifiedPrivatePortfolioHandoff).toBe(false);
+});
+
+it('uses the real canonical64KiB Native artifact boundary, without a private24KiB rejection',async()=>{
+ const f=await fixture('repeat-visit-and-untallied-ferry');const report={...await answer(f),projection:null,decision:{status:'blocked',write:true,explanation:'Actual private diagnostic. '.repeat(1200)}};
+ const receipt=await f.prepared.services.demoPortfolioHandoff.stage(report as never);expect(receipt).not.toBeNull();const proof=await f.prepared.verify(undefined);expect(proof.checks.verifiedPrivatePortfolioHandoff).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
 });

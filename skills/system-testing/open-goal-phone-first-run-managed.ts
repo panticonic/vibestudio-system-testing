@@ -1,6 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["card","assignment","phases","build","journal"],[]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["card","assignment","phases","build","journal","refusedOperations"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { workspaceReadinessFromLog } from "@vibestudio/shared/mobileWorkspaceReadiness";
@@ -223,25 +223,26 @@ export async function preparePhoneFirstRun(
           ? ("foreign-workspace" as const)
           : ("owned" as const);
   let unwantedOperations = 0;
-  const denied = async (): Promise<never> => {
+  const refusedOperations: {service:string;method:string;reason:string}[]=[];
+  const denied = async (service:string,method:string): Promise<never> => {
     unwantedOperations++;
-    throw new Error(
-      "The owned phone rehearsal has no preparation, installation or pairing authority",
-    );
+    const reason="The owned phone rehearsal has no preparation, installation or pairing authority";
+    refusedOperations.push({service,method,reason});
+    throw new Error(reason);
   };
   const ready = ports.workspacePhoneReadiness(visibleSession(world));
   const bound = await ports.bindPhoneSetup(
     { goal: world.goal, paired: { deviceId: targetId, platform } },
     {
       client: {
-        providers: denied,
-        prepare: denied,
-        devices: denied,
-        provision: denied,
-        waitForWorkspace: denied,
+        providers: (..._args:unknown[]) => denied("phoneSetupClient","providers"),
+        prepare: (..._args:unknown[]) => denied("phoneSetupClient","prepare"),
+        devices: (..._args:unknown[]) => denied("phoneSetupClient","devices"),
+        provision: (..._args:unknown[]) => denied("phoneSetupClient","provision"),
+        waitForWorkspace: (..._args:unknown[]) => denied("phoneSetupClient","waitForWorkspace"),
         readiness: async (target) => {
           if (paired !== "owned" || target !== priorPairing?.deviceId)
-            return denied();
+            return denied("phoneSetupClient","readiness");
           return ready;
         },
       },
@@ -352,7 +353,7 @@ export async function preparePhoneFirstRun(
     phoneFirstRun: service,
     phoneSetupRead: {
       async start(operation: string) {
-        if (paired !== "owned") return denied();
+        if (paired !== "owned") return denied("phoneSetupRead","start");
         return keep(
           "phoneSetupRead",
           "start",
@@ -360,9 +361,9 @@ export async function preparePhoneFirstRun(
           await bound.services.phoneSetupRead.start(operation),
         );
       },
-      discover: denied,
+      discover: (..._args:unknown[]) => denied("phoneSetupRead","discover"),
       async readiness(receipt: string) {
-        if (paired !== "owned") return denied();
+        if (paired !== "owned") return denied("phoneSetupRead","readiness");
         return keep(
           "phoneSetupRead",
           "readiness",
@@ -371,8 +372,8 @@ export async function preparePhoneFirstRun(
         );
       },
     },
-    phoneSetupPrepare: { prepare: denied },
-    phoneSetupPair: { provision: denied },
+    phoneSetupPrepare: { prepare: (..._args:unknown[]) => denied("phoneSetupPrepare","prepare") },
+    phoneSetupPair: { provision: (..._args:unknown[]) => denied("phoneSetupPair","provision") },
   };
   type ReadyReport = {
     status: string;
@@ -449,18 +450,18 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
         build.abi === build.expectedAbi &&
         build.providerPackage === "@workspace-extensions/react-native" &&
         match("phoneFirstRun", "provider", [id], build),
+      noRefusedPhoneOperations: unwantedOperations===0,
       returnedPhoneDecision: typeof outcome==="string"&&!!outcome.trim(),
       matchedReadOnlyPhoneDisposition:
         after.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(after.workingHead, baseline.workingHead) &&
-        unwantedOperations === 0 &&
         (paired === "owned" || journal.every(({ service }) => service !== "phoneSetupRead")),
     };
     return {
       outcomeContract: {
         effects: {checks:["exactPhoneDesktopEligibility", "preservedOwnedPairing", "exactScopedMobileDebugPhases", "exactInstalledReactNativeDeclaration", "matchedReadOnlyPhoneDisposition"],rationale:"Native pairing, installed declaration, phases and unchanged workspace are independent facts."},
         returnedValue: {checks:["returnedPhoneDecision"],required:true,rationale:"The user asks for the safe next phone setup step."},
-        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+        incidentalValues: {checks:["noRefusedPhoneOperations"],rationale:"Refused requests throw before any operation; preserve these attempts for meaning review and actual action eligibility, without treating them as effects."},
       },
       incorrectReturnValues:[],
       contextId: input.contextId,
@@ -474,6 +475,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       build,
       journal: structuredClone(journal),
       unwantedOperations,
+      refusedOperations: structuredClone(refusedOperations),
     };
   }
   async function qualify() {
