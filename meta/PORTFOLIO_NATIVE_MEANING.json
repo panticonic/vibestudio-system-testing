@@ -1,0 +1,37 @@
+{
+  "mechanism": "Demo portfolio semantic composition and native versus reference outcome separation",
+  "symptom": "Recognition-is-not-relocation native state passes; actual Pip display name versus private pip criterion makes deep equality fail despite correct claim.",
+  "producers": [
+    "Base skills/open-user-goal/workOnDemoPortfolio.ts and nested NL reviewers",
+    "SST open-goal-portfolio-managed.ts services/verify/qualify",
+    "SST open-goal-portfolio-worlds.ts all26 literal goals",
+    "Examples open-demo-portfolio typed native ports and examples-review hierarchy"
+  ],
+  "consumers": [
+    "Base entries.json and entriesGenerated.ts/natlang.json",
+    "Host observed-content admission map demo-portfolio: index frames projection garden realm +artifact",
+    "Base application-outcomes bound whole-goal review and contribution masks",
+    "SST native suite requiresReview metadata",
+    "Python/Node native trajectory readers consume unchanged outcome contract"
+  ],
+  "scope": [
+    "Model-owned root/investigation chooses real observations, forecasts and review composition",
+    "Allow repeated fresh native reads/forecasts without replaying scenario changes",
+    "Replace gold criteria/status/route/method-count predicates with native custody/effects and mandatory actual-goal meaning review",
+    "Retain real physics, current authority/head/card/CAS, byte bounds, native projections and requested private handoff; separate reference oracle from actor results"
+  ],
+  "excluded": [
+    {
+      "component": "Model engines/runtime SDKs",
+      "reason": "No serving/IR schema or model protocol changes; semantic program and application outcome producers only."
+    },
+    {
+      "component": "Strict Examples reviewers/oracles",
+      "reason": "Their explicit typed criterion contract remains useful; open goal may choose semantically equivalent criteria. Private reference outputs cannot define whole goal completion."
+    },
+    {
+      "component": "Existing trajectories",
+      "reason": "Immutable originals preserved; any recovery requires separate source-bound reassessment and actual admission review."
+    }
+  ]
+}
