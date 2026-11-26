@@ -24,6 +24,7 @@ type Unit =
   | "extensions/react-native"
   | "extensions/typecheck-service";
 type Profile = {
+  requestedReturnRequired: boolean;
   mode: Mode;
   unit: Unit;
   document: string;
@@ -57,6 +58,7 @@ export const openSystemCandidateWorlds = [
     "Desktop Startup Review",
     "We added a local startup hint while upstream adjusted the retry line for Desktop Startup Review. Figure out whether both belong in the same candidate and leave me a private diagnosis.",
     {
+      requestedReturnRequired: false,
       unit: "clients/desktop-browser",
       document: "startup-notes.md",
       mode: "compose",
@@ -71,6 +73,7 @@ export const openSystemCandidateWorlds = [
     "Mobile Sign-in Cue",
     "Check Mobile Sign-in Cue. The local and incoming drafts might already use the same confirmation wording. Tell me here whether we need to choose between them.",
     {
+      requestedReturnRequired: true,
       unit: "clients/mobile-browser",
       document: "sign-in-cue.md",
       mode: "same",
@@ -85,6 +88,7 @@ export const openSystemCandidateWorlds = [
     "Terminal Keys",
     "Verify the Terminal Keys upstream change against the local working copy before anyone applies it. Leave an internal review note if there was no competing local edit.",
     {
+      requestedReturnRequired: false,
       unit: "clients/chat-terminal",
       document: "key-aid.md",
       mode: "incoming",
@@ -99,6 +103,7 @@ export const openSystemCandidateWorlds = [
     "Device Retry Guide",
     "Someone changed the retry instruction in our Device Retry Guide while the incoming candidate changed it too. Find the competing revision and leave a private note for the owner to choose.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/mobile-debug",
       document: "retry-guide.md",
       mode: "overlap",
@@ -113,6 +118,7 @@ export const openSystemCandidateWorlds = [
     "Native Build Hints",
     "The incoming Native Build Hints candidate drops a file. We still maintain it locally. Determine whether the removal conflicts with local work before doing anything.",
     {
+      requestedReturnRequired: true,
       unit: "extensions/react-native",
       document: "build-hints.md",
       mode: "delete-edit",
@@ -127,6 +133,7 @@ export const openSystemCandidateWorlds = [
     "Old Typecheck Checklist",
     "Can we consider retiring the Old Typecheck Checklist in the incoming version? Check whether the local copy had any edits and keep a private record of what you observe.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/typecheck-service",
       document: "checklist-old.md",
       mode: "delete",
@@ -141,6 +148,7 @@ export const openSystemCandidateWorlds = [
     "Desktop Icon Reminder",
     "Tell me why the staged Desktop Icon Reminder cannot be reconciled from a text preview. Don't guess what an unavailable revision contains.",
     {
+      requestedReturnRequired: true,
       unit: "clients/desktop-browser",
       document: "icon-reminder.dat",
       mode: "binary",
@@ -155,6 +163,7 @@ export const openSystemCandidateWorlds = [
     "Mobile Warm Start Notes",
     "The candidate for Mobile Warm Start Notes is much longer than our ordinary prose. Check whether the file views are complete enough to make a call, and save a private note if blocked.",
     {
+      requestedReturnRequired: false,
       unit: "clients/mobile-browser",
       document: "warm-start-notes.md",
       mode: "oversize",
@@ -169,6 +178,7 @@ export const openSystemCandidateWorlds = [
     "Window Retry Card",
     "Please keep a private finding about Window Retry Card only if the observed System review is still current. Another operator may have restaged it while we work.",
     {
+      requestedReturnRequired: false,
       unit: "clients/desktop-browser",
       document: "window-retry.md",
       mode: "compose",
@@ -184,6 +194,7 @@ export const openSystemCandidateWorlds = [
     "Terminal Clipboard Review",
     "I need an answer about the clipboard guidance specifically. Its neighboring package note may be clean, but check the edited Clipboard Review file itself before recommending any automatic action.",
     {
+      requestedReturnRequired: true,
       unit: "clients/chat-terminal",
       document: "clipboard-guidance.md",
       mode: "overlap",
@@ -198,6 +209,7 @@ export const openSystemCandidateWorlds = [
     "Toolchain Rationale",
     "For Toolchain Rationale, keep a local note if the two sides really made the same change. The owner will review that before touching the candidate.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/typecheck-service",
       document: "toolchain-rationale.md",
       mode: "same",
@@ -212,6 +224,7 @@ export const openSystemCandidateWorlds = [
     "Quick Connect Review",
     "Check Quick Connect Review and leave a private summary only if this review retained write authority. I still need your assessment even if the owner granted inspection alone.",
     {
+      requestedReturnRequired: true,
       unit: "extensions/mobile-debug",
       document: "connect-instructions.md",
       mode: "incoming",
@@ -226,6 +239,7 @@ export const openSystemCandidateWorlds = [
     "Native Screenshot Notes",
     "Two independent edits improve Native Screenshot Notes. Tell me whether both can be carried forward without starting a build or applying the candidate.",
     {
+      requestedReturnRequired: true,
       unit: "extensions/react-native",
       document: "capture-notes.md",
       mode: "compose",
@@ -240,6 +254,7 @@ export const openSystemCandidateWorlds = [
     "Offline Welcome Draft",
     "Our local change adds the edge case to Offline Welcome Draft, but the staged source removes it. Prepare a private report so the owner can preserve the exact evidence.",
     {
+      requestedReturnRequired: false,
       unit: "clients/mobile-browser",
       document: "offline-welcome.md",
       mode: "delete-edit",
@@ -254,6 +269,7 @@ export const openSystemCandidateWorlds = [
     "Larger Type Help",
     "The incoming Larger Type Help changes a line according to the release note. The terminal owner says that edit is already in the working review. Use the exact file sides to settle it.",
     {
+      requestedReturnRequired: true,
       unit: "clients/chat-terminal",
       document: "larger-type-help.md",
       mode: "same",
@@ -268,6 +284,7 @@ export const openSystemCandidateWorlds = [
     "Device Archive Sheet",
     "The old Device Archive Sheet is absent from the incoming release. Check whether it was left untouched locally. I only need a direct recommendation here.",
     {
+      requestedReturnRequired: true,
       unit: "extensions/mobile-debug",
       document: "device-archive.md",
       mode: "delete",
@@ -282,6 +299,7 @@ export const openSystemCandidateWorlds = [
     "Typecheck Receipt Text",
     "Keep a proof for the Typecheck Receipt Text owner about whether the incoming wording is isolated. Do not apply it or touch the installed System.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/typecheck-service",
       document: "receipt-text.md",
       mode: "incoming",
@@ -296,6 +314,7 @@ export const openSystemCandidateWorlds = [
     "Metro Start Checklist",
     "Record what the current Metro Start Checklist would do only while the named coordinate still belongs to the staged review. If it moves during the check, stop at the new revision.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/react-native",
       document: "metro-start.md",
       mode: "overlap",
@@ -311,6 +330,7 @@ export const openSystemCandidateWorlds = [
     "Gesture Cue Asset",
     "The published-looking Gesture Cue Asset is a private staged file. Inspect the real sides and leave a local explanation only if display data cannot reliably be treated as text.",
     {
+      requestedReturnRequired: false,
       unit: "clients/mobile-browser",
       document: "gesture-cue.dat",
       mode: "binary",
@@ -325,6 +345,7 @@ export const openSystemCandidateWorlds = [
     "Retry Timing Review",
     "An earlier note calls Retry Timing Review a clean merge. Compare the exact retry timing file to see whether the same line changed for two different reasons. Keep a private finding.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/typecheck-service",
       document: "retry-timing.md",
       mode: "overlap",
@@ -339,6 +360,7 @@ export const openSystemCandidateWorlds = [
     "Desktop Activity Card",
     "Desktop Activity Card gained a local opening label and a separate incoming fallback. Keep a private record if the latest exact base/local/incoming view supports retaining both.",
     {
+      requestedReturnRequired: false,
       unit: "clients/desktop-browser",
       document: "activity-card.md",
       mode: "compose",
@@ -353,6 +375,7 @@ export const openSystemCandidateWorlds = [
     "Quiet Device Orientation",
     "Quiet Device Orientation is missing from the incoming material. The operator may have rewritten the local copy after the base. Decide whether removal needs a person, and answer without a file.",
     {
+      requestedReturnRequired: true,
       unit: "extensions/mobile-debug",
       document: "quiet-orientation.md",
       mode: "delete-edit",
@@ -367,6 +390,7 @@ export const openSystemCandidateWorlds = [
     "Terminal Support Transcript",
     "I have three copies of Terminal Support Transcript, but one might exceed the usable comparison window. Before drafting a note, tell me what the available preview actually proves.",
     {
+      requestedReturnRequired: true,
       unit: "clients/chat-terminal",
       document: "support-transcript.md",
       mode: "oversize",
@@ -381,6 +405,7 @@ export const openSystemCandidateWorlds = [
     "Native Build Stage",
     "Please keep the Native Build Stage handoff only if the original review remains the active one all the way to the last check. Another incoming observation may have moved the frontier.",
     {
+      requestedReturnRequired: false,
       unit: "extensions/react-native",
       document: "build-stage.md",
       mode: "incoming",

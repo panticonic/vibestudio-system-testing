@@ -24,6 +24,7 @@ function brief(
   workspace: "system" | "examples",
   label: string,
   goal: string,
+  requestedReturnRequired: boolean,
   kinds: ScaffoldKind[],
   disposition: Disposition = "prepare",
   occupied?: string,
@@ -37,6 +38,7 @@ function brief(
     label,
     goal,
     kinds,
+    requestedReturnRequired,
     disposition,
     occupied,
     canDraft: disposition !== "hold-authority" && disposition !== "advise-only",
@@ -49,7 +51,7 @@ export const openScaffoldWorlds = [
     "system",
     "Approval Dashboard",
     "Give Approval Dashboard a new local React panel starter. It needs no service calls or portable website. Stop once the draft exists.",
-    ["react"],
+    false, ["react"],
   ),
   brief(
     "dispatch-two-surfaces",
@@ -57,7 +59,7 @@ export const openScaffoldWorlds = [
     "system",
     "Dispatch Screen",
     "Prepare a React Dispatch Screen that can be mounted as a workspace panel and has a separate portable browser entry. Leave both entry points in a draft only.",
-    ["react-site"],
+    false, ["react-site"],
   ),
   brief(
     "retained-svelte-tour",
@@ -65,7 +67,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Living Tour Notes",
     "The Living Tour Notes maintainer uses the installed Examples Svelte toolkit. Prepare a native panel starter that inherits that framework, then confirm its draft source.",
-    ["svelte"],
+    false, ["svelte"],
   ),
   brief(
     "svelte-portable-exhibit",
@@ -73,7 +75,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Exhibit Guide",
     "Prepare the installed Svelte starter for Exhibit Guide. The team also needs a portable site entry in the same draft so they can later test its view without launching a workspace.",
-    ["svelte-site"],
+    false, ["svelte-site"],
   ),
   brief(
     "svelte-required-system",
@@ -81,7 +83,7 @@ export const openScaffoldWorlds = [
     "system",
     "Svelte Lab Display",
     "Svelte Lab Display must start on the installed Svelte stack. Check availability first and pause if this System workspace has no such starter.",
-    ["svelte"],
+    false, ["svelte"],
     "hold-unavailable",
   ),
   brief(
@@ -90,7 +92,7 @@ export const openScaffoldWorlds = [
     "system",
     "Health Echo",
     "Leave a safe starter for Health Echo, a worker that should only return one health response per request. It must not need durable state or any production activity.",
-    ["stateless"],
+    false, ["stateless"],
   ),
   brief(
     "persistent-caretaker",
@@ -98,7 +100,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Caretaker Inbox",
     "Prepare a worker for Caretaker Inbox with an agent that can resume its own conversation and a native test suite for its worker behavior. Leave it ready for later review without starting the agent.",
-    ["agentic"],
+    false, ["agentic"],
   ),
   brief(
     "shared-formatting-library",
@@ -106,7 +108,7 @@ export const openScaffoldWorlds = [
     "system",
     "Shared Formatter",
     "Create an editable starter for Shared Formatter that other units can import. It should be a library with a public entry and no executable workspace startup.",
-    ["package"],
+    false, ["package"],
   ),
   brief(
     "reusable-briefing-instructions",
@@ -114,7 +116,7 @@ export const openScaffoldWorlds = [
     "system",
     "Briefing Playbook",
     "Prepare the starting files for Briefing Playbook as instructions other agents can invoke. Verify the human-readable skill outline and its own package remain in the draft.",
-    ["skill"],
+    false, ["skill"],
   ),
   brief(
     "content-only-room",
@@ -122,7 +124,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Field Notes Folder",
     "Create a plain workspace project for Field Notes Folder so someone can organize documents. Keep the starter content-only, with no runtime package or executable entry.",
-    ["content"],
+    false, ["content"],
   ),
   brief(
     "isolated-browser-client",
@@ -130,7 +132,7 @@ export const openScaffoldWorlds = [
     "system",
     "Browser Kiosk Starter",
     "I need Browser Kiosk Starter as a thin workspace browser client, with an HTML boot surface and the canonical web host ABI. Do not register it globally.",
-    ["web-client"],
+    false, ["web-client"],
   ),
   brief(
     "keyboard-first-console",
@@ -138,7 +140,7 @@ export const openScaffoldWorlds = [
     "system",
     "Shift Console",
     "Draft Shift Console as a workspace client for the terminal host. It needs a native terminal entry and should remain unregistered until we review it.",
-    ["terminal-client"],
+    false, ["terminal-client"],
   ),
   brief(
     "mobile-workspace-starter",
@@ -146,7 +148,7 @@ export const openScaffoldWorlds = [
     "system",
     "Pocket Status",
     "Prepare Pocket Status as a React Native workspace client with the installed mobile host ABI. Keep it a draft and report any authority requested by that default host contract.",
-    ["native-client"],
+    true, ["native-client"],
   ),
   brief(
     "library-plus-stateless-endpoint",
@@ -154,7 +156,7 @@ export const openScaffoldWorlds = [
     "system",
     "Formatter and Endpoint",
     "Prepare the Formatter and Endpoint starters together. I want the reusable library first and a thin request-only worker second. Keep both in the same review draft.",
-    ["package", "stateless"],
+    false, ["package", "stateless"],
   ),
   brief(
     "operator-playbook-and-notes",
@@ -162,7 +164,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Onboarding Pack",
     "Leave an Onboarding Pack with one reusable agent skill first and one plain workspace document project second. I only need verified starter files.",
-    ["skill", "content"],
+    false, ["skill", "content"],
   ),
   brief(
     "advice-only-runtime",
@@ -170,7 +172,7 @@ export const openScaffoldWorlds = [
     "system",
     "Box Office Operator",
     "For Box Office Operator help choose a durable agent worker that could retain its conversation and have a native test. I want the recommendation in chat and no new files.",
-    ["agentic"],
+    true, ["agentic"],
     "advise-only",
   ),
   brief(
@@ -179,7 +181,7 @@ export const openScaffoldWorlds = [
     "system",
     "Inventory Charts",
     "Please prepare a minimal React panel for Inventory Charts if the owner has granted the native draft. Hold the preparation if we still have read access only.",
-    ["react"],
+    false, ["react"],
     "hold-authority",
   ),
   brief(
@@ -188,7 +190,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Welcome Starter Revision",
     "Check whether the Welcome Starter Revision can create a new React panel at the assigned welcome path. Keep the existing welcome panel if that path is already owned.",
-    ["react"],
+    true, ["react"],
     "hold-occupied",
     "welcome",
   ),
@@ -198,7 +200,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Reader Pair Starter",
     "Prepare Reader Pair Starter as a Svelte workspace panel and then its separate shared library. Keep the two outputs in one draft, and read their actual files back.",
-    ["svelte", "package"],
+    false, ["svelte", "package"],
   ),
   brief(
     "held-site-entry-only",
@@ -206,7 +208,7 @@ export const openScaffoldWorlds = [
     "system",
     "Portable Review Board",
     "The Portable Review Board needs a portable browser entry as well as the ordinary React workspace entry. Make that distinction visible from the retained starter files without launching a website.",
-    ["react-site"],
+    false, ["react-site"],
   ),
   brief(
     "held-authority-missing-worker",
@@ -214,7 +216,7 @@ export const openScaffoldWorlds = [
     "system",
     "Dispatch Resume Lane",
     "Set up a durable worker starter for Dispatch Resume Lane only if the retained owner scope permits authoring. We need persistent agent state later, but no writes without approval.",
-    ["agentic"],
+    false, ["agentic"],
     "hold-authority",
   ),
   brief(
@@ -223,7 +225,7 @@ export const openScaffoldWorlds = [
     "examples",
     "Archive Layout",
     "Tell me which native starter would give Archive Layout a plain home for source documents. Don't make the folder or start any executable process.",
-    ["content"],
+    true, ["content"],
     "advise-only",
   ),
   brief(
@@ -232,7 +234,7 @@ export const openScaffoldWorlds = [
     "system",
     "Existing Chat Terminal Trial",
     "We are considering a standard terminal client at the assigned chat-terminal path. Stop if the active installed client already owns it.",
-    ["terminal-client"],
+    false, ["terminal-client"],
     "hold-occupied",
     "chat-terminal",
   ),
@@ -242,7 +244,7 @@ export const openScaffoldWorlds = [
     "system",
     "Schedule Portal",
     "Schedule Portal needs both the Svelte view and a portable entry. Please only use the installed Svelte starter and keep our workspace unchanged if it is absent.",
-    ["svelte-site"],
+    false, ["svelte-site"],
     "hold-unavailable",
   ),
 ] as const;

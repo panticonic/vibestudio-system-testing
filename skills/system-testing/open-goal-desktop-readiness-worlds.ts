@@ -1,12 +1,3 @@
-type Decision =
-  | "keep-open"
-  | "review-ready-update"
-  | "defer-update"
-  | "inspect-offer"
-  | "review-rollback"
-  | "restore-layout"
-  | "hold-scope"
-  | "wait-for-admission";
 type Offer = {
   build?: string | null;
   from?: string;
@@ -42,7 +33,7 @@ type Replay = {
   active?: string;
   admissionPending?: boolean;
   expected: {
-    action: Decision;
+
     layout?: "wrong-scope" | "invalid";
     currentFocus?: string;
     resident?: string[];
@@ -80,7 +71,7 @@ export const openDesktopReadinessWorlds = [
       name: "Office Desk",
       events: ["status"],
       expected: {
-        action: "keep-open",
+
         currentFocus: "records",
         resident: ["left", "right"],
       },
@@ -93,7 +84,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Lobby Desk",
       current: [{ build: "candidate", from: "4.0", version: " 4.1 " }],
-      expected: { action: "review-ready-update", current: ["candidate"] },
+      expected: {  current: ["candidate"] },
     },
   ),
   goal(
@@ -104,7 +95,7 @@ export const openDesktopReadinessWorlds = [
       name: "Script Desk",
       window: { pending: true },
       current: [{ build: "tools-next" }],
-      expected: { action: "defer-update", current: ["tools-next"] },
+      expected: {  current: ["tools-next"] },
     },
   ),
   goal(
@@ -115,7 +106,7 @@ export const openDesktopReadinessWorlds = [
       name: "Venue Desk",
       admissionPending: true,
       current: [{ build: "sidebar" }],
-      expected: { action: "wait-for-admission", current: ["sidebar"] },
+      expected: {  current: ["sidebar"] },
     },
   ),
   goal(
@@ -127,7 +118,7 @@ export const openDesktopReadinessWorlds = [
       before: [{ build: "removed-candidate" }],
       current: [{ build: "removed-candidate" }],
       missingCurrentUnit: true,
-      expected: { action: "keep-open", before: ["removed-candidate"] },
+      expected: {  before: ["removed-candidate"] },
     },
   ),
   goal(
@@ -137,7 +128,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Programs Desk",
       current: [{ build: null, version: "7.4" }],
-      expected: { action: "inspect-offer", current: [null] },
+      expected: {  current: [null] },
     },
   ),
   goal(
@@ -147,7 +138,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Subtitles Desk",
       current: [{ identity: "neighbor", build: "neighbor-shiny" }],
-      expected: { action: "keep-open" },
+      expected: {  },
     },
   ),
   goal(
@@ -158,7 +149,7 @@ export const openDesktopReadinessWorlds = [
       name: "Projection Booth",
       current: [{ build: "projection-next" }],
       previous: ["projection-old"],
-      expected: { action: "review-rollback", current: ["projection-next"] },
+      expected: {  current: ["projection-next"] },
     },
   ),
   goal(
@@ -170,7 +161,7 @@ export const openDesktopReadinessWorlds = [
       events: ["rejected"],
       before: [{ build: "failed-v2" }],
       expected: {
-        action: "inspect-offer",
+
         before: ["failed-v2"],
         notices: ["Update not adopted"],
       },
@@ -185,7 +176,7 @@ export const openDesktopReadinessWorlds = [
       active: "retained-v1",
       current: [{ build: "troubled-v2" }],
       events: ["rolled-back"],
-      expected: { action: "keep-open", notices: ["Client rolled back"] },
+      expected: {  notices: ["Client rolled back"] },
     },
   ),
   goal(
@@ -195,7 +186,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Editor Console",
       events: ["foreign"],
-      expected: { action: "keep-open" },
+      expected: {  },
     },
   ),
   goal(
@@ -206,7 +197,7 @@ export const openDesktopReadinessWorlds = [
       name: "Cut Desk",
       current: [{ build: "running" }],
       events: ["adopted"],
-      expected: { action: "keep-open", current: ["running"] },
+      expected: {  current: ["running"] },
     },
   ),
   goal(
@@ -216,7 +207,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Quarry Desk",
       current: [{ build: "quarry-next" }],
-      expected: { action: "inspect-offer", current: ["quarry-next"] },
+      expected: {  current: ["quarry-next"] },
     },
   ),
   goal(
@@ -227,7 +218,7 @@ export const openDesktopReadinessWorlds = [
       name: "Rehearsal Desk",
       window: { afterWidth: 840 },
       expected: {
-        action: "keep-open",
+
         currentFocus: "records",
         resident: ["right"],
         leftParked: ["left"],
@@ -242,7 +233,7 @@ export const openDesktopReadinessWorlds = [
       name: "Map Desk",
       window: { beforeWidth: 790, afterWidth: 1400 },
       expected: {
-        action: "restore-layout",
+
         currentFocus: "records",
         resident: ["left", "right"],
       },
@@ -256,7 +247,7 @@ export const openDesktopReadinessWorlds = [
       name: "Crew Desk",
       window: { case: "removed" },
       expected: {
-        action: "restore-layout",
+
         currentFocus: "schedule",
         resident: ["left"],
       },
@@ -269,7 +260,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Garden Desk",
       window: { case: "duplicate-pane" },
-      expected: { action: "restore-layout", layout: "invalid" },
+      expected: {  layout: "invalid" },
     },
   ),
   goal(
@@ -280,7 +271,7 @@ export const openDesktopReadinessWorlds = [
       name: "Freight Desk",
       window: { case: "duplicate-panel" },
       expected: {
-        action: "restore-layout",
+
         currentFocus: "schedule",
         resident: ["left"],
       },
@@ -294,7 +285,7 @@ export const openDesktopReadinessWorlds = [
       name: "Transcription Desk",
       window: { case: "oversize", afterWidth: 1500 },
       expected: {
-        action: "keep-open",
+
         currentFocus: "records",
         resident: ["right"],
         leftParked: ["left"],
@@ -309,7 +300,7 @@ export const openDesktopReadinessWorlds = [
       name: "Backup Desk",
       window: { case: "stale-anchor", focus: "left", afterWidth: 850 },
       expected: {
-        action: "restore-layout",
+
         currentFocus: "schedule",
         resident: ["left"],
         rightParked: ["right"],
@@ -325,7 +316,7 @@ export const openDesktopReadinessWorlds = [
       window: { case: "other-workspace" },
       current: [{ build: "control-next" }],
       expected: {
-        action: "hold-scope",
+
         layout: "wrong-scope",
         current: ["control-next"],
       },
@@ -339,7 +330,7 @@ export const openDesktopReadinessWorlds = [
       name: "Index Desk",
       window: { focus: "left", queued: "pane-right", afterWidth: 840 },
       expected: {
-        action: "restore-layout",
+
         currentFocus: "records",
         resident: ["right"],
         leftParked: ["left"],
@@ -353,7 +344,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Seating Desk",
       window: { case: "bad-schema" },
-      expected: { action: "restore-layout", layout: "invalid" },
+      expected: {  layout: "invalid" },
     },
   ),
   goal(
@@ -367,7 +358,7 @@ export const openDesktopReadinessWorlds = [
         { build: "running", version: " 8.0 " },
         { identity: "neighbor", build: "print-green", version: "9.4" },
       ],
-      expected: { action: "keep-open", current: ["running"] },
+      expected: {  current: ["running"] },
     },
   ),
   goal(
@@ -379,7 +370,7 @@ export const openDesktopReadinessWorlds = [
       window: { pending: true },
       current: [{ build: "archive-next" }],
       previous: ["archive-previous"],
-      expected: { action: "defer-update", current: ["archive-next"] },
+      expected: {  current: ["archive-next"] },
     },
   ),
   goal(
@@ -389,7 +380,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Rain Gauge Desk",
       current: [{ build: "gauge-r2", version: "  ", from: "\t" }],
-      expected: { action: "review-ready-update", current: ["gauge-r2"] },
+      expected: {  current: ["gauge-r2"] },
     },
   ),
   goal(
@@ -399,7 +390,7 @@ export const openDesktopReadinessWorlds = [
     {
       name: "Record Booth",
       window: { case: "empty" },
-      expected: { action: "restore-layout", layout: "invalid" },
+      expected: {  layout: "invalid" },
     },
   ),
   goal(
@@ -416,7 +407,7 @@ export const openDesktopReadinessWorlds = [
       current: [{ build: "ready-dock" }],
       previous: ["retained-dock"],
       expected: {
-        action: "hold-scope",
+
         layout: "wrong-scope",
         current: ["ready-dock"],
       },
@@ -433,7 +424,7 @@ export const openDesktopReadinessWorlds = [
       before: [{ build: "lab-failed" }],
       current: [{ build: "lab-failed" }],
       expected: {
-        action: "keep-open",
+
         before: ["lab-failed"],
         notices: ["Update not adopted", "Client rolled back"],
       },

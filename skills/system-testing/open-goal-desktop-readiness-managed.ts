@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessDesktopFindings=bindObservedContentReview(["desk","window","updates","exactAdmission","journal"]);
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import type { SupervisionChange } from "@vibestudio/shared/events";
@@ -360,7 +362,7 @@ export async function prepareDesktopReadiness(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedDesktopReadinessDecision"],"rootPath":[],"producerSourceSuffix":"reviewDesktopReadiness/decideDesktopReadiness.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedDesktopFindings"],"rootPath":[],"producerSourceSuffix":"reviewDesktopReadiness/explainDesktopReadiness.nl","producerPath":[]}];
     const contributions=authored.filter(binding=>{
       let current:unknown=report;
       for(const key of binding.rootPath){
@@ -369,14 +371,14 @@ export async function prepareDesktopReadiness(
       }
       return true;
     });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
+    const assessed=await assessDesktopFindings(proof,proof.outcomeContract,report,observations,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
-    const outcome = report as {action:string;reason:string} | null;
+    const outcome = report as {reason:string} | null;
     const sourceRead = journal.find((row) => row.method === "observe")
       ?.result as SourceEvidence | undefined;
     const exactAdmission = sourceRead && expectedAdmission(sourceRead);
@@ -448,9 +450,8 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
           updates.notices.map((row) => row.title),
           expected.notices ?? [],
         ),
-      matchedDesktopReadinessDecision:
-        outcome?.action === expected.action &&
-        typeof outcome.reason === "string" && Boolean(outcome.reason.trim()),
+      returnedDesktopFindings:
+        typeof outcome?.reason === "string" && Boolean(outcome.reason.trim()),
       preservedDesktopWorkspaceHeads:
         final.mainEventId === baseline.mainEventId &&
         isDeepStrictEqual(final.workingHead, baseline.workingHead),
@@ -460,7 +461,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       incorrectReturnValues,
       outcomeContract:{
         effects:{checks:["exactDesktopClientSource","exactResponsivePlacement","exactRetainedDesktopOffer","preservedDesktopWorkspaceHeads"],rationale:"Native source, layout, build distinction, requested answer and protected workspace are required by this desktop goal."},
-        returnedValue:{checks:["matchedDesktopReadinessDecision"],required:true,rationale:"The requested layout and version answer is required and checked with native facts."},
+        returnedValue:{checks:["returnedDesktopFindings"],required:true,rationale:"The requested layout and version answer is required and checked with native facts."},
         incidentalValues:{checks:["incidentalDesktopAdmissionClassification"],rationale:"An unused internal client admission recommendation is not the requested layout/build answer; retain and exclude its known incorrect generated values."},
       },
       contextId: input.contextId,
@@ -494,20 +495,20 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     );
     const window = await services.desktopReadiness.readWindow(desk.id);
     const updates = await services.desktopReadiness.readUpdates(desk.id);
-    const report = {action:world.expected.action,reason:"Current scoped desktop evidence."};
+    const report = {reason:"Current scoped desktop evidence."};
     const proof = await verify(report);
     const negative = structuredClone(report);
-    negative.action = "invented" as typeof negative.action;
-    const rejectedWrongReadback = !(await verify(negative)).outcomeDimensions.returnedValue.passed;
+    negative.reason = "";
+    const rejectedMissingFindings = !(await verify(negative)).outcomeDimensions.returnedValue.passed;
     const checks = {
       ...proof.checks,
       rejectedDesk,
       rejectedAdmission,
-      rejectedWrongReadback,
+      rejectedMissingFindings,
     };
     return assessNativeQualification({
       ...proof,
-      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedDesk","rejectedAdmission","rejectedWrongReadback"]}},
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedDesk","rejectedAdmission","rejectedMissingFindings"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,

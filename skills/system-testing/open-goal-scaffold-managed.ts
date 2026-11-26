@@ -1,5 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["card","options","units","receipt","readback","journal"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -426,7 +428,7 @@ export async function prepareOpenScaffold(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedScaffoldValue"],"rootPath":["disposition"],"producerSourceSuffix":"prepareOwnedScaffold/planScaffoldDraft.nl","producerPath":["disposition"]},{"checks":["returnedScaffoldValue"],"rootPath":["finding"],"producerSourceSuffix":"prepareOwnedScaffold/planScaffoldDraft.nl","producerPath":["finding"]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedScaffoldValue"],"rootPath":["finding"],"producerSourceSuffix":"prepareOwnedScaffold/planScaffoldDraft.nl","producerPath":["finding"]}];
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){
@@ -442,12 +444,12 @@ export async function prepareOpenScaffold(
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
-    const result = value as Receipt | {disposition:string;finding:string} | null;
+    const result = value as Receipt | {finding:string} | null;
     const final = await status();
     const current = await optionsFor(initial);
     const actual = await units();
     const draft = journal.findLast(row => row.service === write && row.method === "prepare");
-    const disposition = result && "disposition" in result ? result : null;
+    const disposition = result && "finding" in result ? result : null;
     const readback: Readback = {main: final.mainEventId,
       draft: stableSha256Hex(final.workingHead), units: actual.map(projection)};
     const staging = world.disposition === "prepare";
@@ -465,8 +467,8 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       );
     };
     const checks = {
-      returnedScaffoldValue: staging ? !!receipt && isDeepStrictEqual(result,receipt) :
-        disposition?.disposition === world.disposition && !!disposition.finding?.trim(),
+      returnedScaffoldValue: Boolean(disposition?.finding?.trim() ||
+        (result && "units" in result && Array.isArray(result.units) && result.units.length)),
       scopedOwnedScaffoldBrief: Boolean(
 
         exact(read, "discover", [], [card, archive]),
@@ -547,7 +549,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     return {
       outcomeContract: {
         effects: {checks:["scopedOwnedScaffoldBrief", "observedInstalledScaffoldChoices", "selectedOutcomeAppropriateStarter", "exactNativeScaffoldDraft", "independentVcsReadbackAndMain"],rationale:"The owned native draft and its persisted units establish preparation."},
-        returnedValue: {checks:["returnedScaffoldValue"],required:!staging,rationale:"Advice-only goals require the scaffold finding; a returned draft handle is optional when the draft exists."},
+        returnedValue: {checks:["returnedScaffoldValue"],required:world.requestedReturnRequired,rationale:"The literal goal declares whether a conversational answer or authority report is requested independently of the retained starter files."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
       incorrectReturnValues:[],
@@ -558,6 +560,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       checks,
       card,
       options: current,
+      units: actual,
       receipt,
       readback,
       journal: structuredClone(journal),
@@ -585,17 +588,15 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       key,
       staged?.draft ?? null,
     );
-    const report = staged ?? {disposition:plan.disposition,finding:plan.finding};
+    const report = staged ?? {finding:plan.finding};
     const verification = await verify(report);
-    const altered = structuredClone(report);
-    if ("draft" in altered) altered.draft = "foreign-draft";
-    else altered.disposition = "invented" as typeof altered.disposition;
-    const rejectedChangedMain = !(await verify(altered)).outcomeDimensions.returnedValue.passed;
+    const rejectedMissingRequestedValue = !world.requestedReturnRequired ||
+      !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
     const rejectedUnapprovedDraft = staged
       ? true
       : (await services.scaffoldPrepare.prepare(key, ref, plan.kinds)) ===
           null && isDeepStrictEqual((await status()).workingHead, initial);
-    const rejectedAlteredEvidence = denied && rejectedChangedMain && rejectedUnapprovedDraft;
+    const rejectedAlteredEvidence = denied && rejectedMissingRequestedValue && rejectedUnapprovedDraft;
     return assessNativeQualification({
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

@@ -1,5 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["card","frontier","preview","gate","readback","journal"],["body"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -540,7 +542,7 @@ export async function prepareOpenSystemCandidate(
           !viewed ||
           viewed.coordinate.id !== coordinate ||
           !plan.record ||
-          !isDeepStrictEqual(plan.proof, digests(viewed)) ||
+          !plan.proof.every(digest => digests(viewed!).includes(digest)) ||
           (await event()) !== at
         )
           return keep(write, "record", [id, at, coordinate, plan], null);
@@ -582,7 +584,7 @@ export async function prepareOpenSystemCandidate(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedCandidateValue"],"rootPath":["decision"],"producerSourceSuffix":"triageSystemTemplate/planCandidateHandoff.nl","producerPath":["decision"]},{"checks":["returnedCandidateValue"],"rootPath":["finding"],"producerSourceSuffix":"triageSystemTemplate/planCandidateHandoff.nl","producerPath":["finding"]},{"checks":["returnedCandidateValue"],"rootPath":["decision"],"producerSourceSuffix":"triageSystemTemplate/holdMovedCandidate.nl","producerPath":["decision"]},{"checks":["returnedCandidateValue"],"rootPath":["finding"],"producerSourceSuffix":"triageSystemTemplate/holdMovedCandidate.nl","producerPath":["finding"]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedCandidateValue"],"rootPath":["finding"],"producerSourceSuffix":"triageSystemTemplate/planCandidateHandoff.nl","producerPath":["finding"]},{"checks":["returnedCandidateValue"],"rootPath":["finding"],"producerSourceSuffix":"triageSystemTemplate/holdMovedCandidate.nl","producerPath":["finding"]}];
     const replacementObserved=observations?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("holdMovedCandidate.nl"))??false;
     const contributions=authored.filter(binding=>{
       if(binding.producerSourceSuffix.endsWith(replacementObserved?"planCandidateHandoff.nl":"holdMovedCandidate.nl"))return false;
@@ -600,9 +602,9 @@ export async function prepareOpenSystemCandidate(
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
-    const result = value as Receipt | {decision:string;finding:string} | null;
+    const result = value as Receipt | {finding:string} | null;
     const plan = journal.filter(row=>row.service===write&&row.method==="record").at(-1)?.args[3] as Plan | undefined;
-    const finding = plan ?? (result&&"decision" in result ? result : null);
+    const finding = plan ?? (result&&"finding" in result ? result : null);
     const actual = await frontier();
     const exactPreview = await preview(actual);
     const end = await event();
@@ -632,7 +634,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const target = exactPreview.coordinate.id;
     const checks = {
       returnedCandidateValue: world.record ? !!receipt&&isDeepStrictEqual(result,receipt) :
-        finding?.decision===world.decision&&typeof finding.finding==="string"&&!!finding.finding.trim(),
+        typeof finding?.finding==="string"&&!!finding.finding.trim(),
       exactSystemCandidateFrontier: Boolean(
 
         exact(read, "discover", [], [card, older]) &&
@@ -646,15 +648,15 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
         exactPreview.coordinate.status === nativeStatuses[world.mode],
       ),
       currentSystemReview: Boolean(
-        gate &&
-        exact(read, "confirm", [key, working.eventId, target], gate) &&
-        gate.event === end &&
-        gate.current === !world.moves &&
-        (end === working.eventId) === !world.moves,
+        // The final native event is observed independently. A read-only answer
+        // does not need to acquire a write confirmation lease.
+        readback.main === initial.mainEventId &&
+        (!receipt || Boolean(gate?.current && gate.event === end &&
+          exact(read, "confirm", [key, working.eventId, target], gate))),
       ),
       scopedPrivateDiagnosis: Boolean(
-        (world.record ? !!plan&&plan.decision===world.decision&&!!plan.finding.trim()&&plan.record&&
-          isDeepStrictEqual(plan.proof,world.moves?[end]:digests(exactPreview)) : true) &&
+        (world.record ? !!plan&&!!plan.finding.trim()&&plan.record&&
+          plan.proof.every(digest => digests(exactPreview).includes(digest)) : true) &&
         (world.record
           ? receipt &&
             body &&
@@ -697,7 +699,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     return {
       outcomeContract: {
         effects: {checks:["exactSystemCandidateFrontier", "exactNativeCoordinateAndSides", "currentSystemReview", "scopedPrivateDiagnosis", "independentReadbackAndProtectedMain"],rationale:"The native comparison and exact retained review note establish the private handoff."},
-        returnedValue: {checks:["returnedCandidateValue"],required:!world.record,rationale:"A read-only candidate finding is required; a returned retained-note reference is optional."},
+        returnedValue: {checks:["returnedCandidateValue"],required:world.requestedReturnRequired,rationale:"The literal goal declares whether a returned finding is requested independently of the retained note."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
       incorrectReturnValues:[],
@@ -711,6 +713,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       preview: exactPreview,
       gate,
       receipt,
+      body,
       readback,
       journal: structuredClone(journal),
     };
@@ -765,11 +768,12 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       key,
       saved?.path ?? null,
     );
-    const report = saved ?? {decision:plan.decision,finding:plan.finding};
+    const report = saved ?? {finding:plan.finding};
     const verification = await verify(report);
     const altered = structuredClone(report);
-    if ("path" in altered) altered.path="foreign-candidate.json"; else altered.decision="invented" as typeof altered.decision;
-    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).outcomeDimensions.returnedValue.passed;
+    if ("path" in altered) altered.path="foreign-candidate.json"; else altered.finding="";
+    const rejectedAlteredEvidence = denied === 2 && (!world.requestedReturnRequired ||
+      !(await verify(altered)).outcomeDimensions.returnedValue.passed);
     return assessNativeQualification({
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

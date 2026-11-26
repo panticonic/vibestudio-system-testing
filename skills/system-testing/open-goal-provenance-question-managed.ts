@@ -11,7 +11,7 @@ type Ports = { contextId: string | null; upload(text: string): Promise<string>;
   vcs: Pick<VcsClient, "mainState" | "status" | "resolveRepository" | "readFile" | "importSnapshot" | "edit" | "commit" | "revert" | "query" | "search" | "walk"> };
 type Candidate = { ref: string; rationale: string | null; tier: string | null; excerpt: string };
 type Cohort = { ref: string; paths: { path: string; count: number }[]; complete: boolean };
-type Counteraction = { path: string; reason: string; attempted: string; ref: string };
+type Counteraction = { path: string; reason: string; attempted: string; counteractionRef: string };
 const quote = (text: string) => `'${text.replaceAll("'", "''")}'`;
 function livePorts(): Ports {
   return { contextId, vcs, upload: async text => (await blobstore.putText(text)).digest };
@@ -152,7 +152,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
             for (const entry of result.entries) {
               if (entry.group!=="counteractions" || entry.node.kind!=="work-unit" || !entry.intent || !entry.detail ||
                   !boundPairs.has(JSON.stringify([path,entry.node.workUnitId]))) continue;
-              withdrawn.push({path,ref:"counteraction-"+(withdrawn.length+1),attempted:entry.detail,reason:entry.intent.text});
+              withdrawn.push({path,counteractionRef:"counteraction-"+(withdrawn.length+1),attempted:entry.detail,reason:entry.intent.text});
             }
           }
           return capture("recordedQuestionGraph","rejections",[id,ref,selected],withdrawn);
