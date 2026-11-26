@@ -39,7 +39,8 @@ async function livePorts(input:Input):Promise<Ports> {
     player:await bindRegencyFixturePlayer(panelTree.get(fixture.panelId),input.contextId,fixture),
     readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)};
 }
-const maxBytes=12*1024;
+// Match the actual scratch writer artifact bound, including independent readback.
+const maxBytes=64*1024;
 
 export async function prepareOpenRegency(input:Input,installed:Installed,injected?:Ports) {
   const ports=injected??await livePorts(input);

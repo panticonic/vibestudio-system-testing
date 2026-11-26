@@ -1,0 +1,214 @@
+{
+  "mechanism": "Native scratch artifact production/read bounds versus fixture-local ceilings",
+  "canonicalBoundary": {
+    "path": "Base skills/scratch-handoff-bindings/index.ts",
+    "maxArtifactBytes": 65536,
+    "reason": "Canonical writer enforces this actual transport resource bound"
+  },
+  "consumers": [
+    {
+      "path": "skills/system-testing/open-goal-regency-managed.ts",
+      "limitDeclarations": [
+        "const maxBytes=12*1024;",
+        "if(new TextEncoder().encode(text).length>maxBytes)return null;",
+        "const artifact=note?new TextDecoder(\"utf-8\",{fatal:true}).decode(await ports.readBytes(note.path,maxBytes)):null;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-dictation-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-extension-dossier-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "limitDeclarations": [
+        "const maxNoteBytes = 32 * 1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-eval-handoff-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-terminal-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-product-owned-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/scratch-handoff-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-build-incidents-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-local-width-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/portfolio-native-meaning.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
+      "limitDeclarations": [
+        "const maxArtifact = 32 * 1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "limitDeclarations": [
+        "const max=12*1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/native-retained-evidence.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-compound-recovery-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-doc-catalog-guards.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-portfolio-managed.ts",
+      "limitDeclarations": [
+        "const maxBytes=24*1024;",
+        "if(new TextEncoder().encode(text).length>maxBytes)return null;",
+        "const artifact=receipt?new TextDecoder(\"utf-8\",{fatal:true}).decode(await ports.readBytes(receipt.path,maxBytes)):null;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "limitDeclarations": [
+        "const maximum = 12 * 1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "limitDeclarations": [
+        "const max=16*1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-editorial-managed.ts",
+      "limitDeclarations": [
+        "const maxDocument=32*1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "limitDeclarations": [
+        "const maxNote = 32 * 1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/grimoire-no-effect-boundary.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-capability-plan-managed.ts",
+      "limitDeclarations": [
+        "const maxSkillBytes = 160 * 1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-deployed-interface-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/local-review-native-obligations.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-share-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/observed-frontier-services.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-intent-discovery-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/regency-native-admission.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-api-readiness-managed.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "limitDeclarations": [
+        "const maxBytes = 64 * 1024;",
+        "const data = path ? await ports.readBytes(path, maxBytes) : null;",
+        "const bytes = path ? await ports.readBytes(path, maxBytes) : null;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-product-owned-managed.test.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-specialist-managed.ts",
+      "limitDeclarations": [
+        "const maximum = 12 * 1024;"
+      ]
+    },
+    {
+      "path": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "limitDeclarations": []
+    },
+    {
+      "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "limitDeclarations": [
+        "const max=16*1024;"
+      ]
+    }
+  ],
+  "checked": [
+    "Regency local12KiB report/note ceiling smaller than canonical64KiB and absent literal-goal limit"
+  ],
+  "open": "Other consumers require per-service resource/return-contract audit; membership alone is not a defect verdict"
+}

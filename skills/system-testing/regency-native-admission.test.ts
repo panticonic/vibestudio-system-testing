@@ -79,3 +79,12 @@ it("accepts one authentic current observation when no historical change requires
  const proof=await prepared.verify({forecasts:[],findings:[],decision:{action:"report",explanation:"This is the current saved receipt."},advance:null,note:null});
  expect(proof.observedChecks.exactSavedRegencyFrontiers).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
 });
+
+it("uses the real scratch artifact byte bound rather than a private shorter finding ceiling",async()=>{
+ const {prepared,opening,current}=await fixture("regency-briefing-ledger-still-solvent-though-loss");
+ const claim={kind:"settlement" as const,source:"current" as const,check:{kind:"net-positive" as const}};
+ const report={plan:{horizons:[],claims:[claim],localNote:true,advance:null,treasuryFloor:null},opening,current,forecasts:[],findings:[{claim,review:{decision:"contradicted",finding:"The observed saved accounts are the source for this private diagnostic. ".repeat(250),evidenceIds:[current.accounts.id]}}],decision:{action:"stage",explanation:"Retain the requested actual private account analysis."},advance:null,note:null};
+ expect(await prepared.services.regencyNote.stage({...report,decision:{...report.decision,explanation:"x".repeat(65536)}} as never)).toBeNull();
+ const note=await prepared.services.regencyNote.stage(report as never);expect(note).not.toBeNull();
+ const proof=await prepared.verify({...report,note});expect(proof.passed).toBe(true);expect(new TextEncoder().encode(proof.artifact!).byteLength).toBeGreaterThan(12*1024);expect(proof.semanticReviewRequired).toBe(true);
+});
