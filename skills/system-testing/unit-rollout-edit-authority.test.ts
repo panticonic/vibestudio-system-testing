@@ -3,7 +3,7 @@ const native=vi.hoisted(()=>({revision:0,text:'export const initial = 0;',edits:
 vi.mock('./open-goal-unit-rollout-runtime.js',()=>({
  seedRolloutUnits:async(_ports:unknown,world:{title:string})=>[{id:'owned',title:world.title,source:'workers/owned',entry:'index.ts',files:{'index.ts':native.text,'package.json':'protected'},repositoryId:'owned-repo',kind:'worker',mayEdit:native.mayEdit,mayRunChecks:true,mayCommit:false}],
  createRolloutEngine:()=>({observe:async()=>({revision:JSON.stringify({kind:'event',eventId:'head-'+native.revision}),build:{stateHash:'state-'+native.revision,status:native.revision?'ok':'failed',diagnostics:[]}}),read:async(revision:string,paths:string[])=>{expect(revision).toBe(JSON.stringify({kind:'event',eventId:'head-'+native.revision}));return paths.map(path=>({path,text:native.text}));},apply:async(revision:string,edits:{before:string;after:string}[])=>{if(revision!==JSON.stringify({kind:'event',eventId:'head-'+native.revision}))throw Error('Native current revision changed');expect(edits[0].before).toBe(native.text);native.text=edits[0].after;native.revision++;native.edits++;return{revision:JSON.stringify({kind:'event',eventId:'head-'+native.revision})};},close:async()=>{native.closes++;}}),
- readRepositorySource:async()=>({text:native.text}),repairReference:async()=>{throw Error('No reference goal execution requested');},
+ readRepositorySource:async(_ports:unknown,_unit:unknown,_head:unknown,path:string)=>({text:path.endsWith("package.json")?"protected":native.text}),repairReference:async()=>{throw Error('No reference goal execution requested');},
 }));
 import {prepareOpenUnitRollout} from './open-goal-unit-rollout-managed.js';
 import {openUnitRolloutWorlds} from './open-goal-unit-rollout-worlds.js';
@@ -17,4 +17,21 @@ it('still refuses unowned/protected paths and preserves Native current-head conf
 });
 it('retains actual mayEdit denial independently of how many attempts occurred',async()=>{
  native.mayEdit=false;const p=await fixture();try{const [unit]=await p.services.unitRolloutCatalog.discover();const observed=await p.services.unitRolloutObserve.inspect(unit.id);const [source]=await p.services.unitRolloutObserve.read(unit.id,observed.revision,observed.editablePaths);await expect(p.services.unitRolloutEdit.apply(unit.id,observed.revision,[{path:source.path,before:source.text,after:'new'}])).rejects.toThrow('justified owned production');expect(native.edits).toBe(0);}finally{await p.close();}
+});
+
+it('declares literal answer obligations independently of repair permission and refuses missing requested findings',async()=>{
+ const required=openUnitRolloutWorlds.filter(w=>w.requestedReturnRequired).map(w=>w.id);
+ expect(required).toEqual(["unit-rollout-diagnose-compile-only-without-edits","unit-rollout-report-unrepaired-runtime-regression","unit-rollout-check-already-healthy-spare-counter","unit-rollout-retain-archive-worker-when-edit-grant-is-missing"]);
+ const world=openUnitRolloutWorlds.find(w=>w.id==="unit-rollout-diagnose-compile-only-without-edits")!;
+ const contextId="owned-context";const ports={contextId,vcs:{status:async()=>({workingHead:{kind:"event",eventId:"head-"+native.revision},mainEventId:"protected-main",committed:{kind:"event",eventId:"baseline"}})}};
+ const p=await prepareOpenUnitRollout({contextId,caseId:world.id},world,ports as never);
+ try{const [unit]=await p.services.unitRolloutCatalog.discover();const observation=await p.services.unitRolloutObserve.inspect(unit.id);const value={status:"held",unitId:unit.id,revision:observation.revision,release:null,reason:"The declared number result does not satisfy its string contract."};
+ const proof=await p.verify(value);expect(proof.checks.matchedRolloutOutcome).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeContract.returnedValue.required).toBe(true);
+ const missing=await p.verify(undefined);expect(missing.checks.matchedRolloutOutcome).toBe(false);expect(missing.outcomeContract.returnedValue.required).toBe(true);
+ const forged=await p.verify({...value,status:"committed",release:{status:"committed",eventId:"forged"}});expect(forged.checks.matchedRolloutOutcome).toBe(false);
+ }finally{await p.close();}
+});
+
+it('delegates actual source bytes to Native compilation without a private size or nonempty-source gate',async()=>{
+ const p=await fixture();try{const [unit]=await p.services.unitRolloutCatalog.discover();for(const after of ['export const large = 1;\n'+'// actual production source\n'.repeat(1200),'']){const observed=await p.services.unitRolloutObserve.inspect(unit.id);const [source]=await p.services.unitRolloutObserve.read(unit.id,observed.revision,observed.editablePaths);expect((await p.services.unitRolloutEdit.apply(unit.id,observed.revision,[{path:source.path,before:source.text,after}])).status).toBe('applied');expect(native.text).toBe(after);} }finally{await p.close();}
 });

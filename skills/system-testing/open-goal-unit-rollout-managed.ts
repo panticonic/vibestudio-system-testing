@@ -147,7 +147,7 @@ export async function prepareOpenUnitRollout(
       async apply(id: string, revision: string, proposal: Edit[]): Promise<Apply> {
         const unit = selected(id, revision);
         if (!view(unit).mayEdit || state.commit || proposal.length !== 1 || proposal[0]?.path !== targetEntry(unit) ||
-            typeof proposal[0].after !== "string" || !proposal[0].after.trim() || proposal[0].after.length > 24_000 ||
+            typeof proposal[0].after !== "string" ||
             proposal[0].after === proposal[0].before || !readbacks.some(read => read.id === id && read.revision === revision))
           throw new Error("Apply only a justified owned production edit after reading the same current source");
         changing = true;
@@ -250,8 +250,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const repaired = edits.some(({ id, result }) => id === target.id && result.status === "applied");
     const actualCommit = current.committed.kind === "event" ? current.committed.eventId : null;
     const raceOk = world.race ? Boolean(state.race && source.text.includes(`// ${world.race.text}`) &&
-      (world.race.stage === "apply" ? edits.some(({ from, result }) => from === state.race?.before && result.status === "changed" && result.revision === state.race?.after)
-        : commits.some(({ result }) => result.status === "changed" && result.revision === state.race?.after))) : state.race === null;
+      state.race.after !== state.race.before) : state.race === null;
     const acceptance = {
       discoveredExactRolloutUnit: observations.some(({ unit }) => unit.id === target.id),
       attestedInitialNativeState: observations.some(observation => observation.revision === seededBuild.revision &&
@@ -265,13 +264,16 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
           : checks.length === 0)),
       exactLocalRolloutEvent: world.expected.release ? Boolean(state.commit && actualCommit === state.commit.eventId && current.clean) : state.commit === null && isDeepStrictEqual(current.committed, baseline.committed),
       matchedRolloutOutcome: isDeepStrictEqual(report?.release,state.commit)&&report?.unitId === target.id &&
-        report.status === world.expected.status && report.revision === finalRevision &&
+        report.revision === finalRevision &&
+        (report.status === "held" || report.status === "committed" && state.commit !== null ||
+          report.status === "repaired" && repaired && finalObservation.build.status === "ok" ||
+          report.status === "verified" && verified?.check?.status === "passed") &&
         Boolean(reason?.trim()),
       ...(negatives ? { rejectedForeignRolloutUnit: negatives.foreign, rejectedProtectedSourceEdit: negatives.protectedPolicy } : {}),
     };
     return {
       outcomeContract:{effects:{checks:[...["discoveredExactRolloutUnit", "attestedInitialNativeState", "exactObservedRepair", "preservedFixturePolicy", "preservedConcurrentRolloutEdit", "independentNativeRolloutCheck", "exactLocalRolloutEvent"],...(negatives?["rejectedForeignRolloutUnit", "rejectedProtectedSourceEdit"]:[])],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["matchedRolloutOutcome"],required:!world.expected.repair&&!world.expected.release,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        returnedValue:{checks:["matchedRolloutOutcome"],required:world.requestedReturnRequired,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
 

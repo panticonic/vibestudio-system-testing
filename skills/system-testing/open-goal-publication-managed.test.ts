@@ -132,3 +132,26 @@ it.each(publicationGoalWorlds.map(({ id }) => id))("checks the reference outcome
   }));
   expect(proof.passed).toBe(true);
 });
+
+// The reference route is not the public goal. Additional accurately bound native
+// evidence is allowed, and an absent requested answer still cannot pass.
+it("accepts additional truthful evidence without accepting a missing answer or forged comparison",async()=>{
+ const prepared=await prepare("review-photo-desk-caption");
+ const available=await prepared.services.publicationGoal.discover();
+ const choice={targetId:"preview",preflight:"prepare" as const,compareRevision:true};
+ const bound=await prepared.services.publicationGoal.bind(available.revision,choice);
+ expect(bound?.revision).toBeTruthy();
+ await prepared.services.websiteReadback.observe();
+ const comparison=await prepared.services.publicationRevision.compare(bound!.revision!.operationId);
+ const proof=await prepared.verify({status:"reviewed",choice,preflight:null,revision:null});
+ expect(proof.checks.choseExactReview).toBe(true);
+ expect(proof.checks.exactPreflight).toBe(true);
+ expect(proof.checks.exactRevision).toBe(true);
+ expect(proof.semanticReviewRequired).toBe(true);
+ expect(proof.semanticReviewInput.actual.observations.observations.revision).toEqual(comparison);
+ const absent=await prepared.verify(undefined);
+ expect(absent.checks.returnedPublicationScope).toBe(false);
+ expect(absent.outcomeContract.returnedValue.required).toBe(true);
+ const forged=await prepared.verify({status:"reviewed",choice,preflight:null,revision:{comparison:{...comparison,candidate:{...comparison.candidate,artifactDigest:"forged"}},decision:"keep-review",match:"same",impact:null,reason:"Unobserved comparison"}});
+ expect(forged.checks.exactRevision).toBe(false);
+});
