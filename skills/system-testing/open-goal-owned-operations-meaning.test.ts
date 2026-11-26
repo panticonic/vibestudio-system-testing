@@ -80,3 +80,21 @@ it("retains the actual selected current checkpoint with valid extra history and 
   expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toBeNull();
  }finally{await fixture.close();}
 });
+
+it("binds optional format-only root and private explanation holds without failing observed native work",async()=>{
+ const world=openOwnedOperationsWorlds.find(row=>!row.requestedReturnRequired)!;
+ const fixture=await prepareOpenOwnedOperations({contextId:"owned",caseId:world.id,goal:world.goal},world);
+ try{
+  const current=(await fixture.services.operationsDocket.list()).find(row=>row.edition==="current")!;
+  await fixture.services.operationsDocket.read(current.id,current.revision);
+  const value="An extra operational explanation whose meaning was not requested",valueJson=JSON.stringify(value),hash=createHash("sha256").update(valueJson).digest("hex");
+  const {observeInvocation}=await import("@workspace/application-outcomes/observed-invocation");
+  const calls=[{callId:"root",summary:{run_id:"run",owner_key:"owner",owner_kind:"eval"},record:{call_id:"root",parent_call_id:null,definition:{name:"coordinateOwnedOperations",source:"coordinateOwnedOperations.nl"},executor:{kind:"agent",model_id:"actual-teacher"},cost:{model_requests:1},outcome:"done",output:{complete:true,bytes:Buffer.byteLength(valueJson),hash}}},{callId:"explain",summary:{run_id:"run",owner_key:"owner",owner_kind:"eval"},record:{call_id:"explain",parent_call_id:"root",definition:{name:"explainOperationsFinding",source:"coordinateOwnedOperations/explainOperationsFinding.nl"},executor:{kind:"agent",model_id:"actual-teacher"},cost:{model_requests:1},outcome:"done",output:{complete:true,bytes:Buffer.byteLength(valueJson),hash}}}];
+  const invocation=observeInvocation({evalRunId:"run",rootCallIds:["root"],captureErrors:[],calls},async reference=>reference===hash?valueJson:null);
+  const proof=await fixture.verify(value,invocation);
+  expect(proof.passed).toBe(true);expect(proof.checks.returnedOperationsFinding).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toBeNull();
+  expect(proof.outcomeDimensions.returnedValue.passed).toBe(true);
+  expect(proof.outcomeDimensions.returnedValue.unreviewedReturns?.map(row=>row.definition.source)).toEqual(["coordinateOwnedOperations.nl","coordinateOwnedOperations/explainOperationsFinding.nl"]);
+  expect(proof.outcomeDimensions.incidentalValues?.incorrectReturns).toEqual([]);
+ }finally{await fixture.close();}
+});

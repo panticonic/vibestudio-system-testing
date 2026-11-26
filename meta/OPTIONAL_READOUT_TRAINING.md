@@ -1,0 +1,7 @@
+# OwnedOperations optional finding targets
+
+The literal-world `requestedReturnRequired` obligation is unchanged. A nonempty optional Root/explanation string is checked for representation only and is excluded from requested-content review. Declare `trainingEvidence:"format-only"` and bind the actual Root plus `coordinateOwnedOperations/explainOperationsFinding.nl` value contribution. The shared helper preserves every native observation and review obligation while the paired readers hold these unjudged final readout generations. Earlier native operation decisions/receipts remain evidence and useful targets; a null optional return has no unjudged readout. Required questions still require their actual reviewed answer.
+
+The inherited legacy-candidate review opt-out remains: persisted model-authored assessments are not promoted to native truth. This source must not be selected for publication until the newer optional-return reader is actually deployed; bc407/native-reference/1 alone does not enforce these holds.
+
+Actual controls: 57 Native/component tests pass, including all original worlds and an exact recorded Root/private-explanation fixture with true checks and separate unreviewed holds. Paired Base21/Python46/Node62 passed with one optional real-manifest codec test skipped; canonical380 --check passed. No models, original rewrites, goal/ID/split edits or retrospective acceptance.
