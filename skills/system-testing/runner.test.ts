@@ -1235,3 +1235,72 @@ describe("native startup diagnostic owner route", () => {
     expect(mocks.rpc.call).not.toHaveBeenCalled();
   });
 });
+
+describe("authored teacher dispatch lifecycle",()=>{
+  async function world(){
+    const {openScheduledRecoveryWorlds}=await import("./open-goal-scheduled-recovery-worlds.js");
+    return openScheduledRecoveryWorlds.find(row=>row.id==="scheduled-recovery-retime-without-release")!;
+  }
+  function resetDispatch(teacherError:Error,setupError?:Error){
+    mocks.rpc.call.mockReset();mocks.createWithAgent.mockClear();
+    mocks.rpc.call.mockImplementation(async(_target,method)=>{
+      if(method.name==="runtime.createContext"){if(setupError)throw setupError;return {contextId:"TEST-prepared-context"};}
+      if(method.name==="runtime.createEntity")return {id:"TEST-prepared-owner",contextId:"TEST-prepared-context"};
+      if(method.name==="runOpenGoalTeacher")throw teacherError;
+      if(method.name==="runtime.destroyContext")return undefined;
+      throw Error("Unexpected TEST lifecycle RPC: "+method.name);
+    });
+  }
+  it("records a real public-runner setup failure before any teacher dispatch, retaining its original cause",async()=>{
+    const original=new Error("TEST native fixture setup failed");resetDispatch(new Error("must not dispatch"),original);
+    const assigned=await world();
+    const runner=new HeadlessRunner("TEST-source-context");
+    const failure=await runner.runOpenGoal(assigned,new AbortController().signal).catch(error=>error);
+    expect(failure.errorData).toEqual({authoredLifecycle:{schema:"vibestudio.authored-lifecycle/2",boundary:"teacher-worker-dispatch",caseId:assigned.id,sourceContextId:"TEST-source-context",teacherStarted:false}});
+    expect(failure.cause).toBe(original);
+    expect(mocks.rpc.call.mock.calls.some(([,method])=>method.name==="runOpenGoalTeacher")).toBe(false);
+    expect(mocks.createWithAgent).not.toHaveBeenCalled();
+  });
+  it("leaves a lost worker response unknown and preserves an exact worker witness when present",async()=>{
+    for(const evidence of [undefined,{schema:"vibestudio.authored-lifecycle/1",boundary:"assigned-program-load",runId:"TEST-worker-run",runtimeId:"TEST-owned-eval",teacherStarted:true}]){
+      const original=Object.assign(new Error("TEST worker response failed"),evidence?{errorData:{authoredLifecycle:evidence}}:{});
+      resetDispatch(original);
+      const failure=await new HeadlessRunner("TEST-source-context").runOpenGoal(await world(),new AbortController().signal).catch(error=>error);
+      expect(failure).toBe(original);
+      expect(failure.errorData?.authoredLifecycle).toBe(evidence);
+      expect(mocks.rpc.call.mock.calls.some(([,method])=>method.name==="runOpenGoalTeacher")).toBe(true);
+    }
+  });
+  it("preserves both a failed worker response and a later fixture-cleanup failure",async()=>{
+    const original=new Error("TEST worker failed"),cleanup=new Error("TEST context cleanup failed");
+    resetDispatch(original);
+    mocks.rpc.call.mockImplementation(async(_target,method)=>{
+      if(method.name==="runtime.createContext")return {contextId:"TEST-prepared-context"};
+      if(method.name==="runtime.createEntity")return {id:"TEST-prepared-owner",contextId:"TEST-prepared-context"};
+      if(method.name==="runOpenGoalTeacher")throw original;
+      if(method.name==="runtime.destroyContext")throw cleanup;
+      throw Error("Unexpected TEST lifecycle RPC: "+method.name);
+    });
+    const failure=await new HeadlessRunner("TEST-source-context").runOpenGoal(await world(),new AbortController().signal).catch(error=>error);
+    expect(failure).toBeInstanceOf(AggregateError);expect(failure.errors).toEqual([original,cleanup]);
+    expect(failure.errorData).toBeUndefined();
+  });
+});
+
+it("keeps pre-dispatch witnesses local to parallel open-goal invocations",async()=>{
+  const {openScheduledRecoveryWorlds}=await import("./open-goal-scheduled-recovery-worlds.js");
+  const assigned=openScheduledRecoveryWorlds.find(row=>row.id==="scheduled-recovery-retime-without-release")!;
+  const transport=new Error("TEST first worker response lost"),setup=new Error("TEST second fixture setup failed");
+  let created=0;mocks.rpc.call.mockReset();
+  mocks.rpc.call.mockImplementation(async(_target,method)=>{
+    if(method.name==="runtime.createContext"){if(++created===2)throw setup;return {contextId:"TEST-first-context"};}
+    if(method.name==="runtime.createEntity")return {id:"TEST-first-owner",contextId:"TEST-first-context"};
+    if(method.name==="runOpenGoalTeacher")throw transport;
+    if(method.name==="runtime.destroyContext")return undefined;
+    throw Error("Unexpected TEST concurrent lifecycle RPC: "+method.name);
+  });
+  const runner=new HeadlessRunner("TEST-shared-source-context");
+  const results=await Promise.allSettled([runner.runOpenGoal(assigned,new AbortController().signal),runner.runOpenGoal(assigned,new AbortController().signal)]);
+  expect(results[0]).toEqual({status:"rejected",reason:transport});
+  expect(results[1]).toMatchObject({status:"rejected",reason:{cause:setup,errorData:{authoredLifecycle:{teacherStarted:false,boundary:"teacher-worker-dispatch"}}}});
+});

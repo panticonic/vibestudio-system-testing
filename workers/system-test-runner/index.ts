@@ -1,3 +1,4 @@
+import type { AuthoredLifecycleReceiver } from "../../skills/system-testing/authored-execution-lifecycle.js";
 import { AuthoredLifecycles, authoredLifecycleFailure, authoredHarnessSource } from "./authored-lifecycle.js";
 import {SYSTEM_TEST_AGENT_MODEL,systemTestModelRoute} from "@workspace-skills/system-testing/config";
 import { allTests } from "@workspace-skills/system-testing/stages";
@@ -475,7 +476,7 @@ function systemTestEvalCode(
   `;
 }
 
-export class SystemTestRunnerDO extends DurableObjectBase implements IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver, ManagedChecklistReceiver {
+export class SystemTestRunnerDO extends DurableObjectBase implements AuthoredLifecycleReceiver, IntegrationFixtureReceiver, ContentProjectReceiver, ScratchHandoffReceiver, IntegrationHandoffReceiver, ManagedAutomationReceiver, ManagedPublicationReceiver, ManagedPdfReceiver, ManagedChecklistReceiver {
   private readonly authoredLifecycles = new AuthoredLifecycles();
   private readonly automationActivationLaunches = new OwnedAutomationActivationLaunches();
 

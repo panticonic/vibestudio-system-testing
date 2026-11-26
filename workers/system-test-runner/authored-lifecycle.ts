@@ -1,3 +1,4 @@
+import { withAuthoredExecutionLifecycle } from "../../skills/system-testing/authored-execution-lifecycle.js";
 /** This boundary belongs to the harness source, before loading the assigned program. */
 export const AUTHORED_START_BOUNDARY = "\n/* system-test:assigned-program-start */\n";
 
@@ -38,16 +39,14 @@ export function authoredLifecycleFailure(runs: AuthoredLifecycles, runId: string
   const evidence = runs.evidence(runId);
   // Even an uninstrumented utility gets a trusted outer envelope. Otherwise a
   // guest-thrown errorData could impersonate a no-start witness at the reader.
-  return Object.assign(new Error(error instanceof Error ? error.message : String(error), { cause: error }), {
-    errorData: { authoredLifecycle: evidence ?? null },
-  });
+  return withAuthoredExecutionLifecycle(error, evidence ?? null);
 }
 
 export function authoredHarnessSource(source: string, ownerId: string, runId: string): string | null {
   const instrumented = instrumentAuthoredStart(source,
     `await rpc.call(${JSON.stringify(ownerId)}, authoredLifecycleMethods.markAssignedProgramStarted, [${JSON.stringify(runId)}]);`);
   return instrumented === null ? null : `
-    import {systemTestRunnerRpcMethods as authoredLifecycleMethods} from "@workspace-workers/system-test-runner/contract";
+    import {authoredLifecycleRpcMethods as authoredLifecycleMethods} from "@workspace-skills/system-testing/authored-execution-lifecycle";
     ${instrumented}
   `;
 }

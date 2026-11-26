@@ -12,11 +12,15 @@
     {
       "path": "workers/system-test-runner/index.ts:runHarnessUtility/markAssignedProgramStarted",
       "coverage": "private per-utility exact Eval caller, monotonic false-to-true; failure and disposal preserve original causes; no boundary means unknown"
+    },
+    {
+      "path": "skills/system-testing/runner.ts:runOpenGoal; authored-execution-lifecycle.ts",
+      "coverage": "All 2327 catalog rows are open-user-goal and enter this one public method; 12 typed worker dispatch call sites share one per-invocation witness. Native setup errors before dispatch use schema2 with real case/source-context, no fabricated Eval ID; lost RPC response stays unknown; failed dispatch plus failed cleanup preserves both causes."
     }
   ],
   "transport": [
     {
-      "path": "workers/system-test-runner/contract.ts",
+      "path": "skills/system-testing/authored-execution-lifecycle.ts:AuthoredLifecycleReceiver/authoredLifecycleRpcMethods",
       "coverage": "existing typed worker RPC; exact native caller authentication in receiver"
     },
     {
@@ -26,6 +30,10 @@
     {
       "path": "skills/system-testing/structured-error.ts",
       "coverage": "existing bounded/redacted errorData and cause projection; canonical RPC roundtrip tested"
+    },
+    {
+      "path": "scripts/neuralese_data/vibestudio_campaign.py:authored_lifecycle",
+      "coverage": "Explicit closed schema1/2 shapes; schema2 must match the actual case name; no nested guest cause or claimed post-dispatch false status admitted"
     }
   ],
   "consumers": [
@@ -47,6 +55,7 @@
     "Actual finite Eval-to-worker RPC integration with the new method under a running owned Vibe instance (unit/source compile and canonical RPC serialization checked)",
     "Historical fixture errors without this producer marker: generic orchestration phase is insufficient; no retrospective raw changes",
     "Failures before instrumented utility registration remain unknown",
-    "No new inference, provider transport, local engine, model codec, loss or sampling changes; all four engines retain existing paths (docs/ENGINE_PARITY.md)"
+    "No new inference, provider transport, local engine, model codec, loss or sampling changes; all four engines retain existing paths (docs/ENGINE_PARITY.md)",
+    "Assigned/closed non-open teacher APIs outside current2327 open-user-goal catalog retain unknown pre-utility failures; no retrospective legacy failure reclassification"
   ]
 }

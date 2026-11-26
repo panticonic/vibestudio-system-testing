@@ -1,3 +1,4 @@
+import { withAuthoredExecutionLifecycle } from "./authored-execution-lifecycle.js";
 import { nativeReferenceAuthority } from "./native-reference-authority.js";
 import {observedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import { openScheduledRecoveryWorlds } from "./open-goal-scheduled-recovery-worlds.js";
@@ -2207,11 +2208,19 @@ export class HeadlessRunner {
   }
   async runOpenGoal({ id: caseId, goal }: { id: string; goal: string }, signal: AbortSignal, qualification = false, startupDiagnostic?: NativeStartupDiagnostic):
     ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> {
+    let dispatched = false;
+    let dispatchError: unknown;
+    const dispatchTeacher = async (owner: string, input: Parameters<OpenGoalReceiver["runOpenGoalTeacher"]>[0]): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> => {
+      dispatched = true;
+      try { return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [input], {signal}); }
+      catch (error) { dispatchError = error; throw error; }
+    };
+    const prepareAndRun = async (): ReturnType<OpenGoalReceiver["runOpenGoalTeacher"]> => {
     validateNativeStartupDiagnostic({caseId,goal,qualification,startupDiagnostic},openScheduledRecoveryWorlds.find(world=>world.id===caseId));
     const request = { caseId, goal, executorModel: this.modelRef, qualification, ...(startupDiagnostic ? {startupDiagnostic} : {}) };
     if (openLiveTendrilBoardWorlds.some(({ id }) => id === caseId))
       return this.withOwnedTendril(signal, (owner, contextId, tendrilChannelId) =>
-        rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [{ ...request, contextId, tendrilChannelId }], { signal }));
+        dispatchTeacher(owner, { ...request, contextId, tendrilChannelId }));
     if (openLocalPresentationWorlds.some(({ id }) => id === caseId) || openAudienceResponseWorlds.some(({ id }) => id === caseId)) {
       const fixture = this.workspaceRepoFixture;
       const contextId = this.workspaceRepoFixtureContextId;
@@ -2222,9 +2231,7 @@ export class HeadlessRunner {
         contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
       });
       try {
-        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { ...request, contextId, source, panelId: panel.id },
-        ], { signal });
+        return await dispatchTeacher(await this.fixtureForkOwner(), { ...request, contextId, source, panelId: panel.id });
       } finally {
         await panel.archive();
       }
@@ -2243,9 +2250,7 @@ export class HeadlessRunner {
       });
       try {
         await setViewport(panel, { width: 1280, height: 844 });
-        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { ...request, contextId, source, panelId: panel.id },
-        ], { signal });
+        return await dispatchTeacher(await this.fixtureForkOwner(), { ...request, contextId, source, panelId: panel.id });
       } finally {
         await panel.archive();
       }
@@ -2269,10 +2274,8 @@ export class HeadlessRunner {
           panels.push({ surfaceId: scene.id, handle });
           await setViewport(handle, { width: 1280, height: 844 });
         }
-        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { contextId, caseId, goal, source, executorModel: this.modelRef, qualification,
-            clientPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) },
-        ], { signal });
+        return await dispatchTeacher(await this.fixtureForkOwner(), { contextId, caseId, goal, source, executorModel: this.modelRef, qualification,
+            clientPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) });
       } catch (error) {
         failures.push(error);
         throw error;
@@ -2300,10 +2303,8 @@ export class HeadlessRunner {
           });
           panels.push({ surfaceId: surface.id, handle });
         }
-        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { ...request, contextId, source,
-            recoveryPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) },
-        ], { signal });
+        return await dispatchTeacher(await this.fixtureForkOwner(), { ...request, contextId, source,
+            recoveryPanels: panels.map(({ surfaceId, handle }) => ({ surfaceId, panelId: handle.id })) });
       } catch (error) {
         failures.push(error);
         throw error;
@@ -2328,16 +2329,12 @@ export class HeadlessRunner {
         contextId, ref: `ctx:${contextId}`, focus: false, parentId: null, signal,
       });
       try {
-        return await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-          { ...request, contextId, panelId: panel.id, source, reviewedRef },
-        ], { signal });
+        return await dispatchTeacher(await this.fixtureForkOwner(), { ...request, contextId, panelId: panel.id, source, reviewedRef });
       } finally { await panel.archive(); }
     }
     if (newsGoalWorlds.some(({ id }) => id === caseId))
       return this.withOwnedNews(caseId, signal, (owner, news) =>
-        rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-          { ...request, contextId: news.contextId, news },
-        ], { signal }));
+        dispatchTeacher(owner, { ...request, contextId: news.contextId, news }));
     const browser = browserGoalWorlds.find((world) => world.id === caseId);
     if (browser) {
       const fixture = this.workspaceRepoFixture;
@@ -2354,9 +2351,7 @@ export class HeadlessRunner {
         const result = qualification
           ? { contextId, teacher: null, verificationErrors: [],
               verification: await prepareBrowserGoal(panel, { contextId, caseId, source }, browser).qualify() }
-          : await rpc.call(await this.fixtureForkOwner(), openGoalMethods.runOpenGoalTeacher, [
-            { ...request, contextId, source, panelId: panel.id },
-          ], { signal });
+          : await dispatchTeacher(await this.fixtureForkOwner(), { ...request, contextId, source, panelId: panel.id });
         if (!result.verification) return result;
         const after = await vcs.status({ contextId });
         const protectedHeadUnchanged = before.mainEventId === after.mainEventId &&
@@ -2381,9 +2376,7 @@ export class HeadlessRunner {
     }]);
     try {
       const owner = await this.createFixtureWorker(contextId);
-      const execute = (panelId?: string) => rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-        { ...request, contextId, panelId },
-      ], { signal });
+      const execute = (panelId?: string) => dispatchTeacher(owner, { ...request, contextId, panelId });
       if (openGrimoireSceneWorlds.some(({ id }) => id === caseId)) {
         const grimoireEstateKey = grimoireSceneEstate(crypto.randomUUID());
         const panel = await this.openPanelClient(grimoirePanel, {
@@ -2391,9 +2384,7 @@ export class HeadlessRunner {
           stateArgs: { estateKey: grimoireEstateKey },
         });
         try {
-          return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-            { ...request, contextId, panelId: panel.id, grimoireEstateKey },
-          ], { signal });
+          return await dispatchTeacher(owner, { ...request, contextId, panelId: panel.id, grimoireEstateKey });
         } finally { await panel.archive(); }
       }
       if (openRegencyWorlds.some(({ id }) => id === caseId)) {
@@ -2403,9 +2394,7 @@ export class HeadlessRunner {
           stateArgs: { realm },
         });
         try {
-          return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-            { ...request, contextId, regencyFixture: { panelId: panel.id, realm } },
-          ], { signal });
+          return await dispatchTeacher(owner, { ...request, contextId, regencyFixture: { panelId: panel.id, realm } });
         } finally { await panel.archive(); }
       }
       if (openPortfolioWorlds.some(({ id }) => id === caseId)) {
@@ -2422,11 +2411,9 @@ export class HeadlessRunner {
             stateArgs: { realm },
           });
           try {
-            return await rpc.call(owner, openGoalMethods.runOpenGoalTeacher, [
-              { ...request, contextId, portfolioFixture: {
+            return await dispatchTeacher(owner, { ...request, contextId, portfolioFixture: {
                 gardenPanelId: garden.id, gardenId, regency: { panelId: regency.id, realm },
-              } },
-            ], { signal });
+              } });
           } finally { await regency.archive(); }
         } finally { await garden.archive(); }
       }
@@ -2444,6 +2431,18 @@ export class HeadlessRunner {
       finally { await panel.archive(); }
     } finally {
       await rpc.call("main", mainRpcMethods["runtime.destroyContext"], [{ contextId, recursive: true }]);
+    }
+
+    };
+    try { return await prepareAndRun(); }
+    catch (error) {
+      if (!dispatched) throw withAuthoredExecutionLifecycle(error, {
+        schema:"vibestudio.authored-lifecycle/2",boundary:"teacher-worker-dispatch",
+        caseId,sourceContextId:this.contextId,teacherStarted:false,
+      });
+      if (dispatchError !== undefined && error !== dispatchError)
+        throw new AggregateError([dispatchError,error],"Open-goal teacher dispatch and fixture cleanup both failed");
+      throw error;
     }
   }
 

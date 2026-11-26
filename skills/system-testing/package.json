@@ -303,7 +303,8 @@
     "./local-messaging-contract": "./local-messaging/contract.ts",
     "./native-startup-diagnostic": "./native-startup-diagnostic.ts",
     "./doctor": "./doctor.ts",
-    "./config": "./config.ts"
+    "./config": "./config.ts",
+    "./authored-execution-lifecycle": "./authored-execution-lifecycle.ts"
   },
   "dependencies": {
     "@workspace-skills/open-audience-response": "workspace:*",
