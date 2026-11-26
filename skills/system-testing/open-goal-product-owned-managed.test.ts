@@ -34,9 +34,11 @@ it("requires semantic review of actual runbook edits while allowing equivalent f
  const prepared=await prepareGoogleRunbook({...input,caseId:world.id},world,calendar as never,workspace());
  const first=await prepared.services.googleRunbook.read();
  const target=first.documents.find(document=>document.path==="operations-runbook.md")!;
- const alternative=world.after.replace("Start:","Time:")+(world.coedit??"");
- expect((await prepared.services.googleRunbook.apply(review as never,{...target,text:alternative})).status).toBe("changed");
+ const initialProposal=world.after.replace("Start:","Time:");
+ expect((await prepared.services.googleRunbook.apply(review as never,{...target,text:initialProposal})).status).toBe("changed");
+ expect((await prepared.services.googleRunbook.apply(review as never,{...target,text:initialProposal})).status).toBe("changed");
  const fresh=(await prepared.services.googleRunbook.read()).documents.find(document=>document.path===target.path)!;
+ const alternative=initialProposal+fresh.text.slice(world.before.length);
  const write=await prepared.services.googleRunbook.apply(review as never,{...fresh,text:alternative});
  const proof=await prepared.verify({decision:{action:"revise",path:target.path,approval:"APP-RAMP",reason:"Approved time and venue"},attribution:null,write});
  expect(proof.checks.exact_runbook_result).toBe(true);
@@ -68,7 +70,7 @@ it("rejects an incomplete runbook report without reading missing decision or Cal
   const verify = vi.fn();
   const prepared = await prepareGoogleRunbook(input, {
     id: input.caseId, goal: "check the runbook", before: "current notes", approval: "APP-REVIEW",
-    authorization: "read only", action: "hold",
+    authorization: "read only", action: "held", requestedReturnRequired:true,
   } as never, { services: {}, verify, verifyObserved:async()=>({passed:false,handoff:null,readback:null}) } as never, workspace());
   const result = await prepared.verify({});
   expect(result.checks).toMatchObject({
@@ -79,4 +81,28 @@ it("rejects an incomplete runbook report without reading missing decision or Cal
   expect(result.outcomeDimensions.incidentalValues?.checks.exact_basis_attribution).toBe(false);
   expect(result.passed).toBe(false);
   expect(verify).not.toHaveBeenCalled();
+});
+
+it("permits fresh-version runbook improvements without a private size/one-write quota while refusing protected edits",async()=>{
+ const world=googleRunbookWorlds.find(w=>w.id==="google-runbook-winter-kit-handoff")!;
+ const selection={calendarId:"operations",eventId:"winter-kit-handoff",startsAt:"2026-10-22T10:00:00Z",description:"Venue: Supply annex"};
+ const review={decision:{selection}};const calendar={services:{},verify:async()=>({passed:true}),verifyObserved:async()=>({passed:true,handoff:null,readback:{observed:{status:"current",record:selection}}})};
+ const p=await prepareGoogleRunbook({...input,caseId:world.id},world,calendar as never,workspace());
+ let current=(await p.services.googleRunbook.read()).documents.find(d=>d.path==="operations-runbook.md")!;
+ const outside={...current,text:world.after.replace("signed checklist","unapproved deletion")};
+ expect((await p.services.googleRunbook.apply(review as never,outside)).status).toBe("held");
+ expect((await p.services.googleRunbook.read()).documents.find(d=>d.path===current.path)?.text).toBe(world.before);
+ const first=await p.services.googleRunbook.apply(review as never,{...current,text:world.after});expect(first.status).toBe("written");
+ const stale=current;current=(await p.services.googleRunbook.read()).documents.find(d=>d.path===current.path)!;
+ const text=world.after.replace("Venue:"," ".repeat(17000)+"Venue:");
+ expect((await p.services.googleRunbook.apply(review as never,{...current,text})).status).toBe("written");
+ expect((await p.services.googleRunbook.apply(review as never,{...stale,text:world.after})).status).toBe("changed");
+ expect((await p.services.googleRunbook.read()).documents.find(d=>d.path===current.path)?.text).toBe(text);
+});
+it("reviews query native facts without private action/approval echoes and excludes optional report copies",async()=>{
+ const world=googleRunbookWorlds.find(w=>w.id==="google-runbook-projector-unload")!;const calendar={services:{},verify:async()=>({passed:true}),verifyObserved:async()=>({passed:true,handoff:null,readback:{observed:{status:"current",record:null}}})};
+ const p=await prepareGoogleRunbook({...input,caseId:world.id},world,calendar as never,workspace());await p.services.googleRunbook.read();
+ const value={decision:{action:"review-only",path:null,approval:null,reason:"The runbook retains10:00 UTC while the actual appointment is10:45 UTC at Dock B."},write:null,attribution:null};
+ const proof=await p.verify(value);expect(proof.checks.runbook_authority).toBe(true);expect(proof.outcomeDimensions.incidentalValues?.checks.exact_basis_attribution).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput?.actual.requestedReturn).toEqual(value);expect(proof.semanticReviewInput?.actual.observations.productReview).not.toHaveProperty("report");
+ expect((await p.verify(undefined)).checks.runbook_authority).toBe(false);
 });

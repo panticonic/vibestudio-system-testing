@@ -22,9 +22,14 @@ it("uses known live contracts and installed knowledge without a search route or 
   for (let i = 0; i < 6; i++) loaded = await bound.services.load(guide, ["running", "session"]);
   expect(loaded?.skillPath).toBe(guide + "/SKILL.md");
   const actual = { routes: [extra!, route!], guidance: [{ skillPath: loaded!.skillPath, sha256: loaded!.sha256, quote }] };
-  const expected = { methods: ["terminalApps.list"], guidance: [{ dirPath: guide, focus: ["session"], rule: /running/u }] };
-  expect(await bound.verify(actual, expected)).toBe(true);
-  expect(await bound.verify({ ...actual, routes: [{ ...route!, sha256: "invented" }] }, expected)).toBe(false);
-  expect(await bound.verify({ ...actual, guidance: [{ ...actual.guidance[0]!, quote: "Invented authority says it keeps running." }] }, expected)).toBe(false);
+  expect(await bound.verify(actual)).toBe(true);
+  expect(await bound.verify({ ...actual, routes: [{ ...route!, sha256: "invented" }] })).toBe(false);
+  expect(await bound.verify({ ...actual, guidance: [{ ...actual.guidance[0]!, quote: "Invented authority says it keeps running." }] })).toBe(false);
   expect(await bound.services.load("skills/not-installed", ["private"])).toBeNull();
+});
+
+it("retains earlier issued guide passages after a different focus and delegates Native protocol bounds",async()=>{
+ const guide="skills/terminal-apps";const raw="# Early\n\n"+("alpha previous authority paragraph. ".repeat(4000))+"\n\n# Later\n\n"+("beta current authority paragraph. ".repeat(4000));const description="actual contract description ".repeat(40);const queries:string[]=[];
+ const rpc={call:async(_target:unknown,method:unknown,args:unknown[])=>{if(method===mainRpcMethods["docs.search"]){queries.push(String(args[0]));return[];}if(method===mainRpcMethods["workspace.listSkills"])return[{dirPath:guide,skillPath:guide+"/SKILL.md",name:"Terminal",description}];if(method===mainRpcMethods["workspace.readSkill"])return raw;throw Error("Unexpected Native call");}};
+ const bound=bindTerminalDiscovery(rpc as never,()=>{});await bound.services.search('q'.repeat(121));expect(queries).toEqual(['q'.repeat(121)]);expect((await bound.services.installed())[0].description).toBe(description);const first=await bound.services.load(guide,["alpha"]);expect(first).not.toBeNull();const quote=first!.passages[0];const second=await bound.services.load(guide,["beta",...Array.from({length:7},()=>"beta")]);expect(second).not.toBeNull();expect(second!.passages).not.toContain(quote);expect(await bound.verify({routes:[],guidance:[{skillPath:first!.skillPath,sha256:first!.sha256,quote}]})).toBe(true);expect(await bound.verifyObserved()).toBe(true);
 });

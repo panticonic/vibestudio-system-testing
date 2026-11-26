@@ -1,10 +1,10 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["initial","opened","events","observedExit","discovery","checkPlan","checkResults"],["stagedText"]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["initial","opened","events","observedExit","discovery","checkPlan","checkResults","journal","registry"],["stagedText"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
-import { sha256HexSyncText } from "@vibestudio/content-addressing";
+import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import type { TerminalSessionEntry } from "@vibestudio/shared/terminalSessions";
 import { contextId, extensions, fs, rpc, vcs } from "@workspace/runtime";
@@ -13,7 +13,7 @@ import { bindTerminalChecks } from "@workspace-skills/terminal/workflow";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
 import type {
   ChecklistChange, Grants, ItemKey, NativeExit, Screen, TerminalEvent, TerminalHandoff,
-  TerminalDiscovery, TerminalStart, TerminalSummary, TerminalTransition,
+  TerminalStart, TerminalTransition,
 } from "@workspace-skills/open-terminal-operator/types";
 import { attachTerminalScreen, type AttachedTerminalScreen } from "./tests/_terminal-screen.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
@@ -26,12 +26,11 @@ type CheckPlan = Awaited<ReturnType<Assignment["services"]["terminalCheckRead"][
 type CheckResult = Awaited<ReturnType<Assignment["services"]["terminalCheckRun"]["execute"]>>;
 type CheckStatus = "unavailable" | "timed-out" | "output-truncated" | "passed" | "failed";
 type CheckReport = { assignmentReceipt: string; outcomes: { result: CheckResult; status: string }[]; held: string[] };
-type Report = { terminal:Screen|null;exit:NativeExit|null;retired:boolean; checkReport: CheckReport | null; discovery: TerminalDiscovery | null; handoff: TerminalHandoff | null; summary: TerminalSummary };
+type Report = { answer: string };
 const firstSize = { cols: 80, rows: 24 };
 const sizes = { small: { cols: 62, rows: 18 }, wide: { cols: 100, rows: 32 } };
 const keys = ["1", "2", "3"] as const;
 const screenError = /Cannot run the checklist/u;
-const readbackLimit = 12 * 1024;
 const sizeLabel = (screen: Screen) => screen.cols === sizes.wide.cols ? "wide" : "small";
 const sorted = (values: ItemKey[]) => [...values].sort();
 
@@ -85,7 +84,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   const directory = world.note ? await fs.mkdtemp("open-terminal-note") : null;
   const memoPath = directory ? `${directory}/note.md` : null;
   if (memoPath && world.note) await fs.writeFile(memoPath, world.note);
-  const memo = async () => memoPath ? new TextDecoder("utf-8", { fatal: true }).decode(await readWorkspaceBytes(rpc, memoPath, 4096)) : null;
+  const memo = async () => memoPath ? new TextDecoder("utf-8", { fatal: true }).decode(await readWorkspaceBytes(rpc, memoPath, Math.max(1,new TextEncoder().encode(world.note??"").length))) : null;
   const handoffWriter = grants.stage ? bindScratchHandoff(fs, {
     goal: world.goal, questions: ["What does this owned terminal prove?"],
     sources: [{ id: "scope", path: memoPath ?? "/.tmp/terminal-scoped-observation" }],
@@ -93,6 +92,8 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   const originalHandoffs = new Set(grants.stage ? (await listOwnedScratchEntries(fs)).filter(name => /^evidence-handoff-/u.test(name)) : []);
 
   const events: TerminalEvent[] = [];
+  const journal:{ordinal:number;operation:string;resultSha256:string}[]=[];
+  function observeNative(operation:string,result:unknown){journal.push({ordinal:journal.length,operation,resultSha256:stableSha256Hex(result)});}
   const steps: string[] = [];
   const observations: { stream: NativeExit; registry: NativeExit; ptyId: string }[] = [];
   const checkResults: CheckResult[] = [];
@@ -112,7 +113,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     if (!world.discovery || !opened || retired || staged || closed)
       throw new Error("Live discovery needs the granted open terminal scope");
     if (!steps.includes("discover")) steps.push("discover");
-  });
+  },(operation,result)=>observeNative("discovery."+operation,result));
 
   async function onlyOne<T>(work: () => Promise<T>) {
     if (busy || closed) throw new Error("Terminal operations must use the current serial owned session");
@@ -162,6 +163,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
     if ("to" in event) latest = event.to;
     steps.push(timelineEntry(event));
     events.push(event);
+    observeNative("terminal."+event.operation,event);
     return structuredClone(event);
   }
   async function quitOrInterrupt(operation: "quit" | "interrupt", from: Screen) {
@@ -189,7 +191,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
   }
   function artifactText() {
     return JSON.stringify({ schema: "vibestudio.owned-terminal-handoff/1", contextId: input.contextId,
-      goal: world!.goal, initial: opened?.screen, events, checks: currentChecks(),
+      goal: world!.goal, initial: opened?.screen, events, checks: currentChecks(),journal,
       ...(world!.discovery ? { discovery: discovery.evidence() } : {}), note: opened?.note ?? null });
   }
 
@@ -259,6 +261,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
         if (!receipt) return null;
         stagedText = text;
         staged = { ...receipt, sha256: sha256HexSyncText(text) };
+        observeNative("handoff.stage",staged);
         steps.push("stage");
         return structuredClone(staged);
       }),
@@ -268,6 +271,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
         observe: (id: string) => onlyOne(async () => {
           if (!opened || staged || retired) throw new Error("The suite needs its active owned scope");
           plan = await assignment.services.terminalCheckRead.observe(id);
+          observeNative("suite.observe",plan);
           steps.push("check");
           return structuredClone(plan);
         }),
@@ -277,6 +281,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
           if (!opened || staged || retired || !plan) throw new Error("The suite has no current owned admission");
           const result = await assignment.services.terminalCheckRun.execute(receipt, id);
           checkResults.push(result);
+          observeNative("suite.execute",result);
           return structuredClone(result);
         }),
       },
@@ -293,38 +298,46 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
       closed = true;
     }
   }
+  async function evaluateAndClose<T>(work:()=>Promise<T>):Promise<T>{
+    let value:T|undefined,primary:unknown,failed=false;
+    try{value=await work();}catch(error){failed=true;primary=error;}
+    try{await close();}catch(cleanup){
+      if(failed)throw new AggregateError([primary,cleanup],"Terminal verification and owned cleanup both failed",{cause:primary});
+      throw cleanup;
+    }
+    if(failed)throw primary;
+    return value as T;
+  }
+
   async function verifyOutcome(outcome: Report | null, negative: boolean,invocation?:InvocationObservations) {
     const final = world!.expected;
     const after = await vcs.status();
-    const ids = (await list()).map(item => item.sessionId);
+    const registryEntries=await list();
+    const owned=registryEntries.find(item=>item.sessionId===session?.sessionId)??null;
+    const process=owned&&latest?await shell.get(latest.ptyId):null;
+    const registry={owned:structuredClone(owned),process:structuredClone(process),retired};
+    const nativeOwnership=retired?owned===null:Boolean(owned&&process&&owned.source===checklistSource&&owned.principalId===session?.principalId&&process.running===running);
     const check = currentChecks();
     const initial = opened?.screen;
     const handoffNames = grants.stage ? (await listOwnedScratchEntries(fs))
       .filter(name => /^evidence-handoff-/u.test(name) && !originalHandoffs.has(name)) : [];
-    const retained = staged ? await readWorkspaceBytes(rpc, staged.path, readbackLimit) : null;
+    const retained = staged ? await readWorkspaceBytes(rpc, staged.path, staged.bytes) : null;
     const expectedStaging = final.sequence.includes("stage");
     const allChecks = world!.checks ?? [];
     const wanted = allChecks.filter(row => row.expected !== null);
     const wantedHeld = allChecks.filter(row => !row.expected).map(row => row.id);
-    const nativeChecks = check && wanted.length === checkResults.length &&
-      wanted.every(row => checkResults.some(result => {
+    const distinctResults=[...new Map(checkResults.map(result=>[result.receipt,result])).values()];
+    const nativeChecks = check && wanted.length === distinctResults.length &&
+      wanted.every(row => distinctResults.some(result => {
         const expected = row.expected!;
         return result.id === row.id && result.receipt === `${assignment?.request?.operationId}:check:${row.id}` &&
           classification(result) === expected.status && result.stdout === expected.stdout &&
           result.stderr === (expected.stderr ?? "") &&
           (expected.exitCode === undefined ? expected.status !== "passed" || result.exitCode === 0 : expected.exitCode === result.exitCode);
       })) && isDeepStrictEqual(check.held, wantedHeld);
-    const last=events.at(-1);
     const checks = {
-      returnedTerminalHandoff:isDeepStrictEqual(outcome?.handoff,staged),
-      returnedTerminalChecks:isDeepStrictEqual(outcome?.checkReport,check),
-      returnedTerminalState:isDeepStrictEqual(outcome?.terminal,last?("to" in last?last.to:null):initial)&&isDeepStrictEqual(outcome?.exit,last&&"exit" in last?last.exit:null)&&outcome?.retired===(last?.operation==="retire"&&last.absentFromRegistry),
       exactLiveChecklist: !!initial && !!latest && isDeepStrictEqual(initial.checked, sorted(world!.initial)) &&
-        isDeepStrictEqual(latest.checked, final.end)  && steps.length === final.sequence.length &&
-        steps.every((step, index) => {
-          const expected = final.sequence[index]!;
-          return expected.endsWith(":either") ? step.slice(0, step.lastIndexOf(":")) === expected.slice(0, -7) : step === expected;
-        }),
+        isDeepStrictEqual(latest.checked, final.end),
       verifiedTerminalContinuity: !!initial && events.every((event, index) => {
         const prior = events.slice(0, index).filter(item => "to" in item).at(-1);
         const expectedFrom = prior && "to" in prior ? prior.to : initial;
@@ -341,7 +354,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
         return isDeepStrictEqual(event.from.checked, event.to.checked) &&
           (event.operation === "reattach" ? event.to.ptyId === event.from.ptyId : event.to.ptyId !== event.from.ptyId);
       }),
-      exactNativeExit: observations.length === final.sequence.filter(step => step === "quit" || step === "interrupt").length &&
+      exactNativeExit: observations.length === events.filter(event => "exit" in event).length &&
         events.filter(event => "exit" in event).every((event, index) => {
           const native = observations[index];
           return !!native && native.ptyId === event.from.ptyId && isDeepStrictEqual(native.stream, event.exit) &&
@@ -349,37 +362,38 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
             (event.operation === "quit" ? event.exit.code === 0 && event.exit.signal === null :
               event.exit.signal !== null || (event.exit.code !== null && event.exit.code !== 0));
         }),
-      exactTerminalDiscovery: await discovery.verify(outcome?.discovery ?? null, world!.discovery),
+      exactTerminalDiscovery: await discovery.verifyObserved(),
       exactNativeChecks: (world!.checks ? !!nativeChecks : check === null),
       verifiedLocalHandoff: expectedStaging ? !!staged && !!retained && retained.length === staged.bytes &&
         handoffNames.length === 1 && staged.path === `/.tmp/${handoffNames[0]}/handoff.json` &&
         new TextDecoder("utf-8", { fatal: true }).decode(retained) === stagedText &&
         typeof stagedText === "string" && sha256HexSyncText(stagedText) === staged.sha256 : staged === null && handoffNames.length === 0,
-      protectedOwnedContext: initial && !ids.includes(initial.sessionId) &&
+      protectedOwnedContext: initial && !registeredAtStart.has(initial.sessionId) && nativeOwnership &&
         events.every(event => event.operation !== "retire" || event.absentFromRegistry) &&
         after.mainEventId === before.mainEventId && isDeepStrictEqual(after.workingHead, before.workingHead) && opened?.note === await memo(),
-      resultGrounded: outcome?.summary?.disposition === final.disposition && typeof outcome.summary.explanation === "string",
+      resultGrounded: typeof outcome?.answer === "string" && Boolean(outcome.answer.trim()),
       rejectedForeignAction: negative,
     };
-    const contract:SemanticOutcomeContract={effects:{checks:["exactLiveChecklist", "verifiedTerminalContinuity", "exactNativeExit", "exactNativeChecks", "verifiedLocalHandoff", "protectedOwnedContext", "rejectedForeignAction"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["returnedTerminalState", "returnedTerminalChecks", "exactTerminalDiscovery", "resultGrounded"],required:!!world!.discovery||!!world!.checks||events.length===0,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:["returnedTerminalHandoff"],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactLiveChecklist", "verifiedTerminalContinuity", "exactNativeExit", "exactNativeChecks", "exactTerminalDiscovery", "verifiedLocalHandoff", "protectedOwnedContext", "rejectedForeignAction"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["resultGrounded"],required:world!.requestedReturnRequired,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"The public value contains requested findings; exact Native handles and receipts remain independently observed operation evidence."}};
     return assessObservedApplicationOutcome({ caseId: input.caseId, contextId: input.contextId, goal: world!.goal, checks,
       passed: Object.values(checks).every(value => value === true), initial, opened, events: structuredClone(events),
-      observedExit: structuredClone(observations), discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText },contract,outcome,invocation,[{"checks":["resultGrounded"],"rootPath":["summary"],"producerSourceSuffix":"workOnTerminalGoal/composeTerminalOutcome.nl","producerPath":[]},{"checks":["returnedTerminalChecks"],"rootPath":["checkReport"],"producerSourceSuffix":"workOnTerminalGoal/checks/runTerminalChecks.nl","producerPath":[]},{"checks":["exactTerminalDiscovery"],"rootPath":["discovery"],"producerSourceSuffix":"workOnTerminalGoal/terminal/discoverTerminalOptions.nl","producerPath":[]}]);
+      observedExit: structuredClone(observations),journal:structuredClone(journal),registry, discovery: discovery.evidence(), checkPlan: plan, checkResults: structuredClone(checkResults), handoff: staged, stagedText },contract,outcome,invocation,[{"checks":["resultGrounded"],"rootPath":["answer"],"producerSourceSuffix":"workOnTerminalGoal/composeTerminalOutcome.nl","producerPath":["explanation"]}]);
   }
 
   async function rejectBadInput() {
     return await services.openTerminalInput.change({ item: "4" as ItemKey, checked: true, input: "key" }) === null;
   }
   async function verify(raw: unknown,invocation?:InvocationObservations) {
-    const report = raw as Report | null;
-    const negative = await rejectBadInput();
-    await close();
-    return verifyOutcome(report ?? null, negative,invocation);
+    return evaluateAndClose(async()=>{
+      const report = raw as Report | null;
+      const negative = await rejectBadInput();
+      return verifyOutcome(report ?? null, negative,invocation);
+    });
   }
   async function qualify() {
-    const opening = await services.openTerminalRead.open();
+    return evaluateAndClose(async()=>{
+    await services.openTerminalRead.open();
     let negative = await rejectBadInput();
-    let found: TerminalDiscovery | null = null;
     for (const step of world!.expected.sequence) {
       const [operation, item, value, route] = step.split(":");
       if (operation === "change") {
@@ -387,7 +401,7 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
           throw new Error(`Reference edit refused: ${step}`);
       } else if (operation === "discover") {
         if (!world!.discovery) throw new Error("Reference discovery is not granted");
-        found = await discovery.qualify(world!.discovery);
+        await discovery.qualify(world!.discovery);
       } else if (operation === "check") {
         if (!assignment || !services.terminalCheckRead || !services.terminalCheckRun) throw new Error("Reference suite was not assigned");
         const plan = await services.terminalCheckRead.observe(assignment.request.operationId);
@@ -404,14 +418,11 @@ export async function prepareOpenTerminalGoal(input: { contextId: string; caseId
         if (!await services.openTerminalLifecycle.advance(transition)) throw new Error(`Reference transition refused: ${step}`);
       }
     }
-    await close();
-    const checks = currentChecks();
-    const last=events.at(-1);
-    const report = {terminal:last?("to" in last?last.to:null):opening.screen,exit:last&&"exit" in last?last.exit:null,retired:last?.operation==="retire"&&last.absentFromRegistry,checkReport: checks, discovery: found, handoff: staged,
-      summary: { disposition: world!.expected.disposition, explanation: world!.expected.explanation } };
-    const proof = await verifyOutcome(report, negative);
-    const altered = await verifyOutcome({ ...report, terminal: {...opening.screen,ptyId:"other-pty"} }, negative);
-    return { ...proof, passed: proof.passed && !altered.outcomeDimensions.returnedValue.passed };
+      const report = {answer:world!.expected.explanation};
+      const proof = await verifyOutcome(report, negative);
+      const altered = await verifyOutcome({ answer:null } as unknown as Report, negative);
+      return { ...proof,qualification:{scope:"native-reference",goalMeaningReview:"pending"}, passed: proof.passed && !altered.outcomeDimensions.returnedValue.passed };
+    });
   }
   return { goal: world.goal, services, qualify, verify, close };
 }
