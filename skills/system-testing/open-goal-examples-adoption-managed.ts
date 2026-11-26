@@ -1,7 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["card", "installed", "composition", "gate", "journal"], ["noteText"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["card", "installed", "composition", "gate", "journal", "nativeFacts"], ["noteText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -33,7 +32,6 @@ type Ports = {
   readBytes(path: string, limit: number): Promise<Uint8Array>;
 };
 type Plan = {
-  disposition: ExamplesAdoptionWorld["disposition"];
   finding: string;
   proof: string[];
 };
@@ -305,6 +303,11 @@ export async function prepareOpenExamplesAdoption(
   let gate: Gate | undefined;
   let receipt: Receipt | null = null;
   let advanced = false;
+  // The external restage belongs to native lifetime, not to a mandatory caller route.
+  async function observeCurrentFrontier() {
+    if(world.during&&!advanced){advanced=true;await stageReview(current,"coedited");}
+    return stateEvent();
+  }
   function possible(c: Composition) {
     return [
       c.issue,
@@ -334,13 +337,9 @@ export async function prepareOpenExamplesAdoption(
       },
       async confirm(id: string, event: string) {
         assign(id);
-        if (event !== card.event || composition?.event !== event)
+        if (event !== card.event)
           throw new Error("Confirm only the observed composition");
-        if (world.during && !advanced) {
-          advanced = true;
-          await stageReview(current, "coedited");
-        }
-        const head = await stateEvent();
+        const head = await observeCurrentFrontier();
         gate = { event: head, status: head === event ? "current" : "changed" };
         return keep(read, "confirm", [id, event], gate);
       },
@@ -350,7 +349,7 @@ export async function prepareOpenExamplesAdoption(
           throw new Error(
             "Read only the assigned private composition artifact",
           );
-        const event = await stateEvent();
+        const event = await observeCurrentFrontier();
         const bytes = path ? await ports.readBytes(path, maxNoteBytes) : null;
         const digest = bytes
           ? sha256HexSyncText(
@@ -371,20 +370,20 @@ export async function prepareOpenExamplesAdoption(
         if (
           !receipt &&
           card.mayRecord &&
-          gate?.status === "current" &&
           event === card.event &&
           composition?.event === event &&
-          composition.status === "composed" &&
-          (await stateEvent()) === event &&
-          plan.disposition === "record-private" &&
-          plan.proof.length &&
-          plan.proof.every((item) => possible(composition!).includes(item))
+          (await observeCurrentFrontier()) === event &&
+          typeof plan.finding === "string" && Boolean(plan.finding.trim()) &&
+          Array.isArray(plan.proof) &&
+          plan.proof.every((item) => typeof item === "string" && possible(composition!).includes(item))
         ) {
           const body = JSON.stringify({
             title: card.title,
             event,
             main: initial.mainEventId,
             compositionDigest: composition.digest,
+            status: composition.status,
+            issue: composition.issue,
             owner: composition.owner,
             proof: plan.proof,
             finding: plan.finding,
@@ -412,186 +411,89 @@ export async function prepareOpenExamplesAdoption(
   };
   
   async function verify(value: unknown,observations?: InvocationObservations) {
-    const proof=await verifyNativeApplication(value,observations);
+    const proof=await verifyNativeApplication(value);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedAdoptionValue"],"rootPath":["disposition"],"producerSourceSuffix":"reviewExamplesAdoption/planAdoptionHandoff.nl","producerPath":["disposition"]},{"checks":["returnedAdoptionValue"],"rootPath":["finding"],"producerSourceSuffix":"reviewExamplesAdoption/planAdoptionHandoff.nl","producerPath":["finding"]},{"checks":["returnedAdoptionValue"],"rootPath":["disposition"],"producerSourceSuffix":"reviewExamplesAdoption/holdChangedReview.nl","producerPath":["disposition"]},{"checks":["returnedAdoptionValue"],"rootPath":["finding"],"producerSourceSuffix":"reviewExamplesAdoption/holdChangedReview.nl","producerPath":["finding"]}];
-    const replacementObserved=observations?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("holdChangedReview.nl"))??false;
-    const contributions=authored.filter(binding=>{
-      if(binding.producerSourceSuffix.endsWith(replacementObserved?"planAdoptionHandoff.nl":"holdChangedReview.nl"))return false;
-      let current:unknown=value;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,contributions);
-    // Preserve every original native observation for qualification and callers
-    // that add their own checks before the final outcome projection.
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,observations,
+      [{checks:["returnedAdoptionValue"],rootPath:[],producerSourceSuffix:"reviewExamplesAdoption.nl",producerPath:[]}]);
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
-async function verifyNativeApplication(value: unknown, observations?: InvocationObservations) {
-    const result = value as Receipt | {disposition:string;finding:string} | null;
-    const plan = journal.filter(row=>row.service===write&&row.method==="record").at(-1)?.args[2] as Plan | undefined;
-    const disposition = plan ?? (result&&"disposition" in result ? result : null);
-    const finalEvent = await stateEvent();
-    const independent = await nativeComposition();
-    const { epoch, ...source } = await installedEvidence();
-    const files = (await listOwnedScratchEntries(ports.fs)).filter(
-      (path) => !priorScratch.has(path),
-    );
-    const saved = receipt
-      ? await ports.readBytes(receipt.path, maxNoteBytes)
-      : null;
-    const body = saved
-      ? new TextDecoder("utf-8", { fatal: true }).decode(saved)
-      : null;
-    // Verification reads current native state and retained bytes independently.
-    // Earlier actor readbacks remain historical observations, not a final-state gate.
-    const readback: Readback = {main: initial.mainEventId, event: finalEvent,
-      digest: body === null ? null : sha256HexSyncText(body)};
-    const records = world.disposition === "record-private";
-    const expectedOwner = world.mode === "parent" ? "Base" : "Examples";
-    const exact = (
-      service: string,
-      method: string,
-      args: unknown[],
-      result: unknown,
-    ) => {
-      const rows = journal.filter(
-        (row) => row.service === service && row.method === method,
-      );
-      return (
-        rows.some(row => isDeepStrictEqual(row.args, args) && isDeepStrictEqual(row.result, result))
-      );
+  async function verifyNativeApplication(value: unknown) {
+    const finalEvent=await observeCurrentFrontier();
+    const independent=await nativeComposition();
+    const {epoch,...installedSource}=await installedEvidence();
+    const liveSource=await file({kind:"event",eventId:finalEvent},ownedRepo,"review.json");
+    const liveLayers=JSON.parse(liveSource.text).layers as typeof layers;
+    const currentComposition={id:key,event:finalEvent,...evaluateAdoption(world.unit,liveLayers)};
+    const files=(await listOwnedScratchEntries(ports.fs)).filter(path=>!priorScratch.has(path));
+    const saved=receipt?await ports.readBytes(receipt.path,maxNoteBytes):null;
+    const body=saved?new TextDecoder("utf-8",{fatal:true}).decode(saved):null;
+    const records=journal.filter(row=>row.service===write&&row.method==="record"&&row.result!==null);
+    const issued=records.find(row=>isDeepStrictEqual(row.result,receipt));
+    const draft=issued?.args[2] as Plan|undefined;
+    const readback:Readback={main:initial.mainEventId,event:finalEvent,digest:body===null?null:sha256HexSyncText(body)};
+    const observed=journal.filter(row=>row.service===read);
+    const nativeBody=draft?{title:card.title,event:card.event,main:initial.mainEventId,
+      compositionDigest:independent.digest,status:independent.status,issue:independent.issue,
+      owner:independent.owner,proof:draft.proof,finding:draft.finding}:null;
+    const checks={
+      returnedAdoptionValue:typeof value==="string"&&Boolean(value.trim()),
+      authenticObservedAdoptionEvidence:observed.every(row=>{
+        if(row.method==="discover")return isDeepStrictEqual(row.args,[])&&isDeepStrictEqual(row.result,[card,older]);
+        if(row.method==="installed")return isDeepStrictEqual(row.args,[key])&&isDeepStrictEqual(row.result,installedSource);
+        if(row.method==="compose")return isDeepStrictEqual(row.args,[key,card.event])&&isDeepStrictEqual(row.result,independent);
+        if(row.method==="confirm"){const result=row.result as Gate;return isDeepStrictEqual(row.args,[key,card.event])&&
+          [card.event,finalEvent].includes(result.event)&&result.status===(result.event===card.event?"current":"changed");}
+        if(row.method==="readback"){const result=row.result as Readback;return row.args[0]===key&&
+          result.main===initial.mainEventId&&[card.event,finalEvent].includes(result.event)&&
+          (row.args[1]===null?result.digest===null:!!receipt&&row.args[1]===receipt.path&&result.digest===receipt.digest);}
+        return false;
+      }),
+      exactNativeCompositionAndProtectedSource:liveSource.repositoryId===repositoryId&&
+        liveSource.text===sourceForCurrentReview()&&
+        /^[a-f0-9]{64}$/u.test(liveSource.digest)&&
+        (independent.status==="composed"?/^[a-f0-9]{64}$/u.test(independent.digest??"")&&typeof independent.owner==="string":independent.digest===null&&independent.owner===null),
+      currentOwnedAdoptionWrites:records.every(row=>{const got=row.result as Receipt;return row.args[0]===key&&
+        row.args[1]===card.event&&got.event===card.event&&card.mayRecord&&finalEvent===card.event&&
+        isDeepStrictEqual(got,receipt);}),
+      actualPrivateAdoptionBytes:receipt!==null?!!issued&&!!draft&&body!==null&&files.length===1&&
+        typeof draft.finding==="string"&&Boolean(draft.finding.trim())&&
+        draft.proof.every(item=>possible(independent).includes(item))&&
+        sha256HexSyncText(body)===receipt.digest&&isDeepStrictEqual(JSON.parse(body),nativeBody):body===null&&files.length===0,
+      independentReadbackAndPreservedMain:readback.main===initial.mainEventId&&readback.event===finalEvent&&readback.digest===(receipt?.digest??null),
     };
-    const checks = {
-      returnedAdoptionValue: records ? !!receipt&&isDeepStrictEqual(result,receipt) :
-        typeof disposition?.finding==="string"&&!!disposition.finding.trim(),
-      exactStagedAndInstalledSource: Boolean(
-
-        exact(read, "discover", [], [card, older]) &&
-        exact(read, "installed", [key], source),
-      ),
-      exactNativeComposition: Boolean(
-
-        exact(read, "compose", [key, card.event], independent) &&
-        independent.status === world.status &&
-        (independent.status === "composed"
-          ? independent.owner === expectedOwner &&
-            /^[a-f0-9]{64}$/u.test(independent.digest ?? "") &&
-            (world.mode !== "replace" ||
-              !independent.privateFiles.some((path) =>
-                path.endsWith("/review-parent.ts"),
-              ))
-          : independent.digest === null && independent.owner === null),
-      ),
-      currentOwnedFrontier: Boolean(
-        gate &&
-        exact(read, "confirm", [key, card.event], gate) &&
-        gate.status === (world.during ? "changed" : "current") &&
-        gate.event === finalEvent &&
-        (world.during ? finalEvent !== card.event : finalEvent === card.event),
-      ),
-      actualPrivateDisposition: Boolean(
-        (records ? !!plan && plan.disposition===world.disposition && !!plan.finding.trim() &&
-          plan.proof.length > 0 && plan.proof.every(item => possible(independent).includes(item)) : true) &&
-        (records
-          ? receipt &&
-            body &&
-            files.length === 1 &&
-            receipt.event === finalEvent &&
-            sha256HexSyncText(body) === receipt.digest &&
-            isDeepStrictEqual(JSON.parse(body), {
-              title: card.title,
-              event: finalEvent,
-              main: initial.mainEventId,
-              compositionDigest: independent.digest,
-              owner: independent.owner,
-              proof: plan!.proof,
-              finding: plan!.finding,
-            }) &&
-            exact(write, "record", [key, card.event, plan!], receipt)
-          : !receipt &&
-            !body &&
-            !files.length),
-      ),
-      independentReadbackAndPreservedMain: Boolean(
-        readback &&
-        readback.main === initial.mainEventId &&
-        readback.event === finalEvent &&
-        readback.digest === (receipt?.digest ?? null),
-      ),
-    };
-    return {
-      outcomeContract: {
-        effects: {checks:["exactStagedAndInstalledSource", "exactNativeComposition", "currentOwnedFrontier", "actualPrivateDisposition", "independentReadbackAndPreservedMain"],rationale:"Native composition, frontier, private note and protected main establish the handoff."},
-        returnedValue: {checks:["returnedAdoptionValue"],required:!records,rationale:"An explain-only composition finding is requested; the extra private-note handle is optional."},
-        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
-      },
-      incorrectReturnValues:[],
-      contextId: input.contextId,
-      caseId: world.id,
-      goal: world.goal,
-      passed: Object.values(checks).every(Boolean),
-      checks,
-      card,
-      installed: source,
-      composition: independent,
-      gate,
-      receipt,
-      noteText: body,
-      readback,
-      journal: structuredClone(journal),
+    return {outcomeContract:{
+      effects:{checks:["authenticObservedAdoptionEvidence","exactNativeCompositionAndProtectedSource","currentOwnedAdoptionWrites","actualPrivateAdoptionBytes","independentReadbackAndPreservedMain"],rationale:"Actual native source, current owned write authority, protected main and persisted bytes; independent verification is not an actor read."},
+      returnedValue:{checks:["returnedAdoptionValue"],required:world.requestedReturnRequired,rationale:"Explicit literal chat/check questions require their actual finding; a requested private artifact need not have an extra root report."},
+      incidentalValues:{checks:[],rationale:"The public result is the user's finding, not a copied private status or receipt envelope."}},
+      incorrectReturnValues:[],contextId:input.contextId,caseId:world.id,goal:world.goal,
+      passed:Object.values(checks).every(Boolean),checks,card,installed:installedSource,composition:independent,gate,
+      receipt,readback,noteText:body,journal:structuredClone(journal),
+      nativeFacts:{reviewed:{card,composition:independent},current:{event:finalEvent,composition:currentComposition,sourceDigest:liveSource.digest},
+        actorObserved:{installed:observed.some(row=>row.method==="installed"),composition:observed.some(row=>row.method==="compose"),frontier:observed.some(row=>row.method==="confirm"),readback:observed.some(row=>row.method==="readback")},
+        artifact:{receipt,noteText:body},protocol:"Installed, reviewed and current native facts have separate roles. Independent verifier reads are not actor reads. A grant does not request an artifact; a refused attempt has no committed effect. Meaning review must judge actual requested findings/notes from the real actor evidence and retained bytes, never a reference disposition, path set or method count."},
     };
   }
+  function sourceForCurrentReview(){return source(advanced?"coedited":"working");}
   async function qualify() {
-    await services.adoptionReview.discover();
-    let denied = 0;
-    try {
-      await services.adoptionReview.installed(older.id);
-    } catch {
-      denied++;
-    }
-    try {
-      await services.adoptionReview.compose(key, older.event);
-    } catch {
-      denied++;
-    }
-    const source = await services.adoptionReview.installed(key);
-    const native = await services.adoptionReview.compose(key, card.event);
-    const confirmed = await services.adoptionReview.confirm(key, card.event);
-    const proof = world.during
-      ? [confirmed.event]
-      : (world.proof ?? [native.issue ?? ""]);
-    const plan: Plan = {
-      disposition: world.disposition,
-      finding: "The exact owned candidate provides these native receipts.",
-      proof: [...proof],
-    };
-    const saved =
-      world.disposition === "record-private"
-        ? await services.adoptionHandoff.record(key, card.event, plan)
-        : null;
-    const readback = await services.adoptionReview.readback(
-      key,
-      saved?.path ?? null,
-    );
-    const report = saved ?? {disposition:plan.disposition,finding:plan.finding};
-    const verification = await verify(report);
-    const altered = structuredClone(report);
-    if ("path" in altered) altered.path="foreign-adoption.json"; else altered.disposition="invented" as typeof altered.disposition;
-    const rejectedAlteredEvidence = denied === 2 && !(await verify(altered)).outcomeDimensions.returnedValue.passed;
-    return assessNativeQualification({
-      ...verification,
-      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},
-      passed: verification.passed && rejectedAlteredEvidence,
-      checks: { ...verification.checks, rejectedAlteredEvidence },
-      referenceReport: report,
-    });
+    const discovered=await services.adoptionReview.discover();let denied=0;
+    try{await services.adoptionReview.installed(older.id);}catch{denied++;}
+    try{await services.adoptionReview.compose(key,older.event);}catch{denied++;}
+    await services.adoptionReview.installed(key);
+    const native=await services.adoptionReview.compose(key,card.event);
+    const confirmed=await services.adoptionReview.confirm(key,card.event);
+    const draft:Plan={finding:JSON.stringify({status:native.status,issue:native.issue,owner:native.owner,privateFiles:native.privateFiles,pulledUnits:native.pulledUnits,settings:native.settings,minimumAppVersion:native.minimumAppVersion}),
+      proof:possible(native).filter((item):item is string=>typeof item==="string")};
+    const shouldRecord=world.requestedArtifact!=="none"&&card.mayRecord&&confirmed.status==="current";
+    const saved=shouldRecord?await services.adoptionHandoff.record(key,card.event,draft):null;
+    await services.adoptionReview.readback(key,saved?.path??null);
+    const report=draft.finding;const verification=await verify(report);
+    const requiredArtifact=world.requestedArtifact==="required"||shouldRecord;
+    const referenceActuallyPerformed=denied===2&&(requiredArtifact?!!saved&&verification.checks.actualPrivateAdoptionBytes:saved===null)&&
+      native.status===world.status;
+    return assessNativeQualification({...verification,
+      outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"referenceActuallyPerformed"]}},
+      passed:verification.passed&&referenceActuallyPerformed,checks:{...verification.checks,referenceActuallyPerformed},referenceReport:report});
   }
-  return { services, verify, qualify };
+  return {services,verify,qualify};
 }
