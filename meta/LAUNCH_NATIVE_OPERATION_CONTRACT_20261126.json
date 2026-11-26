@@ -1,0 +1,24 @@
+{
+  "mechanism": "Native launch ports must report real current state and authorize observed requested operations, never a hidden reference route",
+  "included": [
+    "skills/system-testing/open-goal-launch-state-managed.ts",
+    "skills/system-testing/open-goal-launch-state-worlds.ts",
+    "skills/system-testing/open-goal-launch-state-managed.test.ts",
+    "Host scripts/lib/observed-content-admission.mjs launch-state observation fields"
+  ],
+  "defects": [
+    "read() returns cached second snapshot forever",
+    "bind()/patch()/stage() compare against the reference plan/outcome",
+    "exactly two actor reads are a gate",
+    "private verification silently requires a retained note"
+  ],
+  "preserved": [
+    "all 24 literal goals/IDs/splits",
+    "owned native panel and foreign rejection",
+    "native schema/entry/build conflicts and observed basis checks",
+    "actual authority preflight and exact operation binding",
+    "independent final readback and protected siblings",
+    "genuinely requested retained note and whole-goal meaning review"
+  ],
+  "nativeApiBoundary": "Existing slot.patchCurrentStateArgs is an unconditional merge operation; retain native entry/build conflict handling and fixture-serialized observed-basis checks. This patch does not claim a new atomic whole-state compare-and-swap API."
+}

@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["index", "frames", "companionReadbacks", "protectedCompanion", "readback", "request", "witness", "effect"], ["artifact"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["index", "frames", "companionReadbacks", "protectedCompanion", "readback", "request", "witness", "effect", "operations"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {isDeepStrictEqual} from "node:util";
@@ -115,9 +115,21 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
     const index:LaunchIndex=[{panelId:alternate.id,title:archive.state.title,purpose:"archive"},
       {panelId:active.id,title:baseline.state.title,purpose:"active"}];
     const plan:LaunchPlan={panelId:active.id,direction:world.policy==="readonly"?"read":world.policy==="test-rejection"?"test":"write",
-      retain:world.note===true,patch:world.patch};
+      retain:Boolean(world.note),patch:world.patch};
     const frames:LaunchSnapshot[]=[];
     const companionReadbacks:LaunchSnapshot[]=[];
+    const operations:{service:string;method:string;args:unknown[];request:LaunchAuthorityRequest;witness:unknown;observed:LaunchSnapshot;result:LaunchEffect}[]=[];
+    let peerBasis=baseline;
+    let peerApplied=false;
+    let bound:{basis:LaunchSnapshot;patch:LaunchPatch}|null=null;
+    async function advancePeer(){
+      if(peerApplied||frames.length===0)return;
+      peerApplied=true;
+      if(world.advance)await active.stateArgs.patch(world.advance);
+      if(world.replaceEntry)await active.navigate(source,{contextId:owner,ref:`ctx:${owner}`,stateArgs:{...baseline.state,label:"owner-reopened"}});
+      peerBasis=await native(active,true);
+      if(world.replaceEntry&&peerBasis.entryKey===baseline.entryKey)throw new Error("The requested owned navigation did not replace its launch entry");
+    }
     let busy=false;
     let binding:Binding|null=null;
     let witness:Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null=null;
@@ -130,8 +142,8 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       sources:[{id:"launch-scope",path:policy}]},ports.readBytes).scratchHandoffWrite;
     const body=(report:LaunchReport)=>JSON.stringify({visibility:"private-local",opening:report.opening,current:report.current,
       readback:report.readback,effect:report.effect,result:report.result});
-    const authorized=()=>frames.length===2&&plan.direction!=="read"&&sameIdentity(frames[0],frames[1])&&
-      !overlaps(frames[0].state,frames[1].state,plan.patch);
+    const referenceAttempt=()=>frames.length>=2&&plan.direction!=="read"&&sameIdentity(frames[0],frames.at(-1)!)&&
+      !overlaps(frames[0].state,frames.at(-1)!.state,plan.patch);
 
     let stagedText:string|null=null;
   const services={
@@ -144,40 +156,48 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
             return structuredClone(observed);
           }
           if(panelId!==active.id)return null;
-          if(frames.length>=2)return structuredClone(frames.at(-1)!);
-          if(busy)return null;
+          if(closed||busy)return null;
           busy=true;
           try {
-            if(frames.length===1&&world.advance)await active.stateArgs.patch(world.advance);
-            if(frames.length===1&&world.replaceEntry)
-              await active.navigate(source,{contextId:owner,ref:`ctx:${owner}`,stateArgs:{...baseline.state,label:"owner-reopened"}});
+            await advancePeer();
             const row=await native(active,true);
-            if(world.replaceEntry&&frames.length===1&&row.entryKey===baseline.entryKey)
-              throw new Error("The requested owned navigation did not replace its launch entry");
             frames.push(row);return structuredClone(row);
           }finally{busy=false;}
         },
         async bind(panelId:string,basis:string,patch:LaunchPatch){
-          if(binding||busy||panelId!==active.id||!authorized()||frames[1].digest!==basis||!isDeepStrictEqual(patch,plan.patch))return null;
-          binding=ports.bindAuthority({goal:world.goal,operations:[{id:crypto.randomUUID(),label:"Exact native launch-state patch",
-            service:"workspace-state",method:"slot.patchCurrentStateArgs",args:[active.id,patch]}],
-            ceiling:[{capability:stateAuthority,resourceKey:stateAuthority}]});
-          return structuredClone(binding.request);
+          if(closed||busy||panelId!==active.id||!frames.length)return null;
+          busy=true;
+          try {
+            await advancePeer();
+            const observed=frames.findLast(row=>row.digest===basis);
+            const current=await native(active,true);
+            if(!observed||!sameIdentity(frames[0],current)||current.digest!==basis)return null;
+            const next=ports.bindAuthority({goal:world.goal,operations:[{id:crypto.randomUUID(),label:"Exact native launch-state patch",
+              service:"workspace-state",method:"slot.patchCurrentStateArgs",args:[active.id,patch]}],
+              ceiling:[{capability:stateAuthority,resourceKey:stateAuthority}]});
+            bound={basis:structuredClone(observed),patch:structuredClone(patch)};
+            binding=next;witness=null;
+            return structuredClone(next.request);
+          }finally{busy=false;}
         },
         async seal(panelId:string){
-          if(panelId!==active.id||frames.length!==2||busy)return null;
-          readback=await native(active);return structuredClone(readback);
+          if(closed||panelId!==active.id||!frames.length||busy)return null;
+          busy=true;
+          try {
+            await advancePeer();
+            readback=await native(active);return structuredClone(readback);
+          }finally{busy=false;}
         },
       },
       assignedAuthorityRead:{async preflight(operationId:string){
-        if(witness||!binding||operationId!==binding.request.operations[0].id)throw new Error("Inspect only this exact launch patch");
+        if(closed||!binding||operationId!==binding.request.operations[0].id)throw new Error("Inspect only this exact launch patch");
         witness=await binding.services.assignedAuthorityRead.preflight(operationId);
         return structuredClone(witness);
       }},
       launchStateWrite:{
         async patch(panelId:string,basis:string,patch:LaunchPatch){
-          if(!witness||witness.decision!=="allowed"||effect||busy||!authorized()||panelId!==active.id||frames[1].digest!==basis||
-            !isDeepStrictEqual(patch,plan.patch))return null;
+          if(closed||!witness||witness.decision!=="allowed"||!binding||!bound||busy||panelId!==active.id||bound.basis.digest!==basis||
+            !isDeepStrictEqual(patch,bound.patch))return null;
           busy=true;
           try{
             const saved=await native(active);
@@ -194,18 +214,15 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
                 effect={panelId,basis,kind:code==="PANEL_STATE_ARGS_CONFLICT"?"stale":"invalid",state:null,message:error.message.slice(0,400)};
               }
             }
+            operations.push({service:"workspace-state",method:"slot.patchCurrentStateArgs",args:[panelId,basis,structuredClone(patch)],
+              request:structuredClone(binding.request),witness:structuredClone(witness),observed:structuredClone(bound.basis),result:structuredClone(effect)});
             return structuredClone(effect);
           }finally{busy=false;}
         },
         async stage(report:LaunchReport){
-          if(!world.note||!readback||handoff||busy||!report||report.handoff!==null||
-            !isDeepStrictEqual(report.plan,plan)||!isDeepStrictEqual(report.opening,frames[0])||
-            !isDeepStrictEqual(report.current,frames[1])||!isDeepStrictEqual(report.effect,effect)||
-            !isDeepStrictEqual(report.readback,readback)||report.result?.status!==world.outcome||
-            typeof report.result.summary!=="string"||!report.result.summary.trim())return null;
+          if(closed||!world.note||handoff||busy||!report||report.handoff!==null)return null;
           busy=true;
           try {
-            if(!isDeepStrictEqual(await native(active),readback))return null;
             const payload=body(report);
             const staged=(stagedText=payload,await writer.stage(payload));
             if(!staged)return null;
@@ -220,44 +237,44 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const value=raw as LaunchReport|null;
       const report=value;
       const [final,archiveAfter,status]=await Promise.all([native(active,true),native(alternate,true),ports.status()]);
-      const [opening,current]=frames;
+      const opening=frames[0],current=operations.at(-1)?.observed??frames.at(-1);
       const shouldAttempt=world.outcome==="applied"||world.outcome==="rejected";
-      const expected=world.outcome==="applied"&&current?plainExpected(current.state,world):current?.state;
+      const expected=world.outcome==="applied"?plainExpected(peerBasis.state,world):peerBasis.state;
       const written=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
       const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,maxScratchArtifactBytes)):null;
-      const effectProof=effect as LaunchEffect|null,authorityWitness=witness as Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null;
-      const authorityRequest=(binding as Binding|null)?.request??null;
+      const effectProof=effect as LaunchEffect|null,authorityWitness=(operations.at(-1)?.witness??witness) as Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null;
+      const authorityRequest=operations.at(-1)?.request??(binding as Binding|null)?.request??null;
       const checks={
         returnedLaunchHandoff:isDeepStrictEqual(report?.handoff,handoff),
         returnedLaunchReadback:isDeepStrictEqual(report?.readback,readback),
-        exactLaunchSlot:frames.length===2&&isDeepStrictEqual(opening,baseline),
+        exactLaunchSlot:frames.length>=1&&isDeepStrictEqual(opening,baseline),
         reconciledLaunchScope:!!current&&(!sameIdentity(opening,current))===Boolean(world.replaceEntry)&&
           shouldAttempt===!!effectProof,
         exactLaunchPreflight:shouldAttempt?!!authorityRequest&&authorityWitness?.decision==="allowed"&&
           authorityWitness.operationId===authorityRequest.operations[0].id:authorityWitness===null,
         exactNativePatchResult:shouldAttempt?!!effectProof&&effectProof.basis===current?.digest&&
           (world.outcome==="applied"?effectProof.kind==="saved"&&isDeepStrictEqual(effectProof.state,expected):
-            effectProof.kind==="invalid"&&effectProof.state===null):effectProof===null,
+            effectProof.kind==="invalid"&&effectProof.state===null&&isDeepStrictEqual(operations.at(-1)?.args[2],world.patch)):effectProof===null,
         independentLaunchReadback:!!readback&&isDeepStrictEqual(final,readback)&&
           !!current&&sameIdentity(current,final)&&isDeepStrictEqual(final.state,expected),
         exactLaunchDecision:report?.result?.status===world.outcome&&typeof report.result.summary==="string"&&
           !!report.result.summary.trim(),
         protectedLaunchSiblings:isDeepStrictEqual(archive,archiveAfter)&&isDeepStrictEqual(status,initial),
-        exactPrivateLaunchNote:world.note?!!artifact&&!!handoff&&written.length===1&&
-          handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&written.length===0,
+        exactPrivateLaunchNote:handoff?!!artifact&&written.length===1&&
+          handoff.path===`/.tmp/${written[0]}/handoff.json`&&artifact===stagedText&&handoff.digest===sha256HexSyncText(artifact):world.note!==true&&written.length===0,
         rejectedLaunchRetarget:await services.launchStateRead.read("foreign:"+active.id)===null&&
           await services.launchStateRead.seal(alternate.id)===null&&await services.launchStateWrite.patch(alternate.id,baseline.digest,plan.patch)===null,
       };
       const contract:SemanticOutcomeContract={effects:{checks:["exactLaunchSlot", "reconciledLaunchScope", "exactLaunchPreflight", "exactNativePatchResult", "independentLaunchReadback", "protectedLaunchSiblings", "exactPrivateLaunchNote", "rejectedLaunchRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedLaunchReadback", "exactLaunchDecision"],required:!shouldAttempt,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedLaunchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
     return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),index,plan,frames,companionReadbacks,protectedCompanion:{initial:archive,current:archiveAfter},readback,
-        request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactLaunchDecision"],"rootPath":["result"],"producerSourceSuffix":"reconcilePanelLaunchState/concludeLaunchState.nl"}]);
+        operations,request:authorityRequest,witness:authorityWitness,decision:report?.decision??null,effect:effectProof,result:report?.result??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactLaunchDecision"],"rootPath":["result"],"producerSourceSuffix":"reconcilePanelLaunchState/concludeLaunchState.nl"}]);
     }
     async function qualify(){
       await services.launchStateRead.enumerate();
       const opening=await services.launchStateRead.read(active.id),current=await services.launchStateRead.read(active.id);
       if(!opening||!current)throw new Error("Independent opening and current launch state are required");
-      const decision:LaunchDecision={attempt:authorized(),reason:"Checked the exact current slot and authorized patch coordinates."};
+      const decision:LaunchDecision={attempt:referenceAttempt(),reason:"Checked the exact current slot and authorized patch coordinates."};
       let preflight:LaunchReport["preflight"]=null,receipt:LaunchEffect|null=null;
       if(decision.attempt){
         const request=await services.launchStateRead.bind(active.id,current.digest,plan.patch) as LaunchAuthorityRequest|null;

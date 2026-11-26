@@ -2,7 +2,7 @@ type Change=Record<string,unknown>;
 type World={
   id:string;title:string;goal:string;
   policy:"apply"|"readonly"|"test-rejection"|"hold-if-moved"|"preserve-other";
-  patch:Change;advance?:Change;replaceEntry?:boolean;note?:boolean;split?:"test";
+  patch:Change;advance?:Change;replaceEntry?:boolean;note?:boolean|"optional";split?:"test";
   outcome:"confirmed"|"held"|"applied"|"rejected";
 };
 const cases:World[]=[
@@ -33,7 +33,7 @@ const cases:World[]=[
   {id:"unknown-nested-setting-is-rejected",title:"Parking review",goal:"Try the obsolete nested parking camera switch only on this disposable review panel. Confirm whether the current schema admits it without changing any other launch state.",
     policy:"test-rejection",patch:{settings:{camera:true}},outcome:"rejected"},
   {id:"preserve-late-badge-while-replacing-pins",title:"Dispatch doors",goal:"Set Dispatch doors pins to north and east. The operator may add a temporary launch label during your review. Preserve their label and verify both results privately.",
-    policy:"preserve-other",patch:{settings:{pins:["north","east"]}},advance:{label:"operator check"},outcome:"applied",note:true},
+    policy:"preserve-other",patch:{settings:{pins:["north","east"]}},advance:{label:"operator check"},outcome:"applied",note:"optional"},
   {id:"active-value-already-edited-read-only",title:"Load counter",goal:"Read the active Load counter after the floor operator updates the launch count. Explain what actually persisted and keep a private handoff without another state change.",
     policy:"readonly",patch:{},advance:{count:10},outcome:"confirmed",note:true},
   {id:"hold-on-operator-new-pin-list",title:"Library returns",goal:"Reuse the Library returns start-of-shift pin plan only if the active list is still the one you initially read. If another operator replaced it, leave it intact.",
