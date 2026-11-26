@@ -13,7 +13,7 @@ import { resolveChannelEndpoint } from "@workspace/pubsub";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import { AGENTIC_EVENT_PAYLOAD_KIND, type AgenticEvent } from "@workspace/agentic-protocol";
 import { callDO } from "@workspace/testkit";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as max} from "@workspace-skills/scratch-handoff-bindings";
 import type { ChatContinuityReport, ChatDisposition, ChatEvidence, ChatHandoff, ChatIndex, ChatObservation, ChatPlan, ChatReceipt,
   ChatRow, ChatWorker, DeliveryReview, ReviewedDelivery } from "@workspace-skills/open-chat-continuity/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -26,7 +26,6 @@ type Lane=Awaited<ReturnType<typeof createOwnedHeadlessChannel>>;
 type Agent={objectKey:string;id:string;target:string;participantId:string|null};
 type NativePage=Awaited<ReturnType<typeof readNative>>;
 type NativeChannel = {through:number;rows:ChatRow[];events:NativePage["logEvents"]};
-const max=16*1024;
 const configuration={handle:"local-continuity",name:"Local continuity worker",respondPolicy:"mentioned-strict",
   features:{tools:[]}};
 

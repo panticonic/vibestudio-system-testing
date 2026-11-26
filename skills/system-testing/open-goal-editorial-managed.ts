@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, extensions, fs, rpc, vcs } from "@workspace/runtime";
 import { createPdfIntakeBindings } from "@workspace-skills/pdf-intake-bindings";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as byteLimit} from "@workspace-skills/scratch-handoff-bindings";
 import type { PacketAttachment, PacketCitation, PacketDecision, PacketDocument, PacketEvidence, PacketMission, PacketPdf,
   PacketPlan, PacketReadRequest, PacketReceipt, PacketReport, PacketSnapshot, PacketSource, PacketSourcePlan,
   PacketWrite } from "@workspace-skills/open-editorial-packet/types";
@@ -30,7 +30,6 @@ function livePorts():Ports {
     ingest:async(data,options)=>await extensions.invoke(extension,"ingest",[data,options]) as Awaited<ReturnType<Engine["ingest"]>>,
   }};
 }
-const byteLimit=16*1024;
 const maxDocument=32*1024;
 const normalize=(value:string)=>value.replace(/\s+/gu," ").trim();
 const unavailable:PacketEvidence={status:"unavailable",document:null,source:null,citations:[]};

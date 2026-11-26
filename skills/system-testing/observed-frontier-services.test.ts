@@ -11,7 +11,7 @@ import { personalWelcomeWorlds } from "./open-goal-personal-welcome-worlds.js";
 vi.mock("@workspace/runtime",()=>({contextId:null,fs:{},rpc:{},vcs:{},images:{},credentials:{}}));
 vi.mock("./session-replay-managed.js",()=>({createOwnedHeadlessChannel:vi.fn(),withOwnedChannelClient:vi.fn()}));
 vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:vi.fn()}));
-vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:()=>({scratchHandoffWrite:{stage:vi.fn()}})}));
+vi.mock("@workspace-skills/scratch-handoff-bindings",async(original)=>({...await original<Record<string,unknown>>(),bindScratchHandoff:()=>({scratchHandoffWrite:{stage:vi.fn()}})}));
 const digest=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
 function nativePorts(){
  const rows:unknown[]=[];const files=new Map<string,string>();const blobs=new Map<string,string>();

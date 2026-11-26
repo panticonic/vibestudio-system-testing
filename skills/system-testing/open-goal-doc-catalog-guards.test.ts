@@ -2,7 +2,7 @@ import { expect,it,vi } from "vitest";
 import { prepareOpenCapabilityPlan } from "./open-goal-capability-plan-managed.js";
 import { capabilityPlanWorlds } from "./open-goal-capability-plan-worlds.js";
 vi.mock("@vibestudio/service-schemas/mainRpc",()=>({mainRpcMethods:new Proxy({},{get:(_target,key)=>key})}));
-vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:()=>({scratchHandoffWrite:{}})}));
+vi.mock("@workspace-skills/scratch-handoff-bindings",async(original)=>({...await original<Record<string,unknown>>(),bindScratchHandoff:()=>({scratchHandoffWrite:{}})}));
 
 it("describes an exact known native capability repeatedly without first searching for it",async()=>{
   const id="service:workspace.listSkills";

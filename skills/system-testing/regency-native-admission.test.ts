@@ -3,7 +3,7 @@ vi.mock("@workspace/runtime",()=>({contextId:null,fs:{},panelTree:{},rpc:{},vcs:
 vi.mock("./session-replay-managed.js",()=>({createOwnedHeadlessChannel:()=>{throw Error("No live channel in component test");}}));
 vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:()=>{throw Error("No live read in component test");}}));
 vi.mock("./regency-fixture-player.js",()=>({bindRegencyFixturePlayer:()=>{throw Error("No live player in component test");}}));
-vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/evidence-handoff-test/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
+vi.mock("@workspace-skills/scratch-handoff-bindings",async(original)=>({...await original<Record<string,unknown>>(),bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/evidence-handoff-test/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
 import {prepareOpenRegency} from "./open-goal-regency-managed.js";
 async function fixture(caseId:string,readCount=2){
  let month=0,pending:any=null;const files=new Map<string,string>();

@@ -8,7 +8,7 @@ import {sha256HexSyncText,stableSha256Hex} from "@vibestudio/content-addressing"
 import type {CatalogEntry,CatalogHit} from "@vibestudio/service-schemas/docs";
 import {mainRpcMethods} from "@vibestudio/service-schemas/mainRpc";
 import {contextId,fs,rpc,runtime,vcs,type VcsClient} from "@workspace/runtime";
-import {bindScratchHandoff} from "@workspace-skills/scratch-handoff-bindings";
+import {bindScratchHandoff, maxScratchArtifactBytes as max} from "@workspace-skills/scratch-handoff-bindings";
 import type {IntentAction,IntentDescription,IntentHit,IntentNote,IntentNotice,IntentObservation,IntentOutcome,IntentPlan,
   IntentReport} from "@workspace-skills/open-intent-discovery/types";
 import {listOwnedScratchEntries} from "./owned-scratch-entries.js";
@@ -22,7 +22,6 @@ const methods:Record<IntentNeed,string>={
   worker:"service:runtime.listEntities",
 };
 const nativeSource="workers/local-messaging-fixture";
-const max=16_000;
 type LiveEntity={id:string;source:string;key:string;contextId:string;kind:string};
 type SkillRow={name:string;dirPath:string;skillPath:string;description:string};
 type Ports={contextId:string|null;fs:typeof fs;vcs:Pick<VcsClient,"status"|"edit">;

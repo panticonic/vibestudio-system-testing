@@ -8,7 +8,7 @@ import { logIdForChannel } from "@vibestudio/trajectory-identity";
 import { blobstore, contextId, fs, memory, rpc, runtime, vcs, type VcsClient } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import { AGENTIC_EVENT_PAYLOAD_KIND, type AgenticEvent } from "@workspace/agentic-protocol";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as max} from "@workspace-skills/scratch-handoff-bindings";
 import type { MemoryBrief, MemoryCitation, MemoryEvidence, MemoryFile, MemoryKind, MemoryLead, MemoryMessage,
   MemoryNote, MemoryOutcome, MemoryPlan, RetainedMemoryReport } from "@workspace-skills/open-retained-memory/types";
 import { withOwnedChannelClient } from "./session-replay-managed.js";
@@ -28,7 +28,6 @@ type Ports={
   readBytes(path:string,max:number):Promise<Uint8Array>;
 };
 const recordPath="decision.txt";
-const max=24_000;
 const keyOf=(state:State)=>state.kind==="event"?state.eventId:state.applicationId;
 
 function livePorts():Ports{

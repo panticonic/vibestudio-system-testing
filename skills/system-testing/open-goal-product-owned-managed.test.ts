@@ -7,7 +7,7 @@ vi.mock("@workspace/runtime", () => ({ contextId: "owned", fs: {}, vcs: {} }));
 vi.mock("@vibestudio/content-addressing", () => ({
   sha256HexSyncText: (text: string) => createHash("sha256").update(text).digest("hex"),
 }));
-vi.mock("@workspace-skills/scratch-handoff-bindings", () => ({ bindScratchHandoff: () => ({}) }));
+vi.mock("@workspace-skills/scratch-handoff-bindings", async(original)=>({...await original<Record<string,unknown>>(), bindScratchHandoff: () => ({}) }));
 vi.mock("@workspace-skills/visualize/render", () => ({ renderComponent: () => ({}) }));
 vi.mock("./open-goal-news-evidence-managed.js", () => ({ prepareOpenNewsEvidenceWorld: vi.fn() }));
 

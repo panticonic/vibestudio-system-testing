@@ -9,7 +9,7 @@ import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, runtime, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import type { Candidate, EvidenceRow, ImageAssessment, ImageHandoff, ImageIndex,
   ImageJournal, ImagePlan, ImageRead, ImageReport, JournalRecord } from "@workspace-skills/open-image-candidate/types";
 import type { ImagesService } from "@workspace/runtime/images";
@@ -259,7 +259,7 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     const independent=await Promise.all(actualIds.map(id=>inspect(latest,id)));
     const status=await ports.status();
     const newFiles=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!originalFiles.has(name));
-    const artifact=handoff?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(handoff.path,byteLimit)):null;
+    const artifact=handoff?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(handoff.path,maxScratchArtifactBytes)):null;
     const foreign=crypto.randomUUID();
     const checks={
       authenticImageFrontiers:snapshots.every(snapshot=>snapshot.channelId===lane.key &&

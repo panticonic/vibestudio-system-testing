@@ -9,7 +9,7 @@ import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import type { VcsClient } from "@workspace/runtime";
 import { bindGitBridgeReview } from "@workspace-skills/git-bridge-review-bindings";
 import { bindVcsDelivery } from "@workspace-skills/vcs-delivery-bindings";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as retainLimit} from "@workspace-skills/scratch-handoff-bindings";
 import type { BranchAssessment, BranchPrivateNote, BridgeDecision, BridgeDeliveryReport, BridgeIndex, BridgePlan,
   DeliveryScope, DeliveryState, LocalDeliveryReceipt, LocalFileReview, LocalGitReview, RetainedBranch } from "@workspace-skills/open-bridge-delivery/types";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
@@ -21,7 +21,6 @@ type VcsBinding=ReturnType<typeof bindVcsDelivery>;
 type Ports = { contextId:string|null; fs:typeof fs; vcs:VcsClient;
   bindGit:typeof bindGitBridgeReview; bindDelivery:typeof bindVcsDelivery;
   readBytes(path:string,max:number):Promise<Uint8Array> };
-const retainLimit=18_000;
 const evidencePath="branch-observation.json";
 const routePath="owned-release-route.json";
 const specPath="delivery-contract.txt";

@@ -1,0 +1,200 @@
+{
+  "schema": "vibestudio.scratch-artifact-consumer-inventory/1",
+  "sourceBefore": "955e777325b53ed08fb16dcbd24360d3c20cc3af",
+  "canonical": {
+    "package": "@workspace-skills/scratch-handoff-bindings",
+    "export": "maxScratchArtifactBytes",
+    "baseCommit": "f4d1590a02fa9ec43540b62b6cd7b0cde97be7aa",
+    "bytes": 65536
+  },
+  "changed": [
+    {
+      "path": "skills/system-testing/open-goal-regency-managed.ts",
+      "sha256Before": "ebfedf4b50eac44425c5aa0c552cfe18a58f77b1c80cb620b4cbaf1d1d106c5c",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maxBytes"
+    },
+    {
+      "path": "skills/system-testing/open-goal-dictation-managed.ts",
+      "sha256Before": "cfb0c3a3f96186d106068cf8731d7354713abe791abfd2e18afd6bad254ccbdc",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "limit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-examples-adoption-managed.ts",
+      "sha256Before": "f5dc4688e730d385945c00256130bbefcbc2864a9b22bb2916a824cb17e26136",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maxNoteBytes"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-assembly-managed.ts",
+      "sha256Before": "ca6e7412e73210510f685e7191835d58ca61f0142acd0d00411677412f39a33b",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maxArtifact"
+    },
+    {
+      "path": "skills/system-testing/open-goal-api-readiness-managed.ts",
+      "sha256Before": "5a48c9e93a8e6b7dc4f41480f496611af9db5ed9b55c273f362ba7f58bfa4b84",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "max"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-claims-managed.ts",
+      "sha256Before": "e59ff1e2b7e84c23fbe2825ed394527debf4e9736582eee40805bbff1a73c30e",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "limit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-retained-memory-managed.ts",
+      "sha256Before": "dd1585dbf4eb91b9ef19b57deb8438552995ab2ab80b3c516a6138dcebe2a07b",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "max"
+    },
+    {
+      "path": "skills/system-testing/open-goal-provider-handoff-managed.ts",
+      "sha256Before": "a9546e13c3e474154fe851ab419857a21f3381904dbfc69a18a341f848adb039",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "limit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-personal-welcome-managed.ts",
+      "sha256Before": "0fa750c5ee7bcbca9b924d18df4f0f6c206e34eb14829b97aeebf1647bf67a6b",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maximum"
+    },
+    {
+      "path": "skills/system-testing/open-goal-chat-continuity-managed.ts",
+      "sha256Before": "fb3bed2dea291ca1005a8b5a6548d67fe0b464a7fa0d8f51f57543c0e4b918e0",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "max"
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-candidate-managed.ts",
+      "sha256Before": "7f469e4515ce49738676970240754be67d10a46cb583df7fdaa149596546cbdd",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maxNote"
+    },
+    {
+      "path": "skills/system-testing/open-goal-editorial-managed.ts",
+      "sha256Before": "b418b412eeff9919f356b120fa35dbef3c24cd31daa1c17fc9609437dfbcb542",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "byteLimit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-intent-discovery-managed.ts",
+      "sha256Before": "42903e422b69a3d65dc4acfa1837e90e18d65e74b29455bd577ee1881dedc3a4",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "max"
+    },
+    {
+      "path": "skills/system-testing/open-goal-grimoire-scene-managed.ts",
+      "sha256Before": "b7c3e14d7798117b9310118fde555055ac5cc2d678db6083d44a794b45d3b329",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maxBytes"
+    },
+    {
+      "path": "skills/system-testing/open-goal-specialist-managed.ts",
+      "sha256Before": "f415faddb74901daaf8358ef87e381415805cd8deccc25ac6acc42cdd0725473",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "maximum"
+    },
+    {
+      "path": "skills/system-testing/open-goal-news-evidence-managed.ts",
+      "sha256Before": "83d7de6e1158f5d800674617fb6a7454daf7c7d4b52cdd3afa91a58bae4ecddf",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "max"
+    },
+    {
+      "path": "skills/system-testing/open-goal-bridge-delivery-managed.ts",
+      "sha256Before": "e37e01bc114277aab313eca41334001cc9bbf0effdba24e4c1a396d8dcf6222e",
+      "classification": "artifact-only producer/readback ceiling replaced by canonical exported bound",
+      "alias": "retainLimit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-image-candidate-managed.ts",
+      "sha256Before": "01d81f8fcebbd5d561276cbfb46a86d12e6060015e347101e856363fe780f3f2",
+      "classification": "artifact readback uses canonical bound; separate source/media/preflight read limit preserved for separate audit",
+      "sourceLimit": "byteLimit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-config-managed.ts",
+      "sha256Before": "326fe618c91ea62fc9262c2e5505f0ea420e9f135b4b0359b098d765e98db2f5",
+      "classification": "artifact readback uses canonical bound; separate source/media/preflight read limit preserved for separate audit",
+      "sourceLimit": "sizeLimit"
+    },
+    {
+      "path": "skills/system-testing/open-goal-route-authority-managed.ts",
+      "sha256Before": "b4f1a131416337008c29ec7df468c1c947556da1fa404a4fc417ce6e0c58d40c",
+      "classification": "artifact readback uses canonical bound; separate source/media/preflight read limit preserved for separate audit",
+      "sourceLimit": "max"
+    },
+    {
+      "path": "skills/system-testing/open-goal-launch-state-managed.ts",
+      "sha256Before": "b897d6a6e486bf6096dfa8a7ecdbcda8ee1cf9981f53cf7294f54370a3a5e50c",
+      "classification": "artifact-only inline readback ceiling replaced"
+    },
+    {
+      "path": "skills/system-testing/open-goal-capability-plan-managed.ts",
+      "sha256Before": "567723c74ca3f40e34c89d41c33a0b2f284c9609d967c3d8273527ea25dada9f",
+      "classification": "Artifact publication/readback uses canonical bound; direct writers refuse oversized bytes before writing. Generic non-artifact capability-plan return length is not limited by scratch artifact budget."
+    },
+    {
+      "path": "skills/system-testing/open-goal-system-release-managed.ts",
+      "sha256Before": "734b766fad67249844000d324b1c20216572a92e647144e10c171a9474dabc9d",
+      "classification": "Artifact publication/readback uses canonical bound; direct writers refuse oversized bytes before writing. Generic non-artifact capability-plan return length is not limited by scratch artifact budget."
+    },
+    {
+      "path": "skills/system-testing/open-goal-template-migration-managed.ts",
+      "sha256Before": "8bcfad90f311dd891918a03bc39c34dcf8b4bdd1e009a56042d891beb09e5f2d",
+      "classification": "Artifact publication/readback uses canonical bound; direct writers refuse oversized bytes before writing. Generic non-artifact capability-plan return length is not limited by scratch artifact budget."
+    },
+    {
+      "path": "skills/system-testing/open-goal-webhook-admission-managed.ts",
+      "sha256Before": "047017fd49880faec15c3fc4c93c8ebdee02925d48a84b6c02062e1c776b5503",
+      "classification": "New handoff write/read canonical; independent archived source record retains its source-read bound"
+    },
+    {
+      "path": "skills/system-testing/open-goal-source-attribution-managed.ts",
+      "sha256Before": "fd83b7e40a13cadec832a06d4cefab7dc67d0c182d2f500db3b7bcfeca98a225",
+      "classification": "Private artifact readback canonical; repository-source text limit remains separate"
+    },
+    {
+      "path": "skills/system-testing/open-goal-pty-continuity-managed.ts",
+      "sha256Before": "e2b960a556e20bf65b23cc455fbc5f033601ff76eafa78c38d358503dba689d7",
+      "classification": "Scratch artifact bound canonical; PTY scrollback/replay protocol8KiB remains distinct"
+    },
+    {
+      "path": "skills/system-testing/open-goal-workspace-smoke-managed.ts",
+      "sha256Before": "98720ce28c3b4df5d8c5468f0e8a7f5675ad64f0e128bd3388371f8ae800a325",
+      "classification": "Scratch artifact read/write bound canonical; source contract read16KiB remains independent"
+    }
+  ],
+  "excluded": {
+    "Portfolio": "Parent-owned file/tests; parent imports same canonical export and tests >24KiB success/>64KiB refusal",
+    "Receipt-byte readers": "Dossier/EvalHandoff/BuildIncidents/LocalWidth/CompoundRecovery/DeployedInterface/WorkspaceShare/Terminal/ProductOwned use actual canonical writer receipt bytes; no shorter scratch-artifact ceiling at their consuming read. Original metadata/checkpoint/scope reads retain separate source budgets.",
+    "Base closed fixture": "scratch-handoff-fixtures imports actual canonical writer and checks native receipt bytes; no competing artifact ceiling",
+    "Other six template implementations": "No bindScratchHandoff implementation or consumers in selected Personal/System/Google/News/Spectro/Examples source trees, checked with rg including packages/workers/skills",
+    "Source limits": "Kept separate: retained image media8KiB; workspace brief24k; route sidecar14k; editorial source document32KiB; council memo4096; workspace assembly source4096; source checkpoint/scope24-96KiB; capability NativeSkill160KiB. None asserted as a goal artifact-size ceiling.",
+    "Separate Native source protocols": "Asset-integrity maximum4096 binds approved source file bytes before exact copying; same-turn maxText64KiB bounds eval.readScopeTextPage, not an artifact. Outcome-workspace maxDocumentLength10k is a separate document-write API bound, not a scratch writer; deeper API-resource justification remains OPEN."
+  },
+  "literalGoalAudit": "No artifact-size limit requested in affected literal goals; unrelated build initial-payload8/64KiB goals and UTF-8 measurement tasks remain exact and untouched. No goals/IDs/splits edited.",
+  "tests": {
+    "components": {
+      "unit": "vibe-canonical-artifact-consumers-20261126b",
+      "passed": 275,
+      "files": 18,
+      "peakMiB": 534.7
+    },
+    "canonicalActualWriterUtf8Boundary": {
+      "baseCommit": "f4d1590a02fa9ec43540b62b6cd7b0cde97be7aa",
+      "passed": 3
+    },
+    "declarations": "vibe-canonical-artifact-declarations-20261126a",
+    "limitations": [
+      "No new physical Native qualification or paid model calls",
+      "Direct publisher bodies preserve scope/shape; source transformation and declaration checks supplement component coverage, not a claimed full live runtime campaign",
+      "Separate source-document/image/PTY/eval and document-write resource protocols remain separately inventoried"
+    ]
+  },
+  "changedConsumerCount": 28
+}

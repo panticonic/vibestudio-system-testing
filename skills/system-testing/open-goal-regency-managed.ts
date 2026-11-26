@@ -7,7 +7,7 @@ import type {InvocationObservations} from "@workspace/application-outcomes/obser
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maxBytes} from "@workspace-skills/scratch-handoff-bindings";
 import type { Horizon, RegencyAdvance, RegencyClaim, RegencyFinding, RegencyForecast, RegencyIndex,
   RegencyMemo, RegencyNote, RegencyReport, RegencySnapshot, RealmFinding, RealmReadback } from "@workspace-skills/open-regency-briefing/types";
 import { createOwnedHeadlessChannel } from "./session-replay-managed.js";
@@ -39,8 +39,6 @@ async function livePorts(input:Input):Promise<Ports> {
     player:await bindRegencyFixturePlayer(panelTree.get(fixture.panelId),input.contextId,fixture),
     readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)};
 }
-// Match the actual scratch writer artifact bound, including independent readback.
-const maxBytes=64*1024;
 
 export async function prepareOpenRegency(input:Input,installed:Installed,injected?:Ports) {
   const ports=injected??await livePorts(input);

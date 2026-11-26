@@ -1,7 +1,7 @@
 import {expect,it,vi} from "vitest";
 vi.mock("@workspace/runtime",()=>({contextId:null,fs:{},rpc:{},vcs:{}}));
 vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:()=>{throw Error("No live reader in component test");}}));
-vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/evidence-handoff-test/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
+vi.mock("@workspace-skills/scratch-handoff-bindings",async(original)=>({...await original<Record<string,unknown>>(),bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/evidence-handoff-test/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
 import {prepareOpenExamplesAdoption} from "./open-goal-examples-adoption-managed.js";
 import {openExamplesAdoptionWorlds} from "./open-goal-examples-adoption-worlds.js";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";

@@ -13,7 +13,7 @@ import type {
 import sections from "@workspace-skills/sandbox/doc-sections";
 import rank from "@workspace-skills/sandbox/doc-ranking";
 import searchTerms from "@workspace-skills/sandbox/doc-search-terms";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as reportBytes} from "@workspace-skills/scratch-handoff-bindings";
 import { capabilityPlanWorlds, type CapabilityPlanWorld } from "./open-goal-capability-plan-worlds.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 
@@ -29,7 +29,6 @@ const workspaceText = new TextDecoder("utf-8", { fatal: true });
 const folderName = /^evidence-handoff-[a-f0-9]{32}$/u;
 const methodName = /^[a-z][\w-]*\.[a-z][\w-]*$/iu;
 const maxSkillBytes = 160 * 1024;
-const reportBytes = 16 * 1024;
 const capabilityId = (name: string) => name.includes(":") ? name : `service:${name}`;
 const compare = (a: string, b: string) => a.localeCompare(b, "en");
 const boundedText = (value: string, max: number) => encoder.encode(value).length <= max;
@@ -350,7 +349,7 @@ export async function prepareOpenCapabilityPlan(input: { contextId: string; case
 
 function validPlanShape(plan: CapabilityPlan | undefined): plan is CapabilityPlan {
   return !!plan && typeof plan.rationale === "string" && Boolean(plan.rationale.trim()) &&
-    ["ready", "hold"].includes(plan.status) && boundedText(JSON.stringify(plan), reportBytes) && Array.isArray(plan.steps) &&
+    ["ready", "hold"].includes(plan.status) && Array.isArray(plan.steps) &&
     plan.steps.every(step => step && typeof step.id === "string" && typeof step.sha256 === "string" &&
       Array.isArray(step.argumentNames) && typeof step.purpose === "string" &&
       step.purpose.trim()) &&

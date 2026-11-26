@@ -9,7 +9,7 @@ import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as limit} from "@workspace-skills/scratch-handoff-bindings";
 import type { ConversationCard, ConversationRead, EvidenceRow, OutputReadback, ProviderGoalReport,
   ProviderHandoff, ProviderPlan, ProviderRecord, RequestIdentity } from "@workspace-skills/open-provider-handoff/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -18,7 +18,6 @@ import { providerHandoffWorlds, type NoteSeed } from "./open-goal-provider-hando
 
 type Lane = Awaited<ReturnType<typeof createOwnedHeadlessChannel>>;
 const encode = new TextEncoder();
-const limit = 12 * 1024;
 
 async function appendNative(lane: Lane, context: string, records: ProviderRecord[]) {
   return withOwnedChannelClient(lane, context, async client => {

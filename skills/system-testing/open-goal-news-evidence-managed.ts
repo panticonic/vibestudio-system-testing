@@ -11,7 +11,7 @@ import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as max} from "@workspace-skills/scratch-handoff-bindings";
 import type { BriefingEvidence, BriefingWitness, Cadence, Edition, NewsEvidenceArtifact, NewsEvidenceIndex, NewsEvidencePlan,
   NewsEvidenceReport, NewsEvidenceRow, NewsEvidenceSnapshot, NewsRecord, NewsScope, ReaderBoundary, ReaderEvidence, ReaderSelection,
   ReaderWitness, Review, ScheduleEvidence, ScheduleWitness, SourceReadback, SourceRecord } from "@workspace-skills/open-news-evidence/types";
@@ -29,7 +29,6 @@ type Installed = {
     view:Extract<ReaderSelection,{kind:"archive"}>|{kind:"saved"|"inbox"|"backlog";cursors:(string|null)[]}):Promise<ReaderEvidence>;
 };
 const byteCount=(text:string)=>new TextEncoder().encode(text).length;
-const max=16*1024;
 const found = (status:Review["status"],code:string,...evidenceIds:string[]):Review => ({status,findings:[{code,evidenceIds}]});
 
 async function appendNative(lane:Lane,context:string,records:NewsRecord[]) {

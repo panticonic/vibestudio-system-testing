@@ -16,7 +16,7 @@ import {
   boundedTemplateUpdatePreview,
   threeWayTextMerge,
 } from "@workspace/vcs-engine";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maxNote} from "@workspace-skills/scratch-handoff-bindings";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import type { SystemCandidateWorld } from "./open-goal-system-candidate-worlds.js";
@@ -84,7 +84,6 @@ type Journal = {
   args: unknown[];
   result: unknown;
 };
-const maxNote = 32 * 1024;
 const read = "systemCandidateRead";
 const write = "systemCandidateHandoff";
 const encoder = new TextEncoder();

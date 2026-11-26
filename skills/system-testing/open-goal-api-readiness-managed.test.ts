@@ -6,7 +6,7 @@ import { prepareOpenApiReadiness } from "./open-goal-api-readiness-managed.js";
 vi.mock("./session-replay-managed.js",()=>({createOwnedHeadlessChannel:vi.fn(),withOwnedChannelClient:vi.fn()}));
 vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:vi.fn()}));
 vi.mock("@workspace/runtime", () => ({ contextId: null, fs: {}, rpc: {}, vcs: {}, credentials: {} }));
-vi.mock("@workspace-skills/scratch-handoff-bindings", () => ({ bindScratchHandoff: (fs:{writeFile(path:string,text:string):Promise<void>}) => ({ scratchHandoffWrite: { stage: async (text:string) => {const path="/.tmp/evidence-handoff-proof/handoff.json";await fs.writeFile(path,text);return {path,bytes:new TextEncoder().encode(text).length};} } }) }));
+vi.mock("@workspace-skills/scratch-handoff-bindings", async(original)=>({...await original<Record<string,unknown>>(), bindScratchHandoff: (fs:{writeFile(path:string,text:string):Promise<void>}) => ({ scratchHandoffWrite: { stage: async (text:string) => {const path="/.tmp/evidence-handoff-proof/handoff.json";await fs.writeFile(path,text);return {path,bytes:new TextEncoder().encode(text).length};} } }) }));
 async function prepare(caseId: string) {
   const rows: { messageId: string; envelopeId: string; seq: number; selection: unknown }[] = [];
   const saved=new Map<string,string>();

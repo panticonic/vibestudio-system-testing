@@ -10,7 +10,7 @@ import {
   stableSha256Hex,
 } from "@vibestudio/content-addressing";
 import { contextId, fs, panelTree, rpc, vcs } from "@workspace/runtime";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maxBytes} from "@workspace-skills/scratch-handoff-bindings";
 import type { grimoireSceneInstalled } from "@workspace-skills/examples-review-fixtures/open-grimoire-scene-owner";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
@@ -106,7 +106,6 @@ type Ports = {
   readBytes(path: string, limit: number): Promise<Uint8Array>;
   advanceFixture(before: GrimoireClock): Promise<void>;
 };
-const maxBytes = 64 * 1024;
 const namespaces = { read: "grimoireScene", write: "grimoireHandoff" } as const;
 
 async function livePorts(input: Input, estateKey: string): Promise<Ports> {

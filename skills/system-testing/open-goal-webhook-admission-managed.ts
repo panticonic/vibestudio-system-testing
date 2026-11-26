@@ -1,3 +1,4 @@
+import {maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
@@ -255,8 +256,9 @@ export async function prepareWebhookAdmission(input: { contextId: string; caseId
           if (!isDeepStrictEqual(observed, await observe()))
             throw new Error("The original native admission evidence changed before handoff");
           const text = audit(row);
+          if(new TextEncoder().encode(text).byteLength>maxScratchArtifactBytes)return null;
           await artifacts.write(outputPath, text);
-          const stored = await artifacts.read(outputPath, limit);
+          const stored = await artifacts.read(outputPath, maxScratchArtifactBytes);
           if (decoder.decode(stored) !== text) throw new Error("Private admission audit failed byte readback");
           handoff = { path: outputPath, bytes: stored.length, sha256: hash(text) };
           return record("webhookAdmissionHandoff", "stage", [id, digest, row, disposition], handoff);
@@ -296,7 +298,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const leafNames = (await artifacts.entries(directory)).sort();
     const wantedNames = [...(witness ? [archiveName] : []), ...(wantStage ? [outputName] : [])].sort();
     const expectedNote = wantStage && expectedBinding.row ? audit(expectedBinding.row) : null;
-    const actual = leafNames.includes(outputName) ? await artifacts.read(outputPath, limit) : null;
+    const actual = leafNames.includes(outputName) ? await artifacts.read(outputPath, maxScratchArtifactBytes) : null;
     const checks = {
       matchedOwnedRegistrationReceipt: isDeepStrictEqual(final.witness, witness) &&
         final.retainedDigest === retainedDigest,

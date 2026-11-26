@@ -9,7 +9,7 @@ import {isDeepStrictEqual} from "node:util";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
 import {contextId,fs,rpc,vcs,type VcsClient} from "@workspace/runtime";
 import {bindAuthorityReview,type PreflightOperation} from "@workspace-skills/capabilities/workflow";
-import {bindScratchHandoff} from "@workspace-skills/scratch-handoff-bindings";
+import {bindScratchHandoff, maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import type {EvidenceBasis,ExactRouteRecord,OwnedRouteReview,RouteAuthorityObservation,RouteChoice,RouteHandoff,
   RouteOffer,RouteOutcome,RouteReadback,VisibleRoute} from "@workspace-skills/open-route-authority/types";
 import {listOwnedScratchEntries} from "./owned-scratch-entries.js";
@@ -194,7 +194,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       leaf.capability==="external.open"&&leaf.resourceKey===origin)&&
       row.outside.some(leaf=>leaf.capability==="external.open")===(origin!==branchOrigin||!world.allowedOrigin);
     const written=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
-    const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
+    const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,maxScratchArtifactBytes)):null;
     const checks={
       returnedRouteHandoff:exact(report?.handoff,handoff),
       returnedRouteReadback:exact(report?.readback,readback),

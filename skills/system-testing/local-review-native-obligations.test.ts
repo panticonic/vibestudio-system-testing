@@ -1,7 +1,7 @@
 import {expect,it,vi} from "vitest";
 vi.mock("@workspace/runtime",()=>({contextId:null,fs:{},rpc:{},vcs:{},panelTree:{}}));
 vi.mock("./scratch-handoff-managed.js",()=>({readWorkspaceBytes:()=>{throw Error("No live reader in component test");}}));
-vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/owned-scene/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
+vi.mock("@workspace-skills/scratch-handoff-bindings",async(original)=>({...await original<Record<string,unknown>>(),bindScratchHandoff:(fs:any)=>({scratchHandoffWrite:{stage:async(text:string)=>{const path="/.tmp/owned-scene/handoff.json";await fs.writeFile(path,text);return{path};}}})}));
 import {validateScene,sceneDocument} from "@workspace/living-canvas";
 import {prepareOpenGrimoireScene} from "./open-goal-grimoire-scene-managed.js";
 import {openGrimoireSceneWorlds} from "./open-goal-grimoire-scene-worlds.js";

@@ -1,3 +1,4 @@
+import {maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
@@ -23,7 +24,7 @@ type Ports = { contextId: string | null;
   dir(prefix: string): Promise<string>;
   grep(path: string, token: string): Promise<Matches>;
   write(path: string, text: string): Promise<void>;
-  read(path: string): Promise<Uint8Array>;
+  read(path: string, maximum?:number): Promise<Uint8Array>;
   entries(path: string): Promise<string[]>;
   run(scopeKey: string, runId: string, code: string): Promise<EvalResultReceipt>;
   retained(scopeKey: string, runId: string): Promise<EvalResultReceipt | null>;
@@ -45,7 +46,7 @@ function livePorts(): Ports {
     contextId, dir: prefix => fs.mkdtemp(prefix),
     grep: (path, token) => rpc.call("main", mainRpcMethods["fs.grep"], [token, { path, glob: "*.json", maxMatches: 16 }]),
     write: async (path, text) => { await fs.writeFile(path, text); },
-    read: path => readWorkspaceBytes(rpc, path, limit),
+    read: (path,maximum=limit) => readWorkspaceBytes(rpc, path, maximum),
     entries: path => fs.readdir(path),
     async run(scopeKey, runId, code) {
       const request: EvalStartInput = { scope: { key: scopeKey, lifecycle: "finite" }, runId,
@@ -182,8 +183,9 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
         inFlight = true;
         try {
           const text = dossier(plan, runtime);
+          if(new TextEncoder().encode(text).byteLength>maxScratchArtifactBytes)throw new RangeError("Smoke artifact exceeds the canonical scratch byte bound");
           await ports.write(output, text);
-          const bytes = await ports.read(output);
+          const bytes = await ports.read(output,maxScratchArtifactBytes);
           if (decoder.decode(bytes) !== text) throw new Error("Exact smoke receipt readback changed");
           receipt = { path: output, bytes: bytes.length, sha256: hash(text) };
           return capture("workspaceSmokeHandoff", "stage", [id, path, runDigest], receipt);
@@ -223,7 +225,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const selection = { plan, blocker };
     const decision = { disposition: world.expected, mayRetain: world.expected === "accepted" && assignment.mayStage };
     const entries = await ports.entries(outputDirectory);
-    const data = entries.length === 1 && entries[0] === "runtime-smoke.json" ? await ports.read(output) : null;
+    const data = entries.length === 1 && entries[0] === "runtime-smoke.json" ? await ports.read(output,maxScratchArtifactBytes) : null;
     const exactText = decision.mayRetain && plan && runtime ? dossier(plan,runtime) : null;
     const expectedReceipt = data && exactText && decoder.decode(data) === exactText ? { path: output, bytes: data.length, sha256: hash(exactText) } : null;
     const original = await Promise.all(Object.entries(records).map(async ([path, text]) => decoder.decode(await ports.read(path)) === text));

@@ -9,7 +9,7 @@ import {mainRpcMethod} from "@vibestudio/service-schemas/mainRpc";
 import {decodePanelStateArgs} from "@vibestudio/shared/panelStateArgs";
 import {contextId,fs,openPanel,rpc,vcs,type PanelHandle} from "@workspace/runtime";
 import {bindAuthorityReview} from "@workspace-skills/capabilities/workflow";
-import {bindScratchHandoff} from "@workspace-skills/scratch-handoff-bindings";
+import {bindScratchHandoff, maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import type {LaunchAuthorityReport,LaunchAuthorityRequest,LaunchDecision,LaunchEffect,LaunchIndex,LaunchNote,LaunchPatch,
   LaunchPlan,LaunchReport,LaunchSnapshot,LaunchState,LaunchVerdict} from "@workspace-skills/open-panel-launch-state/types";
 import {readWorkspaceBytes} from "./scratch-handoff-managed.js";
@@ -224,7 +224,7 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
       const shouldAttempt=world.outcome==="applied"||world.outcome==="rejected";
       const expected=world.outcome==="applied"&&current?plainExpected(current.state,world):current?.state;
       const written=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
-      const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,20_000)):null;
+      const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,maxScratchArtifactBytes)):null;
       const effectProof=effect as LaunchEffect|null,authorityWitness=witness as Awaited<ReturnType<Binding["services"]["assignedAuthorityRead"]["preflight"]>>|null;
       const authorityRequest=(binding as Binding|null)?.request??null;
       const checks={

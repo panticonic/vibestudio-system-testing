@@ -1,3 +1,4 @@
+import {maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
@@ -31,7 +32,7 @@ type Ports = {
 function livePorts(): Ports {
   return { contextId, shell: getShell(), scratch: {
     directory: () => fs.mkdtemp("retained-pty-evidence"), write: async (path, text) => { await fs.writeFile(path, text); },
-    read: path => readWorkspaceBytes(rpc, path, maxBytes), entries: path => fs.readdir(path),
+    read: path => readWorkspaceBytes(rpc, path, maxScratchArtifactBytes), entries: path => fs.readdir(path),
   } };
 }
 type Attempt = {
@@ -195,6 +196,7 @@ export async function preparePtyContinuity(input: { contextId: string; caseId: s
               observed.exit.signal || observed.alive || observed.cursorState !== "continued" || !observed.byteAgreement ||
               !isDeepStrictEqual(await observe(attempt), observed)) throw new Error("Terminal evidence changed or did not establish the approved receipt");
             const text = handoff(observed);
+            if(new TextEncoder().encode(text).byteLength>maxScratchArtifactBytes)throw new RangeError("Terminal artifact exceeds the canonical scratch byte bound");
             await scratch.write(path, text);
             const bytes = await scratch.read(path);
             if (decoder.decode(bytes) !== text) throw new Error("Local terminal receipt readback changed");

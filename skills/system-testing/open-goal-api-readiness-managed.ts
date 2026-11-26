@@ -14,7 +14,7 @@ import type { matchUrlBoundCredentialCandidates, findCredentialBinding } from "@
 import type { findMatchingUrlAudience } from "@vibestudio/credential-client/urlAudience";
 import type { credentialLifecycle } from "@vibestudio/credential-client/credentialStatus";
 import { bindIntegrationReview } from "@workspace-skills/api-integrations/workflow";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as max} from "@workspace-skills/scratch-handoff-bindings";
 import type { BoundReport, Destination, DestinationObservation, IntegrationIndex, IntegrationReadinessPlan, LookupFact, QuietAudit,
   QuietRequest, ReadinessArtifact, ReadinessReport, ApiReadinessResult, SelectionFrontier, SelectionRow, SelectionWitness } from "@workspace-skills/open-api-readiness/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -28,7 +28,6 @@ type Installed={match:typeof matchUrlBoundCredentialCandidates;binding:typeof fi
 type Candidate=Pick<Credential,"bindings"|"label"|"revokedAt"|"actor"|"owner"|"agentExchange"|"expiresAt"|"oauthRefresh"|"refreshToken"> & {key:string};
 type SealedPlan={receipt:string;destinations:Destination[]};
 const countBytes=(value:string)=>new TextEncoder().encode(value).length;
-const max=12*1024;
 const fixtureClock=Date.UTC(2026,10,1);
 
 async function appendNative(lane:Lane,context:string,records:Selection[]) {

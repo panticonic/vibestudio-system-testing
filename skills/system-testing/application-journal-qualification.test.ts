@@ -43,11 +43,15 @@ it.each(dictationHandoffWorlds)("$id independently qualifies exact dictation tex
   expect((await prepared.verify(value,referenceObserver(value))).passed).toBe(true);
   const wrong={...value,plan:{...value.plan,through:-1}};
   const rejected=await prepared.verify(wrong,referenceObserver(wrong));
-  expect(rejected.outcomeDimensions.effects.passed).toBe(true);expect(rejected.outcomeDimensions.returnedValue.passed).toBe(false);expect(rejected.passed).toBe(false);
+  expect(rejected.outcomeDimensions.effects.passed).toBe(true);expect(rejected.passed).toBe(true);expect(rejected.semanticReviewRequired).toBe(true);
+  // The private copied cursor is not a requested answer or an actor operation.
+  // Keep the actual submitted value visible to review when an answer is requested.
+  expect(rejected.semanticReviewInput.actual.requestedReturn).toEqual(world.requestedAnswer?wrong:null);
+  if(world.requestedAnswer){const missing={...value,plan:{...value.plan,explanation:""}};expect((await prepared.verify(missing,referenceObserver(missing))).passed).toBe(false);}
   if(proof.handoff){
    const wrongReceipt={...value,handoff:{...proof.handoff,path:"/.tmp/invented/handoff.json"}};
    const optional=await prepared.verify(wrongReceipt,referenceObserver(wrongReceipt));
-   expect(optional.passed).toBe(true);expect(optional.outcomeDimensions.incidentalValues?.passed).toBe(false);
+   expect(optional.passed).toBe(true);expect(optional.semanticReviewRequired).toBe(true);
   }
  }finally{await fixture.close();}
 });

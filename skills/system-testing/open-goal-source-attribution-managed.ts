@@ -1,3 +1,4 @@
+import {maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
@@ -35,7 +36,7 @@ function livePorts(): Ports {
   return { contextId, vcs, upload: async text => (await blobstore.putText(text)).digest,
     dir: prefix => fs.mkdtemp(prefix), entries: path => fs.readdir(path),
     write: async (path, text) => { await fs.writeFile(path, text); },
-    read: path => readWorkspaceBytes(rpc, path, maxBytes) };
+    read: path => readWorkspaceBytes(rpc, path, maxScratchArtifactBytes) };
 }
 
 /** Seed only the disposable receiver's local source from a generated snapshot before the policy executes. */
@@ -259,6 +260,7 @@ export async function prepareSourceAttribution(input: { contextId: string; caseI
             receipt = { state, status: "authority-closed", path: null, sha256: null };
           else {
             const text = JSON.stringify({ assignment: id, scope: repoPath, state, conclusion }) + "\n";
+            if(Buffer.byteLength(text)>maxScratchArtifactBytes)throw new RangeError("Source review artifact exceeds the canonical scratch byte bound");
             await ports.write(output, text);
             if (!Buffer.from(await ports.read(output)).equals(Buffer.from(text))) throw new Error("Owned source review receipt failed exact byte readback");
             receipt = { state, status: "retained", path: output, sha256: hash(text) };

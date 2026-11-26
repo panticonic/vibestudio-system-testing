@@ -1,3 +1,4 @@
+import {maxScratchArtifactBytes as maximumArtifact} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
@@ -43,7 +44,6 @@ type Ports = {
 };
 const pageSize = 4096;
 const maximumTrajectory = 65536;
-const maximumArtifact = 24000;
 const hash = sha256HexSyncText;
 const decode = new TextDecoder("utf-8", { fatal: true });
 
@@ -235,6 +235,7 @@ export async function prepareSystemRelease(input: { contextId: string; caseId: s
           if (!isDeepStrictEqual(compared, { current, earlier }))
             throw new Error("Retained run coordinates changed before the local handoff");
           const canonical = dossier(disposition, runId, reads);
+          if(new TextEncoder().encode(canonical).byteLength>maximumArtifact)return null;
           await artifact.write(outputPath, canonical);
           const stored = await artifact.read(outputPath, maximumArtifact);
           if (decode.decode(stored) !== canonical) throw new Error("Local release handoff did not retain exact bytes");

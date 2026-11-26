@@ -1,3 +1,4 @@
+import {maxScratchArtifactBytes as maximumReceipt} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {migrationReviewGuidance} from "./native-domain-review.js";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
@@ -62,7 +63,6 @@ type Journal = {
 };
 const examples =
   "git+https://github.com/panticonic/vibestudio-template-examples.git";
-const maximumReceipt = 32 * 1024;
 const encoder = new TextEncoder();
 
 export async function prepareOpenTemplateMigration(
@@ -356,6 +356,7 @@ export async function prepareOpenTemplateMigration(
               .sort((a, b) => a.id.localeCompare(b.id)),
             nativeCandidate: candidateReadback?.review ?? null,
           });
+          if(new TextEncoder().encode(payload).byteLength>maximumReceipt)return null;
           await fs.writeFile(receiptPath, payload);
           const bytes = await readWorkspaceBytes(
             rpc,

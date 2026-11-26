@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs, type VcsClient } from "@workspace/runtime";
 import { bindAuthorityReview } from "@workspace-skills/capabilities/workflow";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as limit} from "@workspace-skills/scratch-handoff-bindings";
 import { fail, runSuites, suite } from "@workspace/testkit";
 import type { ClaimDisposition, ClaimEvidence, ClaimHandoff, ClaimIndex, ClaimPacket,
   ClaimSupport, WorkspaceClaimReview } from "@workspace-skills/open-workspace-claims/types";
@@ -20,7 +20,6 @@ const assertionsPath="acceptance.json";
 const testName="candidate-policy-readback";
 const suiteName="owned-semantic-assertions";
 const text=(value:unknown)=>({kind:"text" as const,text:JSON.stringify(value)});
-const limit=16_384;
 type Status=Awaited<ReturnType<VcsClient["status"]>>;
 type Policy={value:string;preservation:string|null;releaseCheck:"ready"|"pending"};
 type Authority=Awaited<ReturnType<ReturnType<typeof bindAuthorityReview>["services"]["assignedAuthorityRead"]["preflight"]>>;

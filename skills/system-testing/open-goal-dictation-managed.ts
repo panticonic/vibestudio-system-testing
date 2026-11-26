@@ -9,7 +9,7 @@ import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as limit} from "@workspace-skills/scratch-handoff-bindings";
 import type { Acknowledgment, CaptureReceipt, DictationArtifact, DictationResult, DictationPlan, DictationReason,
   DictationRecord, DictationRow, DictationSnapshot, DictationThread, DraftReceipt, DraftReview,
   RetainedTranscript, SegmentReceipt } from "@workspace-skills/open-dictation-handoff/types";
@@ -19,7 +19,6 @@ import { dictationHandoffWorlds, type DictationSeed } from "./open-goal-dictatio
 
 type Lane = Awaited<ReturnType<typeof createOwnedHeadlessChannel>>;
 const encoder = new TextEncoder();
-const limit = 12 * 1024;
 
 async function appendNative(lane: Lane, context: string, records: DictationRecord[]) {
   return withOwnedChannelClient(lane, context, async session => {

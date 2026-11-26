@@ -21,7 +21,7 @@ import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { localMessagingFixtureMethods } from "@workspace-workers/local-messaging-fixture/contract";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maximum} from "@workspace-skills/scratch-handoff-bindings";
 import type {
   Attempt,
   HistoryReview,
@@ -57,7 +57,6 @@ type Membership = {
   participantId: string | null;
 };
 const bytes = (text: string) => new TextEncoder().encode(text).length;
-const maximum = 12 * 1024;
 
 async function appendNative(
   lane: Lane,

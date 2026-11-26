@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText, stableSha256Hex } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import type { RuntimeFs, VcsClient, rpc as RuntimeRpc } from "@workspace/runtime";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maxArtifact} from "@workspace-skills/scratch-handoff-bindings";
 import type { AssemblyBuildReceipt, AssemblyHandoff, AssemblyInventory, AssemblyPlan, AssemblyReport, AssemblyRevision, AssemblyUnit, UnitSource } from "@workspace-skills/open-workspace-assembly/types";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import { openAssemblyWorlds, type UnitSpec } from "./open-goal-workspace-assembly-worlds.js";
@@ -18,7 +18,6 @@ type Ports = {
   rpc: Pick<typeof RuntimeRpc, "call">;
 };
 type SourcePackage = { unit: AssemblyUnit; files: Record<string, string> };
-const maxArtifact = 32 * 1024;
 const maxFile = 4096;
 const encode = new TextEncoder();
 const normalizeHash = (hash: string | null | undefined) => hash?.replace(/^state:/u, "");

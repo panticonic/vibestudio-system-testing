@@ -11,7 +11,7 @@ import { currentContextProjectionsPath } from "@vibestudio/workspace/contextProj
 import { parseTemplateManifestContent } from "@vibestudio/workspace/templateManifest";
 import type { WorkspaceConfig } from "@vibestudio/workspace-contracts/types";
 import { contextId, fs, rpc, vcs, workspace, type VcsClient } from "@workspace/runtime";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import type {
   ConfigBrief, ConfigDisposition, ConfigEvidence, ConfigFact, ConfigIdentity, ConfigDependencies, ConfigLens,
   ConfigOutcome, ConfigQuestion, ConfigReport,
@@ -242,7 +242,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const currentMain=await ports.vcs.mainState();
     const evidence=observedEvidence();
     const outcome=disposition(freshBrief,independent);
-    const artifact=handoff?asText(await ports.readBytes(handoff.path,sizeLimit)):null;
+    const artifact=handoff?asText(await ports.readBytes(handoff.path,maxScratchArtifactBytes)):null;
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
     const checks={
       returnedConfigHandoff:equal(report?.handoff,handoff),

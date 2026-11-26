@@ -9,7 +9,7 @@ import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maximum} from "@workspace-skills/scratch-handoff-bindings";
 import type { ExplorerInput, ExplorerPlan, ExplorerReport, ExplorerRequest, ExplorerReceipt, ExplorerWitness, OwnerObservation,
   SetupRoute, SetupWitness, TourScene, TourWitness, WelcomeEvidence, WelcomeGoalReport, WelcomeResult, WelcomeHandoff, WelcomeIndex,
   WelcomePlan, WelcomeReason, WelcomeRecord, WelcomeResolution, WelcomeResource, WelcomeReviews, WelcomeRow, WelcomeScope,
@@ -29,7 +29,6 @@ type Installed = {
   bindProbe(input: {goal:string;text:string;claim:ExplorerInput["claim"];repeat:boolean}): ProbePorts;
 };
 const encoder = new TextEncoder();
-const maximum = 12 * 1024;
 const bytes = (text:string) => encoder.encode(text).length;
 const ownerSender = (id:string) => `owner:${id}`;
 

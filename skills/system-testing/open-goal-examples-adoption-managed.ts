@@ -12,7 +12,7 @@ import { parseWorkspaceSystemEpochEnvelope } from "@vibestudio/workspace/configP
 import { parseTemplateManifestContent } from "@vibestudio/workspace/templateManifest";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
 import { contextId, fs, rpc, vcs } from "@workspace/runtime";
-import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
+import { bindScratchHandoff, maxScratchArtifactBytes as maxNoteBytes} from "@workspace-skills/scratch-handoff-bindings";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { readWorkspaceBytes } from "./scratch-handoff-managed.js";
 import {
@@ -67,7 +67,6 @@ type Journal = {
 };
 const read = "adoptionReview";
 const write = "adoptionHandoff";
-const maxNoteBytes = 32 * 1024;
 function livePorts(): Ports {
   return {
     contextId,
