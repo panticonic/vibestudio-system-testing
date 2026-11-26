@@ -149,9 +149,14 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     return {portfolio:id,id:stableSha256Hex({id,gardenReadback,realmReadback,card}),garden:gardenReadback,realm:realmReadback,card};
   }
   const initial=await readFrame("opening");
-  let running=false;
+  // Serialize native transactions, not semantic investigations. Waiting callers receive fresh observations.
+  let tail:Promise<unknown>=Promise.resolve();
+  function transaction<T>(action:()=>Promise<T>):Promise<T>{
+    const result=tail.then(action);tail=result.then(()=>undefined,()=>undefined);return result;
+  }
   let receipt:PortfolioNote|null=null;
   let projection:PortfolioProjection|null=null;
+  const forecasts:PortfolioProjection[]=[];
   const frames:PortfolioFrame[]=[];
   async function preview(months:Horizon,frame:PortfolioFrame):Promise<PortfolioProjection> {
     const value=await realm.preview(months);
@@ -201,62 +206,56 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     demoPortfolioIndex:{async list(){return structuredClone(index);}},
     demoPortfolioState:{async read(portfolio:string){
       if(portfolio!==id)return null;
-      if(frames.length>=2)return structuredClone(frames.at(-1)!);
-      if(running)return null;
-      running=true;
-      try {
+      return transaction(async()=>{
         const stage=frames.length?"current":"opening";
-        if(stage==="current") {
+        if(frames.length===1) {
           await applyGarden(world.garden);
           await moveRealm(world.drift??0);
         }
-        const value=await readFrame(stage);
-        frames.push(value);
-        return structuredClone(value);
-      } finally {running=false;}
+        const value=await readFrame(stage);frames.push(value);return structuredClone(value);
+      });
     }},
     demoPortfolioForecast:{async preview(portfolio:string,basis:string,months:Horizon){
-      if(portfolio!==id||!frames[1]||basis!==frames[1].id||!index.allowedHorizons.includes(months)||projection||running)
-        return null;
-      running=true;
-      try {
-        if(!isDeepStrictEqual(frames[1],await readFrame("current")))return null;
-        projection=await preview(months,frames[1]);
-        return structuredClone(projection);
-      } finally {running=false;}
+      if(portfolio!==id||!index.allowedHorizons.includes(months))return null;
+      return transaction(async()=>{
+        const frame=frames.at(-1);
+        if(frames.length<2||!frame||basis!==frame.id||!isDeepStrictEqual(frame,await readFrame("current")))return null;
+        projection=await preview(months,frame);forecasts.push(projection);return structuredClone(projection);
+      });
     }},
     demoPortfolioHandoff:{async stage(report:PortfolioReport){
-      if(!report?.decision?.write||!report.decision.explanation||receipt||
-        running||world.plan.note==="none"||!frames[1]||report.note!==null||
-        !isDeepStrictEqual(report.opening,frames[0])||!isDeepStrictEqual(report.current,frames[1])||
-        !isDeepStrictEqual(report.plan,planFor(frames[1]))||!isDeepStrictEqual(report.projection,projection))return null;
-      running=true;
-      try {
-        const latest=await readFrame("current");
-        if(!isDeepStrictEqual(latest,frames[1])||latest.card&&!report.plan.criteriaBasis)return null;
-        const prepared=evaluate(frames[0],latest,projection);
-        if(!prepared.write||prepared.status!==report.decision.status||
-          !isDeepStrictEqual(report.garden,prepared.gardenResults)||!isDeepStrictEqual(report.realm,prepared.realmResults))return null;
+      if(!report?.decision?.write||typeof report.decision.explanation!=="string"||!report.decision.explanation.trim()||world.plan.note==="none")return null;
+      return transaction(async()=>{
+        const latest=frames.at(-1);
+        if(frames.length<2||!latest||!isDeepStrictEqual(report.opening,frames[0])||!isDeepStrictEqual(report.current,latest)||
+          report.plan?.criteriaBasis!==(latest.card?.digest??null)||
+          report.projection!==null&&!forecasts.some(value=>isDeepStrictEqual(value,report.projection)))return null;
+        if(!isDeepStrictEqual(latest,await readFrame("current")))return null;
+        // Conditional write authority follows the actual requested native conditions, never a model enum.
+        if(world.plan.note==="ready-only"&&!evaluate(frames[0],latest,world.plan.months?forecasts.find(value=>value.months===world.plan.months&&value.basis===latest.id)??null:null).write)return null;
         const status=await ports.status();
         if(status.mainEventId!==before.mainEventId||!isDeepStrictEqual(status.workingHead,before.workingHead))return null;
         const text=body(report);
         if(new TextEncoder().encode(text).length>maxBytes)return null;
-        const saved=(stagedText=text,await writer.stage(text));
-        if(!saved)return null;
+        if(receipt)return text===stagedText?structuredClone(receipt):null;
+        const saved=await writer.stage(text);if(!saved)return null;
+        stagedText=text;
         receipt={path:saved.path,digest:sha256HexSyncText(text),portfolio:id,basis:latest.id};
         return structuredClone(receipt);
-      } finally {running=false;}
+      });
     }},
   };
 
   async function verify(raw:unknown,invocation?:InvocationObservations) {
     const report=raw as PortfolioReport|null;
     const outcome=report;
-    const [opening,current]=frames;
+    const opening=frames[0],current=frames.at(-1);
     const final=await readFrame("current");
-    const findings=opening&&current?evaluate(opening,current,projection):null;
+    const findings=opening&&current?evaluate(opening,current,world.plan.months?forecasts.find(value=>value.months===world.plan.months&&value.basis===current.id)??null:null):null;
     const decision=outcome?.decision;
-    const nativeProjection=projection&&current?await preview(projection.months,current):null;
+    const returnedProjection=outcome?.projection??null;
+    const selectedProjection=returnedProjection??(world.plan.months?forecasts.find(value=>value.months===world.plan.months&&value.basis===current?.id)??null:null);
+    const nativeProjection=selectedProjection&&current?await preview(selectedProjection.months,current):null;
     const g0=gardenState(initialGarden);
     let expectedClock=clock(g0);
     const visits=new Map<string,Set<number>>();
@@ -291,22 +290,19 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.note,receipt),
       exactOwnedPair:index.gardenId.slice("natlang-garden-".length)===index.realmId.slice("natlang-realm-".length)&&
         opening?.portfolio===id&&current?.portfolio===id,
-      independentlyReadPortfolioCards:frames.length===2&&isDeepStrictEqual(opening.card,await readCard("opening"))&&
+      independentlyReadPortfolioCards:frames.length>=2&&isDeepStrictEqual(opening.card,await readCard("opening"))&&
         isDeepStrictEqual(current.card,await readCard("current"))&&(!world.card||opening.card?.digest!==current.card?.digest),
-      settledPortfolioGarden:changesAgree&&frames.length===2&&isDeepStrictEqual(opening.garden,initial.garden)&&
+      settledPortfolioGarden:changesAgree&&frames.length>=2&&isDeepStrictEqual(opening.garden,initial.garden)&&
         isDeepStrictEqual(current.garden,final.garden),
-      settledPortfolioRealm:frames.length===2&&opening.realm.month===(world.realm??0)&&
+      settledPortfolioRealm:frames.length>=2&&opening.realm.month===(world.realm??0)&&
         current.realm.month===(world.realm??0)+(world.drift??0)&&isDeepStrictEqual(opening.realm,initial.realm)&&
         isDeepStrictEqual(final.realm,current.realm),
-      exactCurrentPortfolioPlan:!!current&&frames.length===2,
-      exactPortfolioForecast:isDeepStrictEqual(outcome?.projection,projection)&&isDeepStrictEqual(nativeProjection,projection)&&
-        (projection?.months??null)===world.plan.months,
-      exactInstalledGardenCriteria:!!findings&&isDeepStrictEqual(outcome?.garden,findings.gardenResults)&&
-        isDeepStrictEqual(findings.gardenResults.map(row=>row.review.decision),world.readings[0]),
-      exactInstalledRealmCriteria:!!findings&&isDeepStrictEqual(outcome?.realm,findings.realmResults)&&
-        isDeepStrictEqual(findings.realmResults.map(row=>row.review.decision),world.readings[1]),
-      groundedPortfolioDecision:!!findings&&decision?.status===world.status&&decision.status===findings.status&&
-        decision.write===findings.write&&typeof decision.explanation==="string",
+      observedCurrentPortfolio:!!current&&frames.length>=2,
+      actualPortfolioForecast:returnedProjection===null||forecasts.some(value=>isDeepStrictEqual(value,returnedProjection))&&
+        isDeepStrictEqual(nativeProjection,returnedProjection),
+      requestedPortfolioForecast:world.plan.months===null||!!selectedProjection&&selectedProjection.months===world.plan.months&&
+        selectedProjection.basis===current?.id&&isDeepStrictEqual(nativeProjection,selectedProjection),
+      requestedPortfolioAnswer:!world.requestedAnswer||typeof decision?.explanation==="string"&&!!decision.explanation.trim(),
       verifiedPrivatePortfolioHandoff:!!findings&&(findings.write?typeof artifactExplanation==="string"&&!!receipt&&!!artifact&&files.length===1&&
         receipt.path===`/.tmp/${files[0]}/handoff.json`&&receipt.basis===final.id&&artifact===stagedText&&
         receipt.digest===sha256HexSyncText(artifact):
@@ -316,10 +312,16 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
         await services.demoPortfolioForecast.preview(other,final.id,1)===null&&
         await services.demoPortfolioHandoff.stage({decision:{write:true}} as PortfolioReport)===null,
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactOwnedPair", "independentlyReadPortfolioCards", "settledPortfolioGarden", "settledPortfolioRealm", "exactCurrentPortfolioPlan", "verifiedPrivatePortfolioHandoff", "preservedPortfolioWorkspace", "rejectedPortfolioRetarget"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactPortfolioForecast", "exactInstalledGardenCriteria", "exactInstalledRealmCriteria", "groundedPortfolioDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const contract:SemanticOutcomeContract={
+      effects:{checks:["exactOwnedPair","independentlyReadPortfolioCards","settledPortfolioGarden","settledPortfolioRealm","observedCurrentPortfolio","actualPortfolioForecast","requestedPortfolioForecast","verifiedPrivatePortfolioHandoff","preservedPortfolioWorkspace","rejectedPortfolioRetarget"],rationale:"Actual owned observations, native physics and forecast provenance, requested private effects and protected state."},
+      returnedValue:{checks:["requestedPortfolioAnswer"],required:world.requestedAnswer,rationale:"Only goals that request returned findings require a nonempty explanation; independent meaning review checks the actual requested claims."},
+      incidentalValues:{checks:["returnedArtifactReceipt"],rationale:"A receipt echo is not an additional requested effect."},
+    };
     return assessObservedApplicationOutcome({contextId:input.contextId,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,frames,plan:current?planFor(current):null,projection,garden:findings?.gardenWitness??[],realm:findings?.realmWitness??[],
-      decision:decision??null,note:receipt,artifact},contract,raw,invocation,[{"checks":["exactInstalledGardenCriteria"],"rootPath":["garden"],"producerSourceSuffix":"workOnDemoPortfolio/reviewPortfolioGarden.nl","producerPath":[]},{"checks":["exactInstalledRealmCriteria"],"rootPath":["realm"],"producerSourceSuffix":"workOnDemoPortfolio/reviewPortfolioRealm.nl","producerPath":[]},{"checks":["groundedPortfolioDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnDemoPortfolio/decidePortfolioDelivery.nl","producerPath":[]}]);
+      index,frames,projection:{observed:forecasts,returned:returnedProjection},
+      garden:{initial:initial.garden,final:final.garden,actorFindings:outcome?.garden??null,nativeActions:appliedGarden},
+      realm:{initial:initial.realm,final:final.realm,actorFindings:outcome?.realm??null},
+      decision:decision??null,note:receipt,artifact},contract,raw,invocation);
   }
 
   async function qualify() {
@@ -332,7 +334,10 @@ export async function prepareOpenPortfolio(input:Input,installed:Installed,injec
     const decision:PortfolioDecision={status:world.status,write:expected.write,explanation:world.words.join(" / ")};
     const report:PortfolioReport={plan,opening,current,projection,garden:expected.gardenResults,realm:expected.realmResults,decision,note:null};
     if(decision.write)report.note=await services.demoPortfolioHandoff.stage(report);
-    return verify({projection:report.projection,garden:report.garden,realm:report.realm,decision:report.decision,note:report.note});
+    const proof=await verify({projection:report.projection,garden:report.garden,realm:report.realm,decision:report.decision,note:report.note});
+    const referenceChecks={garden:isDeepStrictEqual(expected.gardenResults.map(row=>row.review.decision),world.readings[0]),
+      realm:isDeepStrictEqual(expected.realmResults.map(row=>row.review.decision),world.readings[1]),status:expected.status===world.status};
+    return {...proof,passed:proof.passed&&Object.values(referenceChecks).every(Boolean),referenceChecks};
   }
   return {services,verify,qualify};
 }
