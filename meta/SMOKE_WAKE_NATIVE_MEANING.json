@@ -604,5 +604,10 @@
     "Full Workerd qualification of changed families pending separate actual source selection; no original failure retrospectively passed",
     "Actual provider behavior not probed",
     "Mandatory semantic reviews for new generated teacher outputs remain actual admission work, not waived by component tests"
-  ]
+  ],
+  "reconnectAdmissionCount": {
+    "cause": "recoverOwnedSubscription closes the client before returning; admittedSurfaces is cumulative successful openings, not live authority or mailbox multiplicity.",
+    "fix": "Allow positive admission count; retain actual receiver/context/revision/cursor/range/native row and unique context checks.",
+    "negative": "Zero-admission/unavailable, foreign recipient/revision/cursor and duplicate native mailbox guards unchanged."
+  }
 }

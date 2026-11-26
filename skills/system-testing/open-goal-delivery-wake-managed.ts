@@ -204,7 +204,7 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
   const inRange = (sequence: number) => !!range && sequence > range.after && sequence <= range.through;
   const rangeComplete = !range || before.history.filter(row => inRange(row.id)).length === range.through - range.after;
   function canRecover() {
-    return !!observed?.connection.ready && observed.connection.channel === key && observed.connection.admittedSurfaces === 1 &&
+    return !!observed?.connection.ready && observed.connection.channel === key && observed.connection.admittedSurfaces >= 1 &&
       !!range && assignment.mayWake && !alreadyPresent && realm.active && realm.attached && assignment.recipient === realm.id &&
       assignment.revision === realm.revision && assignment.saved === range.after && rangeComplete && !!sourceEvent && inRange(sourceEvent.sequence);
   }
@@ -247,7 +247,7 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
         }
         if (!isDeepStrictEqual(await store.inspect({key}),before)) throw new Error("Owned delivery changed before recovery");
         if (id !== assignment.id || !observed?.connection.ready || observed.connection.channel !== key ||
-          observed.connection.admittedSurfaces !== 1 || !range || pending || receipt || !assignment.mayWake || alreadyPresent ||
+          observed.connection.admittedSurfaces < 1 || !range || pending || receipt || !assignment.mayWake || alreadyPresent ||
           !realm.active || !realm.attached || assignment.recipient !== realm.id || assignment.revision !== realm.revision ||
           assignment.saved !== range.after || !rangeComplete || !isDeepStrictEqual(cursor, range) ||
           !sourceEvent || event !== sourceEvent.id || !inRange(sourceEvent.sequence))

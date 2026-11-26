@@ -29,7 +29,7 @@ it('Smoke a requested note does not waive a requested answer, and optional answe
   try{const a=await fixture.services.workspaceSmokeEvidence.discover(),v=await fixture.services.workspaceSmokeEvidence.scan(a.id),p=v.plans.find(p=>p.context===a.context&&p.revision===a.revision&&p.subject===a.subject)!;const r=await fixture.services.workspaceSmokeRuntime.run(a.id,p.path,p.digest);expect((await fixture.verify('Native run completed.')).checks.verifiedPrivateSmokeReceipt).toBe(false);const ack=await fixture.services.workspaceSmokeHandoff.stage(a.id,p.path,r.runDigest);expect(await fixture.services.workspaceSmokeHandoff.stage(a.id,p.path,r.runDigest)).toEqual(ack);expect((await fixture.verify(undefined)).passed).toBe(!world.requestedAnswerRequired);expect((await fixture.verify('A wrong explanation remains subject to mandatory meaning review.')).semanticReviewRequired).toBe(true);}finally{await fixture.close();}
  }
 });
-async function wakeFixture(world:typeof openDeliveryWakeWorlds[number]){
+async function wakeFixture(world:typeof openDeliveryWakeWorlds[number],admissions=1){
  const d=await createTestDO(DeliveryWakeFixtureDO,{__objectKey:'TEST-only-wake',WORKER_SOURCE:'workers/delivery-wake-fixture',WORKER_CLASS_NAME:'DeliveryWakeFixtureDO'}),channel='delivery-wake-'+crypto.randomUUID();
  const nativeCall=(method:string,v:unknown)=>{
   const authorization=createTestDirectAuthority({callerKind:'host',capability:'host',method,source:'workers/delivery-wake-fixture',className:'DeliveryWakeFixtureDO',objectKey:'TEST-only-wake',effect:{kind:'open'},tier:'open'});
@@ -38,7 +38,7 @@ async function wakeFixture(world:typeof openDeliveryWakeWorlds[number]){
   return d.callAs({callerId:'main',callerKind:'host',authorization},method,v);
  };
  const projection:any={seed:(v:unknown)=>nativeCall('seed',v),inspect:(v:unknown)=>nativeCall('inspect',v),recover:(v:unknown)=>nativeCall('recover',v)};
- const fixture=await prepareDeliveryWake({contextId:'owned',caseId:world.id},world,{contextId:'owned',channel,projection,connect:async(mode)=>({channel,context:'owned',attempts:mode==='recover'?2:1,firstRejected:mode!=='clean',ready:mode!=='unavailable',admittedSurfaces:mode==='unavailable'?0:1})});
+ const fixture=await prepareDeliveryWake({contextId:'owned',caseId:world.id},world,{contextId:'owned',channel,projection,connect:async(mode)=>({channel,context:'owned',attempts:mode==='unavailable'?1:admissions+(mode==='recover'?1:0),firstRejected:mode!=='clean',ready:mode!=='unavailable',admittedSurfaces:mode==='unavailable'?0:admissions})});
  return {fixture,dispose:()=>d.db.close()};
 }
 for(const world of openDeliveryWakeWorlds)it(`Wake actual SQL reference ${world.id}`,async()=>{
@@ -64,4 +64,8 @@ it('private reference verdicts and predictions cannot decide a teacher finding',
  const t=smokePorts(),fixture=await prepareWorkspaceSmoke({contextId:'owned',caseId:world.id},world,t.ports);
  try{const a=await fixture.services.workspaceSmokeEvidence.discover(),v=await fixture.services.workspaceSmokeEvidence.scan(a.id),p=v.plans.find(p=>p.context===a.context&&p.revision===a.revision&&p.subject===a.subject)!;await fixture.services.workspaceSmokeRuntime.run(a.id,p.path,p.digest);const proof=await fixture.verify('The observed installed behavior is judged against the actual approved input, not a hidden verdict.');expect(proof.passed,JSON.stringify(proof.checks)).toBe(true);expect(proof.semanticReviewRequired).toBe(true);}finally{await fixture.close();}
  const wake={...openDeliveryWakeWorlds[0]!,expected:'hold-policy' as const},actual=await wakeFixture(wake);try{expect((await actual.fixture.qualify()).passed).toBe(true);}finally{actual.dispose();}
+});
+
+it('cumulative reconnect admissions do not prescribe a route when the actual receiver and recovered mailbox are exact',async()=>{
+ const world=openDeliveryWakeWorlds[0]!,t=await wakeFixture(world,2);try{const result=await t.fixture.qualify();expect(result.passed,JSON.stringify(result.checks)).toBe(true);expect(result.evidence?.connection.admittedSurfaces).toBe(2);expect(result.semanticReviewRequired).toBe(true);}finally{t.dispose();}
 });
