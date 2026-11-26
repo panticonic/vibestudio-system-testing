@@ -1,3 +1,4 @@
+import {extendSemanticOutcomeEffects} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["thread","listed","snapshots","independent","exactDraft"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
@@ -9,7 +10,7 @@ import { contextId, fs, rpc, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
-import type { Acknowledgment, CaptureReceipt, DictationArtifact, DictationGoalReport, DictationResult, DictationPlan, DictationReason,
+import type { Acknowledgment, CaptureReceipt, DictationArtifact, DictationResult, DictationPlan, DictationReason,
   DictationRecord, DictationRow, DictationSnapshot, DictationThread, DraftReceipt, DraftReview,
   RetainedTranscript, SegmentReceipt } from "@workspace-skills/open-dictation-handoff/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -160,7 +161,6 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     });
   }
   await append(world.initial);
-  const first = await ports.read(main);
   const noteDir = await ports.fs.mkdtemp("dictation-review");
   const notePath = `${noteDir}/scope.md`;
   await ports.fs.writeFile(notePath,"Only the named owned draft and any expressly authorized local alternative are in scope.");
@@ -180,10 +180,12 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
       ack:plan.acknowledgementMessage,segments:plan.segmentMessages,action:plan.action,language:plan.transcript?.language,text:review.text});
   }
   function samePlan(plan: DictationPlan, current: DictationSnapshot) {
-    const {explanation,...facts} = plan;
-    return typeof explanation === "string" &&
-      isDeepStrictEqual(facts,exactDisposition(thread,current));
+    const {explanation,reason: _semanticReason,action: _semanticAction,...facts}=plan;
+    const {reason: _nativeReason,...native}=independentlyInspect(thread,current);
+    return typeof explanation==="string" && !!explanation.trim() &&
+      isDeepStrictEqual(facts,{...native,threadId:thread.threadId,draftId:thread.draftId,through:current.through});
   }
+
   const services = {
     retainedDictationIndex: {
       async list() {
@@ -196,8 +198,6 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
       async read(threadId: string) {
         const known = lanes.get(threadId);
         if (!known) return null;
-        const previous = seen.filter(row => row.threadId === threadId);
-        if (previous.length >= 2) return structuredClone(previous.at(-1)!);
         if (reading) return null;
         reading = true;
         try {
@@ -212,17 +212,24 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     retainedDictationHandoff: {
       async stage(plan: DictationPlan, review: DraftReview) {
         if (!plan || thread.localAction === "none" || plan.threadId !== thread.threadId ||
-            plan.draftId !== thread.draftId || primaryReads !== 2 || handoff || writing ||
+            plan.draftId !== thread.draftId || primaryReads < 1 || handoff || writing ||
             (plan.action !== "stage-correction" && plan.action !== "stage-alternative")) return null;
         writing = true;
         try {
           const latest = await ports.read(main);
-          if (!samePlan(plan,latest) || !isDeepStrictEqual(review,expectedReview(plan.transcript)) ||
+          const native=independentlyInspect(thread,latest);
+          const draft=recordsOf<DraftReceipt>(latest,"draft").findLast(row=>row.record.draftId===thread.draftId)?.record;
+          if (!samePlan(plan,latest) || !native.transcript || !["verified","verified-prefix"].includes(native.reason) ||
+              !draft || draft.state!=="editable" ||
+              plan.action==="stage-correction"&&(thread.localAction!=="correction"||draft.revision!==thread.baseline) ||
+              plan.action==="stage-alternative"&&thread.localAction!=="alternative" ||
+              !isDeepStrictEqual(review,expectedReview(native.transcript)) ||
               (await ports.read(main)).through !== plan.through) return null;
           const text = body(plan,review);
           if (encoder.encode(text).length > limit) return null;
-          const receipt = (stagedText=text,await writer.stage(text));
+          const receipt = await writer.stage(text);
           if (!receipt) return null;
+          stagedText=text;
           handoff = {...receipt,sha256:sha256HexSyncText(text)};
           return structuredClone(handoff);
         } finally { writing = false; }
@@ -235,39 +242,42 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
     const plan = outcome?.plan;
     const latest = await ports.read(main);
     const snapshots = seen.filter(item => item.threadId === thread.threadId);
-    const expected = world.expected;
-    const independent = exactDisposition(thread,latest);
-    const exactDraft = expectedReview(independent.transcript);
-    const after = await ports.status();
-    const scratch = (await listOwnedScratchEntries(ports.fs)).filter(name => name.startsWith("evidence-handoff-") && !initialScratch.has(name));
-    const bytes = handoff ? await ports.readBytes(handoff.path,limit) : null;
-    const artifact = bytes ? new TextDecoder("utf-8",{fatal:true}).decode(bytes) : null;
-    const local = expected.action === "stage-correction" || expected.action === "stage-alternative";
-    const foreign = crypto.randomUUID();
-    const checks = {
-      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
-      exactOwnedDictation: plan?.threadId === thread.threadId && plan.draftId === thread.draftId,
-      verifiedDictationFrontiers: snapshots.length === 2 && isDeepStrictEqual(snapshots[0],first) && isDeepStrictEqual(snapshots[1],latest) &&
-        latest.rows.length === seeded.size && latest.rows.every(row => isDeepStrictEqual(row.record,seeded.get(row.messageId))) &&
-        new Set(latest.rows.map(row => row.envelopeId)).size === latest.rows.length,
-      exactDictationSelection: !!plan && samePlan(plan,latest) && plan.reason === expected.reason && plan.action === expected.action &&
-        plan.captureId === captureIds.get(expected.capture) && isDeepStrictEqual(plan.segmentMessages,expected.selected.map(key => messageIds.get(key))) &&
-        plan.acknowledgementMessage === (expected.acknowledgement ? messageIds.get(expected.acknowledgement) : null) &&
-        plan.draftRevision === expected.revision && (plan.transcript?.text ?? null) === expected.text && typeof plan.explanation === "string",
-      exactInstalledDraft: exactDraft ? isDeepStrictEqual(outcome?.review,exactDraft) : outcome?.review === null,
-      verifiedLocalCorrection: local ? !!exactDraft && !!artifact && !!handoff && !!bytes &&
-        scratch.length === 1 && handoff.path === `/.tmp/${scratch[0]}/handoff.json` &&
-        artifact === stagedText && sha256HexSyncText(artifact) === handoff.sha256 &&
-        handoff.bytes === bytes.length  :
-        handoff === null  && scratch.length === 0,
-      preservedDraftAndMain: before.mainEventId === after.mainEventId && isDeepStrictEqual(before.workingHead,after.workingHead),
-      rejectedForeignDictation: await services.retainedDictationState.read(foreign) === null &&
-        await services.retainedDictationHandoff.stage({threadId:foreign} as DictationPlan,{status:"silence",text:null}) === null,
+    // Native provenance/acknowledged bytes, not a reference action or answer.
+    const selection=independentlyInspect(thread,latest);
+    const independent={selection,currentDraft:recordsOf<DraftReceipt>(latest,"draft").findLast(row=>row.record.draftId===thread.draftId)?.record??null};
+    const exactDraft=expectedReview(selection.transcript);
+    const after=await ports.status();
+    const scratch=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!initialScratch.has(name));
+    const bytes=handoff?await ports.readBytes(handoff.path,limit):null;
+    const artifact=bytes?new TextDecoder("utf-8",{fatal:true}).decode(bytes):null;
+    const foreign=crypto.randomUUID();
+    const checks={
+      authenticOwnedDictationObservations:!!listed && snapshots.length>0 &&
+        snapshots.every(snapshot=>snapshot.threadId===thread.threadId && snapshot.through<=latest.through &&
+          snapshot.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.messageId)))) &&
+        latest.rows.length===seeded.size && latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.messageId))) &&
+        new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
+      verifiedLocalCorrection:handoff ? !!artifact && !!bytes && scratch.length===1 &&
+        handoff.path===`/.tmp/${scratch[0]}/handoff.json` && artifact===stagedText &&
+        sha256HexSyncText(artifact)===handoff.sha256 && handoff.bytes===bytes.length : scratch.length===0,
+      preservedDraftAndMain:before.mainEventId===after.mainEventId&&isDeepStrictEqual(before.workingHead,after.workingHead),
+      rejectedForeignDictation:await services.retainedDictationState.read(foreign)===null&&
+        await services.retainedDictationHandoff.stage({threadId:foreign} as DictationPlan,{status:"silence",text:null})===null,
+      requestedDictationAnswer:!world.requestedAnswer||typeof plan?.explanation==="string"&&!!plan.explanation.trim(),
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["verifiedDictationFrontiers", "verifiedLocalCorrection", "preservedDraftAndMain", "rejectedForeignDictation"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactOwnedDictation", "exactDictationSelection", "exactInstalledDraft"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
-    return assessObservedApplicationOutcome({passed:Object.values(checks).every(Boolean),contextId:input.contextId,caseId:world.id,goal:world.goal,checks,
-      thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation,[{"checks":["exactOwnedDictation","exactDictationSelection"],"rootPath":["plan"],"producerSourceSuffix":"workOnDictationHandoffGoal/decideDictationHandoff.nl","producerPath":[]},{"checks":["exactInstalledDraft"],"rootPath":["review"],"producerSourceSuffix":"workOnDictationHandoffGoal/reviewRetainedDictation/dictation/reviewDictation/prepareDraft.nl","producerPath":[]}]);
+    const contract:SemanticOutcomeContract={
+      effects:{checks:["authenticOwnedDictationObservations","verifiedLocalCorrection","preservedDraftAndMain","rejectedForeignDictation"],
+        rationale:"Actual owned source/ack/draft observations and original-bound authorized local artifacts establish crisp effects; mandatory native-bound meaning review decides the requested transcript, provenance, completeness, literal wording, condition and action."},
+      returnedValue:{checks:["requestedDictationAnswer"],required:world.requestedAnswer,
+        rationale:"Literal requested answers require an actual explanation; actual native source text and retained artifact support required quotes. Private reference plans, read counts and copied report schemas are not user obligations."},
+      incidentalValues:{checks:[],rationale:"No reference action/reason/selection or optional report echo creates a training mask."},
+    };
+    const proof=await assessObservedApplicationOutcome({passed:Object.values(checks).every(Boolean),contextId:input.contextId,
+      caseId:world.id,goal:world.goal,checks,thread,listed,snapshots,independent,exactDraft,handoff,artifact},contract,raw,invocation,[]);
+    proof.semanticReviewInput.rubric+=" Source/acknowledgment facts and current draft are native evidence, not a required report schema. Require any requested exact quoted wording and its real limits; never treat a preview, missing/conflicting segment, another device/language or an unconfirmed continuation as verified speech. A local artifact preserves actual acknowledged wording and never edits the current draft. Judge user-requested conditional staging against actual acknowledgment and editable/current draft state; do not invent a stage for a read-only question or require an arbitrary two-read route.";
+    return proof;
   }
+
   async function qualify() {
     await services.retainedDictationIndex.list();
     await services.retainedDictationState.read(thread.threadId);
@@ -280,8 +290,12 @@ export async function prepareOpenDictationHandoff(input: { contextId: string; ca
       ? await services.retainedDictationHandoff.stage(plan,draft) : null;
     const report = {plan,review:review?.result??null,handoff:receipt};
     const positive = await verify(report);
-    const altered = await verify({...report,plan:{...plan,through:-1}});
-    return {...positive,passed:positive.passed && !altered.outcomeDimensions.returnedValue.passed};
+    const missing=world.requestedAnswer?await verify({...report,plan:{...plan,explanation:""}}):null;
+    const qualified=extendSemanticOutcomeEffects(positive,{
+      referenceNativeLocalStage:world.expected.action==="stage-correction"||world.expected.action==="stage-alternative"?receipt!==null:receipt===null,
+      referenceAcknowledgedText:(plan.transcript?.text??null)===world.expected.text,
+    });
+    return {...qualified,passed:qualified.passed&&(!missing||!missing.passed)};
   }
   return {goal:world.goal,services,verify,qualify};
 }

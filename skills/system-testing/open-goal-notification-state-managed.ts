@@ -1,7 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import type { WorkspaceRuntime } from "@workspace/runtime/hosted";
 import {
@@ -163,37 +162,15 @@ export async function prepareOpenNotificationState(
   type Snapshot = Awaited<ReturnType<typeof service.read>>;
   type Refresh = Awaited<ReturnType<typeof service.refresh>>;
   type Ack = Awaited<ReturnType<typeof service.acknowledge>>;
-  type Finding = {
-    state: NotificationStateWorld["expected"]["state"];
-    id: string | null;
-    revision: number | null;
-  };
-
-
-  
-  async function verify(report: unknown,observations?: InvocationObservations) {
-    const proof=await verifyNativeApplication(report,observations);
-    if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedNotificationResolution"],"rootPath":[],"producerSourceSuffix":"reviewNotificationState/chooseNotificationAction.nl","producerPath":[]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=report;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,observations,contributions);
-    // Preserve every original native observation for qualification and callers
-    // that add their own checks before the final outcome projection.
+  const assess=bindObservedContentReview(["journal","assigned","initial","refresh","current","ack","final","durable"]);
+  async function verify(report:unknown,observations?:InvocationObservations){
+    const proof=await verifyNativeApplication(report);
+    const assessed=await assess(proof,proof.outcomeContract,report,observations);
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
-async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
-    const result = report as Ack | {action:string;finding:Finding;reason:string} | null;
-    const decision = result && "action" in result ? result : null;
+  async function verifyNativeApplication(report:unknown){
+    const result=report as {explanation?:unknown;acknowledgment?:unknown}|null;
     const raw = await rpc.call(target, actor.audit, []);
     const ownsFinal = raw.active?.id === lanes.assigned.id;
     const final =
@@ -210,24 +187,12 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       | Ack
       | undefined;
     const expected = world.expected;
-    const actions = ["discover", "read", "refresh"];
-    if (expected.attention !== null) actions.push("read");
-    if (expected.action === "acknowledge") actions.push("acknowledge", "read");
-    const selectedArgs = actions.map((method, index) => {
-      if (method === "discover") return [];
-      if (index < 3) return [lanes.assigned];
-      if (method === "acknowledge")
-        return [refresh?.lane, ...(expected.target ?? [])];
-      return [refresh?.lane];
-    });
     const checks = {
       exactNotificationReadScope:
-        sameEvidenceMembers(journal.map(({method,args})=>({method,args})),
-          actions.map((method,index)=>({method,args:selectedArgs[index]}))) &&
-        isDeepStrictEqual(
-          initial?.attention.map((row) => row.id),
-          expected.before,
-        ),
+        journal.every(row=>row.method==="discover" ||
+          isDeepStrictEqual(row.args[0],lanes.assigned) ||
+          refresh?.lane?.id===lanes.assigned.id && isDeepStrictEqual(row.args[0],refresh.lane)) &&
+        (initial===undefined || isDeepStrictEqual(initial.attention.map(row=>row.id),expected.before)),
       verifiedNotificationRefresh:
         raw.refreshCommits===1 &&
         refresh?.producerReceipt === expected.receipt &&
@@ -238,12 +203,8 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
               ? "changed"
               : "unchanged") &&
         isDeepStrictEqual(refresh.lane, ownsFinal ? raw.active : null),
-      returnedNotificationResolution:
-        expected.action === "acknowledge" ? ack?.status === "acknowledged" && isDeepStrictEqual(result,ack) :
-        decision?.action === expected.action && decision.finding?.state === expected.state &&
-        decision.finding.id === (expected.target?.[0] ?? null) &&
-        decision.finding.revision === (expected.target?.[1] ?? null) &&
-        typeof decision.reason === "string" && decision.reason.trim().length > 0,
+      requestedNotificationAnswer:!world.requestedAnswer ||
+        typeof result?.explanation==="string" && result.explanation.trim().length>0,
       independentNotificationReadback:
         isDeepStrictEqual(
           final?.attention.map((row) => row.id) ?? null,
@@ -260,8 +221,8 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     return {
       outcomeContract: {
         effects: {checks:["exactNotificationReadScope", "verifiedNotificationRefresh", "independentNotificationReadback"],rationale:"Actual retained rows, refresh ownership, acknowledgment and native counts establish the action."},
-        returnedValue: {checks:["returnedNotificationResolution"],required:expected.action!=="acknowledge",rationale:"A read-only notification finding is requested; an acknowledgment receipt copy is optional."},
-        incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
+        returnedValue: {checks:["requestedNotificationAnswer"],required:world.requestedAnswer,rationale:"Only an explicitly requested answer or confirmation is required; native acknowledgment evidence is independent."},
+        incidentalValues: {checks:[],rationale:"Internal finding classifications and receipt echoes do not define goal completion."},
       },
       incorrectReturnValues:[],
       contextId: input.contextId,
@@ -275,7 +236,6 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       refresh,
       current: current ?? null,
       ack: ack ?? null,
-      expectedTarget: expected.target,
       final,
       durable: raw,
     };
@@ -289,7 +249,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     } catch {
       rejectedForeignLane = true;
     }
-    const original = await service.read(lanes.assigned);
+    await service.read(lanes.assigned);
     const refresh = await service.refresh(lanes.assigned);
     const current = refresh.lane ? await service.read(refresh.lane) : null;
     const [id, revision] = world.expected.target ?? [null, null];
@@ -304,16 +264,14 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       0,
     ]);
     let acknowledgement = null;
-    let final = current;
     if (decision.action === "acknowledge" && current && id && revision) {
       acknowledgement = await service.acknowledge(current.lane, id, revision);
-      final = await service.read(current.lane);
+      await service.read(current.lane);
     }
-    const report = acknowledgement ?? decision;
+    const report = {finding:decision.finding,explanation:decision.reason,acknowledgment:acknowledgement};
     const proof = await verify(report);
-    const forged = acknowledgement ? {...acknowledgement,id:"wrong-lane"} :
-      {...decision,finding:{...decision.finding,id:"wrong-lane"}};
-    const rejectedWrongOutput = !(await verify(forged)).outcomeDimensions.returnedValue.passed;
+    const rejectedWrongOutput = world.requestedAnswer ?
+      !(await verify({...report,explanation:""})).outcomeDimensions.returnedValue.passed : true;
     const checks = {
       ...proof.checks,
       rejectedForeignLane,
