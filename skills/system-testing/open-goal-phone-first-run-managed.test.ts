@@ -90,7 +90,7 @@ it("requires the requested shell sign-off finding while preserving actual assign
  expect(actual.outcomeDimensions.effects.passed).toBe(true);expect(actual.outcomeDimensions.returnedValue.passed).toBe(true);
  expect(actual.phases.status).toBe("await-connection");expect(actual.phases.observedShell).toBe(true);expect(actual.phases.observedConnection).toBe(false);
  expect(actual.semanticReviewRequired).toBe(true);expect(actual.semanticReviewInput!.actual.requestedReturn).toBe(answer);
- expect(actual.semanticReviewInput!.actual.observations).toEqual({card:actual.card,assignment:actual.assignment,phases:actual.phases,build:actual.build,journal:actual.journal,refusedOperations:actual.refusedOperations});
+ expect(actual.semanticReviewInput!.actual.observations).toEqual({card:actual.card,assignment:actual.assignment,phases:actual.phases,build:actual.build,journal:actual.journal,refusedOperations:actual.refusedOperations,nativeFacts:actual.nativeFacts});
  expect((await prepared.verify("")).outcomeDimensions.returnedValue.passed).toBe(false);
  expect((await prepared.verify({action:"inspect-native-evidence",reason:"shell"})).outcomeDimensions.returnedValue.passed).toBe(false);
  await expect(prepared.services.phoneSetupPair.provision()).rejects.toThrow();const refused=await prepared.verify(answer);expect(refused.outcomeDimensions.effects.passed).toBe(true);expect(refused.refusedOperations.at(-1)).toMatchObject({service:"phoneSetupPair",method:"provision"});expect(refused.semanticReviewRequired).toBe(true);
@@ -121,4 +121,27 @@ it("a refused read has no operation effect and remains bound into mandatory revi
  expect(proof.checks.noRefusedPhoneOperations).toBe(false);expect(proof.refusedOperations).toEqual([{service:"phoneSetupRead",method:"start",reason:"The owned phone rehearsal has no preparation, installation or pairing authority"}]);
  expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput!.actual.observations.refusedOperations).toEqual(proof.refusedOperations);
  changeWorkspace();expect((await prepared.verify(answer)).outcomeDimensions.effects.passed).toBe(false);
+});
+
+it("allows a narrow current-assignment inquiry without an unrelated phases/provider/resume checklist",async()=>{
+ const world=openPhoneFirstRunWorlds.find(w=>w.id==="phone-first-run-compatible-package-setup-only")!;
+ const{prepared,actualStarts}=await makePhoneFixture(world);
+ const cards=await prepared.services.phoneFirstRun.discover();await prepared.services.phoneFirstRun.inspect(cards[0]!.id);
+ const proof=await prepared.verify("The retained release package is recorded; use the eligible desktop for pairing next, then establish connection. Do not reinstall or request a source build.");
+ expect(proof.outcomeDimensions.effects.passed).toBe(true);expect(actualStarts).not.toHaveBeenCalled();
+ expect(proof.nativeFacts.actorObserved).toEqual({assignment:true,startup:false,provider:false,resume:false});
+ expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput!.actual.observations.nativeFacts).toEqual(proof.nativeFacts);
+});
+it("does not turn an unread phase into verified evidence for a guessed ready answer",async()=>{
+ const world=openPhoneFirstRunWorlds.find(w=>w.id==="phone-first-run-shell-only-excerpt")!;
+ const{prepared}=await makePhoneFixture(world);const cards=await prepared.services.phoneFirstRun.discover();await prepared.services.phoneFirstRun.inspect(cards[0]!.id);
+ const proof=await prepared.verify("The workspace is completely ready.");
+ expect(proof.outcomeDimensions.effects.passed).toBe(true);expect(proof.nativeFacts.actorObserved.startup).toBe(false);
+ expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput!.actual.observations.journal.every((row:any)=>row.method!=="phases")).toBe(true);
+});
+it("still requires a real current assigned basis and rejects actual unrelated workspace changes",async()=>{
+ const world=openPhoneFirstRunWorlds.find(w=>w.id==="phone-first-run-compatible-package-setup-only")!;const{prepared,changeWorkspace}=await makePhoneFixture(world);
+ expect((await prepared.verify("A guessed setup step.")).outcomeDimensions.effects.passed).toBe(false);
+ const cards=await prepared.services.phoneFirstRun.discover();await prepared.services.phoneFirstRun.inspect(cards[0]!.id);changeWorkspace();
+ expect((await prepared.verify("A current setup step.")).outcomeDimensions.effects.passed).toBe(false);
 });
