@@ -1,0 +1,155 @@
+{
+  "literalReturns": [
+    {
+      "id": "coordinated-revision-overlapping-entrance-guides",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-approved-cutoff-crosses-form",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-only-replace-one-of-two",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-authority-withdrawn-before-change",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-local-definition-and-short-instruction",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-unrelated-coedit-retained",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-one-destination-already-reconciled",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-source-withdrawn-during-batch",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-competing-meaningful-exception",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-no-write-review-request",
+      "required": true,
+      "reason": "Explicitly asks a discrepancy report in chat, without edits."
+    },
+    {
+      "id": "coordinated-revision-exact-signature-subject-drift",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-already-aligned-two-formats",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-no-authorized-target-twin",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-mixed-table-paragraph",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-raced-batch-becomes-aligned",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-unrelated-source-amendment",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-two-approved-details-one-sensitive",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-conditional-threshold-preserved",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-partial-authority-must-hold",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-three-link-format-same-scope",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-held-route-correction-nepar",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-held-edit-clashes-with-field-rewrite",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-held-retain-clause-on-coedit",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-held-active-file-in-staging",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-held-owner-approval-missing",
+      "required": false,
+      "reason": "Requests a conditional or direct document effect/preservation, not a separate answer. Native-bound meaning review remains mandatory."
+    },
+    {
+      "id": "coordinated-revision-held-metrics-clarify-without-write",
+      "required": true,
+      "reason": "Asks whether the current serial format already complies."
+    }
+  ],
+  "sourceInventorySha256": "179a602463432ec8a8178270248617435689c2d429b38298a953f285af966875",
+  "checks": {
+    "nativeUnit": "vibe-coordinated-revision-native-20261126a",
+    "passed": 32,
+    "worldReferences": 26,
+    "semanticReviewExecuted": false
+  },
+  "preserved": [
+    "Actual native repository/file identities/current versions",
+    "Complete atomic edit scope/protected literal text",
+    "CAS/current authority evidence/concurrent state",
+    "Independent final current readback/main preservation"
+  ],
+  "corrections": [
+    "No private status/head/all-ID report obligation",
+    "No actor readback/discovery route when another authentic native read suffices",
+    "Explicit26per-goal return obligations",
+    "Current returned documents remain independently truth-checked as incidental values",
+    "No private8KiB replacement-document cap; actual native VCS boundary retained"
+  ],
+  "historicalCapturesRewritten": false
+}
