@@ -142,7 +142,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
           if(rows.length!==1)throw new Error("Ambiguous exact installed guide");
           const [row]=rows,raw=await ports.readSkill(row.dirPath);
           if(raw===null||new TextEncoder().encode(raw).length>120_000)throw new Error("Unverifiable installed guide");
-          return seen(row.skillPath,[row.description.slice(0,150)],{row,raw});
+          return seen(row.skillPath,[row.description,raw],{row,raw});
         }
         case "worker":{
           const matches=(await ports.listEntities()).filter(row=>row.contextId===owner&&row.kind==="do"&&row.source===nativeSource&&row.key===workerKey);

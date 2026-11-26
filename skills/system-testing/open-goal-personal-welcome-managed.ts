@@ -11,7 +11,7 @@ import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { bindScratchHandoff, maxScratchArtifactBytes as maximum} from "@workspace-skills/scratch-handoff-bindings";
 import type { ExplorerInput, ExplorerPlan, ExplorerReport, ExplorerRequest, ExplorerReceipt, ExplorerWitness, OwnerObservation,
-  SetupRoute, SetupWitness, TourScene, TourWitness, WelcomeEvidence, WelcomeGoalReport, WelcomeResult, WelcomeHandoff, WelcomeIndex,
+  SetupRoute, SetupWitness, TourScene, TourWitness, WelcomeEvidence, WelcomeGoalReport, WelcomeFindings, WelcomeHandoff, WelcomeIndex,
   WelcomePlan, WelcomeReason, WelcomeRecord, WelcomeResolution, WelcomeResource, WelcomeReviews, WelcomeRow, WelcomeScope,
   WelcomeSnapshot } from "@workspace-skills/open-personal-welcome/types";
 import { createOwnedHeadlessChannel, withOwnedChannelClient } from "./session-replay-managed.js";
@@ -313,15 +313,14 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     },
   };
   async function verify(raw:unknown,invocation?:InvocationObservations) {
-    const report=raw as WelcomeResult|null;
+    const report=raw as WelcomeFindings|null;
     const outcome=report;
     const latest=await ports.read(lane);
     const expected=world.expected;
-    const resource=resources.find(row=>row.id===outcome?.plan?.resourceId)??null;
+    const resource=resources.find(row=>row.id===resolution?.resourceId)??null;
     const native=resource?resolveResource(latest,resource):null;
     const actualProbe=outcome?.probe&&nativeProbe?{request:nativeProbe.request,result:outcome.probe}:null;
     const independent=decisions(latest,resource,native,actualProbe);
-    const plan=outcome?.plan;
     const checked=outcome;
     const status=await ports.status();
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!beforeFiles.has(name));
@@ -330,14 +329,11 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const foreign=crypto.randomUUID();
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
     const checks={
-      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
-      exactWelcomeResource:raw===undefined||!!plan&&plan.channelId===lane.key&&snapshots.some(snapshot=>snapshot.through===plan.through)&&
-        (plan.resourceId===null||!!resource)&&(!resolution||isDeepStrictEqual(resolution,native))&&
-        (plan.message===null?plan.sender===null:snapshots.some(snapshot=>snapshot.through===plan.through&&snapshot.rows.some(row=>row.messageId===plan.message&&row.record.sender===plan.sender))),
+      exactWelcomeResource:outcome?.route===null||outcome?.route===undefined||resources.some(resource=>isDeepStrictEqual(resolveResource(latest,resource).route,outcome.route)),
       exactWelcomeFrontiers:includesEvidence(snapshots,initial)&&includesEvidence(snapshots,latest)&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(seeded.get(row.messageId),row.record))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
-      exactWelcomeDecision:typeof plan?.explanation==="string"&&!!plan.explanation.trim(),
+      exactWelcomeDecision:typeof outcome?.explanation==="string"&&!!outcome.explanation.trim(),
       verifiedWelcomeOwner:checked?.setup===null||checked?.setup===undefined||!!independent.setup&&isDeepStrictEqual(checked.setup,independent.setup.result),
       verifiedWelcomeTour:checked?.tour===null||checked?.tour===undefined||isDeepStrictEqual(checked.tour,independent.tour?.result??null),
       verifiedWelcomeRetry:checked?.probe===null||checked?.probe===undefined||qualityProbe(actualProbe),
@@ -350,9 +346,9 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       rejectedForeignWelcome:await services.welcomeReceiptStore.read(foreign)===null&&await services.welcomeResourceResolution.resolve(foreign)===null&&
         await services.welcomeLocalHandoff.stage({resourceId:foreign} as WelcomePlan,{} as WelcomeReviews)===null,
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactWelcomeFrontiers", "exactWelcomeHandoff", "completedWelcomeRetry", "preservedWelcomeContext", "rejectedForeignWelcome"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactWelcomeDecision"], "required": world.requestedReturnRequired, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt", "exactWelcomeResource", "verifiedWelcomeOwner", "verifiedWelcomeTour", "verifiedWelcomeRetry"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactWelcomeFrontiers", "exactWelcomeHandoff", "completedWelcomeRetry", "preservedWelcomeContext", "rejectedForeignWelcome"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactWelcomeDecision"], "required": world.requestedReturnRequired, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["exactWelcomeResource", "verifiedWelcomeOwner", "verifiedWelcomeTour", "verifiedWelcomeRetry"], "rationale": "Supplied route and helper values must be authentic; the explanation is judged against actual native observations."}};
     return assessObservedApplicationOutcome({contextId:input.contextId,caseId:input.caseId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,resolution,ownerRead,independent:(({plan:_,...nativeFacts})=>nativeFacts)(independent),probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{"checks":["verifiedWelcomeTour"],"rootPath":["tour"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl","producerPath":[]},{"checks":["verifiedWelcomeRetry"],"rootPath":["probe"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl","producerPath":[]},{"checks":["exactWelcomeResource","exactWelcomeDecision"],"rootPath":["plan"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/decideWelcomeNextStep.nl","producerPath":[]},{"checks":["verifiedWelcomeOwner"],"rootPath":["setup"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl","producerPath":[]}]);
+      index,snapshots,resolution,ownerRead,independent:(({plan:_,...nativeFacts})=>nativeFacts)(independent),probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{"checks":["verifiedWelcomeTour"],"rootPath":["tour"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl","producerPath":[]},{"checks":["verifiedWelcomeRetry"],"rootPath":["probe"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl","producerPath":[]},{"checks":["verifiedWelcomeOwner"],"rootPath":["setup"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.welcomeResourceIndex.list();
@@ -373,10 +369,10 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const exact=decisions(latest,resource,resolved,probe);
     const plan:WelcomePlan={...exact.plan,explanation:world.expected.statement};
     const reviews:WelcomeReviews={setup:exact.setup,tour:exact.tour,probe};
-    const receipt=plan.action==="stage"?await services.welcomeLocalHandoff.stage(plan,reviews):null;
-    const report={plan,setup:reviews.setup?.result??null,tour:reviews.tour?.result??null,probe:reviews.probe?.result??null,handoff:receipt};
+    if(plan.action==="stage")await services.welcomeLocalHandoff.stage(plan,reviews);
+    const report={explanation:plan.explanation,route:resolved?.route??null,setup:reviews.setup?.result??null,tour:reviews.tour?.result??null,probe:reviews.probe?.result??null};
     const accepted=await verify(report);
-    const forged=await verify({...report,plan:{...plan,through:-1}});
+    const forged=await verify({...report,route:{capabilityId:"foreign",action:"foreign",via:"panel",destination:null}});
     return {...accepted,passed:accepted.passed&&forged.outcomeDimensions.incidentalValues?.passed===false};
   }
   return {goal:world.goal,services,verify,qualify};
