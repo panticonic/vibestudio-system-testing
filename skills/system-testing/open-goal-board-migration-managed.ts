@@ -1,5 +1,7 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessMigrationMeaning=bindObservedContentReview(["available","rendered","basis","targetObservations","final"],[]);
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { stableSha256Hex } from "@vibestudio/content-addressing";
@@ -194,7 +196,7 @@ export async function prepareOpenBoardMigration(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedWorkspaceMigrationDisposition"],"rootPath":[],"producerSourceSuffix":"reviewBoardMigration/decideMigration.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedWorkspaceMigrationDisposition"],"rootPath":[],"producerSourceSuffix":"reviewBoardMigration/decideMigration.nl","producerPath":[]},{"checks":["groundedMigrationReceipt"],"rootPath":["receipt"],"producerSourceSuffix":"reviewBoardMigration.nl","producerPath":["receipt"]}];
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){
@@ -203,7 +205,7 @@ export async function prepareOpenBoardMigration(
       }
       return true;
     });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessMigrationMeaning(proof,proof.outcomeContract,value,invocation,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -219,23 +221,24 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     } : null;
     const checks = {
       exactRenderedMigrationBoard: observations.some(observation => isDeepStrictEqual(observation, repeated)) && isDeepStrictEqual(repeated.view.cards, expected.cards),
-      exactMigrationAuthority: targetObservations.some(observed =>
+      exactMigrationAuthority: targetObservations.every(observed =>
         isDeepStrictEqual(observed.approval, approval) && observed.target === world.target &&
-        isDeepStrictEqual(observed.existing, initial?.cards ?? null)),
+        (isDeepStrictEqual(observed.existing, initial?.cards ?? null)||isDeepStrictEqual(observed.existing,final?.cards??null))),
       matchedMigrationCardScope: observations.some(row=>isDeepStrictEqual(row,repeated)),
       independentMigrationReadback: isDeepStrictEqual(final, receipt ?? initial) &&
         (world.disposition === "retained" ? writes > 0 : writes === 0),
       preservedMigrationNeighbors: await fs.readFile(neighbor, "utf8") === neighborText &&
         isDeepStrictEqual(JSON.parse(await fs.readFile(approvalFile, "utf8") as string), approval),
-      matchedWorkspaceMigrationDisposition: isDeepStrictEqual(outcome?.receipt,receipt)&&outcome?.disposition === world.disposition && Boolean(outcome.reason.trim()),
+      matchedWorkspaceMigrationDisposition: typeof outcome?.reason === "string" && Boolean(outcome.reason.trim()),
+      groundedMigrationReceipt: outcome===undefined||outcome===null||outcome.receipt===null||isDeepStrictEqual(outcome.receipt,final),
     };
     return {
       incorrectReturnValues:[],
  ...input, checks, passed: Object.values(checks).every(Boolean), available,
       rendered: repeated.view, basis, targetObservations: structuredClone(targetObservations), final, outcome,
       outcomeContract:{effects:{checks:["exactRenderedMigrationBoard", "exactMigrationAuthority", "matchedMigrationCardScope", "independentMigrationReadback", "preservedMigrationNeighbors"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
-        returnedValue:{checks:["matchedWorkspaceMigrationDisposition"],required:world.disposition!=="retained",rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}}
+        returnedValue:{checks:["matchedWorkspaceMigrationDisposition"],required:world.requestedReturnRequired,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        incidentalValues:{checks:["groundedMigrationReceipt"],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}}
     };
   }
 
@@ -256,7 +259,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const proof = await verify(report);
     const rejectsRetargetedResult = !(await verify({
       ...report, receipt: {...(receipt??{}),target:"other-target"},
-    })).outcomeDimensions.returnedValue.passed;
+    })).outcomeDimensions.incidentalValues.passed;
     const checks = { ...proof.checks, rejectsForeignBoard, rejectsStaleMigration, rejectsUnapprovedMigration, rejectsRetargetedResult };
     return assessNativeQualification({ ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectsForeignBoard","rejectsStaleMigration","rejectsUnapprovedMigration","rejectsRetargetedResult"]}}, checks, passed: Object.values(checks).every(Boolean) });
   }

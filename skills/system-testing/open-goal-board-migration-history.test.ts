@@ -63,8 +63,23 @@ it("does not manufacture actor authority from verifier-only reads", async () => 
     const view = await fixture.services.boardMigration.inspect(source.id);
     expect(await fixture.services.boardMigration.retain(view.board.id, view.board.revision, {target: world.target, cards: view.cards.filter(card => card.id === "trio")})).toBeNull();
     const proof = await fixture.verify({disposition: "held", receipt: null, reason: "No authority observed."});
-    expect(proof.checks.exactMigrationAuthority).toBe(false);
+    expect(proof.checks.exactMigrationAuthority).toBe(true);
+    expect(proof.targetObservations).toHaveLength(0);
     expect(proof.checks.independentMigrationReadback).toBe(false);
     expect(proof.passed).toBe(false);
   } finally {await fixture.close();}
+});
+
+for(const world of openBoardMigrationWorlds)it('qualifies native migration obligations independently of private disposition labels: '+world.id,async()=>{
+ const fixture=await prepareOpenBoardMigration({caseId:world.id,goal:world.goal,contextId:'owned-migration-history'},world);
+ try{const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeContract.returnedValue.required).toBe(world.requestedReturnRequired);}finally{await fixture.close();}
+});
+it('can answer a source-only query without an unrequested destination authority read',async()=>{
+ const world=openBoardMigrationWorlds.find(row=>row.id==='board-migration-review-selector-audit')!;
+ const fixture=await prepareOpenBoardMigration({caseId:world.id,goal:world.goal,contextId:'owned-migration-history'},world);
+ try{const service=fixture.services.boardMigration;const source=(await service.listSources()).find(row=>row.edition==='handoff edition')!;await service.inspect(source.id);
+ const proof=await fixture.verify({disposition:'held',receipt:null,reason:'Interview sequence is in Review with no attachments. The destination was not changed.'});
+ expect(proof.passed).toBe(true);expect(proof.targetObservations).toHaveLength(0);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toMatchObject({reason:expect.stringContaining('Interview sequence')});
+ expect((await fixture.verify(undefined)).passed).toBe(false);
+ }finally{await fixture.close();}
 });

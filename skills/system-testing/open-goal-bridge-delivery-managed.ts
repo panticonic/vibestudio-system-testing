@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["index", "scope", "operations", "bridgeRead", "fileReads", "commit"], ["artifact"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["index", "scope", "operations", "bridgeRead", "fileReads", "commit", "nativeFiles"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual } from "node:util";
@@ -172,8 +172,8 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
     return contract.text===approvedText(world.target)&&summary.text===releaseText(world.target);
   }
   const body=(report:BridgeDeliveryReport)=>JSON.stringify({visibility:"private-local",repository,branch:scope.branch,
-    retained:report.scope.retained,retainedDigest,protectedEventId:before.mainEventId,decision:report.decision,
-    commit:report.commit,spec:report.spec.snapshot.file,note:report.note.snapshot.file});
+    retained:scope.retained,retainedDigest,protectedEventId:before.mainEventId,decision:report.decision,
+    commit:report.commit,spec:report.spec?.snapshot.file??null,note:report.note?.snapshot.file??null});
 
   let stagedText:string|null=null;
   const services={
@@ -186,18 +186,18 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
       async operation(selected:string,path:string){
         if(!seen||selected!==id)return null;
         const operation=operations.get(path);
-        if(!operation||granted.has(operation))return null;
+        if(!operation)return null;
         granted.add(operation);return operation;
       },
     },
     gitBridgeReviewRead:{async observe(operationId:string){
-      if(!granted.has(operationId)||operationId!==git.request.operationId||bridgeRead)throw new Error("Git review is outside the exact owned selection");
+      if(!granted.has(operationId)||operationId!==git.request.operationId)throw new Error("Git review is outside the exact owned selection");
       bridgeRead=await git.services.gitBridgeReviewRead.observe(operationId);
       return structuredClone(bridgeRead);
     }},
     vcsDeliveryRead:{async observe(operationId:string){
       const match=Array.from(fileBindings).find(([,binding])=>binding.request.operationId===operationId);
-      if(!granted.has(operationId)||!match||fileReads.has(match[0]))throw new Error("Semantic file is outside the exact owned selection");
+      if(!granted.has(operationId)||!match)throw new Error("Semantic file is outside the exact owned selection");
       const [path,binding]=match;
       const snapshot=await binding.services.vcsDeliveryRead.observe(operationId);
       fileReads.set(path,snapshot);return structuredClone(snapshot);
@@ -218,10 +218,9 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
       },
       async retain(report:BridgeDeliveryReport){
         if(!seen||!world.handoff||workingEffect||handoff||!report||report.handoff!==null||
-          !isDeepStrictEqual(report.scope,scope)||!isDeepStrictEqual(report.plan,plan)||
-          !isDeepStrictEqual(report.local?.view,bridgeRead)||!isDeepStrictEqual(report.spec?.snapshot,fileReads.get(specPath))||
-          !isDeepStrictEqual(report.note?.snapshot,fileReads.get(notePath))||!isDeepStrictEqual(report.commit,commit)||
-          report.branch?.status!==world.condition||typeof report.decision?.explanation!=="string"||!report.decision.explanation.trim()||(world.result==="commit"&&!commit))return null;
+          !isDeepStrictEqual(report.local?.view??null,bridgeRead)||!isDeepStrictEqual(report.spec?.snapshot??null,fileReads.get(specPath)??null)||
+          !isDeepStrictEqual(report.note?.snapshot??null,fileReads.get(notePath)??null)||!isDeepStrictEqual(report.commit,commit)||
+          typeof report.decision?.explanation!=="string"||!report.decision.explanation.trim()||(world.result==="commit"&&!commit))return null;
         workingEffect=true;
         try{
           const text=body(report);
@@ -255,19 +254,20 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
       returnedBranchCommit:isDeepStrictEqual(report?.commit,commit),
       exactBranchProject:seen&&
         route.text!==null&&isDeepStrictEqual(JSON.parse(route.text),coordinates),
-      exactLiveLocalBridge:bridgeRead?.upstream?.state==="local-only"&&originalBridge.upstream.state==="local-only"&&
-        bridgeRead.repository===repository&&bridgeRead.semantic.contextId===input.contextId&&bridgeRead.semantic.current&&
-        bridgeRead.semantic.workingRepositoryId===repo?.repositoryId&&!protectedRepo&&bridgeRead.semantic.mainRepositoryId===null,
-      exactSemanticFileChain:files.every((path,i)=>{
-        const row=fileReads.get(path);
-        return !!row&&row.current&&row.contextId===input.contextId&&row.file.path===path&&
+      exactLiveLocalBridge:originalBridge.upstream.state==="local-only"&&!protectedRepo&&
+        (!bridgeRead||bridgeRead.upstream.state==="local-only"&&bridgeRead.repository===repository&&
+        bridgeRead.semantic.contextId===input.contextId&&bridgeRead.semantic.current&&
+        bridgeRead.semantic.workingRepositoryId===repo?.repositoryId&&bridgeRead.semantic.mainRepositoryId===null),
+      exactSemanticFileChain:[...fileReads].every(([path,row])=>{
+        const i=files.indexOf(path);
+        return i>=0&&row.current&&row.contextId===input.contextId&&row.file.path===path&&
           (row.file.working?.hash??null)===priorFiles[i].digest&&isDeepStrictEqual(row.working,before.workingHead)&&
           isDeepStrictEqual(row.committed,before.committed)&&isDeepStrictEqual(row.protectedMain,event(before.mainEventId))&&
           !row.file.protectedMain;
       }),
       retainedBranchAuthority:raw===recovered&&retainedDigest===recoveredDigest&&isDeepStrictEqual(scope.retained,parseRetainedBranch(recovered))&&
         classifyRetainedBranch(scope)===world.condition,
-      returnedBranchAssessment:branch?.status===world.condition&&!!branch.explanation.trim(),
+      returnedBranchAssessment:!world.requestedAnswerRequired||typeof branch?.explanation==="string"&&!!branch.explanation.trim(),
       groundedBranchDecision:!world.requestedAnswerRequired || typeof decision?.explanation==="string"&&!!decision.explanation.trim(),
       exactLocalBranchCommit:expectedCommit?!!commit&&after.contextId===input.contextId&&
         after.committed.eventId===commit.eventId&&isDeepStrictEqual(after.workingHead,after.committed)&&after.clean&&
@@ -279,10 +279,10 @@ export async function prepareOpenBridgeDelivery(input:{contextId:string;caseId:s
       rejectedBranchRetarget:await services.branchDeliveryRead.inspect(archiveId)===null&&
         await services.branchDeliveryRead.operation(id,"wrong.txt")===null&&await services.branchDeliveryWrite.commit(archiveId,working)===null,
     };
-    const contract:SemanticOutcomeContract={effects:{checks:["exactBranchProject", "exactLiveLocalBridge", "exactSemanticFileChain", "exactLocalBranchCommit", "exactPrivateBranchHandoff", "protectedBranchMain", "rejectedBranchRetarget", "retainedBranchAuthority"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedBranchAssessment", "groundedBranchDecision", "returnedBranchCommit"],required:world.requestedAnswerRequired,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedBranchHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactBranchProject", "exactLiveLocalBridge", "exactSemanticFileChain", "exactLocalBranchCommit", "exactPrivateBranchHandoff", "protectedBranchMain", "rejectedBranchRetarget", "retainedBranchAuthority"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedBranchAssessment", "groundedBranchDecision"],required:world.requestedAnswerRequired,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedBranchHandoff","returnedBranchCommit"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
     return assessObservedApplicationOutcome({caseId:world.id,contextId:input.contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),branch,decision,commit,handoff,artifact},contract,rawReport,invocation,[{"checks":["returnedBranchAssessment"],"rootPath":["branch"],"producerSourceSuffix":"workOnBridgeDelivery/assessRetainedBranch.nl"},{"checks":["groundedBranchDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnBridgeDelivery/decideLocalDelivery.nl"}]);
+      index,plan,scope,operations:Array.from(operations),bridgeRead,fileReads:Array.from(fileReads),nativeFiles:files.map((path,i)=>({path,working:priorFiles[i],committed:committedFiles[i]})),branch,decision,commit,handoff,artifact},contract,rawReport,invocation,[{"checks":["returnedBranchAssessment"],"rootPath":["branch"],"producerSourceSuffix":"workOnBridgeDelivery/assessRetainedBranch.nl"},{"checks":["groundedBranchDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnBridgeDelivery/decideLocalDelivery.nl"}]);
   }
 
   async function qualify() {

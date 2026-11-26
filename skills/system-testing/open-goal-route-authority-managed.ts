@@ -2,7 +2,7 @@ import {compareExactAuthority} from "./route-authority-observations.js";
 export {compareExactAuthority} from "./route-authority-observations.js";
 import {routeAuthorityReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["offer", "snapshots", "authority", "choice", "readback"], ["artifact"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["offer", "snapshots", "authority", "choice", "readback", "routeReadbacks"], ["artifact"]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {isDeepStrictEqual} from "node:util";
@@ -105,6 +105,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
   const nominatedPreflight = () => nominated.operationIds.every(id => snapshots.some(row => row.operationId === id));
   let busy=false;
   let readback:RouteReadback|null=null,handoff:RouteHandoff|null=null;
+  const routeReadbacks=new Map<string,RouteReadback>();
   const body=(report:OwnedRouteReview)=>JSON.stringify({visibility:"private-local",routeId:report.choice.routeId,
     outcome:report.outcome,readback:report.readback,reviewedOperations:report.authority.reviews.map(row=>row.observation.operationId)});
 
@@ -127,14 +128,20 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     if(row?.content?.kind!=="text")return [null];
     return [parseRecord(basis,state.kind==="event"?state.eventId:state.applicationId,row.content.text,row.contentHash)];
   }
-  function matchesChoice(choice:RouteChoice|undefined) {
-    return choice?.routeId===nominated.id&&choice.execute===(world.route!=="external")&&choice.retain===(world.note===true)&&
-      typeof choice.reason==="string"&&choice.reason.trim().length>0;
+  function observedRequestedRecords(basis:LocalRoute=world.route as LocalRoute):(ExactRouteRecord|null)[]|null {
+    const direct=[...routeReadbacks.values()].find(row=>routes.find(route=>route.id===row.routeId)?.basis===basis);
+    if(direct)return direct.records;
+    const comparison=[...routeReadbacks.values()].find(row=>routes.find(route=>route.id===row.routeId)?.basis==="comparison");
+    if(comparison&&basis==="working")return comparison.records.slice(0,1);
+    if(comparison&&basis==="private-copy")return comparison.records.slice(1,2);
+    if(basis==="comparison"){const working=observedRequestedRecords("working"),copy=observedRequestedRecords("private-copy");return working&&copy?[...working,...copy]:null;}
+    return null;
   }
   function intendedOutcome():RouteOutcome["status"] {
     if(world.route!=="external"){
-      if(!readback||readback.records.some(row=>row===null))return "missing";
-      return world.route==="comparison"&&readback.records[0]?.value!==readback.records[1]?.value?"mismatch":"verified";
+      const observed=observedRequestedRecords();
+      if(!observed||observed.some(row=>row===null))return "missing";
+      return world.route==="comparison"&&observed[0]?.value!==observed[1]?.value?"mismatch":"verified";
     }
     const row=expectedAuthority().reviews.find(row=>row.observation.operationId===link);
     switch(row?.disposition) {
@@ -149,12 +156,13 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     routeEvidenceRead:{
       async discover(){return structuredClone(offer);},
       async inspect(routeId:string){
-        if(!nominatedPreflight()||busy||routeId!==nominated.id||world.route==="external"||
-          !nominated.operationIds.every(id=>expectedAuthority().reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible")))return null;
-        if(readback)return structuredClone(readback);
+        const route=routes.find(row=>row.id===routeId);
+        if(!route||busy||route.basis==="external"||route.basis==="alternate-link"||
+          !route.operationIds.every(id=>expectedAuthority().reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible")))return null;
         busy=true;
         try{
-          readback={routeId,records:await readRoute(world.route)};return structuredClone(readback);
+          const observed={routeId,records:await readRoute(route.basis as LocalRoute)};routeReadbacks.set(routeId,observed);
+          if(routeId===nominated.id)readback=observed;return structuredClone(observed);
         }finally{busy=false;}
       },
     },
@@ -168,13 +176,12 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       return structuredClone(observation);
     }},
     routeEvidenceHandoff:{async stage(report:OwnedRouteReview){
-      if(!world.note||handoff||busy||!nominatedPreflight()||report?.handoff!==null||!matchesChoice(report.choice)||
-        !exact(report.offer,offer)||!exact(report.authority,expectedAuthority())||!exact(report.readback,readback)||
-        report.outcome.status!==intendedOutcome()||typeof report.outcome.summary!=="string"||!report.outcome.summary.trim()||(world.route!=="external"&&!readback))return null;
+      if(!world.note||handoff||busy||!report?.choice||typeof report?.outcome?.summary!=="string"||!report.outcome.summary.trim()||
+        (report.readback!==null&&!exact(routeReadbacks.get(report.readback.routeId),report.readback)))return null;
       busy=true;
       try{
         if(!exact(await ports.vcs.status(),before))return null;
-        if(world.route!=="external"&&!exact(await readRoute(world.route),readback?.records))return null;
+        for(const row of routeReadbacks.values()){const route=routes.find(route=>route.id===row.routeId)!;if(!exact(await readRoute(route.basis as LocalRoute),row.records))return null;}
         const payload=body(report);
         const staged=(stagedText=payload,await noteWriter.stage(payload));
         if(!staged)return null;
@@ -197,14 +204,14 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,maxScratchArtifactBytes)):null;
     const checks={
       returnedRouteHandoff:exact(report?.handoff,handoff),
-      returnedRouteReadback:exact(report?.readback,readback),
+      returnedRouteReadback:report?.readback===null||report?.readback===undefined||exact(routeReadbacks.get(report.readback.routeId),report.readback),
       exactRouteDiscovery:new Set(offer.routes.map(row=>row.id)).size===7,
       exactScopedRoutePreflight:nominatedPreflight()&&snapshots.every(row=>operations.some(operation=>operation.id===row.operationId)),
       exactCanonicalOriginCeiling:(!linkReview||sameClaim(linkReview,new URL(linkUrl).origin))&&(!altReview||sameClaim(altReview,new URL(altUrl).origin)),
       selectedExactLocalAuthority:(world.route==="external"||nominated.operationIds.every(id=>
         authorization.reviews.some(row=>row.observation.operationId===id&&row.disposition==="eligible"))),
       nativeRouteReadback:world.route==="external"?readback===null:
-        !!fresh&&!!readback&&readback.routeId===nominated.id&&exact(fresh,readback.records),
+        !!fresh&&exact(fresh,observedRequestedRecords()),
       preservedExactProtectedBasis:exact(after,before)&&after.mainEventId===initial.mainEventId,
       exactRouteConclusion:report?.outcome?.status===intendedOutcome()&&typeof report.outcome.summary==="string"&&
         !!report.outcome.summary.trim(),
@@ -214,10 +221,10 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
       rejectedRouteRetarget:await services.routeEvidenceRead.inspect(routes.find(row=>row.basis==="alternate-link")!.id)===null&&
         await services.routeEvidenceHandoff.stage({} as OwnedRouteReview)===null,
     };
-    const contract:SemanticOutcomeContract={effects:{checks:["exactRouteDiscovery", "exactScopedRoutePreflight", "exactCanonicalOriginCeiling", "selectedExactLocalAuthority", "nativeRouteReadback", "preservedExactProtectedBasis", "exactPrivateRouteNote", "rejectedRouteRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["returnedRouteReadback", "exactRouteConclusion"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedRouteHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
+    const contract:SemanticOutcomeContract={effects:{checks:["exactRouteDiscovery", "exactScopedRoutePreflight", "exactCanonicalOriginCeiling", "selectedExactLocalAuthority", "nativeRouteReadback", "preservedExactProtectedBasis", "exactPrivateRouteNote", "rejectedRouteRetarget"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactRouteConclusion"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedRouteHandoff","returnedRouteReadback"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
 
     const assessed=await assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      offer,snapshots,authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactRouteConclusion"],"rootPath":["outcome"],"producerSourceSuffix":"chooseAuthorizedEvidenceRoute/concludeEvidenceRoute.nl"}]);
+      offer,snapshots,routeReadbacks:[...routeReadbacks.values()],authority:authorization,choice:report?.choice??null,readback,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactRouteConclusion"],"rootPath":["outcome"],"producerSourceSuffix":"chooseAuthorizedEvidenceRoute/concludeEvidenceRoute.nl"},{"checks":["returnedRouteReadback"],"rootPath":["readback"],"producerSourceSuffix":"chooseAuthorizedEvidenceRoute.nl","producerPath":["readback"]}]);
     assessed.semanticReviewInput.rubric+=routeAuthorityReviewGuidance;
     return assessed;
   }
@@ -226,7 +233,7 @@ export async function prepareRouteAuthority(input:{contextId:string;caseId:strin
     for(const {id} of operations)await services.assignedAuthorityRead.preflight(id);
     const choice:RouteChoice={routeId:nominated.id,execute:world.route!=="external",retain:world.note===true,
       reason:"Selected the exact requested authority and temporal scope."};
-    const readback=choice.execute?await services.routeEvidenceRead.inspect(choice.routeId):null;
+    const readback=choice.execute&&choice.routeId!==null?await services.routeEvidenceRead.inspect(choice.routeId):null;
     const outcome={status:intendedOutcome(),summary:"Verified the exact native route, its scope and result."};
     const report:OwnedRouteReview={offer,authority:expectedAuthority(),choice,readback,outcome,handoff:null};
     if(world.note)report.handoff=await services.routeEvidenceHandoff.stage(report);

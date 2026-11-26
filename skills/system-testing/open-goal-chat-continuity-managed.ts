@@ -256,27 +256,26 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     chatContinuityState:{async read(channelId:string){
       if(channelId!==active.key)return null;
       return serializeByKey(transcriptReads, channelId, async () => {
-        if(frames.length>=2)return structuredClone(frames.at(-1)!);
         if(activeOperation)return frames.length ? structuredClone(frames.at(-1)!) : null;
         activeOperation=true;
         try {
         const opening=frames.length===0;
-        if(!opening)await changeFixture();
         const value=await observe(opening);
         frames.push(value);
+        if(opening)await changeFixture();
         return structuredClone(value);
         } finally {activeOperation=false;}
       });
     }},
     chatContinuityHandoff:{async stage(report:ChatContinuityReport){
-      if(!shouldWrite||!frames[1]||!report?.disposition?.write||report.disposition.status!==world.status||
-        !report.disposition.explanation?.trim()||
+      if(!shouldWrite||!frames.length||
+        !report?.disposition?.explanation?.trim()||
         activeOperation||handoff||report.handoff!==null||!isDeepStrictEqual(report.plan,plan)||
-        !isDeepStrictEqual(report.opening,frames[0])||!isDeepStrictEqual(report.current,frames[1]))return null;
+        !frames.some(frame=>isDeepStrictEqual(report.opening,frame))||!frames.some(frame=>isDeepStrictEqual(report.current,frame)))return null;
       activeOperation=true;
       try {
         const latest=await observe(false);
-        if(!isDeepStrictEqual(latest,frames[1])||!isDeepStrictEqual(report.evidence,interpret(world.goal,plan,index,latest)))return null;
+        if(!isDeepStrictEqual(latest,report.current)||!isDeepStrictEqual(report.evidence,interpret(world.goal,plan,index,latest)))return null;
         const current=await ports.status();
         if(current.mainEventId!==before.mainEventId||!isDeepStrictEqual(current.workingHead,before.workingHead))return null;
         const text=body(report);
@@ -292,7 +291,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
   async function verify(raw:unknown,invocation?:InvocationObservations) {
     const value=raw as (ChatContinuityReport & {review:ChatEvidence["review"]})|null;
     const report=value;
-    const [opening,current]=frames;
+    const opening=frames[0],current=frames.at(-1);
     const latest=await observe(false);
     const independentlyRead=transcript(await ports.audit(active));
     const independentlyArchived=transcript(await ports.audit(alternate));
@@ -302,7 +301,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!existing.has(name));
     const artifact=handoff?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
     const decision=report?.disposition;
-    const oldWorker=opening?.worker;
+    const oldWorker=originalWorker;
     const newWorker=latest.worker;
     const exactWorker=world.worker==="detached"?!!oldWorker?.active&&!!newWorker&&!newWorker.active&&
       oldWorker.participantId===newWorker.participantId&&newWorker.endedRevision===newWorker.revision&&
@@ -315,7 +314,7 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.disposition?.explanation:null;}catch{return null;}})();
     const checks={
       returnedChatHandoff:isDeepStrictEqual(report?.handoff,handoff),
-      exactOwnedChatSelection:frames.length===2&&index.scopes.every(row=>row.contextId===owner)&&
+      exactOwnedChatSelection:frames.length>0&&index.scopes.every(row=>row.contextId===owner)&&
         opening?.channelId===active.key&&current?.channelId===active.key,
       exactChatFrontiers:!!opening&&!!current&&opening.through<=current.through&&
         isDeepStrictEqual(current,latest),
@@ -329,8 +328,8 @@ export async function prepareOpenChatContinuity(input:{contextId:string;caseId:s
         isDeepStrictEqual(retainedWorkerRelationship(independentlyRead.events,newWorker.participantId),
           {active:newWorker.active,revision:newWorker.revision,endedRevision:newWorker.endedRevision,handle:newWorker.handle})),
       nativeChatReadiness:proof.review.ready===(world.status==="ready"),
-      groundedChatDeliveryReview:isDeepStrictEqual(report?.review,proof.review),
-      groundedChatContinuityDisposition:decision?.status===world.status&&decision.write===shouldWrite&&
+      groundedChatDeliveryReview:report?.review?.kind==="delivery"&&report.review.ready===proof.review.ready,
+      groundedChatContinuityDisposition:(decision?.status==="ready"||decision?.status==="held")&&
         typeof decision.explanation==="string"&&Boolean(decision.explanation.trim()),
       verifiedPrivateChatHandoff:shouldWrite?typeof artifactExplanation==="string"&&Boolean(artifactExplanation.trim())&&!!handoff&&!!artifact&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&

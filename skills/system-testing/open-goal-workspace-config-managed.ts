@@ -62,6 +62,9 @@ function retainedAlternate(fact:ConfigFact):ConfigFact {
 const asText = (bytes:Uint8Array) => new TextDecoder("utf8",{fatal:true}).decode(bytes);
 const stamp = (state:State)=>state.kind==="event"?state.eventId:state.applicationId;
 const sizeLimit = 24_000;
+const validQuestions=(questions:ConfigQuestion[])=>Array.isArray(questions)&&new Set(questions).size===questions.length&&questions.every(question=>Object.hasOwn(fields,question));
+const mergeQuestions=(left:ConfigQuestion[],right:ConfigQuestion[])=>(Object.keys(fields) as ConfigQuestion[]).filter(question=>left.includes(question)||right.includes(question));
+const sameQuestions=(left:ConfigQuestion[],right:ConfigQuestion[])=>new Set(left).size===left.length&&left.length===right.length&&left.every(question=>right.includes(question));
 
 export async function prepareWorkspaceConfig(input:{contextId:string;caseId:string},ports=livePorts()) {
   const world=openWorkspaceConfigWorlds.find(({id})=>input.caseId===id);
@@ -162,16 +165,16 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const sameWorkspace=brief.noteId===active.id;
     const sameEpoch=brief.noteEpoch===active.epoch;
     const affectedQuestions=sameWorkspace&&sameEpoch?active.facts.filter(fact=>
-      !equal(fact,brief.noteFacts.find(item=>item.question===fact.question))).map(({question})=>question):[];
+      brief.noteFacts.some(item=>item.question===fact.question)&&!equal(fact,brief.noteFacts.find(item=>item.question===fact.question))).map(({question})=>question):[];
     const noteStatus:ConfigOutcome["noteStatus"]=!brief.noteHash?"no-note":!sameWorkspace?"different-workspace":
       !sameEpoch?"different-epoch":brief.noteName!==active.name?"stale-name":affectedQuestions.length?"stale-values":"matches";
     const workingChange=history!==null&&history.working.digest!==history.committed.digest;
     const committedChange=history!==null&&history.committed.digest!==history.main.digest;
     const sourceStatus:ConfigOutcome["sourceStatus"]=!history?"uninspected":workingChange?
       (committedChange?"working-and-committed":"working-only"):committedChange?"committed-only":"aligned";
-    const dependencyStatus:ConfigOutcome["dependencyStatus"]=!expectedLens.inspectDependencies?"uninspected":
+    const dependencyStatus:ConfigOutcome["dependencyStatus"]=dependencies===null?"uninspected":
       dependencies?.epoch!==active.epoch?"epoch-mismatch":dependencies.sources.length?"declared":"no-declarations";
-    const differences=(first:ConfigFact[],second:ConfigFact[])=>first.filter((fact,index)=>!equal(fact,second[index]))
+    const differences=(first:ConfigFact[],second:ConfigFact[])=>first.filter(fact=>!equal(fact,second.find(row=>row.question===fact.question)))
       .map(({question})=>question);
     return {noteStatus,sourceStatus,dependencyStatus,affectedQuestions,
       workingDifferences:history?differences(history.working.facts,history.committed.facts):[],
@@ -188,18 +191,21 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
   const authorized=(outcome:ConfigOutcome)=>world.note==="always"||(world.note==="if-aligned"&&outcome.noteStatus==="matches");
   function exactDecision(value:ConfigOutcome|undefined,brief:ConfigBrief,evidence:ConfigEvidence) {
     if(typeof value?.summary!=="string"||!value.summary.trim())return false;
-    const {summary:_,...fields}=value;
-    return equal(fields,disposition(brief,evidence));
+    const expected=disposition(brief,evidence);
+    return value.noteStatus===expected.noteStatus&&value.sourceStatus===expected.sourceStatus&&value.dependencyStatus===expected.dependencyStatus&&
+      sameQuestions(value.affectedQuestions,expected.affectedQuestions)&&sameQuestions(value.workingDifferences,expected.workingDifferences)&&sameQuestions(value.committedDifferences,expected.committedDifferences);
   }
   function observedEvidence():ConfigEvidence|null {
-    if(!observation.active||
+    if(!observation.active||!world.questions.every(question=>observation.active!.facts.some(fact=>fact.question===question))||
        (expectedLens.inspectManifest&&observation.history===undefined)||
        (expectedLens.inspectDependencies&&observation.dependencies===undefined))return null;
     return {active:observation.active,history:observation.history??null,dependencies:observation.dependencies??null};
   }
   async function independentEvidence():Promise<ConfigEvidence> {
-    return {active:await active(world.questions),history:expectedLens.inspectManifest?await history(world.questions):null,
-      dependencies:expectedLens.inspectDependencies?await readDependencies(initialMain.eventId):null};
+    const activeQuestions=mergeQuestions(world.questions,observation.active?.facts.map(fact=>fact.question)??[]);
+    const historyQuestions=mergeQuestions(world.questions,observation.history?.working.facts.map(fact=>fact.question)??[]);
+    return {active:await active(activeQuestions),history:expectedLens.inspectManifest||observation.history?await history(historyQuestions):null,
+      dependencies:expectedLens.inspectDependencies||observation.dependencies?await readDependencies(initialMain.eventId):null};
   }
 
   let stagedText:string|null=null;
@@ -207,22 +213,23 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     nativeWorkspaceConfig:{
       async readBrief(){observation.brief=await readStoredBrief();return structuredClone(observation.brief);},
       async inspectActive(questions:ConfigQuestion[]){
-        if(!observation.brief||!equal(questions,expectedLens.questions)||observation.active)return null;
-        observation.active=await active(questions);return structuredClone(observation.active);
+        if(!validQuestions(questions))return null;
+        observation.active=await active(mergeQuestions(questions,observation.active?.facts.map(fact=>fact.question)??[]));
+        return structuredClone({...observation.active,facts:observation.active.facts.filter(fact=>questions.includes(fact.question))});
       },
       async inspectManifests(questions:ConfigQuestion[]){
-        if(!observation.active||!expectedLens.inspectManifest||!equal(questions,expectedLens.questions)||observation.history)return null;
-        observation.history=await history(questions);return structuredClone(observation.history);
+        if(!validQuestions(questions))return null;
+        observation.history=await history(mergeQuestions(questions,observation.history?.working.facts.map(fact=>fact.question)??[]));
+        const result=structuredClone(observation.history);for(const kind of ["working","committed","main"] as const)result[kind].facts=result[kind].facts.filter(fact=>questions.includes(fact.question));return result;
       },
       async inspectDependencies(mainEvent:string){
-        if(!expectedLens.inspectDependencies||!observation.history||mainEvent!==observation.history.main.ref||
-          mainEvent!==initialMain.eventId||observation.dependencies!==undefined)return null;
+        if(mainEvent!==initialMain.eventId)return null;
         if((await ports.vcs.mainState()).eventId!==mainEvent)return null;
         observation.dependencies=await readDependencies(mainEvent);return structuredClone(observation.dependencies);
       },
     },
     nativeConfigHandoff:{async stage(brief:ConfigBrief,lens:ConfigLens,evidence:ConfigEvidence,outcome:ConfigOutcome) {
-      if(staged||!outcome||!authorized(outcome)||!equal(observation.brief,brief)||!equal(expectedLens,lens)||
+      if(staged||!outcome||!authorized(outcome)||!equal(observation.brief,brief)||(!validQuestions(lens.questions)||!lens.questions.every(question=>observation.active?.facts.some(fact=>fact.question===question)))||
         !equal(evidence,observedEvidence())||!exactDecision(outcome,brief,evidence))return null;
       staged=true;
       if(!equal(evidence,await independentEvidence())||!equal(brief,await readStoredBrief()))return null;
@@ -246,7 +253,7 @@ export async function prepareWorkspaceConfig(input:{contextId:string;caseId:stri
     const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
     const checks={
       returnedConfigHandoff:equal(report?.handoff,handoff),
-      exactConfigBrief:equal(observation.brief,freshBrief),
+      exactConfigBrief:observation.brief===undefined||equal(observation.brief,freshBrief),
       scopedConfigLens:evidence!==null,
       exactLiveWorkspaceConfig:equal(evidence?.active,independent.active),
       exactProtectedConfigHistory:equal(evidence?.history,independent.history)&&

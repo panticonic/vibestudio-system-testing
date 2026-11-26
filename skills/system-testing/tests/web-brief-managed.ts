@@ -261,6 +261,7 @@ const templateSettings = {
   "api-readiness": { requiresUnits: openApiReadinessRequiresUnits },
   "live-local-inventory": { requiresUnits: openLiveLocalInventoryRequiresUnits },
   "board-migration": {
+    requiresReview: true,
     requiresUnits: boardMigrationRequiresUnits,
     resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("inspect-owned-board-migration", [PANEL_RUNTIME_SUPERVISION_AUTHORITY]),

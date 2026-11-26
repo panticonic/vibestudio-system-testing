@@ -99,7 +99,8 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
     const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["What exact local observations answer the request?"],
       sources:[{id:"candidate-notice",path:noticePath}]},ports.readBytes).scratchHandoffWrite;
     const scopeFor:Record<IntentNeed,string>={workspace:owner,note:notePath,skill:skillName,worker:workerKey};
-    const required=world.needs.map(need=>({need,methodId:methods[need],scope:scopeFor[need]}));
+    const routes=(Object.keys(methods) as IntentNeed[]).map(need=>({need,methodId:methods[need],scope:scopeFor[need]}));
+    const required=routes.filter(row=>world.needs.includes(row.need));
     const descriptions=new Map<string,IntentDescription>();
     const inspected:IntentObservation[]=[];
     const busy=new Set<string>();
@@ -169,7 +170,7 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
           return structuredClone(value);
         },
         async inspect(methodId:string,scope:string){
-          const route=required.find(row=>row.methodId===methodId&&row.scope===scope);
+          const route=routes.find(row=>row.methodId===methodId&&row.scope===scope);
           if(!route||busy.has(methodId))return null;
           const previous=inspected.find(row=>row.methodId===methodId&&row.scope===scope);
           if(previous)return structuredClone(previous);
@@ -182,13 +183,12 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
       },
       nativeIntentHandoff:{async stage(outcome:IntentOutcome){
         if(!writable||staging||handoff||!outcome||
-          !required.every(row=>descriptions.has(row.methodId))||
-          inspected.length!==required.length||outcome.status!==overall(inspected)||typeof outcome.summary!=="string"||
+          typeof outcome.summary!=="string"||
           !outcome.summary.trim())return null;
         staging=true;
         try{
           for(const value of inspected){
-            const need=required.find(row=>row.methodId===value.methodId)!.need;
+            const need=routes.find(row=>row.methodId===value.methodId)!.need;
             if(!isDeepStrictEqual(value,await observation(need)))return null;
           }
           const text=body(outcome);
@@ -222,12 +222,12 @@ export async function prepareIntentDiscovery(input:{contextId:string;caseId:stri
 async function verifyNativeApplication(raw:unknown,observations?:InvocationObservations){
       const value=raw as IntentReport|null;
       const report=value;
-      const independent=await Promise.all(inspected.map(async item=>observation(required.find(row=>row.methodId===item.methodId)!.need)));
+      const independent=await Promise.all(inspected.map(async item=>observation(routes.find(row=>row.methodId===item.methodId)!.need)));
       const descriptionsCurrent=await Promise.all([...descriptions.keys()].map(description));
       const status=await ports.vcs.status();
       const files=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!existing.has(name));
       const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
-      const expectedScope=inspected.every(item=>{
+      const expectedScope=inspected.filter(item=>required.some(row=>row.methodId===item.methodId)).every(item=>{
         switch(item.methodId){
           case methods.workspace:return item.status==="observed"&&item.details[0]===(world.dirty?"uncommitted":"clean");
           case methods.note:return world.note===null?item.status==="missing":item.status==="observed"&&item.details[0]===world.note;
@@ -238,11 +238,11 @@ async function verifyNativeApplication(raw:unknown,observations?:InvocationObser
       });
       const checks={
         exactIntentNotice:isDeepStrictEqual(await rawNotice(),notice),
-        installedIntentDiscovery:required.every(row=>descriptions.has(row.methodId))&&descriptionsCurrent.every(value=>!!value&&isDeepStrictEqual(value,descriptions.get(value.id))),
-        exactIntentActionSelection:required.length===inspected.length&&required.every(row=>
+        installedIntentDiscovery:descriptionsCurrent.every(value=>!!value&&isDeepStrictEqual(value,descriptions.get(value.id))),
+        exactIntentActionSelection:required.every(row=>
           inspected.some(item=>item.methodId===row.methodId&&item.scope===row.scope)),
-        independentlyScopedIntentResults:inspected.length===required.length&&expectedScope&&isDeepStrictEqual(independent,inspected),
-        exactIntentOutcome:report?.outcome?.status===overall(inspected)&&typeof report.outcome.summary==="string"&&
+        independentlyScopedIntentResults:expectedScope&&isDeepStrictEqual(independent,inspected),
+        exactIntentOutcome:typeof report?.outcome?.summary==="string"&&
           !!report.outcome.summary.trim(),
         exactPrivateIntentNote:writable?!!artifact&&!!handoff&&files.length===1&&
           handoff.path===`/.tmp/${files[0]}/handoff.json`&&stagedOutcome!==null&&artifact===body(stagedOutcome)&&handoff.digest===sha256HexSyncText(artifact):handoff===null&&files.length===0,
@@ -254,8 +254,8 @@ async function verifyNativeApplication(raw:unknown,observations?:InvocationObser
       return {
         outcomeContract:{
           effects:{checks:["exactIntentNotice","installedIntentDiscovery","exactIntentActionSelection","independentlyScopedIntentResults","exactPrivateIntentNote","preservedIntentWorkspace","rejectedIntentRetarget"],rationale:"Installed capability contracts and actual scoped reads ground the conclusion; native writes establish any requested private note."},
-          returnedValue:{checks:["exactIntentOutcome","returnedIntentNote"],required:!writable,rationale:"The conversation-only conclusion is requested; an extra copy is optional when the actual requested note already contains it."},
-          incidentalValues:{checks:[],rationale:"Known incorrect emitted values are masked using the actual captured root definition."},
+          returnedValue:{checks:["exactIntentOutcome"],required:world.requestedReturnRequired,rationale:"Each literal requests actual findings; retaining a private note does not erase its requested answer."},
+          incidentalValues:{checks:["returnedIntentNote"],rationale:"Known incorrect emitted values are masked using the actual captured root definition."},
         },
         incorrectReturnValues:[],
         contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),notice,

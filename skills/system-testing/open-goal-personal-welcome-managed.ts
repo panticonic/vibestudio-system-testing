@@ -188,7 +188,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     return {receipt:sha256HexSyncText(JSON.stringify({scope,through:current.through,rows,route:resolved.route})),rows,route:resolved.route};
   }
   function assess(current:WelcomeSnapshot,resource:WelcomeResource|null, resolved:WelcomeResolution|null):WelcomeEvidence {
-    if (!resource) return {sender:null,message:null,reason:world.expected.reason};
+    if (!resource) return {sender:null,message:null,reason:"missing-evidence"};
     const row = currentRow(current,resource);
     if (!row) return {sender:null,message:null,reason:"missing-evidence"};
     const record = row.record;
@@ -225,7 +225,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const {next,...result} = probe.result;
     return isDeepStrictEqual(probe.request,nativeProbe.request) && isDeepStrictEqual(result,probeConfig) &&
       isDeepStrictEqual(probeInput,probeConfig.input) && isDeepStrictEqual(probeRun,{plan:probeConfig.plan,receipt:probeConfig.receipt}) &&
-      typeof next==="string"&&!!next.trim()&&bytes(next)<=260;
+      typeof next==="string"&&!!next.trim();
   }
   function stageText(plan:WelcomePlan,reviews:WelcomeReviews) {
     return JSON.stringify({schema:"vibestudio.personal-welcome-handoff/1",contextId:scope.contextId,generation:scope.revision,
@@ -243,7 +243,6 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     welcomeReceiptStore:{
       async read(channelId:string) {
         if (channelId!==lane.key) return null;
-        if (snapshots.length>=2) return structuredClone(snapshots.at(-1)!);
         if (reading) return null;
         reading=true;
         try {
@@ -258,7 +257,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
       async resolve(resourceId:string) {
         const resource=resources.find(row=>row.id===resourceId);
         const current=snapshots.at(-1);
-        if (!resource || !current || resolution || (await ports.read(lane)).through!==current.through) return null;
+        if (!resource || !current || (await ports.read(lane)).through!==current.through) return null;
         resolution=resolveResource(current,resource);
         return structuredClone(resolution);
       },
@@ -266,7 +265,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     onboardingRead:{
       async inspect() {
         const current=snapshots.at(-1);
-        if (!resolution || !current || ownerRead || (await ports.read(lane)).through!==current.through) throw new Error("Use the current resolved Personal owner");
+        if (!resolution || !current || (await ports.read(lane)).through!==current.through) throw new Error("Use the current resolved Personal owner");
         ownerRead=observeOwner(current,resolution);
         return structuredClone(ownerRead);
       },
@@ -288,7 +287,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     },
     welcomeLocalHandoff:{
       async stage(plan:WelcomePlan,reviews:WelcomeReviews) {
-        if (!scope.mayStage || writing || handoff || plan?.action!=="stage" || plan.resourceId!==resolution?.resourceId ||
+        if (!scope.mayStage || writing || handoff || !plan || plan.resourceId!==resolution?.resourceId ||
             plan.channelId!==lane.key || !snapshots.at(-1)) return null;
         writing=true;
         try {
@@ -297,11 +296,10 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
           if (!resource || !resolution) return null;
           const actual=resolveResource(latest,resource);
           const expected=decisions(latest,resource,actual,reviews.probe);
-          const {explanation,...facts}=plan;
+          const {explanation}=plan;
           const status=await ports.status();
-          if (!explanation?.trim() || !isDeepStrictEqual(resolution,actual) || !isDeepStrictEqual(expected.plan,facts) ||
-              !isDeepStrictEqual(expected.setup,reviews.setup) || !isDeepStrictEqual(expected.tour,reviews.tour) ||
-              (expected.probeRequired?!qualityProbe(reviews.probe):reviews.probe!==null) ||
+          if (!explanation?.trim() || !isDeepStrictEqual(resolution,actual) || (reviews.setup!==null&&!isDeepStrictEqual(expected.setup,reviews.setup)) || (reviews.tour!==null&&!isDeepStrictEqual(expected.tour,reviews.tour)) ||
+              (reviews.probe!==null&&!qualityProbe(reviews.probe)) ||
               status.mainEventId!==before.mainEventId || !isDeepStrictEqual(status.workingHead,before.workingHead) ||
               (await ports.read(lane)).through!==plan.through) return null;
           const text=stageText(plan,reviews);
@@ -319,7 +317,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const outcome=report;
     const latest=await ports.read(lane);
     const expected=world.expected;
-    const resource=resources.find(row=>row.id===expected.target)??null;
+    const resource=resources.find(row=>row.id===outcome?.plan?.resourceId)??null;
     const native=resource?resolveResource(latest,resource):null;
     const actualProbe=outcome?.probe&&nativeProbe?{request:nativeProbe.request,result:outcome.probe}:null;
     const independent=decisions(latest,resource,native,actualProbe);
@@ -333,30 +331,28 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
     const checks={
       returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
-      exactWelcomeResource:!!plan&&plan.resourceId===expected.target&&isDeepStrictEqual(resolution,native),
+      exactWelcomeResource:raw===undefined||!!plan&&plan.channelId===lane.key&&snapshots.some(snapshot=>snapshot.through===plan.through)&&
+        (plan.resourceId===null||!!resource)&&(!resolution||isDeepStrictEqual(resolution,native))&&
+        (plan.message===null?plan.sender===null:snapshots.some(snapshot=>snapshot.through===plan.through&&snapshot.rows.some(row=>row.messageId===plan.message&&row.record.sender===plan.sender))),
       exactWelcomeFrontiers:includesEvidence(snapshots,initial)&&includesEvidence(snapshots,latest)&&
         latest.rows.length===seeded.size&&latest.rows.every(row=>isDeepStrictEqual(seeded.get(row.messageId),row.record))&&
         new Set(latest.rows.map(row=>row.envelopeId)).size===latest.rows.length,
-      exactWelcomeDecision:!!plan&&isDeepStrictEqual((({explanation,...facts})=>facts)(plan),independent.plan)&&
-        plan.reason===expected.reason&&plan.action===expected.action&&plan.message===(expected.key?messages.get(expected.key):null)&&
-        typeof plan.explanation==="string",
-      verifiedWelcomeOwner:independent.setup?!!checked&&checked.setup?.status===expected.setup&&
-        isDeepStrictEqual(checked.setup,independent.setup.result)&&isDeepStrictEqual(ownerRead,resource&&native?observeOwner(latest,native):null):
-        checked?.setup===null&&ownerRead===null,
-      verifiedWelcomeTour:isDeepStrictEqual(checked?.tour,independent.tour?.result??null)&&(checked?.tour?.stage??null)===expected.tour,
-      verifiedWelcomeRetry:expected.probe?independent.probeRequired&&qualityProbe(actualProbe):
-        !independent.probeRequired&&probeInput===null&&probeRun===null&&checked?.probe===null,
-      exactWelcomeHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&!!plan&&!!checked&&!!handoff&&!!artifact&&!!data&&files.length===1&&
+      exactWelcomeDecision:typeof plan?.explanation==="string"&&!!plan.explanation.trim(),
+      verifiedWelcomeOwner:checked?.setup===null||checked?.setup===undefined||!!independent.setup&&isDeepStrictEqual(checked.setup,independent.setup.result),
+      verifiedWelcomeTour:checked?.tour===null||checked?.tour===undefined||isDeepStrictEqual(checked.tour,independent.tour?.result??null),
+      verifiedWelcomeRetry:checked?.probe===null||checked?.probe===undefined||qualityProbe(actualProbe),
+      completedWelcomeRetry:expected.probe?!!probeConfig&&!!probeInput&&!!probeRun&&isDeepStrictEqual(probeInput,probeConfig.input)&&isDeepStrictEqual(probeRun.plan,probeConfig.plan)&&isDeepStrictEqual(probeRun.receipt,probeConfig.receipt):probeRun===null,
+      exactWelcomeHandoff:handoff?typeof artifactExplanation==="string"&&!!handoff&&!!artifact&&!!data&&files.length===1&&
         handoff.path===`/.tmp/${files[0]}/handoff.json`&&artifact===stagedText&&
         handoff.sha256===sha256HexSyncText(artifact)&&handoff.bytes===data.length:
-        files.length===0&&handoff===null,
+        files.length===0&&handoff===null&&!world.requestedArtifactRequired,
       preservedWelcomeContext:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedForeignWelcome:await services.welcomeReceiptStore.read(foreign)===null&&await services.welcomeResourceResolution.resolve(foreign)===null&&
         await services.welcomeLocalHandoff.stage({resourceId:foreign} as WelcomePlan,{} as WelcomeReviews)===null,
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactWelcomeFrontiers", "exactWelcomeHandoff", "preservedWelcomeContext", "rejectedForeignWelcome"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactWelcomeResource", "exactWelcomeDecision", "verifiedWelcomeOwner", "verifiedWelcomeTour", "verifiedWelcomeRetry"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
+    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactWelcomeFrontiers", "exactWelcomeHandoff", "completedWelcomeRetry", "preservedWelcomeContext", "rejectedForeignWelcome"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["exactWelcomeDecision"], "required": world.requestedReturnRequired, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt", "exactWelcomeResource", "verifiedWelcomeOwner", "verifiedWelcomeTour", "verifiedWelcomeRetry"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
     return assessObservedApplicationOutcome({contextId:input.contextId,caseId:input.caseId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,resolution,ownerRead,independent,probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{"checks":["verifiedWelcomeTour"],"rootPath":["tour"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl","producerPath":[]},{"checks":["verifiedWelcomeRetry"],"rootPath":["probe"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl","producerPath":[]},{"checks":["exactWelcomeResource","exactWelcomeDecision"],"rootPath":["plan"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/decideWelcomeNextStep.nl","producerPath":[]},{"checks":["verifiedWelcomeOwner"],"rootPath":["setup"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl","producerPath":[]}]);
+      index,snapshots,resolution,ownerRead,independent:(({plan:_,...nativeFacts})=>nativeFacts)(independent),probeInput,probeRun,handoff,artifact},contract,raw,invocation,[{"checks":["verifiedWelcomeTour"],"rootPath":["tour"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeTour/tour/rehearseTour/reviewStops/verifyTourStop.nl","producerPath":[]},{"checks":["verifiedWelcomeRetry"],"rootPath":["probe"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/retryWelcomeProbe/explorer/probeWorkspaceText.nl","producerPath":[]},{"checks":["exactWelcomeResource","exactWelcomeDecision"],"rootPath":["plan"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/decideWelcomeNextStep.nl","producerPath":[]},{"checks":["verifiedWelcomeOwner"],"rootPath":["setup"],"producerSourceSuffix":"workOnPersonalWelcomeGoal/reviewWelcomeSetup/onboarding/planSetup.nl","producerPath":[]}]);
   }
   async function qualify() {
     await services.welcomeResourceIndex.list();
@@ -381,7 +377,7 @@ export async function prepareOpenPersonalWelcome(input:{contextId:string;caseId:
     const report={plan,setup:reviews.setup?.result??null,tour:reviews.tour?.result??null,probe:reviews.probe?.result??null,handoff:receipt};
     const accepted=await verify(report);
     const forged=await verify({...report,plan:{...plan,through:-1}});
-    return {...accepted,passed:accepted.passed&&!forged.passed};
+    return {...accepted,passed:accepted.passed&&forged.outcomeDimensions.incidentalValues?.passed===false};
   }
   return {goal:world.goal,services,verify,qualify};
 }

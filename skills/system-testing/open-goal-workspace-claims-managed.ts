@@ -49,6 +49,7 @@ function statement(key:Claim,world:WorkspaceClaimWorld) {
     case "protected":return "The protected main event remained unchanged across this review.";
   }
 }
+const sameClaimSupport=(actual:ClaimSupport|undefined,expected:ClaimSupport)=>!!actual&&["supported","missing"].every(key=>{const left=actual[key as keyof ClaimSupport],right=expected[key as keyof ClaimSupport];return Array.isArray(left)&&new Set(left).size===left.length&&left.length===right.length&&left.every(value=>right.includes(value));});
 function disposition(support:ClaimSupport):ClaimDisposition["status"] {
   return !support.supported.length?"unconfirmed":support.missing.length?"partial":"confirmed";
 }
@@ -173,7 +174,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
   const existing=new Set(await listOwnedScratchEntries(ports.fs));
   const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which exact claims were established?"],
     sources:[{id:"review-scope",path:policy}]},ports.readBytes).scratchHandoffWrite;
-  const body=(result:WorkspaceClaimReview)=>JSON.stringify({visibility:"private-local",packet:result.packet,evidence:result.evidence,
+  const body=(result:WorkspaceClaimReview)=>JSON.stringify({visibility:"private-local",packet,evidence,
     support:result.support,disposition:result.disposition});
   let selected=false,observed=false,staging=false;
   let handoff:ClaimHandoff|null=null;
@@ -192,8 +193,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
     },
     workspaceClaimHandoff:{async stage(report:WorkspaceClaimReview){
       if(!world.note||!observed||staging||handoff||!report||report.handoff!==null||
-        !isDeepStrictEqual(report.choice,choice)||!isDeepStrictEqual(report.packet,packet)||!isDeepStrictEqual(report.evidence,evidence)||
-        !isDeepStrictEqual(report.support,expected)||report.disposition?.status!==disposition(expected)||
+        !sameClaimSupport(report.support,expected)||report.disposition?.status!==disposition(expected)||
         typeof report.disposition.summary!=="string"||!report.disposition.summary.trim())return null;
       staging=true;
       try{
@@ -228,7 +228,7 @@ export async function prepareWorkspaceClaims(input:{contextId:string;caseId:stri
           world.test==="prior"?readback.previous.hash:readback.current?.hash??null),
       exactAuthorityPreflight:authority.operationId==="exact-status-read"&&authority.decision==="allowed"&&authority.leaves.every(
         leaf=>leaf.status==="granted"||leaf.tier==="open"),
-      exactGroundedClaimSupport:isDeepStrictEqual(report?.support,support),
+      exactGroundedClaimSupport:sameClaimSupport(report?.support,support),
       exactGroundedClaimDisposition:report?.disposition?.status===disposition(support)&&
         typeof report.disposition.summary==="string"&&!!report.disposition.summary.trim(),
       independentlyPreservedClaimContext:isDeepStrictEqual(before,after)&&after.mainEventId===initial.mainEventId,

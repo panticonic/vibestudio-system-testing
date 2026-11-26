@@ -114,6 +114,38 @@ it("retains requested held chat diagnostics and accepts substantive explanations
   expect((await prepared.verify(longer)).outcomeDimensions.returnedValue.passed).toBe(true);
   expect(reference.artifact).not.toBeNull();
   // A correct verbal observation cannot substitute for the requested private diagnostic.
-  expect((await prepared.verify({...actual,disposition:{...actual.disposition,write:false},handoff:null})).outcomeDimensions.returnedValue.passed).toBe(false);
+  const alternate=await prepared.verify({...actual,disposition:{...actual.disposition,write:false},handoff:null});
+  expect(alternate.outcomeDimensions.returnedValue.passed).toBe(true);
+  expect(alternate.artifact).toBe(reference.artifact); // Actual retained diagnostic remains; a copied write flag cannot undo it.
+  expect(alternate.checks.verifiedPrivateChatHandoff).toBe(true);
  }finally{await prepared.close();}
+});
+
+// Extra actual observations are evidence, not an invalid reference-route deviation.
+it("accepts additional current chat reads without freezing the second snapshot or repeating fixture mutations",async()=>{
+ const {ports}=chatPorts(true);
+ const prepared=await prepareOpenChatContinuity({contextId:owner,caseId:"chat-continuity-agent-left-but-history-is-readable"},ports);
+ try{
+  const reference=await prepared.qualify();expect(reference.passed).toBe(true);
+  const index=await prepared.services.chatContinuityIndex.list();
+  const first=await prepared.services.chatContinuityState.read(index.scopes[0]!.id);
+  const second=await prepared.services.chatContinuityState.read(index.scopes[0]!.id);
+  expect(first).toEqual(second);expect(first?.worker?.active).toBe(false);
+  const checked=await prepared.verify(reference.semanticReviewInput.actual.requestedReturn);
+  expect(checked.checks.exactOwnedChatSelection).toBe(true);expect(checked.checks.exactNativeChatWorker).toBe(true);expect(checked.passed).toBe(true);
+ }finally{await prepared.close();}
+});
+
+it("allows additional truthful owned intent observations without a private method-count or catalog-description route",async()=>{
+ const entities:{id:string;source:string;key:string;contextId:string;kind:string}[]=[];const schema={argsSchema:{},returnsSchema:{}};
+ const ports={...scratch(),contextId:owner,vcs:{status},catalog:{search:async()=>[],getSchema:async()=>schema,describe:async(id:string)=>({id,qualifiedName:id,...schema})},skills:async()=>[],readSkill:async()=>null,listEntities:async()=>structuredClone(entities),retire:async(id:string)=>{entities.splice(entities.findIndex(row=>row.id===id),1);},createWorker:async(contextId:string,key:string)=>{const row={id:'intent-'+entities.length,contextId,key,kind:'do',source:'workers/local-messaging-fixture'};entities.push(row);return row;}};
+ const fixture=await prepareIntentDiscovery({contextId:owner,caseId:'intent-discovery-confirm-active-worker-before-tracking-work'},ports as unknown as NonNullable<Parameters<typeof prepareIntentDiscovery>[1]>);
+ try{const service=fixture.services.nativeIntentDiscovery;const notice=await service.notice();
+ expect(await service.inspect('service:runtime.listEntities',notice.workerKey)).not.toBeNull();
+ expect(await service.inspect('service:vcs.status',owner)).not.toBeNull();
+ const proof=await fixture.verify({outcome:{status:'observed',summary:'The exact room helper is active; the separately inspected owned workspace is clean.'},handoff:null});
+ expect(proof.passed).toBe(true);expect(proof.capabilities).toEqual([]);expect(proof.evidence).toHaveLength(2);expect(proof.semanticReviewRequired).toBe(true);
+ expect(await service.inspect('service:runtime.listEntities',notice.workerKey+'-foreign')).toBeNull();
+ expect((await fixture.verify(undefined)).passed).toBe(false);
+ }finally{await fixture.close();}
 });

@@ -17,6 +17,7 @@ export type OpenBoardMigrationWorld = {
   approval: "current" | "stale" | "other-source" | "partial" | "missing";
   existing: "empty" | "same" | "different";
   disposition: Disposition;
+  requestedReturnRequired: boolean;
 };
 
 const card = (id: string, title: string, list: string, summary: string,
@@ -62,9 +63,38 @@ const boards: Record<string, BoardCard[]> = {
   ],
 };
 
+// Literal user requests, independent of permission, effect success or a private disposition.
+const requestedReturns:Record<string,boolean>={
+  "hoist-intake-ready": false,
+  "stale-yard-authorization": true,
+  "existing-slipway-report": true,
+  "archive-hoist-audit": true,
+  "trio-two-artifact": false,
+  "review-selector-audit": true,
+  "chamber-wrong-board-approval": false,
+  "protect-existing-chamber": true,
+  "protect-private-lab-sheet": true,
+  "catalog-archived-bank": true,
+  "lab-intake-only": false,
+  "unapproved-insect-recovery": true,
+  "next-shift-retain": false,
+  "pharmacy-readiness-inspect": true,
+  "leave-intake-coedit": false,
+  "evening-basis-out-of-date": true,
+  "scan-ready-cutover": false,
+  "archive-blocked-inventory": true,
+  "retain-equivalent-bridge": false,
+  "cutover-scope-only-first": false,
+  "market-route-audit": true,
+  "market-approval-edition": false,
+  "quiet-sign-copy": false,
+  "market-local-coedit-guard": true
+};
+
 function migration(id: string, title: string, target: string, goal: string, requested: string[],
   disposition: Disposition, approval: OpenBoardMigrationWorld["approval"] = "current",
   existing: OpenBoardMigrationWorld["existing"] = "empty", held = false): OpenBoardMigrationWorld {
+  if(!Object.hasOwn(requestedReturns,id))throw new Error("Missing literal migration return obligation");
   const cards = boards[title];
   if (!cards) throw new Error("Missing owned board source");
   return {
@@ -72,7 +102,7 @@ function migration(id: string, title: string, target: string, goal: string, requ
     sourceGroup: `vibestudio:owned-board-migration:${title.toLowerCase().replaceAll(" ", "-")}`,
     split: held ? "test" : undefined,
     sources: [{ title, edition: "closed quarter", cards: cards.slice(0, 1) }, { title, edition: "handoff edition", cards }],
-    selected: 1, requested, approval, existing, disposition,
+    selected: 1, requested, approval, existing, disposition, requestedReturnRequired: requestedReturns[id]!,
   };
 }
 

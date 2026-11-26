@@ -1,0 +1,9 @@
+import {expect,it,vi} from 'vitest';
+vi.mock('@workspace/runtime',()=>({contextId:null,fs:{},rpc:{},vcs:{},workspace:{}}));
+vi.mock('./scratch-handoff-managed.js',()=>({readWorkspaceBytes:vi.fn()}));
+import {currentContextProjectionsPath} from '@vibestudio/workspace/contextProjections';
+import {nativeSemanticFixturePorts} from './nativeSemanticFixturePorts.js';
+import {prepareWorkspaceConfig} from './open-goal-workspace-config-managed.js';
+import {openWorkspaceConfigWorlds} from './open-goal-workspace-config-worlds.js';
+function ports(){const baseline={systemEpoch:1,panelRestorePolicy:'focused',minimumAppVersion:'1.0.0',initPanels:[],defaultAgentConfig:{fastMode:false},template:{dependencies:[{url:'https://example.test/base.git',track:'refs/heads/main',commit:'a'.repeat(40)}]}};const backing=nativeSemanticFixturePorts([{path:'meta',files:[{path:'vibestudio.yml',text:JSON.stringify(baseline)}]}]);const config={...baseline,id:'native-owned-config'};return{...backing,contextId:'owner',workspace:{getActive:async()=>'Owned workspace',getConfig:async()=>structuredClone(config),getInfo:async()=>({id:'owned-workspace',name:'Owned workspace',config:structuredClone(config),appVersion:'1.0.1',currentAppVersion:'1.0.2',statePath:'/owned/config',contextProjectionsPath:currentContextProjectionsPath('/owned/config')})}};}
+for(const world of openWorkspaceConfigWorlds)it('checks current settings, exact revision layers and requested notes: '+world.id,async()=>{const fixture=await prepareWorkspaceConfig({contextId:'owner',caseId:world.id},ports() as never);const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect((await fixture.verify(undefined)).passed).toBe(false);if(world.note==='always')expect(proof.artifact).not.toBeNull();});
