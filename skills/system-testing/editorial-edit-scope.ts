@@ -14,3 +14,15 @@ export function editorialEditScope(before:string,after:string,fields:readonly {l
  }
  return true;
 }
+
+/** Authority for one private working-copy edit, separate from final requested values. */
+export function editorialWriteScope(before:string,after:string,fields:readonly {label:string}[]):boolean {
+ const lines=(text:string)=>text.match(/.*(?:\n|$)/gu)?.filter(Boolean)??[];
+ const original=lines(before),candidate=lines(after);
+ const named=(line:string,label:string)=>line.startsWith(`- ${label}: `);
+ const protectedLines=(all:string[])=>all.filter(line=>!fields.some(field=>named(line,field.label))).join("");
+ return protectedLines(original)===protectedLines(candidate)&&fields.every(field=>{
+  const matched=candidate.filter(line=>named(line,field.label));
+  return matched.length<=1&&matched.every(line=>!!line.slice(`- ${field.label}: `.length).trim());
+ });
+}
