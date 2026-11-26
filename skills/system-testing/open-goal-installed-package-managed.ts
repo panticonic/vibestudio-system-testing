@@ -223,7 +223,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
       operationId, target: world.name, source: world.source, mainRevision: start.mainEventId, workingRevision,
       name: local.value.name, baselineName: currentBaseline.value.name, workingDigest: local.digest, baselineDigest: currentBaseline.digest,
       receiver, catalog, baselineValue, workingValue, declaredReceiverMatches, scopeMatches,
-      targetFieldMatches: isDeepStrictEqual(workingValue, baselineValue),
+      protectedValueMatchesBaseline: isDeepStrictEqual(workingValue, baselineValue),
       suiteBlockedBy,
       suiteRequest: declaredReceiverMatches && local.value.name === world.name && currentSuite && !suiteBlockedBy
         ? suiteRequest : null,
@@ -251,7 +251,7 @@ export async function prepareInstalledPackage(input: { contextId: string; caseId
   function decisionFor(observation: Observation): Decision {
     if (observation.name !== observation.baselineName || observation.name !== assignment.target || !observation.declaredReceiverMatches)
       return "hold-foreign-package";
-    if (observation.targetFieldMatches) return "preserve-current";
+    if (observation.protectedValueMatchesBaseline) return "preserve-current";
     if (!observation.scopeMatches) return "hold-review-scope";
     return assignment.scope.grant === "restore" ? "restore-approved-field" : "hold-authorization";
   }
@@ -373,7 +373,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const actualAttempt = attempt?.status ?? null;
     let exactEffect: boolean;
     if (actualAttempt === "restored") {
-      exactEffect = final.observation.targetFieldMatches && final.local.digest !== before.digest &&
+      exactEffect = final.observation.protectedValueMatchesBaseline && final.local.digest !== before.digest &&
         isDeepStrictEqual(withoutReviewedField(final.local.value, world), withoutReviewedField(before.value, world));
     } else if (actualAttempt === "state-changed") {
       exactEffect = final.local.digest !== before.digest && isDeepStrictEqual(final.local.value, { ...before.value, description: newEdit });

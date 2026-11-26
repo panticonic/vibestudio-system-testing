@@ -44,3 +44,11 @@ it('permits assigned historical reads without letting them authorize a current-b
 it('still denies foreign-context case bodies even though header comparison and own reads are independent',async()=>{
  const world=openSystemReleaseWorlds.find(w=>w.current.foreign)!;const{f,seed}=await releaseFixture(world);const a=await f.services.systemReleaseEvidence.discover();await expect(f.services.systemReleaseEvidence.inspectCase(a.id,seed.current,world.required[0]!)).rejects.toThrow(/owned release context/);await expect(f.services.systemReleaseEvidence.inspectCase(a.id,'foreign-run',world.required[0]!)).rejects.toThrow();
 });
+it('separates protected baseline equality, exact scope and actual current suite plan membership',async()=>{
+ const world=openInstalledPackageWorlds.find(w=>w.id==='installed-package-image-verification-runtime-remap-inspect-only')!;
+ const{f}=await packageFixture(world);const a=await f.services.installedPackageRead.discover(),o=await f.services.installedPackageRead.inspect(a.operationId);
+ expect(o.protectedValueMatchesBaseline).toBe(false);expect(o.scopeMatches).toBe(true);expect(a.scope.grant).toBe('inspect');expect(o.workingValue.suite!.runtime).toBe('browser');expect(o.baselineValue.suite!.runtime).toBe('native');
+ const plan=await f.services.testSuitePlanRead.resolve(o.suiteRequest!.operationId);expect(plan.target).toBe(o.source);expect(plan.suite).toBe(o.workingValue.suite!.name);expect(plan.runtime).toBe(o.workingValue.suite!.runtime);
+ const p=await f.verify('The current native-named suite belongs to this declaration and routes to browser; no source changed.');expect(p.passed).toBe(true);expect(p.semanticReviewRequired).toBe(true);
+ const refused=await f.services.installedPackageChange.restore(a.operationId,o.workingRevision,o.workingDigest);expect(refused.status).toBe('not-authorized');
+});
