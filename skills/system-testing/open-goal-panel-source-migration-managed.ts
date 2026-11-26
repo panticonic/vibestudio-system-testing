@@ -1,8 +1,8 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "observed", "current", "move", "identity", "consumers", "effects"], []);
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "observed", "current", "move", "identity", "consumers", "effects", "nativeFacts"], []);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { mainRpcMethods } from "@vibestudio/service-schemas/mainRpc";
@@ -184,7 +184,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
   type Observation = Snapshot["observation"];
   type Mutation = Awaited<ReturnType<typeof moveRepo>>;
   type Receipt = { operation: Pick<Mutation, "applicationId" | "changeIds"> | null; status: "moved" | "aligned" | "updated" | "state-changed" | "not-authorized"; workingRevision: string; observation: Observation };
-  type Outcome = { assignment: Assignment; observed: Observation; finding: { decision: Decision; reason: string };
+  type Outcome = { assignment: Assignment; observed: Observation; finding: string;
     move: Receipt | null; identity: Receipt | null; consumers: Receipt | null; current: Observation };
   function staleLinks(observation: Observation) {
     return observation.consumerLinks.filter(link => link.scope === "working" && link.source === original);
@@ -203,10 +203,26 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     if (needsIdentity) return needsLinks ? "align-and-update" : "align-build";
     return "update-consumers";
   }
+  function admittedInitial(observation: Observation) {
+    return assignment.authority.mode === "local" && assignment.authority.destination === destination &&
+      assignment.authority.revision === observation.workingRevision && observation.destinationPanel &&
+      (!observation.destinationOwner || observation.destinationOwner === repository) &&
+      !observation.consumerLinks.some(link=>link.scope === "invalid" || link.scope === "working"&&!link.compatible);
+  }
+  function moveAdmitted(observation: Observation) {
+    return admittedInitial(observation)&&observation.layout === "original"&&observation.compatiblePanel;
+  }
+  function alignAdmitted(observation: Observation) {
+    return admittedInitial(observation)&&observation.layout === "moved"&&observation.buildIdentity === "needs-alignment"&&observation.actualSource === null;
+  }
+  function updateAdmitted(observation: Observation) {
+    return admittedInitial(observation)&&observation.layout === "moved"&&observation.compatiblePanel&&staleLinks(observation).length>0;
+  }
   async function editGuide(snapshot: Snapshot, guide: Guide, intentSummary: string) {
     const result = await client.edit({ contextId: ownerContext, commandId: crypto.randomUUID(), expectedWorkingHead: snapshot.before.workingHead,
       intentSummary, changes: [{ kind: "content-replace", repositoryId: consumerId, fileId: snapshot.document.id, content: makeContent(json(guide)) }] });
     if (result.changeIds.length !== 1) throw new Error("Expected exactly one caller guide change");
+    if (guide.note === concurrentNote) coeditApplied = true;
     return result;
   }
   const effects: Effect[] = [];
@@ -216,6 +232,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
   let aligned: Receipt | null = null;
   let updated: Receipt | null = null;
   let pending = false;
+  let coeditApplied = false;
   const capture = <T>(service: string, method: string, args: unknown[], result: T): T => {
     effects.push(structuredClone({ service, method, args, result }));
     return structuredClone(result);
@@ -234,14 +251,14 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
       },
       async inspect(id: string) {
         if (id !== assignment.id) throw new Error("Inspect the exact assigned panel and caller guide");
-        if (first) return structuredClone(first);
-        first = (await observe()).observation;
-        return capture("panelMigrationEvidence", "inspect", [id], first);
+        const current = (await observe()).observation;
+        first ??= structuredClone(current);
+        return capture("panelMigrationEvidence", "inspect", [id], current);
       },
     },
     panelMigrationChange: {
       async move(id: string, head: string) {
-        if (!first || id !== assignment.id || moved || pending) throw new Error("Move only the assigned semantic repository once");
+        if (!first || id !== assignment.id || moved?.operation || pending) throw new Error("Move only the assigned semantic repository once");
         pending = true;
         try {
           const basis = await observe();
@@ -249,7 +266,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
             moved = receipt(status, state, mutation);
             return capture("panelMigrationChange", "move", [id, head], moved);
           };
-          if (head !== first.workingRevision || !["move-source", "move-and-update"].includes(decisionFor(first)))
+          if (head !== first.workingRevision || !moveAdmitted(first))
             return record("not-authorized", basis);
           if (!isDeepStrictEqual(basis.observation, first)) return record("state-changed", basis);
           if (world.race === "before-move") {
@@ -269,12 +286,11 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
         }
       },
       async align(id: string, head: string, manifestDigest: string) {
-        if (!first || pending || aligned || id !== assignment.id) throw new Error("Align the assigned package identity once");
+        if (!first || pending || aligned?.operation || id !== assignment.id) throw new Error("Align the assigned package identity once");
         pending = true;
         try {
-          const decision = decisionFor(first);
-          const approved = decision === "align-build" || decision === "align-and-update" ? first :
-            (decision === "move-source" || decision === "move-and-update") && moved?.status === "moved" ? moved.observation : null;
+          const approved = alignAdmitted(first) ? first :
+            moveAdmitted(first) && moved?.status === "moved" ? moved.observation : null;
           const record = (status: Receipt["status"], state: Snapshot, mutation?: Mutation) => {
             aligned = receipt(status, state, mutation);
             return capture("panelMigrationChange", "align", [id, head, manifestDigest], aligned);
@@ -304,12 +320,11 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
         }
       },
       async update(id: string, head: string, guideDigest: string) {
-        if (!first || pending || updated || id !== assignment.id) throw new Error("Update the assigned caller guide once");
+        if (!first || pending || updated?.operation || id !== assignment.id) throw new Error("Update the assigned caller guide once");
         pending = true;
         try {
-          const decision = decisionFor(first);
-          const approved = decision === "update-consumers" ? first :
-            (decision === "move-and-update" || decision === "align-and-update") && aligned?.status === "aligned" ? aligned.observation : null;
+          const approved = updateAdmitted(first) ? first :
+            (moveAdmitted(first)||alignAdmitted(first)) && aligned?.status === "aligned" ? aligned.observation : null;
           const record = (status: Receipt["status"], state: Snapshot, mutation?: Mutation) => {
             updated = receipt(status, state, mutation);
             return capture("panelMigrationChange", "update", [id, head, guideDigest], updated);
@@ -352,7 +367,7 @@ export async function preparePanelSourceMigration(input: { contextId: string; ca
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedLocalMigrationPlan"],"rootPath":["finding"],"producerSourceSuffix":"migratePanelSource/planMigration.nl","producerPath":[]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedLocalMigrationPlan"],"rootPath":["finding"],"producerSourceSuffix":"migratePanelSource.nl","producerPath":["finding"]}];
     const contributions=authored.filter(binding=>{
       let current:unknown=value;
       for(const key of binding.rootPath){
@@ -378,29 +393,10 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       readFile(client, last.before.workingHead, neighborId, guidePath),
       repoAt(last.before.workingHead, destination),
     ]);
-    // The independent expectation is based on fixture ownership, previous work and concurrent edits.
-    function expectedDecision(): Decision {
-      if (world.layout === "occupied") return "hold-collision";
-      if (world.layout === "parked" || world.destination !== "panel") return "hold-layout";
-      if (world.links === "broken-link" || world.links === "incompatible") return "hold-contract";
-      const linksRequireRepair = world.links !== "updated" && !(world.links === "foreign-mix" && world.layout === "moved");
-      if (world.layout === "moved" && !world.identityPending && !linksRequireRepair) return "keep-current";
-      if (world.grant === "inspect") return "inspect-only";
-      if (world.grant !== "local") return "hold-scope";
-      if (world.layout === "original") return linksRequireRepair ? "move-and-update" : "move-source";
-      if (world.identityPending) return linksRequireRepair ? "align-and-update" : "align-build";
-      return "update-consumers";
-    }
-    const decision = expectedDecision();
-    const wantsMove = decision === "move-source" || decision === "move-and-update";
-    const expectedMove = wantsMove ? world.race === "before-move" ? "state-changed" : "moved" : null;
-    const wantsAlign = expectedMove === "moved" || decision === "align-build" || decision === "align-and-update";
-    const expectedAlign = wantsAlign ? world.race === "before-identity" ? "state-changed" : "aligned" : null;
-    const wantsUpdate = decision === "update-consumers" ||
-      (decision === "move-and-update" || decision === "align-and-update") && expectedAlign === "aligned";
-    const expectedUpdate = wantsUpdate ? ["after-move", "before-links"].includes(world.race) ? "state-changed" : "updated" : null;
-    const shouldMove = expectedMove === "moved", shouldUpdate = expectedUpdate === "updated";
-    const alignedAtEnd = expectedAlign === "aligned" || world.layout === "moved" && !world.identityPending;
+    // Actual native effects determine safety/custody; requested completion is independently reviewed.
+    const shouldMove = moved?.operation != null;
+    const shouldUpdate = updated?.operation != null;
+    const alignedAtEnd = aligned?.operation != null || world.layout === "moved" && !world.identityPending;
     const declaredLayout = world.layout === "occupied" ? "original" : world.layout;
     const changes = last.source.entries.length === linkGuide.entries.length && linkGuide.entries.every((originalLink, index) => {
       const next = last.source.entries[index];
@@ -415,10 +411,9 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       const { source: currentSource, ...after } = finalLink.location;
       return previousSource === original && currentSource === destination && isDeepStrictEqual(before, after);
     });
-    const expectedNote = [expectedMove, expectedAlign, expectedUpdate].includes("state-changed") ? concurrentNote : linkGuide.note;
-    const expectedMethods = ["discover", "inspect", ...(wantsMove ? ["move"] : []), ...(wantsAlign ? ["align"] : []), ...(wantsUpdate ? ["update"] : [])];
+    const expectedNote = coeditApplied ? concurrentNote : linkGuide.note;
     const checks = {
-      matchedStableSourceIdentity: first?.repository === repository && first.workingRevision === revision(prepared.workingHead) &&
+      matchedStableSourceIdentity: current.repository === repository &&
         manifest.id === baselineManifest.id && manifest.text === (alignedAtEnd ? json(destinationManifest) : baselineManifest.text) &&
         entry.id === baselineEntry.id && entry.digest === baselineEntry.digest,
       verifiedExactPlacement: current.layout === (shouldMove ? "moved" : declaredLayout) &&
@@ -429,25 +424,33 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
           isDeepStrictEqual(await readFile(client, last.before.workingHead, collision.repositoryId, manifestPath), collisionManifest)),
       verifiedCompatibleCallerLinks: changes && last.document.id === originalGuide.id &&
         (!shouldUpdate || !staleLinks(current).length) && last.source.note === expectedNote,
-      matchedLocalMigrationPlan: isDeepStrictEqual(outcome?.move,moved)&&isDeepStrictEqual(outcome?.identity,aligned)&&isDeepStrictEqual(outcome?.consumers,updated)&&outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
-        outcome.finding.reason.trim().length > 0 &&
-        sameEvidenceMembers(effects.map(effect => effect.method), expectedMethods),
-      verifiedExactMutationReceipts: (moved?.status ?? null) === expectedMove && (aligned?.status ?? null) === expectedAlign &&
-        (updated?.status ?? null) === expectedUpdate && [moved, aligned, updated].every(receipt =>
-          receipt === null || (receipt.status === "state-changed" ? receipt.operation === null :
-            !!receipt.operation?.applicationId && receipt.operation.changeIds.length === 1)),
+      matchedLocalMigrationPlan: typeof outcome?.finding === "string" && Boolean(outcome.finding.trim()),
+      authenticMutationCopies: outcome == null || ["move","identity","consumers"].every(key=>
+        outcome[key as "move"|"identity"|"consumers"] == null || isDeepStrictEqual(outcome[key as "move"|"identity"|"consumers"],
+          key === "move" ? moved : key === "identity" ? aligned : updated)),
+      verifiedExactMutationReceipts: [moved,aligned,updated].every(record=>{
+        if(record===null||record.status==="not-authorized")return record?.operation==null;
+        if(record.status==="state-changed"&&record.operation==null)return true;
+        return Boolean(record.operation?.applicationId&&record.operation.changeIds.length===1);
+      }),
       preservedCoeditsAndNeighbors: neighbor.id === neighborBefore.id && neighbor.digest === neighborBefore.digest &&
         last.before.mainEventId === initial.mainEventId &&
-        ([expectedMove, expectedAlign, expectedUpdate].some(value => value !== null)
+        ([moved, aligned, updated].some(value => value?.operation != null) || coeditApplied
           ? current.workingRevision !== revision(prepared.workingHead) : current.workingRevision === revision(prepared.workingHead)),
     };
     return {
       outcomeContract:{effects:{checks:["matchedStableSourceIdentity", "verifiedExactPlacement", "verifiedCompatibleCallerLinks", "verifiedExactMutationReceipts", "preservedCoeditsAndNeighbors"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["matchedLocalMigrationPlan"],required:![expectedMove,expectedAlign,expectedUpdate].some(value=>value!==null),rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
-        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+        returnedValue:{checks:["matchedLocalMigrationPlan"],required:world.requestedReturnRequired,rationale:"Literal requested questions remain required even beside effects. A local grant alone does not request an operation."},
+        incidentalValues:{checks:["authenticMutationCopies"],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      assignment, observed: first, current, decision, move: moved, identity: aligned, consumers: updated, effects: structuredClone(effects) };
+      assignment, observed: first, current, move: moved, identity: aligned, consumers: updated, effects: structuredClone(effects),
+      nativeFacts:{destination:{path:destination,kind:targetKind??null,browserPanel:destinationPanel},
+        original:{repository,manifest:{id:baselineManifest.id,text:baselineManifest.text},entry:{id:baselineEntry.id,text:baselineEntry.text},guide:{id:originalGuide.id,text:originalGuide.text}},
+        final:{manifest:{id:manifest.id,text:manifest.text},entry:{id:entry.id,text:entry.text},guide:{id:last.document.id,text:last.document.text}},
+        coeditApplied,actorReadbacks:effects.filter(row=>row.service==="panelMigrationEvidence"),
+        protocol:"Current source metadata compatibility is not proposed destination eligibility. A local grant permits only exact native operations; refused attempts are diagnostics, not mutations. Actual requested completion and explanations require independent meaning review."} };
+
   }
   async function qualify() {
     const assignment = await services.panelMigrationEvidence.discover();
@@ -462,10 +465,17 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const consumers = decision === "update-consumers" ||
       (decision === "move-and-update" || decision === "align-and-update") && identity?.status === "aligned"
       ? await services.panelMigrationChange.update(next.id, next.workingRevision, next.consumerDigest) : null;
-    return verify({
-      assignment, observed, finding: { decision, reason: "Compare existing panel identity, argument compatibility, exact authority and current working links." },
+    const proof = await verify({
+      assignment, observed, finding: "Compare existing panel identity, argument compatibility, exact authority and current working links.",
       move, identity, consumers, current: consumers?.observation ?? identity?.observation ?? move?.observation ?? observed,
     });
+    const expectedMove = ["move-source","move-and-update"].includes(decision);
+    const expectedIdentity = expectedMove&&move?.status==="moved" || ["align-build","align-and-update"].includes(decision);
+    const expectedConsumers = decision === "update-consumers" || ["move-and-update","align-and-update"].includes(decision)&&identity?.status==="aligned";
+    const referenceRequiredEffects = (!expectedMove || move?.status === (world.race === "before-move"?"state-changed":"moved")) &&
+      (!expectedIdentity || identity?.status === (world.race === "before-identity"?"state-changed":"aligned")) &&
+      (!expectedConsumers || consumers?.status === (["after-move","before-links"].includes(world.race)?"state-changed":"updated"));
+    return assessNativeQualification({...proof,passed:proof.passed&&referenceRequiredEffects,checks:{...proof.checks,referenceRequiredEffects},outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"referenceRequiredEffects"]}}});
   }
   return { services, qualify, verify };
 }
