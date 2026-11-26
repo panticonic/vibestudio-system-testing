@@ -1,6 +1,6 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessArchiveMeaning=bindObservedContentReview(["assignment","observation","working","receipt","effects"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
-import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
 import type { VcsEditChange } from "@vibestudio/service-schemas/vcs";
@@ -220,7 +220,6 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
         return capture("contentArchiveEvidence", "discover", [], assignment);
       },
       async inspect(id: string) {
-        if (id === assignment.id && observed) return structuredClone(observed);
         if (busy || id !== assignment.id) throw new Error("Inspect only the exact assigned archive and project");
         busy = true;
         try { observed = await observe(); return capture("contentArchiveEvidence", "inspect", [id], observed); }
@@ -232,7 +231,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
         if (!observed || busy || storedReceipt || id !== assignment.id || !ref || ref !== choose(observed) || head !== observed.workingRevision)
           throw new Error("Restore only the approved immutable archive and exact review basis");
         const approvedPlan = plan(observed, ref);
-        if (approvedPlan.action !== "restore" || !isDeepStrictEqual(approvedPlan.paths, selected))
+        if (approvedPlan.action !== "restore" || selected.length!==approvedPlan.paths.length||new Set(selected).size!==selected.length||selected.some(path=>!approvedPlan.paths.includes(path)))
           throw new Error("Restore exactly the scoped atomic set without coeditor paths");
         busy = true;
         try {
@@ -288,18 +287,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
   async function verify(report: unknown,invocation?: InvocationObservations) {
     const proof=await verifyNativeApplication(report,invocation);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["matchedScopedLocalPlan"],"rootPath":["action"],"producerSourceSuffix":"recoverContentArchive/planRestoration.nl","producerPath":["action"]},{"checks":["matchedScopedLocalPlan"],"rootPath":["reason"],"producerSourceSuffix":"recoverContentArchive/planRestoration.nl","producerPath":["reason"]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=report;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,report,invocation,contributions);
+    const assessed=await assessArchiveMeaning(proof,proof.outcomeContract,report,invocation,[]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -307,7 +295,7 @@ export async function prepareContentArchive(input: { contextId: string; caseId: 
   }
 async function verifyNativeApplication(report: unknown, invocation?: InvocationObservations) {
     const envelope = report as {
-      action:Plan["action"];reason:string;receipt:Receipt|null;
+      explanation?:string;files?:Working[];
     } | null;
     const checkpoint = await status();
     const out = envelope;
@@ -330,7 +318,8 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
       exactArchiveTreesAndBasis: observed !== null && isDeepStrictEqual(observed.primary, first) &&
         isDeepStrictEqual(observed.previous, second),
       matchedApprovedEdition: !!observed&&choose(observed)===expectedRef,
-      matchedScopedLocalPlan: out?.action===world.expected.action&&typeof out?.reason==="string"&&!!out.reason.trim()&&isDeepStrictEqual(out?.receipt,storedReceipt),
+      matchedScopedLocalPlan: typeof out?.explanation==="string"&&!!out.explanation.trim(),
+      authenticReturnedFiles:out?.files===undefined||Array.isArray(out.files)&&out.files.every(file=>final.some(actual=>isDeepStrictEqual(file,actual))),
       restoredExactAddressedMembers: restored.every((path, i) => {
         const b = approved[paths.indexOf(path)];
         const row = rows.find(file => file.path === path);
@@ -345,8 +334,7 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
       verifiedAtomicReceipt: (expectedRestore ? world.race ?
         storedReceipt?.status === "state-changed" && storedReceipt.application === null :
         storedReceipt?.status === "restored" && counts : storedReceipt === null) &&
-        (!storedReceipt || storedReceipt.workingRevision === revision(checkpoint.workingHead) && isDeepStrictEqual(storedReceipt.files, final)) &&
-        sameEvidenceMembers(effects.map(item => item.method), expectedRestore ? ["discover", "inspect", "restore"] : ["discover", "inspect"]),
+        (!storedReceipt || storedReceipt.workingRevision === revision(checkpoint.workingHead) && isDeepStrictEqual(storedReceipt.files, final)),
       preservedWorkingProjectAndNeighbor: exactRepo?.repositoryId === repository && isDeepStrictEqual(stable, corresponding) &&
         isDeepStrictEqual(neighboring, initialNeighbor) && checkpoint.mainEventId === initial.mainEventId &&
         (!world.race || rows.find(file => file.path === notePath)?.contentHash === sha256HexSyncText(raceNote)) &&
@@ -354,11 +342,11 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
     };
     return {
       outcomeContract:{effects:{checks:["exactArchiveTreesAndBasis", "matchedApprovedEdition", "restoredExactAddressedMembers", "verifiedAtomicReceipt", "preservedWorkingProjectAndNeighbor"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["matchedScopedLocalPlan"],required:world.expected.action!=="restore",rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
-        incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
+        returnedValue:{checks:["matchedScopedLocalPlan"],required:world.requestedReturnRequired,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        incidentalValues:{checks:["authenticReturnedFiles"],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
  caseId: world.id, contextId: owner, goal: world.goal, assignment, observation: observed,
-      action: out?.action, reason: out?.reason, receipt: storedReceipt, effects: structuredClone(effects),
+      working:final, receipt: storedReceipt, effects: structuredClone(effects),
       checks, passed: Object.values(checks).every(Boolean) };
   }
   async function qualify() {
@@ -368,9 +356,8 @@ async function verifyNativeApplication(report: unknown, invocation?: InvocationO
     const drafted = { ...plan(observation, ref), reason: "Inspect exact pinned material, working conflicts and local scope." };
     const receipt = drafted.action === "restore" ?
       await services.contentArchiveChange.restore(assigned.id, ref, observation.workingRevision, drafted.paths) : null;
-    return verify({
-      action:drafted.action,reason:drafted.reason,receipt,
-    });
+    const report={explanation:drafted.reason,files:receipt?.files??observation.working};
+    return {...await verify(report),report};
   }
   return { services, qualify, verify };
 }

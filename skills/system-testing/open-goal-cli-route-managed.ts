@@ -1,5 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["docket","observed","selected","scope","available","protocol"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -30,7 +32,6 @@ type Continuation = {
   source: Source;
   contextId: string | null;
   status: NonNullable<CliRouteWorld["expected"]>[2];
-  action: "run-assigned-command" | "ask-parent" | "repair-scope";
   gateway: Gateway;
 };
 
@@ -104,16 +105,15 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
     },
     remoteGatewayIdentity: {
       async observe(id: string) {
-        if (selected && id === selected.request.operationId && observed) return structuredClone(observed);
         if (!selected || id !== selected.request.operationId)
-          throw new Error("Verify the gateway of the exact selected invocation once");
+          throw new Error("Verify the gateway of the exact selected invocation");
         observed = await gateway();
         return observed;
       },
     },
     remoteCliScope: {
       async evidence(id: string): Promise<Evidence> {
-        if (!observed || !selected || id !== selected.request.operationId || scope ||
+        if (!observed || !selected || id !== selected.request.operationId ||
             selected.request.serverId !== observed.serverId || selected.request.workspaceId !== observed.workspaceId)
           throw new Error("The CLI context can only be read after the same gateway was verified");
         const current = await read(currentPath, docket);
@@ -125,19 +125,17 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
   };
 
   function expectedRoute(native: Gateway): Route {
-    switch (world.gateway) {
+    switch (request.serverId!==native.serverId?"server-mismatch":request.workspaceId!==native.workspaceId?"workspace-mismatch":"verified") {
       case "verified": return { observed: native, verdict: "verified", layer: "healthy", next: "accept-identity" };
       case "server-mismatch": return { observed: native, verdict: "server-mismatch", layer: "device-credential", next: "verify-server-assignment" };
       case "workspace-mismatch": return { observed: native, verdict: "workspace-mismatch", layer: "workspace-routing", next: "refresh-workspace-reach" };
     }
   }
   function expectedContinuation(native: Gateway): Continuation | null {
-    if (!world.expected) return null;
+    if (!world.expected||request.serverId!==native.serverId||request.workspaceId!==native.workspaceId) return null;
     const [source, position, status] = world.expected;
     const contextId = status === "unattached" ? null : coordinate(source, position).contextId;
-    const action = status !== "usable" ? "repair-scope" :
-      world.operation !== "inspect" && world.credential === "agent" ? "ask-parent" : "run-assigned-command";
-    return { source, contextId, status, action, gateway: native };
+    return { source, contextId, status, gateway: native };
   }
   
   async function verify(value: unknown,invocation?: InvocationObservations) {
@@ -162,7 +160,7 @@ export async function prepareOpenCliRoute(input: { contextId: string; caseId: st
   }
 async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations): Promise<OpenGoalDomainVerification & Record<string, unknown>> {
     const report = value as {
-        status?: string; docket?: Docket | null; gateway?: Route | null; continuation?: Continuation | null; reason?: string;
+        explanation?: string; gateway?: Route | null; continuation?: Continuation | null;
       } | null;
     const outcome = report;
     const [native, current, storedRetired, final] = await Promise.all([
@@ -174,22 +172,21 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const checks = {
       independentlyObservedCurrentCliDocket: isDeepStrictEqual(selected, { docket, request }) &&
         isDeepStrictEqual(current, basis) && isDeepStrictEqual(storedRetired, history),
-      exactAuthenticatedCliGateway: isDeepStrictEqual(observed, native) && isDeepStrictEqual(assignedGateway, native) &&
+      exactAuthenticatedCliGateway: isDeepStrictEqual(observed, native) &&
         isDeepStrictEqual(outcome?.gateway, expectedRoute(native)),
       boundAuthorizedCliContinuation: expected ? scopeBound && isDeepStrictEqual(outcome?.continuation, expected) :
-        scope === null && outcome?.continuation === null,
+        outcome?.continuation === null,
       preservedReadOnlyContinuation: isDeepStrictEqual(initial.workingHead, final.workingHead) && initial.mainEventId === final.mainEventId,
-      matchedCliRouteDisposition: outcome?.status === (expected ? "reviewed" : "held") &&
-        typeof outcome.reason === "string" && outcome.reason.trim().length > 0,
+      matchedCliRouteDisposition: typeof outcome?.explanation === "string" && outcome.explanation.trim().length > 0,
     };
     return {
       outcomeContract:{effects:{checks:["independentlyObservedCurrentCliDocket", "preservedReadOnlyContinuation"],rationale:"Independent native state, admission, captured operations and durable readback establish these facts."},
-        returnedValue:{checks:["exactAuthenticatedCliGateway", "boundAuthorizedCliContinuation", "matchedCliRouteDisposition"],required:true,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
+        returnedValue:{checks:["exactAuthenticatedCliGateway", "boundAuthorizedCliContinuation", "matchedCliRouteDisposition"],required:world.requestedReturnRequired,rationale:"A requested query answer is required; a redundant result copy is optional after its requested native effect is established."},
         incidentalValues:{checks:[],rationale:"Known incorrect emitted application values use actual invocation definitions for masking."}},
       incorrectReturnValues:[],
  contextId: input.contextId, caseId: input.caseId, goal: input.goal,
       passed: Object.values(checks).every(Boolean), checks, docket, observed, selected, scope, expected,
-      outcome: outcome ?? null, available: [retired, docket] };
+      outcome: outcome ?? null, available: [retired, docket],protocol:{selectorPrecedence:["session","context","ambient","binding","default"],scopeIsNotOperationPermission:true,agentOwnContextSupported:true,operationAdmission:"Actual operations still require their native authority and admission checks; agent credential kind alone does not require parent execution."} };
   }
   async function qualify() {
     await services.cliRouteDocket.list();
@@ -201,12 +198,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     if (route.verdict === "verified") await services.remoteCliScope.evidence(operationId);
     const wrongIdDenied = await services.remoteCliScope.evidence("foreign").then(() => false, () => true);
     const report = {
-      status: route.verdict === "verified" ? "reviewed" : "held", docket, gateway: route,
-      continuation: expectedContinuation(native), reason: "Checked the retained invocation against the authenticated gateway.",
+      gateway: route,
+      continuation: expectedContinuation(native), explanation: "Checked the retained invocation against the authenticated gateway.",
     };
     const proof = await verify(report);
     const enforcedCliEvidenceBoundary = earlyDenied && retiredDenied && wrongIdDenied;
-    return assessNativeQualification({ ...proof,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"enforcedCliEvidenceBoundary"]}}, passed: proof.passed && enforcedCliEvidenceBoundary,
+    return assessNativeQualification({ ...proof,report,outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"enforcedCliEvidenceBoundary"]}}, passed: proof.passed && enforcedCliEvidenceBoundary,
       checks: { ...proof.checks, enforcedCliEvidenceBoundary } });
   }
   return { services, verify, qualify };

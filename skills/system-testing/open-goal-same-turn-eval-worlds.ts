@@ -4,6 +4,8 @@ export type SameTurnDecision = "checkpoint" | "window" | "narrow" | "compact" | 
 export type SameTurnWorld = {
   id: string; kind: "same-turn-eval"; workspace: "system"; sourceGroup: string; split?: "test";
   goal: string; subject: string; request: string; detail: string; count: number; mode: SameTurnMode; checkpoint: SameTurnCheckpoint;
+  /** Every literal world requests an answer, including when recovery itself succeeds. */
+  requestedReturnRequired: true;
   mayNarrow: boolean; mayUseCheckpoint: boolean; mayUseWindow: boolean;
   expected: { decision: SameTurnDecision; reason: "complete-checkpoint" | "complete-window" | "clean-return" |
     "bounded-retry" | "partial-checkpoint" | "stale-checkpoint" | "stale-window" | "no-authorized-result" };
@@ -13,6 +15,7 @@ function world(id: string, subject: string, goal: string, request: string, count
     decision: SameTurnDecision, reason: SameTurnWorld["expected"]["reason"], options: Options = {}): SameTurnWorld {
   return { id: "same-turn-eval-" + id, kind: "same-turn-eval", workspace: "system", sourceGroup: "vibestudio:same-turn-eval:" + id,
     ...(options.held ? { split: "test" } : {}), goal, subject, request, count, detail, mode, checkpoint: options.checkpoint ?? "none",
+    requestedReturnRequired:true,
     mayNarrow: options.mayNarrow ?? false, mayUseCheckpoint: options.mayUseCheckpoint ?? true, mayUseWindow: options.mayUseWindow ?? true,
     expected: { decision, reason } };
 }

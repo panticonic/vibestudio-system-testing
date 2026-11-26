@@ -18,12 +18,13 @@ export type CliRouteWorld = {
   operation: Operation;
   gateway: GatewayMatch;
   expected: Selection | null;
+  requestedReturnRequired:true;
 };
 
 function plan(id: string, title: string, goal: string, operation: Operation, credential: CliRouteWorld["credential"],
   selectors: CliRouteWorld["selectors"], expected: Selection | null, held = false): CliRouteWorld {
   return {
-    id: `cli-route-${id}`, title, goal, operation, credential, selectors, expected,
+    id: `cli-route-${id}`, title, goal, operation, credential, selectors, expected,requestedReturnRequired:true,
     kind: "cli-route", workspace: "system", gateway: "verified",
     sourceGroup: `vibestudio:open-cli-route:continuation:${id}`, split: held ? "test" : "train",
   };

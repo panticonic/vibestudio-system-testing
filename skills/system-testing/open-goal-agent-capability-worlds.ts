@@ -5,12 +5,14 @@ type Approval = "current" | "read-only" | "older-revision" | "other-notebook" | 
 export type AgentCapabilityWorld = {
   id: string; kind: "agent-capability"; workspace: "system"; sourceGroup: string; split?: "test";
   title: string; goal: string; mode: Mode; task: Task; approval: Approval;
+  requestedReturnRequired:boolean;
   amended: boolean; unready: boolean; priorMode: Mode;
 };
-type Options = Partial<Pick<AgentCapabilityWorld, "task" | "approval" | "amended" | "unready" | "priorMode">> & { held?: true };
+type Options = Partial<Pick<AgentCapabilityWorld, "task" | "approval" | "amended" | "unready" | "priorMode" | "requestedReturnRequired">> & { held?: true };
 function world(id: string, title: string, mode: Mode, goal: string, options: Options = {}): AgentCapabilityWorld {
   return { id: "agent-capability-" + id, kind: "agent-capability", workspace: "system", sourceGroup: "vibestudio:agent-capability:" + id,
     ...(options.held ? { split: "test" } : {}), title, goal, mode, task: options.task ?? "audit",
+    requestedReturnRequired: options.requestedReturnRequired??true,
     approval: options.approval ?? "current", amended: options.amended ?? false, unready: options.unready ?? false,
     priorMode: options.priorMode ?? "returned" };
 }
@@ -23,19 +25,19 @@ export const openAgentCapabilityWorlds = [
   world("music-queue-error-before-change", "Rehearsal queue", "failed-empty",
     "The rehearsal queue error looked like it happened early. Find out whether this notebook actually changed and whether the cell can be recovered without quietly rerunning it."),
   world("calendar-report-prerequisite-repaired", "Calendar reconciliation", "retry-gate",
-    "The calendar reconciliation failed when my local prerequisite was missing. I have fixed it. Retry that step if the same revision and retained scope still support it.", { task: "retry" }),
+    "The calendar reconciliation failed when my local prerequisite was missing. I have fixed it. Retry that step if the same revision and retained scope still support it.", { requestedReturnRequired:false, task: "retry" }),
   world("work-order-still-waiting-prerequisite", "Workshop dispatch", "retry-gate",
-    "The workshop dispatch cell had a missing prerequisite. Please recover it only if there is current evidence the dependency is ready. Keep the first observation if we still have to wait.", { task: "retry", unready: true }),
+    "The workshop dispatch cell had a missing prerequisite. Please recover it only if there is current evidence the dependency is ready. Keep the first observation if we still have to wait.", { requestedReturnRequired:false, task: "retry", unready: true }),
   world("lab-console-after-last-line-question", "Lab annotation digest", "large-console",
     "The console card for the lab digest showed only a preview. Check what the actual latest run retained and whether it reached the final note. Don't run the digest again."),
   world("library-listing-read-exact-large-output", "Library holdings review", "large-output",
-    "The library holdings cell returned a lot of output. Continue using the stored value if it really belongs to this revision, while preserving the other notebook work.", { task: "continue" }),
+    "The library holdings cell returned a lot of output. Continue using the stored value if it really belongs to this revision, while preserving the other notebook work.", { requestedReturnRequired:false, task: "continue" }),
   world("voucher-preview-from-another-notebook", "Voucher checkpoint", "returned",
     "My continuation note mentions this voucher checkpoint, but it may belong to another notebook with the same label. Check the exact action and do not act outside the review.", { task: "continue", approval: "other-notebook" }),
   world("harbor-console-does-not-prove-commit", "Harbor allocation", "failed-empty",
     "The harbor allocation printed a progress note before it failed. Determine whether it actually changed the current record. I don't want to duplicate a saved effect.", { task: "continue" }),
   world("survey-confirm-existing-scope-siblings", "Survey register", "scope-values",
-    "Use the current survey register if the three independently retained notebook values are still there. Preserve the pending sibling work and verify the exact existing record.", { task: "continue" }),
+    "Use the current survey register if the three independently retained notebook values are still there. Preserve the pending sibling work and verify the exact existing record.", { requestedReturnRequired:false, task: "continue" }),
   world("plant-sale-revisions-share-rehearsal-name", "Plant sale labels", "returned",
     "Two label rehearsals have the same name. Tell me which revision finished the actual label step and separate that from the earlier run's evidence.", { priorMode: "failed-after-save" }),
   world("toolbox-cancelled-before-admission", "Toolbox schedule", "cancelled",
@@ -57,7 +59,7 @@ export const openAgentCapabilityWorlds = [
   world("makerspace-scope-saved-value-audit", "Makerspace station queue", "scope-values",
     "Compare the current makerspace queue with what the preceding sandbox action actually retained. Keep the other scope values unchanged and explain any missing action evidence.", { priorMode: "failed-empty" }),
   world("radio-shift-stored-side-effect-blocks-rerun", "Radio shift log", "failed-after-save",
-    "Try recovering the interrupted radio shift cell only if it did not already save the expected log. Avoid another attempt if the value already exists.", { task: "retry" }),
+    "Try recovering the interrupted radio shift cell only if it did not already save the expected log. Avoid another attempt if the value already exists.", { requestedReturnRequired:false, task: "retry" }),
   world("held-theatre-approval-withdrawn", "Theatre cue board", "retry-gate",
     "I withdrew the theatre cue retry after the prerequisite changed. Check what is left in the current action and leave it as it stands.", { task: "retry", approval: "withdrawn", held: true }),
   world("held-travel-output-from-foreign-notebook", "Travel receipts", "large-output",
