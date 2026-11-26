@@ -447,7 +447,7 @@ export async function prepareSkillMaintenance(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const decisionBranch=value!==null&&typeof value==="object"&&"action" in value;
+    const decisionBranch=report!==null&&typeof report==="object"&&"action" in report;
     const authored:readonly ApplicationReturnContribution[]=[{checks:["returnedMaintenanceValue"],rootPath:[],producerSourceSuffix:decisionBranch?"maintainWorkspaceSkill/decideSkillMaintenance.nl":"maintainWorkspaceSkill/prepareSkillRepair.nl",producerPath:[]}];
     const contributions=authored.filter(binding=>{
       let current:unknown=report;

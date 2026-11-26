@@ -1,0 +1,49 @@
+{
+  "scope": "One canonical Native verifier parameter-binding correctness fix, separate from future semantic valueflow",
+  "inventory": {
+    "sourceBase": "a0c40cf05788f3f9e2264ce3f9aa32d13e55cb84",
+    "sourceSST": "6f75db0210195cb690b4e6b19c60354331e929b2",
+    "mechanism": "Actual verify(report) wrapper reads unbound value in return-contribution branch selector",
+    "inventory": [
+      "All direct const decisionBranch variants searched in SST; sole occurrence skill maintenance",
+      "Source TS wrapper verify parameter report, native validator receives report, contributions iterate report; only selector erroneously value",
+      "Caller prepareOpenSkillMaintenance.verify and qualify both share this canonical wrapper",
+      "Host export registration binds this same source verifier; all engines consume identical Native application boundary, no engine-specific implementation"
+    ],
+    "before": "const decisionBranch=value!==null&&typeof value===\"object\"&&\"action\" in value;",
+    "fix": "Use actual report parameter; preserve original Native verdict/checks/source-contribution selection. No Native acceptance waiver."
+  },
+  "change": "verify(report, observations) branches on actual report, preserving exact existing Native checks and source contribution selection",
+  "validation": {
+    "closure": {
+      "unit": "vibe-skill-maintenance-binding-20261126b",
+      "status": "passed",
+      "tests": 4,
+      "coverage": [
+        "Actual unfixed6f75 closure reproduces ReferenceError",
+        "Actual fixed closure selects decision/receipt contributions",
+        "Null/absent return preserves failed Native verdict"
+      ],
+      "boundary": "Actual production closure compiled with canonical Host esbuild and controlled dependency boundaries; all Native dependency verdicts deliberately false. Not a qualification claim."
+    },
+    "factory": {
+      "unit": "vibe-skill-maintenance-factory-binding-20261126a",
+      "status": "passed",
+      "tests": 1,
+      "wallSeconds": 2.819,
+      "peakMiB": 278.6,
+      "coverage": "Actual prepareSkillMaintenance factory over controlled versioned ownedVCS and failed retained observer; verify undefined/null/decision returns failed original checks, no ReferenceError/no fabricated success."
+    },
+    "models": 0
+  },
+  "unchanged": [
+    "All goals/IDs/splits",
+    "All Native authority/source/compiler/grant/outcome requirements",
+    "All Root APIs and generated declarations",
+    "All frozen Source52 input bytes"
+  ],
+  "limits": [
+    "No full26-world Native qualification or independent semantic review claimed",
+    "Whole-family discarded AuthoringReport/readback valueflow remains a separate future correction"
+  ]
+}
