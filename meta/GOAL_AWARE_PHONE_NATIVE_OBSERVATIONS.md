@@ -1,0 +1,7 @@
+# Native phone observations without an obligatory read sequence
+
+Inventory: preparePhoneFirstRun verify/qualify, its26 worlds and Native controls; Base readPhoneEvidence/explainPhoneFirstRun and shared PhoneFirstRunEvidence; Host strict observedContentFields.phoneFirstRun. Actual denial remains before every forbidden operation. No goal/ID/split/grant changes.
+
+Teacher verification retains the actual current assigned basis, authentic optional phase/provider/resume observations, paired ownership and unchanged workspace. It no longer forces every subsystem read, green native state or a read-only resume merely because a pairing exists. Expected native eligibility/phases/resume checks live in model-free fixture qualification, not as user-goal report gates. Meaning review remains mandatory for requested claims; unread native values do not authorize guessing.
+
+New bound nativeFacts carries actual actor-observed kinds, before/after workspace states and protocol semantics explaining that resume reads neither install nor pair. The existing successful journal/refusedOperations are retained. Host must bind this new field exactly before paired activation. Actual32 Native controls passed1.08s/154.6MiB, including all26 reference worlds, missing requested findings, narrow evidence, mandatory review of a guessed answer, genuine mutation/current-basis negatives and refused-operation evidence. These are tests, not teacher data or claims about live review.

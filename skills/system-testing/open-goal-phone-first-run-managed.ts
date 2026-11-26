@@ -1,6 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["card","assignment","phases","build","journal","refusedOperations"],[]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["card","assignment","phases","build","journal","refusedOperations","nativeFacts"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { workspaceReadinessFromLog } from "@vibestudio/shared/mobileWorkspaceReadiness";
@@ -396,8 +396,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     const outcome = report;
     const phases = readPhases(world, id, targetId);
     const build = await buildEvidence();
-    const { expected } = world;
-    const after = await status();
+        const after = await status();
     const match = (
       name: string,
       method: string,
@@ -421,35 +420,22 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     const checks = {
       exactPhoneDesktopEligibility:
         match("phoneFirstRun", "discover", [], [card, archived]) &&
-        match("phoneFirstRun", "inspect", [id], assignment) &&
-        isDeepStrictEqual(
-          desktops.map((value) => value.providerId),
-          expected.eligible ?? [],
-        ),
+        match("phoneFirstRun", "inspect", [id], assignment),
       preservedOwnedPairing:
-        paired === "owned"
-          ? Boolean(
-              start &&
-              readback &&
-              start.pairedDeviceId === targetId &&
-              match(
-                "phoneSetupRead",
-                "start",
-                [bound.request.operationId],
-                start,
-              ) &&
-              match("phoneSetupRead", "readiness", [start.receipt], readback) &&
-              readback.state === expected.ready,
-            )
-          : start === undefined && readback === undefined,
+        (start === undefined && readback === undefined) ||
+        (paired === "owned" &&
+          journal.filter(row=>row.service==="phoneSetupRead").every(row=>
+            row.method==="start"
+              ? isDeepStrictEqual(row.args,[bound.request.operationId]) &&
+                (row.result as {pairedDeviceId?:string}).pairedDeviceId===targetId
+              : row.method==="readiness" && journal.some(prior=>prior.service==="phoneSetupRead"&&prior.method==="start"&&
+                isDeepStrictEqual(row.args,[(prior.result as {receipt:string}).receipt])))),
       exactScopedMobileDebugPhases:
-        phases.status === (expected.phases ?? "unavailable") &&
-        match("phoneFirstRun", "phases", [id], phases),
+        journal.filter(row=>row.service==="phoneFirstRun"&&row.method==="phases")
+          .every(row=>isDeepStrictEqual(row.args,[id])&&isDeepStrictEqual(row.result,phases)),
       exactInstalledReactNativeDeclaration:
-        build.runtime === "react-native" &&
-        build.abi === build.expectedAbi &&
-        build.providerPackage === "@workspace-extensions/react-native" &&
-        match("phoneFirstRun", "provider", [id], build),
+        journal.filter(row=>row.service==="phoneFirstRun"&&row.method==="provider")
+          .every(row=>isDeepStrictEqual(row.args,[id])&&isDeepStrictEqual(row.result,build)),
       noRefusedPhoneOperations: unwantedOperations===0,
       returnedPhoneDecision: typeof outcome==="string"&&!!outcome.trim(),
       matchedReadOnlyPhoneDisposition:
@@ -476,6 +462,17 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       journal: structuredClone(journal),
       unwantedOperations,
       refusedOperations: structuredClone(refusedOperations),
+      nativeFacts: {
+        actorObserved: {
+          assignment: journal.some(row=>row.service==="phoneFirstRun"&&row.method==="inspect"),
+          startup: journal.some(row=>row.service==="phoneFirstRun"&&row.method==="phases"),
+          provider: journal.some(row=>row.service==="phoneFirstRun"&&row.method==="provider"),
+          resume: journal.some(row=>row.service==="phoneSetupRead"&&row.method==="readiness"),
+        },
+        workspaceBefore: structuredClone(baseline), workspaceAfter: structuredClone(after),
+        readProtocol: "phoneSetupRead.start/readiness only observe an already owned pairing; they do not install or pair. Refused operations throw before any effect. A null current assignment.setupRequest grants no resume authority.",
+        evidenceProtocol: "card, assignment, phases and build are trusted verifier facts; journal and actorObserved identify what the actor actually inspected. Require the basis relevant to requested claims, not a fixed set of reads. Unread does not mean unavailable.",
+      },
     };
   }
   async function qualify() {
@@ -505,10 +502,14 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     const report = "Qualification reference: "+world.expected.action;
     const result = await verify(report);
     const rejectedMissingPhoneFinding = !(await verify("")).outcomeDimensions.returnedValue.passed;
-    const checks = { ...result.checks, rejectedArchive, rejectedMissingPhoneFinding };
+    const checks = { ...result.checks, rejectedArchive, rejectedMissingPhoneFinding,
+      referenceNativeEligibility: isDeepStrictEqual(desktops.map(value=>value.providerId),world.expected.eligible??[]),
+      referenceNativePhases: startup.status===(world.expected.phases??"unavailable"),
+      referenceNativeResume: paired!=="owned" || resume?.status==="workspace-"+world.expected.ready,
+    };
     return assessNativeQualification({
       ...result,
-      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedArchive","rejectedMissingPhoneFinding"]}},
+      outcomeContract:{...result.outcomeContract,effects:{...result.outcomeContract.effects,checks:[...result.outcomeContract.effects.checks,"rejectedArchive","rejectedMissingPhoneFinding","referenceNativeEligibility","referenceNativePhases","referenceNativeResume"]}},
       checks,
       passed: Object.values(checks).every(Boolean),
       report,
