@@ -1,6 +1,8 @@
 import {maxScratchArtifactBytes} from "@workspace-skills/scratch-handoff-bindings";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+import {nativeWireEqual} from "@workspace/natlang-services/nativeWireEqual";
+const assessObservedApplicationOutcome=bindObservedContentReview(["assignment","source","selection","runtime","effects"],["receipt","retainedText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -62,7 +64,7 @@ type SourceDoc = { marker: string; context: string; revision: string; subject: s
   exportName: string; probe: SmokeWorld["probe"]; input: SmokeWorld["input"]; accepted: unknown };
 type Plan = Omit<SourceDoc, "marker"> & { path: string; digest: string };
 type Source = { matches: number; truncated: boolean; plans: Plan[] };
-type Runtime = { packageName: string; exportName: string; callable: boolean; value: unknown; runDigest: string };
+type Runtime = { packageName: string; exportName: string; callable: boolean; value: unknown; runDigest: string; matchesAccepted: boolean };
 type Receipt = { path: string; bytes: number; sha256: string };
 
 function nativeProbe(plan: Plan) {
@@ -114,7 +116,7 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
   if (world.source === "missing") define("new-revision-other-feature", { ...owned, subject: "Different scope" });
   await Promise.all(Object.entries(records).map(([path, text]) => ports.write(path, text)));
   const effects: { service: string; method: string; args: unknown[]; result: unknown }[] = [];
-  let discovered = false, inFlight = false, opened = false, closed = false;
+  let discovered = false, inFlight = false, opened = false, closed = false, disposed = false;
   let source: Source | null = null, runtime: Runtime | null = null, native: EvalResultReceipt | null = null, receipt: Receipt | null = null;
   function capture<T>(service: string, method: string, args: unknown[], result: T): T {
     effects.push(structuredClone({ service, method, args, result }));
@@ -144,13 +146,13 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
   const services = {
     workspaceSmokeEvidence: {
       async discover() {
+        if (closed) throw new Error("The owned smoke fixture is closed");
         if (discovered) return structuredClone(assignment);
         discovered = true;
         return capture("workspaceSmokeEvidence", "discover", [], assignment);
       },
       async scan(id: string) {
-        if (id !== assignment.id || inFlight) throw new Error("Search only the assigned owned smoke directory");
-        if (source) return structuredClone(source);
+        if (closed || id !== assignment.id || inFlight) throw new Error("Search only the assigned owned smoke directory");
         inFlight = true;
         try { source = await observe(); return capture("workspaceSmokeEvidence", "scan", [id], source); }
         finally { inFlight = false; }
@@ -159,17 +161,22 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
     workspaceSmokeRuntime: {
       async run(id: string, path: string, digest: string) {
         const candidates = current(source), plan = candidates[0];
-        if (id !== assignment.id || !source || source.truncated || inFlight || opened || candidates.length !== 1 || plan.path !== path ||
+        if (id !== assignment.id || !source || source.truncated || inFlight || closed || candidates.length !== 1 || plan.path !== path ||
           plan.digest !== digest || (plan.exportName !== actions[plan.probe] && plan.exportName !== missingExport))
           throw new Error("Only one exact approved smoke plan may enter the native evaluator");
-        inFlight = true; opened = true;
+        inFlight = true;
         try {
           if (hash(decoder.decode(await ports.read(path))) !== digest) throw new Error("Smoke contract changed before native execution");
+          if (opened) {
+            if (!runtime || !native || !isDeepStrictEqual(native, await ports.retained(scopeKey, runId))) throw new Error("Retained smoke execution changed");
+            return capture("workspaceSmokeRuntime", "run", [id,path,digest],runtime);
+          }
+          opened = true;
           native = await ports.run(scopeKey, runId, nativeProbe(plan));
-          const value = native.result.returnValue as Omit<Runtime,"packageName"|"runDigest"> | null;
+          const value = native.result.returnValue as Omit<Runtime,"packageName"|"runDigest"|"matchesAccepted"> | null;
           if (!native.result.success || !value || value.exportName !== plan.exportName || typeof value.callable !== "boolean")
             throw new Error("Installed smoke execution failed: " + (native.result.error?.message ?? value?.exportName ?? "no result"));
-          runtime = { packageName, ...value, runDigest: native.runDigest };
+          runtime = { packageName, ...value, runDigest: native.runDigest, matchesAccepted: value.callable && nativeWireEqual(value.value, plan.accepted) };
           return capture("workspaceSmokeRuntime", "run", [id, path, digest], runtime);
         } finally { inFlight = false; }
       },
@@ -178,12 +185,18 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
       async stage(id: string, path: string, runDigest: string) {
         const [plan] = current(source);
         if (!plan || !runtime?.callable || id !== assignment.id || path !== plan.path || runDigest !== runtime.runDigest ||
-          !assignment.mayStage || !isDeepStrictEqual(runtime.value, plan.accepted) || receipt || inFlight)
+          !assignment.mayStage || !runtime.matchesAccepted || closed || inFlight)
           throw new Error("Stage only approved successful exact installed smoke evidence");
         inFlight = true;
         try {
           const text = dossier(plan, runtime);
           if(new TextEncoder().encode(text).byteLength>maxScratchArtifactBytes)throw new RangeError("Smoke artifact exceeds the canonical scratch byte bound");
+          if (hash(decoder.decode(await ports.read(path))) !== plan.digest) throw new Error("Smoke contract changed before evidence retention");
+          if (!native || !isDeepStrictEqual(native, await ports.retained(scopeKey, runId))) throw new Error("Smoke native receipt changed before retention");
+          if (receipt) {
+            if (decoder.decode(await ports.read(output,maxScratchArtifactBytes)) !== text) throw new Error("Retained smoke artifact changed");
+            return capture("workspaceSmokeHandoff","stage",[id,path,runDigest],receipt);
+          }
           await ports.write(output, text);
           const bytes = await ports.read(output,maxScratchArtifactBytes);
           if (decoder.decode(bytes) !== text) throw new Error("Exact smoke receipt readback changed");
@@ -198,35 +211,20 @@ export async function prepareWorkspaceSmoke(input: { contextId: string; caseId: 
   async function verify(value: unknown,invocation?: InvocationObservations) {
     const proof=await verifyNativeApplication(value,invocation);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedSmokeResolution"],"rootPath":["decision"],"producerSourceSuffix":"reviewWorkspaceSmoke/compareSmokeOutput.nl","producerPath":[]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=value;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,[]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
-    const report = value as {
-      assignment?: unknown; source?: unknown; selection?: unknown; runtime?: unknown; decision?: unknown; receipt?: unknown;
-    } | null;
-    const outcome = report, reread = await observe(), candidates = current(reread);
+    const reread = await observe(), candidates = current(reread);
     const plan = candidates.length === 1 ? candidates[0] : null;
-    const blocker = plan ? null : candidates.length > 1 ? "hold-ambiguity" : "hold-source";
-    const selection = { plan, blocker };
-    const decision = { disposition: world.expected, mayRetain: world.expected === "accepted" && assignment.mayStage };
+    const selection = { plan, blocker: plan ? null : candidates.length > 1 ? "hold-ambiguity" : "hold-source" };
+    const shouldRetain = world.noteRequest === "if-accepted" && !!runtime?.matchesAccepted && assignment.mayStage;
     const entries = await ports.entries(outputDirectory);
     const data = entries.length === 1 && entries[0] === "runtime-smoke.json" ? await ports.read(output,maxScratchArtifactBytes) : null;
-    const exactText = decision.mayRetain && plan && runtime ? dossier(plan,runtime) : null;
+    const exactText = assignment.mayStage && runtime?.matchesAccepted && plan ? dossier(plan,runtime) : null;
     const expectedReceipt = data && exactText && decoder.decode(data) === exactText ? { path: output, bytes: data.length, sha256: hash(exactText) } : null;
     const original = await Promise.all(Object.entries(records).map(async ([path, text]) => decoder.decode(await ports.read(path)) === text));
     const exactPaths = Object.entries(records).filter(([,body]) => body.includes(marker)).map(([path]) => path).sort();
@@ -236,24 +234,24 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         isDeepStrictEqual(reread.plans.map(plan => plan.path), exactPaths),
       selectedApprovedSmokeContract: !plan||plan.digest===source?.plans.find(row=>row.path===plan.path)?.digest,
       verifiedInstalledExportAndRuntime: (plan ?
-        runtime?.packageName === packageName && runtime.exportName === plan.exportName && runtime.callable === !world.unavailableExport &&
-        isDeepStrictEqual(runtime.value, world.unavailableExport ? null : world.runtime) &&
+        runtime?.packageName === packageName && runtime.exportName === plan.exportName &&
+        !!native && native.result.success && native.runDigest === runtime.runDigest &&
+        isDeepStrictEqual(native.result.returnValue,{exportName:runtime.exportName,callable:runtime.callable,value:runtime.value}) &&
         isDeepStrictEqual(native, await ports.retained(scopeKey, runId)) : runtime === null && !opened),
-      returnedSmokeResolution: isDeepStrictEqual(outcome?.decision,decision)&&isDeepStrictEqual(outcome?.receipt,expectedReceipt),
-      matchedExactSmokeOutcome: (runtime?.callable ?
-          (isDeepStrictEqual(runtime.value, plan?.accepted) ? "accepted" : "regression") === world.expected : true),
-      verifiedPrivateSmokeReceipt: (exactText ? expectedReceipt !== null : entries.length === 0) &&
+      returnedSmokeResolution: !world.requestedAnswerRequired || (typeof value === "string" && value.trim().length > 0),
+      matchedExactSmokeOutcome: runtime ? runtime.matchesAccepted === (runtime.callable && nativeWireEqual(runtime.value,plan?.accepted)) : plan === null,
+      verifiedPrivateSmokeReceipt: (shouldRetain ? expectedReceipt !== null : entries.length === 0 || expectedReceipt !== null) &&
         isDeepStrictEqual(receipt, expectedReceipt) && original.every(Boolean),
     };
     return {
       outcomeContract: {
         effects: {checks:["matchedExactSmokeAssignment", "verifiedNativeSearchAndSource", "selectedApprovedSmokeContract", "verifiedInstalledExportAndRuntime", "matchedExactSmokeOutcome", "verifiedPrivateSmokeReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
-        returnedValue: {checks:["returnedSmokeResolution"],required:!exactText,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        returnedValue: {checks:["returnedSmokeResolution"],required:world.requestedAnswerRequired,rationale:"Each unchanged literal goal declares whether it requests an answer, independently of native effects or optional retention."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
       incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
-      assignment, source: reread, selection, runtime, decision, receipt: expectedReceipt, effects: structuredClone(effects) };
+      actualResult:value, assignment, source: reread, selection, runtime, receipt: expectedReceipt, retainedText:data ? decoder.decode(data) : null, effects: structuredClone(effects) };
   }
   async function qualify() {
     const discovered = await services.workspaceSmokeEvidence.discover();
@@ -263,15 +261,15 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     async function rejected(work: Promise<unknown>) { try { await work; return false; } catch { return true; } }
     const rejectedWrongDigest = await rejected(services.workspaceSmokeRuntime.run(discovered.id, plan?.path ?? "unowned", "old-digest"));
     const runtime = plan ? await services.workspaceSmokeRuntime.run(discovered.id, plan.path, plan.digest) : null;
-    const decision = { disposition: world.expected, mayRetain: world.expected === "accepted" && assignment.mayStage };
+    const mayRetain = world.noteRequest === "if-accepted" && assignment.mayStage && runtime?.matchesAccepted;
     const rejectedWrongRuntime = await rejected(services.workspaceSmokeHandoff.stage(discovered.id, plan?.path ?? "unowned", "old-build"));
-    const receipt = decision.mayRetain && plan && runtime ? await services.workspaceSmokeHandoff.stage(discovered.id,plan.path,runtime.runDigest) : null;
-    const report = { decision, receipt };
+    const receipt = mayRetain && plan && runtime ? await services.workspaceSmokeHandoff.stage(discovered.id,plan.path,runtime.runDigest) : null;
+    const report = runtime ? JSON.stringify({subject:assignment.subject,callable:runtime.callable,observed:runtime.value,accepted:runtime.matchesAccepted,retained:receipt !== null}) : "The assigned current approval could not be uniquely established; no installed test or note was fabricated.";
     const proof = await verify(report);
-    const rejectedWrongSource = !(await verify({ ...report, decision: { ...decision, disposition: "invented" } })).outcomeDimensions.returnedValue.passed;
+    const rejectedWrongSource = !world.requestedAnswerRequired || !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedWrongDigest, rejectedWrongRuntime, rejectedWrongSource };
     return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedWrongDigest","rejectedWrongRuntime","rejectedWrongSource"]}}, passed: Object.values(checks).every(Boolean), checks, report });
   }
-  async function close() { if (opened && !closed) { await ports.dispose(scopeKey); closed = true; } }
+  async function close() { closed = true; if (opened && !disposed) { await ports.dispose(scopeKey); disposed = true; } }
   return { services, qualify, verify, close };
 }

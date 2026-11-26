@@ -1,5 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["assignment","evidence","initial","current","nativeReceipt","effects"],[]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { canonicalJson, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -174,7 +175,7 @@ export async function prepareDeliveryWake(input: { contextId: string; caseId: st
   if (replayPorts) return bindDeliveryWake(input, world, replayPorts);
   const { ports, close } = await nativePorts(input.contextId);
   try { return { ...await bindDeliveryWake(input, world, ports), close }; }
-  catch (error) { await close(); throw error; }
+  catch (error) { try { await close(); } catch (cleanup) { throw new AggregateError([error,cleanup],"Delivery preparation and cleanup both failed"); } throw error; }
 }
 
 async function bindDeliveryWake(input: { contextId: string; caseId: string }, world: DeliveryWakeWorld, ports: Ports) {
@@ -202,6 +203,11 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
   const range = before.pending;
   const inRange = (sequence: number) => !!range && sequence > range.after && sequence <= range.through;
   const rangeComplete = !range || before.history.filter(row => inRange(row.id)).length === range.through - range.after;
+  function canRecover() {
+    return !!observed?.connection.ready && observed.connection.channel === key && observed.connection.admittedSurfaces === 1 &&
+      !!range && assignment.mayWake && !alreadyPresent && realm.active && realm.attached && assignment.recipient === realm.id &&
+      assignment.revision === realm.revision && assignment.saved === range.after && rangeComplete && !!sourceEvent && inRange(sourceEvent.sequence);
+  }
   function capture<T>(service: string, method: string, args: unknown[], result: T): T {
     effects.push(structuredClone({ service, method, args, result }));
     return structuredClone(result);
@@ -215,15 +221,18 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
       },
       async observe(id: string) {
         if (id !== assignment.id) throw new Error("Observe the one exact delivery lane");
-        if (observed) return structuredClone(observed);
         if (pending) throw new Error("The delivery observation is already in progress");
         pending = true;
         try {
-          const connection = await ports.connect(world.connection);
-          if (!isDeepStrictEqual(await store.inspect({ key }), before)) throw new Error("Reconnect changed the retained mailbox");
+          const connection = observed?.connection ?? await ports.connect(world.connection);
+          const state = await store.inspect({key});
+          if (!isDeepStrictEqual(state.history,before.history) || !isDeepStrictEqual(state.recipient,realm)) throw new Error("Owned delivery source changed");
+          const freshEvents = state.history.flatMap(row => readEvent(row,key) ?? []);
+          const freshRange = state.pending;
           observed = {
-            connection, current: realm, cursor: before.cursor, pending: range, rangeComplete, events, mailbox: before.rows,
-            contextRows: before.contextIds.length, contextCopies: before.contextCopies,
+            connection, current:state.recipient, cursor:state.cursor, pending:freshRange,
+            rangeComplete:!freshRange || state.history.filter(row=>row.id>freshRange.after && row.id<=freshRange.through).length === freshRange.through-freshRange.after,
+            events:freshEvents, mailbox:state.rows, contextRows:state.contextIds.length, contextCopies:state.contextCopies,
           };
           return capture("deliveryWakeEvidence", "observe", [id], observed);
         } finally { pending = false; }
@@ -231,6 +240,12 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
     },
     deliveryWakeAction: {
       async apply(id: string, event: string, cursor: RecipientAddress | null) {
+        if (receipt && id === assignment.id && event === receipt.event && isDeepStrictEqual(cursor,range)) {
+          const actual = await store.inspect({key});
+          if (pending || actual.pending || !isDeepStrictEqual(actual.recipient,realm) || !actual.rows.some(row=>row.deliveryId===receipt!.deliveryId && row.event===event && row.recipient===realm.id && row.revision===realm.revision)) throw new Error("Retained wake acknowledgment no longer matches native state");
+          return capture("deliveryWakeAction","apply",[id,event,cursor],receipt);
+        }
+        if (!isDeepStrictEqual(await store.inspect({key}),before)) throw new Error("Owned delivery changed before recovery");
         if (id !== assignment.id || !observed?.connection.ready || observed.connection.channel !== key ||
           observed.connection.admittedSurfaces !== 1 || !range || pending || receipt || !assignment.mayWake || alreadyPresent ||
           !realm.active || !realm.attached || assignment.recipient !== realm.id || assignment.revision !== realm.revision ||
@@ -253,31 +268,15 @@ async function bindDeliveryWake(input: { contextId: string; caseId: string }, wo
   async function verify(value: unknown,invocation?: InvocationObservations) {
     const proof=await verifyNativeApplication(value,invocation);
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
-    // Bind only fields actually emitted by this composition. Native receipt-only
-    // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedDeliveryResolution"],"rootPath":["choice"],"producerSourceSuffix":"reviewDeliveryWake/decideDeliveryWake.nl","producerPath":[]}];
-    const contributions=authored.filter(binding=>{
-      let current:unknown=value;
-      for(const key of binding.rootPath){
-        if(current===null||typeof current!=="object"||!Object.hasOwn(current,key))return false;
-        current=(current as Record<string|number,unknown>)[key];
-      }
-      return true;
-    });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,[]);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
     return {...dimensions,checks:observedChecks};
   }
 async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
-    const report = value as {
-      assignment?: unknown; evidence?: unknown; choice?: unknown; receipt?: unknown;
-    } | null;
-    const outcome = report, disposition = world.expected;
-    const choice = { disposition, event: ["advance","confirmed"].includes(disposition) ? sourceEvent : null };
     const after = await store.inspect({ key });
-    const shouldWake = disposition === "advance";
+    const shouldWake = world.recoveryRequested && canRecover();
     const added = shouldWake ? events.filter(event => inRange(event.sequence) && event.recipients.includes(seeded.recipient)) : [];
     const expectedAdd = added.map(event => ({ deliveryId: sha256HexSyncText(canonicalJson([key, event.id, seeded.recipient, realm.revision])),
       event: event.id, sequence: event.sequence, recipient: seeded.recipient, revision: realm.revision, state: "ready" }))
@@ -290,20 +289,16 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const expectedReceipt = shouldWake && exactRow ? { event: exactRow.event, deliveryId: exactRow.deliveryId, revision: exactRow.revision,
       cursor: after.cursor, newRows: expectedAdd.length, repeatRows: 0, contextRows: contexts.length, contextCopies: 0 } : null;
     const ready = world.connection !== "unavailable", connection = observed?.connection;
-    const nativeDisposition = !ready ? "hold-connection" : !realm.active || !realm.attached || realm.id !== assignment.recipient ? "hold-recipient" :
-      assignment.revision !== realm.revision ? "hold-revision" : assignment.saved !== nativeCursor ? "hold-cursor" :
-      !rangeComplete || !sourceEvent ? "hold-evidence" : alreadyPresent ? "confirmed" :
-      !inRange(sourceEvent.sequence) ? "hold-evidence" : assignment.mayWake ? "advance" : "hold-policy";
     const checks = {
       matchedOwnedDeliveryAssignment: observed!==null,
-      returnedDeliveryResolution: isDeepStrictEqual(outcome?.choice,choice)&&isDeepStrictEqual(outcome?.receipt,expectedReceipt),
+      returnedDeliveryResolution: !world.requestedAnswerRequired || (typeof value === "string" && value.trim().length > 0),
       verifiedNativeFirstSubscription: connection?.channel === key && connection.context === input.contextId && connection.ready === ready &&
         connection.firstRejected === (world.connection !== "clean") && connection.attempts >= (world.connection === "recover" ? 2 : 1) &&
         (ready ? connection.admittedSurfaces >= 1 : connection.admittedSurfaces === 0),
       verifiedExactRetainedDelivery: !!observed &&
         before.history.length === seeded.events.length - (seeded.omit ? 1 : 0) &&
-        (disposition !== "confirmed" || !!exactRow) && (disposition !== "advance" || !!sourceEvent),
-      verifiedSameReceiverCursor: nativeDisposition === disposition &&
+        (!alreadyPresent || !!exactRow) && (!shouldWake || !!sourceEvent),
+      verifiedSameReceiverCursor:
         isDeepStrictEqual(after.pending, shouldWake ? null : before.pending) && before.cursor === after.cursor &&
         isDeepStrictEqual(before.history, after.history) && isDeepStrictEqual(before.recipient, after.recipient),
       verifiedUniqueNormalizedMailbox: isDeepStrictEqual(after.rows, expectedRows) && after.contextCopies === 0 &&
@@ -314,25 +309,25 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract: {
         effects: {checks:["matchedOwnedDeliveryAssignment", "verifiedNativeFirstSubscription", "verifiedExactRetainedDelivery", "verifiedSameReceiverCursor", "verifiedUniqueNormalizedMailbox", "verifiedExactWakeReceipt"],rationale:"The independent native observations, persisted artifacts and unchanged neighboring state establish these facts."},
-        returnedValue: {checks:["returnedDeliveryResolution"],required:!shouldWake,rationale:"A requested read-only conclusion is application data; an extra result copy is optional after its native effect is established."},
+        returnedValue: {checks:["returnedDeliveryResolution"],required:world.requestedAnswerRequired,rationale:"The unchanged literal goal declares whether it requests an answer independently of an actual native recovery."},
         incidentalValues: {checks:[],rationale:"Known incorrect emitted values are masked using their actual invocation definition."},
       },
       incorrectReturnValues:[],
  passed: Object.values(checks).every(Boolean), caseId: world.id, contextId: input.contextId, goal: world.goal, checks,
-      assignment, evidence: observed, choice, receipt: expectedReceipt, effects: structuredClone(effects) };
+      actualResult:value, assignment, evidence: observed, initial:before, current:after, nativeReceipt:expectedReceipt, effects: structuredClone(effects) };
   }
   async function qualify() {
     const assigned = await services.deliveryWakeEvidence.discover();
     const evidence = await services.deliveryWakeEvidence.observe(assigned.id);
-    const choice = { disposition: world.expected, event: ["advance","confirmed"].includes(world.expected) ? sourceEvent : null };
+
     async function rejected(work: Promise<unknown>) { try { await work; return false; } catch { return true; } }
     const rejectedForeignReplay = await rejected(services.deliveryWakeAction.apply(assigned.id, "other-event", range));
     const rejectedCursorDrift = !range || await rejected(store.recover({ key, ...range, after: range.after - 1 }));
-    const receipt = choice.disposition === "advance" && choice.event ?
-      await services.deliveryWakeAction.apply(assigned.id, choice.event.id, range) : null;
-    const report = { choice, receipt };
+    const receipt = world.recoveryRequested && canRecover() && sourceEvent ?
+      await services.deliveryWakeAction.apply(assigned.id, sourceEvent.id, range) : null;
+    const report = JSON.stringify({subject:assignment.subject,connection:evidence.connection.ready,original:sourceEvent,alreadyPresent,recovered:receipt !== null,currentReceiver:evidence.current,saved:assignment.saved,pending:evidence.pending});
     const proof = await verify(report);
-    const rejectedWrongScope = !(await verify({ ...report, choice: { ...choice, disposition: "invented" } })).outcomeDimensions.returnedValue.passed;
+    const rejectedWrongScope = !world.requestedAnswerRequired || !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
     const checks = { ...proof.checks, rejectedForeignReplay, rejectedCursorDrift, rejectedWrongScope };
     return assessNativeQualification({ ...proof, outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"rejectedForeignReplay","rejectedCursorDrift","rejectedWrongScope"]}}, checks, passed: Object.values(checks).every(Boolean), report });
   }
