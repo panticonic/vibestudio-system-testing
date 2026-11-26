@@ -113,7 +113,7 @@ it("retains actual current facts after one or repeated observations without refe
   expect(proof.observedChecks).not.toHaveProperty("exactSpecialistFrontiers");
   expect(proof.observedChecks).not.toHaveProperty("exactOriginalAttempt");
   expect(
-    proof.semanticReviewInput.actual.observations.independent.every(
+    proof.semanticReviewInput.expected.observations.independent.every(
       (candidate: any) => !Object.hasOwn(candidate.nativeJoin, "action"),
     ),
   ).toBe(true);

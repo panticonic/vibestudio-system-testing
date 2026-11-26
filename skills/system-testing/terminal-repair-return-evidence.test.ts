@@ -11,7 +11,7 @@ it("requires native-bound meaning review for requested diagnostics rather than a
  const native={caseId:"case",goal:"Read actual source and explain the count discrepancy without editing",journal:[{service:"observe",result:{source:"return count+1",tests:{actual:4,expected:3},mayEdit:false}}],proof:{currentRevision:"native",protectedDigest:"unchanged"},checks:{nativeAuthority:true,returned:terminalRepairReturnIsBound(actual,null)},passed:true};
  const contract={effects:{checks:["nativeAuthority"],rationale:"Native authority"},returnedValue:{checks:["returned"],required:true,rationale:"Requested diagnosis"},incidentalValues:{checks:[],rationale:"No incidental requirement"}};
  const proof=await assessTerminalRepairGoal(native,contract,actual);
- expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.observations.journal).toEqual(native.journal);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(actual);
+ expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.expected.observations.journal).toEqual(native.journal);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(actual);
  const optional=await assessTerminalRepairGoal({...native,checks:{nativeAuthority:true,returned:false}}, {...contract,returnedValue:{...contract.returnedValue,required:false}}, {outcome:"invented"});
  expect(optional.passed).toBe(true);expect(optional.outcomeDimensions.returnedValue.checks.returned).toBe(false);expect(optional.semanticReviewRequired).toBe(true);expect(optional.semanticReviewInput.actual.requestedReturn).toBeNull();
 });

@@ -23,7 +23,7 @@ it('keeps pre-action authority and post-action revision changes as distinct actu
  expect(row.actualResult.verification.plan.suite).toBe('native');expect(row.actualResult.verification.execution).toBeNull();
  const check=bindObservedContentReview(['effects','assignment','observed','repair','plan']);
  const result=await check(proof,installedPackageGoalContract(world),row.actualResult);
- expect(result.passed).toBe(true);expect(result.semanticReviewRequired).toBe(true);expect(result.semanticReviewInput.actual.requestedReturn).toEqual(row.actualResult);expect(result.semanticReviewInput.actual.observations.observed.scopeMatches).toBe(true);expect(result.semanticReviewInput.actual.observations.repair.observation.scopeMatches).toBe(false);
+ expect(result.passed).toBe(true);expect(result.semanticReviewRequired).toBe(true);expect(result.semanticReviewInput.actual.requestedReturn).toEqual(row.actualResult);expect(result.semanticReviewInput.expected.observations.observed.scopeMatches).toBe(true);expect(result.semanticReviewInput.expected.observations.repair.observation.scopeMatches).toBe(false);
  expect(result.semanticReviewInput.rubric).toContain('actual action boundary');expect(result.semanticReviewInput.rubric).toContain('does not authorize another action');
  const missing=await check(negativeOutput(proof,{...proof.checks,returnedPackageFinding:false}),installedPackageGoalContract(world),undefined);expect(missing.passed).toBe(false);
  const unauthorized=await check(negativeOutput(proof,{...proof.checks,verifiedLocalManifestEffect:false}),installedPackageGoalContract(world),row.actualResult);expect(unauthorized.passed).toBe(false);
@@ -39,7 +39,7 @@ it('binds the actual structured private diagnostic, exact receipt and scoped sto
  const protocol=systemReleaseHandoffProtocol({contextId:proof.contextId,verifiedPrivateHandoff:proof.checks.verifiedPrivateHandoff,receipt:proof.handoff,text:proof.handoffText});
  expect(protocol).toMatchObject({contextId:proof.contextId,storage:'context-scoped-scratch',externalTransmission:false,bytes:1124,sha256:proof.handoff.sha256});
  const result=await bindObservedContentReview(['assignment','runs','cases','effects','handoffProtocol'],['handoff','handoffText'])({...proof,handoffProtocol:protocol},systemReleaseGoalContract(world),undefined);
- expect(result.passed).toBe(true);expect(result.semanticReviewRequired).toBe(true);expect(result.semanticReviewInput.actual.requestedReturn).toBeNull();expect(result.semanticReviewInput.actual.artifacts.handoffText).toBe(proof.handoffText);expect(result.semanticReviewInput.actual.observations.handoffProtocol.externalTransmission).toBe(false);expect(result.semanticReviewInput.rubric).toContain('structured diagnostic JSON');
+ expect(result.passed).toBe(true);expect(result.semanticReviewRequired).toBe(true);expect(result.semanticReviewInput.actual.requestedReturn).toBeNull();expect(result.semanticReviewInput.actual.artifacts.handoffText).toBe(proof.handoffText);expect(result.semanticReviewInput.expected.observations.handoffProtocol.externalTransmission).toBe(false);expect(result.semanticReviewInput.rubric).toContain('structured diagnostic JSON');
  const missing=await bindObservedContentReview(['cases'],['handoffText'])(negativeOutput(proof,{...proof.checks,verifiedPrivateHandoff:false}),systemReleaseGoalContract(world),undefined);expect(missing.passed).toBe(false);
 });
 it('does not invent private custody for missing, forged, cross-context or non-scratch artifacts',()=>{

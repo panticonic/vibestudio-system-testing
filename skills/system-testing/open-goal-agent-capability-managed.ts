@@ -1,6 +1,6 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "evidence", "decision", "continuation", "notebookState", "retainedValueReads"], []);
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "evidence", "decision", "continuation", "notebookState", "retainedValueReads"],[],{nonAuthoritativeKeys:["decision"]});
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";

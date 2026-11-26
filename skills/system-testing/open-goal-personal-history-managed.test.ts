@@ -12,7 +12,7 @@ import {openPersonalHistoryWorlds} from "./open-goal-personal-history-worlds.js"
 beforeEach(()=>{native.path="";native.head="main";native.events.clear();native.blobs.clear();});
 it.each(openPersonalHistoryWorlds)("$id keeps immutable native history and independently reviewed requested findings",async world=>{
  const fixture=await prepareOpenPersonalHistory({contextId:"owned-history",caseId:world.id},world);
- try{const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeDimensions.returnedValue.required).toBe(true);expect(proof.semanticReviewInput.actual.observations.reads).toEqual(proof.reads);}finally{await fixture.close();}
+ try{const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeDimensions.returnedValue.required).toBe(true);expect(proof.semanticReviewInput.expected.observations.reads).toEqual(proof.reads);}finally{await fixture.close();}
 });
 it("accepts an alternative actual supporting line without private file-read or exact semantic-label gates",async()=>{
  const world={id:"alternative",goal:"Tell us the recorded receiving bay at Loading approval",revisions:[{label:"Loading approval",note:"Signed",files:[{path:"plan.md",text:"Receiving bay: Cedar\nReceiving area is Cedar\n"},{path:"draft.md",text:"Draft says Blue\n"}]}],expected:{findings:[{label:"Loading approval",status:"verified" as const,reads:["plan.md","draft.md"],citations:[{path:"plan.md",line:1,quote:"Receiving bay: Cedar"}]}],relation:"single" as const,action:"clear" as const}};

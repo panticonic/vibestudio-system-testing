@@ -1,4 +1,6 @@
-import {observedContentReviewInput} from '/home/werg/vibe-native-recovery-review-bindings/scripts/lib/observed-content-admission.mjs';
+import {pathToFileURL} from 'node:url';
+import {resolve} from 'node:path';
+const {observedContentReviewInput}=await import(/* @vite-ignore */pathToFileURL(resolve(process.env.VIBESTUDIO_TEST_HOST_SOURCE??process.cwd(),'scripts/lib/observed-content-admission.mjs')).href);
 /** Real fixture source/receipts with isolated Native filesystem, VCS and auth ports; no provider/network. */
 import {expect,it,vi} from 'vitest';
 const memory=vi.hoisted(()=>({files:new Map<string,string>(),boot:'native-boot'}));

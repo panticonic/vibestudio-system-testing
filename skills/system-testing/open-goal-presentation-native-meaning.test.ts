@@ -36,7 +36,7 @@ it("observes the actual legitimate choices and binds their retained display for 
   expect(proof.passed).toBe(true);expect(proof.checks.independentlyVerifiedPresentationDom).toBe(true);
   expect(proof.semanticReviewRequired).toBe(true);
   expect(proof.semanticReviewInput.actual.artifacts).toEqual({report,display:proof.display});
-  expect(proof.semanticReviewInput.actual.observations["previewDisplay"]).toEqual(proof.previewDisplay);
+  expect(proof.semanticReviewInput.expected.observations["previewDisplay"]).toEqual(proof.previewDisplay);
   expect(proof.display?.rendered.controls?.[0]?.[0]?.disabled).toBe(false);
   expect(observe.mock.calls.every(call=>call[1].every(view=>!view.interaction))).toBe(true);
  }finally{await prepared.close();}

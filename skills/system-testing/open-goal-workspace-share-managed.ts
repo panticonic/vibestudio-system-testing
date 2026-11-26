@@ -1,7 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "observation", "decision", "effects"], ["handoffText"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "observation", "decision", "effects"],["handoffText"],{nonAuthoritativeKeys:["decision"]});
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { isDeepStrictEqual } from "node:util";

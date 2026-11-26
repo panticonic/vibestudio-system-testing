@@ -148,7 +148,7 @@ it("accepts additional truthful evidence without accepting a missing answer or f
  expect(proof.checks.exactPreflight).toBe(true);
  expect(proof.checks.exactRevision).toBe(true);
  expect(proof.semanticReviewRequired).toBe(true);
- expect(proof.semanticReviewInput.actual.observations.observations.revision).toEqual(comparison);
+ expect(proof.semanticReviewInput.expected.observations.observations.revision).toEqual(comparison);
  const absent=await prepared.verify(undefined);
  expect(absent.checks.returnedPublicationScope).toBe(false);
  expect(absent.outcomeContract.returnedValue.required).toBe(true);

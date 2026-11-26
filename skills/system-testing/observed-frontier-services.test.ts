@@ -86,7 +86,7 @@ it.each(Object.keys(changed) as Family[])("%s retains changed native evidence an
   const native=await p.fixture.verify({});
   expect(native.observedChecks.authenticImageFrontiers).toBe(true);
   expect(native.semanticReviewRequired).toBe(true);
-  expect(native.semanticReviewInput.actual.observations.reads.independent.through).toBeGreaterThan(first!.through);
+  expect(native.semanticReviewInput.expected.observations.reads.independent.through).toBeGreaterThan(first!.through);
  }else expect(await p.proof()).toBe(false);
  const current=await p.read();
  expect(current!.through).toBeGreaterThan(first!.through);

@@ -1,7 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "review", "candidate", "history", "decision", "effects"], ["dossierText"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["assignment", "review", "candidate", "history", "decision", "effects"],["dossierText"],{nonAuthoritativeKeys:["decision"]});
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";

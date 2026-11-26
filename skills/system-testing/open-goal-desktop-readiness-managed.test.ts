@@ -104,7 +104,7 @@ describe("desktop readiness with the installed client and canonical projections"
       expect(assessSemanticOutcome(report).passed).toBe(true);
       expect(report.semanticReviewRequired).toBe(true);
       expect(report.semanticReviewInput.actual.requestedReturn).toEqual(report.report);
-      expect(report.semanticReviewInput.actual.observations.window).toEqual(report.window);
+      expect(report.semanticReviewInput.expected.observations.window).toEqual(report.window);
       expect(report.semanticReviewInput.expected.requestedReturnRequired).toBe(true);
       expect(report.checks).toEqual(
         Object.fromEntries(

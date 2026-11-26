@@ -1,5 +1,5 @@
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["index", "packet", "choice", "evidence", "support", "test", "authority", "guideRevision"], ["artifact"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["index", "packet", "choice", "evidence", "support", "test", "authority", "guideRevision"],["artifact"],{nonAuthoritativeKeys:["choice"]});
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual } from "node:util";

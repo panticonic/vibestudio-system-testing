@@ -1,7 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "survey", "observation", "architecture", "decision"], ["handoffText"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "survey", "observation", "architecture", "decision"],["handoffText"],{nonAuthoritativeKeys:["decision"]});
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";

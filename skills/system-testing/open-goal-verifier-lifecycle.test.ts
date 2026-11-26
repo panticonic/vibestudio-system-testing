@@ -107,7 +107,7 @@ it("retains requested held chat diagnostics and accepts substantive explanations
  try{
   const reference=await prepared.qualify();expect(reference.passed).toBe(true);
   expect(reference.evidence.nativeWorkerIdentity).toMatchObject({sameObjectKey:true,sameParticipantId:true,currentlyActive:false,endedSinceOpening:true});
-  expect(reference.semanticReviewInput.actual.observations.evidence).toEqual(reference.evidence);
+  expect(reference.semanticReviewInput.expected.observations.evidence).toEqual(reference.evidence);
   const actual=reference.semanticReviewInput.actual.requestedReturn as {review:unknown;disposition:{status:string;write:boolean;explanation:string};handoff:unknown};
   expect(actual.disposition).toMatchObject({status:"held",write:true});
   const longer={...actual,disposition:{...actual.disposition,explanation:"The installed worker is no longer active, while the original retained history remains readable. ".repeat(12)}};

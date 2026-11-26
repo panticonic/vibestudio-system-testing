@@ -93,7 +93,7 @@ it("qualifies the missing-original world without releasing identical unrelated i
   const prepared=await prepareOpenImageCandidate({contextId:"owned",caseId:"image-candidate-lost-retention-after-selection"},candidatePorts(owned.images,owned.close) as never);
   try{
     const proof=await prepared.qualify();expect(proof.passed).toBe(true);
-    expect(proof.reads).toMatchObject([{status:"missing",original:null}]);
+    expect(proof.reads.actor.map(row=>row.read)).toMatchObject([{status:"missing",original:null}]);
     expect(proof.handoff).toBeNull();
     const actual=proof.semanticReviewInput.actual.requestedReturn as {decision:{explanation:string}};
     const paraphrase={...actual,decision:{...actual.decision,explanation:"The source file was removed, so I cannot hand it off."}};
@@ -102,7 +102,7 @@ it("qualifies the missing-original world without releasing identical unrelated i
     // this exact answer and original-read evidence, rather than a gold word list.
     expect(reviewed.passed).toBe(true);
     expect(reviewed.semanticReviewInput.actual.requestedReturn).toEqual(paraphrase);
-    expect(reviewed.semanticReviewInput.actual.observations.reads).toMatchObject([{status:"missing"}]);
+    expect(reviewed.semanticReviewInput.expected.observations.reads.actor.map(row=>row.read)).toMatchObject([{status:"missing"}]);
     expect(reviewed.semanticReviewRequired).toBe(true);
   }finally{await prepared.close();}
   await expect(native.call("shared",imagesRpcMethods.readAsset,[peer.id])).resolves.toMatchObject({base64});
@@ -139,13 +139,13 @@ it("keeps a correct native format answer despite obsolete planner bookkeeping an
     const proof=await prepared.verify(value,{calls:returns,returns:async select=>returns.filter(call=>!select||select(call))});
     expect(proof.passed).toBe(true);
     expect((await prepared.verify({...value,decision:{...value.decision,explanation:value.decision.explanation.repeat(20)}})).passed).toBe(true);
-    expect(proof.diagnosticChecks.groundedImageAssessment).toBe(false);
+    expect(proof.checks).not.toHaveProperty("groundedImageAssessment");
     expect(proof.outcomeContract.returnedValue.checks).not.toContain("groundedImageAssessment");
     expect(proof.outcomeDimensions.incidentalValues?.incorrectReturns).toEqual([]);
     expect(proof.unboundReturnContributions).toEqual([]);
     expect(proof.semanticReviewRequired).toBe(true);
     expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(value);
-    expect(proof.semanticReviewInput.actual.observations.reads).toMatchObject([{status:"mismatch",original:{mime:"image/png"}}]);
+    expect(proof.semanticReviewInput.expected.observations.reads).toMatchObject([{status:"mismatch",original:{mime:"image/png"}}]);
     expect((await prepared.verify({...value,originals:[]})).passed).toBe(false);
     expect((await prepared.verify({...value,decision:{...value.decision,action:"report",candidateId:value.candidates[0]!.id,explanation:"It is a verified WebP and can be used."}})).passed).toBe(false);
   }finally{await prepared.close();}

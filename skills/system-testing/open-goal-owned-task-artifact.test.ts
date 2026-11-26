@@ -25,7 +25,7 @@ it("reads actual retained CSV bytes through the inspected accepted assignment",a
  const {p,current,lane}=await setup();try{const result=await p.services.ownedTaskAttempts.readArtifact(current.task.id,current.revision,lane.lane.id,lane.basis);
  expect(result.content).toBe(original.lanes[0].artifactContents!.content);expect(result.reference.digest).toBe(sha256HexSyncText(result.content));expect(result.name).toBe("measurements.csv");
  const report={task:current.task.id,revision:current.revision,status:current.status,original:lane.receipt,delivery:null,result,reason:"Found the accepted measurements; current room has no authorized recipient."};
- const proof=await p.verify(report);expect(proof.observedChecks.attestedReturnedTaskArtifact).toBe(true);expect(proof.semanticReviewInput.actual.observations.resultArtifacts[0].artifact).toEqual(result);
+ const proof=await p.verify(report);expect(proof.observedChecks.attestedReturnedTaskArtifact).toBe(true);expect(proof.semanticReviewInput.expected.observations.resultArtifacts[0].artifact).toEqual(result);
  expect((await p.verify({...report,result:{...result,content:"Invented measurements"}})).observedChecks.attestedReturnedTaskArtifact).toBe(false);
  }finally{await p.close();}
 });

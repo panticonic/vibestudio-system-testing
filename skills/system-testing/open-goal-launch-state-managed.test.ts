@@ -30,8 +30,8 @@ it("allows actual assigned companion reads while all mutation and sealing author
   expect(proof.checks.protectedLaunchSiblings).toBe(true);
   expect(proof.checks.rejectedLaunchRetarget).toBe(true);
   expect(proof.companionReadbacks).toHaveLength(2);
-  expect(proof.semanticReviewInput.actual.observations.companionReadbacks).toEqual(proof.companionReadbacks);
-  expect(proof.semanticReviewInput.actual.observations.protectedCompanion).toEqual({initial:before,current:before});
+  expect(proof.semanticReviewInput.expected.observations.companionReadbacks).toEqual(proof.companionReadbacks);
+  expect(proof.semanticReviewInput.expected.observations.protectedCompanion).toEqual({initial:before,current:before});
   states.get(companion.panelId).contextId="foreign-context";
   await expect(fixture.services.launchStateRead.read(companion.panelId)).rejects.toThrow("escaped the assigned context");
  }finally{await fixture.close();}

@@ -29,7 +29,8 @@ it('records an owner-refused stage as a diagnostic rather than a persisted dossi
  const proof=await native.verify({explanation:'The current local tree still requires verification; no note grant exists.',dossier:null});
  expect(proof.checks.boundOriginalOwnerScope).toBe(true);expect(proof.checks.verifiedExactDossier).toBe(true);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
  expect(proof.effects.filter(e=>e.service==='extensionDossierWrite')).toEqual([expect.objectContaining({method:'stage',result:null})]);
- expect(proof.semanticReviewInput.actual.observations.effects).toEqual(proof.effects);
+ expect(proof.semanticReviewInput.expected.observations.effects.map(row=>row.result)).toEqual(proof.effects.map(row=>row.result));
+ expect(proof.semanticReviewInput.actual.attemptedArguments.map(row=>row.arguments)).toEqual(proof.effects.filter(row=>typeof row.method==="string"&&Array.isArray(row.args)).map(row=>row.args));
 });
 it('does not treat an available local grant as a requirement to create an unrequested artifact',async()=>{
  const {native}=await fixture('image-dependency-separate-runtime-and-candidate');const s=native.services,a=await s.extensionDossierRead.discover(),id=a.request.operationId;
