@@ -533,8 +533,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
             exact(write, "prepare", [key, ref, world.kinds], receipt)
           : !receipt &&
             !actual.length &&
-            !retained &&
-            journal.every((row) => row.service !== write)),
+            !retained),
       ),
       independentVcsReadbackAndMain: Boolean(
         readback &&

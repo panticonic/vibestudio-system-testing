@@ -5,8 +5,8 @@ vi.mock("@workspace-skills/scratch-handoff-bindings",()=>({bindScratchHandoff:(f
 import {prepareOpenExamplesAdoption} from "./open-goal-examples-adoption-managed.js";
 import {openExamplesAdoptionWorlds} from "./open-goal-examples-adoption-worlds.js";
 import {sha256HexSyncText} from "@vibestudio/content-addressing";
-async function fixture(){
- const world=openExamplesAdoptionWorlds.find(w=>w.id==="examples-adoption-settings-two-slots")!;
+async function fixture(id="settings-two-slots"){
+ const world=openExamplesAdoptionWorlds.find(w=>w.id==="examples-adoption-"+id)!;
  const blobs=new Map<string,string>(), files=new Map<string,string>();
  const baseline=new Map([['meta/vibestudio.yml','systemEpoch: 0\nservices:\n  - name: regency\n    source: workers/regency-realm\n  - name: grimoire\n    source: workers/grimoire-world\n'],[world.unit+'/package.json',JSON.stringify({name:'@workspace-panels/grimoire'})]]);
  const states=new Map<string,Map<string,string>>([['main',baseline]]);let head='main',main='main',next=0;
@@ -42,4 +42,12 @@ it('keeps a requested but missing private artifact failed',async()=>{
 });
 it('refuses protected-main changes despite an earlier valid actor readback',async()=>{
  const {prepared,svc,card,plan,setMain}=await fixture();const receipt=await svc.adoptionHandoff.record(card.id,card.event,plan);await svc.adoptionReview.readback(card.id,receipt!.path);setMain();await expect(prepared.verify(receipt)).rejects.toThrow('preserve protected main');
+});
+
+it('treats a refused artifact request as no effect while preserving the actual readonly answer and alternate diagnostic category',async()=>{
+ const {prepared,svc,card,plan,files}=await fixture("regency-owner-only");
+ expect(await svc.adoptionHandoff.record(card.id,card.event,plan)).toBeNull();expect(files.size).toBe(0);
+ const proof=await prepared.verify({disposition:"hold-authority",finding:"The actual composed owner is Examples; no new artifact was retained."});
+ expect(proof.checks.actualPrivateDisposition).toBe(true);expect(proof.checks.returnedAdoptionValue).toBe(true);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.journal.some(row=>row.service==='adoptionHandoff'&&row.result===null)).toBe(true);
+ files.set('/.tmp/evidence-handoff-test/handoff.json','unrequested artifact');expect((await prepared.verify({disposition:"explain-only",finding:"The composed owner is Examples."})).passed).toBe(false);
 });

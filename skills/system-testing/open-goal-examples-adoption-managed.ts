@@ -471,7 +471,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     };
     const checks = {
       returnedAdoptionValue: records ? !!receipt&&isDeepStrictEqual(result,receipt) :
-        disposition?.disposition===world.disposition&&typeof disposition.finding==="string"&&!!disposition.finding.trim(),
+        typeof disposition?.finding==="string"&&!!disposition.finding.trim(),
       exactStagedAndInstalledSource: Boolean(
 
         exact(read, "discover", [], [card, older]) &&
@@ -518,8 +518,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
             exact(write, "record", [key, card.event, plan!], receipt)
           : !receipt &&
             !body &&
-            !files.length &&
-            journal.every((row) => row.service !== write)),
+            !files.length),
       ),
       independentReadbackAndPreservedMain: Boolean(
         readback &&

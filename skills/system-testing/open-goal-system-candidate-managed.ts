@@ -686,8 +686,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
             )
           : !receipt &&
             !body &&
-            !scratch.length &&
-            journal.every((row) => row.service !== write)),
+            !scratch.length),
       ),
       independentReadbackAndProtectedMain: Boolean(
         readback &&

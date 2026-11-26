@@ -73,3 +73,10 @@ it("rejects a foreign System evidence digest before creating any diagnosis bytes
  const {prepared,svc,card,coordinate,files}=await systemFixture("converged-release-rationale");await svc.systemCandidateRead.confirm(card.id,card.workingEvent,coordinate.id);
  expect(await svc.systemCandidateHandoff.record(card.id,card.workingEvent,coordinate.id,{decision:"keep-converged",record:true,finding:"A diagnosis",proof:["foreign-content-digest"]})).toBeNull();expect(files.size).toBe(0);expect((await prepared.verify(undefined)).passed).toBe(false);
 });
+
+it("accepts genuine no-artifact System observations after an explicitly refused nullable stage",async()=>{
+ const {prepared,svc,card,coordinate,files}=await systemFixture();
+ expect(await svc.systemCandidateHandoff.record(card.id,card.workingEvent,coordinate.id,{decision:"keep-converged",record:true,finding:"The two current sides agree.",proof:[]})).toBeNull();expect(files.size).toBe(0);
+ const proof=await prepared.verify({finding:"The exact local and incoming drafts use the same confirmation wording; no choice or artifact was retained."});expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.journal.some(row=>row.service==='systemCandidateHandoff'&&row.result===null)).toBe(true);
+ files.set('/.tmp/owned-scene/handoff.json','unrequested artifact');expect((await prepared.verify({finding:"No artifact was authorized."})).passed).toBe(false);
+});

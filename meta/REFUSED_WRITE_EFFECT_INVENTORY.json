@@ -1,0 +1,24 @@
+{
+  "mechanism": "Nullable/refused Native effect boundary versus actual persisted mutation",
+  "inventory": {
+    "Grimoire": "ad59 already correct, noeffect journal preserved",
+    "ExamplesAdoption": "record returns keep(write,...,null) when no scope/current grant; actual artifact/nativefiles absence authoritative",
+    "Scaffold": "prepare returns keep(write,...,null) before installed.prepareProjects; actual draft/units/retained state authoritative",
+    "SystemCandidate": "record returns keep(write,...,null) before writer.stage; actual receipt/body/scratch authoritative",
+    "LocalMethod": "excluded from null-stage fix: request throws before keep for refusal; keep(write) occurs only after dispatched=true and actual send(), attempted===null and native terminal execution checks remain genuine no-dispatch proof"
+  },
+  "additionalConfirmedGate": "Adoption explanation-only returned diagnostic category equality was unrequested; actual finding remains required and Native bound meaning review mandatory",
+  "preserved": [
+    "Actual effects/protected state/retained bytes",
+    "Native scope/grants/CAS/owned identities",
+    "Required artifact absence still fails",
+    "Mandatory meaning review and genuine requested answers"
+  ],
+  "tests": {
+    "unit": "vibe-refused-write-no-effect-20261126b",
+    "passed": 20,
+    "peakMiB": 302.4,
+    "physicalNativeQualification": false,
+    "meaningReview": "still mandatory, no goal completion synthesized"
+  }
+}

@@ -39,3 +39,8 @@ it("keeps unsupported returned authority claims visible beside actual native fac
 it("denies a foreign brief and a stale authoring basis without manufacturing a draft receipt",async()=>{
  const {svc,card,repositories}=await fixture();await expect(svc.scaffoldPrepare.prepare("foreign",card.event,["native-client"])).rejects.toThrow(/owned scaffold/);expect(await svc.scaffoldPrepare.prepare(card.id,"stale-basis",["native-client"])).toBeNull();expect(repositories.size).toBe(0);
 });
+
+it("keeps a refused draft boundary and real absence of files distinct from an actual prepared draft",async()=>{
+ const {prepared,svc,card,repositories}=await fixture("advice-only-runtime");expect(await svc.scaffoldPrepare.prepare(card.id,card.event,["agentic"])).toBeNull();expect(repositories.size).toBe(0);
+ const proof=await prepared.verify({finding:"A durable agent worker can retain the conversation and have a native test; no files were created."});expect(proof.checks.exactNativeScaffoldDraft).toBe(true);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.journal.some(row=>row.service==='scaffoldPrepare'&&row.result===null)).toBe(true);
+});
