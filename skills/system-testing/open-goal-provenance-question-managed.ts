@@ -1,5 +1,8 @@
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+import {recordedFindingsBindNativeReferences} from "./recorded-question-findings.js";
+const assessRecordedFindings=bindObservedContentReview(["assignment","candidates","evidence","native","effects"]);
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -185,7 +188,7 @@ export async function prepareProvenanceQuestion(input: { contextId: string; case
       }
       return true;
     });
-    const assessed=await assessObservedApplicationOutcome(proof,proof.outcomeContract,value,invocation,contributions);
+    const assessed=await assessRecordedFindings(proof,proof.outcomeContract,value,invocation,contributions);
     // Preserve every original native observation for qualification and callers
     // that add their own checks before the final outcome projection.
     const {observedChecks,...dimensions}=assessed;
@@ -211,7 +214,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         isDeepStrictEqual(withdrawn.map(item=>item.path),undonePaths)&&withdrawn.every(item=>item.reason===world.reason)&&
         nativeProof.length===undonePaths.length&&nativeProof.every(entry=>entry.node.kind==="work-unit"&&entry.node.workUnitId===counterWork),
       preservedLocalQuestionScope: after.clean&&isDeepStrictEqual(after.workingHead,head)&&isDeepStrictEqual(await owner.mainState(),main)&&rereads.every(Boolean),
-      matchedRecordedQuestionReport: isDeepStrictEqual(actual,scoped.answer),
+      matchedRecordedQuestionReport: recordedFindingsBindNativeReferences(actual,scoped.evidence?.cohort.paths.map(item=>item.path)??[],scoped.evidence?.withdrawn.map(item=>item.path)??[]),
     };
     return {
       incorrectReturnValues:[],
