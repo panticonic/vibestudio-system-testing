@@ -1,5 +1,8 @@
-import {assessObservedApplicationOutcome,type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["subject","current","baseline","metadata","effects"],["handoffText"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
+import {exactReceiptReplay} from "./exact-receipt-replay.js";
 import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 import { isDeepStrictEqual } from "node:util";
 import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -195,6 +198,8 @@ export async function prepareRetainedBuildIncident(
   const activated = new Map<string, { ticket: Ticket; path: string }>();
   const observed = new Map<string, Profile>();
   let stored: Receipt | null = null;
+  let storedAnalysis: Outcome["disposition"] | null = null;
+  const replayStage=exactReceiptReplay<[string[],Focus,Outcome["disposition"]],Receipt|null>();
 
   const remember = <T>(service: string, method: string, args: unknown[], result: T): T => {
     effects.push(structuredClone({ service, method, args, result }));
@@ -202,8 +207,8 @@ export async function prepareRetainedBuildIncident(
   };
   const readCheckpoint = async (path: string): Promise<Checkpoint> => JSON.parse(decoder.decode(await readBytes(path, 96 * 1024)));
 
-  function packet(focus: Focus, entries: Checkpoint[]) {
-    return JSON.stringify({ schema: "vibestudio.retained-build-incident/1", subject, focus,
+  function packet(focus: Focus, entries: Checkpoint[],analysis:Outcome["disposition"]) {
+    return JSON.stringify({ schema: "vibestudio.retained-build-incident/1", subject, focus, analysis,
       checkpoints: entries.map(({ card, observation, trace, diagnostic, sourceDigest }) => ({ card, sourceDigest, observation, trace, diagnostic })),
     }, null, 2) + "\n";
   }
@@ -240,7 +245,15 @@ export async function prepareRetainedBuildIncident(
       },
     },
     buildIncidentHandoff: {
-      async stage(checkpoints: string[], focus: Focus) {
+      async stage(checkpoints: string[], focus: Focus, analysis:Outcome["disposition"]) {
+        return replayStage([checkpoints,focus,analysis],async()=>{
+          if(!stored||!storedAnalysis)return false;
+          const [fresh,bytes]=await Promise.all([status(),readBytes(stored.path,stored.bytes)]);
+          return isDeepStrictEqual(fresh.workingHead,currentHead)&&fresh.mainEventId===before.mainEventId&&
+            bytes.length===stored.bytes&&digest(decoder.decode(bytes))===stored.sha256;
+        },async()=>{
+        if(!analysis||typeof analysis.finding!=="string"||(analysis.blocker!==null&&typeof analysis.blocker!=="string")||typeof analysis.reason!=="string"||!analysis.reason.trim())return remember("buildIncidentHandoff","stage",[checkpoints,focus,analysis],null);
+        const interpretation={finding:analysis.finding,blocker:analysis.blocker,reason:analysis.reason};
         const matched = checkpoints.map(id => directoryRows.find(row => row.saved.card.id === id));
         const head = (await status()).workingHead;
         const entries = matched.every(Boolean) ? await Promise.all(matched.map(row => readCheckpoint(row!.path))) : [];
@@ -253,11 +266,12 @@ export async function prepareRetainedBuildIncident(
             entries.some(entry => entry.card.source !== primary || !entry.card.released ||
               !isDeepStrictEqual(observed.get(entry.card.id), entry.observation) ||
               (entry.observation?.status !== "ok" && (focus !== "compiler" || !entry.diagnostic))))
-          return remember("buildIncidentHandoff", "stage", [checkpoints, focus], null);
-        const text = packet(focus, entries);
+          return remember("buildIncidentHandoff", "stage", [checkpoints, focus,analysis], null);
+        const text = packet(focus, entries,interpretation);
         const staged = await scratch.scratchHandoffWrite.stage(text);
-        if (staged) stored = { ...staged, sha256: digest(text), checkpoints: [...checkpoints] };
-        return remember("buildIncidentHandoff", "stage", [checkpoints, focus], stored);
+        if (staged) {stored = { ...staged, sha256: digest(text), checkpoints: [...checkpoints] };storedAnalysis=structuredClone(interpretation);}
+        return remember("buildIncidentHandoff", "stage", [checkpoints, focus,analysis], stored);
+        });
       },
     },
   };
@@ -318,11 +332,13 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const afterOutputs = await outputEntries();
     const added = afterOutputs.filter(name => !scratchBefore.includes(name));
     const stages = effects.filter(event => event.service === "buildIncidentHandoff" && event.method === "stage" && event.result !== null);
+    let handoffText:string|null=null;
     let handoff = !world.expected.stage && stored === null && !added.length && !stages.length;
     if (world.expected.stage && stored && added.length === 1 && stages.length === 1) {
       const readback = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(readback);
-      handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" && body === packet(world.focus, expectedSaved) &&
+      handoffText=body;
+      handoff = stored.path === "/.tmp/" + added[0] + "/handoff.json" && storedAnalysis!==null && body === packet(world.focus, expectedSaved,storedAnalysis) &&
         stored.bytes === readback.length && stored.sha256 === digest(body) &&
         isDeepStrictEqual(stored.checkpoints, expectedSaved.map(entry => entry.card.id));
     }
@@ -340,8 +356,9 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
           (actualCurrent.diagnostic.file === sourcePath || actualCurrent.diagnostic.file.endsWith("/" + sourcePath))) :
           actualCurrent.observation?.status === "ok" && !!actualCurrent.observation.targets.length &&
           (world.focus !== "initial-payload" || actualCurrent.observation.targets.some(target => target.target === "runtime" && !!target.payload)))),
-      exactFindingAndEvidenceBoundary: isDeepStrictEqual(outcome?.handoff,stored)&&matched(outcome?.current,actualCurrent)&&matched(outcome?.baseline,oldEntry?.saved)&&outcome?.disposition?.finding === (world.expected.blocker ? "held" : world.focus) &&
+      exactFindingAndEvidenceBoundary: outcome?.disposition?.finding === (world.expected.blocker ? "held" : world.focus) &&
         outcome.disposition?.blocker === world.expected.blocker && Boolean(outcome.disposition?.reason?.trim()),
+      matchedRetainedAssessmentShape: isDeepStrictEqual(outcome?.handoff,stored)&&matched(outcome?.current,actualCurrent)&&matched(outcome?.baseline,oldEntry?.saved),
       exactLocalHandoff: handoff &&
         scratchBefore.every(name => afterOutputs.includes(name)),
       protectedWorkingAndMain: post.mainEventId === before.mainEventId && isDeepStrictEqual(post.workingHead, currentHead) &&
@@ -350,11 +367,11 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract:{
         effects:{checks:["exactOwnedCheckpointCatalog", "nativeObservationAndProvenance", "verifiedPerformanceAndDiagnosis", "exactLocalHandoff", "protectedWorkingAndMain"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["exactFindingAndEvidenceBoundary"],required:true,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+        returnedValue:{checks:["exactFindingAndEvidenceBoundary"],required:!world.expected.stage,rationale:"A requested retained analysis is judged in its actual artifact; read-only questions require their returned finding. Permission alone does not request an effect."},
+        incidentalValues:{checks:["matchedRetainedAssessmentShape"],rationale:"The reference interpreter shape combines optional profile echoes and a follow-up plan; it cannot invalidate or mask an independently grounded disposition. Requested meaning and actual supplied measurements remain subject to bound independent review."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      effects, subject, current: actualCurrent?.card ?? null, baseline: oldEntry?.saved.card ?? null, metadata, handoff: stored };
+      effects, subject, current: actualCurrent?.card ?? null, baseline: oldEntry?.saved.card ?? null, metadata, handoff: stored, handoffText };
   }
 
   async function qualify() {
@@ -369,12 +386,13 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     }
     const current = world.expected.current ? await inspect("current") : null;
     const baseline = world.expected.baseline ? await inspect("baseline") : null;
+    const disposition={finding:world.expected.blocker?"held":world.focus,blocker:world.expected.blocker,
+      reason:world.focus==="runtime-memory"?"The retained observations measure source builds and do not measure process-tree memory. "+JSON.stringify(current?.review.observation??null):"Current retained observation: "+JSON.stringify(current?.review.observation??null)+". Earlier retained observation: "+JSON.stringify(baseline?.review.observation??null)};
     const handoff = world.expected.stage && current ? await services.buildIncidentHandoff.stage(
-      [current.checkpoint.id, ...(baseline ? [baseline.checkpoint.id] : [])], world.focus) : null;
+      [current.checkpoint.id, ...(baseline ? [baseline.checkpoint.id] : [])], world.focus,disposition) : null;
     return verify({
       focus: world.focus, subject, current, baseline, handoff,
-      disposition: { finding: world.expected.blocker ? "held" : world.focus, blocker: world.expected.blocker,
-        reason: "Bind the exact measurement and protect the ownership scope." },
+      disposition,
     });
   }
 

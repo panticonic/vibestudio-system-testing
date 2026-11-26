@@ -250,7 +250,7 @@ const templateSettings = {
     authorityPolicy: { authority: personalAutomationAuthority },
   },
   operator: { requiresUnits: operatorGoalRequiresUnits },
-  "build-incident": { requiresUnits: buildIncidentRequiresUnits },
+  "build-incident": { requiresUnits: buildIncidentRequiresUnits, requiresReview: true },
   "system-diagnostics": { requiresUnits: openDiagnosticRequiresUnits, authorityPolicy: openDiagnosticAuthority },
   localMethodExchange: { requiresUnits: ["skills/open-user-goal", "workers/local-messaging-fixture", "workers/pubsub-channel"] },
   "local-delivery": { requiresUnits: localDeliveryRequiresUnits },
