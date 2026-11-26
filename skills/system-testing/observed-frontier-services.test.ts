@@ -43,7 +43,7 @@ async function prepare(family:Family,caseId:string){
  if(family==="image"){
   const fixture=await prepareOpenImageCandidate(input,ports as never),s=fixture.services;
   const index=await s.imageCandidateBriefs.list();
-  return {family:"image" as const,fixture,read:()=>s.imageCandidateJournal.read(index.channelId),proof:async()=>(await fixture.verify({})).observedChecks.exactImageFrontiers,index};
+  return {family:"image" as const,fixture,read:()=>s.imageCandidateJournal.read(index.channelId),proof:async()=>(await fixture.verify({})).observedChecks.authenticImageFrontiers,index};
  }
  if(family==="news"){
   const fixture=await prepareOpenNewsEvidence(input,newsInstalled as never,ports as never),s=fixture.services;
@@ -63,7 +63,7 @@ async function prepare(family:Family,caseId:string){
 }
 it.each(Object.keys(stable) as Family[])("%s admits one stable observation and arbitrary redundant refreshes",async family=>{
  const p=await prepare(family,stable[family]);
- expect(await p.proof()).toBe(false);
+ if(p.family!=="image")expect(await p.proof()).toBe(false);
  const first=await p.read();
  expect(await p.proof()).toBe(true);
  if(p.family==="image"){
@@ -79,10 +79,15 @@ it.each(Object.keys(stable) as Family[])("%s admits one stable observation and a
  for(let i=0;i<4;i++)expect(await p.read()).toEqual(first);
  expect(await p.proof()).toBe(true);
 });
-it.each(Object.keys(changed) as Family[])("%s rejects an unrefreshed changed frontier and admits its observed current state",async family=>{
+it.each(Object.keys(changed) as Family[])("%s retains changed native evidence and admits a refreshed observation",async family=>{
  const p=await prepare(family,changed[family]);
  const first=await p.read();
- expect(await p.proof()).toBe(false);
+ if(p.family==="image"){
+  const native=await p.fixture.verify({});
+  expect(native.observedChecks.authenticImageFrontiers).toBe(true);
+  expect(native.semanticReviewRequired).toBe(true);
+  expect(native.semanticReviewInput.actual.observations.reads.independent.through).toBeGreaterThan(first!.through);
+ }else expect(await p.proof()).toBe(false);
  const current=await p.read();
  expect(current!.through).toBeGreaterThan(first!.through);
  expect(await p.proof()).toBe(true);

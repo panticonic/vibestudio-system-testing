@@ -1,8 +1,8 @@
+import {extendSemanticOutcomeEffects} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["index","snapshots","reads"],["artifact"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
-import { includesEvidence, sameEvidenceMembers } from "./semantic-evidence.js";
 import { serializeByKey } from "@vibestudio/shared/keyedSerializer";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Hex, sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -10,7 +10,7 @@ import { contextId, fs, rpc, runtime, vcs } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
 import type { AgenticEvent } from "@workspace/agentic-protocol";
 import { bindScratchHandoff } from "@workspace-skills/scratch-handoff-bindings";
-import type { Candidate, EvidenceRow, Format, ImageAssessment, ImageHandoff, ImageIndex,
+import type { Candidate, EvidenceRow, ImageAssessment, ImageHandoff, ImageIndex,
   ImageJournal, ImagePlan, ImageRead, ImageReport, JournalRecord } from "@workspace-skills/open-image-candidate/types";
 import type { ImagesService } from "@workspace/runtime/images";
 import { createOwnedImageStore } from "./owned-image-store.js";
@@ -23,7 +23,6 @@ import { listOwnedScratchEntries } from "./owned-scratch-entries.js";
 type Lane = Awaited<ReturnType<typeof createOwnedHeadlessChannel>>;
 const byteLimit = 8192;
 const bytesOf = (base64:string) => Uint8Array.from(atob(base64), char => char.charCodeAt(0));
-const suffixes:Record<Format,RegExp> = {png:/\.png$/iu,jpeg:/\.jpe?g$/iu,webp:/\.webp$/iu};
 const refused = (candidateId:string):ImageRead => ({candidateId,rowId:null,status:"refused",original:null});
 
 async function appendNative(lane:Lane, owner:string, records:JournalRecord[]) {
@@ -129,7 +128,6 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
   if(failures.length)throw new AggregateError(failures,"Image candidate seeding failed");
   const candidates=seededCandidates.flatMap(value=>value.status==="fulfilled"?[value.value]:[]);
   await save([rights(world.rights??"local-handoff"),...candidates,selection(world.selected??world.seeds[0].label)]);
-  const initial=await ports.read(lane);
   const later:JournalRecord[]=[];
   for(const update of world.late?.receipts??[]) {
     const position=world.seeds.findIndex(seed=>seed.label===update.label);
@@ -149,8 +147,8 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     sources:[{id:"owned-policy",path:policyPath}]},ports.readBytes).scratchHandoffWrite;
   const snapshots:ImageJournal[]=[];
   const reads:ImageRead[]=[];
+  const originalReadFrontiers:{through:number;read:ImageRead}[]=[];
   const journalReads = new Map<string, Promise<unknown>>();
-  let readBusy=false;
   let stageBusy=false;
   let stagedText:string|null=null;
   let handoff:ImageHandoff|null=null;
@@ -161,11 +159,10 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     .findLast(row=>row.record.candidateId===id);
   const currentRights=(journal:ImageJournal)=>project(journal).rows.map(row=>row.record)
     .filter(row=>row.kind==="rights").findLast(row=>row.reference===brief.reference);
-  const canInspect=(journal:ImageJournal,row:CandidateRow)=>row.record.state==="succeeded"&&
-    row.record.save==="applied"&&!!row.record.providerReceipt&&!!row.record.assetId&&
-    row.record.reference===brief.reference&&brief.formats.includes(row.record.format)&&
-    suffixes[row.record.format].test(row.record.outputPath)&&
+  // Reading owned native bytes is distinct from judging/staging their usability.
+  const canInspect=(journal:ImageJournal,row:CandidateRow)=>!!row.record.assetId &&
     (!brief.reference||["local-handoff","review-only"].includes(currentRights(journal)?.rights??"unknown"));
+
 
   async function inspect(journal:ImageJournal,id:string):Promise<ImageRead> {
     const row=currentCandidate(journal,id);
@@ -197,7 +194,6 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     imageCandidateJournal:{async read(channelId:string){
       if(channelId!==lane.key)return null;
       return serializeByKey(journalReads, channelId, async () => {
-        if(snapshots.length>=2)return structuredClone(snapshots.at(-1)!);
         const value=project(await ports.read(lane));
         snapshots.push(value);
         if(snapshots.length===1&&later.length)await save(later);
@@ -205,42 +201,41 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
       });
     }},
     imageCandidateOriginal:{async read(briefId:string,id:string){
-      const previous=briefId===brief.id?reads.find(read=>read.candidateId===id):undefined;
-      if(previous)return structuredClone(previous);
-      if(briefId!==brief.id||!snapshots.length||readBusy)
-        return refused(id);
-      readBusy=true;
-      try {
-        const journal=await ports.read(lane);
-        if(journal.through!==snapshots.at(-1)?.through)return refused(id);
-        const read=await inspect(journal,id);
-        if(read.status!=="refused")reads.push(read);
-        return structuredClone(read);
-      } finally {readBusy=false;}
+      if(briefId!==brief.id)return refused(id);
+      const journal=await ports.read(lane);
+      const read=await inspect(journal,id);
+      if(read.status!=="refused"){
+        reads.push(read);
+        originalReadFrontiers.push({through:journal.through,read:structuredClone(read)});
+      }
+      return structuredClone(read);
     }},
     imageCandidateHandoff:{async stage(report:ImageReport){
-      if(!world.note||handoff||stageBusy||report?.plan?.briefId!==brief.id||!report.plan.localHandoff||report.plan.mode!==world.mode||
-        report.handoff!==null||report.decision?.action!=="stage"||!report.decision.explanation?.trim()||
-        !sameEvidenceMembers(report.reads,reads)||!snapshots.length)return null;
+      if(!world.note||stageBusy||report?.plan?.briefId!==brief.id||!report.plan.localHandoff||
+        report.handoff!=null&&!isDeepStrictEqual(report.handoff,handoff)||report.decision?.action!=="stage"||
+        !report.decision.explanation?.trim()||!Array.isArray(report.reads)||!originalReadFrontiers.length)return null;
       stageBusy=true;
       try {
         const id=report.decision.candidateId;
         const journal=await ports.read(lane);
-        if(!id||journal.through!==snapshots.at(-1)?.through||(brief.reference&&currentRights(journal)?.rights!=="local-handoff"))
+        if(!id||(brief.reference&&currentRights(journal)?.rights!=="local-handoff"))
           return null;
         const read=await inspect(journal,id);
-        const original=reads.find(value=>value.candidateId===id);
-        if(read.status!=="verified"||!read.original||!isDeepStrictEqual(read,original))return null;
+        if(read.status!=="verified"||!read.original||
+          !report.reads.some(value=>isDeepStrictEqual(value,read))||
+          !originalReadFrontiers.some(value=>value.through===journal.through&&isDeepStrictEqual(value.read,read)))return null;
         const selected=project(journal).rows.map(row=>row.record).findLast(row=>row.kind==="selection");
         const row=currentCandidate(journal,id);
-        if(!row||!report.plan.acceptedFormats.includes(row.record.format)||
+        if(!row||row.record.state!=="succeeded"||row.record.save!=="applied"||!row.record.providerReceipt||
+          row.record.reference!==brief.reference||!brief.formats.includes(row.record.format)||
           report.plan.mode==="current"&&selected?.candidateId!==id||
           report.plan.mode==="historical"&&row.record.label!==report.plan.historicalLabel)return null;
         const status=await ports.status();
         if(status.mainEventId!==before.mainEventId||!isDeepStrictEqual(status.workingHead,before.workingHead))return null;
         const text=body(report,read,journal);
-        const file=(stagedText=text,await writer.stage(text));
+        const file=await writer.stage(text);
         if(!file)return null;
+        stagedText=text;
         handoff={path:file.path,digest:sha256HexSyncText(text),candidateId:id,assetDigest:read.original.digest,frontier:journal.through};
         return structuredClone(handoff);
       } finally {stageBusy=false;}
@@ -260,52 +255,39 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     const report={plan:exactPlan(),assessment:{queue:reads.map(read=>read.candidateId),candidates:returned?.candidates},reads:returned?.originals,decision:returned?.decision,handoff:returned?.handoff} as ImageReport;
     const outcome=report;
     const latest=await ports.read(lane);
-    const goalPlan=exactPlan();
-    const expected=world.expected;
-    const queue=expected.queue.map(version);
-    const selected=expected.label===null?null:version(expected.label);
-    const independent=await Promise.all(queue.map(id=>inspect(latest,id)));
-    const result=outcome?.decision;
-    const winner=independent.find(read=>read.candidateId===selected)??null;
+    const actualIds=[...new Set(project(latest).rows.filter(candidateRow).map(row=>row.record.candidateId))];
+    const independent=await Promise.all(actualIds.map(id=>inspect(latest,id)));
     const status=await ports.status();
     const newFiles=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!originalFiles.has(name));
     const artifact=handoff?new TextDecoder("utf-8",{fatal:true}).decode(await ports.readBytes(handoff.path,byteLimit)):null;
-    const idsInScope=new Set(project(latest).rows.filter(candidateRow).map(row=>row.record.candidateId));
-    const assessed=outcome?.assessment?.candidates;
-    const observed=expected.observations??queue.map(()=>"verified");
     const foreign=crypto.randomUUID();
-    const artifactExplanation=(()=>{try{return artifact?JSON.parse(artifact)?.explanation:null;}catch{return null;}})();
-    const diagnosticChecks={groundedImageAssessment:isDeepStrictEqual(outcome?.assessment?.queue,queue)&&
-        Array.isArray(assessed)&&assessed.length===idsInScope.size&&new Set(assessed.map(value=>value.id)).size===assessed.length&&
-        assessed.every(value=>idsInScope.has(value.id)&&Array.isArray(value.reasons)&&value.reasons.length>0&&
-          value.reasons.every(reason=>typeof reason==="string"&&reason.length>0))&&
-        queue.every(id=>assessed.some(value=>value.id===id&&value.eligible))};
     const checks={
-      returnedArtifactReceipt:isDeepStrictEqual(outcome?.handoff,handoff),
-      exactImageFrontiers:includesEvidence(snapshots,project(initial))&&
-        includesEvidence(snapshots,project(latest))&&seeded.size===latest.rows.length&&
-        latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))&&new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
-      exactImageBrief:discovered&&snapshots.length>0,
-      returnedImageOriginals:Array.isArray(outcome?.reads)&&sameEvidenceMembers(outcome.reads,independent),
-      independentlyReadImageOriginals:sameEvidenceMembers(reads,independent)&&
-        isDeepStrictEqual(independent.map(read=>read.status),observed),
-      groundedImageDecision:result?.action===expected.action&&result.candidateId===selected&&
-        (selected===null||winner?.status==="verified")&&explain(outcome),
-      verifiedPrivateImageHandoff:expected.action==="stage"?typeof artifactExplanation==="string"&&Boolean(artifactExplanation.trim())&&!!winner&&!!handoff&&!!artifact&&
-        newFiles.length===1&&handoff.path===`/.tmp/${newFiles[0]}/handoff.json`&&artifact===stagedText&&
-        handoff.digest===sha256HexSyncText(artifact):
-        newFiles.length===0&&handoff===null,
+      authenticImageFrontiers:snapshots.every(snapshot=>snapshot.channelId===lane.key &&
+        snapshot.through<=latest.through && snapshot.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id)))) &&
+        seeded.size===latest.rows.length && latest.rows.every(row=>isDeepStrictEqual(row.record,seeded.get(row.id))) &&
+        new Set(latest.rows.map(row=>row.id)).size===latest.rows.length,
+      observedOwnedImageEvidence:discovered||snapshots.length>0||originalReadFrontiers.length>0,
+      verifiedPrivateImageHandoff:handoff ? !!artifact && newFiles.length===1 &&
+        handoff.path===`/.tmp/${newFiles[0]}/handoff.json` && artifact===stagedText &&
+        handoff.digest===sha256HexSyncText(artifact) : newFiles.length===0,
       preservedImageWorkspace:status.mainEventId===before.mainEventId&&isDeepStrictEqual(status.workingHead,before.workingHead),
       rejectedForeignImage:await services.imageCandidateJournal.read(foreign)===null&&
         (await services.imageCandidateOriginal.read(foreign,foreign)).status==="refused"&&
         (await services.imageCandidateOriginal.read(brief.id,foreign)).status==="refused"&&
         await services.imageCandidateHandoff.stage({plan:{briefId:foreign}} as ImageReport)===null,
+      requestedImageAnswer:!world.requestedAnswer||explain(outcome),
     };
-    const contract:SemanticOutcomeContract={"effects": {"checks": ["exactImageFrontiers", "exactImageBrief", "independentlyReadImageOriginals", "verifiedPrivateImageHandoff", "preservedImageWorkspace", "rejectedForeignImage"], "rationale": "Native observations, scoped authority, retained bytes and protected state establish application effects independently."}, "returnedValue": {"checks": ["returnedImageOriginals", "groundedImageDecision"], "required": true, "rationale": "The returned domain findings are required for queries; completed mutations are established independently."}, "incidentalValues": {"checks": ["returnedArtifactReceipt"], "rationale": "Receipt echoes are optional presentation of independently verified native artifacts."}};
-    const assessedOutcome=await assessObservedApplicationOutcome({contextId:owner,goal:world.goal,caseId:world.id,checks,diagnosticChecks,passed:Object.values(checks).every(Boolean),
-      index,snapshots,reads:independent,plan:goalPlan,decision:result??null,handoff,artifact,
-      candidateId:selected,queue},contract,raw,invocation,[{"checks":["groundedImageDecision"],"rootPath":["decision"],"producerSourceSuffix":"workOnImageCandidateGoal/decideImageHandoff.nl","producerPath":[]}]);
-    assessedOutcome.semanticReviewInput.rubric+=" Candidate eligibility/queue is an internal pre-original readback plan, not a claim that the native original is verified or usable. Judge requested usability, comparisons, provenance and any private artifact against the actual native original observations and returned domain explanation. Do not require exhaustive candidate bookkeeping or extra reasons beyond what the user requested; unsupported requested claims still fail.";
+    const contract:SemanticOutcomeContract={
+      effects:{checks:["authenticImageFrontiers","observedOwnedImageEvidence","verifiedPrivateImageHandoff","preservedImageWorkspace","rejectedForeignImage"],
+        rationale:"Actual native observations, scoped byte reads, authorized original-bound staging and protected workspace establish crisp effects. Mandatory meaning review decides the requested current/historical choice, comparison, suitability and conditional handoff from actual facts, never a private reference queue."},
+      returnedValue:{checks:["requestedImageAnswer"],required:world.requestedAnswer,
+        rationale:"Literal requested decisions require an actual answer; exact requested file facts and formats remain grounded by mandatory review of native originals. Effect-only tasks are judged from the real artifact."},
+      incidentalValues:{checks:[],rationale:"Internal candidate queues, report enums and copied receipts impose no goal gate or training mask."},
+    };
+    const assessedOutcome=await assessObservedApplicationOutcome({contextId:owner,goal:world.goal,caseId:world.id,
+      checks,passed:Object.values(checks).every(Boolean),index,snapshots,
+      reads:{actor:originalReadFrontiers,independent:{through:latest.through,originals:independent}},handoff,artifact},contract,raw,invocation,[]);
+    assessedOutcome.semanticReviewInput.rubric+=" Original verified status attests only the native byte/receipt comparison, not goal eligibility, saved/applied state or provider purpose. Actor original reads are chronology-tagged separately from independent verifier reads. Never substitute the verifier's independent inspection for an actual actor inspection explicitly requested by the user. Judge requested usability, current/historical selection, comparison and conditional private writes against the real journal, rights, Native MIME/digest/dimensions and artifact bytes. A preview-only result is not a saved/applied output; a successfully read original can still be unsuitable for the requested use. Require literal user-requested formats or quotes, not reference candidate queues or report enums.";
     return assessedOutcome;
   }
 
@@ -326,8 +308,12 @@ async function bindImageCandidate(input:{contextId:string;caseId:string},ports:P
     if(outcome.decision.action==="stage")outcome.handoff=await services.imageCandidateHandoff.stage(outcome);
     const result={candidates:outcome.assessment.candidates,originals:outcome.reads,decision:outcome.decision,handoff:outcome.handoff};
     const proof=await verify(result);
-    const rejectedInventedOriginal=!(await verify({...result,originals:[{candidateId:"invented",status:"verified",original:null}]})).passed;
-    return {...proof,passed:proof.passed&&rejectedInventedOriginal,rejectedInventedOriginal};
+    const missing=world.requestedAnswer?await verify({...result,decision:{...result.decision,explanation:""}}):null;
+    const qualified=extendSemanticOutcomeEffects(proof,{
+      referenceNativeOriginalReads:isDeepStrictEqual(captured.map(read=>read.status),world.expected.observations??queue.map(()=>"verified")),
+      referenceNativeLocalStage:world.expected.action==="stage"?outcome.handoff!==null:outcome.handoff===null,
+    });
+    return {...qualified,passed:qualified.passed&&(!missing||!missing.passed)};
   }
   return {services,verify,qualify};
 }
