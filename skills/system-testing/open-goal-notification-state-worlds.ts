@@ -28,6 +28,7 @@ type Receipt =
   | "missing"
   | "none";
 type CaseInput = {
+  requestedAnswer: boolean;
   desk: string;
   initial: NotificationSeed[];
   change?: NotificationChange;
@@ -73,6 +74,7 @@ export const openNotificationStateWorlds = [
     "archive-export-reordering",
     "train",
     {
+      requestedAnswer:true,
       desk: "Archive",
       initial: [n("export", "Export inspected", { revision: 3, read: true })],
       change: { put: n("export", "Export running", { revision: 2 }) },
@@ -93,6 +95,7 @@ export const openNotificationStateWorlds = [
     "print-idempotency",
     "train",
     {
+      requestedAnswer:true,
       desk: "Print Desk",
       initial: [n("print", "Proof printed", { read: true })],
       change: { put: n("print", "Proof printed") },
@@ -113,6 +116,7 @@ export const openNotificationStateWorlds = [
     "permit-version-conflict",
     "train",
     {
+      requestedAnswer:true,
       desk: "Records Desk",
       initial: [
         n("permit", "Permit review still pending"),
@@ -136,6 +140,7 @@ export const openNotificationStateWorlds = [
     "stockroom-correction",
     "train",
     {
+      requestedAnswer:false,
       desk: "Stockroom",
       initial: [n("quantity", "Count 112", { read: true })],
       change: {
@@ -158,6 +163,7 @@ export const openNotificationStateWorlds = [
     "courier-conditional-clear",
     "train",
     {
+      requestedAnswer:true,
       desk: "Dispatch",
       initial: [n("courier", "Courier ETA 16:00")],
       change: {
@@ -180,6 +186,7 @@ export const openNotificationStateWorlds = [
     "photo-backdated-ingest",
     "train",
     {
+      requestedAnswer:true,
       desk: "Photo Intake",
       initial: [
         n("camera", "First ingest", { at: 32 }),
@@ -205,6 +212,7 @@ export const openNotificationStateWorlds = [
     "stage-door-duplicate",
     "train",
     {
+      requestedAnswer:true,
       desk: "Stage Door",
       initial: [
         n("volunteer", "Volunteer check-in", { read: true }),
@@ -227,6 +235,7 @@ export const openNotificationStateWorlds = [
     "theatre-partial-ack",
     "train",
     {
+      requestedAnswer:true,
       desk: "Box Office",
       initial: [
         n("matinee", "Matinee access reviewed"),
@@ -249,6 +258,7 @@ export const openNotificationStateWorlds = [
     "hearing-identical-label",
     "train",
     {
+      requestedAnswer:true,
       desk: "Hearing Room",
       initial: [
         n("intake-a", "Intake confirmed"),
@@ -271,6 +281,7 @@ export const openNotificationStateWorlds = [
     "workshop-per-account-key",
     "train",
     {
+      requestedAnswer:false,
       desk: "Workshop Desk",
       initial: [
         n("done", "Maintenance complete"),
@@ -293,6 +304,7 @@ export const openNotificationStateWorlds = [
     "proof-foreign-evidence",
     "train",
     {
+      requestedAnswer:true,
       desk: "Art Intake",
       initial: [n("approval", "Proof approved", { account: "neighbor" })],
       expected: {
@@ -312,6 +324,7 @@ export const openNotificationStateWorlds = [
     "facilities-withdrawal",
     "train",
     {
+      requestedAnswer:true,
       desk: "Facilities",
       initial: [
         n("water", "Water isolation"),
@@ -335,6 +348,7 @@ export const openNotificationStateWorlds = [
     "registration-history-remove",
     "train",
     {
+      requestedAnswer:true,
       desk: "Registration",
       initial: [
         n("old", "Obsolete attendee export", { read: true }),
@@ -358,6 +372,7 @@ export const openNotificationStateWorlds = [
     "permit-withdrawal-isolation",
     "train",
     {
+      requestedAnswer:true,
       desk: "Permit Desk",
       initial: [
         n("renew", "Local renewal notice"),
@@ -381,6 +396,7 @@ export const openNotificationStateWorlds = [
     "tool-desk-absent-removal",
     "train",
     {
+      requestedAnswer:true,
       desk: "Tool Desk",
       initial: [n("inventory", "Inventory recorded", { read: true })],
       change: { remove: "returned" },
@@ -401,6 +417,7 @@ export const openNotificationStateWorlds = [
     "green-room-invite-suppression",
     "train",
     {
+      requestedAnswer:true,
       desk: "Green Room",
       initial: [
         n("invite", "Green Room invitation", {
@@ -432,6 +449,7 @@ export const openNotificationStateWorlds = [
     "cast-message-history-suppression",
     "train",
     {
+      requestedAnswer:true,
       desk: "Cast Lounge",
       initial: [
         n("invite", "Cast Lounge invitation", {
@@ -463,6 +481,7 @@ export const openNotificationStateWorlds = [
     "sound-cross-channel",
     "train",
     {
+      requestedAnswer:false,
       desk: "Sound Desk",
       initial: [
         n("invite", "Rehearsal invitation", {
@@ -494,6 +513,7 @@ export const openNotificationStateWorlds = [
     "gallery-cross-account-suppression",
     "train",
     {
+      requestedAnswer:true,
       desk: "Gallery Desk",
       initial: [
         n("invite", "Preview invitation", {
@@ -525,6 +545,7 @@ export const openNotificationStateWorlds = [
     "technical-reveal-after-removal",
     "train",
     {
+      requestedAnswer:true,
       desk: "Technical Desk",
       initial: [
         n("invite", "Technical invitation", {
@@ -555,6 +576,7 @@ export const openNotificationStateWorlds = [
     "wardrobe-reconnect",
     "train",
     {
+      requestedAnswer:false,
       desk: "Wardrobe Desk",
       initial: [n("fitting", "Fitting receipt")],
       transition: "rotate",
@@ -575,6 +597,7 @@ export const openNotificationStateWorlds = [
     "closing-desk-revocation",
     "train",
     {
+      requestedAnswer:true,
       desk: "Closing Desk",
       initial: [n("checklist", "Opening checklist")],
       transition: "retire",
@@ -595,6 +618,7 @@ export const openNotificationStateWorlds = [
     "finance-owner-handover",
     "train",
     {
+      requestedAnswer:true,
       desk: "Finance Review",
       initial: [
         n("payroll", "Payroll receipt"),
@@ -618,6 +642,7 @@ export const openNotificationStateWorlds = [
     "retained-safety-collision",
     "held",
     {
+      requestedAnswer:true,
       desk: "Safety File",
       initial: [
         n("incident", "East access remains blocked", {
@@ -646,6 +671,7 @@ export const openNotificationStateWorlds = [
     "cold-storage-reopen",
     "held",
     {
+      requestedAnswer:true,
       desk: "Cold Storage",
       initial: [
         n("valve", "Valve checked 7°C", { read: true, revision: 4, at: 78 }),
@@ -670,6 +696,7 @@ export const openNotificationStateWorlds = [
     "catalog-unreviewed-revision",
     "held",
     {
+      requestedAnswer:true,
       desk: "Label Catalog",
       initial: [n("label", "Blue-label draft")],
       transition: "rotate",
@@ -693,6 +720,7 @@ export const openNotificationStateWorlds = [
     "exhibit-review-authority-transition",
     "held",
     {
+      requestedAnswer:true,
       desk: "Exhibit Review",
       initial: [
         n("exam", "Opening checklist"),
@@ -718,6 +746,7 @@ export const openNotificationStateWorlds = [
     "assembly-archived-invite-reappearance",
     "held",
     {
+      requestedAnswer:true,
       desk: "Assembly Desk",
       initial: [
         n("invite", "Assembly invitation", {
@@ -748,6 +777,7 @@ export const openNotificationStateWorlds = [
     "map-tied-time-partial-clear",
     "held",
     {
+      requestedAnswer:true,
       desk: "Map Desk",
       initial: [
         n("boundary", "Boundaries reviewed", { at: 60 }),
