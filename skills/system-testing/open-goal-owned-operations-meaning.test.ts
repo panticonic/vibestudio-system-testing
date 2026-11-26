@@ -1,3 +1,4 @@
+import{createHash}from"node:crypto";
 import {beforeEach,it,expect,vi} from "vitest";
 const native=vi.hoisted(()=>({files:new Map<string,string>(),contexts:new Set<string>(),entities:new Map<string,any>(),sequence:0}));
 vi.mock("@workspace/runtime",()=>({contextId:"owned",vcs:{status:async()=>({workingHead:{eventId:"main"}})},fs:{mkdtemp:async()=>"/owned/docket-"+(++native.sequence),writeFile:async(path:string,text:string)=>{native.files.set(path,text);},exists:async(path:string)=>native.files.has(path)},runtime:{
@@ -6,7 +7,7 @@ vi.mock("@workspace/runtime",()=>({contextId:"owned",vcs:{status:async()=>({work
  retireEntity:async({id}:any)=>{native.entities.delete(id);},destroyContext:async({contextId}:any)=>{native.contexts.delete(contextId);},listEntities:async()=>[...native.entities.values()].map(({state,...row})=>row),listContexts:async()=>({contexts:[...native.contexts]}),
  supervision:{describe:async(key:any)=>[{entityId:key.entityId,generation:1}],restart:async()=>{}},
 },rpc:{call:async(target:string,method:any,args:any[])=>{
- if(target==="main") {const bytes=new TextEncoder().encode(native.files.get(args[0])!);return {base64:Buffer.from(bytes).toString("base64"),truncated:false,start:0,end:bytes.length,totalBytes:bytes.length};}
+ if(target==="main") {const bytes=Buffer.from(native.files.get(args[0])!),offset=args[1]?.offset??0,limit=args[1]?.limit??51200,end=Math.min(bytes.length,offset+limit);return {base64:bytes.subarray(offset,end).toString("base64"),contentHash:createHash("sha256").update(bytes).digest("hex"),maxBytes:limit,truncated:end<bytes.length,start:offset,end,totalBytes:bytes.length,...(end<bytes.length?{nextOffset:end}:{})};}
  const entity=[...native.entities.values()].find(row=>row.targetId===target);if(!entity)throw new Error("Missing native target");
  if(method.name==="append"){if(args[0]!==entity.state.revision)throw new Error("Revision conflict");entity.state.revision++;entity.state.checkpoints.push({revision:entity.state.revision,assessment:structuredClone(args[1])});}
  else if(method.name!=="snapshot")throw new Error("Unexpected native method");return structuredClone(entity.state);
@@ -24,16 +25,16 @@ it("does not force a worker/report route for a requested docket assessment, whil
  try{
   const docket=[...native.files.values()].map(text=>JSON.parse(text)).find(row=>row.docket.edition==="current")!.docket;
   await fixture.services.operationsDocket.read(docket.id,docket.revision);
-  const report={docket:null,operation:null,dossier:null,disposition:"held",reason:"The current docket says customers still lack their current-cycle total; recovery alone does not clear impact."};
+  const report="The current docket says customers still lack their current-cycle total; recovery alone does not clear impact.";
   const proof=await fixture.verify(report);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(report);expect(native.entities.size).toBe(0);
-  const forged={...report,operation:{kind:"incident-handoff",handoff:{decision:"ready",evidenceIds:["customer-view"],summary:"unsupported"},handles:[{id:"foreign",contextId:"foreign",targetId:"foreign",role:"impact"}],cleanup:{retiredIds:[],destroyedContextIds:[]}}};
-  expect((await fixture.verify(forged)).passed).toBe(false);
+  expect((await fixture.verify({status:"held",reason:report})).outcomeDimensions.returnedValue.passed).toBe(false);
+
  }finally{await fixture.close();}
 });
-it("does not waive a requested native private dossier merely because a redundant return is optional",async()=>{
+it("binds an absent conditional dossier to mandatory goal review without claiming a completed artifact",async()=>{
  const world=openOwnedOperationsWorlds.find(row=>row.id==="owned-operations-register-staff-training")!;
  const fixture=await prepareOpenOwnedOperations({contextId:"owned",caseId:world.id,goal:world.goal},world);
- try{const rows=await fixture.services.operationsDocket.list(),current=rows.find(row=>row.edition==="current")!;await fixture.services.operationsDocket.read(current.id,current.revision);const proof=await fixture.verify(null);expect(proof.passed).toBe(false);expect(proof.checks.actualPrivateDossierReadback).toBe(false);}finally{await fixture.close();}
+ try{const rows=await fixture.services.operationsDocket.list(),current=rows.find(row=>row.edition==="current")!;await fixture.services.operationsDocket.read(current.id,current.revision);const proof=await fixture.verify(null);expect(proof.artifact).toBeNull();expect(proof.dossierReadback).toBeNull();expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.goal).toBe(world.goal);expect(proof.semanticReviewInput.actual.artifacts.dossierReadback).toBeNull();}finally{await fixture.close();}
 });
 
 it("joins actual worker resources at verification without imposing an explicit model cleanup call",async()=>{
@@ -45,8 +46,34 @@ it("joins actual worker resources at verification without imposing an explicit m
   const handle=await fixture.services.ownedOperations.open("impact");
   await fixture.services.ownedOperations.append(handle,0,{role:"impact",decision:"blocked",evidenceIds:["customer-view"],reason:"Current-cycle total absent"});
   expect(native.entities.size).toBe(1);
-  const proof=await fixture.verify({docket:null,operation:null,dossier:null,disposition:"held",reason:"Customers remain affected despite recovery readiness"});
+  const proof=await fixture.verify("Customers remain affected despite recovery readiness");
   expect(proof.passed).toBe(true);expect(proof.audit.programRequestedCleanup).toBe(false);
   expect(proof.audit.retiredIds).toEqual([handle.id]);expect(native.entities.size).toBe(0);expect(native.contexts.size).toBe(0);
+ }finally{await fixture.close();}
+});
+
+it("retains the actual selected current checkpoint with valid extra history and source subsets beyond the old16KiB read cap",async()=>{
+ const world=openOwnedOperationsWorlds.find(row=>row.id==="owned-operations-register-staff-training")!;
+ const fixture=await prepareOpenOwnedOperations({contextId:"owned",caseId:world.id,goal:world.goal},world);
+ try{
+  const docket=(await fixture.services.operationsDocket.list()).find(row=>row.edition==="current")!;
+  await fixture.services.operationsDocket.read(docket.id,docket.revision);
+  const prior=await fixture.services.ownedOperations.open("release");
+  await fixture.services.ownedOperations.append(prior,0,{role:"release",decision:"blocked",evidenceIds:["shift-training"],reason:"Historical pending training"});
+  const current=await fixture.services.ownedOperations.open("release");
+  await expect(fixture.services.ownedOperations.read({...current,targetId:"foreign"})).rejects.toThrow("exact handle");
+  await expect(fixture.services.ownedOperations.append(current,0,{role:"release",decision:"ready",evidenceIds:["foreign-source"],reason:"Invented source"})).rejects.toThrow("actual owned docket");
+  await fixture.services.ownedOperations.append(current,0,{role:"release",decision:"blocked",evidenceIds:["shift-training"],reason:"Original pending training"});
+  await fixture.services.ownedOperations.restart(current);
+  await expect(fixture.services.ownedOperations.append(current,0,{role:"release",decision:"ready",evidenceIds:["shift-training"],reason:"Stale revision"})).rejects.toThrow("Revision conflict");
+  await fixture.services.ownedOperations.append(current,1,{role:"release",decision:"ready",evidenceIds:["shift-training"],reason:"Current training now approved; floor signoff remains approved"});
+  const cleanup=await fixture.services.ownedOperations.close();
+  const report={kind:"release-continuation" as const,handles:[current],cleanup,handoff:{decision:"ready" as const,evidenceIds:["shift-training"],summary:"Actual current readiness. "+"Detailed retained assessment. ".repeat(1200)}};
+  await expect(fixture.services.operationsDossier.retain(docket.id,docket.revision,{...report,handles:[{...current,targetId:"foreign"}]})).rejects.toThrow("do not permit");
+  const receipt=await fixture.services.operationsDossier.retain(docket.id,docket.revision,report);
+  const proof=await fixture.verify(undefined);
+  expect(proof.passed,JSON.stringify(proof.checks)).toBe(true);expect(proof.artifact).toEqual(receipt);
+  expect(Buffer.byteLength(proof.dossierReadback!)).toBeGreaterThan(16384);expect(JSON.parse(proof.dossierReadback!).checkpoints.at(-1).assessment.reason).toContain("Current training");
+  expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toBeNull();
  }finally{await fixture.close();}
 });

@@ -13,6 +13,7 @@ export type OperationsGoalWorld = {
   workspace: "system";
   goal: string;
   requestedReturnRequired: boolean;
+  requestedArtifact: "none" | "if-ready";
   title: string;
   sourceGroup: string;
   split: "train" | "test";
@@ -30,7 +31,7 @@ function incident(id: string, title: string, goal: string, requestedReturnRequir
     signals: [impact, recovery].map(([id, text]) => ({ id, text })),
   };
   return {
-    id: `owned-operations-${id}`, kind: "owned-operations", workspace: "system", goal, title, requestedReturnRequired,
+    id: `owned-operations-${id}`, kind: "owned-operations", workspace: "system", goal, title, requestedReturnRequired, requestedArtifact:"none",
     sourceGroup: `vibestudio:open-owned-operations:incident:${id}`, split: options.held ? "test" : "train",
     authority: options.review ? "review-only" : "local-exercise", retainWhenReady: false, request,
     expected: { kind: request.kind, roles: {
@@ -41,7 +42,7 @@ function incident(id: string, title: string, goal: string, requestedReturnRequir
 }
 
 type Gate = Release["before"][number]["state"];
-function release(id: string, title: string, goal: string, requestedReturnRequired: boolean, gates: [string, Gate, Gate][],
+function release(id: string, title: string, goal: string, requestedReturnRequired: boolean, requestedArtifact: "none" | "if-ready", gates: [string, Gate, Gate][],
   decisions: [Decision, Decision], options: { held?: boolean; review?: boolean; retain?: boolean } = {},
 ): OperationsGoalWorld {
   const request: Release = {
@@ -50,7 +51,7 @@ function release(id: string, title: string, goal: string, requestedReturnRequire
     after: gates.map(([id, , state]) => ({ id, state })),
   };
   return {
-    id: `owned-operations-${id}`, kind: "owned-operations", workspace: "system", goal, title, requestedReturnRequired,
+    id: `owned-operations-${id}`, kind: "owned-operations", workspace: "system", goal, title, requestedReturnRequired, requestedArtifact,
     sourceGroup: `vibestudio:open-owned-operations:release:${id}`, split: options.held ? "test" : "train",
     authority: options.review ? "review-only" : "local-exercise", retainWhenReady: options.retain ?? false, request,
     expected: { kind: request.kind, roles: {
@@ -101,28 +102,28 @@ export const openOwnedOperationsWorlds = [
     ["reader-pass", "The old reader error is gone, but affected readers still cannot obtain the corresponding document.", "blocked"],
     ["access-restore", "The isolated restore has the exact scoped permission records and passed the complete local readback.", "ready"]),
 
-  release("register-staff-training", "Register staff training", "Carry the local Register staff training release review through a worker restart and leave a private dossier only if the updated training and approval evidence permits proceeding.", false,
+  release("register-staff-training", "Register staff training", "Carry the local Register staff training release review through a worker restart and leave a private dossier only if the updated training and approval evidence permits proceeding.", false, "if-ready",
     [["shift-training", "pending", "approved"], ["floor-signoff", "approved", "approved"]], ["blocked", "ready"], { retain: true }),
-  release("library-metadata-credit", "Library metadata credit", "The Library metadata credit handoff already has an approval on file. Check it after restarting the checkpoint worker against the current license and catalog evidence before anyone treats it as cleared.", true,
+  release("library-metadata-credit", "Library metadata credit", "The Library metadata credit handoff already has an approval on file. Check it after restarting the checkpoint worker against the current license and catalog evidence before anyone treats it as cleared.", true, "none",
     [["license-credit", "approved", "rejected"], ["catalog-review", "approved", "approved"]], ["ready", "blocked"]),
-  release("returns-desk-partial", "Returns desk drawer", "Take the Returns desk drawer review through the retained worker boundary. The desk wants a private release record only if every outstanding signoff has cleared.", false,
+  release("returns-desk-partial", "Returns desk drawer", "Take the Returns desk drawer review through the retained worker boundary. The desk wants a private release record only if every outstanding signoff has cleared.", false, "if-ready",
     [["desk-lead", "pending", "approved"], ["cash-review", "pending", "pending"], ["device-check", "approved", "approved"]], ["blocked", "blocked"], { retain: true }),
-  release("printer-routing-proof", "Printer routing", "Show whether Printer routing can resume after moving the release worker through its restart. Keep evidence of both assessments and privately retain the readiness dossier if the current checks justify it.", true,
+  release("printer-routing-proof", "Printer routing", "Show whether Printer routing can resume after moving the release worker through its restart. Keep evidence of both assessments and privately retain the readiness dossier if the current checks justify it.", true, "if-ready",
     [["queue-probe", "approved", "approved"], ["location-owner", "approved", "approved"], ["stock-check", "approved", "approved"]], ["ready", "ready"], { retain: true }),
-  release("accessible-kiosk-renewal", "Accessible kiosk reader", "Reconcile the earlier and current signoffs for Accessible kiosk reader across a restart of the owned worker. Prepare a local private readiness record if the restored checkpoint and new signoffs agree.", false,
+  release("accessible-kiosk-renewal", "Accessible kiosk reader", "Reconcile the earlier and current signoffs for Accessible kiosk reader across a restart of the owned worker. Prepare a local private readiness record if the restored checkpoint and new signoffs agree.", false, "if-ready",
     [["keyboard-review", "rejected", "approved"], ["audible-guide", "approved", "approved"]], ["blocked", "ready"], { retain: true }),
-  release("warehouse-translation-review", "Warehouse translation", "Give the Warehouse translation owner an internal release disposition based on the current docket authority. Check whether they can carry its past decision forward without engaging a public release.", true,
+  release("warehouse-translation-review", "Warehouse translation", "Give the Warehouse translation owner an internal release disposition based on the current docket authority. Check whether they can carry its past decision forward without engaging a public release.", true, "none",
     [["hazard-copy", "approved", "approved"], ["locale-sample", "approved", "approved"]], ["ready", "ready"], { review: true, retain: true }),
-  release("offline-receipt-restore", "Offline receipt staging", "Can Offline receipt staging come out of its release hold? Recover the prior assessment in the restarted local worker, then check whether the current tape recovery and layout evidence justify a change.", true,
+  release("offline-receipt-restore", "Offline receipt staging", "Can Offline receipt staging come out of its release hold? Recover the prior assessment in the restarted local worker, then check whether the current tape recovery and layout evidence justify a change.", true, "none",
     [["tape-recovery", "pending", "approved"], ["print-layout", "rejected", "rejected"]], ["blocked", "blocked"]),
-  release("visitor-direction-board", "Visitor direction board", "Bring Visitor direction board back to its retained release assessment after restarting the owned worker. Use the new map and assistance review and leave a private record if the remaining gate really cleared.", false,
+  release("visitor-direction-board", "Visitor direction board", "Bring Visitor direction board back to its retained release assessment after restarting the owned worker. Use the new map and assistance review and leave a private record if the remaining gate really cleared.", false, "if-ready",
     [["map-owner", "approved", "approved"], ["assistance-review", "pending", "approved"], ["east-entry-report", "approved", "approved"]], ["blocked", "ready"], { retain: true, held: true }),
-  release("catalog-preview-withdrawal", "Catalog preview credit", "Review the Catalog preview credit release across its worker restart. The old decision may be misleading if image permission or the preview owner's readiness has changed. Keep any eligible notes private.", true,
+  release("catalog-preview-withdrawal", "Catalog preview credit", "Review the Catalog preview credit release across its worker restart. The old decision may be misleading if image permission or the preview owner's readiness has changed. Keep any eligible notes private.", true, "none",
     [["preview-owner", "approved", "approved"], ["image-permission", "approved", "pending"]], ["ready", "blocked"], { retain: true, held: true }),
-  release("service-counter-runbook", "Service counter runbook", "Carry Service counter runbook through a local restart exercise and reconfirm the signoffs after reading its persisted checkpoint. I only need a handover in this conversation.", true,
+  release("service-counter-runbook", "Service counter runbook", "Carry Service counter runbook through a local restart exercise and reconfirm the signoffs after reading its persisted checkpoint. I only need a handover in this conversation.", true, "none",
     [["counter-lead", "approved", "approved"], ["closing-test", "approved", "approved"]], ["ready", "ready"]),
-  release("dock-dispatch-approval", "Dock dispatch instructions", "Preserve the Dock dispatch instructions' earlier gated state, restart the local assessment worker, and tell me what the current gate evidence allows. Keep a readiness dossier when it qualifies.", true,
+  release("dock-dispatch-approval", "Dock dispatch instructions", "Preserve the Dock dispatch instructions' earlier gated state, restart the local assessment worker, and tell me what the current gate evidence allows. Keep a readiness dossier when it qualifies.", true, "if-ready",
     [["dispatch-captain", "rejected", "approved"], ["coverage", "pending", "approved"], ["forklift-window", "approved", "approved"]], ["blocked", "ready"], { retain: true }),
-  release("cashier-guide-observe", "Cashier guide", "Find the current Cashier guide release docket and tell me what the local owner permits before I ask anyone to continue its checkpoint or retain a dossier.", true,
+  release("cashier-guide-observe", "Cashier guide", "Find the current Cashier guide release docket and tell me what the local owner permits before I ask anyone to continue its checkpoint or retain a dossier.", true, "none",
     [["training-signoff", "pending", "approved"], ["counter-readback", "approved", "approved"]], ["blocked", "ready"], { review: true, held: true }),
 ] satisfies OperationsGoalWorld[];
