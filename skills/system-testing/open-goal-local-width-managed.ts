@@ -56,11 +56,11 @@ function evaluateWidth(need: Need, receipt: Witness) {
   return Math.max(...complete.map(({ start }) => complete.filter(interval => interval.start <= start && start < interval.end).length));
 }
 
-function inspectCandidate(ref: string, survey: Survey, rows: LocalModelEntry[], receipts: Witness[]) {
+function inspectCandidate(ref: string, survey: Survey, rows: LocalModelEntry[], receipts: Witness[], providerId?: string) {
   const row = rows.find(item => local(item.slug) === ref);
   const fact: Facts = { ref, provider: null, advertisedWidth: null, witnessedWidth: null, witness: null, disposition: "model-unavailable" };
   if (!row || !inventoried(row)) return { fact, candidates: [] };
-  const provider = survey.providers.find(entry => entry.ref === ref && entry.selectable && entry.lane === row.server &&
+  const provider = survey.providers.find(entry => (providerId===undefined||entry.id===providerId) && entry.ref === ref && entry.selectable && entry.lane === row.server &&
     isDeepStrictEqual(entry.scope, survey.scope));
   if (!provider) return { fact: { ...fact, disposition: "provider-unavailable" } as Facts, candidates: [] };
   fact.provider = provider.id;
@@ -183,10 +183,17 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
       expectedWitnesses: new Set(scores.flatMap(score => score.candidates.map(candidate => candidate.id))) };
   }
 
-  const packet = (actual: Awaited<ReturnType<typeof evidence>>, reason: string) => JSON.stringify({
+  function supportedFinding(finding: Finding | null | undefined, actual: Awaited<ReturnType<typeof evidence>>) {
+    if (!finding || typeof finding.reason !== "string" || !finding.reason.trim() || typeof finding.ref !== "string") return false;
+    if (finding.witness !== null && !actual.retained.some(row => row.id === finding.witness)) return false;
+    // Bind the cited native record, not an authored global winner or opaque tie-break.
+    const receipts = finding.witness === null ? [] : actual.retained.filter(row => row.id === finding.witness);
+    return isDeepStrictEqual(factOnly(finding), inspectCandidate(finding.ref, actual.survey, actual.rows, receipts, finding.provider??undefined).fact);
+  }
+  const packet = (actual: Awaited<ReturnType<typeof evidence>>, finding: Finding) => JSON.stringify({
     schema: "vibestudio.local-width-handoff/1", scope: actual.survey.scope, need: actual.survey.requirement,
-    finding: actual.selected.fact, reason,
-    witness: actual.retained.find(row => row.id === actual.selected.fact.witness) ?? null,
+    finding: factOnly(finding), reason: finding.reason,
+    witness: actual.retained.find(row => row.id === finding.witness) ?? null,
   }, null, 2) + "\n";
 
   const services = {
@@ -213,13 +220,11 @@ export async function prepareLocalWidthGoal(input: { contextId: string; caseId: 
         const current = await evidence();
         const post = await vcs.status();
         const authorized = current.survey.release === "include-hold" ||
-          (current.survey.release === "verified" && current.selected.fact.disposition === "verified");
-        const { fact } = current.selected;
-        if (!inventoryReads || stored || !authorized || !isDeepStrictEqual(before.workingHead, post.workingHead) ||
-            !isDeepStrictEqual(factOnly(finding), fact) || (fact.witness && !lookedUp.has(fact.witness)) ||
-            typeof finding.reason !== "string" || !finding.reason.trim())
+          (current.survey.release === "verified" && finding.disposition === "verified");
+        if (stored || !authorized || (!current.survey.requirement.alternativesAllowed&&finding.ref!==current.survey.requirement.requestedRef) || !isDeepStrictEqual(before.workingHead, post.workingHead) ||
+            !supportedFinding(finding, current))
           return remember("localWidthHandoff", "stage", [finding], null);
-        const text = packet(current, finding.reason);
+        const text = packet(current, finding);
         const saved = await scratch.scratchHandoffWrite.stage(text);
         if(saved)stagedText=text;
         if (saved) stored = { ...saved, sha256: sha256HexSyncText(text) };
@@ -252,17 +257,15 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const report = value as Outcome | null;
     const outcome = report;
     const actual = await evidence();
-    const { fact } = actual.selected;
     const post = await vcs.status();
     const afterOutputs = await outputs();
     const added = afterOutputs.filter(name => !baselineOutputs.includes(name));
     const filesIntact = await Promise.all([...files].map(async ([path, text]) =>
       decoder.decode(await readBytes(path, 32 * 1024)) === text));
     const stageCount = effects.filter(effect => effect.service === "localWidthHandoff" && effect.method === "stage" && effect.result !== null).length;
-    const shouldStage = world.release === "include-hold" || (world.release === "verified" && world.expected === "verified");
     let handoffText:string|null=null;
-    let handoff = !shouldStage && stored === null && !added.length && !stageCount;
-    if (shouldStage && stored && added.length === 1 && stageCount === 1) {
+    let handoff = stored === null && !added.length && !stageCount;
+    if (stored && added.length === 1 && stageCount === 1) {
       const bytes = await readBytes(stored.path, stored.bytes);
       const body = decoder.decode(bytes);
       handoffText=body;
@@ -273,8 +276,11 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       retainedExactMachineScope: filesIntact.every(Boolean),
       boundCurrentModelInventory: effects.filter(effect=>effect.service==="localModels").every(effect=>
         effect.method==="listModels"&&isDeepStrictEqual(effect.args,[])&&isDeepStrictEqual(effect.result,inventoryProjection(actual.rows))),
-      boundActualProviderAndWidth: isDeepStrictEqual(lookedUp, actual.expectedWitnesses),
-      exactEvidenceDisposition: isDeepStrictEqual(outcome?.handoff,stored)&&Boolean(outcome?.finding&&isDeepStrictEqual(factOnly(outcome.finding),fact))&&outcome?.finding?.disposition === world.expected && Boolean(outcome.finding.reason?.trim()),
+      boundActualProviderAndWidth: effects.filter(effect=>effect.service==="localWidthEvidence").every(effect=>
+        effect.method==="discover" ? isDeepStrictEqual(effect.args,[])&&isDeepStrictEqual(effect.result,actual.survey) :
+        effect.method==="readWitness"&&effect.args.length===1&&isDeepStrictEqual(effect.result,actual.retained.find(row=>row.id===effect.args[0]))),
+      exactEvidenceDisposition: supportedFinding(outcome?.finding,actual),
+      authenticHandoffValue: outcome?.handoff===undefined||outcome.handoff===null||isDeepStrictEqual(outcome.handoff,stored),
       verifiedExactLocalHandoff: handoff &&
         baselineOutputs.every(name => afterOutputs.includes(name)),
       preservedWorkspaceState: before.mainEventId === post.mainEventId && isDeepStrictEqual(before.workingHead, post.workingHead),
@@ -282,11 +288,11 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     return {
       outcomeContract:{
         effects:{checks:["retainedExactMachineScope", "boundCurrentModelInventory", "boundActualProviderAndWidth", "verifiedExactLocalHandoff", "preservedWorkspaceState"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["exactEvidenceDisposition"],required:!shouldStage,rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+        returnedValue:{checks:["exactEvidenceDisposition"],required:world.requestedReturnRequired,rationale:"Every literal goal requests an actual capacity or current-state answer; a retained note does not replace that answer."},
+        incidentalValues:{checks:["authenticHandoffValue"],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
       incorrectReturnValues:[],
  caseId: input.caseId, contextId: input.contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      effects:structuredClone(effects), survey: actual.survey, finding: fact, nativeInventory:{current:inventoryProjection(actual.rows),actorObserved:inventoryReads>0,readbacks:effects.filter(effect=>effect.service==="localModels")}, handoff: stored, handoffText };
+      effects:structuredClone(effects), survey: actual.survey, finding: {nativeCandidates:actual.rows.map(row=>inspectCandidate(local(row.slug),actual.survey,actual.rows,actual.retained).fact),actorReadWitnessIds:[...lookedUp],protocol:"Native verifier facts describe the retained evidence, not actor observations or a required preferred-answer route."}, nativeInventory:{current:inventoryProjection(actual.rows),actorObserved:inventoryReads>0,readbacks:effects.filter(effect=>effect.service==="localModels")}, handoff: stored, handoffText };
   }
 
   async function qualify() {
@@ -300,10 +306,12 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const result = {finding,handoff};
     const proof = await verify(result);
     const rejectedInventedApplicationValue = !(await verify({...result,finding:{...finding,disposition:"invented"}})).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    const requiredReferenceArtifact=world.release === "include-hold" || (world.release === "verified" && finding.disposition === "verified");
+    const referenceRequestedArtifact=!requiredReferenceArtifact||handoff!==null;
+    const checks = {...proof.checks,rejectedInventedApplicationValue,referenceRequestedArtifact};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue","referenceRequestedArtifact"]}}});
   }
 
   return { services, verify, qualify };

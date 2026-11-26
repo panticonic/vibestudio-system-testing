@@ -14,6 +14,8 @@ export type LocalWidthWorld = {
   models: Entry[]; providers: Provider[]; servers: Server[]; receipts: Receipt[];
   release: "none" | "verified" | "include-hold";
   expected: WidthDisposition;
+  /** Every literal goal asks for an actual capacity/state explanation, including mixed note requests. */
+  requestedReturnRequired: true;
 };
 export const openLocalWidthRequiresUnits = ["skills/open-user-goal", "skills/local-models", "skills/scratch-handoff-bindings"];
 
@@ -39,7 +41,7 @@ function scenario(id: string, machine: string, goal: string, expected: WidthDisp
   const desired = options.desired ?? { model: qwen, alternate: false, lanes: 2, context, tools: true };
   return {
     id: "local-width-" + id, kind: "local-width", workspace: "system", sourceGroup: "vibestudio:local-width:" + id,
-    ...(options.held ? { split: "test" } : {}), machine, goal, expected, desired,
+    ...(options.held ? { split: "test" } : {}), machine, goal, expected, desired, requestedReturnRequired: true,
     models: options.models ?? [model(), model(lfm, "startable")],
     providers: options.providers ?? [provide()], servers: options.servers ?? [server()],
     receipts: options.receipts ?? [receipt()], release: options.release ?? "none",
