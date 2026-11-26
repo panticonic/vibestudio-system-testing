@@ -148,8 +148,9 @@ export async function prepareLaunchState(input:{contextId:string;caseId:string},
     let stagedText:string|null=null;
   const services={
       launchStateRead:{
-        async enumerate(){return structuredClone(index);},
+        async enumerate(){return closed?[]:structuredClone(index);},
         async read(panelId:string){
+          if(closed)return null;
           if(panelId===alternate.id){
             const observed=await native(alternate,true);
             companionReadbacks.push(observed);

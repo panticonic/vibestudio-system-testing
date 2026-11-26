@@ -36,6 +36,8 @@ it("allows actual assigned companion reads while all mutation and sealing author
   await expect(fixture.services.launchStateRead.read(companion.panelId)).rejects.toThrow("escaped the assigned context");
  }finally{await fixture.close();}
  expect(archives).toBe(2);
+ expect(await fixture.services.launchStateRead.enumerate()).toEqual([]);
+ expect(await fixture.services.launchStateRead.read("panel-1")).toBeNull();
 });
 
 
