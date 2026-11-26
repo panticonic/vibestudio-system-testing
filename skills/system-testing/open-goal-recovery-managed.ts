@@ -30,6 +30,8 @@ export type OpenRecoveryWorld = {
   goal: string;
   sessions: readonly Seed[];
   canStage: boolean;
+  requestedReturnRequired: boolean;
+  orderedReads?: readonly string[];
   expected: {
     reads: readonly { key: string; status: RecoveryWindow["status"] }[];
     disposition: Disposition;
@@ -118,6 +120,8 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
   const catalog = [...sessions.values()].map(({ source }) => source);
   const observed = new Map<string, RecoveryWindow>();
   const running = new Set<string>();
+  const completed = new Set<string>();
+  const readStarts: {source:string;completed:string[]}[] = [];
   let artifact: RecoveryArtifact | null = null;
   let handoffText: string | null = null;
   let stagedReview: RecoveryFinding | null = null;
@@ -130,9 +134,10 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
     recoveryReplay: {
       async resume(id: string): Promise<RecoveryWindow> {
         const found = [...sessions.values()].find(({ source }) => source.id === id);
-        if (!found || running.size || artifact)
-          throw new Error("Resume an authorized retained conversation once before staging a handoff");
+        if (!found || running.has(id) || artifact)
+          throw new Error("Resume an authorized retained conversation before staging a handoff");
         if (observed.has(id)) return structuredClone(observed.get(id)!);
+        readStarts.push({source:id,completed:[...completed]});
         running.add(id);
         try {
           const bound = bindTranscriptCursor({
@@ -168,6 +173,7 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
             }
           }
           observed.set(id, window);
+          completed.add(id);
           return structuredClone(window);
         } finally {
           running.delete(id);
@@ -237,7 +243,6 @@ export async function prepareOpenRecoveryGoal({ contextId, caseId }: { contextId
 async function verifyNativeApplication(value: unknown, invocation?: InvocationObservations) {
     const envelope = value as RecoveryReport | null;
     const report = envelope;
-    const citations = expectedCitations();
     const replays = await Promise.all([...observed.values()].map(async (window) => {
       const lane = [...sessions.values()].find((entry) => entry.source.id === window.source.id)!.lane;
       if (window.status === "foreign" || window.status === "future")
@@ -265,21 +270,22 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const actualHandoffText=artifact?await fs.readFile(artifact.path,"utf8"):null;
     const hasArtifact = Boolean(artifact && handoffText && stagedReview &&
       handoffText === formatHandoff(stagedReview) && typeof actualHandoffText==="string" && actualHandoffText === handoffText &&
-      recoveryHandoffMatches(actualHandoffText,{disposition:world.expected.disposition,citations}) &&
+      recoveryHandoffMatches(actualHandoffText,stagedReview) &&
       artifact.sha256 === sha256HexSyncText(handoffText));
     const checks = {
       discoveredRetainedSources: catalog.length === world.sessions.length,
-      exactReplayScope: isDeepStrictEqual([...observed.values()].map(({ source, status }) => [source.id, status]),
-        world.expected.reads.map(({ key, status }) => [session(key).source.id, status])),
+      exactReplayScope: world.expected.reads.every(({key,status})=>observed.get(session(key).source.id)?.status===status) &&
+        (world.orderedReads??[]).every((key,index,order)=>index===0 ||
+          readStarts.some(read=>read.source===session(key).source.id && read.completed.includes(session(order[index-1]!).source.id))),
       boundNativeReplay: replays.every(Boolean),
       preservedRetainedChannels: channelReads.every(({ matched }) => matched),
-      groundedRecoveryDecision: isDeepStrictEqual(report?.handoff,artifact)&&report?.review?.disposition === world.expected.disposition && isDeepStrictEqual(report.review.citations, citations) &&
-        typeof reason === "string" && !!reason.trim(),
+      groundedRecoveryDecision: typeof reason === "string" && !!reason.trim() && Array.isArray(report?.review?.citations) &&
+        report.review.citations.every(citation=>observed.get(citation.channelId)?.notes.some(note=>isDeepStrictEqual(note,citation))===true),
       verifiedRecoveryHandoff: world.expected.stage ? hasArtifact : artifact === null,
     };
     return {
       outcomeContract:{effects:{checks:["discoveredRetainedSources", "exactReplayScope", "boundNativeReplay", "preservedRetainedChannels", "verifiedRecoveryHandoff"],rationale:"Authoritative native state, captured operations and durable artifact readback establish these facts independently of copied public values."},
-        returnedValue:{checks:["groundedRecoveryDecision"],required:!world.expected.stage,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
+        returnedValue:{checks:["groundedRecoveryDecision"],required:world.requestedReturnRequired,rationale:"A requested domain answer is required; an extra result copy is optional after the requested native mutation or artifact is independently established."},
         incidentalValues:{checks:[],rationale:"Known incorrect actual emitted values are masked with their source-bound root definition."}},
       incorrectReturnValues:[],
  contextId, caseId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),

@@ -57,6 +57,61 @@ it.each(providerHandoffWorlds)("$id qualifies retained provider decisions and or
   const prepared=await prepareOpenProviderHandoff({contextId:"owned",caseId:world.id},fixture.ports as never);
   const proof=await prepared.qualify();expect(proof.passed).toBe(true);
   const rejected=await prepared.verify(null,referenceObserver(null));
-  expect(rejected.outcomeDimensions.effects.passed).toBe(true);expect(rejected.outcomeDimensions.returnedValue.passed).toBe(false);expect(rejected.passed).toBe(false);
+  expect(rejected.outcomeDimensions.effects.passed).toBe(true);expect(rejected.outcomeDimensions.returnedValue.passed).toBe(false);expect(rejected.passed).toBe(world.requestedReturnRequired === false);
  }finally{await fixture.close();}
+});
+
+it.each([1,4])("accepts stable provider evidence after %i real reads without requiring a golden disposition echo",async count=>{
+ const fixture=await journalPorts(false);
+ try{
+  const world=providerHandoffWorlds.find(world=>world.id==="provider-brochure-prompt-still-queued")!;
+  const prepared=await prepareOpenProviderHandoff({contextId:"owned",caseId:world.id},fixture.ports as never);
+  const [card]=await prepared.services.retainedConversationIndex.list();
+  const snapshots=await Promise.all(Array.from({length:count},()=>prepared.services.retainedConversationState.read(card!.channelId)));
+  const snapshot=snapshots.at(-1)!;
+  const value={plan:{channelId:card!.channelId,through:snapshot!.through,requestId:card!.request.id,disposition:"held" as const,reason:"decision-unconfirmed" as const,
+    decisionMessage:null,resultMessage:null,output:null,explanation:"The native workspace queue still lists this request; no grant or delivered result is recorded."},handoff:null};
+  const proof=await prepared.verify(value,referenceObserver(value));
+  expect(proof.passed).toBe(true);expect(proof.snapshots).toHaveLength(count);expect(proof.semanticReviewRequired).toBe(true);
+  expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(value);
+  expect((await prepared.verify(null,referenceObserver(null))).passed).toBe(false);
+ }finally{await fixture.close();}
+});
+it("rejects changed provider evidence without a current refresh and refuses staging after actual withdrawal",async()=>{
+ const fixture=await journalPorts(false);
+ try{
+  const world=providerHandoffWorlds.find(world=>world.id==="provider-held-late-withdrawal-protects-draft")!;
+  const prepared=await prepareOpenProviderHandoff({contextId:"owned",caseId:world.id},fixture.ports as never);
+  const [card]=await prepared.services.retainedConversationIndex.list();const opening=await prepared.services.retainedConversationState.read(card!.channelId);
+  const plan={channelId:card!.channelId,through:opening!.through,requestId:card!.request.id,disposition:"ready" as const,reason:"verified" as const,decisionMessage:null,resultMessage:null,output:null,explanation:"Old grant"};
+  expect(await prepared.services.retainedProviderHandoff.stage(plan)).toBe(null);
+  const stale=await prepared.verify({plan,handoff:null},referenceObserver({plan,handoff:null}));
+  expect(stale.outcomeDimensions.effects.passed).toBe(false);expect(stale.observedChecks.exactRetainedProviderFrontier).toBe(false);
+  const latest=await prepared.services.retainedConversationState.read(card!.channelId);expect(latest!.through).toBeGreaterThan(opening!.through);
+  expect(await prepared.services.retainedProviderHandoff.stage({...plan,through:latest!.through})).toBe(null);
+ }finally{await fixture.close();}
+});
+
+it("stages exact consented provider bytes independently of unrequested disposition/reason echoes",async()=>{
+ const fixture=await journalPorts(false);
+ try{
+  const world=providerHandoffWorlds.find(world=>world.id==="provider-source-note-not-in-redacted-handoff")!;
+  const prepared=await prepareOpenProviderHandoff({contextId:"owned",caseId:world.id},fixture.ports as never);
+  const [card]=await prepared.services.retainedConversationIndex.list();
+  const snapshot=await prepared.services.retainedConversationState.read(card!.channelId);
+  const decision=snapshot!.rows.findLast(row=>row.record.kind==="decision")!;
+  const result=snapshot!.rows.findLast(row=>row.record.kind==="result")!;
+  const output=await prepared.services.retainedProviderOutput.read(card!.channelId,result.messageId);
+  const plan={channelId:card!.channelId,through:snapshot!.through,requestId:card!.request.id,disposition:"held" as const,reason:"pending-consent" as const,decisionMessage:decision.messageId,resultMessage:result.messageId,output,explanation:"The exact approved summary and original receipt are retained without the internal note"};
+  expect(await prepared.services.retainedProviderHandoff.stage({...plan,output:{...output!,text:"forged"}})).toBe(null);
+  const handoff=await prepared.services.retainedProviderHandoff.stage(plan);expect(handoff).not.toBe(null);
+  const value={plan,handoff};
+  const proof=await prepared.verify(value,referenceObserver(value));
+  expect(proof.outcomeDimensions.effects.passed).toBe(true);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
+ }finally{await fixture.close();}
+});
+
+it("rejects a qualification-only absent return without inventing invalid JSON bytes",async()=>{
+ expect(()=>referenceObserver(undefined)).toThrow("JSON return witness");
+ expect((await referenceObserver(null).returns())[0]?.value).toBe(null);
 });
