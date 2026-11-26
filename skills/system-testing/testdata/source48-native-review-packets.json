@@ -1,0 +1,792 @@
+[
+  {
+    "namespace": "TEST-only-original-native-source48",
+    "case": "open-goal-installed-package-image-recover-declared-suite-without-opening-renderer",
+    "rawSha256": "991eb6d6f8334c8fbf9117a72dc5df3ddfc0efba77f3442d73c5e9b627ce1e42",
+    "originalBase": "52fc8c5640be640af4c4573946c8cc81a66e4bef",
+    "originalSST": "aaf475d427ce721ea09016924c78c8f271d242e5",
+    "reviewSha256": "77ac2113ff9b5911b2f7c9d9eb57567c8061660773a8db596df882b71cc7cff0",
+    "actualResult": {
+      "finding": {
+        "decision": "restore-approved-field",
+        "reason": "The target package @workspace-workers/images matches the baseline and catalog package from workers/images, and the deployed receiver matches its native declaration. The native suite entry is missing: the baseline declares suite \"native\" for runtime \"native\" including **/*.test.ts, while the working value has no suite. The exact approval scope matches the source, field, key, digests, and working revision and grants restore. This approves restoring that baseline declaration; no test file or test result has been verified."
+      },
+      "repair": {
+        "status": "restored",
+        "observation": {
+          "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+          "target": "@workspace-workers/images",
+          "source": "workers/images",
+          "mainRevision": "workspace-event:15092dac87c8281605bd1c97205084eaaa38869bc85b2ec3d9dadc4c1ac1235e",
+          "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:ffe89615c66c6d36e7f2b5a78ec4bb760427753248478af5055aaa7a7ca44282\"}",
+          "name": "@workspace-workers/images",
+          "baselineName": "@workspace-workers/images",
+          "workingDigest": "a9fd77d62bbea2c880bcbb3a79d7e19fda50ecfa9dd3b1077f6055f504b37558",
+          "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f",
+          "receiver": {
+            "protocol": "vibestudio.images.v1",
+            "source": "workers/images",
+            "name": "images",
+            "className": "ImagesDO",
+            "targetId": "do:workers/images:ImagesDO:workspace-images"
+          },
+          "catalog": {
+            "source": "workers/images",
+            "name": "@workspace-workers/images",
+            "kind": "worker"
+          },
+          "baselineValue": {
+            "dependency": null,
+            "devDependency": null,
+            "peerDependency": null,
+            "contractExport": null,
+            "suite": {
+              "name": "native",
+              "runtime": "native",
+              "include": [
+                "**/*.test.ts"
+              ]
+            }
+          },
+          "workingValue": {
+            "dependency": null,
+            "devDependency": null,
+            "peerDependency": null,
+            "contractExport": null,
+            "suite": {
+              "name": "native",
+              "runtime": "native",
+              "include": [
+                "**/*.test.ts"
+              ]
+            }
+          },
+          "declaredReceiverMatches": true,
+          "scopeMatches": false,
+          "targetFieldMatches": true,
+          "suiteBlockedBy": null,
+          "suiteRequest": {
+            "operationId": "ea0e8334-76b1-492f-aaba-8f85c6db951c",
+            "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file.",
+            "target": "workers/images",
+            "suite": "native",
+            "file": null,
+            "testName": null,
+            "mode": "inspect"
+          }
+        }
+      },
+      "verification": {
+        "plan": {
+          "target": "workers/images",
+          "suite": "native",
+          "runtime": "native",
+          "stateHash": "state:dc602ee7d8a6c8d01c0027c291522a83e1a463e71ded073b973d1320162b3527",
+          "contextId": "0b13d443-cbaf-4a63-b47e-6e3047c69f98"
+        },
+        "decision": {
+          "route": {
+            "runtime": "native",
+            "nativeApproval": true,
+            "explanation": "The verify operation goes through the native test adapter and its own approval in the workspace's native execution domain."
+          },
+          "next": "report-plan"
+        },
+        "execution": null,
+        "result": null
+      }
+    },
+    "nativeProof": {
+      "caseId": "installed-package-image-recover-declared-suite-without-opening-renderer",
+      "contextId": "0b13d443-cbaf-4a63-b47e-6e3047c69f98",
+      "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file.",
+      "checks": {
+        "boundOwnedInstallation": true,
+        "usedExactPackageBaseline": true,
+        "honoredReviewAssignment": true,
+        "verifiedLocalManifestEffect": true,
+        "exactStateVerificationPlan": true,
+        "preservedProtectedAndNeighbors": true
+      },
+      "effects": [
+        {
+          "service": "installedPackageRead",
+          "method": "discover",
+          "args": [],
+          "result": {
+            "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+            "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file.",
+            "target": "@workspace-workers/images",
+            "source": "workers/images",
+            "field": "native-suite",
+            "key": "native",
+            "scope": {
+              "field": "native-suite",
+              "key": "native",
+              "grant": "restore",
+              "source": "workers/images",
+              "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:435e12877371cb59f048c08a825566be93966866a2314d88ae4009865ec7404d\"}",
+              "workingDigest": "ea90518b28ac3f38adc4c3800cf0d4419cf0b35e599d27a89f04201f0657a3df",
+              "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f"
+            }
+          }
+        },
+        {
+          "service": "installedPackageRead",
+          "method": "inspect",
+          "args": [
+            "d2dc1f6f-d03d-4755-adf0-275d997347a8"
+          ],
+          "result": {
+            "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+            "target": "@workspace-workers/images",
+            "source": "workers/images",
+            "mainRevision": "workspace-event:15092dac87c8281605bd1c97205084eaaa38869bc85b2ec3d9dadc4c1ac1235e",
+            "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:435e12877371cb59f048c08a825566be93966866a2314d88ae4009865ec7404d\"}",
+            "name": "@workspace-workers/images",
+            "baselineName": "@workspace-workers/images",
+            "workingDigest": "ea90518b28ac3f38adc4c3800cf0d4419cf0b35e599d27a89f04201f0657a3df",
+            "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f",
+            "receiver": {
+              "source": "workers/images",
+              "name": "images",
+              "protocol": "vibestudio.images.v1",
+              "className": "ImagesDO",
+              "targetId": "do:workers/images:ImagesDO:workspace-images"
+            },
+            "catalog": {
+              "source": "workers/images",
+              "name": "@workspace-workers/images",
+              "kind": "worker"
+            },
+            "baselineValue": {
+              "dependency": null,
+              "devDependency": null,
+              "peerDependency": null,
+              "contractExport": null,
+              "suite": {
+                "name": "native",
+                "runtime": "native",
+                "include": [
+                  "**/*.test.ts"
+                ]
+              }
+            },
+            "workingValue": {
+              "dependency": null,
+              "devDependency": null,
+              "peerDependency": null,
+              "contractExport": null,
+              "suite": null
+            },
+            "declaredReceiverMatches": true,
+            "scopeMatches": true,
+            "targetFieldMatches": false,
+            "suiteBlockedBy": null,
+            "suiteRequest": null
+          }
+        },
+        {
+          "service": "installedPackageChange",
+          "method": "restore",
+          "args": [
+            "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+            "{\"kind\":\"application\",\"applicationId\":\"application:435e12877371cb59f048c08a825566be93966866a2314d88ae4009865ec7404d\"}",
+            "ea90518b28ac3f38adc4c3800cf0d4419cf0b35e599d27a89f04201f0657a3df"
+          ],
+          "result": {
+            "status": "restored",
+            "observation": {
+              "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+              "target": "@workspace-workers/images",
+              "source": "workers/images",
+              "mainRevision": "workspace-event:15092dac87c8281605bd1c97205084eaaa38869bc85b2ec3d9dadc4c1ac1235e",
+              "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:ffe89615c66c6d36e7f2b5a78ec4bb760427753248478af5055aaa7a7ca44282\"}",
+              "name": "@workspace-workers/images",
+              "baselineName": "@workspace-workers/images",
+              "workingDigest": "a9fd77d62bbea2c880bcbb3a79d7e19fda50ecfa9dd3b1077f6055f504b37558",
+              "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f",
+              "receiver": {
+                "source": "workers/images",
+                "name": "images",
+                "protocol": "vibestudio.images.v1",
+                "className": "ImagesDO",
+                "targetId": "do:workers/images:ImagesDO:workspace-images"
+              },
+              "catalog": {
+                "source": "workers/images",
+                "name": "@workspace-workers/images",
+                "kind": "worker"
+              },
+              "baselineValue": {
+                "dependency": null,
+                "devDependency": null,
+                "peerDependency": null,
+                "contractExport": null,
+                "suite": {
+                  "name": "native",
+                  "runtime": "native",
+                  "include": [
+                    "**/*.test.ts"
+                  ]
+                }
+              },
+              "workingValue": {
+                "dependency": null,
+                "devDependency": null,
+                "peerDependency": null,
+                "contractExport": null,
+                "suite": {
+                  "name": "native",
+                  "runtime": "native",
+                  "include": [
+                    "**/*.test.ts"
+                  ]
+                }
+              },
+              "declaredReceiverMatches": true,
+              "scopeMatches": false,
+              "targetFieldMatches": true,
+              "suiteBlockedBy": null,
+              "suiteRequest": {
+                "operationId": "ea0e8334-76b1-492f-aaba-8f85c6db951c",
+                "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file.",
+                "target": "workers/images",
+                "suite": "native",
+                "file": null,
+                "testName": null,
+                "mode": "inspect"
+              }
+            }
+          }
+        },
+        {
+          "service": "testSuitePlanRead",
+          "method": "resolve",
+          "args": [
+            "ea0e8334-76b1-492f-aaba-8f85c6db951c"
+          ],
+          "result": {
+            "target": "workers/images",
+            "suite": "native",
+            "runtime": "native",
+            "stateHash": "state:dc602ee7d8a6c8d01c0027c291522a83e1a463e71ded073b973d1320162b3527",
+            "contextId": "0b13d443-cbaf-4a63-b47e-6e3047c69f98"
+          }
+        }
+      ],
+      "assignment": {
+        "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+        "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file.",
+        "target": "@workspace-workers/images",
+        "source": "workers/images",
+        "field": "native-suite",
+        "key": "native",
+        "scope": {
+          "field": "native-suite",
+          "key": "native",
+          "grant": "restore",
+          "source": "workers/images",
+          "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:435e12877371cb59f048c08a825566be93966866a2314d88ae4009865ec7404d\"}",
+          "workingDigest": "ea90518b28ac3f38adc4c3800cf0d4419cf0b35e599d27a89f04201f0657a3df",
+          "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f"
+        }
+      },
+      "observed": {
+        "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+        "target": "@workspace-workers/images",
+        "source": "workers/images",
+        "mainRevision": "workspace-event:15092dac87c8281605bd1c97205084eaaa38869bc85b2ec3d9dadc4c1ac1235e",
+        "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:435e12877371cb59f048c08a825566be93966866a2314d88ae4009865ec7404d\"}",
+        "name": "@workspace-workers/images",
+        "baselineName": "@workspace-workers/images",
+        "workingDigest": "ea90518b28ac3f38adc4c3800cf0d4419cf0b35e599d27a89f04201f0657a3df",
+        "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f",
+        "receiver": {
+          "source": "workers/images",
+          "name": "images",
+          "protocol": "vibestudio.images.v1",
+          "className": "ImagesDO",
+          "targetId": "do:workers/images:ImagesDO:workspace-images"
+        },
+        "catalog": {
+          "source": "workers/images",
+          "name": "@workspace-workers/images",
+          "kind": "worker"
+        },
+        "baselineValue": {
+          "dependency": null,
+          "devDependency": null,
+          "peerDependency": null,
+          "contractExport": null,
+          "suite": {
+            "name": "native",
+            "runtime": "native",
+            "include": [
+              "**/*.test.ts"
+            ]
+          }
+        },
+        "workingValue": {
+          "dependency": null,
+          "devDependency": null,
+          "peerDependency": null,
+          "contractExport": null,
+          "suite": null
+        },
+        "declaredReceiverMatches": true,
+        "scopeMatches": true,
+        "targetFieldMatches": false,
+        "suiteBlockedBy": null,
+        "suiteRequest": null
+      },
+      "repair": {
+        "status": "restored",
+        "observation": {
+          "operationId": "d2dc1f6f-d03d-4755-adf0-275d997347a8",
+          "target": "@workspace-workers/images",
+          "source": "workers/images",
+          "mainRevision": "workspace-event:15092dac87c8281605bd1c97205084eaaa38869bc85b2ec3d9dadc4c1ac1235e",
+          "workingRevision": "{\"kind\":\"application\",\"applicationId\":\"application:ffe89615c66c6d36e7f2b5a78ec4bb760427753248478af5055aaa7a7ca44282\"}",
+          "name": "@workspace-workers/images",
+          "baselineName": "@workspace-workers/images",
+          "workingDigest": "a9fd77d62bbea2c880bcbb3a79d7e19fda50ecfa9dd3b1077f6055f504b37558",
+          "baselineDigest": "83aae5caf77880682b3b5eb7bfe27a456614c88fba48b6662941c966d305476f",
+          "receiver": {
+            "source": "workers/images",
+            "name": "images",
+            "protocol": "vibestudio.images.v1",
+            "className": "ImagesDO",
+            "targetId": "do:workers/images:ImagesDO:workspace-images"
+          },
+          "catalog": {
+            "source": "workers/images",
+            "name": "@workspace-workers/images",
+            "kind": "worker"
+          },
+          "baselineValue": {
+            "dependency": null,
+            "devDependency": null,
+            "peerDependency": null,
+            "contractExport": null,
+            "suite": {
+              "name": "native",
+              "runtime": "native",
+              "include": [
+                "**/*.test.ts"
+              ]
+            }
+          },
+          "workingValue": {
+            "dependency": null,
+            "devDependency": null,
+            "peerDependency": null,
+            "contractExport": null,
+            "suite": {
+              "name": "native",
+              "runtime": "native",
+              "include": [
+                "**/*.test.ts"
+              ]
+            }
+          },
+          "declaredReceiverMatches": true,
+          "scopeMatches": false,
+          "targetFieldMatches": true,
+          "suiteBlockedBy": null,
+          "suiteRequest": {
+            "operationId": "ea0e8334-76b1-492f-aaba-8f85c6db951c",
+            "goal": "Recover the Image worker's missing approved test entry for the local install if current authorization covers it. Identify the suite in the result without opening a panel or running a file.",
+            "target": "workers/images",
+            "suite": "native",
+            "file": null,
+            "testName": null,
+            "mode": "inspect"
+          }
+        }
+      },
+      "plan": {
+        "target": "workers/images",
+        "suite": "native",
+        "runtime": "native",
+        "stateHash": "state:dc602ee7d8a6c8d01c0027c291522a83e1a463e71ded073b973d1320162b3527",
+        "contextId": "0b13d443-cbaf-4a63-b47e-6e3047c69f98"
+      },
+      "observedChecks": {
+        "boundOwnedInstallation": true,
+        "usedExactPackageBaseline": true,
+        "honoredReviewAssignment": true,
+        "returnedPackageRepair": true,
+        "returnedPackageVerification": true,
+        "returnedPackageFinding": true,
+        "verifiedLocalManifestEffect": true,
+        "exactStateVerificationPlan": true,
+        "preservedProtectedAndNeighbors": true
+      }
+    },
+    "caseSource": {
+      "repositories": {
+        "vibestudio": {
+          "git_commit": "c28570ac70240d4680aee900d09607fe24713389",
+          "dirty": false
+        },
+        "natlang": {
+          "git_commit": "e404b1a8150df340d920374f64d22ea05c259fed",
+          "dirty": false
+        },
+        "base": {
+          "git_commit": "52fc8c5640be640af4c4573946c8cc81a66e4bef",
+          "dirty": false
+        },
+        "personal": {
+          "git_commit": "a078720c52c2f087c1c04f20ab9b6c23240ea3fd",
+          "dirty": false
+        },
+        "system": {
+          "git_commit": "5a63353a2f541e7e093db34890bc72598793c7e5",
+          "dirty": false
+        },
+        "system-testing": {
+          "git_commit": "aaf475d427ce721ea09016924c78c8f271d242e5",
+          "dirty": false
+        },
+        "examples": {
+          "git_commit": "28f6f93bd0563105a47c26c27855b751fd9a4881",
+          "dirty": false
+        },
+        "google-workspace": {
+          "git_commit": "abd610f2f7056c45ca22a8be94d6905ce547614a",
+          "dirty": false
+        },
+        "news": {
+          "git_commit": "2403741840728f6801ca115406b8d974cf23e612",
+          "dirty": false
+        },
+        "spectrolite": {
+          "git_commit": "cef6db3b8995b9b6c1217347dabf2cc6181ed295",
+          "dirty": false
+        }
+      },
+      "teacher": "openai-codex:gpt-6-luna",
+      "teacherTimeoutMs": 3600000,
+      "instance": "natlang-live-ed9b3719-85a",
+      "workspace": "system",
+      "validator_sha256": "8e23f167b9d20ad5ef50f957df44debabf79e673f454adccff68d91ffac4f53b",
+      "run_id": "st_f1d488b2def04e43bac2c774df09523a"
+    },
+    "caseSourceSha256": "c11ab7615a93d2b090798c6e1788c0f98d03af7504f4b4fdde23229c453b27a2"
+  },
+  {
+    "namespace": "TEST-only-original-native-source48",
+    "case": "open-goal-system-release-paper-delivered-late-needs-diagnostic",
+    "rawSha256": "d51e238d94288cfd06407f22a3436a88210bb83bb4237c5eaf4e3f0dfeaf9c96",
+    "originalBase": "52fc8c5640be640af4c4573946c8cc81a66e4bef",
+    "originalSST": "aaf475d427ce721ea09016924c78c8f271d242e5",
+    "reviewSha256": "ed4d80d3aee980f0ebbbc1416ac8a5166828f7ddaee5af73f1b97eb76317f433",
+    "actualResult": {
+      "assessment": {
+        "disposition": "stage-diagnostics",
+        "reason": "delivery has primary delivery fault DELIVERY_LATENCY: Terminal acknowledgment exceeded its retained delivery budget.",
+        "decisive": [
+          "delivery"
+        ]
+      },
+      "handoff": {
+        "path": "/.tmp/system-release-evidence-e0c5bafa225206a9a3b9376ed43cdafc/release-evidence.json",
+        "bytes": 1124,
+        "sha256": "8894b6bb021d624de2318a6ecc2d859c22023e3fff4f9ebb7deb6d84266d6d20"
+      }
+    },
+    "nativeProof": {
+      "caseId": "system-release-paper-delivered-late-needs-diagnostic",
+      "contextId": "8f6469df-7516-44f3-8641-3050e0859ade",
+      "goal": "Paper intake appears to have returned a success message, but the current run says its delivery was late. Leave the release team a private explanation tied to actual delivery evidence.",
+      "assignment": {
+        "id": "9835dd09-5076-446a-b610-0abf399dcbb2",
+        "goal": "Paper intake appears to have returned a success message, but the current run says its delivery was late. Leave the release team a private explanation tied to actual delivery evidence.",
+        "subject": "Paper intake",
+        "contextId": "8f6469df-7516-44f3-8641-3050e0859ade",
+        "buildKey": "local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+        "effectiveVersion": "effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+        "current": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+        "earlier": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-earlier",
+        "required": [
+          "delivery",
+          "reopen"
+        ],
+        "allowEarlier": false,
+        "grant": "both"
+      },
+      "runs": {
+        "current": {
+          "id": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+          "context": "same",
+          "status": "completed",
+          "terminalSaved": true,
+          "buildKey": "local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+          "effectiveVersion": "effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+          "declared": [
+            "delivery",
+            "reopen"
+          ],
+          "unavailable": [],
+          "total": 2
+        },
+        "earlier": {
+          "id": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-earlier",
+          "context": "same",
+          "status": "completed",
+          "terminalSaved": true,
+          "buildKey": "prior-local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+          "effectiveVersion": "prior-effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+          "declared": [
+            "delivery",
+            "reopen"
+          ],
+          "unavailable": [],
+          "total": 2
+        }
+      },
+      "cases": [
+        {
+          "name": "delivery",
+          "digest": "6328a438e9ad50e48cf1e4b3de7cd0b9a2b9fc7c61b2891bd0dfb04d72362c17",
+          "rank": "retained",
+          "passed": false,
+          "exactWitness": false,
+          "primary": {
+            "kind": "delivery",
+            "code": "DELIVERY_LATENCY",
+            "detail": "Terminal acknowledgment exceeded its retained delivery budget."
+          },
+          "cleanup": [],
+          "expectedToolFailures": []
+        },
+        {
+          "name": "reopen",
+          "digest": "69cb9fcee2e2e7e896dc1d7601cb4832ee7f6391a0091efe52054b8917c2ecd6",
+          "rank": "retained",
+          "passed": true,
+          "exactWitness": true,
+          "primary": null,
+          "cleanup": [],
+          "expectedToolFailures": []
+        }
+      ],
+      "handoff": {
+        "path": "/.tmp/system-release-evidence-e0c5bafa225206a9a3b9376ed43cdafc/release-evidence.json",
+        "bytes": 1124,
+        "sha256": "8894b6bb021d624de2318a6ecc2d859c22023e3fff4f9ebb7deb6d84266d6d20"
+      },
+      "handoffText": "{\n  \"protocol\": \"vibestudio-local-system-release-review.v1\",\n  \"contextId\": \"8f6469df-7516-44f3-8641-3050e0859ade\",\n  \"subject\": \"Paper intake\",\n  \"buildKey\": \"local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb\",\n  \"effectiveVersion\": \"effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb\",\n  \"runId\": \"st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current\",\n  \"disposition\": \"stage-diagnostics\",\n  \"cases\": [\n    {\n      \"name\": \"delivery\",\n      \"digest\": \"6328a438e9ad50e48cf1e4b3de7cd0b9a2b9fc7c61b2891bd0dfb04d72362c17\",\n      \"rank\": \"retained\",\n      \"passed\": false,\n      \"exactWitness\": false,\n      \"primary\": {\n        \"kind\": \"delivery\",\n        \"code\": \"DELIVERY_LATENCY\",\n        \"detail\": \"Terminal acknowledgment exceeded its retained delivery budget.\"\n      },\n      \"cleanup\": [],\n      \"expectedToolFailures\": []\n    },\n    {\n      \"name\": \"reopen\",\n      \"digest\": \"69cb9fcee2e2e7e896dc1d7601cb4832ee7f6391a0091efe52054b8917c2ecd6\",\n      \"rank\": \"retained\",\n      \"passed\": true,\n      \"exactWitness\": true,\n      \"primary\": null,\n      \"cleanup\": [],\n      \"expectedToolFailures\": []\n    }\n  ]\n}\n",
+      "effects": [
+        {
+          "service": "systemReleaseEvidence",
+          "method": "discover",
+          "args": [],
+          "result": {
+            "id": "9835dd09-5076-446a-b610-0abf399dcbb2",
+            "goal": "Paper intake appears to have returned a success message, but the current run says its delivery was late. Leave the release team a private explanation tied to actual delivery evidence.",
+            "subject": "Paper intake",
+            "contextId": "8f6469df-7516-44f3-8641-3050e0859ade",
+            "buildKey": "local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+            "effectiveVersion": "effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+            "current": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+            "earlier": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-earlier",
+            "required": [
+              "delivery",
+              "reopen"
+            ],
+            "allowEarlier": false,
+            "grant": "both"
+          }
+        },
+        {
+          "service": "systemReleaseEvidence",
+          "method": "compare",
+          "args": [
+            "9835dd09-5076-446a-b610-0abf399dcbb2"
+          ],
+          "result": {
+            "current": {
+              "id": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+              "context": "same",
+              "status": "completed",
+              "terminalSaved": true,
+              "buildKey": "local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+              "effectiveVersion": "effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+              "declared": [
+                "delivery",
+                "reopen"
+              ],
+              "unavailable": [],
+              "total": 2
+            },
+            "earlier": {
+              "id": "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-earlier",
+              "context": "same",
+              "status": "completed",
+              "terminalSaved": true,
+              "buildKey": "prior-local-acceptance-build:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+              "effectiveVersion": "prior-effective:bb9b9d58-e0b6-44e8-898d-53fafca0d8cb",
+              "declared": [
+                "delivery",
+                "reopen"
+              ],
+              "unavailable": [],
+              "total": 2
+            }
+          }
+        },
+        {
+          "service": "systemReleaseEvidence",
+          "method": "inspectCase",
+          "args": [
+            "9835dd09-5076-446a-b610-0abf399dcbb2",
+            "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+            "delivery"
+          ],
+          "result": {
+            "name": "delivery",
+            "digest": "6328a438e9ad50e48cf1e4b3de7cd0b9a2b9fc7c61b2891bd0dfb04d72362c17",
+            "rank": "retained",
+            "passed": false,
+            "exactWitness": false,
+            "primary": {
+              "kind": "delivery",
+              "code": "DELIVERY_LATENCY",
+              "detail": "Terminal acknowledgment exceeded its retained delivery budget."
+            },
+            "cleanup": [],
+            "expectedToolFailures": []
+          }
+        },
+        {
+          "service": "systemReleaseEvidence",
+          "method": "inspectCase",
+          "args": [
+            "9835dd09-5076-446a-b610-0abf399dcbb2",
+            "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+            "reopen"
+          ],
+          "result": {
+            "name": "reopen",
+            "digest": "69cb9fcee2e2e7e896dc1d7601cb4832ee7f6391a0091efe52054b8917c2ecd6",
+            "rank": "retained",
+            "passed": true,
+            "exactWitness": true,
+            "primary": null,
+            "cleanup": [],
+            "expectedToolFailures": []
+          }
+        },
+        {
+          "service": "systemReleaseHandoff",
+          "method": "stage",
+          "args": [
+            "9835dd09-5076-446a-b610-0abf399dcbb2",
+            "st-release-bb9b9d58-e0b6-44e8-898d-53fafca0d8cb-current",
+            "stage-diagnostics",
+            [
+              {
+                "name": "delivery",
+                "digest": "6328a438e9ad50e48cf1e4b3de7cd0b9a2b9fc7c61b2891bd0dfb04d72362c17",
+                "rank": "retained",
+                "passed": false,
+                "exactWitness": false,
+                "primary": {
+                  "kind": "delivery",
+                  "code": "DELIVERY_LATENCY",
+                  "detail": "Terminal acknowledgment exceeded its retained delivery budget."
+                },
+                "cleanup": [],
+                "expectedToolFailures": []
+              },
+              {
+                "name": "reopen",
+                "digest": "69cb9fcee2e2e7e896dc1d7601cb4832ee7f6391a0091efe52054b8917c2ecd6",
+                "rank": "retained",
+                "passed": true,
+                "exactWitness": true,
+                "primary": null,
+                "cleanup": [],
+                "expectedToolFailures": []
+              }
+            ]
+          ],
+          "result": {
+            "path": "/.tmp/system-release-evidence-e0c5bafa225206a9a3b9376ed43cdafc/release-evidence.json",
+            "bytes": 1124,
+            "sha256": "8894b6bb021d624de2318a6ecc2d859c22023e3fff4f9ebb7deb6d84266d6d20"
+          }
+        }
+      ],
+      "checks": {
+        "retainedNativeRunPair": true,
+        "matchedOwnedBuildAndAttempt": true,
+        "exactRequiredCaseEvidence": true,
+        "verifiedPrivateHandoff": true,
+        "noSuiteRerunOrUnassignedCase": true
+      },
+      "observedChecks": {
+        "retainedNativeRunPair": true,
+        "matchedOwnedBuildAndAttempt": true,
+        "exactRequiredCaseEvidence": true,
+        "matchedReleaseDisposition": true,
+        "verifiedPrivateHandoff": true,
+        "noSuiteRerunOrUnassignedCase": true
+      }
+    },
+    "caseSource": {
+      "repositories": {
+        "vibestudio": {
+          "git_commit": "c28570ac70240d4680aee900d09607fe24713389",
+          "dirty": false
+        },
+        "natlang": {
+          "git_commit": "e404b1a8150df340d920374f64d22ea05c259fed",
+          "dirty": false
+        },
+        "base": {
+          "git_commit": "52fc8c5640be640af4c4573946c8cc81a66e4bef",
+          "dirty": false
+        },
+        "personal": {
+          "git_commit": "a078720c52c2f087c1c04f20ab9b6c23240ea3fd",
+          "dirty": false
+        },
+        "system": {
+          "git_commit": "5a63353a2f541e7e093db34890bc72598793c7e5",
+          "dirty": false
+        },
+        "system-testing": {
+          "git_commit": "aaf475d427ce721ea09016924c78c8f271d242e5",
+          "dirty": false
+        },
+        "examples": {
+          "git_commit": "28f6f93bd0563105a47c26c27855b751fd9a4881",
+          "dirty": false
+        },
+        "google-workspace": {
+          "git_commit": "abd610f2f7056c45ca22a8be94d6905ce547614a",
+          "dirty": false
+        },
+        "news": {
+          "git_commit": "2403741840728f6801ca115406b8d974cf23e612",
+          "dirty": false
+        },
+        "spectrolite": {
+          "git_commit": "cef6db3b8995b9b6c1217347dabf2cc6181ed295",
+          "dirty": false
+        }
+      },
+      "teacher": "openai-codex:gpt-6-luna",
+      "teacherTimeoutMs": 3600000,
+      "instance": "natlang-live-ed9b3719-85a",
+      "workspace": "system",
+      "validator_sha256": "714dec4ab8a85a73cbb0454f01a2f6c2b966851f119c37775feeb02e2590df44",
+      "run_id": "st_f1d488b2def04e43bac2c774df09523a"
+    },
+    "caseSourceSha256": "a21916c8a0180a99a83d5fc1ec3ec75c5134c404e16c110a107cc6e5631fbf1d"
+  }
+]

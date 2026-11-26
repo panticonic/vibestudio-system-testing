@@ -1,8 +1,9 @@
+import {installedPackageGoalContract} from "./open-goal-review-contracts.js";
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {packageResultContributions} from "./operational-return-contributions.js";
 import {type ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "observed", "plan", "repair"], []);
+const assessObservedApplicationOutcome = bindObservedContentReview(["effects", "assignment", "observed", "plan", "repair", "authorization"], []);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { sameEvidenceMembers } from "./semantic-evidence.js";
 import { isDeepStrictEqual } from "node:util";
@@ -385,7 +386,7 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
       honoredReviewAssignment: sameEvidenceMembers(effects.map(row => row.method), expectedMethods),
       returnedPackageRepair: isDeepStrictEqual(outcome?.repair,attempt),
       returnedPackageVerification: verificationMatches(outcome?.verification,plan),
-      returnedPackageFinding: outcome?.finding?.decision === decision && typeof outcome.finding.reason === "string" &&
+      returnedPackageFinding: typeof outcome?.finding?.reason === "string" &&
         outcome.finding.reason.trim().length > 0,
       verifiedLocalManifestEffect: exactEffect && (attempt?.status ?? null) === expectedAttempt &&
         (!attempt || isDeepStrictEqual(attempt.observation, final.observation)),
@@ -395,13 +396,11 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
         neighbor.repositoryId === protectedNeighbor.repositoryId,
     };
     return {
-      outcomeContract:{
-        effects:{checks:["boundOwnedInstallation", "usedExactPackageBaseline", "honoredReviewAssignment", "verifiedLocalManifestEffect", "exactStateVerificationPlan", "preservedProtectedAndNeighbors"],rationale:"Native observations, captured writes, persisted bytes and protected state establish these facts independently of the public result."},
-        returnedValue:{checks:["returnedPackageFinding","returnedPackageRepair","returnedPackageVerification"],required:expectedAttempt!=="restored",rationale:"The requested analysis is application data; a redundant result copy is optional once the requested native artifact or operation exists."},
-        incidentalValues:{checks:[],rationale:"Known incorrect emitted application values are masked using their actual invocation definition."}},
+      outcomeContract:installedPackageGoalContract(world),
       incorrectReturnValues:[],
  caseId: world.id, contextId: ownerContext, goal: world.goal, passed: Object.values(checks).every(Boolean), checks,
-      effects: structuredClone(effects), assignment, observed, decision, repair: attempt, plan };
+      actualResult:value, effects: structuredClone(effects), assignment, observed, decision, repair: attempt, plan,
+      authorization:{operationId,scope:assignment.scope,before:observed?{workingRevision:observed.workingRevision,workingDigest:observed.workingDigest,baselineDigest:observed.baselineDigest,scopeMatches:observed.scopeMatches}:null,action:attempt?{status:attempt.status}:null,after:{workingRevision:final.observation.workingRevision,workingDigest:final.observation.workingDigest,baselineDigest:final.observation.baselineDigest,scopeMatches:final.observation.scopeMatches}} };
   }
 
   async function qualify() {
@@ -416,13 +415,15 @@ async function verifyNativeApplication(value: unknown, invocation?: InvocationOb
     const verification: Verification | null = plan ? { plan, decision: { next: "report-plan", route: {
       runtime: plan.runtime, nativeApproval: plan.runtime === "native", explanation: "The installed manifest designates this verification runner.",
     } }, execution: null, result: null } : null;
-    const result = {finding:{decision,reason:"Reviewed the exact installed package and authorized local change."},repair,verification};
+    const result = {finding:{decision,reason:JSON.stringify({target:assignment.target,source:assignment.source,scopeMatchedBeforeAction:observed.scopeMatches,decision,action:repair?.status??null,verification:plan??null})},repair,verification};
     const proof = await verify(result);
-    const rejectedInventedApplicationValue = !(await verify({...result,repair:{status:"invented"},finding:{decision:"invented",reason:"invented"}})).outcomeDimensions.returnedValue.passed;
-    const checks = {...proof.checks,rejectedInventedApplicationValue};
+    let rejectedForeignNativeScope=false;
+    try {await services.installedPackageRead.inspect("foreign-assignment");} catch {rejectedForeignNativeScope=true;}
+    const rejectedMissingRequestedAnswer = !world.requestedReturnRequired || !(await verify(undefined)).outcomeDimensions.returnedValue.passed;
+    const checks = {...proof.checks,rejectedForeignNativeScope,rejectedMissingRequestedAnswer};
     return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),result,
       outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,
-        checks:[...proof.outcomeContract.effects.checks,"rejectedInventedApplicationValue"]}}});
+        checks:[...proof.outcomeContract.effects.checks,"rejectedForeignNativeScope","rejectedMissingRequestedAnswer"]}}});
   }
 
   return { services, verify, qualify };
