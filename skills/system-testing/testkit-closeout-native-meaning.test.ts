@@ -12,7 +12,7 @@ vi.mock('@workspace/runtime',()=>({contextId:'owned-context',panelTree:{path:asy
  if(method===mainRpcMethods['runtime.retireEntity']){live.workers.delete((args[0] as {id:string}).id);return;}
  throw Error('Unexpected native method');
 }}}));
-vi.mock('@workspace/testkit',async()=>{const run=await import('@workspace/testkit/run'),assertion=await import('@workspace/testkit/expect');return{...run,...assertion,openPanel:async()=>{const id='owned-panel-'+(++live.count),state={present:true};live.panels.set(id,state);return{id,archive:async()=>{state.present=false;},cdp:{session:async()=>{let open=true;return{page:{isClosed:()=>!open},close:async()=>{open=false;}};}}};}};});
+vi.mock('@workspace/testkit',async()=>{const actual=await vi.importActual<typeof import('@workspace/testkit')>('@workspace/testkit');return{...actual,openPanel:async()=>{const id='owned-panel-'+(++live.count),state={present:true};live.panels.set(id,state);return{id,archive:async()=>{state.present=false;},cdp:{session:async()=>{let open=true;return{page:{isClosed:()=>!open},close:async()=>{open=false;}};}}};}};});
 import {mainRpcMethods} from '@vibestudio/service-schemas/mainRpc';
 import {prepareOpenTestkitCloseout} from './open-goal-testkit-closeout-managed.js';
 import {openTestkitCloseoutWorlds} from './open-goal-testkit-closeout-worlds.js';

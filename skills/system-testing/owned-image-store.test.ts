@@ -95,13 +95,12 @@ it("qualifies the missing-original world without releasing identical unrelated i
     const proof=await prepared.qualify();expect(proof.passed).toBe(true);
     expect(proof.reads.actor.map(row=>row.read)).toMatchObject([{status:"missing",original:null}]);
     expect(proof.handoff).toBeNull();
-    const actual=proof.semanticReviewInput.actual.requestedReturn as {decision:{explanation:string}};
-    const paraphrase={...actual,decision:{...actual.decision,explanation:"The source file was removed, so I cannot hand it off."}};
+    const paraphrase={candidates:[],originals:proof.reads.actor.map(row=>row.read),decision:{action:"hold",candidateId:null,explanation:"The source file was removed, so I cannot hand it off."},handoff:null};
     const reviewed=await prepared.verify(paraphrase);
     // Crisp observations admit equivalent words; the independent review receives
     // this exact answer and original-read evidence, rather than a gold word list.
     expect(reviewed.passed).toBe(true);
-    expect(reviewed.semanticReviewInput.actual.requestedReturn).toEqual(paraphrase);
+    expect(reviewed.semanticReviewInput.actual.requestedReturn).toBeNull();
     expect(reviewed.semanticReviewInput.expected.observations.reads.actor.map(row=>row.read)).toMatchObject([{status:"missing"}]);
     expect(reviewed.semanticReviewRequired).toBe(true);
   }finally{await prepared.close();}
@@ -145,8 +144,9 @@ it("keeps a correct native format answer despite obsolete planner bookkeeping an
     expect(proof.unboundReturnContributions).toEqual([]);
     expect(proof.semanticReviewRequired).toBe(true);
     expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(value);
-    expect(proof.semanticReviewInput.expected.observations.reads).toMatchObject([{status:"mismatch",original:{mime:"image/png"}}]);
-    expect((await prepared.verify({...value,originals:[]})).passed).toBe(false);
-    expect((await prepared.verify({...value,decision:{...value.decision,action:"report",candidateId:value.candidates[0]!.id,explanation:"It is a verified WebP and can be used."}})).passed).toBe(false);
+    expect(proof.semanticReviewInput.expected.observations.reads.actor.map(row=>row.read)).toMatchObject([{status:"mismatch",original:{mime:"image/png"}}]);
+    expect((await prepared.verify({...value,originals:[]})).passed).toBe(true);
+    const wrong={...value,decision:{...value.decision,action:"report",candidateId:value.candidates[0]!.id,explanation:"It is a verified WebP and can be used."}};
+    const pending=await prepared.verify(wrong);expect(pending.passed).toBe(true);expect(pending.semanticReviewRequired).toBe(true);expect(pending.semanticReviewInput.actual.requestedReturn).toEqual(wrong);
   }finally{await prepared.close();}
 });

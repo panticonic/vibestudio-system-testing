@@ -11,7 +11,7 @@ vi.mock("@workspace/runtime", () => ({
   },
 }));
 vi.mock("@workspace/testkit", async () => {
-  const run = await import("@workspace/testkit/run");
+  const run = await import("@workspace/testkit");
   const assertion = await import("@workspace/testkit/expect");
   return { ...run, ...assertion, openPanel: async () => {
     await new Promise(resolve=>setTimeout(resolve,5));
