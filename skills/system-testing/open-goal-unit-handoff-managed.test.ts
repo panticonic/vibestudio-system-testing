@@ -116,8 +116,8 @@ it.each(openUnitHandoffWorlds)("$id uses exact native design and icon checks", a
   expect(result.checks).toEqual(Object.fromEntries(Object.keys(result.checks).map(check => [check, true])));
   const altered = structuredClone(result.unitHandoff.report);
   if (!altered) throw new Error("Expected an actual verified report");
-  altered.path = "extensions/other";
-  expect((await candidate.verify(altered)).outcomeDimensions.returnedValue.checks.owned_selection).toBe(false);
+  altered.unit = {path:"extensions/other",name:"other",kind:"extension",description:"Unobserved unit"};
+  expect((await candidate.verify(altered)).outcomeDimensions.incidentalValues!.checks.authenticUnitValue).toBe(false);
 });
 
 it("rejects an edit with retained inspection authority even when the real catalog resolves", async () => {
@@ -134,20 +134,29 @@ it("rejects an edit with retained inspection authority even when the real catalo
   expect(runtime.vcs.edit).not.toHaveBeenCalled();
 });
 
-it("accepts a source-grounded manifest finding without repeated component receipt lists", async () => {
-  const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-shell-build-after-comment")!;
-  await setup(world);
-  const fixture=await prepareUnitHandoff(world);
-  const original=await fixture.qualify();
-  const report=structuredClone(original.unitHandoff.report)!;
-  expect(report.design?.native?.components?.length).toBeGreaterThan(0);
-  report.design!.native!.components!.at(-1)!.evidenceIds=[];
-  const proof=await fixture.verify(report);
-  expect(proof.passed).toBe(true);
-  expect(proof.semanticReviewRequired).toBe(true);
-  expect(proof.semanticReviewInput.actual.observations.nativeReviewEvidence).toEqual(proof.nativeReviewEvidence);
-  expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(report);
-  expect(proof.nativeReviewEvidence).not.toHaveProperty("expect");
-  report.design!.native!.components!.at(-1)!.evidenceIds=["foreign-receipt"];
-  expect((await fixture.verify(report)).outcomeDimensions.returnedValue.checks.manifest_versions).toBe(false);
+it("binds actual requested findings without a private report tree or repeated lifecycle limit",async()=>{
+ const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-shell-build-after-comment")!;
+ await setup(world);const fixture=await prepareUnitHandoff(world),original=await fixture.qualify(),report=structuredClone(original.unitHandoff.report)!;
+ const proof=await fixture.verify(report);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(report);expect(proof.nativeReviewEvidence).not.toHaveProperty("expect");expect(proof.nativeReviewEvidence).not.toHaveProperty("target");
+ const scope=await fixture.services.unitHandoff.begin(world.target!.path);await fixture.services.unitHandoff.lifecycle(scope.unit.path);await fixture.services.unitHandoff.lifecycle(scope.unit.path);expect((await fixture.verify(report)).passed).toBe(true);
+});
+it("does not require a redundant installed report after authentic manifest anchor reads",async()=>{
+ const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-file-tools-dependency-regression")!;
+ await setup(world);const fixture=await prepareUnitHandoff(world);await fixture.services.unitHandoff.discover();const observation=await fixture.services.unitHandoff.begin(world.target!.path);expect(observation.manifest!.working.validationError).not.toBeNull();
+ const proof=await fixture.verify({explanation:"The working manifest has a native validation error; protected main is a separate reading. Both copies were left alone.",unit:observation.unit,draft:null});expect(proof.passed,JSON.stringify(proof.checks)).toBe(true);expect(proof.nativeReviewEvidence.nativeDesign).toBeNull();expect(proof.semanticReviewRequired).toBe(true);
+});
+it("accepts fresh actual observations after a native draft while retaining original CAS authority",async()=>{
+ const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-terminal-visible-separate-shell")!;
+ await setup(world);const fixture=await prepareUnitHandoff(world),reference=await fixture.qualify();expect(reference.passed).toBe(true);const before=reference.nativeReviewEvidence.scope!;
+ const current=await fixture.services.unitHandoff.begin(before.unit.path),identity=await fixture.services.unitIdentity.observe(current.identityRequest.operationId);expect(current.revision).not.toBe(before.revision);expect(identity.revision).toBe(current.revision);
+ const proof=await fixture.verify(reference.unitHandoff.report);expect(proof.passed,JSON.stringify(proof.checks)).toBe(true);expect(proof.outcomeContract.returnedValue.required).toBe(false);expect(proof.nativeReviewEvidence.observations.length).toBeGreaterThan(1);
+});
+it("rejects a related icon draft when the literal user requested a different exact symbol",async()=>{
+ const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-terminal-visible-separate-shell")!;
+ await setup(world);const fixture=await prepareUnitHandoff(world);await fixture.services.unitHandoff.discover();const scope=await fixture.services.unitHandoff.begin(world.target!.path),id=scope.identityRequest.operationId,observed=await fixture.services.unitIdentity.observe(id);const wrong=await fixture.services.unitIdentity.resolve(id,{family:"lucide",term:"terminal"});expect(wrong).not.toBeNull();const change=await fixture.services.unitIdentity.stage(id,observed.revision,wrong!.choice.id);
+ const proof=await fixture.verify({explanation:"A different draft was prepared.",unit:scope.unit,draft:change});expect(proof.checks.localEffectAndProtectedState).toBe(false);
+});
+it("reference qualification fails when its chosen native artifact was not created",async()=>{
+ const world=openUnitHandoffWorlds.find(row=>row.id==="unit-handoff-terminal-visible-separate-shell")!;
+ await setup(world);const fixture=await prepareUnitHandoff(world);fixture.services.unitIdentity.stage=async()=>null as never;const proof=await fixture.qualify();expect(proof.passed).toBe(false);expect(proof.checks.referenceRequestedArtifact).toBe(false);
 });

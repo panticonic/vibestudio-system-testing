@@ -1,3 +1,4 @@
+import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
 const assessObservedApplicationOutcome=bindObservedContentReview(["nativeReviewEvidence"]);
 import type {SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
@@ -21,24 +22,8 @@ type IdentityObservation = Awaited<ReturnType<Identity["services"]["unitIdentity
 type Icon = Parameters<Identity["services"]["unitIdentity"]["resolve"]>[1];
 type Candidate = Awaited<ReturnType<Identity["services"]["unitIdentity"]["resolve"]>>;
 type Change = Awaited<ReturnType<Identity["services"]["unitIdentity"]["stage"]>>;
-type Call = { service: string; method: string; inputs: unknown[]; result: unknown };
-type Finding = { decision: string; finding: string; evidenceIds: string[]; components?: Finding[] };
-type Report = {
-  decision: "held" | "reviewed" | "staged";
-  reason: string;
-  path:string|null;
-  design: { native: Finding | null; manifest: string; lifecycle: { observation: Lifecycle; source: string; activity: string; reason: string } | null } | null;
-  identity: {
-    observed: IdentityObservation; intent: Icon;
-    assessment: { candidate: Candidate; next: string };
-    change: Change | null; outcome: string;
-  } | null;
-};
-type ManifestAnchor = { digest: string; validationError: string | null; entry: string | null;
-  activationEvents: string[]; dependencyMode: string | null; icon: string | null };
-type Observation = { unit: Unit; revision: string; mainRevision: string;
-  manifest: { working: ManifestAnchor; protectedMain: ManifestAnchor } | null;
-  designRequest: Design["request"] | null; identityRequest: Identity["request"] };
+type Call = { service: string; method: string; inputs: unknown[]; outcome:"returned"|"threw"; result?: unknown };
+type Report = {explanation:string;unit:Unit|null;draft:Change|null};
 type Lifecycle = {
   status: string; activeVersion: string | null; buildKey: string | null; sourceRevision: string | null;
   buildVersion: string | null; processId: string | null; health: string | null; pendingApproval: string | null;
@@ -106,6 +91,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
     const icon = object(text).vibestudio.icon;
     return typeof icon === "string" ? icon : null;
   }
+  function safeIconFrom(text:string):string|null {try{return iconFrom(text);}catch{return null;}}
   async function seed(unit: Unit, head: State) {
     if (world.change === "none") return;
     const manifest = await packageAt(head, unit);
@@ -167,17 +153,12 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       dependencyMode: typeof extension?.dependencyMode === "string" ? extension.dependencyMode : null,
       icon: typeof config?.icon === "string" ? config.icon : null };
   }
-  const expectedManifests = expected?.unit?.kind === "extension" ? {
-    working: manifestAnchor(expected.working.text, expected.working.contentHash, expected.unit),
-    protectedMain: manifestAnchor(expected.main.text, expected.main.contentHash, expected.unit),
-  } : null;
   const workingError = expected?.unit?.kind === "extension" ? validation(expected.working.text, expected.unit, nameOf(expected.unit)) : null;
-  const mainError = expected?.unit?.kind === "extension" ? validation(expected.main.text, expected.unit, nameOf(expected.unit)) : null;
   const equalManifests = !!expected && expected.working.contentHash === expected.main.contentHash;
   const editGrant = !!expected && !workingError && (world.grant === "working-icon" ||
     world.grant === "protected-match-icon" && equalManifests);
-  const originalIcon = expected && world.focus !== "manifest" ? iconFrom(expected.working.text) : null;
-  const originalArtwork = expected && world.focus !== "manifest" ? await artworkAt(working, expected.unit, originalIcon) : null;
+  const originalIcon = expected ? safeIconFrom(expected.working.text) : null;
+  const originalArtwork = expected ? await artworkAt(working, expected.unit, originalIcon) : null;
   // The expected visual brief stays private. It can be compared with the deterministic
   // catalog and prepared bytes without telling the program what to choose.
   const targetIconId = world.icon && (world.icon.family === "emoji" ? world.icon.term : world.icon.family + ":" + world.icon.term);
@@ -196,8 +177,6 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
   const mustStage = !!expectedIcon && editGrant && world.stageIcon && !matches;
   let discovered = false;
   let scope: Observation | null = null;
-  let design: Design | undefined;
-  let identity: Identity | undefined;
   let nativeDesign: DesignObservation | null = null;
   let nativeIdentity: IdentityObservation | null = null;
   let nativeCandidate: Candidate = null;
@@ -205,7 +184,7 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
   let lifecycle: Lifecycle | null = null;
   const calls: Call[] = [];
   const log = <T>(service: string, method: string, inputs: unknown[], result: T): T => {
-    calls.push({ service, method, inputs: structuredClone(inputs), result: structuredClone(result) });
+    calls.push({ service, method, inputs: structuredClone(inputs), outcome:"returned", result: structuredClone(result) });
     return structuredClone(result);
   };
   async function lifecycleAt(unit: Unit): Promise<Lifecycle> {
@@ -221,170 +200,156 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
       pendingApproval: status.pendingApproval?.kind ?? null };
   }
 
+  type Binding={unit:Unit;identity:Identity;design?:Design};
+  const unitBindings=new Map<string,Binding>();
+  const identityBindings=new Map<string,Binding>();
+  const designBindings=new Map<string,Binding>();
+  const observations:Observation[]=[];
+  async function invoke<T>(service:string,method:string,inputs:unknown[],operation:()=>Promise<T>):Promise<T>{
+    try{return log(service,method,inputs,await operation());}
+    catch(error){calls.push({service,method,inputs:structuredClone(inputs),outcome:"threw"});throw error;}
+  }
   const services = {
     unitHandoff: {
       async discover() {
-        if (discovered) return structuredClone(inventory);
         discovered = true;
         return log("unitHandoff", "discover", [], inventory);
       },
-      async begin(path: string) {
-        const unit = discovered && inventory.find(unit => unit.path === path);
-        if (!unit || scope) throw new Error("Begin one discovered installed unit");
-        const now = await vcs.status({ contextId });
-        if (!isDeepStrictEqual(now.workingHead, working) || now.mainEventId !== before.mainEventId)
-          throw new Error("Workspace unit revision changed since discovery");
-        const { name, kind, description } = unit;
-        identity = ports.bindIdentity({ repoPath: path, goal: world.goal, unit: { name, kind, description },
-          prepare: path === selectedPath && editGrant });
-        let manifest: Observation["manifest"] = null;
-        if (kind === "extension") {
-          design = ports.bindDesign({ contextId, source: path, name: nameOf(unit), goal: world.goal });
-          const [candidate, published] = await Promise.all([packageAt(now.workingHead, unit), packageAt(main, unit)]);
-          manifest = { working: manifestAnchor(candidate.text, candidate.contentHash, unit),
-            protectedMain: manifestAnchor(published.text, published.contentHash, unit) };
-        }
-        scope = { unit, revision: revisionOf(working), mainRevision: before.mainEventId,
-          manifest, designRequest: design?.request ?? null, identityRequest: identity.request };
-        return log("unitHandoff", "begin", [path], scope);
+      async begin(path:string) {
+        return invoke("unitHandoff","begin",[path],async()=>{
+          const unit=discovered&&inventory.find(unit=>unit.path===path);
+          if(!unit)throw new Error("Begin only a discovered installed unit");
+          const now=await vcs.status({contextId});
+          let binding=unitBindings.get(path);
+          if(!binding){
+            const {name,kind,description}=unit;
+            const ownedIdentity=ports.bindIdentity({repoPath:path,goal:world.goal,unit:{name,kind,description},
+              prepare:path===selectedPath&&editGrant});
+            const ownedDesign=kind==="extension"?ports.bindDesign({contextId,source:path,name:nameOf(unit),goal:world.goal}):undefined;
+            binding={unit,identity:ownedIdentity,...(ownedDesign?{design:ownedDesign}:{})};
+            unitBindings.set(path,binding);identityBindings.set(ownedIdentity.request.operationId,binding);
+            if(ownedDesign)designBindings.set(ownedDesign.request.operationId,binding);
+          }
+          let manifest:Observation["manifest"]=null;
+          if(unit.kind==="extension"){
+            const [candidate,published]=await Promise.all([packageAt(now.workingHead,unit),packageAt(protectedHead(now.mainEventId),unit)]);
+            manifest={working:manifestAnchor(candidate.text,candidate.contentHash,unit),protectedMain:manifestAnchor(published.text,published.contentHash,unit)};
+          }
+          const observed:Observation={unit,revision:revisionOf(now.workingHead),mainRevision:now.mainEventId,manifest,
+            designRequest:binding.design?.request??null,identityRequest:binding.identity.request};
+          observations.push(structuredClone(observed));
+          if(path===selectedPath){scope=observed;}
+          return observed;
+        });
       },
-      async lifecycle(path: string) {
-        if (!scope || path !== scope.unit.path || scope.unit.kind !== "extension" || lifecycle)
-          throw new Error("Observe one exact selected extension lifecycle");
-        lifecycle = await lifecycleAt(scope.unit);
-        return log("unitHandoff", "lifecycle", [path], lifecycle);
+      async lifecycle(path:string) {
+        return invoke("unitHandoff","lifecycle",[path],async()=>{
+          const binding=unitBindings.get(path);
+          if(!binding||binding.unit.kind!=="extension")throw new Error("Observe an actual discovered extension lifecycle");
+          const observed=await lifecycleAt(binding.unit);
+          if(path===selectedPath)lifecycle=observed;
+          return observed;
+        });
       },
     },
-    extensionDesignRead: {
-      async inspect(id: string) {
-        if (!design) throw new Error("Begin a selected extension design");
-        nativeDesign = await design.services.extensionDesignRead.inspect(id);
-        return log("extensionDesignRead", "inspect", [id], nativeDesign);
-      },
+    extensionDesignRead:{
+      async inspect(id:string){return invoke("extensionDesignRead","inspect",[id],async()=>{
+        const binding=designBindings.get(id);
+        if(!binding?.design)throw new Error("Inspect an actual begun installed extension");
+        const observed=await binding.design.services.extensionDesignRead.inspect(id);
+        if(binding.unit.path===selectedPath)nativeDesign=observed;
+        return observed;
+      });},
     },
-    unitIdentity: {
-      async observe(id: string) {
-        if (!identity || id !== identity.request.operationId) throw new Error("Observe the selected owned identity");
-        if (nativeIdentity) return structuredClone(nativeIdentity);
-        nativeIdentity = await identity.services.unitIdentity.observe(id);
-        return log("unitIdentity", "observe", [id], nativeIdentity);
-      },
-      async resolve(id: string, intent: Icon) {
-        if (!identity) throw new Error("Begin a selected unit identity");
-        nativeCandidate = await identity.services.unitIdentity.resolve(id, intent);
-        return log("unitIdentity", "resolve", [id, intent], nativeCandidate);
-      },
-      async stage(id: string, revision: string, authoringId: string) {
-        if (!identity) throw new Error("Begin a selected unit identity");
-        nativeChange = await identity.services.unitIdentity.stage(id, revision, authoringId);
-        return log("unitIdentity", "stage", [id, revision, authoringId], nativeChange);
-      },
+    unitIdentity:{
+      async observe(id:string){return invoke("unitIdentity","observe",[id],async()=>{
+        const binding=identityBindings.get(id);if(!binding)throw new Error("Observe an actual begun owned unit identity");
+        const observed=await binding.identity.services.unitIdentity.observe(id);
+        if(binding.unit.path===selectedPath)nativeIdentity=observed;
+        return observed;
+      });},
+      async resolve(id:string,intent:Icon){return invoke("unitIdentity","resolve",[id,intent],async()=>{
+        const binding=identityBindings.get(id);if(!binding)throw new Error("Resolve artwork for an actual begun unit");
+        const candidate=await binding.identity.services.unitIdentity.resolve(id,intent);
+        if(binding.unit.path===selectedPath)nativeCandidate=candidate;
+        return candidate;
+      });},
+      async stage(id:string,revision:string,authoringId:string){return invoke("unitIdentity","stage",[id,revision,authoringId],async()=>{
+        const binding=identityBindings.get(id);if(!binding)throw new Error("Stage only an actual begun unit identity");
+        const now=await vcs.status({contextId});
+        if(binding.unit.path!==selectedPath||revision!==revisionOf(working)||now.mainEventId!==before.mainEventId)
+          throw new Error("The original owned unit draft revision is not authorized");
+        const change=await binding.identity.services.unitIdentity.stage(id,revision,authoringId);
+        nativeChange=change;
+        return change;
+      });},
     },
   };
 
-  const wantDesign = !!expected && world.focus !== "identity";
-  const wantIdentity = !!expected && world.focus !== "manifest";
-  const finding = !wantDesign ? null : workingError ? "invalid" : equalManifests ? "protected-match" : "local-only";
-  const next = !expectedIcon ? "hold" : matches ? "already-matches" : mustStage ? "prepare" : "design-only";
-  const action = next === "prepare" ? "prepared" : next;
-  const decision = !expected || workingError || wantIdentity && (next === "hold" || world.stageIcon && next === "design-only") ? "held"
-    : mustStage ? "staged" : "reviewed";
-  const lifecycleSource = (value: Lifecycle) => !value.sourceRevision || !value.activeVersion || !value.buildKey ||
-      value.buildVersion !== value.activeVersion ? "unverified" : value.sourceRevision === revisionOf(working) ? "working"
-      : value.sourceRevision === before.mainEventId ? "protected-main" : "unverified";
+  const wantDesign=!!expected&&world.focus!=="identity";
+  const wantIdentity=!!expected&&world.focus!=="manifest";
+  const decoyArtworkBefore=await Promise.all(decoys.map(async(unit,index)=>artworkAt(working,unit,safeIconFrom(decoyManifests[index]!.text))));
 
-  function lifecycleActivity(value: Lifecycle) {
-    if (value.pendingApproval || value.status === "pending-approval") return "approval-pending";
-    if (value.status === "error") return "blocked";
-    if (value.status === "building") return "in-progress";
-    return value.status === "running" && value.processId ? "active" : "inactive";
-  }
-
-  function reviewFromObservation(): Finding | null {
-    if (!nativeDesign) return null;
-    const ids = [nativeDesign.working.receipt?.id, nativeDesign.published.receipt?.id].filter((id): id is string => !!id);
-    const components = [
-      { decision: workingError ? "revision-needed" : "ready", finding: workingError ?? "manifest-verified", evidenceIds: ids.slice(0, 1) },
-      { decision: mainError ? "revision-needed" : "ready", finding: mainError ?? "manifest-verified", evidenceIds: ids.slice(1) },
-      { decision: equalManifests ? "ready" : "waiting", finding: equalManifests ? "manifest-published" : "manifest-not-published", evidenceIds: ids },
-    ];
-    return { decision: workingError || mainError ? "revision-needed" : equalManifests ? "ready" : "waiting",
-      finding: workingError || mainError ? "required-revision" : equalManifests ? "prerequisites-verified" : "pending-lifecycle",
-      evidenceIds: ids, components };
-  }
-
-  // Every supplied identifier must name an actual native receipt. Neither a
-  // repeated list nor a particular explanatory component tree is requested data.
-  function findingEvidenceBound(value: Finding | null, ids: readonly string[]): boolean {
-    return !!value && Array.isArray(value.evidenceIds) && value.evidenceIds.every(id => ids.includes(id)) &&
-      (value.components === undefined || Array.isArray(value.components) && value.components.every(row => findingEvidenceBound(row, ids)));
-  }
-
-  async function verify(report: Report | null,invocation?:InvocationObservations) {
-    const after = await vcs.status({ contextId });
-    const protectedUnchanged = after.mainEventId === before.mainEventId;
-    const current = expected && await packageAt(after.workingHead, expected.unit);
-    const protectedManifest = expected && await packageAt(protectedHead(after.mainEventId), expected.unit);
-    const currentArtwork = current && wantIdentity ? await artworkAt(after.workingHead, expected!.unit, iconFrom(current.text)) : null;
-    const otherManifests = await Promise.all(decoys.map(unit => packageAt(after.workingHead, unit)));
-    const decoysUnchanged = isDeepStrictEqual(otherManifests.map(row => row.contentHash), decoyManifests.map(row => row.contentHash));
-    const workingScope = mustStage ? !!current && !!nativeChange && nativeChange.revision === revisionOf(after.workingHead) &&
-        nativeChange.revision !== revisionOf(working) && nativeChange.mainUnchanged && nativeChange.manifestOtherwiseUnchanged &&
-        isDeepStrictEqual(manifestWithoutIcon(current.text), manifestWithoutIcon(expected!.working.text)) &&
-        iconFrom(current.text) === expectedIcon?.icon && currentArtwork === expectedArtwork &&
-        isDeepStrictEqual([...nativeChange.changedFiles].sort(), Object.hasOwn(expectedIcon!.files, "assets/icon.svg")
-          ? ["assets/icon.svg", "package.json"] : ["package.json"])
-      : !nativeChange && isDeepStrictEqual(after.workingHead, working) && current?.contentHash === expected?.working?.contentHash;
-    const designBound = wantDesign ? !!nativeDesign && !!expected && !!report?.design &&
-      isDeepStrictEqual(scope?.manifest, expectedManifests) &&
-      nativeDesign.workingRevision === revisionOf(working) && nativeDesign.mainRevision === before.mainEventId &&
-      nativeDesign.working.source === expected.unit.path && nativeDesign.published.source === expected.unit.path &&
-      nativeDesign.working.candidateDigest === expected.working.contentHash &&
-      nativeDesign.published.candidateDigest === expected.main.contentHash &&
-      nativeDesign.working.receipt?.errorCode === workingError && nativeDesign.published.receipt?.errorCode === mainError &&
-      report.design.manifest === finding && findingEvidenceBound(report.design.native, reviewFromObservation().evidenceIds)
-      : !nativeDesign && report?.design === null;
-    const identityBound = wantIdentity ? !!report?.identity && !!nativeIdentity && !!expected &&
-      nativeIdentity.repoPath === expected.unit.path && nativeIdentity.revision === revisionOf(working) &&
-      nativeIdentity.icon === originalIcon && nativeIdentity.artworkDigest === originalArtwork &&
-      isDeepStrictEqual(report.identity.observed, nativeIdentity) && isDeepStrictEqual(report.identity.intent, world.icon) &&
-      (expectedIcon ? nativeCandidate?.choice?.id === targetIconId && nativeCandidate.declaration === expectedIcon.icon &&
-        nativeCandidate.artworkDigest === expectedArtwork : nativeCandidate === null) &&
-      isDeepStrictEqual(report.identity.assessment, { candidate: nativeCandidate, next }) &&
-      isDeepStrictEqual(report.identity.change, nativeChange) && report.identity.outcome === action
-      : !nativeIdentity && !nativeCandidate && report?.identity === null;
-    const observedLifecycle = report?.design?.lifecycle ?? null;
-    const lifecycleBound = world.lifecycle ? !!lifecycle && !!observedLifecycle &&
-      isDeepStrictEqual(observedLifecycle.observation, lifecycle) && observedLifecycle.source === lifecycleSource(lifecycle) && observedLifecycle.activity === lifecycleActivity(lifecycle) &&
-      !!observedLifecycle.reason.trim()
-      : !lifecycle && observedLifecycle === null;
-    const expectedCalls = ["unitHandoff.discover",
-      ...(expected ? ["unitHandoff.begin"] : []), ...(wantDesign ? ["extensionDesignRead.inspect"] : []),
-      ...(world.lifecycle ? ["unitHandoff.lifecycle"] : []),
-      ...(wantIdentity ? ["unitIdentity.observe", "unitIdentity.resolve"] : []), ...(mustStage ? ["unitIdentity.stage"] : [])];
-    const checks = {
-      observedOwnedUnitEvidence:scope?.unit?.path===(selectedPath??undefined)&&(!wantDesign||!!nativeDesign)&&(!wantIdentity||!!nativeIdentity)&&(!world.lifecycle||!!lifecycle),
-      owned_selection: !!report && report.path === selectedPath && scope?.unit?.path === (selectedPath ?? undefined),
-      manifest_versions: designBound,
-      build_lifecycle: lifecycleBound,
-      catalog_and_artwork: identityBound,
-      local_effect_and_protected_main: workingScope && protectedUnchanged && decoysUnchanged &&
-        protectedManifest?.contentHash === expected?.main?.contentHash,
-      conclusion: report?.decision === decision && !!report.reason.trim(),
+  async function verify(value:unknown,invocation?:InvocationObservations){
+    const report=value as Report|null;
+    const after=await vcs.status({contextId});
+    const current=expected&&await packageAt(after.workingHead,expected.unit);
+    const protectedManifest=expected&&await packageAt(protectedHead(after.mainEventId),expected.unit);
+    const currentArtwork=current?await artworkAt(after.workingHead,expected!.unit,safeIconFrom(current.text)):null;
+    const originalTargetArtwork=originalArtwork;
+    const otherManifests=await Promise.all(decoys.map(unit=>packageAt(after.workingHead,unit)));
+    const otherArtwork=await Promise.all(decoys.map(async(unit,index)=>artworkAt(after.workingHead,unit,safeIconFrom(otherManifests[index]!.text))));
+    const decoysUnchanged=isDeepStrictEqual(otherManifests.map(row=>row.contentHash),decoyManifests.map(row=>row.contentHash))&&isDeepStrictEqual(otherArtwork,decoyArtworkBefore);
+    const changed=!isDeepStrictEqual(after.workingHead,working);
+    const attemptedOwnedStage=calls.some(call=>call.service==="unitIdentity"&&call.method==="stage"&&identityBindings.get(call.inputs[0] as string)?.unit.path===selectedPath);
+    const ownedCurrentArtifact=!!expected&&!!current&&editGrant&&!!expectedIcon&&
+      isDeepStrictEqual(manifestWithoutIcon(current.text),manifestWithoutIcon(expected.working.text))&&
+      iconFrom(current.text)===expectedIcon.icon&&currentArtwork===expectedArtwork;
+    // Independent current bytes establish the artifact even if a returned
+    // receipt was lost after the exact owned operation committed. No actor
+    // reread or private report echo is required to establish persisted state.
+    const workingScope=changed?attemptedOwnedStage&&ownedCurrentArtifact:
+      !nativeChange&&current?.contentHash===expected?.working.contentHash&&currentArtwork===originalTargetArtwork;
+    const readbacksBound=calls.filter(call=>call.outcome==="returned").every(call=>{
+      if(call.service==="unitHandoff"&&call.method==="begin"){
+        const observed=call.result as Observation;
+        return isDeepStrictEqual(observed.unit,inventory.find(unit=>unit.path===call.inputs[0]))&&!!observed.revision&&!!observed.mainRevision;
+      }
+      if(call.service==="unitIdentity"&&call.method==="observe"){
+        const binding=identityBindings.get(call.inputs[0] as string),observed=call.result as IdentityObservation;
+        return !!binding&&observed.repoPath===binding.unit.path&&typeof observed.revision==="string";
+      }
+      if(call.service==="extensionDesignRead"&&call.method==="inspect"){
+        const binding=designBindings.get(call.inputs[0] as string),observed=call.result as DesignObservation;
+        return !!binding&&observed.working.source===binding.unit.path&&observed.published.source===binding.unit.path;
+      }
+      return true;
+    });
+    const independentUnits=await Promise.all(inventory.map(async unit=>{
+      const manifest=await packageAt(after.workingHead,unit);
+      return {unit,manifest:manifest.text,manifestHash:manifest.contentHash,artworkDigest:await artworkAt(after.workingHead,unit,safeIconFrom(manifest.text))};
+    }));
+    const checks={
+      authenticNativeUnitReadbacks:readbacksBound,
+      localEffectAndProtectedState:!!workingScope&&decoysUnchanged&&after.mainEventId===before.mainEventId&&protectedManifest?.contentHash===expected?.main.contentHash,
+      requestedUnitAnswer:typeof report?.explanation==="string"&&!!report.explanation.trim(),
+      authenticUnitValue:report?.unit===null||observations.some(observed=>isDeepStrictEqual(observed.unit,report?.unit)),
+      authenticDraftValue:report?.draft===null||!!nativeChange&&isDeepStrictEqual(report?.draft,nativeChange),
     };
-    const contract:SemanticOutcomeContract={effects:{checks:["observedOwnedUnitEvidence", "local_effect_and_protected_main"],rationale:"Independent native observations, exact authority and persisted state establish application effects."},returnedValue:{checks:["owned_selection", "manifest_versions", "build_lifecycle", "catalog_and_artwork", "conclusion"],required:!mustStage,rationale:"Requested findings and verified result handles are required for query goals; completed mutation effects stand independently."},incidentalValues:{checks:[],rationale:"Returned receipt presentation is optional; actual artifacts and receipts are verified from native state."}};
-    return assessObservedApplicationOutcome({ caseId: world.id, contextId, goal: world.goal, checks, passed: Object.values(checks).every(Boolean),
-      nativeReviewEvidence: {calls:structuredClone(calls), scope, lifecycle, nativeDesign, nativeIdentity, nativeCandidate, nativeChange,
-        working:revisionOf(after.workingHead), protectedEvent:after.mainEventId, target:selectedPath,
-        currentManifestHash:current?.contentHash??null, protectedManifestHash:protectedManifest?.contentHash??null, currentArtwork},
-      unitHandoff: { calls: structuredClone(calls), report, working: revisionOf(after.workingHead),
-        protectedEvent: after.mainEventId, target: selectedPath, expect: { decision, finding, action, mustStage } } },contract,report,invocation,[{"checks":["owned_selection"],"rootPath":["path"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["plan","path"]},{"checks":["manifest_versions"],"rootPath":["design"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["design"]},{"checks":["build_lifecycle"],"rootPath":["design"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["design"]},{"checks":["catalog_and_artwork"],"rootPath":["identity"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["identity"]},{"checks":["conclusion"],"rootPath":["reason"],"producerSourceSuffix":"reviewUnitHandoffGoal/completeHandoff.nl","producerPath":["reason"]}]);
+    const contract:SemanticOutcomeContract={
+      effects:{checks:["authenticNativeUnitReadbacks","localEffectAndProtectedState"],rationale:"Actual scoped native observations, persisted canonical artwork, unchanged metadata, protected main and neighboring bytes establish effect integrity without reference routes."},
+      returnedValue:{checks:["requestedUnitAnswer"],required:world.requestedReturnRequired,rationale:"The literal user's requested explanation remains required even after a draft; pure draft-only goals do not require a redundant root report."},
+      incidentalValues:{checks:["authenticUnitValue","authenticDraftValue"],rationale:"Any supplied unit or draft value must be an actual observed native value; omitted redundant copies do not establish or invalidate an effect."},
+    };
+    return assessObservedApplicationOutcome({caseId:world.id,contextId,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
+      nativeReviewEvidence:{inventory,observations:structuredClone(observations),calls:structuredClone(calls),scope,lifecycle,nativeDesign,nativeIdentity,nativeCandidate,nativeChange,
+        independentCurrent:{units:independentUnits,working:revisionOf(after.workingHead),protectedEvent:after.mainEventId},
+        protocol:"Native permission limits possible drafts; the actual goal decides whether a read, comparison or draft is requested. Current-state verifier facts are distinct from recorded actor observations."},
+      unitHandoff:{calls:structuredClone(calls),report,working:revisionOf(after.workingHead),protectedEvent:after.mainEventId}},contract,value,invocation,[]);
   }
 
   async function reference() {
     await services.unitHandoff.discover();
-    const plan = { path: selectedPath, focus: world.focus, inspectLifecycle: world.lifecycle, stageIcon: world.stageIcon,
-      requireProtectedSource: world.requireProtectedSource, reason: "Review the assigned installed unit and exact grant." };
     if (expected) {
       await services.unitHandoff.begin(expected.unit.path);
       if (wantDesign && scope?.designRequest) await services.extensionDesignRead.inspect(scope.designRequest.operationId);
@@ -396,12 +361,15 @@ export async function prepareUnitHandoff(world: World, ports: Ports = live) {
         if (mustStage && choice && nativeIdentity) await services.unitIdentity.stage(id, nativeIdentity.revision, choice.choice.id);
       }
     }
-    return verify({ decision, path:plan.path, reason: "Report the observed candidate, local scope and protected revision.",
-      design: wantDesign && finding ? { native: reviewFromObservation(), manifest: finding,
-        lifecycle: lifecycle ? { observation: lifecycle, source: lifecycleSource(lifecycle), activity: lifecycleActivity(lifecycle), reason: "Compare exact retained build evidence." } : null } : null,
-      identity: wantIdentity && nativeIdentity && world.icon ? { observed: nativeIdentity, intent: world.icon,
-        assessment: { candidate: nativeCandidate, next }, change: nativeChange, outcome: action } : null,
-    });
+    const explanation=[scope?`Observed ${scope.unit.path} at ${scope.revision}.`:"No unit was selected from the assigned inventory.",nativeDesign?"Native design observations were acquired.":null,lifecycle?"The actual lifecycle was read.":null,nativeCandidate?`Catalog resolved ${nativeCandidate.choice.id}.`:wantIdentity?"No requested catalog candidate was resolved.":null,nativeChange?`A native draft was verified at ${nativeChange.revision}.`:"No draft was performed."].filter(Boolean).join(" ");
+    const report:Report={explanation,unit:scope?.unit??null,draft:nativeChange};
+    const proof=await verify(report);
+    const referenceRequestedArtifact=!mustStage||!!nativeChange;
+    const referenceDesiredObservations=(!wantDesign||!!nativeDesign)&&(!wantIdentity||!!nativeIdentity)&&(!world.lifecycle||!!lifecycle);
+    const checks={...proof.checks,referenceRequestedArtifact,referenceDesiredObservations};
+    return assessNativeQualification({...proof,checks,passed:Object.values(checks).every(Boolean),
+      outcomeContract:{...proof.outcomeContract,effects:{...proof.outcomeContract.effects,checks:[...proof.outcomeContract.effects.checks,"referenceRequestedArtifact","referenceDesiredObservations"]}}});
   }
+
   return { goal: world.goal, services, qualify: reference, verify };
 }
