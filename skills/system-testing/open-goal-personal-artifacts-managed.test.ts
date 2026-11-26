@@ -18,7 +18,7 @@ import {openPersonalArtifactWorlds} from "./open-goal-personal-artifacts-worlds.
 beforeEach(()=>{native.bookmarks=[];native.visits=[];native.nodes.clear();native.order=[];native.sequence=0;native.revision=0;});
 it.each(openPersonalArtifactWorlds)("$id binds actual artifacts and the literal return obligation",async world=>{
  const fixture=await prepareOpenPersonalArtifacts({contextId:"owned-artifacts",caseId:world.id},world);
- try{const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeDimensions.returnedValue.required).toBe(world.outcomeContract.returnedValue.required);expect(proof.semanticReviewInput.actual.observations.independentCollection).toEqual(proof.independentCollection);}finally{await fixture.close();}
+ try{const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeDimensions.returnedValue.required).toBe(world.outcomeContract.returnedValue.required);expect(proof.semanticReviewInput.expected.observations.independentCollection).toEqual(proof.independentCollection);}finally{await fixture.close();}
 });
 it("allows an additional authorized idempotent link while preserving final native state",async()=>{
  const world=openPersonalArtifactWorlds.find(row=>row.id==="preserve-safety-note-during-handoff-replan")!;

@@ -11,5 +11,5 @@ it("retains native artifact/hold completion without a generic result echo",()=>{
 it("keeps native goal meaning review required while excluding an incorrect incidental pointer",()=>{
  const nativeProjectEvidence={sourceNow:[{localApproval:"pending"}],artifact:null};
  const review=observedContentReview({goal:"Create only after approval",nativeProjectEvidence},contract,{outcome:"invented"},["nativeProjectEvidence"]);
- expect(review.semanticReviewRequired).toBe(true);expect(review.semanticReviewInput.actual.requestedReturn).toBeNull();expect(review.semanticReviewInput.actual.observations).toEqual({nativeProjectEvidence});
+ expect(review.semanticReviewRequired).toBe(true);expect(review.semanticReviewInput.actual.requestedReturn).toBeNull();expect(review.semanticReviewInput.expected.observations).toEqual({nativeProjectEvidence});
 });

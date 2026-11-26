@@ -29,7 +29,7 @@ it("accepts a truthful removed original ID with redundant real reads and binds i
  const report={finding:{state:"missing",id:"old",revision:1},explanation:"The old read receipt was removed; the accessibility note remains.",acknowledgment:null};
  const proof=await prepared.verify(report);nativePassed(proof);
  expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(report);
- expect(proof.semanticReviewInput.actual.observations.durable.rows.map((row:{id:string})=>row.id)).toEqual(["access"]);
+ expect(proof.semanticReviewInput.expected.observations.durable.rows.map((row:{id:string})=>row.id)).toEqual(["access"]);
 }));
 it("keeps an incorrect nonempty answer subject to meaning review rather than claiming crisp semantic certification",async()=>fixture(removed,async prepared=>{
  await observe(prepared);const report={finding:{state:"read",id:"old",revision:1},explanation:"The old read receipt still survives.",acknowledgment:null};

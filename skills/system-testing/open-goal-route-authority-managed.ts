@@ -2,7 +2,7 @@ import {compareExactAuthority} from "./route-authority-observations.js";
 export {compareExactAuthority} from "./route-authority-observations.js";
 import {routeAuthorityReviewGuidance} from "./native-domain-review.js";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome = bindObservedContentReview(["offer", "snapshots", "authority", "choice", "readback", "routeReadbacks"], ["artifact"]);
+const assessObservedApplicationOutcome = bindObservedContentReview(["offer", "snapshots", "authority", "choice", "readback", "routeReadbacks"],["artifact"],{nonAuthoritativeKeys:["choice"]});
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import {isDeepStrictEqual} from "node:util";

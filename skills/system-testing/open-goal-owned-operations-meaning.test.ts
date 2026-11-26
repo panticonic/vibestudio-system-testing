@@ -16,7 +16,7 @@ import {openOwnedOperationsWorlds} from "./open-goal-owned-operations-worlds.js"
 beforeEach(()=>{native.files.clear();native.contexts.clear();native.entities.clear();native.sequence=0;});
 it.each(openOwnedOperationsWorlds)("$id binds real native custody and requested meaning independently",async world=>{
  const fixture=await prepareOpenOwnedOperations({contextId:"owned",caseId:world.id,goal:world.goal},world);
- try {const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeDimensions.returnedValue.required).toBe(world.requestedReturnRequired);expect(proof.semanticReviewInput.actual.observations.audit).toEqual(proof.audit);expect(proof.semanticReviewInput.actual.artifacts.dossierReadback).toEqual(proof.dossierReadback);}finally{await fixture.close();}
+ try {const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.outcomeDimensions.returnedValue.required).toBe(world.requestedReturnRequired);expect(proof.semanticReviewInput.expected.observations.audit).toEqual(proof.audit);expect(proof.semanticReviewInput.actual.artifacts.dossierReadback).toEqual(proof.dossierReadback);}finally{await fixture.close();}
 });
 it("does not force a worker/report route for a requested docket assessment, while binding any supplied native references",async()=>{
  const world=openOwnedOperationsWorlds.find(row=>row.id==="owned-operations-billing-view-reading")!;

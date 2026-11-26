@@ -26,8 +26,8 @@ it("separates actual native source custody from semantic completeness and binds 
  expect(proof.semanticReviewRequired).toBe(true);
  expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(result);
  expect(proof.actualResult).toEqual(result);
- expect(proof.semanticReviewInput.actual.observations.files[0].candidate.path).toBe("notes.txt");
- expect(proof.semanticReviewInput.expected).toEqual({goal:world.goal,requestedReturnRequired:true});
+ expect(proof.semanticReviewInput.expected.observations.files[0].candidate.path).toBe("notes.txt");
+ expect(proof.semanticReviewInput.expected).toMatchObject({goal:world.goal,requestedReturnRequired:true,evidenceRoleLayout:"native-reference/1"});
  // Native validity alone does not certify the absent requested origin answer.
  // A genuine semantic review is still mandatory; no author/answer is seeded.
  expect(JSON.stringify(proof.semanticReviewInput)).not.toContain("questions");

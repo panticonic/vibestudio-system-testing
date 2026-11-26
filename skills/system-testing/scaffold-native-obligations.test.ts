@@ -29,12 +29,12 @@ async function fixture(id="mobile-workspace-starter"){
 it("requires the explicitly requested mobile authority answer even after exact native draft retention",async()=>{
  const {prepared,svc,card}=await fixture();const receipt=await svc.scaffoldPrepare.prepare(card.id,card.event,["native-client"]);expect(receipt).not.toBeNull();expect(receipt!.units[0]!.authority).toEqual(["context.boundary"]);
  const missing=await prepared.verify(undefined);expect(missing.outcomeDimensions.effects.passed,JSON.stringify(missing.checks)).toBe(true);expect(missing.outcomeDimensions.returnedValue.passed).toBe(false);expect(missing.passed).toBe(false);
- const proof=await prepared.verify(receipt);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(receipt);expect(proof.semanticReviewInput.actual.observations.units[0].authority).toEqual(["context.boundary"]);expect(proof.journal.some(r=>r.method==="readback")).toBe(false);
+ const proof=await prepared.verify(receipt);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(receipt);expect(proof.semanticReviewInput.expected.observations.units[0].authority).toEqual(["context.boundary"]);expect(proof.journal.some(r=>r.method==="readback")).toBe(false);
 });
 it("keeps unsupported returned authority claims visible beside actual native facts for mandatory meaning review",async()=>{
  const {prepared,svc,card}=await fixture();const receipt=await svc.scaffoldPrepare.prepare(card.id,card.event,["native-client"]);expect(receipt).not.toBeNull();
  const claimed={...receipt!,units:receipt!.units.map(unit=>({...unit,authority:["invented.authority"]}))};const proof=await prepared.verify(claimed);
- expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(claimed);expect(proof.semanticReviewInput.actual.observations.units[0].authority).toEqual(["context.boundary"]);
+ expect(proof.semanticReviewRequired).toBe(true);expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(claimed);expect(proof.semanticReviewInput.expected.observations.units[0].authority).toEqual(["context.boundary"]);
 });
 it("denies a foreign brief and a stale authoring basis without manufacturing a draft receipt",async()=>{
  const {svc,card,repositories}=await fixture();await expect(svc.scaffoldPrepare.prepare("foreign",card.event,["native-client"])).rejects.toThrow(/owned scaffold/);expect(await svc.scaffoldPrepare.prepare(card.id,"stale-basis",["native-client"])).toBeNull();expect(repositories.size).toBe(0);

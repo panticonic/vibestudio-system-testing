@@ -1,4 +1,6 @@
-import {observedContentReviewInput} from '/home/werg/vibe-native-recovery-review-bindings/scripts/lib/observed-content-admission.mjs';
+import {pathToFileURL} from 'node:url';
+import {resolve} from 'node:path';
+const {observedContentReviewInput}=await import(/* @vite-ignore */pathToFileURL(resolve(process.env.VIBESTUDIO_TEST_HOST_SOURCE??process.cwd(),'scripts/lib/observed-content-admission.mjs')).href);
 /** Reference-call projection supplies its actual reference return at the existing capture boundary. This is not a teacher Root witness.
  * Component native ports execute real fixture operations over immutable snapshots and actual hashed bytes. */
 import {expect,it,vi} from 'vitest';

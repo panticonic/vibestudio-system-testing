@@ -44,7 +44,8 @@ describe('migration checks requested meaning against bound evidence',()=>{
   const proof=await fixture.verify(actual);
   expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
   expect(proof.semanticReviewInput.actual.requestedReturn).toEqual(actual);
-  expect(proof.semanticReviewInput.actual.observations.journal).toEqual(proof.journal);
+  expect(proof.semanticReviewInput.expected.observations.journal.map(row=>row.result)).toEqual(proof.journal.map(row=>row.result));
+ expect(proof.semanticReviewInput.actual.attemptedArguments.map(row=>row.arguments)).toEqual(proof.journal.filter(row=>typeof row.method==="string"&&Array.isArray(row.args)).map(row=>row.args));
   expect(proof.semanticReviewInput.actual.artifacts).toEqual({handoff:null,receiptText:null});
   expect(JSON.stringify(proof.semanticReviewInput)).toContain('Returns Logistics');
   expect((await fixture.verify({...actual,answer:''})).passed).toBe(false);

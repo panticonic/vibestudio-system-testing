@@ -10,8 +10,8 @@ beforeEach(()=>native.files.clear());
 it.each(openLiveLocalInventoryWorlds)("$id binds current native catalog facts and actual requested findings",async world=>{
  const fixture=await prepareOpenLiveLocalInventory({contextId:"owned",caseId:world.id,goal:world.goal},world,(contextId,selected)=>prepareLocalModelComparison(port,contextId,selected));
  const proof=await fixture.qualify();expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
- expect(proof.semanticReviewInput.actual.observations.inventoryReadback.rows).toEqual(proof.native.rows);
- expect(proof.semanticReviewInput.actual.observations.inventoryReadback).not.toHaveProperty("expected");
+ expect(proof.semanticReviewInput.expected.observations.inventoryReadback.rows).toEqual(proof.native.rows);
+ expect(proof.semanticReviewInput.expected.observations.inventoryReadback).not.toHaveProperty("expected");
  expect(proof.outcomeDimensions.returnedValue.required).toBe(true);
 });
 it("preserves catalog truth checks and source-binds an explanation rather than treating nonempty prose as verified meaning",async()=>{
@@ -35,6 +35,6 @@ it("can complete a current catalog query after a real external state change and 
   const refreshed=await fixture.verify({report:comparison!.expected,reason:"The initial option is now starting; the current fallback remains eligible for a fresh conversation"});
   expect(refreshed.passed).toBe(true);expect(refreshed.native.checks.currentInventory).toBe(true);
   expect(refreshed.native.rows).not.toEqual(refreshed.native.initialRows);
-  expect(refreshed.semanticReviewInput.actual.observations.inventoryReadback.observations).toEqual(refreshed.native.observations);
+  expect(refreshed.semanticReviewInput.expected.observations.inventoryReadback.observations).toEqual(refreshed.native.observations);
  }finally{inventory[0]!.state=original;}
 });

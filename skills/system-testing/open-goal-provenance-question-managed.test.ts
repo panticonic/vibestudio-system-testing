@@ -11,7 +11,7 @@ describe('recorded questions: actual native fixture reference and authority cont
   const reference=await fixture.qualify();expect(reference.passed).toBe(true);expect(reference.outcomeDimensions.effects.passed).toBe(true);expect(Object.values(reference.checks).every(Boolean)).toBe(true);
   expect(reference.qualification).toEqual({scope:'native-reference',requiredObservations:world.requestedEvidence,goalMeaningReview:'pending'});
   expect(reference.semanticReviewRequired).toBe(true);expect(reference.semanticReviewInput.actual.requestedReturn).toEqual(reference.report);expect(reference.semanticReviewInput.expected.requestedReturnRequired).toBe(true);
-  expect(Object.hasOwn(reference,'answer')).toBe(false);expect(Object.hasOwn(reference.semanticReviewInput.actual.observations,'answer')).toBe(false);
+  expect(Object.hasOwn(reference,'answer')).toBe(false);expect(Object.hasOwn(reference.semanticReviewInput.expected.observations,'answer')).toBe(false);
   expect(reference.effects.some(e=>e.method==='cohort')).toBe(world.requestedEvidence.includes('cohort')||world.requestedEvidence.includes('counteractions'));
   expect(reference.effects.some(e=>e.method==='rejections')).toBe(world.requestedEvidence.includes('counteractions'));
   const absent=await fixture.verify(undefined);expect(absent.outcomeDimensions.effects.passed).toBe(true);expect(absent.outcomeDimensions.returnedValue.passed).toBe(false);expect(absent.semanticReviewRequired).toBe(true);

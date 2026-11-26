@@ -23,7 +23,7 @@ it("retains five actual owned anchors without rewriting a valid description or i
  const {prepared,svc,card,view}=await fixture();await svc.grimoireScene.confirm(card.id,view.frontier);
  const receipt=await svc.grimoireHandoff.stage(card.id,view.frontier,{action:"stage-scene",finding:"",proposedIds:view.anchors.map(a=>a.id),description:view.description});
  expect(receipt).not.toBeNull();const proof=await prepared.verify(undefined);expect(proof.passed).toBe(true);expect(proof.semanticReviewRequired).toBe(true);
- expect(proof.semanticReviewInput.actual.requestedReturn).toBeNull();expect(proof.semanticReviewInput.actual.observations.current).toEqual(view);
+ expect(proof.semanticReviewInput.actual.requestedReturn).toBeNull();expect(proof.semanticReviewInput.expected.observations.current).toEqual(view);
  expect(JSON.parse(proof.body!).facts).toHaveLength(5);
 });
 it("establishes a read-only answer without a write lease or actor reread and without an opaque action label",async()=>{
