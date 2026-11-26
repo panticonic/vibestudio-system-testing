@@ -379,12 +379,10 @@ export async function prepareDesktopReadiness(
   }
 async function verifyNativeApplication(report: unknown, observations?: InvocationObservations) {
     const outcome = report as {reason:string} | null;
-    const sourceRead = journal.find((row) => row.method === "observe")
-      ?.result as SourceEvidence | undefined;
-    const exactAdmission = sourceRead && expectedAdmission(sourceRead);
-    const reread = await bound.services.clientAdmissionRead.observe(
-      desk.operationId,
-    );
+    // This independent source read establishes native identity; it does not
+    // pretend the application chose an unrequested source-inspection route.
+    const sourceRead = await bound.services.clientAdmissionRead.observe(desk.operationId);
+    const exactAdmission = expectedAdmission(sourceRead);
     const window = observeWindow(world, desk.id, desktop.layout);
     const updates = await observeUpdates(world, desk.id, desktop);
     const final = await status();
@@ -399,7 +397,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       );
     };
     const childReturns = observations ? await observations.returns(call =>
-      call.definition.source.includes("reviewDesktopReadiness/clientDevelopment/") &&
+      call.definition.source.includes("reviewDesktopReadiness/inspectDesktopEvidence/clientDevelopment/") &&
       (call.definition.name === "chooseNext" || call.definition.name === "reviewClientAdmission")) : [];
     const incorrectReturnValues = exactAdmission ? childReturns.filter(call => {
       const decision = call.definition.name === "chooseNext" ? call.value :
@@ -416,16 +414,15 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
           (baseline.workingHead.kind === "event"
             ? baseline.workingHead.eventId
             : baseline.workingHead.applicationId) &&
-        isDeepStrictEqual(sourceRead, reread) &&
         sourceRead.host.kind === "desktop" &&
         sourceRead.published.id === clientId &&
         sourceRead.published.runtime === "web" &&
         sourceRead.published.abi === "web-host-1" &&
-        matched("observe", [desk.operationId], sourceRead) && matched("discover",[],[desk,neighbor]),
+        journalOf("observe").every(row => isDeepStrictEqual(row.args,[desk.operationId]) && isDeepStrictEqual(row.result,sourceRead)),
       incidentalDesktopAdmissionClassification:
         incorrectReturnValues.length === 0,
       exactResponsivePlacement:
-        matched("readWindow", [desk.id], window) &&
+        (!world.requestedEvidence.includes("layout") || matched("readWindow", [desk.id], window)) &&
         window.status === (expected.layout ?? "restored") &&
         (expected.currentFocus === undefined ||
           pane?.focused === expected.currentFocus) &&
@@ -436,7 +433,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
         (expected.rightParked === undefined ||
           isDeepStrictEqual(pane?.parkedRight, expected.rightParked)),
       exactRetainedDesktopOffer:
-        matched("readUpdates", [desk.id], updates) &&
+        (!world.requestedEvidence.includes("updates") || matched("readUpdates", [desk.id], updates)) &&
         updates.portCalls === 0 &&
         isDeepStrictEqual(
           updates.before.map((row) => row.buildKey),
@@ -460,7 +457,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     return {
       incorrectReturnValues,
       outcomeContract:{
-        effects:{checks:["exactDesktopClientSource","exactResponsivePlacement","exactRetainedDesktopOffer","preservedDesktopWorkspaceHeads"],rationale:"Native source, layout, build distinction, requested answer and protected workspace are required by this desktop goal."},
+        effects:{checks:["exactDesktopClientSource","exactResponsivePlacement","exactRetainedDesktopOffer","preservedDesktopWorkspaceHeads"],rationale:"Independent native source identity, actual layout/update state and protected heads remain exact. Application observation is required only for the evidence requested by this literal desktop goal; extra scoped observations are permitted."},
         returnedValue:{checks:["returnedDesktopFindings"],required:true,rationale:"The requested layout and version answer is required and checked with native facts."},
         incidentalValues:{checks:["incidentalDesktopAdmissionClassification"],rationale:"An unused internal client admission recommendation is not the requested layout/build answer; retain and exclude its known incorrect generated values."},
       },
@@ -490,12 +487,9 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
     } catch {
       rejectedAdmission = true;
     }
-    const admission = expectedAdmission(
-      await services.clientAdmissionRead.observe(desk.operationId),
-    );
-    const window = await services.desktopReadiness.readWindow(desk.id);
-    const updates = await services.desktopReadiness.readUpdates(desk.id);
-    const report = {reason:"Current scoped desktop evidence."};
+    const window = world.requestedEvidence.includes("layout") ? await services.desktopReadiness.readWindow(desk.id) : null;
+    const updates = world.requestedEvidence.includes("updates") ? await services.desktopReadiness.readUpdates(desk.id) : null;
+    const report = {reason:JSON.stringify({layout:window,updates})};
     const proof = await verify(report);
     const negative = structuredClone(report);
     negative.reason = "";
@@ -512,6 +506,7 @@ async function verifyNativeApplication(report: unknown, observations?: Invocatio
       checks,
       passed: Object.values(checks).every(Boolean),
       report,
+      qualification: {scope:"native-reference",requiredObservations:[...world.requestedEvidence],goalMeaningReview:"pending"},
     });
   }
   return { services, verify, qualify };

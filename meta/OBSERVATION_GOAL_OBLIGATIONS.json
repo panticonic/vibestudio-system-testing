@@ -1,0 +1,227 @@
+{
+  "schema": "vibestudio.observation-obligations/1",
+  "sourceProof": {
+    "schema": "vibestudio.observation-review-source-proof/1",
+    "worlds": [
+      {
+        "path": "skills/system-testing/open-goal-desktop-readiness-worlds.ts",
+        "cases": 29,
+        "originalSha256": "3fe37c18dcc661da14c5b28db6bac41db2791dcc94669a978dcf8d420920f363",
+        "currentSha256": "09a4899dbce4c040c8dbea6146e313421d0b27582887bd9e213982f203229ebe",
+        "allOriginalFieldsUnchanged": true,
+        "addedOnly": "requestedEvidence"
+      },
+      {
+        "path": "skills/system-testing/open-goal-provenance-question-worlds.ts",
+        "cases": 21,
+        "originalSha256": "8d2355fdc39e5ebe7a480f69812ce26f985a524f69aae6da692e3a47df449c44",
+        "currentSha256": "2358872c5647be236c65fdce2cfc5f68921c252b01cc5479c7c940163de70d10",
+        "allOriginalFieldsUnchanged": true,
+        "addedOnly": "requestedEvidence"
+      }
+    ],
+    "typeModuleNames": {
+      "rule": "spec/SPEC.md:197 item names must be identifiers",
+      "rootModulesChecked": 63,
+      "invalid": [],
+      "sharedDesktopModule": "desktopReadinessTypes.ts",
+      "otherNewDtoPlacement": "Recorded contract.ts/types.ts; local3 DTOs in existing root types.ts; Specialist/Provider/optional mounted DTOs branch-scoped, not unconditional optional imports"
+    },
+    "semanticCompletionClaimed": false
+  },
+  "literalRequirements": {
+    "schema": "vibestudio.literal-observation-obligations/1",
+    "desktop": {
+      "office-reconnect-same-build": [
+        "updates"
+      ],
+      "lobby-confirm-ready-offer": [
+        "layout",
+        "updates"
+      ],
+      "script-edit-before-new-build": [
+        "layout",
+        "updates"
+      ],
+      "lease-review-pending": [
+        "updates"
+      ],
+      "orphan-offer-after-reconnect": [
+        "updates"
+      ],
+      "unknown-offer-build": [
+        "updates"
+      ],
+      "neighbor-update-excluded": [
+        "updates"
+      ],
+      "rollback-before-review": [
+        "updates"
+      ],
+      "rejected-candidate-existing-window": [
+        "updates"
+      ],
+      "rollback-already-complete": [
+        "updates"
+      ],
+      "foreign-rejection": [
+        "updates"
+      ],
+      "same-build-retained-offer": [
+        "updates"
+      ],
+      "rollback-with-no-version": [
+        "updates"
+      ],
+      "narrow-room-parked-column": [
+        "layout"
+      ],
+      "wide-window-recover-column": [
+        "layout"
+      ],
+      "deleted-focus-recover-survivor": [
+        "layout"
+      ],
+      "duplicate-pane-identities": [
+        "layout"
+      ],
+      "duplicate-panel-placement": [
+        "layout"
+      ],
+      "minimum-width-override": [
+        "layout"
+      ],
+      "stale-viewport-anchor": [
+        "layout"
+      ],
+      "wrong-owner-window": [
+        "layout"
+      ],
+      "queued-focus-owns-current": [
+        "layout"
+      ],
+      "unsupported-layout-version": [
+        "layout"
+      ],
+      "held-retained-and-neighbor": [
+        "updates"
+      ],
+      "held-rollback-blocked-by-open-edits": [
+        "layout",
+        "updates"
+      ],
+      "held-only-whitespace-versions": [
+        "updates"
+      ],
+      "held-empty-after-prune": [
+        "layout"
+      ],
+      "held-unowned-offer-despite-ready": [
+        "layout"
+      ],
+      "held-rejected-then-rolled-back": [
+        "updates"
+      ]
+    },
+    "recorded": {
+      "dock-amber-reattempt": [
+        "counteractions"
+      ],
+      "nutrition-copy-request-scope": [
+        "cohort"
+      ],
+      "electric-test-partial-reversal": [
+        "cohort",
+        "counteractions"
+      ],
+      "violet-desk-rationale": [
+        "cohort"
+      ],
+      "restock-count-without-unrelated": [
+        "cohort"
+      ],
+      "bicycle-queue-rejected-override": [
+        "cohort",
+        "counteractions"
+      ],
+      "lantern-constraint-from-result": [
+        "counteractions"
+      ],
+      "old-storage-only-local": [],
+      "story-two-independent-summaries": [],
+      "signed-room-key-rollover": [
+        "cohort"
+      ],
+      "server-ramp-half-acceptance": [
+        "cohort",
+        "counteractions"
+      ],
+      "localized-press-bundle": [
+        "cohort"
+      ],
+      "shipping-rejected-citation-scope": [
+        "cohort",
+        "counteractions"
+      ],
+      "find-signed-pause-wording": [
+        "cohort"
+      ],
+      "same-room-submitters-conflict": [],
+      "held-pantry-policy-outside-basis": [],
+      "held-drill-proposal-all-reverted": [
+        "cohort",
+        "counteractions"
+      ],
+      "held-citation-count-five-files": [
+        "cohort"
+      ],
+      "held-local-label-same-title": [],
+      "held-repair-cold-case": [
+        "cohort",
+        "counteractions"
+      ],
+      "held-fan-out-complete-intent": [
+        "cohort"
+      ]
+    },
+    "rationale": {
+      "desktop": "The29 literal goals request layout and/or retained update identity/state. None requests a mandatory source/admission classifier route; canonical source identity is still independently verified. Optional additional scoped observations remain allowed.",
+      "recorded": "The21 literal goals request scoped recorded intent. Complete cohort and/or counteraction acquisition are mandatory only where requested; counteraction reads retain the native observed-cohort prerequisite. Accurate extra scoped evidence remains allowed."
+    }
+  },
+  "meaningReview": "Mandatory for every actual requested Desktop/Recorded query value; qualification is native-reference only and explicitly pending meaning review.",
+  "unchangedAuthority": [
+    "Caller and assigned context",
+    "issued proposal references and complete observed cohort prerequisites",
+    "native source/manifest identity",
+    "native layout/update projections",
+    "actual counteraction-work linkage and Native field values",
+    "current head, protected main and neighboring persisted bytes"
+  ],
+  "defaultsCorrected": [
+    "Desktop no forced source classifier or unrequested layout/update read",
+    "Recorded no whole private answer, enum/count/order echo gate",
+    "Earlier issued candidates and cohorts survive valid later searches and independent reads",
+    "Native search representation limit delegated to actual400-character protocol, not an invented120-character ceiling"
+  ],
+  "referenceTests": {
+    "unit": "vibe-observation-native-worlds-20261126b",
+    "passed": 53,
+    "nativeWorlds": {
+      "desktop": 29,
+      "recorded": 21
+    },
+    "extraControls": [
+      "previous reference usability/parallel independent reads",
+      "actual protocol/error propagation",
+      "stale native-head refusal"
+    ],
+    "peakMiB": 403.7,
+    "scope": "Actual factory implementations; real desktop canonical projections and current service schemas, controlled immutable VCS adapter. Physical native VCS/desktop integration not claimed."
+  },
+  "nativeSchemaScope": {
+    "path": "packages/service-schemas/src/vcs.ts",
+    "sha256": "02d0a3dc58671ef52d579198c61a049b2a28ad9dd922a261a6a4af08235f9964",
+    "equality": "Exact current Host source equals the test Host projection source."
+  }
+}
