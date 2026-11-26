@@ -1,0 +1,7 @@
+{
+  "schema": "desktop-world-preservation/1",
+  "cases": 29,
+  "changedOnly": "unused expected.action removed; all goals, IDs, splits, native inputs and remaining expected fields byte-equivalent as JSON values",
+  "beforeSha256": "b2a9d779c0a4772d831f1729a2e03adacdd2008443e7cd90c578adf020998002",
+  "afterSha256": "3fe37c18dcc661da14c5b28db6bac41db2791dcc94669a978dcf8d420920f363"
+}
