@@ -3,7 +3,7 @@ const assessObservedApplicationOutcome = bindObservedContentReview(["brief", "pl
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import {type SemanticOutcomeContract} from "@workspace/application-outcomes/semantic-outcome-contract";
 import { isDeepStrictEqual as equal } from "node:util";
-import { compareUtf16CodeUnits, sha256HexSyncText } from "@vibestudio/content-addressing";
+import { sha256HexSyncText } from "@vibestudio/content-addressing";
 import { logIdForChannel } from "@vibestudio/trajectory-identity";
 import { blobstore, contextId, fs, memory, rpc, runtime, vcs, type VcsClient } from "@workspace/runtime";
 import { channelClientRpcMethods } from "@workspace/pubsub/rpc-contract";
@@ -56,7 +56,6 @@ function livePorts():Ports{
     retire:id=>runtime.retireEntity({id}),readBytes:(path,limit)=>readWorkspaceBytes(rpc,path,limit)};
 }
 
-type Candidate = Pick<MemoryPlan,"kinds"|"readTranscript"|"readWorking">;
 export async function prepareRetainedMemory(input:{contextId:string;caseId:string},ports=livePorts()){
   const world=openRetainedMemoryWorlds.find(row=>row.id===input.caseId);
   if(!world||ports.contextId!==input.contextId)throw new Error("Memory requires the exact owned context");
@@ -114,169 +113,110 @@ export async function prepareRetainedMemory(input:{contextId:string;caseId:strin
     const before=await ports.vcs.status();
     if(before.contextId!==owner||before.mainEventId!==main.eventId)throw new Error("Memory setup changed protected main");
     const reference:MemoryBrief={subject:world.subject,channelId:lane.key,repository:repoPath};
-    const expected:Candidate={
-      kinds:world.sources==="discussion"?["message"]:world.sources==="records"?["file","commit"]:["message","file","commit"],
-      readTranscript:world.sources!=="records",readWorking:world.draft!==undefined};
-    const anchor=world.anchor.toLowerCase();
-    const acceptsQuery=(query:string)=>typeof query==="string"&&query.length<=90&&
-      query.toLowerCase().split(/[^\p{L}\p{N}]+/u).includes(anchor);
+    const allowedKinds:MemoryKind[]=world.sources==="discussion"?["message"]:world.sources==="records"?["file","commit"]:["message","file","commit"];
+    const permits=(kinds:MemoryKind[])=>Array.isArray(kinds)&&kinds.every(kind=>allowedKinds.includes(kind));
     const scopePath=await ports.fs.mkdtemp("retained-memory-scope")+"/request.txt";
     await ports.fs.writeFile(scopePath,world.goal);
     const scratchBefore=new Set(await listOwnedScratchEntries(ports.fs));
-    const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which exact original sources establish the decision?"],
-      sources:[{id:"memory-request",path:scopePath}]},ports.readBytes).scratchHandoffWrite;
-
-    const observed:{brief:boolean;query?:string;kinds?:MemoryKind[];leads?:MemoryLead[];messages?:MemoryMessage[];
-      committed:Map<string,MemoryFile|null>;working?:MemoryFile|null}={brief:false,committed:new Map()};
-    let handoff:MemoryNote|null=null;
-    let writing=false;
-    const encode=(brief:MemoryBrief,plan:MemoryPlan,evidence:MemoryEvidence,outcome:MemoryOutcome)=>
-      JSON.stringify({visibility:"private-local",brief,plan,evidence,outcome});
-    const acceptedKinds=(kinds:MemoryKind[])=>equal(kinds,expected.kinds);
+    const writer=bindScratchHandoff(ports.fs,{goal:world.goal,questions:["Which exact original sources establish the decision?"],sources:[{id:"memory-request",path:scopePath}]},ports.readBytes).scratchHandoffWrite;
+    const journal:{method:string;args:unknown[];result:unknown}[]=[];
+    const observed:{queries:{query:string;kinds:MemoryKind[];leads:MemoryLead[]}[];leads:MemoryLead[];messages?:MemoryMessage[];committed:Map<string,MemoryFile|null>;working?:MemoryFile|null}={queries:[],leads:[],committed:new Map()};
+    let handoff:MemoryNote|null=null,stagedText:string|null=null,writing=false;
+    const assertOpen=()=>{if(closed)throw new Error("Owned retained-memory scope is closed");};
+    const record=<T>(method:string,args:unknown[],result:T):T=>{journal.push({method,args:structuredClone(args),result:structuredClone(result)});return structuredClone(result);};
     function inScope(row:{kind:string;eventId:string|null;logId:string|null}){
       return row.kind==="message"?!!row.eventId&&row.logId===logIdForChannel(lane.key):
         (row.kind==="commit"||row.kind==="file")&&!!row.eventId&&events.includes(row.eventId);
     }
     async function recall(query:string,kinds:MemoryKind[]):Promise<MemoryLead[]>{
-      // Opaque per-world commit marker allows a bounded native index query even on a populated workspace.
       const found=await ports.memory.recall({query:query+" "+tag,kinds,limit:36});
-      const leads=found.results.flatMap((row):MemoryLead[]=>!row.eventId||!inScope(row)?[]:[{
-        kind:row.kind as MemoryKind,snippet:row.snippet.split(tag).join("").trim(),eventId:row.eventId,
-        logId:row.logId,head:row.head,path:row.path,digest:row.contentHash}]);
-      return leads.sort((a,b)=>events.indexOf(a.eventId)-events.indexOf(b.eventId)||
-        compareUtf16CodeUnits(a.kind,b.kind)||compareUtf16CodeUnits(a.eventId,b.eventId));
+      return found.results.flatMap((row):MemoryLead[]=>!row.eventId||!inScope(row)?[]:[{kind:row.kind as MemoryKind,snippet:row.snippet.split(tag).join("").trim(),eventId:row.eventId,logId:row.logId,head:row.head,path:row.path,digest:row.contentHash}]);
     }
-    function planMatches(plan:MemoryPlan|undefined){
-      return plan?.query===observed.query&&!!plan&&acceptsQuery(plan.query)&&equal(plan.kinds,expected.kinds)&&
-        plan.readTranscript===expected.readTranscript&&plan.readWorking===expected.readWorking;
+    const proofEvidence=():MemoryEvidence=>({leads:observed.leads,messages:observed.messages??[],committed:[...observed.committed.values()].flatMap(row=>row?[row]:[]),working:observed.working??null});
+    const hasOriginalRead=()=>observed.messages!==undefined||[...observed.committed.values()].some(row=>row!==null)||observed.working!=null;
+    async function auditEvidence(){
+      const current=await ports.vcs.status(),currentMain=await ports.vcs.mainState();
+      const messages=allowedKinds.includes("message")?await ports.transcript(lane):[];
+      const committed=await Promise.all(events.map(eventId=>realFile({kind:"event",eventId})));
+      const working=world.draft!==undefined?await realFile(current.workingHead):null;
+      const stable=equal(current,before)&&equal(currentMain,main)&&
+        (observed.messages===undefined||equal(observed.messages,messages))&&
+        [...observed.committed].every(([event,row])=>equal(row,committed[events.indexOf(event)]))&&
+        (observed.working===undefined||equal(observed.working,working));
+      return{stable,messages,committed,working,current,main:currentMain};
     }
-    const eventSet=()=>[...new Set((observed.leads??[]).filter(row=>row.kind!=="message").map(row=>row.eventId))];
-    function proofEvidence():MemoryEvidence|null{
-      if(!observed.leads||(expected.readTranscript&&!observed.messages)||
-         (expected.readWorking&&observed.working===undefined)||!eventSet().every(event=>observed.committed.has(event)))return null;
-      return {leads:observed.leads,messages:observed.messages??[],committed:eventSet().flatMap(event=>{
-        const row=observed.committed.get(event);
-        return row?[row]:[];
-      }),working:observed.working??null};
+    function validEvidence(value:MemoryEvidence){
+      const actual=proofEvidence();
+      return !!value&&Array.isArray(value.leads)&&value.leads.every(row=>actual.leads.some(issued=>equal(row,issued)))&&
+        Array.isArray(value.messages)&&value.messages.every(row=>actual.messages.some(issued=>equal(row,issued)))&&
+        Array.isArray(value.committed)&&value.committed.every(row=>actual.committed.some(issued=>equal(row,issued)))&&
+        (value.working===null||actual.working!==null&&equal(value.working,actual.working));
     }
-    async function auditEvidence(actual:MemoryEvidence) {
-      const current=await ports.vcs.status();
-      const reads=await Promise.all(actual.committed.map(row=>realFile({kind:"event",eventId:row.eventId})));
-      const messages=expected.readTranscript?await ports.transcript(lane):[];
-      const working=expected.readWorking?await realFile(current.workingHead):null;
-      return equal(current,before)&&equal(await ports.vcs.mainState(),main)&&equal(reads,actual.committed)&&
-        equal(messages,actual.messages)&&equal(working,actual.working)&&
-        (!expected.readTranscript||equal(messages.map(({text})=>text),world.messages));
-    }
-    function citations(evidence:MemoryEvidence):MemoryCitation[]|null{
-      const file=(row:MemoryFile,layer:"commit"|"working"):MemoryCitation=>({layer,ref:row.eventId,coordinate:row.fileId,quote:row.text});
-      const selected:MemoryCitation[]=[];
-      for(const index of world.required.messages??[]){
-        const row=evidence.messages[index];
-        if(!row)return null;
-        selected.push({layer:"message",ref:row.envelopeId,coordinate:row.messageId,quote:row.text});
-      }
-      for(const index of world.required.records??[]){
-        const row=evidence.committed.find(row=>row.eventId===events[index]);
-        if(!row)return null;
-        selected.push(file(row,"commit"));
-      }
-      if(world.required.draft){
-        if(!evidence.working)return null;
-        selected.push(file(evidence.working,"working"));
-      }
-      return selected;
+    function validCitation(citation:MemoryCitation,evidence:MemoryEvidence){
+      if(!citation||typeof citation.quote!=="string"||!citation.quote.trim())return false;
+      if(citation.layer==="message")return evidence.messages.some(row=>citation.ref===row.envelopeId&&citation.coordinate===row.messageId&&row.text.includes(citation.quote));
+      const candidates=citation.layer==="commit"?evidence.committed:citation.layer==="working"&&evidence.working?[evidence.working]:[];
+      return candidates.some(row=>citation.ref===row.eventId&&citation.coordinate===row.fileId&&row.text.includes(citation.quote));
     }
     function validOutcome(outcome:MemoryOutcome|undefined,evidence:MemoryEvidence){
-      const exact=citations(evidence);
-      return !!outcome&&exact!==null&&outcome.disposition===world.required.disposition&&equal(outcome.citations,exact)&&
-        typeof outcome.summary==="string"&&!!outcome.summary.trim();
+      return !!outcome&&typeof outcome.summary==="string"&&!!outcome.summary.trim()&&
+        Array.isArray(outcome.citations)&&(!world.requestedCitationRequired||outcome.citations.length>0)&&outcome.citations.every(citation=>validCitation(citation,evidence));
     }
-    let stagedText:string|null=null;
-  const services={
-      nativeRetainedMemory:{
-        async brief(){observed.brief=true;return structuredClone(reference);},
-        async recall(query:string,kinds:MemoryKind[]){
-          if(!observed.brief||observed.query!==undefined||!acceptsQuery(query)||!acceptedKinds(kinds))return [];
-          observed.query=query;observed.kinds=[...kinds];observed.leads=await recall(query,kinds);
-          return structuredClone(observed.leads);
-        },
-        async transcript(channelId:string){
-          if(!observed.leads||!expected.readTranscript||channelId!==lane.key||observed.messages)return [];
-          observed.messages=await ports.transcript(lane);return structuredClone(observed.messages);
-        },
-        async archivedFile(eventId:string){
-          if(!eventSet().includes(eventId)||observed.committed.has(eventId))return null;
-          const row=await realFile({kind:"event",eventId});
-          observed.committed.set(eventId,row);return structuredClone(row);
-        },
-        async workingFile(){
-          if(!observed.leads||!expected.readWorking||observed.working!==undefined)return null;
-          const current=await ports.vcs.status();
-          if(!equal(current,before)||current.clean)return null;
-          observed.working=await realFile(current.workingHead);return structuredClone(observed.working);
-        },
+    const encode=(brief:MemoryBrief,plan:MemoryPlan,evidence:MemoryEvidence,outcome:MemoryOutcome)=>JSON.stringify({visibility:"private-local",brief,plan,evidence,outcome});
+    const services={nativeRetainedMemory:{
+      async brief(){assertOpen();return record("brief",[],reference);},
+      async recall(query:string,kinds:MemoryKind[]){
+        assertOpen();if(typeof query!=="string"||!query.trim()||!permits(kinds))return [];
+        const selected=[...new Set(kinds)],leads=await recall(query,selected);observed.queries.push({query,kinds:selected,leads});
+        for(const lead of leads)if(!observed.leads.some(row=>equal(row,lead)))observed.leads.push(lead);
+        return record("recall",[query,kinds],leads);
       },
-      nativeMemoryHandoff:{async stage(brief:MemoryBrief,plan:MemoryPlan,evidence:MemoryEvidence,outcome:MemoryOutcome){
-        if(!world.private||writing||handoff||!equal(brief,reference)||!planMatches(plan)||
-          !equal(evidence,proofEvidence())||!validOutcome(outcome,evidence))return null;
-        writing=true;
-        if(!await auditEvidence(evidence))return null;
-        const text=encode(brief,plan,evidence,outcome);
-        const saved=(stagedText=text,await writer.stage(text));
-        handoff=saved?{path:saved.path,digest:sha256HexSyncText(text)}:null;
-        return structuredClone(handoff);
-      }},
-    };
+      async transcript(channelId:string){assertOpen();if(!allowedKinds.includes("message")||channelId!==lane.key)return [];
+        observed.messages=await ports.transcript(lane);return record("transcript",[channelId],observed.messages);
+      },
+      async archivedFile(eventId:string){assertOpen();if(!allowedKinds.some(kind=>kind==="file"||kind==="commit")||!events.includes(eventId))return null;
+        const row=await realFile({kind:"event",eventId});observed.committed.set(eventId,row);return record("archivedFile",[eventId],row);
+      },
+      async workingFile(){assertOpen();if(!allowedKinds.includes("file"))return null;
+        const current=await ports.vcs.status();if(!equal(current,before))return null;
+        observed.working=current.clean?null:await realFile(current.workingHead);return record("workingFile",[],observed.working);
+      },
+    },nativeMemoryHandoff:{async stage(brief:MemoryBrief,plan:MemoryPlan,evidence:MemoryEvidence,outcome:MemoryOutcome){
+      assertOpen();if(!world.private||writing||handoff||!equal(brief,reference)||!hasOriginalRead()||!validEvidence(evidence)||!validOutcome(outcome,proofEvidence()))return null;
+      writing=true;
+      try{if(!(await auditEvidence()).stable)return null;const text=encode(brief,plan,evidence,outcome);const saved=await writer.stage(text);if(saved){stagedText=text;handoff={path:saved.path,digest:sha256HexSyncText(text)};}return structuredClone(handoff);}finally{writing=false;}
+    }}};
     async function verify(raw:unknown,invocation?:InvocationObservations){
-      const value=raw as RetainedMemoryReport|null;
-      const report=value;
-      const evidence=proofEvidence();
+      const report=raw as RetainedMemoryReport|null,evidence=proofEvidence(),independent=await auditEvidence();
       const notes=(await listOwnedScratchEntries(ports.fs)).filter(name=>name.startsWith("evidence-handoff-")&&!scratchBefore.has(name));
       const artifact=handoff?new TextDecoder("utf8",{fatal:true}).decode(await ports.readBytes(handoff.path,max)):null;
-      const nativeCheck=evidence!==null&&await auditEvidence(evidence);
-      const checks={
-        returnedMemoryHandoff:equal(report?.handoff,handoff),
-        exactRetainedMemoryScope:observed.brief&&evidence!==null,
-        exactBoundedNativeRecall:evidence!==null&&
-          evidence.leads.every(inScope)&&(expected.kinds.includes("commit")?events.every(event=>eventSet().includes(event)):eventSet().length===0),
-        independentlyReadMemorySources:nativeCheck,
-        exactMemoryCitations:evidence!==null&&validOutcome(report?.outcome,evidence),
+      const checks={returnedMemoryHandoff:equal(report?.handoff,handoff),
+        exactRetainedMemoryScope:hasOriginalRead(),
+        exactBoundedNativeRecall:observed.queries.every(query=>query.leads.length<=36&&permits(query.kinds)&&query.leads.every(inScope)),
+        independentlyReadMemorySources:independent.stable,
+        exactMemoryCitations:validOutcome(report?.outcome,evidence),
         protectedMemoryScope:equal(await ports.vcs.status(),before)&&equal(await ports.vcs.mainState(),main)&&
-          (await services.nativeRetainedMemory.transcript("foreign-"+lane.key)).length===0&&
-          await services.nativeRetainedMemory.archivedFile("foreign-"+main.eventId)===null,
-        exactPrivateMemoryHandoff:world.private?!!artifact&&!!handoff&&notes.length===1&&
-          handoff.path===`/.tmp/${notes[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&
-          artifact===stagedText:
-          handoff===null&&notes.length===0,
-      };
-      const contract:SemanticOutcomeContract={effects:{checks:["exactRetainedMemoryScope", "exactBoundedNativeRecall", "independentlyReadMemorySources", "protectedMemoryScope", "exactPrivateMemoryHandoff"],rationale:"Actual native observations, scoped authority, persisted state and private artifact bytes establish the requested application effects."},returnedValue:{checks:["exactMemoryCitations"],required:true,rationale:"The requested domain findings or query result are validated independently of copied input evidence."},incidentalValues:{checks:["returnedMemoryHandoff"],rationale:"Receipt echoing is optional presentation; the actual retained artifact is verified through native state."}};
-
-    return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),
-        brief:reference,plan:report?.plan??null,evidence,outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{"checks":["exactMemoryCitations"],"rootPath":["outcome"],"producerSourceSuffix":"reviewRetainedMemory/judgeMemoryClaim.nl"}]);
+          (await services.nativeRetainedMemory.transcript("foreign-"+lane.key)).length===0&&await services.nativeRetainedMemory.archivedFile("foreign-"+main.eventId)===null,
+        exactPrivateMemoryHandoff:world.private?!!artifact&&!!handoff&&notes.length===1&&handoff.path===`/.tmp/${notes[0]}/handoff.json`&&handoff.digest===sha256HexSyncText(artifact)&&artifact===stagedText:handoff===null&&notes.length===0};
+      const contract:SemanticOutcomeContract={effects:{checks:["exactRetainedMemoryScope","exactBoundedNativeRecall","independentlyReadMemorySources","protectedMemoryScope","exactPrivateMemoryHandoff"],rationale:"Actual owned originals, current source identity and protected state, and requested authorized private-note bytes establish native effects independently of answer labels or read routes."},returnedValue:{checks:["exactMemoryCitations"],required:world.requestedReturnRequired,rationale:"Only the literal goal's requested returned explanation and authentic citations are required; a private note may itself be the requested answer artifact."},incidentalValues:{checks:["returnedMemoryHandoff"],rationale:"An optional native receipt echo is independently checked without changing actual artifact completion."}};
+      return assessObservedApplicationOutcome({contextId:owner,caseId:world.id,goal:world.goal,checks,passed:Object.values(checks).every(Boolean),brief:reference,plan:{queries:observed.queries.map(({query,kinds})=>({query,kinds}))},evidence:{observed:evidence,independent,reads:structuredClone(journal),permittedSources:allowedKinds},outcome:report?.outcome??null,handoff,artifact},contract,raw,invocation,[{checks:["exactMemoryCitations"],rootPath:["outcome"],producerSourceSuffix:"reviewRetainedMemory/judgeMemoryClaim.nl"}]);
     }
     async function qualify(){
-      const api=services.nativeRetainedMemory;
-      const brief=await api.brief();
-      const plan={query:world.anchor,...expected};
-      await api.recall(plan.query,plan.kinds);
-      if(plan.readTranscript)await api.transcript(brief.channelId);
-      for(const event of eventSet())await api.archivedFile(event);
+      const api=services.nativeRetainedMemory,brief=await api.brief();
+      const plan:MemoryPlan={query:world.anchor,kinds:allowedKinds,readTranscript:allowedKinds.includes("message"),readWorking:world.draft!==undefined};
+      await api.recall(plan.query,plan.kinds);if(plan.readTranscript)await api.transcript(brief.channelId);
+      if(allowedKinds.includes("commit"))for(const event of events)await api.archivedFile(event);
       if(plan.readWorking)await api.workingFile();
-      const evidence=proofEvidence();
-      const refs=evidence&&citations(evidence);
-      if(!evidence||!refs)throw new Error("Reference could not recover the assigned original evidence");
-      const outcome:MemoryOutcome={disposition:world.required.disposition,citations:refs,
-        summary:"Compared exact original conversation rows and the requested native source evidence."};
+      const evidence=proofEvidence(),citations:MemoryCitation[]=[];
+      for(const index of world.required.messages??[]){const row=evidence.messages[index];if(!row)throw new Error("Reference original message unavailable");citations.push({layer:"message",ref:row.envelopeId,coordinate:row.messageId,quote:row.text});}
+      for(const index of world.required.records??[]){const row=evidence.committed.find(row=>row.eventId===events[index]);if(!row)throw new Error("Reference immutable source unavailable");citations.push({layer:"commit",ref:row.eventId,coordinate:row.fileId,quote:row.text});}
+      if(world.required.draft){const row=evidence.working;if(!row)throw new Error("Reference draft unavailable");citations.push({layer:"working",ref:row.eventId,coordinate:row.fileId,quote:row.text});}
+      const outcome:MemoryOutcome={disposition:world.required.disposition,citations,summary:"Compared exact original conversation rows and the requested native source evidence."};
       const handoff=world.private?await services.nativeMemoryHandoff.stage(brief,plan,evidence,outcome):null;
-      const application={outcome,handoff};
-    const proof=await verify(application);
-    const rejectsIncorrectApplicationReturn=!(await verify({...application,outcome:{...application.outcome,disposition:"invented"}})).outcomeDimensions.returnedValue.passed;
-    return {...proof,rejectsIncorrectApplicationReturn,passed:proof.passed&&rejectsIncorrectApplicationReturn};
+      const application={outcome,handoff},proof=await verify(application);
+      const rejectedInvalidCitation=!(await verify({...application,outcome:{...outcome,citations:[{layer:"commit",ref:"unissued-event",coordinate:"foreign-file",quote:"invented"}]}})).outcomeDimensions.returnedValue.passed;
+      return{...proof,rejectsIncorrectApplicationReturn:rejectedInvalidCitation,passed:proof.passed&&rejectedInvalidCitation};
     }
-    return {services,verify,qualify,close};
-  }catch(error){
-    await close();
-    throw error;
-  }
+    return{services,verify,qualify,close};
+  }catch(error){await close();throw error;}
 }

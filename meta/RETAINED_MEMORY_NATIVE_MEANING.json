@@ -1,0 +1,1167 @@
+{
+  "schema": "vibestudio.retained-memory-native-meaning-inventory/1",
+  "base": "364d6a841449df8000a84b3b89ba1fc4f62ed278",
+  "sst": "b5704fe4f54a9df700173185dbaab21bc2e3ceb8",
+  "inventoryBeforeEdits": true,
+  "goals": [
+    {
+      "scenario": "open-goal-retained-memory-delivery-window",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Recover which loading window the Harbor opening team agreed to. Compare the original conversation with what was actually committed, and leave a private note for the next shift.",
+      "goalSha256": "c96fb14c8b29de05c10decf5ab4c4876f9c6a0557e323fc1891555e9a44ae97a",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 11,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 11,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 11,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 11,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": false,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-alternate-desk-conflicts",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Did we move Badge pickup to the south desk? Check the original discussion and kept decision record. I want the conflict if they disagree.",
+      "goalSha256": "5270f2da733ffe026b6a181d07c454c8146727c0768c9cb37544b4b8cefa4807",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 14,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 14,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 14,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 14,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-approved-replacement-date",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Find whether an earlier Lantern notice date was explicitly replaced. Give me both exact decisions from the discussion and saved revisions, with a private audit note.",
+      "goalSha256": "59dc3916268a068a9277fe0d14d81d94629f8738c225cac9e031d197374946db",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 17,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 17,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 17,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 17,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-antique-quote",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "A Ceramic archive message quoted an old crate rule. Check the original discussion and retained record to see if anyone actually approved that rule for this exhibit.",
+      "goalSha256": "8f8a97d63b141669bdc01b15068d7f9a5b63acd7fc099766713c8a84eaa15466",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 21,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 21,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 21,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 21,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-only-discussed",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "What folding pattern did we decide on for the Map pack? Check the original conversation and see whether that decision made it into the retained file.",
+      "goalSha256": "869c5982744c03e263c252065a948fd1cde7a7c6677c96d8b34b2141fbf188a9",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 24,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 24,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 24,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 24,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-only-written",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Did the original Ferry conversation actually establish the approved photo credit, or does that credit come only from the kept record? Cite the supporting source.",
+      "goalSha256": "2bf52bce9a0b4cc8eb638ca6d8d0f30114e015c2b61e5b22469cd4709e7a9018",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 27,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 27,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 27,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 27,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": true,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Literal user explicitly asks to cite a source or quote the decision."
+    },
+    {
+      "scenario": "open-goal-retained-memory-only-working-route",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "The Canyon queue is supposed to use a west entrance. Check the prior saved evidence and the unsaved draft, and tell me where that instruction actually exists.",
+      "goalSha256": "ccbda7a2931cf69a340164a3964efd1d1712a4963c1f6a11dd3aec0a3c4f4af4",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 30,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 30,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 30,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 30,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-ambiguity-two-proposals",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Who keeps the Bridge key overnight? Look at the original discussion and the retained records. If both alternatives remain open, explain that privately.",
+      "goalSha256": "bd393d54fce0466645e870464eb503a3f7260f4ad87623f12c516b8e04fff288",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 33,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 33,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 33,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 33,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": false,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-reject-replayed-assent",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Verify from original Banner discussion only whether someone accepted proof 6. A later quote from the old approval is not a second approval.",
+      "goalSha256": "5a2765a7d34a11e72bf7522981f20e0a37f14c6bb5939b0083905e12c1301877",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 37,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 37,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 37,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 37,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-summary-is-not-evidence",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "I saw that Seagrass certification was mentioned in a saved memo. Does any committed record actually authenticate a certification? Read the source and avoid using snippets as proof.",
+      "goalSha256": "72ca8293405ce8ae02976b8d6d8518ddb36f32b3af0c93bdaf8f03161123999f",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 40,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 40,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 40,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 40,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-late-policy-rolloff",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Which Kiln delivery cutoff survived revision? Compare the retained original approval and the new replacement in the later discussion and archived records.",
+      "goalSha256": "81e649a69657391fb1d3606cc97ad487cb7023bb6e90689a2a73fcacb2d1a005",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 43,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 43,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 43,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 43,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-incomplete-recollection",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "I remember deciding which drawer should hold the Clocks repair slip. Check the committed records only. An old placeholder isn't an assignment.",
+      "goalSha256": "1fe8eae340504af15265f54e682ab05886f09d303c5edac104eeb10f07b91722",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 47,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 47,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 47,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 47,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-draft-does-not-overrule",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Reconcile the Rope purchase quantity in my original discussion and the committed note. Check the changed working file too, and leave a private receipt explaining whether it has superseded the agreement.",
+      "goalSha256": "a49ceb39d3d78a0a61911505c7caf69a46d3d9e6b74f3c6350bdca29abaa2ffc",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 49,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 49,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 49,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 49,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": false,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-route-source-with-deadline",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Which Gable courier was actually booked according to the original conversation and versioned dispatch note? Check the parties and do not reschedule anything.",
+      "goalSha256": "9c2856f764fcd09c04e4235ad1c128ae74eff46c8141a0fd3c8e72704315782d",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 53,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 53,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 53,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 53,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-all-negative-search-shape",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Was a replacement Caliper type ever approved in our original maintenance discussion or in a retained record? Tell me if there is no evidence either way.",
+      "goalSha256": "5bf16c05565ec3bf8d138dd8fe01ba693a0e3ccf46213c3bb92fc2016c7d1413",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 56,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 56,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 56,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 56,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-single-witness-with-opinion",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "What packing material was signed off in the original Opal conversation? Keep a private note quoting the decision and leave a separate opinion out.",
+      "goalSha256": "b25307b24718095e1f1ee7f9015d3cad65f66c3ffbe16da6f6f674086afd9bcd",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 58,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 58,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 58,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 58,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": true,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Literal user explicitly asks to cite a source or quote the decision."
+    },
+    {
+      "scenario": "open-goal-retained-memory-memory-only-recommends",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "I think the Ribbon adhesive was chosen, but only have a name copied into memory. Check both original places for an actual authorization.",
+      "goalSha256": "f434bd5921b224955b07086b15e9a6ae1a274a038388b473fe6a3b2714d8a598",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 61,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 61,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 61,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 61,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-committed-with-no-thread-search",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Recover the destination directory from the old committed Slate migration note. Do not read conversation history to answer this; cite the exact saved source.",
+      "goalSha256": "a2a637065f7790e884bf7d8eeb7d323b246c5d9cfa52ce8884aec00e391eeeaa",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 64,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 64,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 64,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 64,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": true,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Literal user explicitly asks to cite a source or quote the decision."
+    },
+    {
+      "scenario": "open-goal-retained-memory-unresolved-dual-memo",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "The Comet handover papers have two different unsorted retention choices. Check the committed evidence for a decision. Keep a private record if both candidates are still open.",
+      "goalSha256": "cc9a5b9faee822f18d1b73be68ae53cc7743fdb69696b5f6e2a5d55a3aa4dfc0",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 67,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 67,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 67,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 67,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": false,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-printed-instruction-mismatch",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "train",
+      "goal": "Can I rely on the Drift stencil size in the retained shop note? Compare it with what the stencil lead actually approved in the original conversation.",
+      "goalSha256": "e53b38362c04008300337775f47de6db8a77c29eb5417b9d1fa79ae376d0d292",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 70,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 70,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 70,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 70,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-held-late-owned-correction",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "test",
+      "goal": "Check what happened to the Canopy placement after the afternoon correction. Trace old and new versions through the actual discussion and committed decision archive.",
+      "goalSha256": "21f98eecb0c16d91a74cc527ced0c66af5f6bb76879850442d194d2c25fa6dc1",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 73,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 73,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 73,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 73,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-held-conversation-alone-different-supplier",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "test",
+      "goal": "Find the actual Apron fabric approval. The saved source may only describe a supplier, so compare it with the original discussion and preserve a local result.",
+      "goalSha256": "c0578ea579c2ebd083f0191b39dad96fc1d9d3b87c6b4ac3a8e09d75712e9c17",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 77,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 77,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 77,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 77,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": false,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-held-sole-working-counterpart",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "test",
+      "goal": "Where does the Window schedule's tentative September launch appear? Compare the working file with previous committed schedules without reading a conversation or writing anything.",
+      "goalSha256": "df8a2f0c9cad7eeb3481d660f489f8baaa61781265e44adcfb2f236d3601ba03",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 80,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 80,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 80,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 80,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-held-independent-provenance-absence",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "test",
+      "goal": "Did anyone in the original Beacon discussion pick a power source? No need to inspect committed project files. I want the observed answer, including if everyone deferred it.",
+      "goalSha256": "5f2adde52d33a7640957222588f00fa26cbbf3d01362ed581760485e7acb4edd",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 83,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 83,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 83,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 83,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-held-commit-memo-agrees",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "test",
+      "goal": "Verify which van the Museum loan release actually names. Use the original signoff and the committed memo, then make a private proof note for the caretakers.",
+      "goalSha256": "7a61cb48a80f8f5d5f54599a83194a84ee8494be6d1ca8ca03904d09fcbecfa1",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 86,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 86,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 86,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 86,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": true,
+      "requestedReturnRequired": false,
+      "requestedCitationRequired": false,
+      "returnRationale": "Literal request directs preserving/explaining the finding in a private local artifact; a separate chat return is not additionally requested. The artifact meaning, presence and exact bytes remain mandatory.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    },
+    {
+      "scenario": "open-goal-retained-memory-held-last-note-reports-not-authorizes",
+      "family": "workspace-open-user-goal-retained-memory",
+      "split": "test",
+      "goal": "Was a Trestle bolt size ever signed off? Inspect the exact committed source and original conversation. Separate two proposed sizes from any actual approval.",
+      "goalSha256": "a5e69a3f39a2051a370e602b6f694d5d12480f8daf7f7535a70e76a7123688c9",
+      "entry": "skills/open-user-goal/reviewRetainedMemory.ts",
+      "literalSources": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 89,
+          "method": "constant-string-fold"
+        },
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+          "line": 89,
+          "method": "literal"
+        }
+      ],
+      "factoryOwners": [
+        {
+          "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-managed.ts",
+          "basis": "specific paired world import closure",
+          "worldSources": [
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 89,
+              "method": "constant-string-fold"
+            },
+            {
+              "file": "/home/werg/data/vibestudio-open-goal-live/full-luna-campaign-yci2LB1N/candidate/semantic-template-checkouts-v44-final/system-testing/skills/system-testing/open-goal-retained-memory-worlds.ts",
+              "line": 89,
+              "method": "literal"
+            }
+          ]
+        }
+      ],
+      "requestedPrivateArtifact": false,
+      "requestedReturnRequired": true,
+      "requestedCitationRequired": false,
+      "returnRationale": "Explicit question/findings need a returned answer; approved-replacement-date explicitly says Give me both decisions as well as a private note.",
+      "citationRationale": "Any supplied citation must be exact native evidence; requested completeness/literal values remain mandatory in bound goal meaning review, without an invented citation-array count/order."
+    }
+  ],
+  "mechanisms": {
+    "semanticRoot": "Base skills/open-user-goal/reviewRetainedMemory.ts:9-14 fixes scheduling; resolver TS loops through planned sources; NL leaves prescribe kinds/citation order and private labels.",
+    "nativePorts": "SST open-goal-retained-memory-managed.ts:199-218 read-once/query/plan guards; bound actual owner/channel/repository events and protected VCS remain authoritative.",
+    "answerGate": "SST validOutcome:190-193 requires world.required disposition and ordered gold source-index citations; replace with actual grounded supplied citations and mandatory requested meaning.",
+    "host": "Existing retained-memory generic observation binder keys brief/plan/evidence + artifact, root actualResult independently capture-bound; full actual observations can stay nested under evidence, no extra Host channel needed.",
+    "consumers": "Base open-retained-memory/types/services/wrappers, local Root/private helpers/natlang branches/entry descriptor +generator, SST native factory/worlds/qualifier/Host binder/exporter; canonical IR readers consume existing contract/review schema unchanged."
+  },
+  "preserved": [
+    "exact current owner/channel/repository/event/file identity",
+    "explicit user source restrictions",
+    "actual original bytes and supplied quote grounding",
+    "protected main/working state",
+    "private-note authorization and independent exact retained bytes",
+    "reference qualification independently checks requested native private-stage effect",
+    "no raw goal/ID/split/seed changes"
+  ],
+  "status": "inventory before implementation; no semantic clearance inferred",
+  "verification": {
+    "publicActualJointLoader": {
+      "passed": 2,
+      "unit": "vibe-retained-memory-composition-20261126c.service",
+      "durationSeconds": 82.49,
+      "peakGiB": 2.7,
+      "providerInference": 0,
+      "cases": [
+        "captured async read capabilities and repeated original reads without writing",
+        "same hierarchy with actual requested private note"
+      ]
+    },
+    "nativeFactory": {
+      "passed": 30,
+      "allLiteralWorlds": 26,
+      "unit": "vibe-retained-memory-native-20261126b.service",
+      "peakMiB": 228.4,
+      "referenceRequestedArtifactRefusalNegative": true
+    },
+    "literalGoalIdentitySha256": "081df9761c88a6b99943a8afc05a83a6d9f8d95bb4dee9a6a57656241cb4b662",
+    "goalsIdsSplitsUnchanged": true,
+    "expectedMeaningReview": "mandatory; no fixture test fabricates a semantic approval",
+    "scope": "All RetainedMemory world consumers; unrelated verifier families remain under per-family audit"
+  }
+}
