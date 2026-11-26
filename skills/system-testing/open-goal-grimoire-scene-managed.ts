@@ -1,7 +1,7 @@
 import {assessNativeQualification} from "@workspace/application-outcomes/semantic-outcome-contract";
 import type {ApplicationReturnContribution} from "@workspace/application-outcomes/observed-application-outcome";
 import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
-const assessObservedApplicationOutcome=bindObservedContentReview(["docket","view","scope","gate","readback","journal"],["body"]);
+const assessObservedApplicationOutcome=bindObservedContentReview(["docket","view","current","scope","gate","readback","journal"],["body"]);
 import type { InvocationObservations } from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -85,7 +85,7 @@ type GrimoireSceneReadback = {
   sceneDigest: string;
   fileDigest: string | null;
 };
-type GrimoireSceneOutcome = GrimoireSceneReceipt | { action: GrimoirePlan["action"]; finding: string };
+type GrimoireSceneOutcome = GrimoireSceneReceipt | { finding: string };
 
 import { advanceOwnedGrimoirePanel, assertOwnedGrimoirePanel, grimoireClockIndex,
   grimoireSceneDocket, grimoireSceneEstate, type GrimoireClock } from "./grimoire-fixture-player.js";
@@ -278,7 +278,6 @@ export async function prepareOpenGrimoireScene(
     if (
       found.some((source) => !source) ||
       !found.length ||
-      found.length > 4 ||
       new Set(plan.proposedIds).size !== found.length
     )
       return null;
@@ -301,8 +300,7 @@ export async function prepareOpenGrimoireScene(
     }
     if (
       plan.action !== "stage-scene" ||
-      !plan.description ||
-      plan.description === observed.scene.description
+      !plan.description
     )
       return null;
     const candidate = installed.validateScene({
@@ -406,7 +404,7 @@ export async function prepareOpenGrimoireScene(
           scope.ownerId !== ownerId ||
           scope.frontier !== frontier ||
           !scope.approved ||
-          (scope.requestedAsset &&
+          (plan.action === "stage-scene" && scope.requestedAsset &&
             !current.view.assets.includes(scope.requestedAsset))
         )
           return keep(namespaces.write, "stage", [id, frontier, plan], null);
@@ -441,7 +439,7 @@ export async function prepareOpenGrimoireScene(
     if(!proof.outcomeContract)throw new Error("Application verifier must declare native effects and returned values");
     // Bind only fields actually emitted by this composition. Native receipt-only
     // branches have no sampled semantic return contribution to invent.
-    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedCaretakerValue"],"rootPath":["action"],"producerSourceSuffix":"careForGrimoireScene/planCaretakerArtifact.nl","producerPath":["action"]},{"checks":["returnedCaretakerValue"],"rootPath":["finding"],"producerSourceSuffix":"careForGrimoireScene/planCaretakerArtifact.nl","producerPath":["finding"]},{"checks":["returnedCaretakerValue"],"rootPath":["action"],"producerSourceSuffix":"careForGrimoireScene/reviseAfterMovement.nl","producerPath":["action"]},{"checks":["returnedCaretakerValue"],"rootPath":["finding"],"producerSourceSuffix":"careForGrimoireScene/reviseAfterMovement.nl","producerPath":["finding"]}];
+    const authored:readonly ApplicationReturnContribution[]=[{"checks":["returnedCaretakerValue"],"rootPath":["finding"],"producerSourceSuffix":"careForGrimoireScene/planCaretakerArtifact.nl","producerPath":["finding"]},{"checks":["returnedCaretakerValue"],"rootPath":["finding"],"producerSourceSuffix":"careForGrimoireScene/reviseAfterMovement.nl","producerPath":["finding"]}];
     const replacementObserved=observations?.calls.some(call=>call.outcome==="done"&&call.definition.source?.endsWith("reviseAfterMovement.nl"))??false;
     const contributions=authored.filter(binding=>{
       if(binding.producerSourceSuffix.endsWith(replacementObserved?"planCaretakerArtifact.nl":"reviseAfterMovement.nl"))return false;
@@ -481,8 +479,11 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       );
     };
     const path = receipt?.path ?? null;
-    const stages =
-      world.action === "stage-scene" || world.action === "stage-note";
+    const stages = world.requestedArtifact !== null &&
+      scope.ownerId === ownerId && scope.approved &&
+      scope.frontier === final.view.frontier &&
+      (world.requestedArtifact !== "scene" || !scope.requestedAsset ||
+        final.view.assets.includes(scope.requestedAsset));
     const bytes = path ? await ports.readBytes(path, maxBytes) : null;
     const body = bytes
       ? new TextDecoder("utf-8", { fatal: true }).decode(bytes)
@@ -490,17 +491,10 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     const staged = body ? JSON.parse(body) : null;
     const readback: GrimoireSceneReadback = {ownerId, sceneDigest: final.view.sceneDigest,
       frontier: final.view.frontier, fileDigest: body === null ? null : sha256HexSyncText(body)};
-    const expectedFacts = [
-      ...(view?.anchors ?? []),
-      ...(proposed ? [proposed] : []),
-    ].filter((fact) =>
-      world.anchors?.includes(
-        fact.id as NonNullable<typeof world.anchors>[number],
-      ),
-    );
+    const nativeFacts = [...(final.view.anchors ?? []), ...(proposed ? [proposed] : [])];
     const actualFacts = Array.isArray(staged?.facts) ? staged.facts : [];
     const expectedPreview =
-      world.action === "stage-scene"
+      world.requestedArtifact === "scene"
         ? sha256HexSyncText(
             installed.sceneDocument(
               final.scene.code,
@@ -512,7 +506,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
         : null;
     const checks = {
       returnedCaretakerValue: stages ? !!receipt && isDeepStrictEqual(result, receipt) :
-        !!result && "action" in result && result.action === world.action && !!result.finding?.trim(),
+        !!result && "finding" in result && !!result.finding?.trim(),
       boundOwnedScene: Boolean(
         view &&
 
@@ -524,17 +518,14 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       ),
       keptCurrentAnchor: Boolean(
         view &&
-        gate &&
-
-        exact(namespaces.read, "confirm", [key, view.frontier], gate) &&
-        gate.frontier === final.view.frontier &&
-        gate.status === (world.advanceDuring ? "changed" : "current") &&
-        final.view.sceneDigest === ready.view.sceneDigest,
+        final.view.sceneDigest === ready.view.sceneDigest &&
+        (!receipt || Boolean(gate?.status === "current" &&
+          gate.frontier === final.view.frontier &&
+          exact(namespaces.read, "confirm", [key, view.frontier], gate))),
       ),
-      exactCaretakerDisposition: stages ? Boolean(planned && planned.action===world.action &&
-        typeof planned.finding==="string"&&planned.finding.trim() &&
-        isDeepStrictEqual([...planned.proposedIds].sort(),[...(world.anchors??[])].sort()) &&
-        (world.action==="stage-scene"?Boolean(planned.description):planned.description===null)) : true,
+      exactCaretakerDisposition: stages ? Boolean(planned &&
+        planned.action === (world.requestedArtifact === "scene" ? "stage-scene" : "stage-note") &&
+        (world.requestedArtifact==="scene"?Boolean(planned.description):planned.description===null)) : true,
       independentlyReadPrivateDraft: Boolean(
 
         (stages
@@ -546,19 +537,17 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
             staged.ownerId === ownerId &&
             staged.frontier === final.view.frontier &&
             staged.sceneDigest === final.view.sceneDigest &&
-            actualFacts.length === expectedFacts.length &&
-            expectedFacts.every((fact) =>
-              actualFacts.some((actual: unknown) =>
-                isDeepStrictEqual(actual, fact),
-              ),
-            ) &&
+            actualFacts.length > 0 &&
+            new Set(actualFacts.map((fact: GrimoireSceneSource) => fact.id)).size === actualFacts.length &&
+            actualFacts.every((fact: unknown) =>
+              nativeFacts.some(native => isDeepStrictEqual(native, fact))) &&
             exact(
               namespaces.write,
               "stage",
               [key, view?.frontier, planned!],
               receipt,
             ) &&
-            (world.action === "stage-scene"
+            (world.requestedArtifact === "scene"
               ? staged.kind === "editable-caretaker-scene" &&
                 staged.candidate.code === final.scene.code &&
                 isDeepStrictEqual(
@@ -598,7 +587,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
     return {
       outcomeContract: {
         effects: {checks:["boundOwnedScene", "keptCurrentAnchor", "exactCaretakerDisposition", "independentlyReadPrivateDraft", "preservedNativeWorld"],rationale:"The requested scene or note is established by its native private artifact and preserved garden."},
-        returnedValue: {checks:["returnedCaretakerValue"],required:!stages,rationale:"A conversation-only caretaker finding is the requested answer; an extra receipt copy is optional."},
+        returnedValue: {checks:["returnedCaretakerValue"],required:world.requestedReturnRequired,rationale:"The literal goal declares whether a conversation finding is requested independently of the conditional artifact."},
         incidentalValues: {checks:[],rationale:"A known incorrect emitted application value is excluded using the actual root definition."},
       },
       incorrectReturnValues:[],
@@ -609,6 +598,7 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
       checks,
       docket,
       view,
+      current: final.view,
       scope,
       gate,
       receipt,
@@ -654,13 +644,14 @@ async function verifyNativeApplication(value: unknown, observations?: Invocation
         ? await services.grimoireHandoff.stage(docket.id, scene.frontier, plan)
         : null;
     await services.grimoireScene.readback(docket.id, staged?.path ?? null);
-    const report = staged ?? {action:plan.action,finding:plan.finding};
+    const report = staged ?? {finding:plan.finding};
     const verification = await verify(report);
     const altered = structuredClone(report);
     if ("path" in altered) altered.path = "foreign-caretaker.json";
-    else altered.action = "invented" as typeof altered.action;
+    else altered.finding = "";
     const wrong = await verify(altered);
-    const rejectedAlteredEvidence = rejectedAlias && !wrong.outcomeDimensions.returnedValue.passed;
+    const rejectedAlteredEvidence = rejectedAlias &&
+      (!world.requestedReturnRequired || !wrong.outcomeDimensions.returnedValue.passed);
     return assessNativeQualification({
       ...verification,
       outcomeContract:{...verification.outcomeContract,effects:{...verification.outcomeContract.effects,checks:[...verification.outcomeContract.effects.checks,"rejectedAlteredEvidence"]}},

@@ -1,0 +1,31 @@
+{
+  "schema": "local-review-world-preservation/1",
+  "results": [
+    {
+      "family": "system-candidate",
+      "worlds": 24,
+      "requiredAnswers": 10,
+      "beforeSha256": "0d53b6b671793de7c65042dd5b0c19638d0e6a45d9a48a6d1bc47f28d0aab8c1",
+      "afterSha256": "8f74827fe5e27838a3e2b165b360bd15eb92234f8a874cbccdd7267c892b8a62"
+    },
+    {
+      "family": "grimoire-scene",
+      "worlds": 24,
+      "requiredAnswers": 4,
+      "requestedArtifacts": {
+        "scene": 15,
+        "note": 5,
+        "none": 4
+      },
+      "beforeSha256": "a71ce6568180fb3136cfa9a043b22cb07c5b735a5232feb263d4203de350eb7e",
+      "afterSha256": "7263e02299495d4598f536b8e70c78ecb69cdfd2d7e3ba22be80b0935211ee22"
+    },
+    {
+      "family": "scaffold",
+      "worlds": 24,
+      "requiredAnswers": 4,
+      "beforeSha256": "70a6fb69e0e0e71c640d870cefb895465730a1048bef344a617bef17fb491590",
+      "afterSha256": "e3a99d95f95a8617cb1cbc0669eb55a29bdf99df521c48f1b347eb8f7f9004ab"
+    }
+  ]
+}
