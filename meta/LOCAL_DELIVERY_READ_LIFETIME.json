@@ -1,0 +1,22 @@
+{
+  "scope": "Shared synthetic messaging Sender used by both open-local-delivery verifier and canonical local-messaging fixture",
+  "cause": "Verifier closes send admission before independent committed readback. Old Sender closed the whole active lease, causing canonical Base read guard to reject the verifier itself.",
+  "fix": "Persist sendAdmissionClosed separately in existing configuration JSON; forbid later sends while exact owner/fixture/channel/recipient read custody stays live. Pending admitted send joins and error propagation retained. Actual inactive lease/foreign receipt still refused. No new public RPC, tables, model calls or callback protocols.",
+  "validation": {
+    "unit": "vibe-local-delivery-read-lifetime-20261126c",
+    "actualPassed": 6,
+    "seconds": 7.014,
+    "peakMiB": 618.1,
+    "kind": "Actual production Sender methods and SQLite/schema-probe path; canonical Base owned messaging helper; controlled notification/committed Native ports. Existing passive probe/channel/source/schema controls also passed.",
+    "newControls": [
+      "closed send admission retains committed-byte read and denies later sends/config reopen",
+      "pending admitted send is joined before closure completes and remains independently readable",
+      "foreign receipts and actual inactive read lease still fail"
+    ]
+  },
+  "originals": "Actual83 delivery exception retained; no teacher rerun, original rewrite or automatic completion promotion. Future source-bound replay may reassess only actual retained native evidence.",
+  "unchecked": [
+    "No new full live managed fixture qualification or provider calls",
+    "Actual channel replay/recipient delivery pipeline unchanged and independently checked by existing source tests; controlled committed port used only in focused Sender lifetime controls"
+  ]
+}

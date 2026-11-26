@@ -12,7 +12,7 @@ import type {Receipt,DeliveryEvidence} from "@workspace-skills/messaging/local-w
 
 const requires=anyOf(methodCapability("host"),relationship("workspace-role","root"));
 
-type Configuration={contextId:string;fixtureId:string;channelId:string;channelTargetId:string;channelRef:{source:string;className:string;objectKey:string};handle:string;name:string;lease?:OwnedMessagingLease};
+type Configuration={contextId:string;fixtureId:string;channelId:string;channelTargetId:string;channelRef:{source:string;className:string;objectKey:string};handle:string;name:string;lease?:OwnedMessagingLease;sendAdmissionClosed?:boolean};
 function actorId(value:{source:string;className:string;key:string}) {return canonicalEntityId({kind:"do",...value});}
 
 /** A passive real delivery endpoint: persists original channel input and acknowledges it; never invokes a model. */
@@ -108,7 +108,7 @@ export class LocalMessagingSenderDO extends AgentWorkerBase {
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async inspect(phrase:string){return this.bindings().read.inspect(phrase);}
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async inspectDelivery(receipt:Receipt|null){return this.bindings().read.inspectDelivery(receipt);}
  @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async send(revision:string,phrase:string,ref:string,content:string){
-  const config=this.configuration();if(!config.lease?.active)throw new Error("Owned send admission is closed");
+  const config=this.configuration();if(!config.lease?.active||config.sendAdmissionClosed)throw new Error("Owned send admission is closed");
   const key=config.lease.operationId,args=JSON.stringify([revision,phrase,ref,content]);
   const existing=this.sql.exec("SELECT args,receipt FROM messaging_send WHERE id=?",key).toArray()[0];
   if(existing){if(existing["args"]!==args)throw new Error("Owned operation already has another exact message intent");if(typeof existing["receipt"]==="string")return JSON.parse(existing["receipt"]) as Receipt;throw new Error("Owned send outcome is unknown; inspect the original log without sending again");}
@@ -116,7 +116,7 @@ export class LocalMessagingSenderDO extends AgentWorkerBase {
   const work=this.bindings().send.send(revision,phrase,ref,content);this.pendingSends.add(work);
   try{const receipt=await work;this.sql.exec("UPDATE messaging_send SET receipt=? WHERE id=?",JSON.stringify(receipt),key);return receipt;}finally{this.pendingSends.delete(work);}
  }
- @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async closeAdmission(){const config=this.configuration();if(config.lease)config.lease.active=false;this.sql.exec("UPDATE messaging_configuration SET json=? WHERE id=1",JSON.stringify(config));const settled=await Promise.allSettled([...this.pendingSends]),errors=settled.flatMap(value=>value.status==="rejected"?[value.reason]:[]);if(errors.length)throw new AggregateError(errors,"Owned send failed before admission closed");return {closed:true as const};}
+ @rpc({website:{kind:"closed",reason:"Owned synthetic local messaging fixture operations only."},requires,effect:{kind:"open"},tier:"open",sensitivity:"write"}) async closeAdmission(){const config=this.configuration();config.sendAdmissionClosed=true;this.sql.exec("UPDATE messaging_configuration SET json=? WHERE id=1",JSON.stringify(config));const settled=await Promise.allSettled([...this.pendingSends]),errors=settled.flatMap(value=>value.status==="rejected"?[value.reason]:[]);if(errors.length)throw new AggregateError(errors,"Owned send failed before admission closed");return {closed:true as const};}
 }
 
 /** Original channel implementation with an operator-only finite join for this synthetic fixture. */
