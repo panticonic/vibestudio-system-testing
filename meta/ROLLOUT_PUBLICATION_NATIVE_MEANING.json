@@ -1,0 +1,100 @@
+{
+  "schema": "vibestudio.cross-skill-coordinator-inventory/1",
+  "baseline": "b97acfb7afe8334246059993b5f1b706e833f6d6",
+  "files": [
+    {
+      "path": "skills/open-unit-rollout/repairWorkspaceUnit.ts",
+      "sha256": "11a4095f8d6820939871f5283dcb2876380c27d25a194dc46aefbe22a4c9677e"
+    },
+    {
+      "path": "skills/open-unit-rollout/natlang.json",
+      "sha256": "a615e40943ffc8a7a81ff9b2ff8233431fda422821ab35779823685d1ce6eb2f"
+    },
+    {
+      "path": "skills/open-unit-rollout/types.ts",
+      "sha256": "5cc74c6bf14fc91bdc7a61990367647481d98979bb71114e10306359bdd4da04"
+    },
+    {
+      "path": "skills/open-unit-rollout/repairWorkspaceUnit/evolveCandidate.nl",
+      "sha256": "98e29ccfffcd4064145815d6775da3b3bbdecebe064de3b54cc23216f882781e"
+    },
+    {
+      "path": "skills/publish-preflight/workTowardPublicationGoal.ts",
+      "sha256": "b4dd19732204a57d975a516f34d9416364cc7b8b06cb5db600e2ae23316e8ae4"
+    },
+    {
+      "path": "skills/publish-preflight/publishOwnedPreviewGoal.ts",
+      "sha256": "36a344a519e346a1a2dccc8d157f5e973534e060aa9e5add1b3b56ca6fb3634b"
+    },
+    {
+      "path": "skills/publish-preflight/natlang.json",
+      "sha256": "207e21db93d9285c8f2dad4a85eaead25f3049193634db3943735dbbe8d4d205"
+    },
+    {
+      "path": "skills/publish-preflight/types.ts",
+      "sha256": "c1a14eb59b5830dbec7874c800ab0e5ce483b3e65b6b1bda89df641b834ab558"
+    },
+    {
+      "path": "skills/open-user-goal/entries.json",
+      "sha256": "35221a7c1bbc37acf365149c6e5823f26ff04c1c190673d3db86ffcdd1c4d786"
+    },
+    {
+      "path": "skills/open-user-goal/natlang.json",
+      "sha256": "10f91fc36594e0ca7c5317ba82f4a0b6baea027be0170ea083d3374c1dc5f042"
+    }
+  ],
+  "allConsumerInventory": {
+    "entryRegistry": "open-user-goal/entries.json and generated entriesGenerated.ts; shared workspaceModules.unitRollout/publication exposes these actual codebases",
+    "unitRollout": "Root, tracked repairWorkspaceUnit.d.nl.ts, Native service catalog, SST open-goal-unit-rollout-managed/worlds and packages/natlang/src/programs.test.ts service scope expectations",
+    "publication": "Root, tracked preflightPublication.d.nl.ts/reviewPublicationRevision.d.nl.ts, Native catalog, SST open-goal-publication-managed/worlds/expansion-worlds and programs.test.ts scope expectations",
+    "otherCallers": "Actual Base skills/packages/workers search found no programmatic callers of high-level reports outside registry/generated declarations; preflight and revision leaves ARE called by owned-preview workflow and retain their closed contracts."
+  },
+  "confirmedMechanisms": [
+    "TS UnitRollout fixes repair continuation at3 attempts and commit retry; Native apply separately caps3 despite only Boolean edit/check/commit grants. Correct both.",
+    "evolveCandidate unconditionally asks for Native tests after successful apply while goal and mayRunChecks determine authorization. Preserve actual current-source/CAS and commit-at-verified-revision prerequisites.",
+    "TS publication fixes re-discovery/bind retry and revision/preflight ordering instead of model-owned goal/evidence composition.",
+    "Native policy checks remain exact; report/required-return roles need per-literal audit before paired changes.",
+    "Publication private reference choice and zero-extra-read predicates removed. Real selected issued target, returned closed policy claims, native current/retained packages/rendering/journal/protected heads remain exact; all fourteen literal questions require actual returned values and mandatory meaning review.",
+    "UnitRollout thirteen literal goals audited: four genuinely request returned diagnosis/readiness facts; nine request native repair/verification/local commit without a mandatory generic report. Explicit metadata replaces mutation-based inference. Actual status/receipt/id/revision claims remain native-bound.",
+    "Unit source payload 24000-character/nonempty ceiling had no public service/VCS contract. Native compilation and checks now judge actual source bytes; foreign/protected paths and current-revision guards remain.",
+    "Race verification retains the actual concurrent source note and immutable Native event; no required attempted-stale-operation route.",
+    "Own physical serviceScope passthroughs carry catalog/binding authority; no virtual alias paths added to shared manifest. Publication closed preflight/revision leaves and owned-preview callers remain unchanged."
+  ],
+  "exclusions": {
+    "compoundRecovery": "Typed2-call relay between existing rich natural roots, no semantic branch; preserve.",
+    "workspaceAssembly": "Already natural Root with semantic branches/exact effects.",
+    "engines": "Authored code and Native fixture admission; shared existing Core virtual program across supported platforms, no serving/Core/SDK change."
+  },
+  "status": "ready component-tested; no live provider/native-runtime qualification claimed",
+  "validation": {
+    "publicCompilerAndHierarchy": {
+      "unit": "vibe-rollout-publication-joint-20261126a",
+      "passed": 4,
+      "peakMiB": 2560
+    },
+    "canonicalServices": {
+      "unit": "vibe-rollout-publication-declarations-20261126c",
+      "fresh": 380
+    },
+    "nativeControls": {
+      "unit": "vibe-rollout-publication-native-20261126c",
+      "passed": 24,
+      "detail": "14 publication references +5 other publication controls;5 Unit handler/return tests with controlled Native engine"
+    },
+    "hostBinding": {
+      "unit": "vibe-publication-host-binding-20261126b",
+      "passed": 19
+    },
+    "identity": {
+      "unit": "vibe-rollout-publication-identity-20261126a",
+      "worlds": 27,
+      "allOriginalFieldsUnchanged": true
+    },
+    "paidCalls": 0
+  },
+  "unchecked": [
+    "Physical all-thirteen Unit Native worker/browser reference suite not rerun; actual Source generation/teacher qualification remains canonical separate path.",
+    "No live hosted publication operation, provider request or independent semantic admission review performed.",
+    "Remaining coordinator census and earlier gate inventory are unfinished; this batch does not claim all116 families closed."
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "vibestudio.native-rollout-constraint-inventory/1",
+  "baseline": "5a71152411b3f3465c2e030a436f12c298832830",
+  "path": "skills/system-testing/open-goal-unit-rollout-managed.ts",
+  "beforeSha256": "2a90d7043d5f3d2da566024ce4f4728401801debe0e7e6ee2b4d8f8f54e47769",
+  "grantSource": "open-goal-unit-rollout-worlds.ts Grant={edit:boolean;checks:boolean;commit:boolean}; Base RolloutUnit exposes the same booleans, no retry quota.",
+  "changed": "Remove the private3-attempt limit in Native apply alongside the natural Root replacing its separate3-attempt loop.",
+  "retained": [
+    "exact current observed revision",
+    "owned target/source path",
+    "actual edit/check/commit grants",
+    "no commit already settled",
+    "actual production-source readback before edit",
+    "nonempty changed production bytes and existing file payload bound",
+    "CAS/current-head conflict feedback",
+    "protected fixture policy and neighboring source",
+    "commit only after actual same-revision complete Native check"
+  ],
+  "scope": "Future successor only; Native boundary controls and per-literal outcome/return audit pending; not ready for selection.",
+  "validation": {
+    "unit": "vibe-rollout-edit-authority-20261126a",
+    "passed": 3,
+    "peakMiB": 144.1,
+    "scope": "Actual Native fixture apply handler with controlled engine; fourth permitted current-revision edit succeeds; unowned/protected/current-head conflict and Boolean edit denial retained. No Native build/renderer or model executed."
+  }
+}

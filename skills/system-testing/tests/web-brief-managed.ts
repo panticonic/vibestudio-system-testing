@@ -461,6 +461,7 @@ managedWebBriefTests.push(...openGoalCases.map(({ world, qualification }): TestC
     workspaceRepoFixture: { kind: "open-goal-owned-preview-panel", section: "panels", caseId: world.id },
   } : {}),
   ...(world.kind === "publication" ? {
+    requiresReview: true,
     requiresUnits: ["skills/open-user-goal", "skills/publish-preflight", "skills/publish-preflight-bindings", "skills/publication-revision-bindings"],
     resources: [PANEL_AUTOMATION_RESOURCE],
     authorityPolicy: panelControlAuthorityPolicy("inspect-open-goal-publication", world.targets.some(target => target.journal) ? [{

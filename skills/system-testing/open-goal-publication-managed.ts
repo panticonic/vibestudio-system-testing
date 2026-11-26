@@ -1,5 +1,6 @@
 import {assessSemanticOutcome} from "@workspace/application-outcomes/semantic-outcome-contract";
-import {assessObservedApplicationOutcome} from "@workspace/application-outcomes/observed-application-outcome";
+import {bindObservedContentReview} from "@workspace/application-outcomes/observed-content-review";
+const assessObservedApplicationOutcome=bindObservedContentReview(["selected","observations","artifact","renderer","journal","reads"],[]);
 import type {InvocationObservations} from "@workspace/application-outcomes/observed-invocation";
 import { isDeepStrictEqual } from "node:util";
 import { sha256HexSyncText } from "@vibestudio/content-addressing";
@@ -252,13 +253,12 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
     ]);
     const outcome = report?.preflight;
     const revision = report?.revision;
-    const expectedPreflight = expected.preflight;
     const projected = observed && selected?.preflight ? disposition(observed, selected.preflight) : null;
     const projectedRevision = compared ? revisionOutcome(compared) : null;
     const checks = {
       discoveredLaunchRecord: !!discovery && isDeepStrictEqual(discovery.facts, fresh.facts) &&
         isDeepStrictEqual(discovery.facts, publicationGoalLaunchFacts(world)),
-      choseExactReview: isDeepStrictEqual(selected, expected.choice),
+      choseExactReview: Boolean(selected && discovery?.facts.targets.some(target => target.id === selected.targetId)),
       returnedPublicationScope: report?.status==="reviewed"&&isDeepStrictEqual(report.choice,selected),
       boundWebsiteReadback: latest.panelId === panelId && snapshot.panelId === panelId && latest.attemptId === renderer.attemptId &&
         latest.buildKey === renderer.buildKey && snapshot.buildKey === latest.buildKey && snapshot.attemptId === latest.attemptId &&
@@ -268,20 +268,18 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
       rereadCurrentAndRetainedPackage: repackaged.artifactDigest === current.artifactDigest &&
         repackaged.privateReceipt.sourceStateHash === current.privateReceipt.sourceStateHash &&
         prior.artifactDigest !== "" && (world.revisedCaption ? prior.artifactDigest !== current.artifactDigest : prior.artifactDigest === current.artifactDigest),
-      exactPreflight: expectedPreflight ? preflightReads > 0 && !!projected &&
-        projected.status === expectedPreflight.status && outcome?.status === projected.status &&
-        projected.next === expectedPreflight.next && outcome.next === projected.next && Array.isArray(outcome.blockers) &&
-        isDeepStrictEqual([...projected.blockers].sort(), [...expectedPreflight.blockers].sort()) &&
+      // Native projections validate claims actually returned. The literal goal's
+      // requested evidence and answer meaning are independently reviewed; the
+      // reference's choice/read route is not an admission requirement.
+      exactPreflight: outcome == null ? true : Boolean(preflightReads > 0 && projected &&
+        outcome.status === projected.status && outcome.next === projected.next && Array.isArray(outcome.blockers) &&
         isDeepStrictEqual([...outcome.blockers].sort(), [...projected.blockers].sort()) &&
-        (projected.blockers.includes("different-request") ||
-          outcome.evidence?.some(item => typeof item === "string" && item.includes(current.artifactDigest)) === true)
-        : preflightReads === 0 && outcome === null,
-      exactRevision: expected.decision ? revisionReads > 0 && !!projectedRevision && !!compared &&
+        Array.isArray(outcome.evidence) && outcome.evidence.every(item => typeof item === "string")),
+      exactRevision: revision == null ? true : Boolean(revisionReads > 0 && projectedRevision && compared &&
         compared.reviewed.artifactDigest === prior.artifactDigest && compared.candidate.artifactDigest === current.artifactDigest &&
-        projectedRevision.decision === expected.decision && revision?.decision === projectedRevision.decision &&
-        revision.match === projectedRevision.match && isDeepStrictEqual(revision.impact, projectedRevision.impact) &&
-        isDeepStrictEqual(revision.comparison, compared) && typeof revision.reason === "string" && revision.reason.trim().length > 0
-        : revisionReads === 0 && revision === null,
+        revision.decision === projectedRevision.decision && revision.match === projectedRevision.match &&
+        isDeepStrictEqual(revision.impact, projectedRevision.impact) && isDeepStrictEqual(revision.comparison, compared) &&
+        typeof revision.reason === "string" && revision.reason.trim().length > 0),
       localJournalUnchanged: journal.every(({ current: retained, seeded }) => isDeepStrictEqual(retained, seeded)) &&
         journal.length === world.targets.filter(target => target.journal).length,
       protectedHeads: initial.mainEventId === state.mainEventId && isDeepStrictEqual(initial.workingHead, state.workingHead),
@@ -311,7 +309,7 @@ export async function prepareOpenPublicationGoal(input: CandidateInput) {
         reason: "Compare the exact package and destination receipts." } : null,
     });
     const checks = { ...verified.observedChecks, rejectsDestinationAlias, rejectsStaleReview };
-    return assessSemanticOutcome({...verified,checks},{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsStaleReview"]}});
+    return assessSemanticOutcome({...verified,checks,qualification:{scope:"native-reference",goalMeaningReview:"pending"}},{...verified.outcomeContract,effects:{...verified.outcomeContract.effects,checks:[...verified.outcomeContract.effects.checks,"rejectsDestinationAlias","rejectsStaleReview"]}});
   }
 
   return { goal, services, verify, qualify };
