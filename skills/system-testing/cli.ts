@@ -1,3 +1,4 @@
+import { ProviderOutageAdmission, type ProviderAdmissionStop } from "./provider-outage-admission.js";
 import {systemTestDoctor as inspectSystemTestHealth} from "./doctor.js";
 export {unusableModelDetail} from "./doctor.js";
 import { usesPanelRepairTeacher } from "./panel-repair-world.js";
@@ -83,6 +84,8 @@ export function systemTestProgressCheckpoint(
 
 export interface SystemTestRunOptions {
   nativeReference?: true;
+  /** Explicit diagnostic opt-out; normal suites stop new claims on native provider outages. */
+  stopOnProviderOutage?: boolean;
   runId: string;
   contextId: string;
   names?: string[];
@@ -146,6 +149,7 @@ export interface SystemTestRunRecord {
   runId: string;
   status: "running" | "completed" | "cancelled" | "errored";
   error?: string;
+  admissionStopped?: ProviderAdmissionStop;
   startedAt: string;
   /** Last durable observation/checkpoint time for every run state. */
   updatedAt: string;
@@ -359,6 +363,8 @@ export async function runSystemTests(
   >();
   const completed: SystemTestRunProgress["completed"] = [];
   const completedEntries: TestSuiteResultEntry[] = [];
+  const providerAdmission = new ProviderOutageAdmission();
+  let admissionStopped: ProviderAdmissionStop | undefined;
   const publishProgress = async (
     status: SystemTestRunProgress["status"],
   ): Promise<void> => {
@@ -440,6 +446,13 @@ export async function runSystemTests(
       publishInBackground("progress", publishProgress("running"));
     },
     onTestResult: async (entry, aggregate) => {
+      // This synchronous decision precedes retention IO and the next scheduler claim.
+      const providerFailures = options.stopOnProviderOutage !== false && !tester.cancelled
+        ? providerAdmission.observe(entry) : undefined;
+      if (providerFailures && !admissionStopped) {
+        tester.stopAdmission();
+        admissionStopped = { reason: "provider-transport-outage", evidence: providerFailures, queuedTests: [...queued] };
+      }
       const position = completedEntries.push(entry) - 1;
       running.delete(entry.test.name);
       completed.push({
@@ -573,8 +586,9 @@ export async function runSystemTests(
     0,
     listSystemTests().length - selected.length - notInstalled.length,
   );
-  const status = tester.cancelled ? "cancelled" : "completed";
-  const summary = summarizeRun(options.runId, suite, status, notInstalled);
+  const status = tester.cancelled || admissionStopped ? "cancelled" : "completed";
+  if (admissionStopped) admissionStopped.queuedTests = [...queued];
+  const summary = { ...summarizeRun(options.runId, suite, status, notInstalled), ...(admissionStopped ? { admissionStopped } : {}) };
   if (tester.cancelled) queued.clear();
   try {
     await publishProgress(status);
@@ -588,6 +602,7 @@ export async function runSystemTests(
     schemaVersion: SYSTEM_TEST_RUN_SCHEMA_VERSION,
     runId: options.runId,
     status,
+    ...(admissionStopped ? { admissionStopped } : {}),
     startedAt,
     updatedAt: completedAt,
     completedAt,

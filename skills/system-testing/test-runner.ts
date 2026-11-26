@@ -57,6 +57,7 @@ type RunSuiteFilter = {
 
 export class TestRunner {
   private cancellationError: Error | null = null;
+  private admissionStopped = false;
   private readonly activeWaits = new Set<AbortController>();
   private wakeSuiteSchedulers: (() => void) | null = null;
   /** Test agents executing on this instance right now. Wall-clock delivery
@@ -98,6 +99,12 @@ export class TestRunner {
 
   get cancelled(): boolean {
     return this.cancellationError !== null;
+  }
+
+  /** Close the existing scheduler without aborting any already admitted work. */
+  stopAdmission(): void {
+    this.admissionStopped = true;
+    this.wakeSuiteSchedulers?.();
   }
 
   /**
@@ -155,7 +162,7 @@ export class TestRunner {
       sharedResources: string[];
     } | null> => {
       for (;;) {
-        if (this.cancelled) return null;
+        if (this.cancelled || this.admissionStopped) return null;
         const waitingExclusive = new Set<string>();
         for (const index of pending) {
           const test = filtered[index]!;
